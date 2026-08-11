@@ -1396,6 +1396,24 @@ trigger call sites in `main.py`, never unified into one state machine:
 - **Only one `pygame.mixer.music` channel exists.** Starting a cutscene's
   companion track replaces whatever background music was already playing;
   nothing restores it afterward (no drift/resume correction in scope).
+- **Skip is a 2-second HOLD, not a single click/key (cutscene-hold-to-skip).**
+  `SKIP_HOLD_SECONDS` (`cutscene_player.py`) plus `CutscenePlayer._skip_hold`/
+  `update_skip_hold(dt, held)`/`skip_progress` live on the class itself, not
+  at either `main.py` call site — so both `intro` and `first_end_turn`, and
+  any future registry entry built through the same `CutscenePlayer`, get the
+  hold behavior for free. `held` is a single host-computed bool (left mouse
+  button OR spacebar OR escape currently down, polled every frame via
+  `pygame.mouse.get_pressed()`/`pygame.key.get_pressed()` — **every other
+  input is inert** during a cutscene, not just non-skipping); the event loop
+  no longer calls `.skip()` on a discrete `KEYDOWN`/`MOUSEBUTTONDOWN` at all,
+  it only swallows events (`continue`) so nothing leaks to menu/world
+  handling. `update_skip_hold` resets the accumulator to 0 the instant
+  `held` goes false (an early release costs the whole progress, not a
+  partial credit) and no-ops once `done` (never double-fires `skip()` the
+  same frame the video ends naturally). `widgets.submit_progress_ring`
+  (`widgets.py`, composed from `HudLines` — no arc/pie HUD primitive exists)
+  draws the small ring at a FIXED screen point (`view_w // 2, view_h - 60`),
+  identical whether the hold is mouse or keyboard.
 
 ## Tutorial message box + guided-chain highlights (Phase TU-6)
 - **`game/ui/tutorial_message.py`** (`TutorialMessageScreen`) — the
