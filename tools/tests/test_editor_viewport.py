@@ -227,6 +227,27 @@ def paint_bytes(panel):
     return pygame.image.tobytes(panel._surface, "RGB")
 
 
+def tree_items(tree):
+    """Every item in a `QTreeWidget`, depth-first — the flat view these tests
+    used to get for free from `QListWidget.item(i)` before
+    UiEditorParentingPLAN P-4 turned the screen-mode widget list into the
+    parent TREE (D6). The `UserRole` = code id contract is unchanged; only
+    the container is."""
+    out = []
+
+    def walk(item):
+        for i in range(item.childCount()):
+            child = item.child(i)
+            out.append(child)
+            walk(child)
+
+    for i in range(tree.topLevelItemCount()):
+        top = tree.topLevelItem(i)
+        out.append(top)
+        walk(top)
+    return out
+
+
 DRAFT_ENTRY = {
     "sheet": "imported/painter_t1_lvl1.png",
     "frame_w": 64, "frame_h": 96, "offset_x": 0, "offset_y": 0,
@@ -1028,12 +1049,13 @@ class TestScreenDetailsPanel(TempDataCase):
 
     def test_screen_details_widget_list_mirrors_defaults(self):
         panel, session = self.make()
-        items = [panel.widget_list.item(i).text()
-                for i in range(panel.widget_list.count())]
-        self.assertEqual(set(items), {"btn_new_game", "btn_settings", "title"})
+        items = tree_items(panel.widget_list)
+        self.assertEqual({i.text(0) for i in items},
+                         {"btn_new_game", "btn_settings", "title"})
         selected = []
         panel.widget_selected.connect(selected.append)
-        panel.widget_list.setCurrentRow(items.index("title"))
+        panel.widget_list.setCurrentItem(
+            next(i for i in items if i.text(0) == "title"))
         self.assertEqual(selected, ["title"])
         self.assertEqual(panel._current_widget, "title")
 
@@ -1148,35 +1170,30 @@ class TestScreenDetailsPanel(TempDataCase):
         panel.set_session(session, FIXTURE_DEFAULTS_NAMED)
         return panel, session
 
+    def named_items(self, panel):
+        return {i.data(0, Qt.ItemDataRole.UserRole): i
+                for i in tree_items(panel.widget_list)}
+
     def test_widget_list_item_text_is_display_name_tooltip_is_code_id(self):
         panel, _session = self.make_named()
-        items = {panel.widget_list.item(i).data(Qt.ItemDataRole.UserRole):
-                panel.widget_list.item(i)
-                for i in range(panel.widget_list.count())}
-        named_item = items["btn_new_game"]
-        self.assertEqual(named_item.text(), "New Game button")
-        self.assertEqual(named_item.toolTip(), "btn_new_game")
+        named_item = self.named_items(panel)["btn_new_game"]
+        self.assertEqual(named_item.text(0), "New Game button")
+        self.assertEqual(named_item.toolTip(0), "btn_new_game")
         self.assertEqual(
-            named_item.data(Qt.ItemDataRole.UserRole), "btn_new_game")
+            named_item.data(0, Qt.ItemDataRole.UserRole), "btn_new_game")
 
     def test_widget_list_falls_back_to_raw_id_when_unmapped(self):
         panel, _session = self.make_named()
-        items = {panel.widget_list.item(i).data(Qt.ItemDataRole.UserRole):
-                panel.widget_list.item(i)
-                for i in range(panel.widget_list.count())}
-        unmapped_item = items["btn_settings"]
-        self.assertEqual(unmapped_item.text(), "btn_settings")
-        self.assertEqual(unmapped_item.toolTip(), "btn_settings")
+        unmapped_item = self.named_items(panel)["btn_settings"]
+        self.assertEqual(unmapped_item.text(0), "btn_settings")
+        self.assertEqual(unmapped_item.toolTip(0), "btn_settings")
 
     def test_selection_signal_still_carries_the_code_id(self):
         panel, _session = self.make_named()
         selected = []
         panel.widget_selected.connect(selected.append)
-        for row in range(panel.widget_list.count()):
-            item = panel.widget_list.item(row)
-            if item.data(Qt.ItemDataRole.UserRole) == "btn_new_game":
-                panel.widget_list.setCurrentRow(row)
-                break
+        panel.widget_list.setCurrentItem(
+            self.named_items(panel)["btn_new_game"])
         self.assertEqual(selected, ["btn_new_game"])
         self.assertEqual(panel._current_widget, "btn_new_game")
 
@@ -1185,9 +1202,9 @@ class TestScreenDetailsPanel(TempDataCase):
         panel.select_widget("btn_new_game")
         current = panel.widget_list.currentItem()
         self.assertIsNotNone(current)
-        self.assertEqual(current.text(), "New Game button")
+        self.assertEqual(current.text(0), "New Game button")
         self.assertEqual(
-            current.data(Qt.ItemDataRole.UserRole), "btn_new_game")
+            current.data(0, Qt.ItemDataRole.UserRole), "btn_new_game")
         self.assertEqual(panel._current_widget, "btn_new_game")
 
     def test_display_name_round_trips_as_code_id_on_disk(self):
@@ -1232,8 +1249,8 @@ class TestScreenDetailsPanelViews(TempDataCase):
 
     def widget_ids(self, panel):
         # Code ids live on UserRole; item TEXT is the UH-4 display name.
-        return {panel.widget_list.item(i).data(Qt.ItemDataRole.UserRole)
-               for i in range(panel.widget_list.count())}
+        return {i.data(0, Qt.ItemDataRole.UserRole)
+               for i in tree_items(panel.widget_list)}
 
     def test_widget_list_follows_the_active_view(self):
         panel, session = self.make()

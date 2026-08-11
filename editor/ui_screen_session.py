@@ -33,6 +33,7 @@ from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QUndoCommand, QUndoStack
 
 from engine import data_io
+from editor.widget_tree import PARENT_KEY
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -67,6 +68,48 @@ def strings_schema_path(data_dir):
     return Path(data_dir) / "schemas" / "strings.schema.json"
 
 
+class _NoParent:
+    """Sentinel for an explicit JSON ``null`` override, as distinct from
+    ``None``, which every push_* method already spends on "no override — the
+    key is ABSENT".
+
+    Exactly one key needs the distinction (UiEditorParentingPLAN D3): a
+    widget's ``parent``. Absent means "keep the exporter's default parent";
+    ``null`` means "the designer REJECTED it — this widget is a root". Undoing
+    a re-root has to put the default back, so the two states cannot share a
+    representation.
+
+    ``__deepcopy__`` returns the singleton itself: ``_DocFieldCommand``
+    deep-copies both old and new, and a copied sentinel would silently stop
+    being recognised.
+    """
+
+    def __deepcopy__(self, _memo):
+        return self
+
+    def __copy__(self):
+        return self
+
+    def __repr__(self):
+        return "NO_PARENT"
+
+
+#: The one instance — compare with ``is``, never ``==``.
+NO_PARENT = _NoParent()
+
+
+def parent_override(widget_override):
+    """The stored ``parent`` override in push_field's own vocabulary:
+    ``None`` when the key is ABSENT, ``NO_PARENT`` when it is an explicit
+    JSON null, else the parent id. The ONE place the three states are read,
+    so the panel's combo, its reset button and the tree drop cannot disagree
+    about what "old" was."""
+    if PARENT_KEY not in (widget_override or {}):
+        return None
+    value = widget_override[PARENT_KEY]
+    return NO_PARENT if value is None else value
+
+
 def _remove_pruning(doc, path):
     """Remove doc[path[0]]...[path[-1]], then remove any parent dict along
     the way that becomes empty (never removes the doc root itself)."""
@@ -90,7 +133,9 @@ def _set_at(doc, path, value):
 
 
 def _apply_field(doc, path, value):
-    if value is None:
+    if value is NO_PARENT:
+        _set_at(doc, path, None)   # a REAL JSON null (D3) — see _NoParent
+    elif value is None:
         _remove_pruning(doc, path)
     else:
         _set_at(doc, path, value)
