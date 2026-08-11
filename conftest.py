@@ -38,6 +38,7 @@ TIERS = {
     # Tests the dispatch rig and the harness, not the game.
     "test_agent_forms": "meta",
     "test_build_script": "meta",
+    "test_ci_shards": "meta",  # the CI shard table covers every module once
     "test_data_guard": "meta",
     "test_fixture_guard": "meta",
     "test_orient_hook": "meta",
