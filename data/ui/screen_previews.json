@@ -4719,10 +4719,10 @@
         ],
         "font_key": "hud_phase",
         "pos": [
-          6,
-          347
+          552,
+          287
         ],
-        "text": "BUILDING",
+        "text": "Building Phase",
         "type": "text"
       },
       {
@@ -5900,6 +5900,53 @@
           325
         ],
         "text": "HEATMAP",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          96,
+          324,
+          69,
+          13
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          96,
+          324,
+          69,
+          13
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "sm",
+        "pos": [
+          130,
+          325
+        ],
+        "text": "TIER OVERVIEW",
         "type": "text"
       }
     ]
