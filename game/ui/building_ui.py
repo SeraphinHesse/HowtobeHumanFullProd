@@ -11,15 +11,22 @@ preview + next-tier card, and the DIED LAST ROUND tag. Costs are gated
 against ``session.state.love`` here and spent by this module (the 9D/9F
 split: ``place_building`` / ``upgrade`` never touch RunState).
 
-**fix/batch-tier-advance**: tier ADVANCE now batches too —
-``_batch_advance_targets`` (``game.core.levelup.advance_batch_plan``) sweeps
-a multi-selection for every building whose next tier is reachable right now,
-catching each one up through any remaining in-tier levels before advancing
-it, one combined all-or-nothing cost. A building that can never reach its
-next tier yet (already at the final tier, next tier unresearched, or
-round-gated) is excluded from the batch and left untouched. A single
-selection is unaffected — it still upgrades/advances one step at a time via
-the primary-only path.
+**fix/batch-tier-advance (reworked into a two-stage catch-up-then-advance
+flow)**: a multi-selection's UPGRADE/ADVANCE button is ONE unified flow now,
+replacing the old "plain in-tier batch" and "advance batch" paths. Stage A
+(``_batch_upgrade_targets``) always wins while ANY selected building hasn't
+reached level 3 of its current tier yet — swept across the WHOLE selection,
+not gated on the primary tile's own mode (the old gate on the primary is
+what used to grey the button out entirely whenever the primary itself
+couldn't upgrade/advance, even though other selected buildings still
+could). Only once nothing needs catching up does Stage B
+(``_batch_advance_targets`` / ``game.core.levelup.advance_batch_plan``) run,
+advancing whichever selected buildings can reach their next tier right now;
+one that can't (already at the final tier, next tier unresearched, or
+round-gated) is left sitting at level 3, untouched — it never blocks the
+rest. A single selection is unaffected — it still upgrades/advances one step
+at a time via the primary-only path, since both batch sweeps are gated on
+``len(selected_tiles) > 1``.
 
 10A wired the research gates: the construct list only offers types the run has
 earned, and the upgrade button runs the five-mode ``levelup.upgrade_gate``
@@ -1005,21 +1012,32 @@ class BuildingUI:
 
     def _build_upgrade(self):
         mode, cost, label, hint = self._upgrade_state(self._selected)
-        advance_targets = self._batch_advance_targets()
-        if advance_targets:
-            # A multi-selection where at least one building can reach its
-            # next tier (possibly after catching up on remaining in-tier
-            # levels first) shows ONE combined ADVANCE action — buildings
-            # that can't get there yet are left out of it (see
-            # `_batch_advance_targets`).
-            cost = sum(c for _, c, _ in advance_targets)
-            mode = "tier_upgrade"
-            label = f"ADVANCE ×{len(advance_targets)}  {cost}"
-            hint = None
-        elif mode == "in_tier" and len(self.selected_tiles) > 1:
-            targets = self._batch_upgrade_targets()
-            cost = sum(c for _, c in targets)
-            label = T("building.action.upgrade_many", n=len(targets), cost=cost)
+        if len(self.selected_tiles) > 1:
+            # Two-stage batch flow (catch-up-then-advance): Stage A always
+            # wins while ANY selected building hasn't reached level 3 yet —
+            # swept across the WHOLE selection, not gated on the primary
+            # tile's own mode, so a primary that's itself blocked (tier
+            # maxed but unresearched, or at its final tier) no longer greys
+            # out a batch that other selected buildings could still take.
+            # Only once nothing needs catching up does Stage B (ADVANCE) run.
+            upgrade_targets = self._batch_upgrade_targets()
+            if upgrade_targets:
+                cost = sum(c for _, c in upgrade_targets)
+                mode = "in_tier"
+                label = T("building.action.upgrade_many",
+                          n=len(upgrade_targets), cost=cost)
+                hint = None
+            else:
+                advance_targets = self._batch_advance_targets()
+                if advance_targets:
+                    # Every selected building is already at level 3 — advance
+                    # whichever can reach their next tier right now; a
+                    # building that still can't (final tier / unresearched /
+                    # round-gated) is left sitting at level 3, untouched.
+                    cost = sum(c for _, c, _ in advance_targets)
+                    mode = "tier_upgrade"
+                    label = f"ADVANCE ×{len(advance_targets)}  {cost}"
+                    hint = None
         self.action_btn.rect = (
             self.panel_x + 6, self.view_h - 60, self.panel_w - 12, 18)
         self.action_btn.enabled = mode in ("in_tier", "tier_upgrade")
@@ -1410,14 +1428,41 @@ class BuildingUI:
             return True
         if is_visible(self.action_btn) and self.action_btn.hit(mx, my):
             mode, cost, _, _ = self._upgrade_state(b)
-            advance_targets = self._batch_advance_targets()
-            if advance_targets:
-                # Multi-selection where at least one building can reach its
-                # next tier now (batch ADVANCE) — catch each up through any
-                # remaining in-tier levels, then advance it, one combined
-                # all-or-nothing cost. Buildings that can't get there yet
-                # (max tier / unresearched / round-gated) are excluded by
-                # `_batch_advance_targets` and untouched here.
+            # Two-stage batch flow (catch-up-then-advance), multi-select
+            # only — mirrors `_build_upgrade`'s priority: Stage A (catch up
+            # to level 3) always wins over Stage B (advance) while anything
+            # in the selection still needs it, swept across the WHOLE
+            # selection rather than gated on the primary tile's own mode.
+            upgrade_targets, advance_targets = [], []
+            if len(self.selected_tiles) > 1:
+                upgrade_targets = self._batch_upgrade_targets()
+                if not upgrade_targets:
+                    advance_targets = self._batch_advance_targets()
+            if upgrade_targets:
+                # Stage A: every selected building below level 3 levels up
+                # one step, one combined cost. Covers both the old plain
+                # in-tier batch and the case that used to grey the button
+                # out (a blocked primary alongside a still-catching-up
+                # building).
+                total = sum(c for _, c in upgrade_targets)
+                if st.love < total:
+                    self.action_btn.start_flash(self._flash_dur,
+                                                T("building.flash.not_enough_love"))
+                    return True
+                st.spend_love(total)
+                for tb, _c in upgrade_targets:
+                    tb.upgrade()
+                    sync_wall_art_era(st, tb, session.enemies_balance)  # wall-era-art
+                    if self.on_build_vfx is not None:
+                        lvl = tb.get_component(TierState).current_level_in_tier
+                        self.on_build_vfx(tb.col, tb.row,
+                                          "level1" if lvl == 2 else "level2")
+            elif advance_targets:
+                # Stage B: every selected building already at level 3 —
+                # advance whichever can reach their next tier now, one
+                # combined all-or-nothing cost. Buildings that can't get
+                # there yet (max tier / unresearched / round-gated) are
+                # excluded by `_batch_advance_targets` and untouched here.
                 total = sum(c for _, c, _ in advance_targets)
                 if st.love < total:
                     self.action_btn.start_flash(self._flash_dur,
@@ -1441,8 +1486,8 @@ class BuildingUI:
             elif mode not in ("in_tier", "tier_upgrade"):
                 return True  # max / not researched / round-gated: inert
             elif mode == "tier_upgrade":
-                # Single-selection tier advance (a multi-select with an
-                # eligible building is handled by `advance_targets` above).
+                # Single-selection tier advance (a multi-select is handled
+                # by `advance_targets` above).
                 if st.love < cost:
                     self.action_btn.start_flash(self._flash_dur,
                                                 T("building.flash.not_enough_love"))
@@ -1460,6 +1505,9 @@ class BuildingUI:
                 if self.on_build_vfx is not None:
                     self.on_build_vfx(b.col, b.row, "tier")
             else:
+                # Single-selection in-tier upgrade (a multi-select is
+                # handled by `upgrade_targets` above; `_batch_upgrade_targets`
+                # naturally returns a 1-item list here).
                 targets = self._batch_upgrade_targets()
                 total = sum(c for _, c in targets)
                 if st.love < total:
