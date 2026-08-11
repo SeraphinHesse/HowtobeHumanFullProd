@@ -435,6 +435,11 @@ class FloaterManager:
         self._building_alive = {} # id(building) -> alive (death watcher)
         self._enemy_cooldowns = {}  # id(enemy) -> last EnemyCombat.cooldown
         self.log = None           # GameLog, wired by the host
+        # vfx-projectile-spritesheets: a persistent ms clock for the beam's
+        # has-art HudSprite (a looping "idle" track needs a monotonic
+        # anim_time_ms, the same role _announce_age plays for the boss
+        # banner's fade — but this one never resets).
+        self._beam_clock_ms = 0.0
         # ESV-3a: the particle/gold/slash/splatter emitters live in
         # engine.vfx now. rng is the stdlib `random` MODULE (not a fresh
         # Random()) so draws keep coming from the same global stream the old
@@ -736,6 +741,8 @@ class FloaterManager:
             if self._announce_age >= a["fade_in"] + a["hold"] + a["fade_out"]:
                 self._announce_age = None
         self._vfx.update(dt)  # -- 10J: particles / gold / slashes --
+        # vfx-projectile-spritesheets: the beam's has-art HudSprite anim clock.
+        self._beam_clock_ms += dt * 1000.0
 
     @property
     def active(self):
@@ -830,8 +837,23 @@ class FloaterManager:
         vanishes during its target-death cooldown. Screen-space HudLines (no
         alpha glow — 10J). Params from ``self._vfx_params.beam`` (ESV-3b) — the
         clamp to ``len(colors) - 1`` is geometry (the ramp is a fixed 3-stop
-        shape), not itself a tunable. Draws no random numbers."""
+        shape), not itself a tunable. Draws no random numbers.
+
+        vfx-projectile-spritesheets: a designer-imported ``vfx_beam`` sheet
+        REPLACES the line with a looping ``HudSprite`` at the target's screen
+        point — the same has-art signal ``submit_projectiles`` already uses
+        (``assets.animation_total_ms(slot, "idle") is not None``). A fixed
+        sprite at a point, not a stretched/rotated beam texture: ``HudSprite``
+        has no rotation support, so this is the same toggle shape the
+        projectile dot already has, not a new engine primitive. Sized off the
+        manifest's own frame size (``self.assets.frame_size``), zoom-scaled —
+        no new balancing key. No art -> the HudLines line, byte-identical to
+        before this existed."""
         bp = self._vfx_params.beam
+        zoom = cs.camera.zoom
+        has_art = (self.assets is not None
+                  and self.assets.animation_total_ms("vfx_beam", "idle")
+                  is not None)
         for b in scene.by_tag("combat"):
             beam = b.get_component(BeamAttacker)
             if beam is None:
@@ -839,13 +861,21 @@ class FloaterManager:
             target = getattr(beam, "_target", None)
             if target is None or not getattr(target, "alive", False):
                 continue
+            tx, ty = cs.world_to_screen(target.transform.wx + 0.5,
+                                        target.transform.wy + 0.5)
+            if has_art:
+                fw, fh = self.assets.frame_size("vfx_beam")
+                size = (max(1, int(fw * zoom)), max(1, int(fh * zoom)))
+                dest = (int(tx - size[0] / 2), int(ty - size[1] / 2))
+                renderer.submit_hud(HudSprite(
+                    "vfx_beam", dest, size, animation="idle",
+                    anim_time_ms=int(self._beam_clock_ms)))
+                continue
             tier = b.get_component(TierState).current_tier
             color = bp.colors[min(tier, len(bp.colors) - 1)]
             ox, oy = cs.world_to_screen(b.transform.wx + 0.5, b.transform.wy + 0.5)
-            tx, ty = cs.world_to_screen(target.transform.wx + 0.5,
-                                        target.transform.wy + 0.5)
             # crystal-ball height: origin_lift_tiles tile-heights above centre
-            top = int(cs.geometry.tile_h * cs.camera.zoom * bp.origin_lift_tiles)
+            top = int(cs.geometry.tile_h * zoom * bp.origin_lift_tiles)
             renderer.submit_hud(HudLines(
                 ((int(ox), int(oy) - top), (int(tx), int(ty))),
                 color, width=bp.width_base + tier))
