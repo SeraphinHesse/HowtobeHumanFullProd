@@ -52,6 +52,8 @@ ALLOWED = {
                                 "enemy-intro-dialogue) — a frozen fixture pair "
                                 "could never go stale relative to itself",
     "test_smoke_pairing.py": "schema<->content pairing on the live tree",
+    "temp_data.py": "IS the copy machinery — reading live data/ to build the "
+                    "pruned template is its entire job",
     "test_spawnclaude.py": "dispatch rig runs against the live product surface",
     "test_theme_data.py": "same live-data subject as test_layout_h_invariant.py "
                           "(regenerates committed screen_defaults.json under a "
@@ -77,7 +79,8 @@ def scanned_files():
     """Every test module plus the shared harness helpers — except this file,
     whose docstring and token table spell the forbidden patterns."""
     return [p for p in sorted(TESTS_DIR.glob("test_*.py"))
-            if p.name != Path(__file__).name] + [TESTS_DIR / "qt_harness.py"]
+            if p.name != Path(__file__).name] + [TESTS_DIR / "qt_harness.py",
+                                                 TESTS_DIR / "temp_data.py"]
 
 
 class TestNoLiveDataOutsideTheAllowlist(unittest.TestCase):
@@ -105,6 +108,50 @@ class TestNoLiveDataOutsideTheAllowlist(unittest.TestCase):
         self.assertEqual(
             stale, [],
             f"ALLOWED names files that no longer exist — prune them: {stale}")
+
+    def test_the_temp_data_template_has_the_same_file_set_as_live_data(self):
+        """The pruned template STANDS IN media, it never removes it.
+
+        TempDataCase copies from a session-scoped template that truncates
+        .wav/.mp3/.ogg/.mp4 to empty files, so each test copies ~10 MB instead
+        of ~73 MB. That is only safe while directory listings, registry
+        entries, manifest refs and exists() checks see the identical tree —
+        the moment "prune" quietly becomes "delete", a test asserting that a
+        slot HAS audio starts passing for the wrong reason. Pin the file set,
+        and pin that only the stub suffixes lost their bytes.
+        """
+        from tools.tests import temp_data
+
+        live_root = temp_data.LIVE_DATA
+        template = temp_data.template_data()
+
+        def rel_files(root):
+            return {p.relative_to(root) for p in root.rglob("*") if p.is_file()
+                    if p.relative_to(root).parts[0] not in temp_data.DROPPED_DIRS}
+
+        live, tmpl = rel_files(live_root), rel_files(template)
+        self.assertEqual(
+            sorted(live - tmpl), [],
+            "the template is MISSING files that live data/ has — pruning has "
+            "become deleting")
+        self.assertEqual(
+            sorted(tmpl - live), [],
+            "the template has files live data/ does not")
+
+        # Only the stub suffixes may differ in size, and they must be empty.
+        wrong = []
+        for rel in sorted(live):
+            live_size = (live_root / rel).stat().st_size
+            tmpl_size = (template / rel).stat().st_size
+            if rel.suffix.lower() in temp_data.STUB_SUFFIXES:
+                if tmpl_size != 0:
+                    wrong.append((str(rel), "stub is not empty"))
+            elif tmpl_size != live_size:
+                wrong.append((str(rel), f"{tmpl_size} != {live_size}"))
+        self.assertEqual(
+            wrong, [],
+            "a non-stub file changed size in the template, or a stub kept its "
+            f"bytes: {wrong}")
 
     def test_the_fixture_snapshot_exists_and_is_json_only(self):
         fixture = TESTS_DIR / "fixtures" / "data"

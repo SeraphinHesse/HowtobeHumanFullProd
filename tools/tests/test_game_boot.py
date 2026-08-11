@@ -18,16 +18,17 @@ import jsonschema  # noqa: E402
 
 from engine import data_io, tilemap  # noqa: E402
 from game.main import main as game_main  # noqa: E402
+from tools.tests.temp_data import DataDirCase  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
 
 
-class TempDataBoot(unittest.TestCase):
+class TempDataBoot(DataDirCase):
+    """DataDirCase gives the tempdir data/ copy — this class had duplicated
+    that copytree by hand."""
+
     def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.data_dir = Path(tmp.name) / "data"
-        shutil.copytree(REPO / "data", self.data_dir)
+        super().setUp()
         self.manifest_path = self.data_dir / "sprites" / "asset_manifest.json"
 
 

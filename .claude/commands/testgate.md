@@ -14,7 +14,7 @@ py tools/testgate.py check
 Read the last line. That is the whole gate:
 
 ```
-GATE PASS  1122 ran | 0 known | 0 new | 0 fixed | 0 unexpected skips
+GATE PASS  2245 ran | 0 known | 0 new | 0 fixed | 0 unexpected skips
 ```
 
 ```
