@@ -98,27 +98,27 @@ designer can re-parent by dragging in the tree.
   contract, so `widget_selected`/`select_widget` and every `push_*` call site
   are unchanged.
 
-## 3. Open questions for the executing session (ASK before Phase P-1)
+## 3. Open questions — ANSWERED by the designer (do not re-ask)
 
-These are genuine forks, not defaults to assume:
+All three were answered before implementation began; the plan below stands as
+written:
 
-1. **Does dragging a parent in the viewport move its children by default, or
-   only with a modifier held?** This plan assumes *by default* (Unreal's
-   behaviour) with no modifier. If the designer wants the opposite, P-3 changes
-   shape.
-2. **Should resizing a parent scale/reflow children, or only moving?** This
-   plan does **moving only** — proportional resize of a text anchor is
-   meaningless (it has no size), and half-scaled children are a common way to
-   destroy a layout by accident. Confirm.
-3. **How much of the default hierarchy does the designer want?** This plan
-   proposes parenting the obvious containers (see P-2's table). "All widgets
-   parented sensibly" could also mean inventing GROUP nodes that are not real
-   widgets (an Unreal `CanvasPanel`), which is a bigger, separate idea — P-6
-   parks it.
+1. **Dragging a parent moves its children BY DEFAULT, no modifier held** —
+   Unreal's behaviour. P-3 as written.
+2. **Moving cascades; resizing does NOT.** Resize a parent and its children
+   stay put.
+3. **Real containers only** — exactly P-2's table, parenting only to
+   already-id'd widgets whose rects the children's defaults are genuinely
+   computed from. No invented GROUP / `CanvasPanel` nodes (that stays parked
+   in P-6), and no `screen_defaults.json` shape change beyond the optional
+   `parent` key.
 
 ## 4. Phases
 
-### P-1 — The `parent` key and a pure resolver
+**Status: P-1 – P-5 LANDED** (branch `claude/ui-editor-parenting-v5mo7h`, off
+`UIfixing`). P-6 is untouched and stays parked.
+
+### P-1 — The `parent` key and a pure resolver — **DONE**
 - `data/schemas/screen_defaults.schema.json`: optional `parent` (string,
   `minLength: 1`) on the widget `$def`, documented as authoring metadata the
   game never reads.
@@ -131,8 +131,13 @@ These are genuine forks, not defaults to assume:
   Cycle/dangling-parent chains resolve to root (D5).
 - **Landing condition:** no behaviour change anywhere; the resolver is unit-
   exercised and nothing calls it yet.
+- **Landed as specified**, with three additions the later phases needed:
+  `parent_map()` (the sanitised `{id: parent}` primitive `build_tree` is
+  built on), `ancestors()` (P-5's visibility walk) and `legal_parents()`
+  (P-4's combo, so the combo and the drop refuse the same set). 20 unit tests
+  in `tools/tests/test_widget_tree.py`; the module is in `TestPurity`.
 
-### P-2 — Author the default hierarchy
+### P-2 — Author the default hierarchy — **DONE**
 - A `_PARENTS` mapping in `tools/export_ui_layouts.py`, beside `_DISPLAY_NAMES`
   and applied by the same `_apply_display_names` walk (which already handles
   the flat `widgets` map AND every `views.<name>` level, so this needs no new
@@ -159,8 +164,20 @@ These are genuine forks, not defaults to assume:
 - Regenerate `data/ui/screen_defaults.json`.
 - **Landing condition:** the file gains `parent` keys and nothing else moves;
   the editor still behaves exactly as it does today (nothing reads the key yet).
+- **Landed:** 243 `parent` keys added to `data/ui/screen_defaults.json` and
+  **not one other line changed** (measured: `git diff -U0` shows zero
+  non-`parent` add/remove lines). The mapping is TWO tables rather than one —
+  `_PARENTS` for the explicit pairs (hud's 11, `building_panel`'s four
+  `preview_*`) and `_PARENT_CONTAINERS` for the nine screens with one real
+  container that owns everything else (`{screen: (parent_id, exempt_ids)}`).
+  Spelling `building_panel`'s ~80 stat cells out pair by pair would be noise
+  that drifts the moment a stat row is added, and there is no judgement in
+  those pairs. A parent is written only when the parent id is present in the
+  SAME widgets map, so each of `building_panel`'s five views parents to
+  whichever container it actually shows. Resolved roots match the table
+  exactly.
 
-### P-3 — The viewport cascade
+### P-3 — The viewport cascade — **DONE**
 - `viewport._screen_move`/`_screen_release`: a move drag on a widget with
   descendants applies the same delta to every descendant's rect and commits ONE
   undoable command covering the whole subtree (a new
@@ -172,8 +189,17 @@ These are genuine forks, not defaults to assume:
   the designer sees what is coming along.
 - **Landing condition:** dragging `hud.love_panel` carries its counter, icon,
   level label and XP bar; one Ctrl+Z puts all of them back.
+- **Landed and exercised in a real headless `ViewportPanel`:** a drag on
+  `hud.love_panel` moved it plus all six descendants by the same delta, left
+  `round_label` (a different parent) alone, produced exactly ONE undo command,
+  and one undo restored all seven. Arrow nudge behaved identically. A resize
+  drag captured no subtree and moved no child. Six dim `SUBTREE_COLOR`
+  outlines were submitted for the six descendants.
+- One implementation note worth keeping: each descendant's new rect is
+  computed from ITS OWN rect at press, never from the rect the previous move
+  event wrote, so rounding cannot accumulate over a long drag.
 
-### P-4 — The tree in the details panel
+### P-4 — The tree in the details panel — **DONE**
 - `ScreenDetailsPanel.widget_list` `QListWidget` -> `QTreeWidget` (D6), same
   `UserRole` = code id contract, expanded by default, display names as text and
   the raw id as tooltip (`widget_display_name` stays the ONE naming rule).
@@ -188,13 +214,38 @@ These are genuine forks, not defaults to assume:
   as the keyboard-accessible equivalent of the drag.
 - **Landing condition:** the designer can re-parent `round_label` from
   `btn_end_turn` to `love_panel`, save, reopen, and it stuck.
+- **Landed and exercised headlessly against a temp copy of `data/`:** the
+  drop (driven straight into `dropEvent`) re-parented `round_label`, wrote one
+  undoable command, re-drew the tree, saved, and a freshly opened session
+  showed it under `love_panel`. A drop that would make a widget its own
+  ancestor writes nothing.
+- **`push_field` needed one addition the plan did not foresee.** D3's
+  `null` re-root is unreachable through the existing path: `push_field(...,
+  None)` means "the key is ABSENT" (restore the default parent), and there was
+  no way to write a literal JSON null. `ui_screen_session` therefore gained a
+  `NO_PARENT` sentinel plus the `parent_override()` accessor that reads the
+  three states apart (absent / null / an id). Everything else — the "↺"
+  button, "Reset ALL", undo — rides the unchanged per-key path.
 
-### P-5 — Preview visibility inheritance
+### P-5 — Preview visibility inheritance — **DONE**
 - `viewport._submit_screen_widget` and `_hit_widget` skip a widget with a hidden
   ancestor (D4). The details panel notes the reason on the Visible row rather
   than silently drawing nothing ("hidden by parent <name>").
 - **Landing condition:** hiding `love_panel` hides its whole cluster in the
   preview; the saved doc still carries exactly one `visible` override.
+- **Landed and exercised headlessly:** hiding `love_panel` marked all six
+  descendants hidden (and `round_label`, a different parent, not), skipped all
+  seven in the draw pass, made none of them hit-testable, and the saved
+  `hud.json` carried exactly `{"love_panel": false}`. The Visible row on a
+  child reads `Visible  (hidden by parent "Love panel")` with the checkbox
+  still enabled and its own flag untouched.
+- **KNOWN GAP, deliberate:** the skip is in `_submit_screen_widget`, which is
+  the fallback draw path. When the UT-2 recorded preview is IN SYNC the editor
+  replays the recorded draw list instead, and that recording knows nothing
+  about parenting — a child of a hidden parent can still appear there until
+  the next Refresh Layouts. Closing it means teaching the recorder the
+  hierarchy, i.e. giving the exporter a runtime notion of parenting, which is
+  exactly what D2/D4 keep out. Left as-is and reported.
 
 ### P-6 — Parked / candidates (do NOT start without asking)
 Named so the next session does not silently expand scope:
@@ -208,6 +259,19 @@ Named so the next session does not silently expand scope:
   copy/paste of widget styling.
 
 ## 5. Known issues this plan does NOT fix
+
+- **`test_ui_layout_export.TestScreenPreviewExport::
+  test_committed_previews_are_fresh` is RED and was left red.** It regenerates
+  `data/ui/screen_previews.json` and byte-compares; on a Linux container the
+  font stack measures one text height as 14 where the committed (Windows-
+  authored) file says 15, in 16 places. **Measured to predate this branch:**
+  running the exporter from the UNMODIFIED `UIfixing` tip produces the same
+  16-line difference against the same committed file, and this branch's own
+  exporter change is a previews NO-OP (its output is byte-identical to the
+  baseline's). The committed `screen_previews.json` was therefore left exactly
+  as it was rather than "fixed" into a Linux-flavoured version that would
+  flip straight back on the designer's machine. The sibling
+  `test_committed_defaults_are_fresh` passes.
 
 - **The test suite is broken and needs its own rework** (the user's call this
   session: *"fuck the tests entirely, they're broken and need a rework in

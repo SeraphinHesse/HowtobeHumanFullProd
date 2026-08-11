@@ -1038,6 +1038,79 @@ Enter or focus-out landed, so a designer nudging a coordinate was typing blind.
 - **W/H spin minimums went 1 -> 0**, so an anchor widget's real `0` round-trips
   instead of being clamped to `1` and written back as a bogus size.
 
+## Widget parenting (UiEditorParentingPLAN P-1..P-5)
+
+The screen-mode widgets are a HIERARCHY, not a flat list: `hud.love_text` is a
+child of `hud.love_panel` because `hud.py`'s `_layout_readouts()` computes it
+off that panel's rect, and the editor now says so. The relationship is DATA —
+an optional `parent` per widget in `data/ui/screen_defaults.json` (authored by
+`tools/export_ui_layouts.py`'s `_PARENTS`/`_PARENT_CONTAINERS`) plus an
+optional `parent` override per widget in the open screen doc. The cross-cutting
+shape (including the `NO_PARENT` sentinel `push_field` needs for D3's explicit
+`null` re-root) is in `editor/CLAUDE.md`; the resolver is the pure
+`editor/widget_tree.py`. **Nothing in `game/` reads any of it** — parenting is
+an AUTHORING relationship, and the tooltip on both the tree and the Parent
+combo says so, because the game's own `layout()` still recomputes every
+default each frame with no cascade.
+
+- **The outliner REPLACES the flat widget list; it does not sit beside it**
+  (D6 — a second parallel widget selector would violate the
+  single-selection-model invariant). `ScreenDetailsPanel.widget_list` is a
+  `WidgetTreeWidget(QTreeWidget)` with the **SAME `Qt.ItemDataRole.UserRole` =
+  code id contract**, so `widget_selected`/`select_widget` and every `push_*`
+  call site are unchanged. Display name as item text, raw id as tooltip
+  (`widget_display_name` stays the ONE naming rule), expanded by default.
+  `self._tree_items` maps id -> item so `select_widget` stays O(1) — a tree
+  has no `setCurrentRow`.
+- **`_refresh_widget_list` is the ONE thing that draws the tree.** The drop
+  handler deliberately does NOT call `super().dropEvent()`: letting Qt move
+  the item would reshuffle the view behind the data's back. It emits
+  `reparent_requested`, the panel writes `push_field(widget_id, "parent",
+  old, new)` — the existing per-key undoable path, so the "↺" button and
+  "Reset ALL" cover a re-parent with **no new code** — and the rebuild
+  follows from the doc.
+- **The drag copies `panels/timeline.py`'s shape** (the repo's other
+  `QDrag`/`QMimeData` user): one custom MIME type carrying the code id, plus
+  its testing note — **a real OS drag cannot be synthesized offscreen, so
+  drive `dropEvent` directly.**
+- **A cycle is unrepresentable, not an error to recover from** (D5, ED-30).
+  `WidgetTreeWidget.can_reparent` is injected by the panel and consulted in
+  `dragMoveEvent` (so the drop is refused before it happens) AND again in
+  `dropEvent`; the Parent combo offers exactly `widget_tree.legal_parents`, so
+  the keyboard path and the drag refuse the same set. The resolver
+  additionally roots any cyclic or dangling chain instead of raising — a
+  hand-edited `screen_defaults.json` must never hang a Qt paint handler.
+- **The override is written only when it DIFFERS from the exporter's default
+  parent** (the same "no redundant override" rule the rect and label rows
+  follow). Choosing the default clears the key; choosing "(none)" on a widget
+  whose default parent is not already root writes an explicit JSON `null`,
+  because clearing would restore the default instead of re-rooting.
+- **Moving cascades; resizing does NOT** (designer's call). `_begin_drag`
+  captures the subtree only for `mode == "move"`; `_screen_move` applies the
+  same delta to each descendant **from ITS OWN rect at press**, never from
+  the rect the previous move event wrote, so rounding cannot accumulate over
+  a long drag; `_screen_release` commits ONE `push_move_subtree` (a
+  `_DocFieldsCommand` — full old/new per widget, never a delta, the
+  `map_session` stroke-command contract). The arrow-key nudge cascades
+  identically, since it shares `push_move`'s contract. A dimmer
+  `SUBTREE_COLOR` outline is drawn around every widget that will come along,
+  under the selection's own bright outline.
+- **Visibility inherits in the PREVIEW only** (D4). `_hidden_subtrees` is
+  resolved ONCE per frame and once per hit-test (both callers loop over every
+  id; a per-widget ancestor walk would rebuild the parent map ~85 times on
+  `building_panel`, and the common case — nothing hidden — exits before
+  building a tree at all). `_submit_screen_widget` and `_hit_widget` both skip
+  the set; the saved `visible` override stays per-widget and the game keeps
+  resolving each widget's own flag. The details panel's Visible row reads
+  `Visible  (hidden by parent "<name>")` rather than the preview silently
+  drawing nothing, with the checkbox still enabled.
+  - **KNOWN GAP:** the skip lives in the per-widget FALLBACK draw path. When
+    the UT-2 recorded preview is in sync the editor replays the recorded draw
+    list instead, and that recording knows nothing about parenting — a child
+    of a hidden parent can still appear there. Closing it would mean teaching
+    the recorder the hierarchy, i.e. giving the exporter a runtime notion of
+    parenting, which is exactly what D2/D4 keep out.
+
 ## Phase UT-2/UT-6 — the real screen preview + the Text-template row
 
 - **`ViewportPanel` REPLAYS a recorded draw list** (`data/ui/screen_previews

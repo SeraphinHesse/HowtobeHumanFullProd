@@ -632,6 +632,31 @@ validating writer; don't hand-edit the JSON.
   maximum) and the `construct` view unlocks every RESEARCH type before
   building its cards. Widen that mock state, not the exporter, if a future
   screen needs the same treatment.
+- **`widget.parent` (UiEditorParentingPLAN P-1/P-2)**: one more OPTIONAL key
+  on a `screen_defaults.json` widget record (a string, the id of another
+  widget in the SAME screen and view), and a matching OPTIONAL `parent` in
+  `ui_screen.schema.json`'s per-widget override object — the only per-widget
+  override key whose type is `["string", "null"]` rather than a bare type.
+  It is **AUTHORING metadata: nothing in `game/` reads it, ever.** The editor
+  cascades a move at EDIT time and the saved rects stay ABSOLUTE, so the
+  game's documented "no cascade" convention (`game/ui/CLAUDE.md`) and its flat
+  `setattr` apply loop are untouched — adding a runtime resolution step is
+  explicitly the parked P-6 idea, not this one.
+  - **Three states, and they are all different.** ABSENT in the override =
+    keep whatever `screen_defaults.json` says (itself absent = a root
+    widget). A STRING = the designer re-parented it. An explicit JSON
+    `null` = the designer REJECTED the default parent and re-rooted the
+    widget, which is why the override's type admits null while the defaults'
+    does not. `editor/ui_screen_session.py`'s `parent_override()` is the ONE
+    accessor that reads them apart.
+  - The defaults are written by `tools/export_ui_layouts.py`'s `_PARENTS`
+    (explicit pairs) + `_PARENT_CONTAINERS` (per-screen "everything else
+    belongs to this container"), and ONLY when the parent id is present in
+    the same widgets map — so each of `building_panel`'s five views parents to
+    whichever container it actually shows, and no view ever points at an
+    absent id. A dangling or cyclic chain resolves to ROOT in the editor
+    rather than raising (`editor/widget_tree.py`), so a hand-edit cannot hang
+    a Qt paint handler.
 - **`widget.text_id` / `widget.sample` (UT-1/UT-3)**: two OPTIONAL keys on a
   `screen_defaults.json` widget record, and `text_id` is also an optional
   per-widget override in `ui_screen.schema.json`. `text_id` is the
