@@ -497,6 +497,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
         gp["drag_select_enabled"] = False
         gp["panel"].log = gp["game_log"]
         gp["panel"].on_build_vfx = gp["floaters"].spawn_building_vfx
+        # The construct card's portrait asks the store whether a dedicated
+        # `card_portrait_*` slot has imported art before falling back to the
+        # building's own tier sprite (the `floaters.assets` precedent below;
+        # None-safe, so a bare BuildingUI in a test needs no store).
+        gp["panel"].assets = assets
         gp["floaters"].log = gp["game_log"]
         # -- /10J --
         # -- ESV-5/6: the handles _play/_anchored need to spawn a sprite
@@ -1148,6 +1153,17 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
             # -- /drag-select --
             elif event.type == pygame.MOUSEWHEEL and event.y:
                 if gp["cheat"].visible:  # 10H: open menu swallows wheel zoom
+                    continue
+                # The construct card list is taller than the panel once
+                # several building types are unlocked, so the wheel scrolls it
+                # while the cursor is over the panel — and still zooms the
+                # camera everywhere else. NEGATED for the same reason the menu
+                # wheel arm above is: pygame's MOUSEWHEEL.y is positive
+                # scrolling UP, while handle_scroll(+dy) moves DOWN the list.
+                if (panel.mode == "construct" and panel.preview is None
+                        and widgets.contains(panel.panel_rect,
+                                             *pygame.mouse.get_pos())):
+                    panel.handle_scroll(-event.y)
                     continue
                 step_zoom(cs, 1 if event.y > 0 else -1, view_w, view_h)
 

@@ -1206,16 +1206,17 @@ is no stable id to attach an override to". Both cases turn out to have one.
     hide every offered box. Hiding one or two does what you asked; hiding all
     of them gets you a playable game instead of a frozen one.
 - **`building_ui.py`'s construct cards** — id'd `card_<building_type>`
-  (`_CARD_ID_PREFIX`), the type being the stable key. Because a card's Button
-  is REBUILT on every `_build_construct` (its label carries a live price),
+  (`_CARD_ID_PREFIX`), the type being the stable key. Because a card is
+  REBUILT on every `_build_construct` (it carries a live price),
   `_clear_card_ids()` sweeps the previous build's entries out of `self.ids`
-  first — otherwise `skinning.apply` would keep writing onto a dead Button and
-  a type that stopped being buildable would linger forever. The cards now
-  follow every other id'd button's rules: `is_visible` gates submit AND
+  first — otherwise `skinning.apply` would keep writing onto dead widgets and
+  a type that stopped being buildable would linger forever. The cards follow
+  every other id'd button's rules: `is_visible` gates submit AND
   hit, `hover()` is called then `hovered and= is_visible` (never skipped
   outright), and `button_kwargs` forwards `color`/`text_color`.
   `defaults.button_skin` remains the fallback for a card with no `skin` of
-  its own.
+  its own. **A card is a widget TREE, not one button — see the next
+  section.**
 - **Recording them is a `tools/screen_mocks.py` change**, not an exporter
   special case: `LEVELUP_OPTIONS` grew to three cards and the `construct` view
   unlocks every RESEARCH type first, so every slot and every card lands in
@@ -1229,6 +1230,83 @@ is no stable id to attach an override to". Both cases turn out to have one.
 `test_ui_skinning.py` baseline byte-for-byte on every screen — the pin's
 `levelup` entry was regenerated only because its INPUT (three mock cards
 instead of two) changed, not its code.
+
+## A construct card is a widget TREE (construct-card-widget-tree)
+
+**This supersedes the "a card is one `Button` with one centred label" shape
+above.** A card used to bake the building's name and its price into a single
+string; it is now a parent holding a creature portrait, a two-row name block
+and a price pill with the baked love icon — each part independently id'd,
+placeable and skinnable in the UI editor. Seven ids per buildable type, all
+sharing the ONE `card_` prefix, so `_clear_card_ids()` needed no change:
+
+| id | kind | rect (relative to the card at `(cx, y)`) |
+|---|---|---|
+| `card_<btype>` | button | `(cx, y, 118, 40)` — the parent, and the click target |
+| `card_<btype>_portrait` | panel | `(+3, +3, 34, 34)`, `skin` = the sprite slot |
+| `card_<btype>_name` | label | `(+41, +2, 0, 0)`, `sm` |
+| `card_<btype>_name2` | label | `(+41, +14, 0, 0)`, `sm` |
+| `card_<btype>_price` | button | `(+41, +24, 74, 14)` |
+| `card_<btype>_price_icon` | panel | `(+44, +26, 10, 10)`, `skin` = `ui_icon_love` |
+| `card_<btype>_price_text` | label | `(+57, +26, 0, 0)`, `sm`, `building.stat.value` |
+
+- **Rects are ABSOLUTE, as everywhere else here.** `parent` is editor
+  authoring metadata nothing in `game/` reads (`editor/widget_tree.py`);
+  `_build_construct` lays its own children out and there is no runtime
+  cascade. The exporter derives the pairs from the id prefix
+  (`_derived_parent`, `tools/export_ui_layouts.py`) because the card ids are
+  dynamic — `_PARENTS` cannot spell out one per building type.
+- **`_name2`, never `_name_2`.** That derived rule takes the longest matching
+  card id, so `card_x_name_2` would nest under `card_x_name` instead of
+  sitting beside it. The price icon and text DO nest under `card_x_price`,
+  which is correct — they ride inside the pill.
+- **The name is wrapped at DRAW time, never at build time.** `wrap_text`
+  measures the live font, and a card's name reaches
+  `data/ui/screen_defaults.json`'s `label` — a committed artifact, which the
+  "`layout_h`, never a live font measurement" rule above forbids from
+  depending on a measurement. So `card_<btype>_name` STORES the whole name
+  (a `label` override on it drives both rows) and `_submit_construct` splits
+  it; `_name2`'s stored label is always `""` and it lends only position,
+  font and colour. A `test_theme_data` pin catches this exact regression —
+  bumping every font preset 6px re-broke "Maw Mortar" across two rows and
+  changed the committed file.
+- **The love icon is a sprite, not a glyph** (`ui_icon_love`, the `hud.py`
+  idiom) — `widgets.HEART` stays deleted.
+- **Two screen-level bools**, both in `data/ui/screens/building_panel.json`'s
+  `defaults` (read fresh via `_card_defaults()`, the `defaults.button_skin`
+  precedent — `defaults` values are never id-validated, so `ScreenSkinning`
+  needed no change), both defaulting **false**:
+  - `price_is_click_target` — on, ONLY the price pill opens the construct
+    preview and the portrait/name go inert; off, the whole card is the click
+    target as it always was and the pill is drawn but never hit-tested.
+    Nothing downstream of the hit changes. The NOT-ENOUGH-LOVE flash always
+    lands on the card body either way — it is the only part wide enough to
+    read a sentence.
+  - `use_card_portrait_slot` — on, the portrait draws
+    `card_portrait_<btype>` (`data/slots.json`'s `ui` → "Card Portraits"),
+    falling back to the building's own tier sprite whenever that slot has no
+    imported art. Off, it is always the tier sprite —
+    `create(...).slot_key()`, the `_next_tier_card` idiom. The "has art"
+    probe is `assets.animation_total_ms(slot, "idle") is not None`, the same
+    signal `engine.vfx.spawn_play_once` uses. `BuildingUI.assets` is
+    host-wired in `build_gameplay()` (the `FloaterManager.assets`
+    precedent) and `None`-safe.
+- **The list SCROLLS.** Twelve 44px-pitch cards do not fit a 130×360 panel, so
+  `scroll_offset` (first visible index) and `handle_scroll(dy)` clamp against
+  `_cards_visible()`, itself derived from `_card_list_viewport()` — never a
+  literal count. Sign follows `HighscoresScreen.scroll` (positive `dy` moves
+  DOWN), and `game/main.py`'s gameplay MOUSEWHEEL branch negates pygame's `y`
+  and routes to the panel only while the cursor is over it in construct mode
+  with no preview open; everywhere else the wheel still zooms the camera.
+  `close()` resets the offset.
+- **An off-window card is skipped at draw and at hit via
+  `_card_in_viewport`, NOT by setting `visible = False`.** `visible` is the
+  designer's override key and forcing it would fight an override; every card
+  is built at its absolute rect every frame, so `self.ids` — and therefore
+  `skinning.apply` and the exporter — always sees the full id set.
+- `card_rect(building_type)` (the tutorial's TU-6 highlight) still returns the
+  WHOLE card, both bools regardless.
+
 
 ## `hud.round_label` carries its own alignment
 `align="center"` moved from the `submit_label` CALL SITE onto the holder. It
