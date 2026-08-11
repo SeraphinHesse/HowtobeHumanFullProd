@@ -70,6 +70,12 @@ from . import widgets
 # colliding with BuildingUI's own).
 SCREEN_ID = "building_panel"
 
+#: Id prefix for a construct card, completed by the card's `building_type`
+#: (`card_defence`, `card_economic`, …). The type is the stable key that makes
+#: a dynamic-count card list individually overridable; `_clear_card_ids` uses
+#: this same prefix to sweep the previous build's entries out of `self.ids`.
+_CARD_ID_PREFIX = "card_"
+
 # 10I: tooltip chrome — dark panel, 1px border in the condition colour
 # (prototype building_ui.py:1440-1455).
 _COND_TOOLTIP_BG = (20, 15, 35)
@@ -937,11 +943,16 @@ class BuildingUI:
         self._highlight_tiles = hl
 
     def _build_construct(self):
+        self._clear_card_ids()
         self.cards = []
         y = 32
         state = self._session.state
-        # B3: construct cards are dynamic-count (never id'd) and inherit the
-        # screen's defaults.button_skin instead — {} (no override) means None,
+        # Each card is id'd `card_<building_type>` (see `_clear_card_ids`) —
+        # the COUNT is dynamic (only unlocked types show), but the building
+        # type is a stable key, so every card is individually overridable:
+        # rect, skin, tint, label, text colour, visibility.
+        # `defaults.button_skin` remains the screen-level fallback for a card
+        # with no `skin` override of its own — {} (no override) means None,
         # the unskinned flat-rect card the golden parity pin already covers.
         skin = self.skinning.defaults(self.screen_id).get("button_skin")
         # feature-storm-acolyte-multi-build: the Storm Priest run-singleton
@@ -963,9 +974,21 @@ class BuildingUI:
             btn = Button((self.panel_x + 6, y, self.panel_w - 12, 21),
                          label, "md", skin=skin)
             self.cards.append((btype, btn))
+            self.ids[f"{_CARD_ID_PREFIX}{btype}"] = ("button", btn)
             y += 25
         self._highlight_tiles = [(t.col, t.row, widgets.C_HIGHLIGHT)
                                  for t in self.selected_tiles]
+
+    def _clear_card_ids(self):
+        """Drop last build's `card_*` entries from `self.ids`.
+
+        Unlike every other id in this panel, a card's Button is rebuilt on
+        every `_build_construct` (its label carries a live price), so its ids
+        entry would otherwise point at a dead Button — `skinning.apply` would
+        keep writing overrides onto an object nothing draws, and a type that
+        stopped being buildable would linger in the dict forever."""
+        for key in [k for k in self.ids if k.startswith(_CARD_ID_PREFIX)]:
+            del self.ids[key]
 
     def _batch_upgrade_targets(self):
         """``[(building, cost)]`` across the selection whose upgrade state is
@@ -1221,6 +1244,10 @@ class BuildingUI:
             repeat_count = count_tag(self._session.tilemap, LIGHTNING_SOURCE_TAG)
             for btype, btn in self.cards:
                 btn.hover(mx, my, mouse_down)
+                # Never skip hover() outright — a stale True from before an
+                # override hid the card would otherwise linger (the rule every
+                # id'd button in this file follows).
+                btn.hovered = btn.hovered and is_visible(btn)
                 if btn.hovered:
                     tier_idx = tiers_unlocked_for(state, btype) - 1
                     self._hover_cost = _batch_cost(
@@ -1342,7 +1369,7 @@ class BuildingUI:
 
     def _construct_click(self, mx, my, session, buildings_balance):
         for btype, btn in self.cards:
-            if btn.hit(mx, my):
+            if is_visible(btn) and btn.hit(mx, my):
                 tier_idx = tiers_unlocked_for(session.state, btype) - 1
                 # feature-storm-acolyte-multi-build: the same already-placed
                 # count `_build_construct` priced the card off.
@@ -1649,8 +1676,12 @@ class BuildingUI:
     def _submit_construct(self, renderer, anim_ms=0):
         submit_label(renderer, self._text["construct_title"],
                      color=widgets.C_UI_TEXT)
+        # Cards are id'd now, so they follow the same rules as every other
+        # id'd button: a `visible: false` override skips the draw, and
+        # `color`/`text_color` overrides are forwarded via button_kwargs.
         for _, btn in self.cards:
-            btn.submit(renderer, anim_ms=anim_ms)
+            if is_visible(btn):
+                btn.submit(renderer, anim_ms=anim_ms, **button_kwargs(btn))
         # -- 10I: tile terrain footer badge (tooltip above) --
         self._submit_cond_badge(renderer, self.tile.condition,
                                 self.view_h - 20, above=True)

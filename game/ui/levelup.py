@@ -26,7 +26,7 @@ from engine.render.fonts import layout_h
 
 from .skinning import ScreenSkinning
 from .widgets import (
-    anim_ms, contains, label_holder, submit_centered, submit_label,
+    anim_ms, contains, is_visible, label_holder, submit_centered, submit_label,
     submit_panel, wrap_text
 )
 from . import widgets
@@ -56,6 +56,17 @@ _BOX_W, _BOX_H, _GAP = 130, 154, 4
 # submit() call site, never cached into a module constant.
 _SPRITE_PX = 36
 
+# The roll offers 1-3 options. The COUNT is dynamic, but the SLOTS are not:
+# there have always been exactly three possible positions, so each gets a
+# stable id (`option_box_0..2`) and is individually overridable — rect, skin,
+# tint, colour, visibility. This deliberately lifts the old "dynamic-count
+# content is not individually overridable" rule for this screen (a designer
+# asked for the buy options to be real editable widgets): the rule's real
+# constraint was never "the count varies", it was "there is no stable id to
+# attach an override to", and an index IS one here. The construct cards in
+# building_ui.py get the same treatment keyed by building type.
+_MAX_OPTIONS = 3
+
 SCREEN_ID = "levelup"
 
 
@@ -75,6 +86,13 @@ class LevelupWindow:
         # position and a rect override moves it.
         self._heading = label_holder(text_id="levelup.heading", font_key="xxl",
                                      text_color=None, align="center")
+        # One holder per option SLOT (see _MAX_OPTIONS): `rect` is the stored
+        # geometry `layout()` computes and `skinning.apply()` may override,
+        # `color`/`skin`/`tint` follow the usual "None means compute" holder
+        # convention so an un-overridden box draws exactly as it always did.
+        self._boxes = [SimpleNamespace(rect=(0, 0, _BOX_W, _BOX_H), skin=None,
+                                       color=None, visible=True)
+                       for _ in range(_MAX_OPTIONS)]
         self.ids = {}
         self._clock = 0.0  # 10L-B: only the skinned box path uses this
 
@@ -96,34 +114,67 @@ class LevelupWindow:
     def layout(self, view_w, view_h):
         self.view_w, self.view_h = view_w, view_h
         n = len(self.options)
-        if not n:
-            self.rects = []
-        else:
+        # DEFAULT geometry first — the centred row of however many boxes the
+        # roll produced, exactly as before.
+        defaults = []
+        if n:
             total = n * _BOX_W + (n - 1) * _GAP
             x0 = view_w // 2 - total // 2
             y0 = view_h // 2 - _BOX_H // 2
-            self.rects = [(x0 + i * (_BOX_W + _GAP), y0, _BOX_W, _BOX_H)
-                          for i in range(n)]
+            defaults = [(x0 + i * (_BOX_W + _GAP), y0, _BOX_W, _BOX_H)
+                        for i in range(n)]
+        for i, rect in enumerate(defaults):
+            self._boxes[i].rect = rect
         self._backdrop.rect = (0, 0, view_w, view_h)
         # layout_h: the heading anchor lands in the golden parity stream.
-        top = self.rects[0][1] if self.rects else view_h // 2
+        top = defaults[0][1] if defaults else view_h // 2
         self._heading.rect = (view_w // 2, top - layout_h("xxl") - 8, 0, 0)
         self.ids = {"backdrop": ("backdrop", self._backdrop),
                     "heading": ("label", self._heading)}
+        # Only the slots this roll actually offers are id'd — `apply()` walks
+        # `ids`, so an override for a slot the roll didn't fill is simply not
+        # applied this time. The exporter opens the window with a full three
+        # so `screen_defaults.json` always records all three.
+        for i in range(len(defaults)):
+            self.ids[f"option_box_{i}"] = ("panel", self._boxes[i])
         self.skinning.apply(self.screen_id, self.ids)
+        # AFTER apply, so an overridden rect drives hover/hit as well as the
+        # draw — `self.rects` is the one geometry every consumer reads
+        # (test_levelup.py included), and it must never disagree with what is
+        # on screen.
+        self.rects = [tuple(self._boxes[i].rect) for i in range(len(defaults))]
 
     def update(self, dt, mx, my, mouse_down=False):
         # 10L-A: no widgets.Button here (plain option-box rects) — mouse_down
         # is accepted only so main.py's uniform threading call keeps working.
         self._clock += dt
+        # A box hidden by a `visible: false` override is not hoverable — the
+        # same rule every id'd button already follows (see game/ui/CLAUDE.md's
+        # "visible=False skips BOTH submit AND hover/hit").
         self.hovered = next(
-            (i for i, r in enumerate(self.rects) if contains(r, mx, my)), -1)
+            (i for i, r in enumerate(self.rects)
+             if self._box_visible(i) and contains(r, mx, my)), -1)
+
+    def _box_visible(self, i):
+        """Whether option slot `i` is drawn AND clickable.
+
+        ANTI-SOFTLOCK: this modal has no dismiss path — the player MUST pick
+        one — so if a `visible: false` override would hide EVERY offered box
+        the overrides are ignored wholesale and all of them stay live. A
+        designer hiding one or two boxes gets what they asked for; a designer
+        hiding all of them gets a playable game instead of a frozen one."""
+        if i >= len(self._boxes):
+            return False
+        if any(is_visible(self._boxes[j]) for j in range(len(self.rects))):
+            return is_visible(self._boxes[i])
+        return True
 
     def hit(self, mx, my):
         """The clicked option dict, or None. Clicks outside any box are
         swallowed by the host — there is no way to dismiss the window."""
         for i, rect in enumerate(self.rects):
-            if contains(rect, mx, my) and i < len(self.options):
+            if (self._box_visible(i) and contains(rect, mx, my)
+                    and i < len(self.options)):
                 return self.options[i]
         return None
 
@@ -135,24 +186,36 @@ class LevelupWindow:
         self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
         renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
         submit_label(renderer, self._heading, color=widgets.C_GOLD)
-        panel_skin = self.skinning.defaults(self.screen_id).get("panel_skin")
+        default_skin = self.skinning.defaults(self.screen_id).get("panel_skin")
         for i, option in enumerate(self.options):
+            if not self._box_visible(i):
+                continue
+            box = self._boxes[i]
+            # Per-box `skin` wins over the screen-level `defaults.panel_skin`
+            # — the same precedence every id'd widget already uses (an
+            # override beats a kind-matched default).
             self._submit_box(renderer, self.rects[i], option, i == self.hovered,
-                             panel_skin, t)
+                             getattr(box, "skin", None) or default_skin, t,
+                             fill=getattr(box, "color", None),
+                             tint=getattr(box, "tint", None))
 
     def _submit_box(self, renderer, rect, option, hovered, panel_skin=None,
-                    anim_ms_=0):
+                    anim_ms_=0, fill=None, tint=None):
         x, y, w, h = rect
         if panel_skin:
             # 10L-B: a screen-level panel_skin default routes every option
             # box through the already-live skinned submit_panel (the
             # boss_cutscene box_a/box_b conditional-skin pattern, mirrored
             # for dynamic-count content via `defaults` instead of an id).
-            submit_panel(renderer, rect, skin=panel_skin, anim_ms=anim_ms_)
+            submit_panel(renderer, rect, skin=panel_skin, anim_ms=anim_ms_,
+                         tint=tint)
         else:
+            # `fill` is the box's own `color` override; None keeps the
+            # code-computed hover/idle pair ("None means compute").
             renderer.submit_hud(HudRect(
                 rect,
-                widgets.C_UI_BTN_HOVER if hovered else widgets.C_UI_PANEL))
+                tuple(fill) if fill is not None
+                else (widgets.C_UI_BTN_HOVER if hovered else widgets.C_UI_PANEL)))
             renderer.submit_hud(
                 HudRect(rect, widgets.C_GOLD if hovered else widgets.C_UI_BORDER, width=1))
         cx = x + w // 2

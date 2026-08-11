@@ -278,13 +278,25 @@ class TestWidgetDisplayNames(unittest.TestCase):
                     self.assertEqual(spec.get("display_name"), expected)
 
     def test_unmapped_id_carries_no_display_name_key(self):
-        """An id absent from ``_DISPLAY_NAMES`` gets NO ``display_name`` key
-        at all (the file stays minimal; fallback is the reader's job) — hud's
-        second-pass readouts (``love_text``, ``lvl_label``, ...) are real,
-        always-present ids that are NOT in ``_DISPLAY_NAMES["hud"]``."""
+        """An id absent from ``_DISPLAY_NAMES`` (and matching no derivation
+        rule) gets NO ``display_name`` key at all — the file stays minimal and
+        falling back to the raw id is the reader's job.
+
+        The example used to be ``hud.love_text``. Every hud id is mapped now
+        (a designer asked for the Love counter, Round counter, Level counter
+        and XP bar by NAME and could not find them in the editor's list), so
+        the example moved to ``cheat_menu.btn_toggle_debug`` — a real,
+        always-present id that ``_DISPLAY_NAMES["cheat_menu"]`` does not
+        list."""
+        cheat_widgets = self.defaults["cheat_menu"]["widgets"]
+        self.assertIn("btn_toggle_debug", cheat_widgets)
+        self.assertNotIn("display_name", cheat_widgets["btn_toggle_debug"])
+        # ...and the hud ids that motivated the change ARE named now.
         hud_widgets = self.defaults["hud"]["widgets"]
-        self.assertIn("love_text", hud_widgets)
-        self.assertNotIn("display_name", hud_widgets["love_text"])
+        self.assertEqual(hud_widgets["love_text"]["display_name"],
+                         "Love counter")
+        self.assertEqual(hud_widgets["round_label"]["display_name"],
+                         "Round counter")
 
 
 if __name__ == "__main__":

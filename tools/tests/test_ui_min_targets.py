@@ -116,26 +116,73 @@ class TestButtonMinSize(unittest.TestCase):
                 print(f"    {where:<28} {rect}  min={smallest}")
 
 
+#: Id families whose LABEL is composed at build time from live game state, so
+#: the static-fit assert below does not apply to them (the class's own stated
+#: scope). `building_panel.card_<building_type>` is the only member: a card's
+#: label is `T("building.construct.card", name=, cost=)` — the name comes from
+#: `buildings.json` and the cost is a live, escalating price, so neither the
+#: text nor its width is knowable from code. They became visible to this test
+#: only when the cards gained ids (editable buy options); they are NOT newly
+#: overflowing, they were simply never measured before. The lint below reports
+#: them so the overhang stays visible rather than silently excluded.
+DYNAMIC_LABEL_PREFIXES = ("card_",)
+
+
+def _has_dynamic_label(name):
+    return name.startswith(DYNAMIC_LABEL_PREFIXES)
+
+
+def _label_overflow(buttons):
+    """``[(overflow_px, description), ...]`` for every button whose label is
+    wider than its box, worst first."""
+    out = []
+    for sid, name, rect, label, font in buttons:
+        if not label:
+            continue
+        text_w = widgets.text_size(label, font)[0]
+        if text_w > rect[2] - LABEL_MARGIN:
+            need = text_w + LABEL_MARGIN
+            out.append((need - rect[2],
+                        f"{sid}.{name} {label!r}@{font} needs "
+                        f"{need}px, has {rect[2]}px"))
+    return sorted(out, reverse=True)
+
+
 class TestStaticLabelFit(unittest.TestCase):
     """UR-5 §1(b): every STATIC button label fits its button.
 
     Static only. Dynamic labels (building display names, player names,
-    high-score rows) never reach an ``ids`` widget at export time and stay
-    eyeball-only — see the brief's playtest script.
+    high-score rows) stay eyeball-only — see the brief's playtest script.
+    They used never to reach an ``ids`` widget at export time at all; the
+    construct cards now do (they are individually overridable widgets), so
+    the exclusion is an explicit list (``DYNAMIC_LABEL_PREFIXES``) rather
+    than an accident of what happens to be id'd.
     """
 
     def test_labels_fit_their_button_width(self):
-        overflowing = []
-        for sid, name, rect, label, font in _buttons():
-            if not label:
-                continue
-            text_w = widgets.text_size(label, font)[0]
-            if text_w > rect[2] - LABEL_MARGIN:
-                overflowing.append(
-                    f"{sid}.{name} {label!r}@{font} needs "
-                    f"{text_w + LABEL_MARGIN}px, has {rect[2]}px")
+        overflowing = [
+            desc for _over, desc in
+            _label_overflow(b for b in _buttons() if not _has_dynamic_label(b[1]))
+        ]
         self.assertEqual([], overflowing,
                          "static button label(s) overhang their button")
+
+    def test_report_dynamic_label_overflow(self):
+        """NON-BLOCKING lint: the dynamic-label roster that overhangs.
+
+        A real UR-5-class finding rather than test bookkeeping — a construct
+        card is 118px wide and several of its labels measure past 150px at
+        ``md``, i.e. they overhang their card on BOTH sides in game today.
+        The fix is a design call (narrower copy, a smaller font, or a wider
+        panel column), so this prints instead of failing.
+        """
+        over = _label_overflow(b for b in _buttons() if _has_dynamic_label(b[1]))
+        if over:
+            print(f"\n[dynamic-label lint] {len(over)} button(s) whose "
+                  f"live-composed label overhangs its box — a design call, "
+                  f"not auto-fixable:")
+            for overflow_px, desc in over:
+                print(f"    +{overflow_px:>3}px  {desc}")
 
     def test_labels_fit_their_button_height(self):
         """The vertical half: ``Button.submit`` centres on ``layout_h``, so a

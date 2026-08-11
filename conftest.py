@@ -161,6 +161,10 @@ TIERS = {
     "test_migration_timeline": "core",  # TimelinePLAN T6: unlock_min_round -> Timeline migration
     "test_timeline_ops": "core",  # TimelinePLAN T5: editor/timeline_ops.py
     "test_wall_render": "core",  # game/map/wall_render.py: the ONE wall emitter
+    # UiEditorParentingPLAN P-1: editor/widget_tree.py, the pure parent
+    # resolver. Qt-free (like editor/selection.py), but it is an editor module
+    # and tracks the editor suites.
+    "test_widget_tree": "editor",
     "test_xp_curve": "core",  # TimelinePLAN T3: best-case XP-curve calculator
 }
 

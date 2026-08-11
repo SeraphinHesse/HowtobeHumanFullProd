@@ -765,7 +765,8 @@
             {
               "label": "Panel",
               "slots": [
-                "ui_panel"
+                "ui_panel",
+                "ui_panel_v2"
               ]
             },
             {
