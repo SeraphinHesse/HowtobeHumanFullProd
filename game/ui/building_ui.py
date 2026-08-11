@@ -1669,6 +1669,19 @@ class BuildingUI:
         # diamonds above it, so the two behave identically.
         for pts in self._highlight_edges:
             renderer.submit_overlay_lines(pts, widgets.C_HIGHLIGHT, width=4)
+        # Building Movement: the straight-line (Manhattan) path to the picked
+        # destination, shown once a destination is chosen — L-shaped
+        # (col-first, then row), matching the tiles move_distance() actually
+        # counts. Derived fresh from the live preview every frame (no stored
+        # state, no fade clock); sits before the `visible` guard like the
+        # highlights above it, so it behaves identically.
+        if isinstance(self.preview, MovePreview):
+            b, dest = self.preview.building, self.preview.dest_tile
+            path_pts = [(b.col + 0.5, b.row + 0.5),
+                        (dest.col + 0.5, b.row + 0.5),
+                        (dest.col + 0.5, dest.row + 0.5)]
+            renderer.submit_overlay_lines(path_pts, widgets.C_MOVE_HIGHLIGHT,
+                                          width=3)
         if not self.visible:
             return
         # -- 10I: badge rect/tooltip refresh each frame (base_info shows no
