@@ -88,6 +88,7 @@ TIERS = {
     "test_combat_speed": "core",
     "test_components": "core",
     "test_condition_art": "core",
+    "test_construct_card": "core",  # the construct card's widget tree
     "test_coords": "core",
     "test_core": "core",
     "test_corpse": "core",

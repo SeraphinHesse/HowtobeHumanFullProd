@@ -21,6 +21,12 @@ from game.ui import widgets  # noqa: E402
 from game.ui.building_ui import _CARD_ID_PREFIX  # noqa: E402
 from tools import screen_mocks  # noqa: E402
 
+#: LIVE data/ on purpose — allowlisted in test_fixture_guard.py. The whole
+#: point of this module is that the card tree it asserts and the committed
+#: screen_defaults.json artifact agree, and that artifact is exported from the
+#: live tree; TestPortraitSlotRegistry likewise asks whether TODAY's registry
+#: covers every buildable type. Pinning a snapshot here would let the two
+#: drift apart silently, which is the bug the module exists to catch.
 DATA = REPO / "data"
 
 #: The child ids every card carries, relative to its own `card_<btype>` id.

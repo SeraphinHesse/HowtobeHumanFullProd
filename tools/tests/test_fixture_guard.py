@@ -29,6 +29,12 @@ ALLOWED = {
                               "the real imported/main_menu_bg.png binary the "
                               "ui_bg_main_menu entry shares, not in the JSON fixture",
     "test_balancing_data.py": "validates the live schema/content pairs (D-12)",
+    "test_construct_card.py": "the card tree it pins must agree with the "
+                              "committed screen_defaults.json, which is "
+                              "exported from the LIVE tree (same subject as "
+                              "test_ui_layout_export.py); its portrait check "
+                              "asks whether TODAY's registry covers every "
+                              "buildable type",
     "test_editor_map_mode.py": "TempDataCase write-isolation on the real tree",
     "test_editor_panels.py": "defines TempDataCase (real tree incl. assets)",
     "test_editor_tutorial_paint.py": "MapModeCase write-isolation on the real "
