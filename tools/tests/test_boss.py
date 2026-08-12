@@ -39,6 +39,22 @@ ENEM = load_balance(FIXTURE_DATA, "enemies")
 UI = load_balance(FIXTURE_DATA, "ui")
 VFX = load_balance(FIXTURE_DATA, "vfx")
 
+# The pathing/movement suites in this module are written for a SINGLE-TILE
+# boss: they run on hand-drawn one-row lanes ("bbbs") where a 2x2 block simply
+# does not fit — every tile of row 1 is out of bounds, so the block is never
+# passable, no path is ever found, and the agent sits at target (-1, -1)
+# forever. The module used to get footprint 1 by ACCIDENT, from a fixture that
+# had drifted behind `data/balancing/enemies.json`; re-syncing the fixture
+# turned twelve of these tests red at once and cost a day to trace.
+#
+# So the dependency is stated here instead of being inherited: this module pins
+# the boss to footprint 1 and the two suites that are ABOUT the 2x2 block
+# (`TestBossFootprintTwoDoesNotFreezeBesideANeighbour`,
+# `TestChebyshevRangeGateNearestBlockTile`) opt back in explicitly on their own
+# deep copies. A future fixture sync cannot break either half again.
+for _row in ENEM["EnemyTypes"]["Boss"]["stats"]:
+    _row["footprint"] = 1
+
 BOSS = ENEM["EnemyTypes"]["Boss"]
 SCALE = ENEM["EnemyScaling"]
 RAIDER = ENEM["EnemyTypes"]["Raider"]
@@ -876,7 +892,15 @@ class TestConditionSpeedFloor(unittest.TestCase):
     LATCH: the penalty is a flat 0.4 t/s and the boss moves at 0.3–0.45, so
     eras 0–3 computed exactly 0.0 — and a unit at speed 0 never advances
     ``Movement.index``, which is the only thing that refreshes
-    ``_current_condition``, so the speed stayed 0 forever."""
+    ``_current_condition``, so the speed stayed 0 forever.
+
+    The Tile Condition Rework removed ``enemy_speed_penalty`` from every
+    condition (see ``test_tile_conditions.TestEnemyModifiers``), so the two
+    per-era/per-type penalty tests that used to live here have no premise left
+    to state — nothing subtracts from a speed today. Do not resurrect them
+    against a hardcoded penalty; the ``max(real × FRAC, real − penalty)``
+    plumbing in ``game/enemies/components.py`` stays, unused, for a future
+    condition that wants it."""
 
     FRAC = MAPBAL["TileConditions"]["min_speed_fraction"]
 
@@ -1097,8 +1121,23 @@ class TestBossDoesNotRewind(unittest.TestCase):
         pa = boss.get_component(PathAgent)
         # Walk until the boss is mid-tile (not on a centre), then kill its
         # target out from under it — the exact rewind trigger.
-        while abs(boss.transform.wx - round(boss.transform.wx)) < 0.25:
+        #
+        # BOUNDED on purpose. This was a bare `while`, and when the boss stopped
+        # moving it span forever: the test did not fail, it HUNG, and under
+        # xdist the hang took the whole CI job down with it while reporting
+        # nothing at all. A test that cannot finish is strictly worse than a
+        # test that fails, so the loop now gives up and says what it saw.
+        # 250 frames at 0.02 is 5 simulated seconds — the boss covers a tile in
+        # well under one at any era's speed.
+        for _ in range(250):
+            if abs(boss.transform.wx - round(boss.transform.wx)) >= 0.25:
+                break
             scene.update(0.02)
+        else:
+            self.fail(
+                "the boss never left its tile centre in 5 simulated seconds — "
+                f"stuck at wx={boss.transform.wx!r}, blocked={pa.blocked}, "
+                f"target={(pa.target_col, pa.target_row)}")
         near.get_component(Health).damage(10 ** 9)
         scene.update(0.02)                       # the re-path frame
         self.assertEqual((pa.target_col, pa.target_row), (2, 0))

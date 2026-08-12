@@ -40,7 +40,7 @@ that's a cross-package task — tell the user.
   `game/`.
 
 ## Verify
-- `py tools/testgate.py check --affected` — field collection, serialization
+- `py -m pytest tools/tests/test_<area>.py -q` — field collection, serialization
   round-trip, and the component's own behavior test (targeted, not the full suite).
 - `py tools/smoke.py` if anything render/asset-facing.
 
@@ -48,3 +48,11 @@ that's a cross-package task — tell the user.
 - Changed files; the component's fields; verification performed; whether
   `engine/core/CLAUDE.md` needed a durable-rule update.
 - Tag every claim **measured** / **verified** / **inferred** (see `/report`).
+
+> **Role note (test policy).** The command above names the test FILES for what
+> you changed, which every role may run. `py tools/testgate.py check --affected`
+> is a MAIN-SESSION mid-task tool — its safety pass is the whole core tier — and
+> the single full `check` belongs to the main session at handoff. If you are
+> running this skill inside a dispatched agent, the `test_guard.py` hook will
+> deny both. The role table in §"Test Suite Policy" (root `CLAUDE.md`) is the
+> only authority.

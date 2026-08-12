@@ -26,6 +26,7 @@ py``); ``engine.render.fonts`` needs only the font subsystem (no display), so
 even that is headless-safe under dummy drivers.
 """
 import argparse
+import contextlib
 import os
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
@@ -747,6 +748,36 @@ def _configure_strings(data_root):
     strings.configure_strings(doc)
 
 
+@contextlib.contextmanager
+def _string_table_restored():
+    """Put `strings._STRINGS` back the way we found it.
+
+    This module is a HOST — the second one, after `game/main.py` — and
+    `configure_strings` mutates a module global IN PLACE. As a CLI that is
+    harmless (the process exits), but `main()` is imported and called directly
+    by `test_ui_layout_export`, `test_layout_h_invariant` and
+    `test_theme_data`, and under `--dist loadfile` whatever ran next in that
+    worker then saw the LIVE table where it expected the unconfigured
+    fallback.
+
+    That is exactly what turned CI's `core` shard red while Windows stayed
+    green: `test_ui_layout_export` (core) exported, and `test_strings_data`
+    (core) — the pin whose whole job is catching drift between the Python
+    literal and the JSON — then compared the live value against its fixture
+    and reported a drift that did not exist.
+
+    Restoring HERE rather than in each test is deliberate: the "every caller
+    must addCleanup-restore" rule has now been forgotten three times in a row.
+    A host that cleans up after itself cannot be forgotten.
+    """
+    snapshot = dict(strings._STRINGS)
+    try:
+        yield
+    finally:
+        strings._STRINGS.clear()
+        strings._STRINGS.update(snapshot)
+
+
 def write_previews(data_root, output_dir, view_w, view_h, *, overrides=None,
                    output_path=None):
     """Regenerate ``<output_dir>/ui/screen_previews.json`` — the DRAW LIST the
@@ -795,21 +826,27 @@ def main(data_root=None, output_dir=None, *, overrides=None,
     output_dir = Path(output_dir) if output_dir is not None else data_root
 
     view_w, view_h = _logical_resolution(data_root)
-    _configure_strings(data_root)
 
-    if not previews_only:
-        output = {
-            screen_id: build_screen_defaults(screen_id, view_w, view_h,
-                                             data_root)
-            for screen_id in SCREEN_IDS
-        }
-        output_path = output_dir / "ui" / "screen_defaults.json"
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        schema_path = data_root / "schemas" / "screen_defaults.schema.json"
-        data_io.write_validated(output, output_path, schema_path)
+    # Self-restoring: see `_string_table_restored`. The export runs WITH the
+    # live table bound, exactly as the game boots, and leaves the module the
+    # way it found it — so importing and calling this from a test cannot
+    # poison whatever runs next in the same process.
+    with _string_table_restored():
+        _configure_strings(data_root)
 
-    write_previews(data_root, output_dir, view_w, view_h, overrides=overrides,
-                   output_path=previews_out)
+        if not previews_only:
+            output = {
+                screen_id: build_screen_defaults(screen_id, view_w, view_h,
+                                                 data_root)
+                for screen_id in SCREEN_IDS
+            }
+            output_path = output_dir / "ui" / "screen_defaults.json"
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            schema_path = data_root / "schemas" / "screen_defaults.schema.json"
+            data_io.write_validated(output, output_path, schema_path)
+
+        write_previews(data_root, output_dir, view_w, view_h,
+                       overrides=overrides, output_path=previews_out)
     return 0
 
 

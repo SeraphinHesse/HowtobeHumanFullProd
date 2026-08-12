@@ -27,9 +27,24 @@ class TestRealRegistry(unittest.TestCase):
         cls.reg = load_registry(FIXTURE_DATA)
 
     def test_category_order_is_domain_order_plus_asset_only(self):
-        self.assertEqual(tuple(c.key for c in self.reg.categories()),
-                         ("buildings", "enemies", "map", "ui", "core",
-                          "vfx", "deco", "backgrounds"))
+        """The RULE the name states, derived — the balancing domains lead in
+        `domains.domains()` order, and the asset-only categories follow.
+
+        This used to spell the roster out as a literal, and every asset-only
+        category added since (`conditions`, `walls`, and the `Card Portraits`
+        group in the sibling test below) reddened it — a test named after an
+        ORDERING rule failing because the SET grew. Adding a category is
+        routine; putting one in the wrong half is the bug worth catching."""
+        from editor import domains
+        keys = tuple(c.key for c in self.reg.categories())
+        domain_keys = tuple(domains.domains())
+        self.assertEqual(keys[:len(domain_keys)], domain_keys,
+                         "the balancing domains must lead, in domains() order")
+        asset_only = keys[len(domain_keys):]
+        self.assertTrue(asset_only, "there is at least one asset-only category")
+        # ...and nothing in the tail is a domain, so the split is a real one.
+        self.assertEqual(set(asset_only) & set(domain_keys), set())
+        self.assertEqual(len(set(keys)), len(keys), "no category repeats")
 
     def test_carried_over_frame_sizes(self):
         self.assertEqual(self.reg.frame_size("stone_thrower_t1_lvl1"), (64, 96))
@@ -57,10 +72,15 @@ class TestRealRegistry(unittest.TestCase):
 
         self.assertEqual(self.reg.category_of("ui_button").key, "ui")
 
-        # nested parent groups with leaf children — the shape "+ Variant" needs
-        self.assertEqual(
-            tuple(g.label for g in self.reg.category("ui").groups),
-            ("Buttons", "Panels", "Icons", "Backgrounds"))
+        # nested parent groups with leaf children — the shape "+ Variant" needs.
+        # Containment, not an exact roster: the `ui` category legitimately grows
+        # (a "Card Portraits" group landed with the construct-card widget tree
+        # and broke the old exact tuple). What matters here is that these
+        # groups exist and that a parent group really does carry leaf children,
+        # which is asserted immediately below.
+        labels = tuple(g.label for g in self.reg.category("ui").groups)
+        for expected in ("Buttons", "Panels", "Icons", "Backgrounds"):
+            self.assertIn(expected, labels)
         self.assertEqual(
             tuple(c.label for c in self.reg.group("ui", ("Icons",)).children),
             ("Love", "XP", "Lives"))

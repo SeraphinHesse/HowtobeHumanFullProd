@@ -50,7 +50,7 @@ roll").
 
 ## Verify
 - Headless: a tier-max test upgrades the line asserting hp/dmg/yield per the
-  balancing tables at each step: `py tools/testgate.py check --affected`
+  balancing tables at each step: `py -m pytest tools/tests/test_<area>.py -q`
   (targeted; the single full check happens at handoff, per CLAUDE.md Step 2).
 - Data: `py tools/smoke.py` (schema validation).
 - Live: `py game/main.py` — build it, upgrade it, confirm cost/effect + it appears
@@ -60,3 +60,11 @@ roll").
 - Changed files; the building's type + gate; verification performed (headless test
   / smoke / live); whether `game/buildings/CLAUDE.md` needed a durable-rule update.
 - Tag every claim **measured** / **verified** / **inferred** (see `/report`).
+
+> **Role note (test policy).** The command above names the test FILES for what
+> you changed, which every role may run. `py tools/testgate.py check --affected`
+> is a MAIN-SESSION mid-task tool — its safety pass is the whole core tier — and
+> the single full `check` belongs to the main session at handoff. If you are
+> running this skill inside a dispatched agent, the `test_guard.py` hook will
+> deny both. The role table in §"Test Suite Policy" (root `CLAUDE.md`) is the
+> only authority.

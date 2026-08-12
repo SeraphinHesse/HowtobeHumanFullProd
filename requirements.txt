@@ -8,11 +8,18 @@ Pillow           # image loading for editor asset import (editor/asset_import.py
 jsonschema       # validates data/ JSON against data/schemas/
 opencv-python    # cutscene playback (engine/video.py) — OPTIONAL: absent = cutscene gracefully skips
 
-# Test runner. The suite is ~1120 unittest.TestCase tests; pytest collects them
-# natively (no rewrites) and xdist runs them in parallel — 5m34s -> ~1m40s.
+# Test runner. The suite is unittest.TestCase throughout; pytest collects it
+# natively (no rewrites) and xdist runs it in parallel.
+# For the current test count, run `py -m pytest --collect-only -q | tail -1` —
+# a number written down here is a number that silently goes stale.
 # --dist loadfile is pinned in pytest.ini: the Qt suites share one QApplication.
 pytest
 pytest-xdist
+# pytest-timeout: a hung test must name itself. Before this, a stall just ate
+# the CI job's 20-minute budget and GitHub reported "cancelled" — zero
+# information about WHICH test hung. >=2.3 for --session-timeout (used by
+# .github/workflows/tests.yml). See pytest.ini for why timeout_method=thread.
+pytest-timeout>=2.3
 
 # Only needed if you want to build the .exe with build.bat:
 pyinstaller

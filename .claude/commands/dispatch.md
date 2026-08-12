@@ -50,8 +50,12 @@ there. Only the *code work* happens in the worktree.
    If the SlashCommand tool is unavailable, Read `.claude/commands/<skill>.md`
    and follow it with exactly that composed `$ARGUMENTS`.
 5. **Exit gate** in the working root (the worktree, in branch mode):
-   `py tools/smoke.py` and `py tools/testgate.py check`. Green
-   smoke; **the suite is GREEN — the gate is ZERO failures, not a diff.** Do not
+   `py tools/smoke.py`, plus the targeted `pytest` files the invoked skill
+   names. **Do NOT add a full `testgate check` on top** — the `/add-*` skill you
+   just ran already states its own verification, and stacking a full suite on it
+   was a guaranteed duplicate run from inside a dispatch (the single full run
+   belongs to the MAIN SESSION at handoff — §"Test Suite Policy" in the root
+   `CLAUDE.md`). Green smoke; **the gate is ZERO failures, not a diff.** Do not
    measure a baseline and do not tolerate a "pre-existing" failure: there are
    none (TestGatePLAN TG-2 drove them to zero). A red test is yours; fix it,
    don't explain it away.

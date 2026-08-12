@@ -135,15 +135,29 @@ class Enemy(GameObject):
         for seg in self.STAT_SUBTREE:
             block = block[seg]
         ds = block[self.DEATH_SPAWN_KEY]
-        era = self._resolve_era(enemies_balance, era)
+        # `_resolve_era` answers exactly ONE question: which row of
+        # `death_spawn.spawns` (and, for the Boss, of `stats[]`) this unit
+        # uses. It returns 0 for every type with no era table — it is NOT the
+        # unit's era, and it must not be assigned back over `era`.
+        #
+        # It WAS assigned back, and that silently fed 0 into `resolve_fit`
+        # below: every era-shaped type's per-era `footprint`/`sprite_scale`
+        # was pinned to its era-0 row for good. A Formation is meant to grow
+        # 2 -> 2 -> 3 -> 3 -> 4 across eras 0-4 (`game/enemies/CLAUDE.md`);
+        # every one of them walked the board as a 2x2. Only the Boss was
+        # unaffected, because its `_resolve_era` returns the global era — so
+        # the one type with a bespoke override masked the bug for the other
+        # eight.
+        spawn_era = self._resolve_era(enemies_balance, era)
+        era = max(0, int(era))
         # BR-5: WHEN/HOW the phase fires is per-era on the Boss and flat on
         # every other type — one seam, exactly like `resolve_fit`.
-        phase = self.resolve_phase_row(ds, era)
+        phase = self.resolve_phase_row(ds, spawn_era)
         # BR-4: ONE resolver for every per-era row — the same clamp as before
         # for an authored era, and past the last row the type's endgame factors
         # compound (all 1.0 as shipped, and an int leaf floors back to itself,
         # so this is bit-equal to the old `rows[min(max(era, 0), len - 1)]`).
-        spawn_row = resolve_era_row(ds["spawns"], era,
+        spawn_row = resolve_era_row(ds["spawns"], spawn_era,
                                     self.endgame_factors(block))
         footprint, sprite_scale = self.resolve_fit(block, era)
         components = [
@@ -170,7 +184,7 @@ class Enemy(GameObject):
                            phase_ms=(col * 137 + row * 251) % 2000,
                            fit_tiles=float(footprint),
                            scale=float(sprite_scale)),
-            DeathSpawn(era=era,
+            DeathSpawn(era=spawn_era,
                        enabled=ds["enabled"],
                        at_hp_fraction=float(phase["at_hp_fraction"]),
                        spawn_hp_fraction=float(phase["spawn_hp_fraction"]),

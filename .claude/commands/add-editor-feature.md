@@ -34,7 +34,7 @@ edit `game/**` (the editor talks only to `engine/` + `data/`).
    appropriate).
 
 ## Verify
-- `py tools/testgate.py check --affected` — TestPurity + the panel's test
+- `py -m pytest tools/tests/test_<area>.py -q` — TestPurity + the panel's test
   (drive it with synthetic `QTest` events, one `QApplication` per process).
 - Live: `py editor/main.py` (or headless under `QT_QPA_PLATFORM=offscreen`) — exercise
   the feature; for data-writing features confirm the JSON validates and a Play
@@ -44,3 +44,11 @@ edit `game/**` (the editor talks only to `engine/` + `data/`).
 - Changed files; how it hangs off selection; verification performed (live editor vs
   static read); whether `editor/panels/CLAUDE.md` needed a durable-rule update.
 - Tag every claim **measured** / **verified** / **inferred** (see `/report`).
+
+> **Role note (test policy).** The command above names the test FILES for what
+> you changed, which every role may run. `py tools/testgate.py check --affected`
+> is a MAIN-SESSION mid-task tool — its safety pass is the whole core tier — and
+> the single full `check` belongs to the main session at handoff. If you are
+> running this skill inside a dispatched agent, the `test_guard.py` hook will
+> deny both. The role table in §"Test Suite Policy" (root `CLAUDE.md`) is the
+> only authority.
