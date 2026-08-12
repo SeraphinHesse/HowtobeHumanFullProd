@@ -3,9 +3,14 @@
 # GpuAndMasterSheetsPLAN.md — GPU render backend, then master spritesheets
 
 Phased, agent-executable plan (same family as `AgentDispatchPLAN.md` /
-`TimelinePLAN.md`). Base branch: `Development`. Runnable via
-`/execute-plan-phases planning/GpuAndMasterSheetsPLAN.md G0-M5` or phase by
-phase.
+`TimelinePLAN.md`). Base branch: `Development`.
+
+**Run it ONE PHASE AT A TIME** — `/execute-plan-phases
+planning/GpuAndMasterSheetsPLAN.md G1` then `… G2`, and so on. This plan is a
+dependency chain, not a fan-out; **§5.1 explains why a multi-phase range is the
+wrong invocation here** and which two phases should use `/execute-phase`
+instead. Written against `Development` @ `bb0af73`; every file/line reference
+below was re-verified after that merge.
 
 Packages touched: **engine** (render backend, asset store, manifest), **data**
 (two schemas, one new registry, one new content folder), **editor** (details
@@ -177,24 +182,50 @@ store cache contract, E-37 tolerance split), `editor/panels/CLAUDE.md`
 
 ## 5. Build order
 
-| Phase | Scope | Status |
-|-------|-------|--------|
-| G0 | Measure the real render cost (no engine changes) | not started |
-| G1 | Backend seam + headless-renderer feasibility probe | not started |
-| G2 | `backend_gpu.py` — world sprites, overlays, texture cache | not started |
-| G3 | Ground cache on the GPU path | not started |
-| G4 | Host wiring, HUD composite, fallback, re-measure | not started |
-| M1 | Data layer: master-sheet registry + schema + `row_start` | not started |
-| M2 | Engine: `row_start` slicing + sheet-path-keyed store | not started |
-| M3 | Editor: pure master-sheet import module + picker dialog | not started |
-| M4 | DetailsPanel: button, row window, narrowed preview + rows | not started |
-| M5 | VFX preview panel button | not started |
+| Phase | Scope | Package | Depends on | Status |
+|-------|-------|---------|-----------|--------|
+| G0 | Measure the real render cost (no engine changes) | tools/game | — | not started |
+| G1 | Backend seam + headless-renderer feasibility probe | engine | G0 verdict | not started |
+| G2 | `backend_gpu.py` — world sprites, overlays, texture cache | engine | G1 | not started |
+| G3 | Ground cache on the GPU path | engine | G2 | not started |
+| G4 | Host wiring, HUD composite, fallback, re-measure | engine + game | G3 | not started |
+| M1 | Data layer: master-sheet registry + schema + `row_start` | data | — | not started |
+| M2 | Engine: `row_start` slicing + sheet-path-keyed store | engine | M1, G2 | not started |
+| M3 | Editor: pure master-sheet import module + picker dialog | editor | M1 | not started |
+| M4 | DetailsPanel: button, row window, narrowed preview + rows | editor | M2, M3 | not started |
+| M5 | VFX preview panel button | editor | M4 | not started |
 
-Phases are sequential. G0→G4 must land before M2 re-keys the store (M2's dedup
-is what G2's texture cache keys off), and M1 must land before M2 (schema before
-parser). M3/M4/M5 are editor-only and could be split across worktrees if run
-concurrently — **two or more implementation agents running at the same time must
-each get `isolation: "worktree"`** (root `CLAUDE.md`, Hard rules).
+### 5.1 This plan is a CHAIN, not a fan-out — read before dispatching
+
+`/execute-plan-phases` dispatches one planner per phase and then one coder per
+phase **in parallel waves**. That fits a plan whose phases are independent.
+**This plan's are not.** The `Depends on` column above is near-total: G2 writes
+against the seam G1 creates, G3 draws into the backend G2 wrote, M2 parses the
+schema M1 added, M4 drives the dialog M3 built. Dispatching G1–G4 as one
+parallel wave gives three coders a seam that does not exist yet.
+
+Two consequences, both binding on whoever executes this:
+
+- **Run it in dependency-respecting ranges, not one big range.** The genuine
+  parallelism here is exactly one pair: **M1 is independent of all of Part A**.
+  Everything else is sequential. Recommended invocations, in order:
+  `G0` → *(user reads the verdict)* → `G1` → `G2` → `G3` → `G4` → `M1` → `M2`
+  → `M3` → `M4` → `M5`. A single-phase range is a legal range and the
+  orchestrator's wave machinery degenerates to planner→coder→reviewer for that
+  one phase, which is the correct shape here.
+- **`/execute-phase` is the better tool for most of these** — it is the
+  interactive single-phase skill and it updates this doc's Status column the
+  same way. Use `/execute-plan-phases` when you want the unattended
+  planner→coder→reviewer→PR wave for one phase; use `/execute-phase` when you
+  want to be in the loop. **G0 and G4 should be `/execute-phase`**: G0's output
+  is a judgement call the user must read before Part A continues, and G4's exit
+  gate is a live `py game/main.py` look that no headless agent can perform.
+
+**Concurrency rule if you do run two phases at once** (only M1 alongside a Part-A
+phase qualifies): each implementation agent gets `isolation: "worktree"`. A
+file-scope fence written in a dispatch prompt is honour-based prose; a worktree
+is enforced. This is a root `CLAUDE.md` hard rule and it has already cost this
+repo one incident.
 
 ---
 
@@ -590,6 +621,17 @@ or a single "row" spin. Implementer's call; state which and why in the phase
 report. Everything else (button wrapped in a lambda, frame size inherited and
 locked, `row_start` omitted at 0) is M4's behaviour unchanged.
 
+**⚠ File collision with the `/add-vfx` skill** (added to `Development` after this
+plan was first written). `.claude/commands/add-vfx.md` edits this same file: it
+reads and may append to `_EMIT_FAMILIES`, `_LEVERS`, `_RAMP_KEY`
+(`vfx_preview.py:85-128`) and the per-family fixed `vfx_*` slot mapping that the
+existing "Import Spritesheet…" button at `:198` resolves through. M5 touches the
+button row and the frame-size/row-window controls, not those tables — but **do
+not run M5 concurrently with an `/add-vfx` dispatch on the same checkout.** If
+both are in flight, worktree-isolate them and merge M5 second, since its diff is
+the smaller one. Whoever executes M5 should check `git log --oneline -- editor/panels/vfx_preview.py`
+first.
+
 **Exit gate**: `py -m pytest -m editor`; a live editor run selecting a vfx slot
 and importing from a master sheet.
 
@@ -597,11 +639,29 @@ and importing from a master sheet.
 
 ## 8. Verify (whole plan)
 
-Iteration policy is the root `CLAUDE.md` Test Suite Policy, not this doc:
-targeted `py -m pytest tools/tests/test_<area>.py -x -q` while working, **one**
-full `py tools/testgate.py check` at handoff, never mid-task, never twice, never
-two runs in flight. `--affected` does not reliably narrow — read its `GATE INFO`
-line before believing it did.
+Iteration policy is the root `CLAUDE.md` Test Suite Policy, not this doc. It is
+**role-scoped**, and `.claude/hooks/test_guard.py` enforces the mechanical parts
+— a run that breaks the table is *denied*, not merely discouraged:
+
+| Role | Gate for this plan |
+|---|---|
+| Dispatched coder / reviewer (any phase) | `py tools/smoke.py` + `py -m pytest tools/tests/test_<file>.py -q` over **the files it touched** — nothing wider. **Not** the full suite, **not** a tier sweep, **not** `--affected` (its safety pass is the whole core tier, so the hook denies it for subagents). |
+| Main session, mid-plan | targeted files, or `py tools/testgate.py check --affected` after a merge |
+| Main session, at handoff | exactly ONE `py tools/testgate.py check` |
+
+**A denied test run is a REPORT, never a retry.** `test_guard.py` denies with
+exit 2 and a reason. Do not re-issue, do not vary the flags (it normalises
+`-q/-v/-x/-n/--tb`, so a reworded command fingerprints identically), do not reach
+for the escape hatch. Two denies are expected and must not be fought: *"already
+ran this exact target and nothing has changed"* (the guard fingerprints the main
+checkout's diff, and worktrees are gitignored, so a coder's own edits can be
+invisible to it) and *"another test run is already in flight"* (never wait-loop,
+never delete the lock — only the orchestrator clears one, and only after
+confirming nothing is live).
+
+`--affected` **aborts rather than silently widening**: a `GATE ABORT` is not a
+test failure and not something to retry — name the affected test files yourself
+and run those once.
 
 - Every phase's own exit gate above.
 - Data phases: every touched file validates; `py tools/smoke.py`.
@@ -615,7 +675,11 @@ line before believing it did.
 - Tests must never write into `data/` (`TempDataCase`) and must never assert
   against live `data/` content — pin the fixture. `master_sheets.json` and
   `data/sprites/master/` must be copied by the editor-test temp-data helper;
-  extend it in M1 if it does not already copy the whole tree.
+  extend it in M1 if it does not already copy the whole tree. Note the committed
+  fixture manifest (`tools/tests/fixtures/data/sprites/asset_manifest.json`)
+  currently holds **278 entries** and grew again in the tile-condition rework —
+  assert on entries the test itself writes, never on a count or on "this slot has
+  no art".
 - Docs: `engine/CLAUDE.md` + `engine/render/CLAUDE.md` + `engine/assets/CLAUDE.md`
   for Part A/M2, `data/CLAUDE.md` for M1, `editor/CLAUDE.md` +
   `editor/panels/CLAUDE.md` for M3–M5. Architectural changes update **the package
