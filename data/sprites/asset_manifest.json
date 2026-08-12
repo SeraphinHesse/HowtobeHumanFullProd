@@ -9295,15 +9295,13 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 8,
+      "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 2,
-          "hidden": [
-            0
-          ],
+          "frames": 1,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -9320,26 +9318,11 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "edge_se",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "edge_sw",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 3,
+          "hidden": [
+            1,
+            2
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -9347,8 +9330,11 @@
         {
           "animation": "edge_nw",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 3,
+          "hidden": [
+            1,
+            2
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -9356,8 +9342,35 @@
         {
           "animation": "edge_ne",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 3,
+          "hidden": [
+            1,
+            2
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_se",
+          "fps": 8,
+          "frames": 3,
+          "hidden": [
+            1,
+            2
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_sw",
+          "fps": 6,
+          "frames": 3,
+          "hidden": [
+            1,
+            2
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -9482,26 +9495,11 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "edge_se",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "edge_sw",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 3,
+          "hidden": [
+            0,
+            2
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -9509,8 +9507,11 @@
         {
           "animation": "edge_nw",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 3,
+          "hidden": [
+            0,
+            2
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -9518,14 +9519,41 @@
         {
           "animation": "edge_ne",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 3,
+          "hidden": [
+            0,
+            2
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_se",
+          "fps": 8,
+          "frames": 3,
+          "hidden": [
+            0,
+            2
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_sw",
+          "fps": 6,
+          "frames": 3,
+          "hidden": [
+            0,
+            2
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/wall_t2_lvl1.png"
+      "sheet": "imported/wall_t1_lvl1.png"
     },
     "wall_t2_lvl2": {
       "frame_h": 96,
@@ -9644,26 +9672,11 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "edge_se",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "edge_sw",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 3,
+          "hidden": [
+            1,
+            2
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -9671,8 +9684,11 @@
         {
           "animation": "edge_nw",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 3,
+          "hidden": [
+            1,
+            2
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -9680,14 +9696,41 @@
         {
           "animation": "edge_ne",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 3,
+          "hidden": [
+            1,
+            2
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_se",
+          "fps": 8,
+          "frames": 3,
+          "hidden": [
+            1,
+            2
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_sw",
+          "fps": 6,
+          "frames": 3,
+          "hidden": [
+            1,
+            2
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/wall_t3_lvl1.png"
+      "sheet": "imported/wall_t1_lvl1.png"
     },
     "wall_t3_lvl2": {
       "frame_h": 96,
@@ -9698,26 +9741,11 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "edge_se",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "edge_sw",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 3,
+          "hidden": [
+            0,
+            2
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -9725,8 +9753,11 @@
         {
           "animation": "edge_nw",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 3,
+          "hidden": [
+            0,
+            2
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -9734,14 +9765,41 @@
         {
           "animation": "edge_ne",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 3,
+          "hidden": [
+            0,
+            2
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_se",
+          "fps": 8,
+          "frames": 3,
+          "hidden": [
+            0,
+            2
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_sw",
+          "fps": 6,
+          "frames": 3,
+          "hidden": [
+            0,
+            2
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/wall_t3_lvl2.png"
+      "sheet": "imported/wall_t1_lvl1.png"
     },
     "wall_t3_lvl3": {
       "frame_h": 96,
@@ -9752,26 +9810,11 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "edge_se",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "edge_sw",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 3,
+          "hidden": [
+            0,
+            1
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -9779,8 +9822,11 @@
         {
           "animation": "edge_nw",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 3,
+          "hidden": [
+            0,
+            1
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -9788,14 +9834,41 @@
         {
           "animation": "edge_ne",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 3,
+          "hidden": [
+            0,
+            1
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_se",
+          "fps": 8,
+          "frames": 3,
+          "hidden": [
+            0,
+            1
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_sw",
+          "fps": 6,
+          "frames": 3,
+          "hidden": [
+            0,
+            1
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/wall_t3_lvl3.png"
+      "sheet": "imported/wall_t1_lvl1.png"
     }
   },
   "version": 2
