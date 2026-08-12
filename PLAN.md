@@ -1,320 +1,836 @@
-<!-- active-plan: UiEditorParentingPLAN.md | set: 2026-08-11 -->
-> **Active plan:** UiEditorParentingPLAN.md (mirror). Source of truth:
-> `planning/UiEditorParentingPLAN.md`. Do **not** edit this file directly — edit the
+<!-- active-plan: GpuAndMasterSheetsPLAN.md | set: 2026-08-12 -->
+> **Active plan:** GpuAndMasterSheetsPLAN.md (mirror). Source of truth:
+> `planning/GpuAndMasterSheetsPLAN.md`. Do **not** edit this file directly — edit the
 > source in `planning/` and re-run `/setcurrentplan`, or pick a different
 > plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
 > screen).
 
-# UiEditorParentingPLAN.md — widget parenting and the rest of the Unreal-grade UI editor
+<!-- status: IN PROGRESS — G0, G1, M1 done; G2–G4 and M2–M5 remain -->
 
-Phased, agent-executable plan (same family as `UiTextBindingPLAN.md` /
-`NewEnemyTypesPLAN.md`). Base branch: `Development`; work lands on
-`UiImplementation`. Runnable via
-`/execute-plan-phases planning/UiEditorParentingPLAN.md P-1-P-6` or
-phase-by-phase.
+# GpuAndMasterSheetsPLAN.md — GPU render backend, then master spritesheets
 
-## 0. What already landed (do NOT redo)
+Phased, agent-executable plan (same family as `AgentDispatchPLAN.md` /
+`TimelinePLAN.md`). Base branch: `Development`.
 
-An earlier session on this branch closed the first half of the designer's
-complaint. Read this section before planning anything — the uncommitted diff on
-`UiImplementation` already contains all of it.
+**Run it ONE PHASE AT A TIME** — `/execute-plan-phases
+planning/GpuAndMasterSheetsPLAN.md G1` then `… G2`, and so on. This plan is a
+dependency chain, not a fan-out; **§5.1 explains why a multi-phase range is the
+wrong invocation here** and which two phases should use `/execute-phase`
+instead. Written against `Development` @ `bb0af73`; every file/line reference
+below was re-verified after that merge.
 
-| Landed | Where |
-|---|---|
-| Position-only text anchors (`rect` = `(x, y, 0, 0)`) are selectable, draggable and visibly outlined | `editor/panels/_screen_primitives.py::interaction_rect`, `viewport._interaction_rect` |
-| Hit-testing picks the SMALLEST candidate, so a readout on a panel wins over the panel | `viewport._hit_widget` |
-| Resize handles suppressed on anchors; a marker shows the stored anchor point instead | `viewport._submit_screen_selection` |
-| X/Y/W/H spinboxes move the widget LIVE (no Enter), one undo step per burst | `editor/panels/screen_details.py` (`_on_rect_changed`, `_LIVE_COMMIT_MS`) |
-| `font_key` + `align` recorded as optional `screen_defaults.json` keys, so anchors measure correctly | `data/schemas/screen_defaults.schema.json`, `tools/export_ui_layouts.py::_widget_entry` |
-| Every HUD widget has a human display name (Love counter, Love per round, Level counter, Round counter, XP bar, …) | `tools/export_ui_layouts.py::_DISPLAY_NAMES` |
-| Level-up option boxes are individually editable widgets (`option_box_0..2`), with an anti-softlock guard | `game/ui/levelup.py` |
-| Construct cards ("the buying options") are individually editable widgets (`card_<building_type>`) | `game/ui/building_ui.py` |
-| `hud.round_label` declares `align="center"` on its holder rather than at the call site | `game/ui/hud.py` |
-
-Verified live: all 20 `hud` widgets, all 5 `levelup` widgets and all 15
-`building_panel/construct` widgets are selectable in a real `MainWindow`;
-`py tools/smoke.py` is OK. Golden-parity was measured to be a rendering no-op
-(capturing with the pre-change 2-option mock reproduces the old baseline
-byte-for-byte on every screen).
+Packages touched: **engine** (render backend, asset store, manifest), **data**
+(two schemas, one new registry, one new content folder), **editor** (details
+panel, sheet preview, a new dialog, a new pure module, the vfx panel), and one
+line of **game** (`game/main.py` backend selection). It is a cross-package plan
+by construction — no single phase spans two packages except where stated.
 
 ## 1. Vision
 
-The designer's remaining ask, verbatim: **"I need the ability to parent widgets
-to each other, and all widgets to be parented sensibly."** Plus the standing
-frame for all of this: *"the UI editor should be similar to the one in Unreal
-Engine."*
+Two connected asks, ordered GPU-first at the user's explicit direction.
 
-Today every widget in `data/ui/screen_defaults.json` is a flat, independent
-record. `hud.love_text` sits inside `hud.love_panel` and `hud.round_label` sits
-above `hud.btn_end_turn` purely because their numbers happen to agree — nothing
-expresses the relationship. So moving the love panel leaves its counter, its
-icon and its level readout behind, and a designer restyling the HUD has to
-re-derive by hand what the game's own `layout()` already knows.
+**Master spritesheets.** Today a slot's art is a whole PNG. One PNG can
+*already* back many slots — a manifest entry's `sheet` is a real relative path,
+not a slot-derived name, and "Use Spritesheet…" links slots to one file with
+refcounting. What is missing is the thing that makes a *master* sheet usable:
+**a row window**. Slicing always starts at sheet row 0, so ten characters
+stacked in one PNG cannot each claim their own rows.
 
-Unreal's answer is a widget hierarchy: a tree in the outliner, a transform that
-composes down it, and visibility/enable state that inherits. That is the target.
+The designer flow being built:
 
-**Outcome.** Every screen ships a sensible default parent tree. The editor shows
-that tree instead of a flat list, moving a parent carries its children, and a
-designer can re-parent by dragging in the tree.
+> Next to **Import Spritesheet…** and **Use Spritesheet…**, a third button
+> **Use Master Spritesheet…**. It opens a small popup: import a NEW master
+> spritesheet, or use an EXISTING one (a list of every master sheet already
+> imported, any of which can be selected). Once a master sheet is chosen, a new
+> line appears under that selection, styled exactly like the Frame W/H row:
+> **using rows [ ] til [ ]**. Only those rows appear in the spritesheet preview
+> and in the row editors at the bottom. Master spritesheets are saved as their
+> own category.
 
-## 2. Decisions (with rationale)
+**GPU rendering.** The renderer blits Surfaces on the CPU
+(`engine/render/backend.py`). Worse for this feature: `AssetStore._sheets` is
+keyed by `slot_key`, **not** by file path, so a master sheet shared by ten slots
+decodes ten times and holds ten Surfaces. The user named four drivers —
+one-upload-per-file, a **measured frame-rate problem in game**, memory
+footprint, and future-proofing. Because a real frame-rate complaint is in scope,
+this plan **measures before it rewrites** (phase G0), and G0 is allowed to
+re-scope Part A.
 
-- **D1 — The hierarchy is DATA, authored by the exporter, in
-  `screen_defaults.json`.** One optional `parent` key per widget record (a
-  sibling of `display_name`/`font_key`/`align`), naming another id in the same
-  screen+view. The exporter knows the real structure — `hud.py`'s
-  `_layout_readouts()` literally computes the readouts off `love_panel`'s rect —
-  so "parented sensibly" is a mapping written once beside `_DISPLAY_NAMES`, not
-  a designer chore. Absent `parent` = a root widget, so every screen keeps
-  working before its mapping is filled in.
-- **D2 — The cascade happens at EDIT time; the saved doc stays ABSOLUTE.**
-  Dragging a parent writes an updated absolute `rect` for the parent AND each
-  descendant, in one undo command. The alternative (store child rects relative
-  to the parent, resolve at `ScreenSkinning.apply` time) would overturn the
-  game's documented **"no cascade"** convention (`game/ui/CLAUDE.md`: *"a rect
-  override on one of those rows does not retarget this panel"*), impose an
-  apply-order dependency the flat setattr loop does not have, and put a
-  resolution step between the designer and what the player sees. Edit-time
-  cascade gives the full Unreal feel with **zero runtime risk and no
-  `ui_screen.schema.json` change for the geometry**.
-  - Consequence to accept: the game's own `layout()` still recomputes defaults
-    each frame with no cascade. Parenting is an AUTHORING relationship, not a
-    runtime one. Say so in the panel's tooltip.
-- **D3 — Re-parenting is a designer action and IS persisted**, so it needs the
-  one schema change: an optional `parent` key in `ui_screen.schema.json`'s
-  per-widget override object (same absent-by-default shape as every other key).
-  `null` re-roots a widget whose default parent the designer rejects. Nothing
-  in `game/` reads it; it is authoring metadata that rides the existing
-  override doc so it lives with the rest of the screen's authored state.
-- **D4 — Visibility inherits in the editor PREVIEW only.** A widget whose
-  ancestor is hidden is not drawn and not hit-testable in screen mode. The
-  saved `visible` override is per-widget and untouched — the game keeps
-  resolving each widget's own flag, exactly as now. Same argument as D2: the
-  editor models the hierarchy, the data does not smuggle it into the game.
-- **D5 — A cycle is unrepresentable, not an error to recover from.** The
-  re-parent action refuses a drop that would make a widget its own ancestor
-  (the control is disabled/rejected, ED-30's "invalid input unrepresentable"),
-  and the resolver additionally treats an unresolvable/cyclic chain as
-  "root" rather than raising — a `screen_defaults.json` hand-edit must never
-  be able to hang a Qt paint handler.
-- **D6 — The tree replaces the flat widget list; it does not sit beside it.**
-  A second parallel widget selector would violate the editor's
-  single-selection-model invariant. `ScreenDetailsPanel.widget_list`
-  (`QListWidget`) becomes a `QTreeWidget` with the SAME `UserRole` = code id
-  contract, so `widget_selected`/`select_widget` and every `push_*` call site
-  are unchanged.
+The two halves meet at one place: *one source file = one texture* is exactly the
+keying master sheets need, so doing GPU first means master sheets are built on
+the texture path from day one.
 
-## 3. Open questions — ANSWERED by the designer (do not re-ask)
+## 2. Architecture
 
-All three were answered before implementation began; the plan below stands as
-written:
-
-1. **Dragging a parent moves its children BY DEFAULT, no modifier held** —
-   Unreal's behaviour. P-3 as written.
-2. **Moving cascades; resizing does NOT.** Resize a parent and its children
-   stay put.
-3. **Real containers only** — exactly P-2's table, parenting only to
-   already-id'd widgets whose rects the children's defaults are genuinely
-   computed from. No invented GROUP / `CanvasPanel` nodes (that stays parked
-   in P-6), and no `screen_defaults.json` shape change beyond the optional
-   `parent` key.
-
-## 4. Phases
-
-**Status: P-1 – P-5 LANDED** (branch `claude/ui-editor-parenting-v5mo7h`, off
-`UIfixing`). P-6 is untouched and stays parked.
-
-### P-1 — The `parent` key and a pure resolver — **DONE**
-- `data/schemas/screen_defaults.schema.json`: optional `parent` (string,
-  `minLength: 1`) on the widget `$def`, documented as authoring metadata the
-  game never reads.
-- `data/schemas/ui_screen.schema.json`: optional `parent` (string **or null**)
-  on the per-widget override object, for D3 re-parenting.
-- New pure module `editor/widget_tree.py` (Qt-free, pygame-free, in
-  `TestPurity`): `resolve_parent(widget_id, spec, override)`, `build_tree(
-  defaults_widgets, doc_widgets) -> {root_id: [child_id, ...]}` with a stable
-  order, `descendants(tree, widget_id)`, `would_cycle(tree, child, new_parent)`.
-  Cycle/dangling-parent chains resolve to root (D5).
-- **Landing condition:** no behaviour change anywhere; the resolver is unit-
-  exercised and nothing calls it yet.
-- **Landed as specified**, with three additions the later phases needed:
-  `parent_map()` (the sanitised `{id: parent}` primitive `build_tree` is
-  built on), `ancestors()` (P-5's visibility walk) and `legal_parents()`
-  (P-4's combo, so the combo and the drop refuse the same set). 20 unit tests
-  in `tools/tests/test_widget_tree.py`; the module is in `TestPurity`.
-
-### P-2 — Author the default hierarchy — **DONE**
-- A `_PARENTS` mapping in `tools/export_ui_layouts.py`, beside `_DISPLAY_NAMES`
-  and applied by the same `_apply_display_names` walk (which already handles
-  the flat `widgets` map AND every `views.<name>` level, so this needs no new
-  traversal).
-- Starting hierarchy, derived from what each screen's `layout()` already
-  computes off what:
-
-  | Screen | Parent | Children |
-  |---|---|---|
-  | `hud` | `love_panel` | `love_text`, `icon_love`, `lvl_label`, `icon_xp`, `xp_bar`, `xp_text` |
-  | `hud` | `readout_panel` | `income_text`, `lives_text`, `icon_lives`, `tiles_text` |
-  | `hud` | `btn_end_turn` | `round_label` |
-  | `levelup` | `backdrop` | `heading`, `option_box_0..2` |
-  | `building_panel` | `panel` | `close_btn`, `action_btn`, `move_btn`, `boss_btn`, every `stat_*`/`info_*`, every `card_*`, every mode title/hint |
-  | `building_panel` | `preview_panel` | every `preview_*` |
-  | `cheat_menu` | `panel` | every `btn_*`, `title`, `jump_label`, `round_field` |
-  | `add_name` | `panel` | `title`, `btn_add`, `btn_back`, `hint`, `msg_text`, `pool_count` |
-  | `main_menu`/`pause`/`settings`/`credits`/`game_over` | `backdrop` | that screen's title + buttons + labels |
-  | `boss_cutscene` | `backdrop` | `headline`, `subtitle`, `box_a`, `box_b` |
-  | `overlays`, `game_log`, `enemy_intro` | — | flat (2, 1 and 2 widgets) |
-
-  Every parent above is a real, already-id'd container whose rect the children's
-  defaults are genuinely computed from — no invented nodes (see Q3).
-- Regenerate `data/ui/screen_defaults.json`.
-- **Landing condition:** the file gains `parent` keys and nothing else moves;
-  the editor still behaves exactly as it does today (nothing reads the key yet).
-- **Landed:** 243 `parent` keys added to `data/ui/screen_defaults.json` and
-  **not one other line changed** (measured: `git diff -U0` shows zero
-  non-`parent` add/remove lines). The mapping is TWO tables rather than one —
-  `_PARENTS` for the explicit pairs (hud's 11, `building_panel`'s four
-  `preview_*`) and `_PARENT_CONTAINERS` for the nine screens with one real
-  container that owns everything else (`{screen: (parent_id, exempt_ids)}`).
-  Spelling `building_panel`'s ~80 stat cells out pair by pair would be noise
-  that drifts the moment a stat row is added, and there is no judgement in
-  those pairs. A parent is written only when the parent id is present in the
-  SAME widgets map, so each of `building_panel`'s five views parents to
-  whichever container it actually shows. Resolved roots match the table
-  exactly.
-
-### P-3 — The viewport cascade — **DONE**
-- `viewport._screen_move`/`_screen_release`: a move drag on a widget with
-  descendants applies the same delta to every descendant's rect and commits ONE
-  undoable command covering the whole subtree (a new
-  `UIScreenSession.push_move_subtree(changes)`, modelled on `map_session`'s
-  stroke commands — full old/new per widget, never a delta).
-- Arrow-key nudge cascades identically (it shares `push_move`'s contract).
-- Resize does NOT cascade (Q2).
-- Selection chrome: draw a dimmer secondary outline around the moving subtree so
-  the designer sees what is coming along.
-- **Landing condition:** dragging `hud.love_panel` carries its counter, icon,
-  level label and XP bar; one Ctrl+Z puts all of them back.
-- **Landed and exercised in a real headless `ViewportPanel`:** a drag on
-  `hud.love_panel` moved it plus all six descendants by the same delta, left
-  `round_label` (a different parent) alone, produced exactly ONE undo command,
-  and one undo restored all seven. Arrow nudge behaved identically. A resize
-  drag captured no subtree and moved no child. Six dim `SUBTREE_COLOR`
-  outlines were submitted for the six descendants.
-- One implementation note worth keeping: each descendant's new rect is
-  computed from ITS OWN rect at press, never from the rect the previous move
-  event wrote, so rounding cannot accumulate over a long drag.
-
-### P-4 — The tree in the details panel — **DONE**
-- `ScreenDetailsPanel.widget_list` `QListWidget` -> `QTreeWidget` (D6), same
-  `UserRole` = code id contract, expanded by default, display names as text and
-  the raw id as tooltip (`widget_display_name` stays the ONE naming rule).
-- Drag-and-drop re-parent inside the tree writes `parent` through
-  `push_field(widget_id, "parent", old, new)` — the existing per-key undoable
-  path, so the "↺" reset button and "Reset ALL" cover it with no new code.
-  `would_cycle` gates the drop (D5).
-  - `editor/panels/timeline.py` is the repo's one prior `QDrag`/`QMimeData`
-    user — copy its shape, including the "a real OS drag cannot be synthesized
-    offscreen, so drive `dropEvent` directly" testing note.
-- A per-widget **Parent** row in the form (a combo of legal parents + `(none)`)
-  as the keyboard-accessible equivalent of the drag.
-- **Landing condition:** the designer can re-parent `round_label` from
-  `btn_end_turn` to `love_panel`, save, reopen, and it stuck.
-- **Landed and exercised headlessly against a temp copy of `data/`:** the
-  drop (driven straight into `dropEvent`) re-parented `round_label`, wrote one
-  undoable command, re-drew the tree, saved, and a freshly opened session
-  showed it under `love_panel`. A drop that would make a widget its own
-  ancestor writes nothing.
-- **`push_field` needed one addition the plan did not foresee.** D3's
-  `null` re-root is unreachable through the existing path: `push_field(...,
-  None)` means "the key is ABSENT" (restore the default parent), and there was
-  no way to write a literal JSON null. `ui_screen_session` therefore gained a
-  `NO_PARENT` sentinel plus the `parent_override()` accessor that reads the
-  three states apart (absent / null / an id). Everything else — the "↺"
-  button, "Reset ALL", undo — rides the unchanged per-key path.
-
-### P-5 — Preview visibility inheritance — **DONE**
-- `viewport._submit_screen_widget` and `_hit_widget` skip a widget with a hidden
-  ancestor (D4). The details panel notes the reason on the Visible row rather
-  than silently drawing nothing ("hidden by parent <name>").
-- **Landing condition:** hiding `love_panel` hides its whole cluster in the
-  preview; the saved doc still carries exactly one `visible` override.
-- **Landed and exercised headlessly:** hiding `love_panel` marked all six
-  descendants hidden (and `round_label`, a different parent, not), skipped all
-  seven in the draw pass, made none of them hit-testable, and the saved
-  `hud.json` carried exactly `{"love_panel": false}`. The Visible row on a
-  child reads `Visible  (hidden by parent "Love panel")` with the checkbox
-  still enabled and its own flag untouched.
-- **KNOWN GAP, deliberate:** the skip is in `_submit_screen_widget`, which is
-  the fallback draw path. When the UT-2 recorded preview is IN SYNC the editor
-  replays the recorded draw list instead, and that recording knows nothing
-  about parenting — a child of a hidden parent can still appear there until
-  the next Refresh Layouts. Closing it means teaching the recorder the
-  hierarchy, i.e. giving the exporter a runtime notion of parenting, which is
-  exactly what D2/D4 keep out. Left as-is and reported.
-
-### P-6 — Parked / candidates (do NOT start without asking)
-Named so the next session does not silently expand scope:
-- **Group nodes** that are not real widgets (Unreal's `CanvasPanel`) — see Q3.
-  Needs a home for a node with no game-side widget, i.e. a real
-  `screen_defaults.json` shape change.
-- **Anchors/layout slots** (Unreal's anchor medallion — "pin to bottom-right").
-  This is the genuinely Unreal-ish feature after parenting, and it WOULD need a
-  runtime resolution step, i.e. it overturns D2.
-- Multi-select + align/distribute, snapping guides, z-order reordering,
-  copy/paste of widget styling.
-
-## 5. Known issues this plan does NOT fix
-
-- **`test_ui_layout_export.TestScreenPreviewExport::
-  test_committed_previews_are_fresh` is RED and was left red.** It regenerates
-  `data/ui/screen_previews.json` and byte-compares; on a Linux container the
-  font stack measures one text height as 14 where the committed (Windows-
-  authored) file says 15, in 16 places. **Measured to predate this branch:**
-  running the exporter from the UNMODIFIED `UIfixing` tip produces the same
-  16-line difference against the same committed file, and this branch's own
-  exporter change is a previews NO-OP (its output is byte-identical to the
-  baseline's). The committed `screen_previews.json` was therefore left exactly
-  as it was rather than "fixed" into a Linux-flavoured version that would
-  flip straight back on the designer's machine. The sibling
-  `test_committed_defaults_are_fresh` passes.
-- **`test_editor_panels.TestBalancingPanel::
-  test_enemy_rework_fields_surface_and_are_editable` is RED and was left red**
-  — two subtests, `KeyError: 'EnemyTypes/Standard/footprint'` and
-  `'…/sprite_scale'`. It asserts those keys render as spinboxes at the enemy
-  type ROOT, but the per-era-footprint change moved them into
-  `$defs/type_era_row` and DELETED the flat root keys (`data/CLAUDE.md` says
-  so explicitly), so the test is stale against its own data. **Measured to
-  predate this branch**: identical failure in a throwaway worktree at the
-  unmodified `UIfixing` tip. Nothing in this plan touches `balancing.py`, the
-  enemies schema or `enemies.json`. It belongs to the suite rework, not here.
-
-- **The test suite is broken and needs its own rework** (the user's call this
-  session: *"fuck the tests entirely, they're broken and need a rework in
-  future"*). What is known concretely: `tools/tests/fixtures/data/ui/
-  screen_defaults.json` is a STALE pre-UR-2 mirror (1280x720 rects), and four
-  `test_ui_skinning.py` tests asserted E-37 *absence* paths against fixture
-  state they never pinned — they were red at `HEAD` before this branch's work
-  and were fixed in passing by pinning the absence (`drop_screen_defaults`/
-  `drop_screen_overrides`). Treat the suite as untrustworthy until that rework;
-  do not let a red test block this plan without checking it against `HEAD`
-  first.
-- **Construct card labels overhang their card** — a real, pre-existing, in-game
-  visual defect, invisible until the cards gained ids. Measured at the shipped
-  118px card width, `md` font: `Bush Wall Builder  12` needs 151px (+33),
-  `Attack Booster  12` 130px (+12), and five others overflow. It is the exact
-  UR-5 defect class (the panel halved at UR-2, the font did not). The fix is a
-  design call — narrower copy, a smaller font, or a wider panel column — so it
-  is reported as a non-blocking lint
-  (`test_ui_min_targets.test_report_dynamic_label_overflow`) rather than
-  silently changed. **Ask the designer which they want.**
-
-## 6. Verify
-
-```bash
-py tools/smoke.py
-py editor/main.py     # screen mode: hud, levelup, building_panel/construct
 ```
-Live-exercise the cascade and the re-parent drag; state what was exercised in a
-real editor run versus read statically.
+BEFORE                                   AFTER
+──────                                   ─────
+Renderer (pure orchestration)            Renderer (pure orchestration)
+  └─ flush() → DrawCall list               └─ flush() → DrawCall list  (UNCHANGED)
+       └─ backend.draw(surface, calls)          ├─ backend.draw(...)        editor / tests / smoke
+                                                └─ backend_gpu.draw(...)    game/main.py
+                                                     ▲ falls back to backend.draw
+
+GroundCache → oversized Surface          GroundCache → Surface  (editor / tests)
+   pan = Surface.scroll (memmove)        GroundCacheGpu → target Texture pair (game)
+                                            pan = self-blit between two targets
+
+AssetStore._sheets[slot_key] = Surface   AssetStore._sheets[entry.sheet] = Surface
+   ten slots on one PNG = ten Surfaces      ten slots on one PNG = ONE Surface = ONE Texture
+
+manifest entry                           manifest entry
+  {sheet: "imported/x.png", …}             {sheet: "imported/x.png" | "master/y.png",
+  rows[i] ≡ sheet row i                     row_start?: int,  …}
+                                           rows[i] ≡ sheet row (row_start + i)
+
+data/sprites/                            data/sprites/
+  imported/*.png                           imported/*.png          (unchanged)
+  asset_manifest.json                      master/*.png            NEW, committed content
+                                           master_sheets.json      NEW, own schema
+                                           asset_manifest.json
+```
+
+**HUD is deliberately NOT migrated.** `HudRect`/`HudText`/`HudSprite`/`HudLines`,
+the font cache, the nine-slice compositor and the crop path all stay on the
+Surface backend and composite over the GPU frame as **one upload per frame**.
+That is a few dozen items a frame with text and 9-patch geometry — the fiddliest
+to port and the least to gain — and keeping it single-implementation is what
+bounds the dual-backend parity burden.
+
+Route to the subsystem docs rather than restating them: `engine/render/CLAUDE.md`
+(depth_key layer-primary invariant, ground-cache scroll technique, nine-slice,
+the pixel quantizer), `engine/assets/CLAUDE.md` (manifest v2 optional keys,
+store cache contract, E-37 tolerance split), `editor/panels/CLAUDE.md`
+(DetailsPanel conventions, sheet preview, the `_NoWheel*` rule),
+`data/CLAUDE.md` (schema house style, sheet-sharing rules, D-31 committed art).
+
+## 3. Decisions (settled with the user — do not re-litigate)
+
+- **D1 — Master sheets are a REGISTRY FILE + FOLDER, not a `slots.json`
+  category.** `data/sprites/master/*.png` plus `data/sprites/master_sheets.json`
+  and its own schema. A master sheet is a FILE with metadata; it is never
+  previewed, animated or rendered on its own, so a `slots.json` category would
+  hand it machinery it cannot use (an animation vocabulary, a frame-size
+  category default, a selector tree node, a per-sheet slot key that must be
+  unique repo-wide, an entry in the generated cross-category `sprite_slot` enum).
+  This is the "own category" the ask names — its own storage concept, separate
+  from `imported/`.
+- **D2 — The row window is an optional `row_start` int on the manifest entry.**
+  `rows[0]` (idle) resolves to sheet row `row_start`; entry row *i* resolves to
+  sheet row `row_start + i`. The **til** blank in the UI is derived from
+  `len(rows)`, not stored — storing both would be a second source of truth that
+  must always agree with the rows array. Omitted ⇒ 0 ⇒ **every existing entry is
+  byte-identical**, the same convention `slice` and `tint_overlay` already
+  follow. Rejected alternative: absolute row indices per `rows[]` entry — more
+  flexible (non-contiguous rows) but it breaks the "array position IS the row"
+  rule the whole `playback_order` path assumes.
+- **D3 — The master sheet OWNS the frame size; a linking slot inherits it.**
+  `frame_w`/`frame_h` live on the registry entry, set once at master-sheet
+  import, and are written into the linking slot's manifest entry. The Frame W/H
+  spinboxes go **read-only (greyed + tooltip)** while a master sheet is selected.
+  One sheet, one grid: if two slots cut the same master sheet at different frame
+  sizes, the row numbers in "using rows a til b" mean different things per slot
+  and the whole feature stops being legible. This deliberately bypasses
+  `DetailsPanel._on_frame_size_changed`'s two-file write — a master sheet's grid
+  is **not** a per-slot `slots.json` override and must not touch `slots.json`.
+- **D4 — The row window is offered for master sheets ONLY.** A plain per-slot
+  sheet starts at row 0 by definition; adding the control everywhere would put a
+  spinbox pair on every slot in the editor that almost none of them would use.
+  The row appears exactly when a master sheet is selected, matching the ask
+  ("a new line appears under this selection").
+- **D5 — The button lands in `DetailsPanel` and `VfxPreviewPanel`, not the
+  palette.** DetailsPanel is the main per-slot importer and owns the Frame W/H
+  row the new line mirrors. The palette's importer (`editor/panels/palette.py`)
+  is the map/deco/base path, reachable only while a map is open, and is
+  explicitly out of scope.
+- **D6 — Dual render backend.** The existing Surface blitter STAYS as the
+  editor / test / headless path; a new Texture backend serves `py game/main.py`.
+  Both consume the SAME `DrawCall` list, so this is one render path in the ED-22
+  sense — not a second renderer of game content. This is forced, not preferred:
+  `pygame._sdl2.video.Renderer` needs a real SDL **Window**, while
+  `editor/panels/viewport.py` sets `SDL_VIDEODRIVER=dummy` at module level before
+  importing pygame, and the entire suite plus `tools/smoke.py` run under that
+  same dummy driver.
+- **D7 — GPU scope is world sprites + ground cache; HUD stays on Surface.** See
+  §2. The world layer is where the sprite volume and the shared-sheet batching
+  win actually are.
+- **D8 — No-GPU fallback is the Surface backend**, logged, never a hard failure.
+  It is the same code the editor and tests exercise on every run, so the
+  fallback path is continuously tested rather than dead code. Rejected: SDL's
+  software renderer (generally slower than direct Surface blitting for this
+  workload, and a second untested path); fail-loud (a machine without
+  acceleration could not play at all).
+- **D9 — G0 measures before anything is rewritten, and may re-scope Part A.**
+  The user named a real frame-rate problem. If the profile says the cost is
+  elsewhere (per-frame Python in the submit loop, `pygame.transform.scale` at
+  zoom, the flip), the honest outcome is a re-scope recorded in this doc, not a
+  rewrite that misses.
+- **D10 — `_frames` / `_hit_masks` stay keyed per slot.** Only `_sheets` is
+  re-keyed onto `entry.sheet`. Two slots may legitimately slice one file at
+  different frame sizes (a plain shared sheet still can — D3 constrains master
+  sheets only), and a wrong key in the frame cache is a silent wrong-pixels bug,
+  not a crash. Deduping frames too would mean folding `frame_w`/`frame_h`/
+  `row_start` into the key; noted as a follow-up, not done here.
+
+## 4. Environment facts (verified on this machine)
+
+- pygame-ce **2.5.7** (SDL 2.32.10), Python 3.13.2.
+- `pygame._sdl2.video.Renderer` imports cleanly — the API exists.
+- `engine/render/` is small: `backend.py` 227 lines, `renderer.py` 211,
+  `ground_cache.py` 186, `hud.py` 141, `fonts.py` 186, `item.py` 68. The
+  migration is contained.
+- **RESOLVED by G1's probe (measured 2026-08-12) — the dummy driver CAN host a
+  Renderer.** This was the plan's one "unverified and load-bearing" item: whether
+  an SDL2 `Renderer` can be created at all under `SDL_VIDEODRIVER=dummy`, which
+  decides whether the GPU path can be *tested* headlessly. It can. A throwaway
+  probe (one fresh subprocess per driver, since SDL init is process-global)
+  drove `pygame.init()` → `pygame._sdl2.video.Window` → `Renderer` →
+  `Texture.from_surface` upload → `clear()` + `draw()` + `to_surface()` readback
+  + a pixel comparison:
+
+  | Driver | Result |
+  |---|---|
+  | **`dummy`** | **full success** — Window, Renderer, Texture upload, draw and `to_surface()` readback all worked; the read-back pixel `(10, 200, 30)` matched the uploaded colour exactly |
+  | `offscreen` | fails at `Window()`: "offscreen not available" |
+  | `software` | fails at `Window()`: "software not available" |
+
+  `dummy` is the one that matters — it is already the driver the entire test
+  suite and `tools/smoke.py` run under. **So G2's parity test can run in normal
+  CI and must NOT be marked live-only**, and §9's "reduction in safety" risk is
+  retired. `offscreen`/`software` being unavailable in this SDL build is moot.
+  (D6's dual backend was never contingent on this — it stands either way,
+  because the editor's `SDL_VIDEODRIVER=dummy` module-level rule is about the
+  editor keeping the Surface path, not about testability.)
+
+---
+
+## 5. Build order
+
+| Phase | Scope | Package | Depends on | Status |
+|-------|-------|---------|-----------|--------|
+| G0 | Measure the real render cost (no engine changes) | tools/game | — | **DONE** — verdict in §6/G0: blit throughput dominates (84–97% of frame); Part A proceeds unchanged |
+| G1 | Backend seam + headless-renderer feasibility probe | engine | G0 verdict | **DONE** — `backend_api.py` seam; probe says the dummy driver CAN host a Renderer (§4), so G2's parity test runs in CI |
+| G2 | `backend_gpu.py` — world sprites, overlays, texture cache | engine | G1 | not started |
+| G3 | Ground cache on the GPU path | engine | G2 | not started |
+| G4 | Host wiring, HUD composite, fallback, re-measure | engine + game | G3 | not started |
+| M1 | Data layer: master-sheet registry + schema + `row_start` | data | — | **DONE** — schema + seeded registry + `data/sprites/master/`; existing manifest byte-identical |
+| M2 | Engine: `row_start` slicing + sheet-path-keyed store | engine | M1, G2 | not started |
+| M3 | Editor: pure master-sheet import module + picker dialog | editor | M1 | not started |
+| M4 | DetailsPanel: button, row window, narrowed preview + rows | editor | M2, M3 | not started |
+| M5 | VFX preview panel button | editor | M4 | not started |
+
+### 5.1 This plan is a CHAIN, not a fan-out — read before dispatching
+
+`/execute-plan-phases` dispatches one planner per phase and then one coder per
+phase **in parallel waves**. That fits a plan whose phases are independent.
+**This plan's are not.** The `Depends on` column above is near-total: G2 writes
+against the seam G1 creates, G3 draws into the backend G2 wrote, M2 parses the
+schema M1 added, M4 drives the dialog M3 built. Dispatching G1–G4 as one
+parallel wave gives three coders a seam that does not exist yet.
+
+Two consequences, both binding on whoever executes this:
+
+- **Run it in dependency-respecting ranges, not one big range.** The genuine
+  parallelism here is exactly one pair: **M1 is independent of all of Part A**.
+  Everything else is sequential. Recommended invocations, in order:
+  `G0` → *(user reads the verdict)* → `G1` → `G2` → `G3` → `G4` → `M1` → `M2`
+  → `M3` → `M4` → `M5`. A single-phase range is a legal range and the
+  orchestrator's wave machinery degenerates to planner→coder→reviewer for that
+  one phase, which is the correct shape here.
+- **`/execute-phase` is the better tool for most of these** — it is the
+  interactive single-phase skill and it updates this doc's Status column the
+  same way. Use `/execute-plan-phases` when you want the unattended
+  planner→coder→reviewer→PR wave for one phase; use `/execute-phase` when you
+  want to be in the loop. **G0 and G4 should be `/execute-phase`**: G0's output
+  is a judgement call the user must read before Part A continues, and G4's exit
+  gate is a live `py game/main.py` look that no headless agent can perform.
+
+**Concurrency rule if you do run two phases at once** (only M1 alongside a Part-A
+phase qualifies): each implementation agent gets `isolation: "worktree"`. A
+file-scope fence written in a dispatch prompt is honour-based prose; a worktree
+is enforced. This is a root `CLAUDE.md` hard rule and it has already cost this
+repo one incident.
+
+---
+
+## 6. Part A — GPU render backend
+
+### Phase G0 — Measure
+
+**Goal**: know what is actually slow, in numbers, before a line of
+`backend_gpu.py` exists. This phase exists to prevent the failure mode of
+rewriting the wrong thing.
+
+**Files** — new: `tools/profile_render.py` (a small, deterministic harness;
+gitignored output). Modified: `game/main.py` (a per-frame timing split behind a
+flag — removed or left flag-off at the end of the phase), this plan doc (the
+measurement table is written INTO §6/G0 as the phase's deliverable).
+
+**What to capture**
+- Per-frame wall-clock split: `GroundCache.ensure` / `Renderer.flush` sprite
+  pass / HUD pass / `display.flip`, as mean and 95th percentile over ≥300 frames.
+- On the committed map `data/maps/first_light.json` (never the currently-active
+  map — a profile that moves when a designer flips the active map is not a
+  baseline), at a late-round enemy count, at zoom 1.0 and at the maximum zoom
+  level, plus one large-map case.
+- Process RSS with the asset store warm, and the count of loaded sheet Surfaces
+  (the duplicate-decode number this plan claims to fix).
+
+**Tests**: none — this phase changes no shipped behaviour. `tools/smoke.py` must
+still pass, and `game/main.py` must be left with the instrumentation off by
+default.
+
+**Exit gate**: a measurement table plus a one-paragraph verdict written into this
+document, naming the dominant cost. **If the dominant cost is not blit
+throughput, stop and re-scope Part A with the user before G1.** Every later
+phase states its target against these numbers.
+
+#### G0 RESULTS (measured 2026-08-12, `phase-G1-umbrella`)
+
+Harness: `tools/profile_render.py` (new, committed — deterministic: fixed map
+file, seeded sprite placement, fixed serpentine pan, 300 measured frames after
+30 discarded warm-up frames). Machine: pygame-ce 2.5.7 / SDL 2.32.10, Python
+3.13.2, Windows 11, real `pygame.SCALED` window at `display.json`'s size.
+
+**`game/main.py` was NOT modified.** The per-frame timing split this phase was
+scoped to add **already exists** (`game/main.py:1690-1704`, documented as the
+"Frame-timing HUD" in `game/PERF.md:154-157`): windowed runs already print
+`sim/submit/flush/flip` mean ms beside the fps line, gated on `tune_gc` so
+headless stays silent. Widening it was judged unnecessary once the harness
+isolated the answer, and leaving the host untouched is strictly safer. The one
+split the existing instrumentation cannot make is HUD-draw vs world-draw (both
+land inside its `flush` bucket) — see the caveat below.
+
+All times in **ms, mean / p95 per frame.** `ground` = `GroundCache.ensure` +
+`blit`; `submit` = tile emit + `Renderer.submit`; `flush` = `Renderer.flush`
+(the backend's blits); `flip` = `display.flip` (the SCALED upscale).
+
+| Map | Zoom | Camera | Sprites | ground | submit | **flush** | flip | frame | fps |
+|---|---|---|---|---|---|---|---|---|---|
+| first_light 20² | 1.0 | static | 160 | 0.20 / 0.33 | 0.07 / 0.10 | **10.56 / 14.34** | 0.82 / 1.03 | 11.65 / 15.56 | 86 |
+| first_light 20² | 1.0 | panning | 160 | 0.59 / 0.95 | 0.05 / 0.07 | **10.07 / 12.92** | 0.61 / 0.77 | 11.32 / 14.33 | 88 |
+| first_light 20² | 2.0 | static | 160 | 0.19 / 0.30 | 0.06 / 0.08 | **7.08 / 7.94** | 0.59 / 0.78 | 7.91 / 8.90 | 126 |
+| first_light 20² | 2.0 | panning | 160 | 1.25 / 1.55 | 0.05 / 0.07 | **9.74 / 12.45** | 0.59 / 0.76 | 11.64 / 14.60 | 86 |
+| first_light 20² | 1.0 | static | 1016 | 0.20 / 0.33 | 0.23 / 0.40 | **63.02 / 101.03** | 0.87 / 1.22 | 64.32 / 103.51 | 15.5 |
+| first_light 20² | 1.0 | panning | 1016 | 0.66 / 1.06 | 0.21 / 0.33 | **61.09 / 71.84** | 0.81 / 1.05 | 62.76 / 73.43 | 15.9 |
+| first_light 20² | 2.0 | static | 1016 | 0.24 / 0.53 | 0.31 / 0.93 | **79.87 / 199.01** | 1.12 / 2.53 | 81.54 / 201.08 | 12.3 |
+| first_light 20² | 2.0 | panning | 1016 | 1.59 / 3.22 | 0.27 / 0.57 | **80.95 / 124.49** | 0.98 / 1.48 | 83.79 / 129.01 | 11.9 |
+| holex 1024² | 1.0 | static | 1016 | 0.21 / 0.32 | 0.24 / 0.40 | **14.72 / 19.45** | 0.91 / 1.39 | 16.08 / 21.51 | 62 |
+| holex 1024² | 1.0 | panning | 1016 | 2.68 / 4.80 | 0.24 / 0.56 | **13.51 / 17.40** | 0.83 / 1.21 | 17.27 / 23.94 | 58 |
+| holex 1024² | 2.0 | static | 1016 | 0.22 / 0.35 | 0.28 / 0.51 | **17.66 / 25.73** | 1.06 / 1.82 | 19.23 / 27.66 | 52 |
+| holex 1024² | 2.0 | panning | 1016 | 5.02 / 10.64 | 0.75 / 1.46 | **33.44 / 65.33** | 1.86 / 3.80 | 41.06 / 76.25 | 24 |
+
+The 1016-sprite cases are the **era-4 boss round** — `data/balancing/
+enemies.json`'s `EnemyTypes.Boss.round_counts` era 4 spawns 976 enemies
+(215 raiders + 700 regular + 61 siege); era 2 is 436. The 160-sprite cases are
+a mid-game reference. `first_light` (20×20) is the worst case *because* it is
+small: every sprite is on screen. On `holex` (1024²) the same 1016 sprites
+scatter far beyond the viewport, which is why its `flush` is 4× cheaper — that
+column is measuring how many sprites actually land on screen, not map size.
+
+**Asset store, warm** (`py tools/profile_render.py --warm-store`, every one of
+the 278 manifest slots resolved):
+
+| Metric | Value |
+|---|---|
+| Manifest entries | 278 |
+| Sheet Surfaces held | 274 |
+| Distinct source PNGs | 194 |
+| **Duplicate Surfaces** | **80** |
+| Sheet pixel memory | 94.7 MB |
+| **Of which duplicate decode** | **58.3 MB (62%)** |
+| Process RSS, cold → warm | 83 MB → 179 MB |
+
+**Verdict: the dominant cost IS blit throughput, and Part A proceeds
+unchanged.** `Renderer.flush` is **84–97% of every frame measured**, in every
+map / zoom / camera combination — 61–81 ms of a 63–84 ms frame at the era-4
+boss load, which is 12–16 fps and exactly the frame-rate complaint that
+motivated this plan. The three alternative hypotheses D9 named are all
+measured and all dead: per-frame Python in the submit loop is **0.05–0.75 ms**
+(under 1% of a frame, and it barely grows from 160 to 1016 sprites, so the
+depth sort and `DrawCall` construction are not the problem); `display.flip`'s
+SCALED upscale is **0.6–1.9 ms**; and the ground cache is **0.2–5.0 ms**, real
+but second-order — its cost tracks pan speed and map size exactly as
+`game/PERF.md` claims, peaking at 5.02 / 10.64 ms only in the 1024²-panning-
+at-max-zoom corner. So G2's Texture backend targets the one bucket that
+matters, and G3's ground-cache port is correctly ordered *after* it and
+correctly scoped as a smaller win. Independently, the warm-store table gives
+**M2 its own hard justification**: 80 of 274 sheet Surfaces are duplicate
+decodes of a PNG another slot already loaded, costing **58.3 MB** — 62% of all
+sheet pixel memory — before a single master sheet exists, and that number only
+grows once ten slots share one master PNG.
+
+**Two honest caveats on these numbers.**
+1. **The harness measures the render stack, not a live `Session`.** It builds
+   the same map doc / `AssetStore` / `Renderer` / `GroundCache` / SCALED window
+   `game/main.py` builds, then drives a fixed sprite population instead of real
+   `Enemy` objects — deliberate, because a fixed population is the only way two
+   runs compare, and a sprite's blit cost does not depend on what produced its
+   `RenderItem`. Simulation cost is therefore **not** in this table;
+   `game/main.py`'s own `sim` bucket measures that on real hardware.
+2. **The HUD pass is not broken out.** Its submit lands in the harness's
+   `submit` bucket only for world items, and in the real host its draw is
+   inside `flush` — no instrumentation separates HUD-draw from world-draw
+   today. The HUD is a few dozen items a frame against 1016 world sprites, so
+   it cannot plausibly be the dominant cost, but that is **inferred, not
+   measured**, and it is the one number a live late-round `py game/main.py`
+   run should confirm before G4 re-takes these measurements.
+
+### Phase G1 — Backend seam + feasibility probe
+
+**Goal**: make the backend choice explicit (it is currently a lazy import inside
+`flush()`), and answer the one unverified environment question before committing
+to G2's shape. **Zero behavioural change.**
+
+**Files** — new: `engine/render/backend_api.py` (the contract a backend must
+satisfy: what `draw(target, draw_calls)` accepts and must honour — scaling,
+`flip`, `tint`, `slice`, `crop_rect`, `OverlayLines`, `OverlayPolys`, and the
+HUD isinstance branches; pure, no pygame). Modified: `engine/render/renderer.py`
+(explicit backend resolution alongside the existing injectable `backend=None`),
+`engine/render/__init__.py`, `engine/render/CLAUDE.md`.
+
+**The probe** (throwaway script, not committed): under `SDL_VIDEODRIVER=dummy`,
+attempt `pygame._sdl2.video.Window` + `Renderer` + one `Texture` upload +
+`to_surface()` readback. Record the result in this doc under §4. It decides
+whether G2's parity test can run in CI or must be marked as a live-only check.
+
+**Tests**: the existing `tools/tests/test_render*.py` suite passes byte-identical
+— this phase must not move a pixel. Add one test asserting the default backend
+resolution is unchanged when nothing is injected.
+
+**Exit gate**: `py -m pytest tools/tests/test_render.py tools/tests/test_ground_cache.py -x -q`
+green, `py tools/smoke.py` green, probe result recorded in §4.
+
+### Phase G2 — `backend_gpu.py`: world sprites
+
+**Goal**: a Texture-based backend that draws the sprite + overlay half of a
+`DrawCall` list at parity with `backend.py`.
+
+**Files** — new: `engine/render/backend_gpu.py`,
+`tools/tests/test_render_backend_parity.py`. Modified:
+`engine/CLAUDE.md` (the pygame-import allow-list gains this module — it is the
+second and only other place in `engine/render` allowed to touch pygame's SDL2
+layer), `engine/render/CLAUDE.md`, `conftest.py` (`TIERS` entry for the new test
+module — an unmarked module silently never runs).
+
+**Design notes**
+- Texture cache keyed by **source Surface identity** in a `WeakKeyDictionary`,
+  mirroring `backend.py`'s `_scale_cache` — so each `AssetStore` sheet Surface
+  uploads exactly once and the grey-X placeholder (a fresh surface per call)
+  never leaks. This is where "textures from one file upload once" is delivered;
+  it composes with M2, after which one *file* is one Surface is one Texture.
+- Sprite `DrawCall` → `Renderer.blit`: the dest rect carries the scale (no CPU
+  `transform.scale` at all), `flip_x`/`flip_y` are native, `tint` becomes
+  `texture.color` / `texture.alpha`.
+- `OverlayLines` / `OverlayPolys` via `draw_line` / `draw_quad`, or a CPU-drawn
+  scratch texture where that is what matches pixel output — decide by the parity
+  test, and state which was chosen and why.
+- **`slice` and `crop_rect` are HUD-only** and therefore never reach this
+  backend on the world path; assert that rather than implementing them twice.
+- The pixel quantizer (`item.round_half_up`) still governs dests and sizes —
+  do not let SDL's own rounding substitute for it.
+
+**Tests**: `test_render_backend_parity.py` renders a fixture scene (several
+sprites at zoom ≠ 1, a flip, a tint, an overlay polyline, a filled poly) through
+both backends and compares within a **pinned per-channel tolerance**, with a
+comment stating why the tolerance is not zero (SDL's scaler is not guaranteed
+bit-identical to `pygame.transform.scale`). Plus a test that the texture cache
+yields one texture per source surface across many draws, and that a GC'd surface
+evicts its texture.
+
+**Exit gate**: parity test green within tolerance; existing render tests
+untouched and green; if the G1 probe said the dummy driver cannot host a
+Renderer, the parity test is marked live-only and the phase report says so
+explicitly.
+
+### Phase G3 — Ground cache on the GPU path
+
+**Goal**: the ground layer's scroll-and-fill technique, on textures, behind the
+same public signature.
+
+**Files** — new: `engine/render/ground_cache_gpu.py` (or a variant class inside
+`ground_cache.py` — implementer's call, stated in the report). Modified:
+`engine/render/ground_cache.py` (only if the variant lands there),
+`engine/render/CLAUDE.md`, `tools/tests/test_ground_cache.py`.
+
+**Design notes**
+- Same `ensure(view_w, view_h, ground_items_fn)` signature, so both callers
+  (game and editor) are untouched and the content-agnostic callback contract
+  holds.
+- The `Surface.scroll` memmove becomes a **self-blit between two render-target
+  textures** — SDL cannot read and write one target in a single pass — then the
+  newly-exposed strip is repainted.
+- **Reuse the diagonal-band derivation verbatim.** A thin *screen* strip is a
+  *diagonal* in tile space; the `d = col−row`, `s = col+row` band addressing
+  through `tilemap.band_render_items` is the subtle, already-correct part, and
+  restating it is how this regresses. Only the surface/texture mechanics change.
+- The `depth_key` layer-primary invariant is what makes caching the ground layer
+  legal at all — say so in the new module's docstring, do not leave it implied.
+- The anchor technique (a private `CoordinateSystem` at
+  `pan = anchor_pan − margin`, integer scroll with the sub-pixel remainder riding
+  the blit's float dest) must be preserved exactly; it is what keeps the cache
+  rounding-exact against a direct render.
+
+**Tests**: run the existing rounding-exactness pins (successive scroll steps stay
+pixel-aligned vs a direct render) against the GPU variant too, parameterised over
+both implementations rather than copy-pasted.
+
+**Exit gate**: both variants pass the same pin suite; a live look at panning a
+large map in `py game/main.py` with no seams or stutter — state that it was a
+live run, not a reasoned claim.
+
+### Phase G4 — Host wiring, HUD composite, fallback
+
+**Goal**: the game actually runs on the GPU path, degrades cleanly when it
+cannot, and the G0 numbers are re-taken.
+
+**Files** — modified: `game/main.py` (backend request + fallback + one log
+line), `engine/render/renderer.py`, `engine/render/CLAUDE.md`,
+`engine/CLAUDE.md`, `tools/tests/test_render_backend_parity.py` (fallback path).
+
+**Design notes**
+- Any failure creating the window, renderer, or a texture logs one line and
+  falls back to `backend.draw` (D8). The fallback must be reachable by a test
+  that forces it, not only by a broken machine.
+- **HUD composite**: draw the HUD pass into one screen-sized Surface exactly as
+  today, upload it as a single streaming texture, draw it over the GPU frame.
+  One upload per frame; fonts, nine-slice and crop keep their existing,
+  well-tested code (D7).
+- `editor/` is untouched by Part A. It keeps the Surface backend and its
+  module-level `SDL_VIDEODRIVER=dummy` rule — that rule is precisely why D6 is
+  a dual backend.
+- `tools/smoke.py` stays on the Surface path.
+
+**Tests**: a forced-fallback test (monkeypatch the renderer construction to
+raise) asserting the game still produces frames; the parity suite still green.
+
+**Exit gate**: `py tools/smoke.py`; a **live** `py game/main.py` confirming from
+the log line that the GPU path is in use, then a second live run with the
+fallback forced, confirming identical-looking output; G0's measurements re-taken
+and written into this doc beside the originals. State which checks were live.
+
+---
+
+## 7. Part B — Master spritesheets
+
+### Phase M1 — Data layer
+
+**Goal**: the storage concept exists and validates. No engine or editor code.
+
+**Files** — new: `data/schemas/master_sheets.schema.json`,
+`data/sprites/master_sheets.json` (seeded `{"version": 1, "entries": {}}`),
+`data/sprites/master/` (the folder; committed content like `imported/`, D-31 —
+**never gitignore it**). Modified:
+`data/schemas/asset_manifest.schema.json`, `data/CLAUDE.md`,
+`tools/tests/test_assets_manifest.py`.
+
+**Registry shape**
+
+```json
+{"version": 1,
+ "entries": {"<sheet_id>": {"file": "master/<sheet_id>.png",
+                            "display_name": "Characters",
+                            "frame_w": 64, "frame_h": 96}}}
+```
+
+House style, no exceptions: `$id`, draft 2020-12, `additionalProperties: false`,
+every key `required`, every property carrying a `description` documenting units,
+every numeric carrying `minimum`/`maximum` (so the editor derives spinbox ranges
+and out-of-range input is unrepresentable, ED-30). `sheet_id` pattern
+`^[a-z][a-z0-9_]*$`, matching the slot-key convention.
+
+**Two manifest schema changes**
+1. **Widen the `sheet` pattern.** It is currently
+   `^imported/[a-z][a-z0-9_]*\.png$`; it must also admit
+   `^master/[a-z][a-z0-9_]*\.png$` (a two-branch pattern or an `enum`-free
+   alternation — not `oneOf`, which the editor's form walker handles badly).
+   Update the property's `description`: a sheet may live in either folder.
+2. **Add optional `row_start`** (integer, `minimum: 0`, maximum matching the
+   frame-count bounds already used elsewhere) — the FOURTH optional per-entry
+   key after `slice`, `anchors`, `tint_overlay`. Omitted ⇒ 0.
+
+**Smoke pairing**: `master_sheets.json` pairs with its schema by **normal stem**.
+Confirm `tools/smoke.py::validate_data` needs **no** fourth directory exception
+— it should not, and if it does, that is a finding to report rather than a
+silent `if/elif` edit.
+
+**Tests**: the seeded registry validates; a registry with a bad `file` path, a
+bad id, or a missing `frame_w` is rejected; an existing manifest entry with no
+`row_start` still validates; an entry with `sheet: "master/x.png"` validates; an
+entry with a negative `row_start` is rejected.
+
+**Exit gate**: `py tools/smoke.py` (now validating one more data file) +
+`py -m pytest tools/tests/test_assets_manifest.py -x -q`.
+
+### Phase M2 — Engine: `row_start` + dedup by source file
+
+**Goal**: the engine can cut a window out of a sheet, and stops decoding one PNG
+once per slot.
+
+**Files** — modified: `engine/assets/manifest.py`, `engine/assets/store.py`,
+`engine/assets/CLAUDE.md`, `tools/tests/test_assets_manifest.py`,
+`tools/tests/test_asset_store.py`.
+
+**Design notes**
+- `entry_from_dict` parses `row_start` onto `ManifestEntry`, **raising** on a
+  non-integer or negative value — the same defensive shape as `slice`/`anchors`,
+  with `load_manifest` as the E-37 layer that turns the raise into
+  warn-and-skip-this-entry. `load_registry` stays fail-loud; that split is
+  unchanged.
+- `AssetStore._frame_surface` offsets the row by `entry.row_start` when it cuts
+  the subsurface. **This is the only place the window is applied.**
+  `playback_order`, `current_frame`, and every row index above them keep meaning
+  "row *i* of this entry's `rows[]`" — the window is a slicing concern, not a
+  playback concern, and leaking it upward would touch the prototype-exact
+  animation semantics for no reason.
+- `AssetStore._sheet` re-keys `self._sheets` from `entry.slot_key` onto
+  **`entry.sheet`**: one PNG = one decode = one Surface. Frames remain
+  subsurfaces of that one Surface, so the parent must still stay cached for the
+  store's life (unchanged contract). `_frames`/`_hit_masks` stay slot-keyed (D10)
+  — leave a comment saying why, or the next reader will "fix" it.
+- A window that runs past the sheet's real row count must degrade to the grey-X
+  placeholder, never raise (E-37).
+
+**Tests**: an entry with `row_start: 3` resolves frames from sheet row 3; an
+entry with no `row_start` resolves **byte-identically to before** (pin this
+explicitly — it is the compatibility argument for the whole key); two slots
+pointing at one sheet path produce one Surface object (assert identity, and
+assert the load count via a spy on `pygame.image.load`); a `row_start` past the
+sheet height yields the placeholder; a corrupt `row_start` warns and skips the
+entry rather than raising.
+
+**Exit gate**: `py -m pytest tools/tests/test_assets_manifest.py tools/tests/test_asset_store.py -x -q`
+plus `py tools/smoke.py`.
+
+### Phase M3 — Editor: pure import module + picker dialog
+
+**Goal**: master sheets can be imported and listed. No DetailsPanel changes yet.
+
+**Files** — new: `editor/master_sheet_import.py` (Qt-free, pygame-free, Pillow
+only — mirrors `editor/asset_import.py`'s shape),
+`editor/panels/master_sheet_dialog.py` (Qt),
+`tools/tests/test_master_sheet_import.py`. Modified:
+`tools/tests/test_editor_viewport.py` (**both new modules go into
+`TestPurity`'s import list** — the layering guard; every new editor module does),
+`conftest.py` (`TIERS` entry), `editor/CLAUDE.md`, `editor/panels/CLAUDE.md`.
+
+**`editor/master_sheet_import.py`**
+- `load_registry_doc(data_dir)` / `write_registry_doc(data_dir, doc)` — the ONE
+  write path for this file, through `engine.data_io.write_validated`; the load
+  degrades to an empty doc on a missing/corrupt file (E-37, mirroring
+  `asset_import.load_manifest_doc` exactly).
+- `master_ref(sheet_id)` → `"master/<sheet_id>.png"` — with the same docstring
+  warning `asset_import.sheet_ref` carries: read the entry's `sheet`, never
+  re-derive it.
+- `import_master_sheet(data_dir, png_path, display_name, frame_w, frame_h)` —
+  slugify the display name / filename stem into an id, copy to
+  `master/<id>.png` (**skip the copy when byte-identical or same path**, so a
+  re-import produces no diff), write the registry entry. Returns the id.
+- `master_sheets(data_dir)` — the list the picker renders: an
+  `ImportedSheet`-shaped frozen dataclass per entry with its real pixel size,
+  its grid at its declared frame size, and its **users**. Reuse
+  `asset_import.sheet_users` for the refcount rather than writing a second one.
+- Deliberately NOT here: `pad_to_frame`. A master sheet is a grid the designer
+  authored; centring it on a padded canvas would silently shift every row.
+
+**`editor/panels/master_sheet_dialog.py`**
+- The small popup: **Import new master spritesheet…** vs **Use existing…**; the
+  existing branch lists every registry entry with an embedded read-only
+  `SheetPreview` (`sheet_preview.py`), a filter box, and each row described with
+  its size, grid and user count.
+- **Copy `editor/panels/sheet_picker.py`'s structure** — it is the same dialog
+  one concept over (construction split from display so tests never `exec()` a
+  modal; `QAction.trigger()`/direct-method as the test path).
+- The import branch collects `display_name`, `frame_w`, `frame_h` before writing
+  — the frame size is D3's whole point and cannot be deferred.
+
+**Tests**: import into a temp data dir writes the PNG and a schema-valid registry
+entry; re-importing the same bytes leaves the file untouched; slugification cases
+(spaces, punctuation, leading digit, collision with an existing id);
+`master_sheets()` reports users correctly for a sheet two slots point at; the
+dialog constructs, lists what the registry holds, and returns the selected id
+without opening a modal. Bare-minimum coverage — no exhaustive Qt matrix.
+
+**Exit gate**: `py -m pytest tools/tests/test_master_sheet_import.py -x -q` plus
+`py -m pytest -m editor` for the Qt tier.
+
+### Phase M4 — DetailsPanel: button, row window, narrowed views
+
+**Goal**: the designer flow from §1, end to end, in the main importer. This is
+the phase with the most existing code to respect.
+
+**Files** — modified: `editor/panels/details.py`,
+`editor/panels/sheet_preview.py`, `editor/panels/CLAUDE.md`,
+`tools/tests/test_details_panel.py`, `tools/tests/test_editor_panels.py`.
+
+**The button.** A third button, `"Use Master Spritesheet…"`, in the buttons row
+beside Import / Use / Save / Clear. **Connect it wrapped in a lambda.** A bare
+`clicked.connect(self._method)` puts Qt's `checked` bool into the first kwarg —
+the exact footgun that made Clear skip its confirm dialog for months and that
+map_details' Delete hit before it.
+
+**On selection**: write the entry's `sheet` to `master/<id>.png`, adopt the
+master sheet's `frame_w`/`frame_h` into the entry, and **disable the Frame W/H
+spinboxes with a tooltip** saying the master sheet owns the grid. This bypasses
+`_on_frame_size_changed`'s two-file write on purpose (D3) — `slots.json` must
+not be touched here, and a reviewer who does not know that will read the bypass
+as a bug, so comment it.
+
+**The `using rows [ ] til [ ]` row.** Built exactly like the Frame W/H row: a
+`QHBoxLayout` of `QLabel` + two `_NoWheelSpinBox` **imported from
+`editor.panels.balancing`** (their one home — never a bare `QSpinBox`; the
+mousewheel is navigation-only everywhere in this editor), committing on
+`editingFinished`, not `valueChanged`. Placed directly under the selection,
+visible only while the slot's sheet is a master sheet — the same
+`_slice_applies()` / `_tint_applies()` gating idiom, which is the established
+precedent for a category- or context-scoped control in this panel. Bounds come
+from the sheet's real row count, and **`a > b` must be unrepresentable** (ED-30 —
+clamp the second spin's minimum to the first's value), not an error caught at
+save time.
+
+**Narrow the preview.** `SheetPreview.set_sheet(png, fw, fh)` computes
+`_cols`/`_rows` by integer division; add an optional row window so only the
+selected rows are drawn. **The cell captions and the `frame_clicked(row, col)`
+signal must speak ENTRY-RELATIVE row indices**, so the preview and the
+`RowEditor`s below cannot disagree about what "row 1" means — the same
+one-vocabulary argument that keeps the column captions, the hide checkboxes, the
+static radios and the manifest's `hidden`/`loop_start`/`loop_end` all speaking
+one number today.
+
+**Narrow the rows.** `_load_sheet` builds one `RowEditor` per detected sheet row;
+it now builds one per row **in the window**. Row 0 of the window stays
+idle-locked — the E-35 rule remains unrepresentable in the UI rather than
+becoming a save-time error.
+
+**Save.** `save()` writes `row_start`; **omit the key when it is 0** so a
+non-master entry stays byte-identical — the convention `slice` and
+`tint_overlay` already follow. `draft_entry()` must preserve it the same way it
+preserves `anchors` (that panel does not author anchors and must not erase them;
+the same now applies in reverse for any panel that does not author the window).
+
+**Tests**: selecting a master sheet writes the master ref and the inherited frame
+size and disables the Frame W/H spins; the row appears only for a master sheet;
+setting the window rebuilds exactly that many RowEditors and narrows the preview;
+`frame_clicked` on the first visible row routes to RowEditor 0; save writes
+`row_start` and omits it at 0; Clear refcounts correctly against a master sheet
+that other slots still use (reuse `asset_import.unreferenced_sheets` — a master
+sheet with remaining users must never be unlinked).
+
+**Exit gate**: `py -m pytest -m editor`; then a **live `py editor/main.py`**:
+import a real multi-character master sheet, point two different slots at two
+different row windows, confirm the preview and the row strip both narrow, save,
+and confirm both slots render correctly from the one file. State that it was a
+live run.
+
+### Phase M5 — VFX preview panel
+
+**Goal**: parity for the one other import surface in scope (D5).
+
+**Files** — modified: `editor/panels/vfx_preview.py`,
+`editor/CLAUDE.md`, `tools/tests/test_vfx_preview.py` (or the panel's existing
+test module).
+
+**Design note**: vfx slots are single-`idle`-row, so the window here selects
+exactly ONE row — either the same two spins with the second clamped to the first,
+or a single "row" spin. Implementer's call; state which and why in the phase
+report. Everything else (button wrapped in a lambda, frame size inherited and
+locked, `row_start` omitted at 0) is M4's behaviour unchanged.
+
+**⚠ File collision with the `/add-vfx` skill** (added to `Development` after this
+plan was first written). `.claude/commands/add-vfx.md` edits this same file: it
+reads and may append to `_EMIT_FAMILIES`, `_LEVERS`, `_RAMP_KEY`
+(`vfx_preview.py:85-128`) and the per-family fixed `vfx_*` slot mapping that the
+existing "Import Spritesheet…" button at `:198` resolves through. M5 touches the
+button row and the frame-size/row-window controls, not those tables — but **do
+not run M5 concurrently with an `/add-vfx` dispatch on the same checkout.** If
+both are in flight, worktree-isolate them and merge M5 second, since its diff is
+the smaller one. Whoever executes M5 should check `git log --oneline -- editor/panels/vfx_preview.py`
+first.
+
+**Exit gate**: `py -m pytest -m editor`; a live editor run selecting a vfx slot
+and importing from a master sheet.
+
+---
+
+## 8. Verify (whole plan)
+
+Iteration policy is the root `CLAUDE.md` Test Suite Policy, not this doc. It is
+**role-scoped**, and `.claude/hooks/test_guard.py` enforces the mechanical parts
+— a run that breaks the table is *denied*, not merely discouraged:
+
+| Role | Gate for this plan |
+|---|---|
+| Dispatched coder / reviewer (any phase) | `py tools/smoke.py` + `py -m pytest tools/tests/test_<file>.py -q` over **the files it touched** — nothing wider. **Not** the full suite, **not** a tier sweep, **not** `--affected` (its safety pass is the whole core tier, so the hook denies it for subagents). |
+| Main session, mid-plan | targeted files, or `py tools/testgate.py check --affected` after a merge |
+| Main session, at handoff | exactly ONE `py tools/testgate.py check` |
+
+**A denied test run is a REPORT, never a retry.** `test_guard.py` denies with
+exit 2 and a reason. Do not re-issue, do not vary the flags (it normalises
+`-q/-v/-x/-n/--tb`, so a reworded command fingerprints identically), do not reach
+for the escape hatch. Two denies are expected and must not be fought: *"already
+ran this exact target and nothing has changed"* (the guard fingerprints the main
+checkout's diff, and worktrees are gitignored, so a coder's own edits can be
+invisible to it) and *"another test run is already in flight"* (never wait-loop,
+never delete the lock — only the orchestrator clears one, and only after
+confirming nothing is live).
+
+`--affected` **aborts rather than silently widening**: a `GATE ABORT` is not a
+test failure and not something to retry — name the affected test files yourself
+and run those once.
+
+- Every phase's own exit gate above.
+- Data phases: every touched file validates; `py tools/smoke.py`.
+- Render phases: `py tools/smoke.py` plus a **live** `py game/main.py` look —
+  visuals changed, so a headless pass is not sufficient evidence.
+- Editor phases: `py -m pytest -m editor` plus a **live** `py editor/main.py`
+  exercise of the changed panel.
+- At handoff: `py tools/testgate.py check`. **The gate is ZERO.** There is no
+  baseline and no tolerated failure; a red test outside this diff's blast radius
+  gets surfaced to the user, not investigated silently.
+- Tests must never write into `data/` (`TempDataCase`) and must never assert
+  against live `data/` content — pin the fixture. `master_sheets.json` and
+  `data/sprites/master/` must be copied by the editor-test temp-data helper;
+  extend it in M1 if it does not already copy the whole tree. Note the committed
+  fixture manifest (`tools/tests/fixtures/data/sprites/asset_manifest.json`)
+  currently holds **278 entries** and grew again in the tile-condition rework —
+  assert on entries the test itself writes, never on a count or on "this slot has
+  no art".
+- Docs: `engine/CLAUDE.md` + `engine/render/CLAUDE.md` + `engine/assets/CLAUDE.md`
+  for Part A/M2, `data/CLAUDE.md` for M1, `editor/CLAUDE.md` +
+  `editor/panels/CLAUDE.md` for M3–M5. Architectural changes update **the package
+  doc**, not the root router.
+
+## 9. Risks / open items
+
+- **G0 may invalidate Part A's shape** (D9). The plan explicitly permits a
+  re-scope; taking it is the success case, not a failure.
+- ~~**SDL2 Renderer under the dummy video driver is unverified**~~ — **RETIRED
+  by G1's probe** (§4, measured 2026-08-12). The `dummy` driver hosts
+  `Window`/`Renderer`/`Texture` upload/draw/`to_surface()` readback correctly,
+  so G2/G3's parity coverage runs in normal CI and the feared reduction in
+  safety does not apply.
+- **Pixel parity between SDL's scaler and `pygame.transform.scale` is not
+  guaranteed.** The plan accepts a pinned tolerance rather than pretending to
+  bit-identity. If the difference is visible on pixel art at zoom, that is a
+  finding to surface — pixel art is the whole aesthetic here, and a blurrier GPU
+  path would be a regression no fps number redeems.
+- **Two backends is two implementations to keep in parity**, forever. Mitigated
+  by the parity test and by keeping HUD / nine-slice / fonts / crop
+  single-implementation on the Surface path (D7).
+- **`row_start` interacts with sheet sharing.** Two slots on one master sheet
+  with overlapping windows is legal and probably intentional. Two slots on one
+  sheet with different frame sizes is not — which is exactly why the master sheet
+  owns the grid (D3). Note that a plain (non-master) shared sheet is still free
+  to be cut two ways; M2's `_sheets` re-key is safe for that because only the
+  raw Surface is shared, and `_frames` stays slot-keyed (D10).
+- **Widening the manifest `sheet` pattern is a one-way door for old readers.**
+  Nothing outside this repo reads it, but a `master/` path in an entry will not
+  validate against an older checkout's schema. Worth one line in the PR.
+- **Orphan policy for master sheets is unspecified.** `imported/` orphans are
+  legal and deliberate (that is how you get art back). M3 should follow the same
+  rule — a master sheet no entry references stays on disk and stays in the
+  picker — but nothing in this plan deletes master sheets at all, so
+  "unreferenced master sheet cleanup" is genuinely deferred, not decided.
+- **Not in scope, named so it is not mistaken for an oversight**: the palette
+  importer (D5), deduping `_frames`/`_hit_masks` (D10), migrating the HUD to
+  textures (D7), and moving the editor viewport onto the GPU path (D6).

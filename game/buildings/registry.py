@@ -19,7 +19,7 @@ the import-boundary note in ``research.py``).
 constructor (core balance) and is attached to its pre-seeded tile via
 ``attach_base`` during bootstrap.
 """
-from game.map.tiles import TileState
+from game.map.tiles import CONDITION_BLOCKS_BUILD, TileState
 from .research import LEAF_CLASSES, RESEARCH, buildable, tiers_unlocked_for
 
 # building_type -> leaf class. Only the 9D leaves; families grow in 10x.
@@ -88,6 +88,12 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
     if tile.state != TileState.BUILDABLE:
         raise PlacementError(
             f"tile ({tile.col},{tile.row}) is {tile.state.name}, not BUILDABLE")
+    # Tile Condition Rework: a pond may never host a building, regardless of
+    # zone state. Enforced HERE, the single legal placement path, exactly
+    # like the painter-tile bar and move-in-progress bar below.
+    if tile.condition in CONDITION_BLOCKS_BUILD:
+        raise PlacementError(
+            f"tile ({tile.col},{tile.row}) is a pond and cannot be built on")
     if state is not None and not buildable(state, building_type):
         raise PlacementError(f"{building_type} is not researched yet")
     # 10C: a tile that completed a Painter payout is permanently barred from

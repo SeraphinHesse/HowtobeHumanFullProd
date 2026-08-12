@@ -1,11 +1,16 @@
-<!-- status: NOT STARTED — phases G0–G4 then M1–M5 -->
+<!-- status: IN PROGRESS — G0, G1, M1 done; G2–G4 and M2–M5 remain -->
 
 # GpuAndMasterSheetsPLAN.md — GPU render backend, then master spritesheets
 
 Phased, agent-executable plan (same family as `AgentDispatchPLAN.md` /
-`TimelinePLAN.md`). Base branch: `Development`. Runnable via
-`/execute-plan-phases planning/GpuAndMasterSheetsPLAN.md G0-M5` or phase by
-phase.
+`TimelinePLAN.md`). Base branch: `Development`.
+
+**Run it ONE PHASE AT A TIME** — `/execute-plan-phases
+planning/GpuAndMasterSheetsPLAN.md G1` then `… G2`, and so on. This plan is a
+dependency chain, not a fan-out; **§5.1 explains why a multi-phase range is the
+wrong invocation here** and which two phases should use `/execute-phase`
+instead. Written against `Development` @ `bb0af73`; every file/line reference
+below was re-verified after that merge.
 
 Packages touched: **engine** (render backend, asset store, manifest), **data**
 (two schemas, one new registry, one new content folder), **editor** (details
@@ -167,34 +172,77 @@ store cache contract, E-37 tolerance split), `editor/panels/CLAUDE.md`
 - `engine/render/` is small: `backend.py` 227 lines, `renderer.py` 211,
   `ground_cache.py` 186, `hud.py` 141, `fonts.py` 186, `item.py` 68. The
   migration is contained.
-- **Unverified and load-bearing:** whether an SDL2 `Renderer` can be created at
-  all under `SDL_VIDEODRIVER=dummy`. Phase G1 must answer this experimentally
-  before G2 is written; the answer only affects whether the GPU path can be
-  *tested* headlessly, not the dual-backend decision itself (D6 stands either
-  way).
+- **RESOLVED by G1's probe (measured 2026-08-12) — the dummy driver CAN host a
+  Renderer.** This was the plan's one "unverified and load-bearing" item: whether
+  an SDL2 `Renderer` can be created at all under `SDL_VIDEODRIVER=dummy`, which
+  decides whether the GPU path can be *tested* headlessly. It can. A throwaway
+  probe (one fresh subprocess per driver, since SDL init is process-global)
+  drove `pygame.init()` → `pygame._sdl2.video.Window` → `Renderer` →
+  `Texture.from_surface` upload → `clear()` + `draw()` + `to_surface()` readback
+  + a pixel comparison:
+
+  | Driver | Result |
+  |---|---|
+  | **`dummy`** | **full success** — Window, Renderer, Texture upload, draw and `to_surface()` readback all worked; the read-back pixel `(10, 200, 30)` matched the uploaded colour exactly |
+  | `offscreen` | fails at `Window()`: "offscreen not available" |
+  | `software` | fails at `Window()`: "software not available" |
+
+  `dummy` is the one that matters — it is already the driver the entire test
+  suite and `tools/smoke.py` run under. **So G2's parity test can run in normal
+  CI and must NOT be marked live-only**, and §9's "reduction in safety" risk is
+  retired. `offscreen`/`software` being unavailable in this SDL build is moot.
+  (D6's dual backend was never contingent on this — it stands either way,
+  because the editor's `SDL_VIDEODRIVER=dummy` module-level rule is about the
+  editor keeping the Surface path, not about testability.)
 
 ---
 
 ## 5. Build order
 
-| Phase | Scope | Status |
-|-------|-------|--------|
-| G0 | Measure the real render cost (no engine changes) | not started |
-| G1 | Backend seam + headless-renderer feasibility probe | not started |
-| G2 | `backend_gpu.py` — world sprites, overlays, texture cache | not started |
-| G3 | Ground cache on the GPU path | not started |
-| G4 | Host wiring, HUD composite, fallback, re-measure | not started |
-| M1 | Data layer: master-sheet registry + schema + `row_start` | not started |
-| M2 | Engine: `row_start` slicing + sheet-path-keyed store | not started |
-| M3 | Editor: pure master-sheet import module + picker dialog | not started |
-| M4 | DetailsPanel: button, row window, narrowed preview + rows | not started |
-| M5 | VFX preview panel button | not started |
+| Phase | Scope | Package | Depends on | Status |
+|-------|-------|---------|-----------|--------|
+| G0 | Measure the real render cost (no engine changes) | tools/game | — | **DONE** — verdict in §6/G0: blit throughput dominates (84–97% of frame); Part A proceeds unchanged |
+| G1 | Backend seam + headless-renderer feasibility probe | engine | G0 verdict | **DONE** — `backend_api.py` seam; probe says the dummy driver CAN host a Renderer (§4), so G2's parity test runs in CI |
+| G2 | `backend_gpu.py` — world sprites, overlays, texture cache | engine | G1 | not started |
+| G3 | Ground cache on the GPU path | engine | G2 | not started |
+| G4 | Host wiring, HUD composite, fallback, re-measure | engine + game | G3 | not started |
+| M1 | Data layer: master-sheet registry + schema + `row_start` | data | — | **DONE** — schema + seeded registry + `data/sprites/master/`; existing manifest byte-identical |
+| M2 | Engine: `row_start` slicing + sheet-path-keyed store | engine | M1, G2 | not started |
+| M3 | Editor: pure master-sheet import module + picker dialog | editor | M1 | not started |
+| M4 | DetailsPanel: button, row window, narrowed preview + rows | editor | M2, M3 | not started |
+| M5 | VFX preview panel button | editor | M4 | not started |
 
-Phases are sequential. G0→G4 must land before M2 re-keys the store (M2's dedup
-is what G2's texture cache keys off), and M1 must land before M2 (schema before
-parser). M3/M4/M5 are editor-only and could be split across worktrees if run
-concurrently — **two or more implementation agents running at the same time must
-each get `isolation: "worktree"`** (root `CLAUDE.md`, Hard rules).
+### 5.1 This plan is a CHAIN, not a fan-out — read before dispatching
+
+`/execute-plan-phases` dispatches one planner per phase and then one coder per
+phase **in parallel waves**. That fits a plan whose phases are independent.
+**This plan's are not.** The `Depends on` column above is near-total: G2 writes
+against the seam G1 creates, G3 draws into the backend G2 wrote, M2 parses the
+schema M1 added, M4 drives the dialog M3 built. Dispatching G1–G4 as one
+parallel wave gives three coders a seam that does not exist yet.
+
+Two consequences, both binding on whoever executes this:
+
+- **Run it in dependency-respecting ranges, not one big range.** The genuine
+  parallelism here is exactly one pair: **M1 is independent of all of Part A**.
+  Everything else is sequential. Recommended invocations, in order:
+  `G0` → *(user reads the verdict)* → `G1` → `G2` → `G3` → `G4` → `M1` → `M2`
+  → `M3` → `M4` → `M5`. A single-phase range is a legal range and the
+  orchestrator's wave machinery degenerates to planner→coder→reviewer for that
+  one phase, which is the correct shape here.
+- **`/execute-phase` is the better tool for most of these** — it is the
+  interactive single-phase skill and it updates this doc's Status column the
+  same way. Use `/execute-plan-phases` when you want the unattended
+  planner→coder→reviewer→PR wave for one phase; use `/execute-phase` when you
+  want to be in the loop. **G0 and G4 should be `/execute-phase`**: G0's output
+  is a judgement call the user must read before Part A continues, and G4's exit
+  gate is a live `py game/main.py` look that no headless agent can perform.
+
+**Concurrency rule if you do run two phases at once** (only M1 alongside a Part-A
+phase qualifies): each implementation agent gets `isolation: "worktree"`. A
+file-scope fence written in a dispatch prompt is honour-based prose; a worktree
+is enforced. This is a root `CLAUDE.md` hard rule and it has already cost this
+repo one incident.
 
 ---
 
@@ -229,6 +277,97 @@ default.
 document, naming the dominant cost. **If the dominant cost is not blit
 throughput, stop and re-scope Part A with the user before G1.** Every later
 phase states its target against these numbers.
+
+#### G0 RESULTS (measured 2026-08-12, `phase-G1-umbrella`)
+
+Harness: `tools/profile_render.py` (new, committed — deterministic: fixed map
+file, seeded sprite placement, fixed serpentine pan, 300 measured frames after
+30 discarded warm-up frames). Machine: pygame-ce 2.5.7 / SDL 2.32.10, Python
+3.13.2, Windows 11, real `pygame.SCALED` window at `display.json`'s size.
+
+**`game/main.py` was NOT modified.** The per-frame timing split this phase was
+scoped to add **already exists** (`game/main.py:1690-1704`, documented as the
+"Frame-timing HUD" in `game/PERF.md:154-157`): windowed runs already print
+`sim/submit/flush/flip` mean ms beside the fps line, gated on `tune_gc` so
+headless stays silent. Widening it was judged unnecessary once the harness
+isolated the answer, and leaving the host untouched is strictly safer. The one
+split the existing instrumentation cannot make is HUD-draw vs world-draw (both
+land inside its `flush` bucket) — see the caveat below.
+
+All times in **ms, mean / p95 per frame.** `ground` = `GroundCache.ensure` +
+`blit`; `submit` = tile emit + `Renderer.submit`; `flush` = `Renderer.flush`
+(the backend's blits); `flip` = `display.flip` (the SCALED upscale).
+
+| Map | Zoom | Camera | Sprites | ground | submit | **flush** | flip | frame | fps |
+|---|---|---|---|---|---|---|---|---|---|
+| first_light 20² | 1.0 | static | 160 | 0.20 / 0.33 | 0.07 / 0.10 | **10.56 / 14.34** | 0.82 / 1.03 | 11.65 / 15.56 | 86 |
+| first_light 20² | 1.0 | panning | 160 | 0.59 / 0.95 | 0.05 / 0.07 | **10.07 / 12.92** | 0.61 / 0.77 | 11.32 / 14.33 | 88 |
+| first_light 20² | 2.0 | static | 160 | 0.19 / 0.30 | 0.06 / 0.08 | **7.08 / 7.94** | 0.59 / 0.78 | 7.91 / 8.90 | 126 |
+| first_light 20² | 2.0 | panning | 160 | 1.25 / 1.55 | 0.05 / 0.07 | **9.74 / 12.45** | 0.59 / 0.76 | 11.64 / 14.60 | 86 |
+| first_light 20² | 1.0 | static | 1016 | 0.20 / 0.33 | 0.23 / 0.40 | **63.02 / 101.03** | 0.87 / 1.22 | 64.32 / 103.51 | 15.5 |
+| first_light 20² | 1.0 | panning | 1016 | 0.66 / 1.06 | 0.21 / 0.33 | **61.09 / 71.84** | 0.81 / 1.05 | 62.76 / 73.43 | 15.9 |
+| first_light 20² | 2.0 | static | 1016 | 0.24 / 0.53 | 0.31 / 0.93 | **79.87 / 199.01** | 1.12 / 2.53 | 81.54 / 201.08 | 12.3 |
+| first_light 20² | 2.0 | panning | 1016 | 1.59 / 3.22 | 0.27 / 0.57 | **80.95 / 124.49** | 0.98 / 1.48 | 83.79 / 129.01 | 11.9 |
+| holex 1024² | 1.0 | static | 1016 | 0.21 / 0.32 | 0.24 / 0.40 | **14.72 / 19.45** | 0.91 / 1.39 | 16.08 / 21.51 | 62 |
+| holex 1024² | 1.0 | panning | 1016 | 2.68 / 4.80 | 0.24 / 0.56 | **13.51 / 17.40** | 0.83 / 1.21 | 17.27 / 23.94 | 58 |
+| holex 1024² | 2.0 | static | 1016 | 0.22 / 0.35 | 0.28 / 0.51 | **17.66 / 25.73** | 1.06 / 1.82 | 19.23 / 27.66 | 52 |
+| holex 1024² | 2.0 | panning | 1016 | 5.02 / 10.64 | 0.75 / 1.46 | **33.44 / 65.33** | 1.86 / 3.80 | 41.06 / 76.25 | 24 |
+
+The 1016-sprite cases are the **era-4 boss round** — `data/balancing/
+enemies.json`'s `EnemyTypes.Boss.round_counts` era 4 spawns 976 enemies
+(215 raiders + 700 regular + 61 siege); era 2 is 436. The 160-sprite cases are
+a mid-game reference. `first_light` (20×20) is the worst case *because* it is
+small: every sprite is on screen. On `holex` (1024²) the same 1016 sprites
+scatter far beyond the viewport, which is why its `flush` is 4× cheaper — that
+column is measuring how many sprites actually land on screen, not map size.
+
+**Asset store, warm** (`py tools/profile_render.py --warm-store`, every one of
+the 278 manifest slots resolved):
+
+| Metric | Value |
+|---|---|
+| Manifest entries | 278 |
+| Sheet Surfaces held | 274 |
+| Distinct source PNGs | 194 |
+| **Duplicate Surfaces** | **80** |
+| Sheet pixel memory | 94.7 MB |
+| **Of which duplicate decode** | **58.3 MB (62%)** |
+| Process RSS, cold → warm | 83 MB → 179 MB |
+
+**Verdict: the dominant cost IS blit throughput, and Part A proceeds
+unchanged.** `Renderer.flush` is **84–97% of every frame measured**, in every
+map / zoom / camera combination — 61–81 ms of a 63–84 ms frame at the era-4
+boss load, which is 12–16 fps and exactly the frame-rate complaint that
+motivated this plan. The three alternative hypotheses D9 named are all
+measured and all dead: per-frame Python in the submit loop is **0.05–0.75 ms**
+(under 1% of a frame, and it barely grows from 160 to 1016 sprites, so the
+depth sort and `DrawCall` construction are not the problem); `display.flip`'s
+SCALED upscale is **0.6–1.9 ms**; and the ground cache is **0.2–5.0 ms**, real
+but second-order — its cost tracks pan speed and map size exactly as
+`game/PERF.md` claims, peaking at 5.02 / 10.64 ms only in the 1024²-panning-
+at-max-zoom corner. So G2's Texture backend targets the one bucket that
+matters, and G3's ground-cache port is correctly ordered *after* it and
+correctly scoped as a smaller win. Independently, the warm-store table gives
+**M2 its own hard justification**: 80 of 274 sheet Surfaces are duplicate
+decodes of a PNG another slot already loaded, costing **58.3 MB** — 62% of all
+sheet pixel memory — before a single master sheet exists, and that number only
+grows once ten slots share one master PNG.
+
+**Two honest caveats on these numbers.**
+1. **The harness measures the render stack, not a live `Session`.** It builds
+   the same map doc / `AssetStore` / `Renderer` / `GroundCache` / SCALED window
+   `game/main.py` builds, then drives a fixed sprite population instead of real
+   `Enemy` objects — deliberate, because a fixed population is the only way two
+   runs compare, and a sprite's blit cost does not depend on what produced its
+   `RenderItem`. Simulation cost is therefore **not** in this table;
+   `game/main.py`'s own `sim` bucket measures that on real hardware.
+2. **The HUD pass is not broken out.** Its submit lands in the harness's
+   `submit` bucket only for world items, and in the real host its draw is
+   inside `flush` — no instrumentation separates HUD-draw from world-draw
+   today. The HUD is a few dozen items a frame against 1016 world sprites, so
+   it cannot plausibly be the dominant cost, but that is **inferred, not
+   measured**, and it is the one number a live late-round `py game/main.py`
+   run should confirm before G4 re-takes these measurements.
 
 ### Phase G1 — Backend seam + feasibility probe
 
@@ -590,6 +729,17 @@ or a single "row" spin. Implementer's call; state which and why in the phase
 report. Everything else (button wrapped in a lambda, frame size inherited and
 locked, `row_start` omitted at 0) is M4's behaviour unchanged.
 
+**⚠ File collision with the `/add-vfx` skill** (added to `Development` after this
+plan was first written). `.claude/commands/add-vfx.md` edits this same file: it
+reads and may append to `_EMIT_FAMILIES`, `_LEVERS`, `_RAMP_KEY`
+(`vfx_preview.py:85-128`) and the per-family fixed `vfx_*` slot mapping that the
+existing "Import Spritesheet…" button at `:198` resolves through. M5 touches the
+button row and the frame-size/row-window controls, not those tables — but **do
+not run M5 concurrently with an `/add-vfx` dispatch on the same checkout.** If
+both are in flight, worktree-isolate them and merge M5 second, since its diff is
+the smaller one. Whoever executes M5 should check `git log --oneline -- editor/panels/vfx_preview.py`
+first.
+
 **Exit gate**: `py -m pytest -m editor`; a live editor run selecting a vfx slot
 and importing from a master sheet.
 
@@ -597,11 +747,29 @@ and importing from a master sheet.
 
 ## 8. Verify (whole plan)
 
-Iteration policy is the root `CLAUDE.md` Test Suite Policy, not this doc:
-targeted `py -m pytest tools/tests/test_<area>.py -x -q` while working, **one**
-full `py tools/testgate.py check` at handoff, never mid-task, never twice, never
-two runs in flight. `--affected` does not reliably narrow — read its `GATE INFO`
-line before believing it did.
+Iteration policy is the root `CLAUDE.md` Test Suite Policy, not this doc. It is
+**role-scoped**, and `.claude/hooks/test_guard.py` enforces the mechanical parts
+— a run that breaks the table is *denied*, not merely discouraged:
+
+| Role | Gate for this plan |
+|---|---|
+| Dispatched coder / reviewer (any phase) | `py tools/smoke.py` + `py -m pytest tools/tests/test_<file>.py -q` over **the files it touched** — nothing wider. **Not** the full suite, **not** a tier sweep, **not** `--affected` (its safety pass is the whole core tier, so the hook denies it for subagents). |
+| Main session, mid-plan | targeted files, or `py tools/testgate.py check --affected` after a merge |
+| Main session, at handoff | exactly ONE `py tools/testgate.py check` |
+
+**A denied test run is a REPORT, never a retry.** `test_guard.py` denies with
+exit 2 and a reason. Do not re-issue, do not vary the flags (it normalises
+`-q/-v/-x/-n/--tb`, so a reworded command fingerprints identically), do not reach
+for the escape hatch. Two denies are expected and must not be fought: *"already
+ran this exact target and nothing has changed"* (the guard fingerprints the main
+checkout's diff, and worktrees are gitignored, so a coder's own edits can be
+invisible to it) and *"another test run is already in flight"* (never wait-loop,
+never delete the lock — only the orchestrator clears one, and only after
+confirming nothing is live).
+
+`--affected` **aborts rather than silently widening**: a `GATE ABORT` is not a
+test failure and not something to retry — name the affected test files yourself
+and run those once.
 
 - Every phase's own exit gate above.
 - Data phases: every touched file validates; `py tools/smoke.py`.
@@ -615,7 +783,11 @@ line before believing it did.
 - Tests must never write into `data/` (`TempDataCase`) and must never assert
   against live `data/` content — pin the fixture. `master_sheets.json` and
   `data/sprites/master/` must be copied by the editor-test temp-data helper;
-  extend it in M1 if it does not already copy the whole tree.
+  extend it in M1 if it does not already copy the whole tree. Note the committed
+  fixture manifest (`tools/tests/fixtures/data/sprites/asset_manifest.json`)
+  currently holds **278 entries** and grew again in the tile-condition rework —
+  assert on entries the test itself writes, never on a count or on "this slot has
+  no art".
 - Docs: `engine/CLAUDE.md` + `engine/render/CLAUDE.md` + `engine/assets/CLAUDE.md`
   for Part A/M2, `data/CLAUDE.md` for M1, `editor/CLAUDE.md` +
   `editor/panels/CLAUDE.md` for M3–M5. Architectural changes update **the package
@@ -625,10 +797,11 @@ line before believing it did.
 
 - **G0 may invalidate Part A's shape** (D9). The plan explicitly permits a
   re-scope; taking it is the success case, not a failure.
-- **SDL2 Renderer under the dummy video driver is unverified** (§4). If it
-  cannot run headless, G2/G3's parity coverage becomes a live-only check and CI
-  covers the Surface path only — a real reduction in safety that must be stated
-  on the PR, not glossed.
+- ~~**SDL2 Renderer under the dummy video driver is unverified**~~ — **RETIRED
+  by G1's probe** (§4, measured 2026-08-12). The `dummy` driver hosts
+  `Window`/`Renderer`/`Texture` upload/draw/`to_surface()` readback correctly,
+  so G2/G3's parity coverage runs in normal CI and the feared reduction in
+  safety does not apply.
 - **Pixel parity between SDL's scaler and `pygame.transform.scale` is not
   guaranteed.** The plan accepts a pinned tolerance rather than pretending to
   bit-identity. If the difference is visible on pixel art at zoom, that is a

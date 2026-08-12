@@ -15,12 +15,13 @@ from engine import tilemap
 from engine.core import Scene
 from engine.physics import TileOccupancy
 from game.buildings.components import Nameplate, TierState
-from game.core import Session, load_balance
+from game.buildings.registry import place_building
+from game.core import RunState, Session, load_balance
 from game.core import levelup as lv
 from game.enemies import Spawner
 from game.map.tile_map import TileMap
-from game.map.tiles import TileState
-from game.ui.building_ui import BuildingUI
+from game.map.tiles import TileCondition, TileState
+from game.ui.building_ui import BuildingUI, _building_stats
 from game.ui.effects import FloaterManager
 from game.ui.game_log import GameLog, LIFETIME, MAX_MESSAGES
 from game.ui.hud import income_breakdown, income_sources
@@ -566,6 +567,173 @@ class TestStormPriestLightningSeam(unittest.TestCase):
         self.assertEqual(st.lightning_level, 0)         # non-source: still locked
 
 
+class TestPainterUsedTileFeedback(unittest.TestCase):
+    """UI-only feedback for `state.used_painter_tiles`
+    (`game/core/game_state.py`) — the enforcement itself is
+    `place_building`'s `PlacementError` (`game/buildings/registry.py`,
+    covered by `test_painter_meditator.py`); these tests cover the panel's
+    grey marker and the corrected flash message layered on top of it."""
+
+    def test_construct_panel_greys_a_used_painter_tile(self):
+        tm, scene, occupancy, session = make_world()
+        st = session.state
+        used_tile = tm.get(2, 1)
+        st.used_painter_tiles.add((used_tile.col, used_tile.row))
+        panel = make_panel()
+        panel.open_for_tile(used_tile, session, BUILDINGS_BAL)
+        self.assertEqual(panel.mode, "construct")
+        self.assertIn((used_tile.col, used_tile.row), panel._painter_used_tiles)
+
+    def test_marker_ignores_tiles_not_in_used_painter_tiles(self):
+        tm, scene, occupancy, session = make_world()
+        panel = make_panel()
+        panel.open_for_tile(tm.get(2, 1), session, BUILDINGS_BAL)
+        self.assertEqual(panel._painter_used_tiles, [])
+
+    def test_marker_clears_when_the_panel_closes(self):
+        tm, scene, occupancy, session = make_world()
+        st = session.state
+        used_tile = tm.get(2, 1)
+        st.used_painter_tiles.add((used_tile.col, used_tile.row))
+        panel = make_panel()
+        panel.open_for_tile(used_tile, session, BUILDINGS_BAL)
+        self.assertTrue(panel._painter_used_tiles)
+        panel.close()
+        self.assertEqual(panel._painter_used_tiles, [])
+
+    def test_construct_card_is_disabled_when_the_only_tile_is_barred(self):
+        """The player must not be able to click through to the "ALREADY
+        PAINTED HERE" failure any more — the card itself is disabled up
+        front, so a click on it is simply inert."""
+        tm, scene, occupancy, session = make_world()
+        st = session.state
+        st.unlocked_buildings["painter"] = True
+        st.love = 100000
+        used_tile = tm.get(2, 1)
+        st.used_painter_tiles.add((used_tile.col, used_tile.row))
+        panel = make_panel()
+        panel.open_for_tile(used_tile, session, BUILDINGS_BAL)
+        _btype, btn = next(
+            (bt, b) for bt, b in panel.cards if bt == "painter")
+        self.assertFalse(btn.enabled)
+        panel.handle_click(*click(btn), session, BUILDINGS_BAL,
+                           scene, occupancy)
+        self.assertIsNone(panel.preview)
+        self.assertIsNone(used_tile.occupant)
+
+    def test_construct_card_stays_enabled_on_a_fresh_tile(self):
+        tm, scene, occupancy, session = make_world()
+        st = session.state
+        st.unlocked_buildings["painter"] = True
+        panel = make_panel()
+        panel.open_for_tile(tm.get(2, 1), session, BUILDINGS_BAL)
+        _btype, btn = next(
+            (bt, b) for bt, b in panel.cards if bt == "painter")
+        self.assertTrue(btn.enabled)
+
+    def test_mixed_batch_stays_enabled_and_places_only_on_the_free_tile(self):
+        """A batch with SOME barred and SOME fresh tiles must stay clickable
+        — placement already skips only the barred tiles and builds on the
+        rest, so disabling the whole card would block placements that would
+        actually succeed (per the user: 'build painters everywhere but the
+        grey tiles')."""
+        tm, scene, occupancy, session = make_world()
+        st = session.state
+        st.unlocked_buildings["painter"] = True
+        st.love = 100000
+        barred, fresh = tm.get(2, 1), tm.get(2, 2)
+        st.used_painter_tiles.add((barred.col, barred.row))
+        panel = make_panel()
+        panel.open_for_tile(fresh, session, BUILDINGS_BAL,
+                            selected_tiles=[fresh, barred])
+        _btype, btn = next(
+            (bt, b) for bt, b in panel.cards if bt == "painter")
+        self.assertTrue(btn.enabled)
+        panel.handle_click(*click(btn), session, BUILDINGS_BAL,
+                           scene, occupancy)
+        self.assertIsNotNone(panel.preview)
+        panel.handle_click(*click(panel.preview.confirm_btn), session,
+                           BUILDINGS_BAL, scene, occupancy)
+        self.assertIsNotNone(fresh.occupant)   # placed
+        self.assertIsNone(barred.occupant)     # skipped, stays barred-empty
+
+    def test_placing_painter_with_insufficient_love_keeps_the_old_message(self):
+        """The pre-existing love-shortfall flash must survive unchanged — this
+        feature only replaces the misleading fallback for the painter-tile-bar
+        case, not every failure path. (Insufficient love is gated at the CARD
+        click, `_construct_click`, `building_ui.py:1678-1683` — it never
+        reaches `_do_place`/a preview at all.)"""
+        tm, scene, occupancy, session = make_world()
+        st = session.state
+        st.unlocked_buildings["painter"] = True
+        st.love = 0
+        panel = make_panel()
+        panel.open_for_tile(tm.get(2, 1), session, BUILDINGS_BAL)
+        _btype, btn = next(
+            (bt, b) for bt, b in panel.cards if bt == "painter")
+        panel.handle_click(*click(btn), session, BUILDINGS_BAL,
+                           scene, occupancy)
+        self.assertIsNone(panel.preview)
+        self.assertEqual(btn.flash_label, "NOT ENOUGH LOVE")
+
+
+class TestPainterUpgradePanelPaysIn(unittest.TestCase):
+    """The upgrade panel's "pays in" stat row (`_building_stats`,
+    `game/ui/building_ui.py`) must count DOWN as a live Painter survives
+    round-end cycles, not repeat the tier's fixed total forever."""
+
+    def test_pays_in_counts_down_as_progress_advances(self):
+        tm, scene, occupancy, session = make_world()
+        st = session.state
+        st.unlocked_buildings["painter"] = True
+        painter, _ = place_building(tm, tm.get(2, 1), "painter", 9999,
+                                    BUILDINGS_BAL, scene, occupancy, state=st)
+        total = painter.rounds_to_payout()
+
+        stats = dict(_building_stats(painter))
+        self.assertEqual(stats["pays_in"], f"{total} rounds")
+
+        painter.advance_progress()
+        stats = dict(_building_stats(painter))
+        self.assertEqual(stats["pays_in"], f"{total - 1} rounds")
+
+    def test_pays_in_never_goes_negative(self):
+        tm, scene, occupancy, session = make_world()
+        st = session.state
+        st.unlocked_buildings["painter"] = True
+        painter, _ = place_building(tm, tm.get(2, 1), "painter", 9999,
+                                    BUILDINGS_BAL, scene, occupancy, state=st)
+        for _ in range(painter.rounds_to_payout() + 3):
+            painter.advance_progress()
+        stats = dict(_building_stats(painter))
+        self.assertEqual(stats["pays_in"], "0 rounds")
+
+
+class TestPainterPayoutNotice(unittest.TestCase):
+    """The one-time payout notice: `spawn_painter_events`
+    (`game/ui/effects.py`) posts to the game log on EVERY payout completion,
+    not just the loss case — a completed payout is otherwise only a 1.5s
+    floater the player can easily miss."""
+
+    def test_completed_payout_posts_to_the_game_log(self):
+        fm = FloaterManager(UI_BAL, CORE_BAL, VFX_BAL)
+        log = GameLog()
+        fm.log = log
+        state = RunState()
+        state.painter_events.append((0, 0, "painting finished!", "finished"))
+        fm.spawn_painter_events(state)
+        self.assertEqual([m[0] for m in log._messages], ["painting finished!"])
+
+    def test_lost_payout_still_posts_to_the_game_log(self):
+        fm = FloaterManager(UI_BAL, CORE_BAL, VFX_BAL)
+        log = GameLog()
+        fm.log = log
+        state = RunState()
+        state.painter_events.append((0, 0, "painting lost!", "lost"))
+        fm.spawn_painter_events(state)
+        self.assertEqual([m[0] for m in log._messages], ["painting lost!"])
+
+
 class TestLifeLostBanner(unittest.TestCase):
     """The "YOU / LOST 1 LIFE" centre-screen banner: ``Session.on_base_hit``
     fills the ``life_lost_events`` ledger, ``FloaterManager`` drains it (off
@@ -620,6 +788,27 @@ class TestLifeLostBanner(unittest.TestCase):
 
         fm.spawn_boss_events(_S)
         self.assertIsNone(fm._life_lost_age)
+
+
+class TestTerrainConditionTooltip(unittest.TestCase):
+    """Tile Condition Rework: the terrain badge's hover tooltip
+    (``_tile_cond_effect_lines``) must say "Unbuildable tile" for Pond,
+    never fall through to the generic "No terrain effect" a condition with
+    no modifiers otherwise gets."""
+
+    def test_pond_says_unbuildable(self):
+        _tm, _scene, _occupancy, session = make_world()
+        panel = make_panel()
+        panel._session = session
+        self.assertEqual(panel._tile_cond_effect_lines(TileCondition.POND),
+                         ["Unbuildable tile"])
+
+    def test_grass_is_still_no_terrain_effect(self):
+        _tm, _scene, _occupancy, session = make_world()
+        panel = make_panel()
+        panel._session = session
+        self.assertEqual(panel._tile_cond_effect_lines(TileCondition.GRASS),
+                         ["No terrain effect"])
 
 
 if __name__ == "__main__":

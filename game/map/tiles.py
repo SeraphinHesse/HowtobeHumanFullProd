@@ -68,6 +68,13 @@ CONDITION_MODIFIER_KEY = {
 }
 # -- /10I --
 
+# -- tile-condition rework: conditions that block building placement --------
+# Condition -> may a building never be placed on a tile with this condition,
+# regardless of zone state. Absent conditions are buildable (GRASS, MOUNTAIN,
+# FOREST). ONE table, so this rule cannot drift from whichever consumer needs
+# it (today: game/buildings/registry.py's place_building).
+CONDITION_BLOCKS_BUILD = frozenset({TileCondition.POND})
+
 # -- map-file condition NAME -> TileCondition --------------------------------
 # The one table translating a `tile_conditions` mark's `condition` name (the
 # map-file schema's enum, which is the single source of truth for that

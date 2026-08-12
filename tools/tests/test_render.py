@@ -639,5 +639,36 @@ class TestPurity(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
 
 
+class TestBackendResolution(unittest.TestCase):
+    """G1: default backend resolution is unchanged when nothing is injected —
+    the explicit `backend_api.default_backend()` seam must still resolve to
+    the same callable, at the same time (first flush), memoised the same way."""
+
+    def test_default_backend_is_the_pygame_draw_function(self):
+        from engine.render import backend, default_backend
+
+        self.assertIs(default_backend(), backend.draw)
+
+    def test_unspecified_backend_resolves_lazily_and_memoises(self):
+        import pygame
+        from engine.assets.store import AssetStore
+        from engine.render import backend
+
+        pygame.init()
+        r = Renderer(make_cs(), AssetStore())
+        self.assertIsNone(r._backend)
+        r.submit(RenderItem("no_such_slot_ever", (0, 0), layer="ground"))
+        r.flush(target=pygame.Surface((16, 16)))
+        self.assertIs(r._backend, backend.draw)
+
+    def test_injected_backend_is_never_replaced(self):
+        backend = RecordingBackend()
+        r = Renderer(make_cs(), FakeAssets(), backend=backend)
+        r.submit(RenderItem("tile", (0, 0), layer="ground"))
+        r.flush(target=None)
+        self.assertIs(r._backend, backend)
+        self.assertEqual(len(backend.calls), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

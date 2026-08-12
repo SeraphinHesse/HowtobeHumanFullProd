@@ -301,36 +301,15 @@
               "additionalProperties": false,
               "description": "Forest tile effects.",
               "properties": {
-                "def_dmg_penalty": {
-                  "description": "Fraction removed from defender damage in a forest.",
-                  "maximum": 1,
-                  "minimum": 0,
-                  "type": "number"
-                },
                 "eco_yield_bonus": {
                   "description": "Fraction added to economy yield in a forest.",
-                  "maximum": 1,
-                  "minimum": 0,
-                  "type": "number"
-                },
-                "enemy_dmg_bonus": {
-                  "description": "Fraction added to enemy damage in a forest.",
-                  "maximum": 1,
-                  "minimum": 0,
-                  "type": "number"
-                },
-                "enemy_speed_penalty": {
-                  "description": "Fraction removed from enemy speed in a forest.",
                   "maximum": 1,
                   "minimum": 0,
                   "type": "number"
                 }
               },
               "required": [
-                "def_dmg_penalty",
-                "eco_yield_bonus",
-                "enemy_dmg_bonus",
-                "enemy_speed_penalty"
+                "eco_yield_bonus"
               ],
               "type": "object"
             },
@@ -343,62 +322,17 @@
                   "maximum": 10000,
                   "minimum": 0,
                   "type": "integer"
-                },
-                "eco_yield_penalty": {
-                  "description": "Fraction removed from economy yield on a mountain.",
-                  "maximum": 1,
-                  "minimum": 0,
-                  "type": "number"
-                },
-                "enemy_dmg_bonus": {
-                  "description": "Fraction added to enemy damage on a mountain.",
-                  "maximum": 1,
-                  "minimum": 0,
-                  "type": "number"
-                },
-                "enemy_speed_penalty": {
-                  "description": "Fraction removed from enemy speed on a mountain.",
-                  "maximum": 1,
-                  "minimum": 0,
-                  "type": "number"
                 }
               },
               "required": [
-                "def_range_bonus",
-                "eco_yield_penalty",
-                "enemy_dmg_bonus",
-                "enemy_speed_penalty"
-              ],
-              "type": "object"
-            },
-            "Pond": {
-              "additionalProperties": false,
-              "description": "Pond tile effects.",
-              "properties": {
-                "def_attack_speed_penalty": {
-                  "description": "Fraction added to defender attack interval on a pond (slower).",
-                  "maximum": 1,
-                  "minimum": 0,
-                  "type": "number"
-                },
-                "eco_yield_bonus": {
-                  "description": "Fraction added to economy yield on a pond.",
-                  "maximum": 1,
-                  "minimum": 0,
-                  "type": "number"
-                }
-              },
-              "required": [
-                "def_attack_speed_penalty",
-                "eco_yield_bonus"
+                "def_range_bonus"
               ],
               "type": "object"
             }
           },
           "required": [
             "Forest",
-            "Mountain",
-            "Pond"
+            "Mountain"
           ],
           "type": "object"
         },
