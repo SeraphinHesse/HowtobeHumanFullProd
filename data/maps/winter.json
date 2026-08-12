@@ -169,26 +169,6 @@
       "slot": "deco_tree_v5"
     },
     {
-      "col": 538,
-      "row": 522,
-      "slot": "deco_rock_v2"
-    },
-    {
-      "col": 547,
-      "row": 522,
-      "slot": "deco_rock_v2"
-    },
-    {
-      "col": 543,
-      "row": 523,
-      "slot": "deco_rock"
-    },
-    {
-      "col": 534,
-      "row": 520,
-      "slot": "deco_rock"
-    },
-    {
       "col": 541,
       "row": 502,
       "slot": "deco_rock_v3"
@@ -196,11 +176,6 @@
     {
       "col": 518,
       "row": 483,
-      "slot": "deco_rock_v3"
-    },
-    {
-      "col": 508,
-      "row": 485,
       "slot": "deco_rock_v3"
     },
     {
@@ -322,16 +297,6 @@
       "col": 539,
       "row": 502,
       "slot": "deco_prop_1_v5"
-    },
-    {
-      "col": 502,
-      "row": 486,
-      "slot": "deco_rock_v2"
-    },
-    {
-      "col": 542,
-      "row": 509,
-      "slot": "deco_rock_v3"
     },
     {
       "col": 548,
@@ -715,11 +680,6 @@
       "slot": "deco_tree_v11"
     },
     {
-      "col": 515,
-      "row": 522,
-      "slot": "deco_tree_v11"
-    },
-    {
       "col": 527,
       "row": 537,
       "slot": "deco_tree_v11"
@@ -858,11 +818,6 @@
       "col": 560,
       "row": 517,
       "slot": "deco_tree_v11"
-    },
-    {
-      "col": 563,
-      "row": 513,
-      "slot": "deco_tree"
     },
     {
       "col": 501,
@@ -8055,6 +8010,686 @@
       "col": 543,
       "row": 513,
       "slot": "deco_tree_v9"
+    },
+    {
+      "col": 516,
+      "row": 521,
+      "slot": "deco_rock_v4"
+    },
+    {
+      "col": 534,
+      "row": 520,
+      "slot": "deco_rock_v4"
+    },
+    {
+      "col": 538,
+      "row": 522,
+      "slot": "deco_rock_v4"
+    },
+    {
+      "col": 543,
+      "row": 523,
+      "slot": "deco_rock_v4"
+    },
+    {
+      "col": 547,
+      "row": 522,
+      "slot": "deco_rock_v4"
+    },
+    {
+      "col": 552,
+      "row": 513,
+      "slot": "deco_rock_v4"
+    },
+    {
+      "col": 559,
+      "row": 520,
+      "slot": "deco_rock_v4"
+    },
+    {
+      "col": 529,
+      "row": 483,
+      "slot": "deco_rock_v4"
+    },
+    {
+      "col": 523,
+      "row": 475,
+      "slot": "deco_rock_v4"
+    },
+    {
+      "col": 524,
+      "row": 480,
+      "slot": "deco_rock_v4"
+    },
+    {
+      "col": 505,
+      "row": 475,
+      "slot": "deco_rock_v4"
+    },
+    {
+      "col": 502,
+      "row": 486,
+      "slot": "deco_rock_v4"
+    },
+    {
+      "col": 508,
+      "row": 490,
+      "slot": "deco_rock_v4"
+    },
+    {
+      "col": 495,
+      "row": 489,
+      "slot": "deco_rock_v4"
+    },
+    {
+      "col": 493,
+      "row": 486,
+      "slot": "deco_rock_v4"
+    },
+    {
+      "col": 490,
+      "row": 496,
+      "slot": "deco_rock_v4"
+    },
+    {
+      "col": 509,
+      "row": 507,
+      "slot": "deco_rock_v4"
+    },
+    {
+      "col": 518,
+      "row": 518,
+      "slot": "deco_rock_v4"
+    },
+    {
+      "col": 530,
+      "row": 517,
+      "slot": "deco_rock_v4"
+    },
+    {
+      "col": 515,
+      "row": 522,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 526,
+      "row": 527,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 527,
+      "row": 528,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 523,
+      "row": 531,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 508,
+      "row": 529,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 514,
+      "row": 536,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 508,
+      "row": 535,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 493,
+      "row": 529,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 490,
+      "row": 537,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 490,
+      "row": 526,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 489,
+      "row": 523,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 480,
+      "row": 531,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 483,
+      "row": 527,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 484,
+      "row": 526,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 474,
+      "row": 524,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 471,
+      "row": 524,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 478,
+      "row": 520,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 479,
+      "row": 518,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 484,
+      "row": 521,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 474,
+      "row": 513,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 481,
+      "row": 517,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 479,
+      "row": 514,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 478,
+      "row": 511,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 483,
+      "row": 516,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 484,
+      "row": 516,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 483,
+      "row": 514,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 482,
+      "row": 512,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 485,
+      "row": 519,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 486,
+      "row": 515,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 489,
+      "row": 517,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 491,
+      "row": 518,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 495,
+      "row": 514,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 489,
+      "row": 505,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 493,
+      "row": 507,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 493,
+      "row": 504,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 482,
+      "row": 495,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 487,
+      "row": 492,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 491,
+      "row": 488,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 495,
+      "row": 487,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 496,
+      "row": 486,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 490,
+      "row": 479,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 491,
+      "row": 476,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 499,
+      "row": 486,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 497,
+      "row": 475,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 497,
+      "row": 467,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 508,
+      "row": 465,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 511,
+      "row": 467,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 517,
+      "row": 474,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 519,
+      "row": 465,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 519,
+      "row": 464,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 512,
+      "row": 459,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 522,
+      "row": 472,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 523,
+      "row": 472,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 525,
+      "row": 478,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 530,
+      "row": 473,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 525,
+      "row": 466,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 526,
+      "row": 466,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 535,
+      "row": 475,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 537,
+      "row": 482,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 540,
+      "row": 479,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 540,
+      "row": 478,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 536,
+      "row": 465,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 545,
+      "row": 483,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 543,
+      "row": 488,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 546,
+      "row": 488,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 546,
+      "row": 481,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 547,
+      "row": 478,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 549,
+      "row": 490,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 550,
+      "row": 492,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 547,
+      "row": 496,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 544,
+      "row": 502,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 552,
+      "row": 498,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 556,
+      "row": 491,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 552,
+      "row": 484,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 551,
+      "row": 482,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 558,
+      "row": 508,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 560,
+      "row": 511,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 561,
+      "row": 511,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 560,
+      "row": 517,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 550,
+      "row": 521,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 548,
+      "row": 522,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 537,
+      "row": 509,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 566,
+      "row": 509,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 566,
+      "row": 510,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 566,
+      "row": 515,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 562,
+      "row": 515,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 562,
+      "row": 520,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 561,
+      "row": 504,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 569,
+      "row": 507,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 569,
+      "row": 505,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 572,
+      "row": 507,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 566,
+      "row": 527,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 563,
+      "row": 513,
+      "slot": "deco_tree_v8"
+    },
+    {
+      "col": 530,
+      "row": 523,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 528,
+      "row": 518,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 533,
+      "row": 532,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 540,
+      "row": 536,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 543,
+      "row": 540,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 539,
+      "row": 530,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 545,
+      "row": 532,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 531,
+      "row": 538,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 527,
+      "row": 537,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 507,
+      "row": 481,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 507,
+      "row": 484,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 517,
+      "row": 479,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 512,
+      "row": 475,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 511,
+      "row": 475,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 523,
+      "row": 465,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 554,
+      "row": 493,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 544,
+      "row": 528,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 541,
+      "row": 524,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 538,
+      "row": 524,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 530,
+      "row": 526,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 530,
+      "row": 534,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 528,
+      "row": 531,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 516,
+      "row": 530,
+      "slot": "deco_tree_v20"
+    },
+    {
+      "col": 501,
+      "row": 516,
+      "slot": "deco_tree_v20"
     }
   ],
   "despawnable_spawn": [
