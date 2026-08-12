@@ -44,7 +44,7 @@ the known large-map frontier. If you're adding a high-count swarm, read
 
 ## Verify
 - Headless: a scripted round asserts the HP ledger matches hand-computed prototype
-  values: `py tools/testgate.py check --affected` (targeted; the single full
+  values: `py -m pytest tools/tests/test_<area>.py -q` (targeted; the single full
   check happens at handoff, per CLAUDE.md Step 2).
 - Data: `py tools/smoke.py`.
 - Live: `py game/main.py` — reach the round that spawns it; confirm spawn, movement/
@@ -54,3 +54,11 @@ the known large-map frontier. If you're adding a high-count swarm, read
 - Changed files; the type + which spawner branch; verification performed; whether
   `game/enemies/CLAUDE.md` needed a durable-rule update.
 - Tag every claim **measured** / **verified** / **inferred** (see `/report`).
+
+> **Role note (test policy).** The command above names the test FILES for what
+> you changed, which every role may run. `py tools/testgate.py check --affected`
+> is a MAIN-SESSION mid-task tool — its safety pass is the whole core tier — and
+> the single full `check` belongs to the main session at handoff. If you are
+> running this skill inside a dispatched agent, the `test_guard.py` hook will
+> deny both. The role table in §"Test Suite Policy" (root `CLAUDE.md`) is the
+> only authority.

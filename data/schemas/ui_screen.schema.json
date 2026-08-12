@@ -49,6 +49,10 @@
         "panel_skin": {
           "type": "string"
         },
+        "price_is_click_target": {
+          "description": "building_panel only. When true, ONLY a construct card's price button opens the construct preview and the portrait/name go inert; when false or absent (the default), the whole card is the click target as it always was and the price button is drawn but never hit-tested.",
+          "type": "boolean"
+        },
         "text_color": {
           "items": {
             "maximum": 255,
@@ -58,6 +62,10 @@
           "maxItems": 4,
           "minItems": 3,
           "type": "array"
+        },
+        "use_card_portrait_slot": {
+          "description": "building_panel only. When true, a construct card's portrait draws the dedicated card_portrait_<building_type> art family (data/slots.json's ui -> Card Portraits), falling back to the building's own tier sprite whenever that slot has no imported art. When false or absent (the default), the portrait is always the tier sprite.",
+          "type": "boolean"
         }
       },
       "type": "object"
@@ -83,6 +91,13 @@
             },
             "label": {
               "type": "string"
+            },
+            "parent": {
+              "description": "Designer re-parenting (authoring metadata the game never reads): the widget id this widget hangs off in the editor's outliner, overriding screen_defaults.json's own `parent`. Explicit null re-roots a widget whose default parent the designer rejected — distinct from the key being ABSENT, which keeps the default. A cyclic or dangling chain resolves to root in the editor rather than failing.",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "rect": {
               "items": {

@@ -375,7 +375,13 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   `place_walls_for_builder(builder)` — walls go only on the OUTERMOST perimeter
   (player BUILDABLE/BUILT tile edges facing an `_exterior_combat_tiles()` tile, a
   BFS from the spawn zone through COMBAT/SPAWNING only), frozen into the builder's
-  snapshot. `remove_walls_for_builder` (dead builder) + `rebuild_walls` (restore
+  snapshot. **`place_walls_for_builder` never steals ownership of an edge
+  already held by a currently alive WallBuilder** (feature-wallbuilder-hp-rework,
+  user decision) — a newly-placed builder only claims perimeter edges nobody
+  currently owns (an unclaimed segment, or one exposed by newly unlocked
+  territory); an edge another builder already owns is left completely
+  untouched — same HP, same `max_hp`, same owner — and is never added to the
+  new builder's own snapshot. `remove_walls_for_builder` (dead builder) + `rebuild_walls` (restore
   each alive builder's snapshot to full HP) are driven by the payday slots;
   `damage_wall` (enemy attack) deletes an edge at hp≤0. The map layer stays
   IMPORT-FREE of `game.buildings` — it DUCK-TYPES the builder (`wall_hp()` /
@@ -534,4 +540,7 @@ Dijkstras. Full rationale + measured numbers → `game/PERF.md`.
 ## Verify
 Unlock-chunk fixture asserts receded tiles + costs match prototype; spawn→base
 path matches prototype on identical grid:
-`py -m unittest discover -s tools/tests -t .`
+`py -m pytest tools/tests/test_<area>.py -q`
+
+Which tests you may run is ROLE-scoped — the role table in §"Test Suite Policy"
+(root `CLAUDE.md`) is the only authority, enforced by a `PreToolUse` hook.

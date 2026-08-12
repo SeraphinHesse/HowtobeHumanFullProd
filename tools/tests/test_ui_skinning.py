@@ -16,6 +16,7 @@ the shipped starter map + a plain recording stand-in renderer — the
 ``test_hud_panel.py`` / ``test_10j_qol.py`` fixture style.
 """
 import random
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -143,6 +144,19 @@ def _screen_captures():
 #: change was contained. Note the new SET DEFAULT button does NOT appear here:
 #: the capture builds the screen bare, and ``saved_default`` is then ``None``,
 #: which by design draws no line.
+#: Regenerated an EIGHTH time (editable buy options): the level-up option
+#: boxes became individually overridable widgets (`option_box_0..2`), and
+#: `tools/screen_mocks.LEVELUP_OPTIONS` grew from two mock cards to THREE so
+#: every option SLOT gets recorded — the roll's maximum. So `levelup` is the
+#: only entry that moved, and it moved because its INPUT changed, not its
+#: code: the two existing cards re-centre (a 3-wide row is centred
+#: differently than a 2-wide one) and a third card's five primitives are
+#: appended. **Containment was measured, not assumed**: capturing with
+#: `LEVELUP_OPTIONS` truncated back to its original two reproduces THIS
+#: file's previous baseline byte-for-byte on every screen, `levelup` and
+#: `hud` included — i.e. the option-box holders, the id'd construct cards,
+#: the `button_kwargs` forwarding and `hud.round_label`'s align moving from
+#: its call site onto its holder are all rendering no-ops.
 #: Regenerated a SIXTH time (UR-2: the logical surface flipped 1280x720 ->
 #: 640x360, so EVERY screen's default geometry moved on purpose). This is the
 #: one regeneration where "only one screen changed" is NOT the containment
@@ -163,6 +177,30 @@ def _screen_captures():
 #: click-target floor), ``main_menu`` (the SET gear widened to hold its label).
 #: The other eight entries are byte-identical, which is what says the change
 #: was contained. Regenerated mechanically from ``_screen_captures()``.
+#: Regenerated a NINTH time (bottom-right phase readout): ``hud``'s
+#: ``phase_label`` moved from the bottom-LEFT corner into the bottom-RIGHT
+#: cluster, directly above the round label, and its copy became the two-state
+#: "Building Phase"/"Defending Phase" instead of the six-way ``hud.phase.*``
+#: string-table lookup. Exactly ONE primitive in the entry changed (text +
+#: pos, same index) — nothing else moved, and every other screen's entry is
+#: byte-identical.
+#: Regenerated a TENTH time (shipped-font label fit): twelve static button
+#: labels overhung their buttons under the font the game ACTUALLY boots
+#: (``data/ui/active_font.json`` -> ``pixel_emulator``), which is wider per
+#: glyph than the ``SysFont("monospace")`` metrics every pixel constant in
+#: ``game/ui`` was authored against. Six entries moved, and ONLY as copy or
+#: ``font_key``: ``add_name`` (ADD NAME -> ADD), ``cheat_menu`` (Unlock All
+#: Tech -> Unlock Tech, Go to Round -> Round), ``game_over`` (RETURN TO MENU
+#: -> MAIN MENU), ``hud`` (DRAG SEL -> DRAG; END TURN lg -> md, which shifts
+#: its centred baseline 1px), ``main_menu`` (the SET gear lg -> md, same 1px
+#: shift), ``pause`` (QUIT TO MENU -> MAIN MENU). **Not one rect in this
+#: baseline changed**, which is what says the fix was copy and per-widget
+#: font, never layout. (``overlays``'s TIERS pill DID narrow 76 -> 41, but
+#: that screen is not in this capture — see ``data/ui/screen_defaults.json``.)
+#: The measurement itself now lives in
+#: ``test_ui_min_targets.py``, which installs the shipped face for its own
+#: module so this can never regress invisibly again; THIS file still captures
+#: under the fallback face, which is why its ``pos`` values are unchanged.
 _BASELINE = {
     "main_menu": [
         HudRect(rect=(0, 0, 640, 360), color=(18, 30, 20), border_radius=0, width=0),
@@ -192,7 +230,7 @@ _BASELINE = {
         HudText(text='QUIT', pos=(320, 335), font_key='lg', color=(235, 225, 195), align='center'),
         HudRect(rect=(405, 180, 30, 26), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(405, 180, 30, 26), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='SET', pos=(420, 185), font_key='lg', color=(235, 225, 195), align='center'),
+        HudText(text='SET', pos=(420, 186), font_key='md', color=(235, 225, 195), align='center'),
     ],
     "pause": [
         HudRect(rect=(0, 0, 640, 360), color=(0, 0, 0, 150), border_radius=0, width=0),
@@ -207,7 +245,7 @@ _BASELINE = {
         HudText(text='SETTINGS', pos=(320, 175), font_key='lg', color=(235, 225, 195), align='center'),
         HudRect(rect=(260, 200, 120, 23), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(260, 200, 120, 23), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='QUIT TO MENU', pos=(320, 204), font_key='lg', color=(235, 225, 195), align='center'),
+        HudText(text='MAIN MENU', pos=(320, 204), font_key='lg', color=(235, 225, 195), align='center'),
         HudRect(rect=(260, 229, 120, 23), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(260, 229, 120, 23), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='QUIT GAME', pos=(320, 233), font_key='lg', color=(235, 225, 195), align='center'),
@@ -284,7 +322,7 @@ _BASELINE = {
         HudText(text='Names in pool: 3', pos=(217, 206), font_key='sm', color=(150, 140, 120), align='left'),
         HudRect(rect=(217, 217, 80, 20), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(217, 217, 80, 20), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='ADD NAME', pos=(257, 219), font_key='lg', color=(235, 225, 195), align='center'),
+        HudText(text='ADD', pos=(257, 219), font_key='lg', color=(235, 225, 195), align='center'),
         HudRect(rect=(358, 217, 65, 20), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(358, 217, 65, 20), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='BACK', pos=(390, 219), font_key='lg', color=(235, 225, 195), align='center'),
@@ -297,23 +335,28 @@ _BASELINE = {
         HudText(text='Enemies Killed: 9', pos=(320, 193), font_key='md', color=(235, 225, 195), align='center'),
         HudRect(rect=(260, 235, 120, 23), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(260, 235, 120, 23), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='RETURN TO MENU', pos=(320, 239), font_key='lg', color=(235, 225, 195), align='center'),
+        HudText(text='MAIN MENU', pos=(320, 239), font_key='lg', color=(235, 225, 195), align='center'),
     ],
     "levelup": [
         HudRect(rect=(0, 0, 640, 360), color=(0, 0, 0, 185), border_radius=0, width=0),
         HudText(text='CHOOSE YOUR REWARD', pos=(320, 65), font_key='xxl', color=(255, 200, 50), align='center'),
-        HudRect(rect=(188, 103, 130, 154), color=(42, 34, 68), border_radius=0, width=0),
-        HudRect(rect=(188, 103, 130, 154), color=(80, 65, 120), border_radius=0, width=1),
-        HudText(text='Card A', pos=(253, 108), font_key='md', color=(235, 225, 195), align='center'),
-        HudText(text='Cost  5', pos=(253, 162), font_key='sm', color=(255, 200, 50), align='center'),
-        HudText(text='does a thing', pos=(253, 175), font_key='sm', color=(150, 140, 120), align='center'),
-        HudRect(rect=(322, 103, 130, 154), color=(42, 34, 68), border_radius=0, width=0),
-        HudRect(rect=(322, 103, 130, 154), color=(80, 65, 120), border_radius=0, width=1),
-        HudText(text='Old Name', pos=(387, 108), font_key='sm', color=(150, 140, 120), align='center'),
-        HudLines(points=((385, 124), (387, 121), (389, 124)), color=(80, 210, 80), width=2, closed=False),
-        HudText(text='Card B', pos=(387, 126), font_key='md', color=(235, 225, 195), align='center'),
-        HudText(text='tiered thing', pos=(387, 193), font_key='sm', color=(150, 140, 120), align='center'),
-        HudText(text='Tier 2 of 3', pos=(387, 243), font_key='sm', color=(150, 140, 120), align='center'),
+        HudRect(rect=(121, 103, 130, 154), color=(42, 34, 68), border_radius=0, width=0),
+        HudRect(rect=(121, 103, 130, 154), color=(80, 65, 120), border_radius=0, width=1),
+        HudText(text='Card A', pos=(186, 108), font_key='md', color=(235, 225, 195), align='center'),
+        HudText(text='Cost  5', pos=(186, 162), font_key='sm', color=(255, 200, 50), align='center'),
+        HudText(text='does a thing', pos=(186, 175), font_key='sm', color=(150, 140, 120), align='center'),
+        HudRect(rect=(255, 103, 130, 154), color=(42, 34, 68), border_radius=0, width=0),
+        HudRect(rect=(255, 103, 130, 154), color=(80, 65, 120), border_radius=0, width=1),
+        HudText(text='Old Name', pos=(320, 108), font_key='sm', color=(150, 140, 120), align='center'),
+        HudLines(points=((318, 124), (320, 121), (322, 124)), color=(80, 210, 80), width=2, closed=False),
+        HudText(text='Card B', pos=(320, 126), font_key='md', color=(235, 225, 195), align='center'),
+        HudText(text='tiered thing', pos=(320, 193), font_key='sm', color=(150, 140, 120), align='center'),
+        HudText(text='Tier 2 of 3', pos=(320, 243), font_key='sm', color=(150, 140, 120), align='center'),
+        HudRect(rect=(389, 103, 130, 154), color=(42, 34, 68), border_radius=0, width=0),
+        HudRect(rect=(389, 103, 130, 154), color=(80, 65, 120), border_radius=0, width=1),
+        HudText(text='Card C', pos=(454, 108), font_key='md', color=(235, 225, 195), align='center'),
+        HudText(text='Cost  12', pos=(454, 162), font_key='sm', color=(255, 200, 50), align='center'),
+        HudText(text='a third thing', pos=(454, 175), font_key='sm', color=(150, 140, 120), align='center'),
     ],
     "hud": [
         HudRect(rect=(6, 6, 95, 17), color=(40, 32, 58), border_radius=4, width=0),
@@ -331,12 +374,12 @@ _BASELINE = {
         HudSprite(slot_key='ui_icon_lives', dest=(8, 41), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
         HudText(text='LIVES 3', pos=(19, 41), font_key='md', color=(200, 55, 55), align='left'),
         HudText(text='0/4 tiles', pos=(8, 57), font_key='md', color=(150, 140, 120), align='left'),
-        HudText(text='BUILDING', pos=(6, 347), font_key='hud_phase', color=(150, 140, 120), align='left'),
+        HudText(text='Building Phase', pos=(552, 287), font_key='hud_phase', color=(150, 140, 120), align='left'),
         HudText(text='ROUND 1', pos=(592, 307), font_key='md', color=(150, 140, 120), align='center'),
         HudRect(rect=(552, 320, 80, 1), color=(80, 65, 120), border_radius=0, width=0),
         HudRect(rect=(552, 322, 80, 30), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(552, 322, 80, 30), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='END TURN', pos=(592, 329), font_key='lg', color=(235, 225, 195), align='center'),
+        HudText(text='END TURN', pos=(592, 330), font_key='md', color=(235, 225, 195), align='center'),
         HudRect(rect=(587, 6, 45, 15), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(587, 6, 45, 15), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='PAUSE', pos=(609, 7), font_key='md', color=(235, 225, 195), align='center'),
@@ -352,7 +395,7 @@ _BASELINE = {
         HudText(text='2×', pos=(82, 77), font_key='sm', color=(150, 140, 120), align='center'),
         HudRect(rect=(6, 93, 45, 14), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(6, 93, 45, 14), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='DRAG SEL', pos=(28, 94), font_key='sm', color=(235, 225, 195), align='center'),
+        HudText(text='DRAG', pos=(28, 94), font_key='sm', color=(235, 225, 195), align='center'),
     ],
     "building_panel": [
     ],
@@ -378,7 +421,7 @@ _BASELINE = {
         HudText(text='Infinite Money', pos=(320, 169), font_key='md', color=(235, 225, 195), align='center'),
         HudRect(rect=(263, 184, 114, 13), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(263, 184, 114, 13), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='Unlock All Tech', pos=(320, 184), font_key='md', color=(235, 225, 195), align='center'),
+        HudText(text='Unlock Tech', pos=(320, 184), font_key='md', color=(235, 225, 195), align='center'),
         HudRect(rect=(263, 199, 114, 13), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(263, 199, 114, 13), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='Debug Log', pos=(320, 199), font_key='md', color=(235, 225, 195), align='center'),
@@ -389,7 +432,7 @@ _BASELINE = {
         HudText(text='round', pos=(266, 229), font_key='sm', color=(150, 140, 120), align='left'),
         HudRect(rect=(314, 227, 63, 13), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(314, 227, 63, 13), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='Go to Round', pos=(345, 228), font_key='sm', color=(235, 225, 195), align='center'),
+        HudText(text='Round', pos=(345, 228), font_key='sm', color=(235, 225, 195), align='center'),
     ],
     "game_log": [
         HudText(text='Test message', pos=(4, 344), font_key='sm', color=(220, 200, 155, 255), align='left'),
@@ -424,25 +467,49 @@ class TestGoldenParity(unittest.TestCase):
 
 
 class ScreenSkinningCase(unittest.TestCase):
-    """A ``ScreenSkinning`` over a tempdir copy of the pinned fixture (which
-    ships NO ``data/ui/screens/`` at all — the "missing directory" graceful
-    path) — never the live repo (T-3/data guard)."""
+    """A ``ScreenSkinning`` over a tempdir copy of the pinned fixture — never
+    the live repo (T-3/data guard).
+
+    The fixture USED to ship no ``data/ui/screens/`` and no
+    ``screen_defaults.json``, so the tests below that exercise the ABSENCE
+    (E-37 degrade) paths simply relied on that. It ships both now — the
+    snapshot is re-mirrored from live ``data/`` by ``fixture_data.refresh()``
+    — and those tests started failing for reasons unconnected to the code
+    they cover. That is exactly the "never assert against fixture state you
+    did not pin" rule (``editor/CLAUDE.md``, the 18 permanently-red tests):
+    a test that needs a file absent must REMOVE it, not assume it. Hence the
+    two helpers below."""
 
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.data_dir = fixture_copy(self._tmp.name)
 
+    def drop_screen_defaults(self):
+        """Guarantee ``data/ui/screen_defaults.json`` is absent."""
+        path = self.data_dir / "ui" / "screen_defaults.json"
+        if path.exists():
+            path.unlink()
+
+    def drop_screen_overrides(self):
+        """Guarantee ``data/ui/screens/`` is absent."""
+        screens = self.data_dir / "ui" / "screens"
+        if screens.exists():
+            shutil.rmtree(screens)
+
 
 class TestScreenSkinningLoad(ScreenSkinningCase):
     def test_missing_screens_directory_is_graceful(self):
-        """No data/ui/screens/ at all (today's fixture) -> empty overrides,
-        never a crash (§1.3 E-37 degrade)."""
+        """No data/ui/screens/ at all -> empty overrides, never a crash
+        (§1.3 E-37 degrade). The absence is PINNED, not assumed."""
+        self.drop_screen_overrides()
         skinning = ScreenSkinning(self.data_dir)
         self.assertEqual(skinning._overrides, {})
 
     def test_absent_defaults_file_is_none(self):
-        """data/ui/screen_defaults.json doesn't exist until B3 lands (§1.4)."""
+        """No data/ui/screen_defaults.json -> `_defaults` is None (§1.4).
+        The absence is PINNED, not assumed."""
+        self.drop_screen_defaults()
         skinning = ScreenSkinning(self.data_dir)
         self.assertIsNone(skinning._defaults)
 
@@ -552,6 +619,9 @@ class TestApplyMutatesWidgets(ScreenSkinningCase):
         self.assertEqual(widget.skin, "ui_button")
 
     def test_apply_is_a_noop_with_no_override(self):
+        # PIN the "no override file" precondition — the fixture ships real
+        # screen JSONs now, and main_menu's carries a skin/defaults block.
+        self.drop_screen_overrides()
         skinning = ScreenSkinning(self.data_dir)
         widget = SimpleNamespace(rect=(1, 2, 3, 4), label="stock")
         skinning.apply("main_menu", {"btn_new_game": ("button", widget)})
@@ -571,8 +641,9 @@ class TestIdValidation(ScreenSkinningCase):
         self.assertIn("unknown_id", str(cm.exception))
 
     def test_absent_defaults_file_silent(self):
-        """No screen_defaults.json (B3 not landed) -> unknown ids tolerated,
-        never raise (§1.4)."""
+        """No screen_defaults.json -> unknown ids tolerated, never raise
+        (§1.4). The absence is PINNED, not assumed."""
+        self.drop_screen_defaults()
         skinning = ScreenSkinning(self.data_dir)
         self.assertIsNone(skinning._defaults)
         skinning._overrides["test_screen"] = {
@@ -656,6 +727,10 @@ class TestReviewFixLabelRects(unittest.TestCase):
 
     def test_five_label_ids_have_a_real_default_rect(self):
         hud = Hud(VIEW_W, VIEW_H)
+        # phase_label moved into the End-Turn-relative second ids pass (the
+        # round_label precedent), which __init__'s layout() does not run — the
+        # exporter's _build_hud calls it the same way.
+        hud._layout_readouts()
         cheat = CheatMenu(VIEW_W, VIEW_H)
         boss = BossCutscene(VIEW_W, VIEW_H, CORE)
         boss.open(1, "win")
@@ -700,7 +775,7 @@ class TestReviewFixLabelRects(unittest.TestCase):
         hud.update(0.0, *OFF, session, panel, False)
         items = _capture(lambda r: hud.submit(r, session, VIEW_W, VIEW_H))
         phase = next(i for i in items
-                    if isinstance(i, HudText) and i.text == "BUILDING")
+                    if isinstance(i, HudText) and i.text == "Building Phase")
         self.assertEqual(phase.pos, (500, 501))
 
     def test_boss_cutscene_headline_rect_override_moves_the_recorded_text(self):

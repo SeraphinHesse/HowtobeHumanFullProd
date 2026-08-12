@@ -52,8 +52,8 @@ XP = CORE["XP"]
 DEF_T1 = BUILD["DefenceBuildings"]["BasicDefence"]["tiers"][0]
 DEF_T2 = BUILD["DefenceBuildings"]["BasicDefence"]["tiers"][1]
 # ...and its Timeline placement, the village_level it becomes offerable at.
-DEF_T2_LEVEL = lv.timeline_level_for("defence", 1, PROGRESSION)
-ECO_T2_LEVEL = lv.timeline_level_for("economic", 1, PROGRESSION)
+# NOTE: DEF_T2_LEVEL / ECO_T2_LEVEL are derived AFTER the timeline pin below
+# (they read PROGRESSION, which the pin rewrites).
 
 
 class NoShuffle:
@@ -91,6 +91,42 @@ def moved_placement(btype, idx, village_level):
                              "tier", btype, idx)
     timeline_ops.validate_uniqueness(doc)
     return doc
+
+
+def _pin_placement(doc, kind, btype, idx, village_level):
+    """Move ``(btype, idx)`` to ``village_level`` in ``doc``, in place."""
+    found = find_slot(doc, btype, idx)
+    if found is not None:
+        timeline_ops.clear_slot(doc, *found)
+    if not any(lvl["village_level"] == village_level
+               for lvl in doc["Timeline"]["levels"]):
+        timeline_ops.add_level(doc, village_level)
+    level = next(lvl for lvl in doc["Timeline"]["levels"]
+                 if lvl["village_level"] == village_level)
+    timeline_ops.assign_slot(doc, village_level, len(level["offer_slots"]),
+                             kind, btype, idx)
+
+
+# PIN the two Timeline placements this module reasons about (data/CLAUDE.md:
+# "Never assert against live data/ content: pin the fixture").
+#
+# Every expectation below — which unlock cards the level-1 pool offers, that
+# NO tier card exists yet at level 1, which single next tier is offered — is a
+# statement about the GATING LOGIC, read against a particular schedule. The
+# schedule is the designer's to change, and when the fixture was re-synced
+# from live data these two entries had swapped village levels (blocker's
+# unlock 1 -> 2, defence tier-1 2 -> 1). Six tests went red for a retune,
+# describing the pool as broken when it was correctly following new data.
+#
+# Pinning them here keeps the logic tests stable and leaves the designer free.
+# Tests that are ABOUT a placement moving still build their own doc through
+# `moved_placement`, which deep-copies this pinned baseline.
+_pin_placement(PROGRESSION, "unlock", "blocker", 0, 1)
+_pin_placement(PROGRESSION, "tier", "defence", 1, 2)
+timeline_ops.validate_uniqueness(PROGRESSION)
+
+DEF_T2_LEVEL = lv.timeline_level_for("defence", 1, PROGRESSION)
+ECO_T2_LEVEL = lv.timeline_level_for("economic", 1, PROGRESSION)
 
 
 def synth(rows, base=(0, 0)):

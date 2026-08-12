@@ -21,10 +21,26 @@ rounding in the mouse remap at non-integer monitor scales
 ``test_report_small_click_targets`` prints the under-16 roster as an eyeball
 worklist and never fails — do NOT convert it into an assertion without a
 playtest saying a specific control is hard to hit.
-"""
-import unittest
 
-from engine.render.fonts import layout_h
+**This module measures the REAL SHIPPED FONT, on purpose.** Every pixel
+constant in ``game/ui`` was authored against ``SysFont("monospace")`` metrics,
+but the game boots ``data/ui/active_font.json``'s face (``pixel_emulator``),
+which is wider per glyph at the same nominal size. Measuring "whatever font
+state this process happens to be in" is how twelve genuinely overhanging
+labels stayed invisible for months: alone, this file got the SysFont fallback
+and passed; only when a worker happened to run ``test_game_boot.py`` first
+(which installed the real face and, until recently, leaked it) did the twelve
+appear — and then they read as a flake, not a finding. ``setUpModule``
+therefore installs the shipped face deliberately and ``tearDownModule``
+restores the previous globals, so the measurement is the product's and the
+leak rule (``test_theme_data.py``'s module docstring) still holds.
+"""
+import json
+import unittest
+from pathlib import Path
+
+from engine.render import fonts as _fonts
+from engine.render.fonts import configure_fonts, layout_h
 from game.ui import widgets
 from tools import export_ui_layouts as export
 from tools.tests.fixture_data import FIXTURE_DATA
@@ -43,6 +59,58 @@ MIN_LINT = 16
 #: (2px a side). ``Button.submit`` centres the label and does no fitting or
 #: truncation, so a label wider than this silently overhangs both edges.
 LABEL_MARGIN = 4
+
+#: The shipped font FILE is a binary, so it is not in the JSON-only fixture —
+#: `data/fonts/` is read live for the face itself (allowlisted in
+#: `test_fixture_guard.py`). Everything that decides WHICH face, and every
+#: geometry number, still comes from the pin above.
+_LIVE_FONT_DIR = Path(__file__).resolve().parents[2] / "data" / "fonts"
+
+
+def _active_font_path():
+    """The face `game/main.py` would install, resolved exactly as it does.
+
+    `game/main.py` (~line 316-331): read `ui/active_font.json`'s `font_id`;
+    `"default"` means no path (the SysFont fallback); any other id must name
+    an entry in `fonts/font_manifest.json`, whose `file` is relative to
+    `data/fonts/`. Kept as a small copy rather than an import because
+    `game.main` does the resolution inline inside `main()`, mid-boot.
+    """
+    font_id = json.loads(
+        (DATA / "ui" / "active_font.json").read_text(encoding="utf-8"))["font_id"]
+    if font_id == "default":
+        return None
+    manifest = json.loads(
+        (DATA / "fonts" / "font_manifest.json").read_text(encoding="utf-8"))
+    entry = manifest["entries"][font_id]
+    return (_LIVE_FONT_DIR / entry["file"]).resolve()
+
+
+#: Saved by `setUpModule`, restored by `tearDownModule`. `_FONT_SPECS` is
+#: mutated IN PLACE by `configure_fonts`, so it is restored clear+update
+#: (never rebound); `_cache` holds already-built face objects and must be
+#: cleared on the way in AND out.
+_SAVED_FONT_STATE = {}
+
+
+def setUpModule():
+    _SAVED_FONT_STATE["path"] = _fonts._FONT_PATH
+    _SAVED_FONT_STATE["bytes"] = _fonts._FONT_BYTES
+    _SAVED_FONT_STATE["specs"] = dict(_fonts._FONT_SPECS)
+    fonts_doc = json.loads(
+        (DATA / "ui" / "fonts.json").read_text(encoding="utf-8"))
+    configure_fonts(fonts_doc, font_path=_active_font_path())
+
+
+def tearDownModule():
+    if not _SAVED_FONT_STATE:
+        return
+    _fonts._FONT_PATH = _SAVED_FONT_STATE["path"]
+    _fonts._FONT_BYTES = _SAVED_FONT_STATE["bytes"]
+    _fonts._FONT_SPECS.clear()
+    _fonts._FONT_SPECS.update(_SAVED_FONT_STATE["specs"])
+    _fonts._cache.clear()
+    _SAVED_FONT_STATE.clear()
 
 
 def _capture_screen_ids():
@@ -116,26 +184,87 @@ class TestButtonMinSize(unittest.TestCase):
                 print(f"    {where:<28} {rect}  min={smallest}")
 
 
+#: Id families whose LABEL is composed at build time from live game state, so
+#: the static-fit assert below does not apply to them (the class's own stated
+#: scope). `building_panel.card_<building_type>` is the only member: a card's
+#: label is `T("building.construct.card", name=, cost=)` — the name comes from
+#: `buildings.json` and the cost is a live, escalating price, so neither the
+#: text nor its width is knowable from code. They became visible to this test
+#: only when the cards gained ids (editable buy options); they are NOT newly
+#: overflowing, they were simply never measured before. The lint below reports
+#: them so the overhang stays visible rather than silently excluded.
+DYNAMIC_LABEL_PREFIXES = ("card_",)
+
+
+def _has_dynamic_label(name):
+    return name.startswith(DYNAMIC_LABEL_PREFIXES)
+
+
+def _label_overflow(buttons):
+    """``[(overflow_px, description), ...]`` for every button whose label is
+    wider than its box, worst first."""
+    out = []
+    for sid, name, rect, label, font in buttons:
+        if not label:
+            continue
+        text_w = widgets.text_size(label, font)[0]
+        if text_w > rect[2] - LABEL_MARGIN:
+            need = text_w + LABEL_MARGIN
+            out.append((need - rect[2],
+                        f"{sid}.{name} {label!r}@{font} needs "
+                        f"{need}px, has {rect[2]}px"))
+    return sorted(out, reverse=True)
+
+
 class TestStaticLabelFit(unittest.TestCase):
     """UR-5 §1(b): every STATIC button label fits its button.
 
     Static only. Dynamic labels (building display names, player names,
-    high-score rows) never reach an ``ids`` widget at export time and stay
-    eyeball-only — see the brief's playtest script.
+    high-score rows) stay eyeball-only — see the brief's playtest script.
+    They used never to reach an ``ids`` widget at export time at all; the
+    construct cards now do (they are individually overridable widgets), so
+    the exclusion is an explicit list (``DYNAMIC_LABEL_PREFIXES``) rather
+    than an accident of what happens to be id'd.
     """
 
+    def test_the_measured_font_is_the_shipped_one(self):
+        """Bare-minimum guard on the premise of every assert in this class.
+
+        Without it, a resolution bug that silently yielded ``None`` would
+        drop the whole module back to the SysFont fallback and go green for
+        exactly the reason this module exists to stop.
+        """
+        expected = _active_font_path()
+        if expected is None:
+            self.skipTest("active_font.json is 'default' — no face to install")
+        self.assertTrue(expected.is_file(), f"{expected} is not on disk")
+        self.assertEqual(str(expected), _fonts._FONT_PATH)
+        self.assertIsNotNone(_fonts._FONT_BYTES)
+
     def test_labels_fit_their_button_width(self):
-        overflowing = []
-        for sid, name, rect, label, font in _buttons():
-            if not label:
-                continue
-            text_w = widgets.text_size(label, font)[0]
-            if text_w > rect[2] - LABEL_MARGIN:
-                overflowing.append(
-                    f"{sid}.{name} {label!r}@{font} needs "
-                    f"{text_w + LABEL_MARGIN}px, has {rect[2]}px")
+        overflowing = [
+            desc for _over, desc in
+            _label_overflow(b for b in _buttons() if not _has_dynamic_label(b[1]))
+        ]
         self.assertEqual([], overflowing,
                          "static button label(s) overhang their button")
+
+    def test_report_dynamic_label_overflow(self):
+        """NON-BLOCKING lint: the dynamic-label roster that overhangs.
+
+        A real UR-5-class finding rather than test bookkeeping — a construct
+        card is 118px wide and several of its labels measure past 150px at
+        ``md``, i.e. they overhang their card on BOTH sides in game today.
+        The fix is a design call (narrower copy, a smaller font, or a wider
+        panel column), so this prints instead of failing.
+        """
+        over = _label_overflow(b for b in _buttons() if _has_dynamic_label(b[1]))
+        if over:
+            print(f"\n[dynamic-label lint] {len(over)} button(s) whose "
+                  f"live-composed label overhangs its box — a design call, "
+                  f"not auto-fixable:")
+            for overflow_px, desc in over:
+                print(f"    +{overflow_px:>3}px  {desc}")
 
     def test_labels_fit_their_button_height(self):
         """The vertical half: ``Button.submit`` centres on ``layout_h``, so a

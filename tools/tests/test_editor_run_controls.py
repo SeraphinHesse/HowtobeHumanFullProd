@@ -13,6 +13,7 @@ from unittest.mock import patch
 # Sets the headless env vars and owns the one QApplication — import it before
 # PySide6, which reads those vars at import time.
 from tools.tests.qt_harness import APP as _APP, QtCase
+from tools.tests.temp_data import TempDataCase
 
 from PySide6.QtWidgets import QApplication
 
@@ -24,12 +25,9 @@ REPO = Path(__file__).resolve().parents[2]
 STARTER = "first_light"
 
 
-class RunControlsWiringCase(QtCase):
+class RunControlsWiringCase(TempDataCase):
     def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.data_dir = Path(tmp.name) / "data"
-        shutil.copytree(REPO / "data", self.data_dir)
+        super().setUp()
         self.window = self.track(MainWindow(data_dir=self.data_dir))
 
     def test_toolbar_has_three_run_actions(self):

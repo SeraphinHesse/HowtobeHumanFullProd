@@ -36,7 +36,7 @@
         78,
         66
       ],
-      "life": 1.0,
+      "life": 0.0,
       "segments": 12
     },
     "death_burst": {
@@ -68,6 +68,17 @@
       "vx_min": -45.0,
       "vy_max": -10.0,
       "vy_min": -80.0
+    },
+    "drummer_aura": {
+      "alpha_max": 150,
+      "alpha_min": 30,
+      "color": [
+        90,
+        200,
+        220
+      ],
+      "pulse_period_s": 0.5,
+      "segments": 16
     },
     "floaters": {
       "boost_color": [
@@ -190,13 +201,13 @@
         60,
         55
       ],
-      "shell_size": 5,
+      "shell_size": 32,
       "stone_color": [
         185,
         180,
         170
       ],
-      "stone_size": 3
+      "stone_size": 32
     },
     "slash": {
       "colors": {
@@ -320,7 +331,7 @@
     },
     "splash_impact": {
       "procedural": "crater",
-      "sprite_slot": ""
+      "sprite_slot": "vfx_crater"
     }
   }
 }

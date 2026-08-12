@@ -18,31 +18,43 @@ re-run `/setcurrentplan <name>` to re-mirror. Author a new phased plan with
 `/createplan`. The editor's **Summon a Drunken Robot** screen shows the active
 plan and can switch it too. **Not every task needs a plan** — see Status.
 
-## Test Suite Policy
+## Test Suite Policy — the ONE rule, stated by role
 
-Read this BEFORE issuing any test command.
+**This section is the ONLY authority on when tests run.** No package doc, skill,
+command or agent prompt may state a different rule; if you find one that does, it
+is a bug — fix it here first, then delete the other copy. The mechanical parts
+are enforced by a `PreToolUse` hook (`.claude/hooks/test_guard.py`), so a run
+that breaks this table is *denied*, not merely discouraged.
 
-- **The full suite (~1088 tests) is slow. Never run it as a baseline, "just to
-  be safe", or to re-check a fix you already verified.**
-- **Default while iterating:** run only the test files your change touches —
-  `py -m pytest tools/tests/test_<area>.py -x -q`. Add `-m core` when you are
-  unsure what you hit.
-- **`py tools/testgate.py check --affected` does NOT reliably narrow.** It falls
-  back to the FULL suite whenever the diff contains no `.py` files, or
-  `conftest.py` / `pytest.ini` / `tools/tests/qt_harness*` is touched, or
-  `graphify affected` fails for any changed file, or no test module matches
-  (`tools/testgate.py:222-256`). It also compares against `--base-ref
-  Development` by default, so **on `Development` itself the diff is empty and it
-  always runs everything.** Read the `GATE INFO` line it prints before assuming
-  you got a narrow run; if it says it could not narrow, kill it and run targeted
-  files instead.
-- **The full `py tools/testgate.py check` runs exactly ONCE:** as the last step
-  before handing work back or opening a PR, or when the user explicitly asks.
-  Never mid-task, never twice.
-- **Never launch a second test run while another is in flight** — duplicate runs
-  exhaust memory.
-- **Subagents never run the full suite.** The orchestrator owns the single full
-  run.
+| Role | MAY run | Must NOT run |
+|---|---|---|
+| **Subagent** (any type) | `py tools/smoke.py`; `py -m pytest <the files you edited>` | the full suite, `testgate check`, tier sweeps (`-m core` / `-m editor` / `-m meta`) |
+| **Main session, mid-task** | targeted `py -m pytest <file>`; `py tools/testgate.py check --affected` | the full suite |
+| **Main session, at handoff** | exactly ONE `py tools/testgate.py check` | a second one |
+
+- **Targeted is the default while iterating** — `py -m pytest
+  tools/tests/test_<area>.py -x -q`. The suite is ~2250 tests; a full run is
+  minutes, a targeted one is seconds.
+- **Never run the suite as a baseline**, "just to be safe", or to re-check a fix
+  you already verified. There is no baseline to establish: the gate is ZERO, so
+  a red test is yours (see Step 2).
+- **`--affected` is trustworthy: it ABORTS rather than silently widening.** When
+  it cannot narrow (test scaffolding touched, `graphify affected` unavailable,
+  no test module matches) it prints `GATE ABORT` and exits non-zero *without
+  running anything*, telling you to name the files yourself. So you can always
+  believe its `GATE INFO` line: if it ran, it narrowed. (It did not always work
+  this way — it used to fall back to the whole suite behind a flag whose entire
+  promise was "only the blast radius", which is how "don't re-run the suite"
+  kept getting broken by agents who thought they had asked for a narrow run.)
+- **The full `py tools/testgate.py check` runs exactly ONCE**, by the MAIN
+  SESSION, as the last step before handing work back or opening a PR — or when
+  the user explicitly asks. Never mid-task, never twice.
+- **Never launch a second test run while another is in flight.** Duplicate runs
+  exhaust memory; the hook denies this outright.
+- **Re-running an unchanged target is the exact loop this policy exists to
+  stop.** If you ran a target and edited nothing since, the result has not
+  changed — do not run it again to "make sure". The hook denies this too, and
+  tells you what you already ran.
 
 ## Project identity & status
 - **Stack:** Python 3.11+, pygame-ce (game), PySide6 (editor). Deps:
@@ -182,6 +194,7 @@ tasks, open with the skill.
 |----------------------------------------------------|-------------------|
 | Add / create a building type                       | `/add-building`   |
 | Add / create an enemy type                         | `/add-enemy`      |
+| Add / create a VFX effect for a building or enemy   | `/add-vfx`        |
 | Add / change a balancing tunable                   | `/add-balancing-value` |
 | Add an engine Component                             | `/add-engine-component` |
 | Add an editor feature/panel                        | `/add-editor-feature` |
@@ -227,12 +240,24 @@ the validating writer; formatted deterministically (sorted keys, 2-space
 indent). ×10 combat HP/DMG scale carries over from the prototype; `BASE_HP`
 stays 10 (deliberate exception).
 
-## Step 2 — Universal exit gate
+## Step 2 — Exit gate (NOT universal — it is ROLE-scoped)
+
+**Which of these you may run is decided by `## Test Suite Policy` above, by
+role. This section deliberately carries no copy-pasteable full-suite command:
+the previous version opened with a bare `py tools/testgate.py check` under the
+heading "Universal exit gate", ~200 lines from a policy saying subagents must
+never run the full suite, and "universal" won every time. That one word is why
+features took hours.**
+
+Everyone, always:
 
 ```bash
 py tools/smoke.py          # data validation + 5-frame headless boot
-py tools/testgate.py check # the suite. Read the ONE line it prints.
 ```
+
+Then the tests **your role is allowed to run** — targeted files for a subagent
+or mid-task main session, and the single full `check` only for the main session
+at handoff. Read the ONE line the gate prints.
 
 **The gate is ZERO.** `GATE PASS` or you are not done. There is no baseline to
 measure and no "pre-existing failure" to tolerate — if a test is red, you broke
@@ -242,10 +267,8 @@ ways. `planning/completed plans/TestGatePLAN.md` records how that was fixed.)
 
 - **Never re-run the suite to find out what was already broken.** That waste is
   exactly what `/testgate` deletes.
-- **Iteration policy lives in `## Test Suite Policy` above — obey that.** In
-  short: targeted `pytest` files while iterating, one full `check` at handoff,
-  and do not trust `--affected` to have narrowed anything unless its `GATE INFO`
-  line says it did.
+- **A red test you did not cause is still a report, not an investigation** — see
+  the blast-radius bullet below.
 - **A red test clearly outside your diff's blast radius: note it in your report
   and stop** — do not burn the session investigating it. The gate is still ZERO
   (it must be resolved before handoff), but the first move is to surface it to

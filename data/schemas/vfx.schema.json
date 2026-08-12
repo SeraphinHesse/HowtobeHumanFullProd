@@ -276,6 +276,47 @@
           ],
           "type": "object"
         },
+        "drummer_aura": {
+          "additionalProperties": false,
+          "description": "The Drummer enemy's (NE-3) buff-range telegraph ring (submit_drummer_auras): a pulsing world-space ring drawn around a live Drummer, sized to its own support_range balancing value (EnemyTypes.Drummer.support_range) - not this block. alpha_min/alpha_max bound a smooth sine breathe over pulse_period_s seconds; segments is the ring's polygon-ring vertex count (the same world-unit N-gon helper the mortar crater and lightning marker use).",
+          "properties": {
+            "alpha_max": {
+              "description": "Ring fill alpha at the brightest point of the pulse.",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "alpha_min": {
+              "description": "Ring fill alpha at the dimmest point of the pulse.",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "color": {
+              "$ref": "#/$defs/color"
+            },
+            "pulse_period_s": {
+              "description": "Seconds for one full dim-to-bright-to-dim pulse cycle.",
+              "maximum": 60,
+              "minimum": 0.05,
+              "type": "number"
+            },
+            "segments": {
+              "description": "Polygon-ring vertex count (the same world-unit N-gon helper the mortar scorch and lightning marker use; a world-space ring projects to the iso 2:1 ground ellipse).",
+              "maximum": 10000,
+              "minimum": 3,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "alpha_max",
+            "alpha_min",
+            "color",
+            "pulse_period_s",
+            "segments"
+          ],
+          "type": "object"
+        },
         "floaters": {
           "additionalProperties": false,
           "description": "Income/XP/painter/boost floater colours + lifetimes (text layout itself stays HUD chrome, owned by game/ui/effects.py, not this schema).",
@@ -809,6 +850,7 @@
         "beam",
         "crater",
         "death_burst",
+        "drummer_aura",
         "floaters",
         "gold_highlight",
         "lightning",

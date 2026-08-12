@@ -1525,4 +1525,7 @@ mutations route through `TileMap`. Detail → `game/PERF.md`.
 
 ## Verify
 Scripted round asserts HP ledger matches hand-computed prototype values:
-`py -m unittest discover -s tools/tests -t .`.
+`py -m pytest tools/tests/test_<area>.py -q`.
+
+Which tests you may run is ROLE-scoped — the role table in §"Test Suite Policy"
+(root `CLAUDE.md`) is the only authority, enforced by a `PreToolUse` hook.

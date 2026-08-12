@@ -18,6 +18,7 @@ from unittest.mock import patch
 # Sets the headless env vars and owns the one QApplication — import it before
 # PySide6, which reads those vars at import time.
 from tools.tests.qt_harness import APP as _APP, QtCase
+from tools.tests.temp_data import TempDataCase
 
 from PIL import Image
 from PySide6.QtCore import QPoint, Qt
@@ -42,7 +43,7 @@ class RecordingBackend:
         self.calls = list(draw_calls)
 
 
-class MapModeCase(QtCase):
+class MapModeCase(TempDataCase):
     """MainWindow against a temp data/ copy, starter map selected.
 
     The temp copy's ACTIVE map is pinned to STARTER before the window is
@@ -50,13 +51,14 @@ class MapModeCase(QtCase):
     designer last hit "set active" on — which is live data, not a fixture.
     When that became `summertest2`,
     test_maps_branch_lists_files_with_active_marker went red for a reason that
-    had nothing to do with the editor."""
+    had nothing to do with the editor.
+
+    The tempdir copy itself comes from TempDataCase rather than a copytree of
+    its own — this class had duplicated that code, which meant it also missed
+    the balancing_history prune and now the pruned media template."""
 
     def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.data_dir = Path(tmp.name) / "data"
-        shutil.copytree(REPO / "data", self.data_dir)
+        super().setUp()
         self.set_active_map(STARTER)
         self.window = self.track(MainWindow(data_dir=self.data_dir))
         self.window.resize(1280, 720)

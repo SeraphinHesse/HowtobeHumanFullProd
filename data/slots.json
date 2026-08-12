@@ -714,13 +714,21 @@
             {
               "label": "End Turn",
               "slots": [
-                "ui_button_end_turn"
+                {
+                  "frame_h": 50,
+                  "frame_w": 72,
+                  "key": "ui_button_end_turn"
+                }
               ]
             },
             {
               "label": "Pause",
               "slots": [
-                "ui_button_pause"
+                {
+                  "frame_h": 49,
+                  "frame_w": 48,
+                  "key": "ui_button_pause"
+                }
               ]
             },
             {
@@ -730,6 +738,16 @@
                   "frame_h": 23,
                   "frame_w": 70,
                   "key": "ui_button_panel"
+                },
+                {
+                  "frame_h": 55,
+                  "frame_w": 42,
+                  "key": "ui_button_panel_v2"
+                },
+                {
+                  "frame_h": 30,
+                  "frame_w": 103,
+                  "key": "ui_button_panel_v3"
                 }
               ]
             },
@@ -765,7 +783,13 @@
             {
               "label": "Panel",
               "slots": [
-                "ui_panel"
+                "ui_panel",
+                {
+                  "frame_h": 360,
+                  "frame_w": 167,
+                  "key": "ui_panel_v2"
+                },
+                "ui_panel_v3"
               ]
             },
             {
@@ -814,6 +838,131 @@
             }
           ],
           "label": "Backgrounds"
+        },
+        {
+          "children": [
+            {
+              "label": "Stone Thrower",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_defence"
+                }
+              ]
+            },
+            {
+              "label": "Flute Player",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_economic"
+                }
+              ]
+            },
+            {
+              "label": "Maw Mortar",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_aoe_defence"
+                }
+              ]
+            },
+            {
+              "label": "Sun Scorcher",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_sun_scorcher"
+                }
+              ]
+            },
+            {
+              "label": "Storm Priest",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_storm_priest"
+                }
+              ]
+            },
+            {
+              "label": "Painter",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_painter"
+                }
+              ]
+            },
+            {
+              "label": "Meditator",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_meditator"
+                }
+              ]
+            },
+            {
+              "label": "Boost Speed",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_boost_speed"
+                }
+              ]
+            },
+            {
+              "label": "Boost Damage",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_boost_damage"
+                }
+              ]
+            },
+            {
+              "label": "Boost HP",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_boost_hp"
+                }
+              ]
+            },
+            {
+              "label": "Blocker",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_blocker"
+                }
+              ]
+            },
+            {
+              "label": "Wall Builder",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_wall_builder"
+                }
+              ]
+            }
+          ],
+          "label": "Card Portraits"
         }
       ],
       "key": "ui"
@@ -888,7 +1037,9 @@
             },
             "vfx_projectile",
             "vfx_shell",
-            "vfx_dirt_pile"
+            "vfx_dirt_pile",
+            "vfx_buff_arrow",
+            "vfx_beam"
           ]
         }
       ],
@@ -941,7 +1092,16 @@
                 "deco_tree_v7",
                 "deco_tree_v8",
                 "deco_tree_v9",
-                "deco_tree_v10"
+                "deco_tree_v10",
+                "deco_tree_v11",
+                "deco_tree_v12",
+                "deco_tree_v13",
+                "deco_tree_v14",
+                "deco_tree_v15",
+                "deco_tree_v16",
+                "deco_tree_v17",
+                "deco_tree_v18",
+                "deco_tree_v19"
               ]
             },
             {
@@ -952,7 +1112,14 @@
                 "deco_prop_1_v3",
                 "deco_prop_1_v4",
                 "deco_prop_1_v5",
-                "deco_prop_1_v6"
+                "deco_prop_1_v6",
+                "deco_prop_1_v7",
+                {
+                  "frame_h": 96,
+                  "frame_w": 96,
+                  "key": "deco_prop_1_v8"
+                },
+                "deco_prop_1_v9"
               ]
             },
             {
@@ -971,7 +1138,9 @@
                 "deco_prop_2_v11",
                 "deco_prop_2_v12",
                 "deco_prop_2_v13",
-                "deco_prop_2_v14"
+                "deco_prop_2_v14",
+                "deco_prop_2_v15",
+                "deco_prop_2_v16"
               ]
             },
             {
@@ -988,7 +1157,8 @@
                 "deco_prop_4_v2",
                 "deco_prop_4_v3",
                 "deco_prop_4_v4",
-                "deco_prop_4_v5"
+                "deco_prop_4_v5",
+                "deco_prop_4_v6"
               ]
             }
           ],

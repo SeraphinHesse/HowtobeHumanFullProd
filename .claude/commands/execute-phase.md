@@ -35,7 +35,10 @@ writing the phase's outcome back into it.
    `Development`. The suite is GREEN on `Development`; there is no baseline to
    record.
 4. **Implement** the approved plan in small commits. While iterating, verify
-   with `py tools/testgate.py check --affected` — never the full suite mid-task.
+   with `py tools/testgate.py check --affected` — never the full suite
+   mid-task. (`--affected` is legitimate HERE because `/execute-phase` runs in
+   the MAIN session; a dispatched `phase-executor` agent instead names the test
+   files it touched. §"Test Suite Policy", root `CLAUDE.md`.)
 5. **Exit gate:** `py tools/smoke.py` green; ONE full `py tools/testgate.py
    check` — **0 failures** (the single full-suite run of the phase, since this
    skill hands the work back); run the Quick Test live. Report exactly what was

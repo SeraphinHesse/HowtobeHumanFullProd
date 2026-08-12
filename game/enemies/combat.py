@@ -29,6 +29,7 @@ import math
 from engine.core import (
     Component, GameObject, Health, Movement, SpriteAnimator, Transform,
 )
+from engine.vfx.play_once import spawn_play_once
 from game.anchors import anchor_world_point, projectile_point
 from game.buildings.components import (
     Attacker, BeamAttacker, RoundStats, SplashAttacker,
@@ -51,6 +52,10 @@ BEAM_MIN_TICK = 0.02     # beam tick-rate floor (prototype ``_MIN_TICK``)
 # no override still has a sane value (Crater/ProjectileAOE themselves require
 # crater_life explicitly — no silent fallback on the production path, G-7).
 CRATER_LIFE = 1.0        # seconds a spent-shell crater lingers before fading out
+# vfx-projectile-spritesheets: the shared slot a designer imports art into to
+# swap the procedural Crater for a one-shot PlayOnceVfx at impact (the same
+# "shared slot, never per-building" rule vfx_projectile/vfx_shell follow).
+CRATER_SLOT = "vfx_crater"
 
 
 class ProjectileHoming(Component):
@@ -210,13 +215,18 @@ class ProjectileArc(Component):
         self._gx = 0.0
         self._gy = 0.0
         # ESV-5: an optional (wx, wy) -> None callback fired at impact,
-        # ALONGSIDE the unconditional Crater spawn below — never a replacement
-        # for it (the crater's continuous fade mark is not this phase's
-        # concern). Set (or left None) by _fire_splash, transient (E-11).
+        # ALONGSIDE whichever impact cosmetic _impact spawns below (Crater or
+        # a sprite one-shot) — never a replacement for it. Set (or left None)
+        # by _fire_splash, transient (E-11).
         self._on_impact = None
         # debug-mode-telemetry (Phase 3): the optional level-2 damage
         # callback, set by _fire_splash — same transient-ref pattern.
         self._on_damage = None
+        # vfx-projectile-spritesheets: the AssetStore, so _impact can check
+        # whether CRATER_SLOT has imported art (the has_art signal
+        # submit_projectiles/spawn_play_once already use). Set by
+        # _fire_splash, transient (E-11).
+        self._assets = None
 
     def launch(self, gx, gy, shooter, scene, travel_time):
         self._gx, self._gy = gx, gy
@@ -258,9 +268,20 @@ class ProjectileArc(Component):
                     on_dmg(getattr(shooter, "building_type", None)
                            if shooter is not None else None,
                            getattr(enemy, "ETYPE", None), self.dmg, health.hp)
-        crater = Crater(self._gx, self._gy, self.radius, self.crater_life)
-        crater.get_component(CraterFade)._scene = scene
-        scene.spawn(crater)
+        # vfx-projectile-spritesheets: a designer-imported CRATER_SLOT sheet
+        # swaps the procedural Crater (a scaled, alpha-faded ring) for a
+        # fixed-size one-shot PlayOnceVfx — the same has_art signal
+        # submit_projectiles already uses. No art -> byte-identical Crater
+        # spawn, same as before this existed.
+        assets = getattr(self, "_assets", None)
+        has_art = (assets is not None
+                  and assets.animation_total_ms(CRATER_SLOT, "idle") is not None)
+        if has_art:
+            spawn_play_once(scene, assets, CRATER_SLOT, self._gx, self._gy)
+        else:
+            crater = Crater(self._gx, self._gy, self.radius, self.crater_life)
+            crater.get_component(CraterFade)._scene = scene
+            scene.spawn(crater)
         # ESV-5: the splash_impact trigger ledger push — cosmetic, additive,
         # never gating the (unconditional) Crater spawn above.
         on_impact = getattr(self, "_on_impact", None)
@@ -762,7 +783,13 @@ def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
 
     ``on_splash_impact`` (ESV-5, optional): stashed as a transient attribute
     on the shell's ``ProjectileArc`` and fired at impact, alongside (never
-    instead of) the Crater spawn.
+    instead of) whichever impact cosmetic lands.
+
+    vfx-projectile-spritesheets: ``assets`` is also stashed on the shell's
+    ``ProjectileArc`` (mirroring ``_on_impact``/``_on_damage``) so ``_impact``
+    can check whether ``CRATER_SLOT`` has imported art and spawn a one-shot
+    sprite instead of the procedural ``Crater`` — no new parameter, ``assets``
+    already reaches this function.
 
     ``on_defender_fire`` (ESV-6, optional): fired immediately with the SAME
     muzzle-anchored ``(bx, by)`` the shell spawns at — never recomputed.
@@ -792,6 +819,7 @@ def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
     arc = shell.get_component(ProjectileArc)
     arc._on_impact = on_splash_impact
     arc._on_damage = on_damage
+    arc._assets = assets
     arc.launch(gx, gy, defender, scene, AOE_TRAVEL_TIME)
     scene.spawn(shell)
 

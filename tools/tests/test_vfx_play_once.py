@@ -175,6 +175,15 @@ class TestByteIdenticalFallbackAllEvents(unittest.TestCase):
 
     def test_enemy_attack_ranged(self):
         fm, direct = self._pair()
+        # PIN the binding this test is about. The class asserts that `_play`
+        # dispatching a `procedural` name reproduces the direct VfxSystem call
+        # byte-for-byte — so the row has to actually BE bound to that name.
+        # `enemy_attack_ranged` shipped as `muzzle` and was later retuned to
+        # both-fields-empty (a legitimate designer choice: that event draws
+        # nothing today), which turned this into a comparison against a no-op
+        # and reddened it. The dispatcher's correctness must not depend on
+        # which effects happen to be bound this week.
+        fm._triggers["enemy_attack_ranged"] = ("", "muzzle")
         fm._play("enemy_attack_ranged", 1.0, 2.0, strong=True)
         direct.emit_muzzle(1.0, 2.0, strong=True)
         self._assert_particles_equal(fm, direct)
@@ -204,18 +213,26 @@ class TestByteIdenticalFallbackAllEvents(unittest.TestCase):
 
 
 class TestDefenderFireInert(unittest.TestCase):
-    """§4 test 4: dispatching defender_fire with no art and the shipped row
-    (both fields "") emits nothing and raises nothing."""
+    """§4 test 4: dispatching an UNBOUND event with no art emits nothing and
+    raises nothing.
+
+    This used to additionally assert that the SHIPPED `defender_fire` row was
+    `("", "")` — i.e. it pinned a designer's tuning decision as though it were
+    a contract. `defender_fire` was later bound to `vfx_muzzle`, which is
+    exactly what the trigger table exists to let a designer do, and the test
+    went red for the feature working. The inert-dispatch behaviour is what
+    matters and is what is asserted now; the row is pinned locally so the
+    subject stays reachable however the shipped table is tuned."""
 
     def test_dispatch_is_a_true_no_op(self):
         fm = _fm()
+        fm._triggers["defender_fire"] = ("", "")
         before = (list(fm._vfx._particles), list(fm._vfx._gold),
                   list(fm._vfx._slashes), list(fm._vfx._splatters))
         fm._play("defender_fire", 1.0, 2.0)   # must not raise
         after = (list(fm._vfx._particles), list(fm._vfx._gold),
                  list(fm._vfx._slashes), list(fm._vfx._splatters))
         self.assertEqual(before, after)
-        self.assertEqual(fm._triggers["defender_fire"], ("", ""))
 
 
 class TestReassignmentWorks(unittest.TestCase):
@@ -261,6 +278,11 @@ class TestMissingEmptyNoneHandles(unittest.TestCase):
     def test_assets_none_degrades_to_procedural(self):
         vfx_bal = data_io.load_json(VFX_DATA_PATH)
         vfx_bal["triggers"]["enemy_attack_ranged"]["sprite_slot"] = "vfx_muzzle"
+        # Both halves of the row are PINNED. The point is "a sprite_slot with
+        # no reachable store falls back to the procedural effect", so the row
+        # must carry one; the shipped `procedural` was later retuned to "",
+        # which made the fallback correctly emit nothing and reddened this.
+        vfx_bal["triggers"]["enemy_attack_ranged"]["procedural"] = "muzzle"
         fm = _fm(vfx_bal)
         fm.assets = None   # never set
         fm.scene = Scene()
@@ -270,6 +292,7 @@ class TestMissingEmptyNoneHandles(unittest.TestCase):
     def test_scene_none_degrades_to_procedural(self):
         vfx_bal = data_io.load_json(VFX_DATA_PATH)
         vfx_bal["triggers"]["enemy_attack_ranged"]["sprite_slot"] = "vfx_muzzle"
+        vfx_bal["triggers"]["enemy_attack_ranged"]["procedural"] = "muzzle"
         fm = _fm(vfx_bal)
         fm.assets = _FakeAssets({"vfx_muzzle": 250})
         fm.scene = None   # never set
@@ -321,15 +344,43 @@ class TestTriggerTableSchema(unittest.TestCase):
 
 class TestNewVfxSlotsRegistered(unittest.TestCase):
     """§4 test 8: the four new vfx_* slots resolve through
-    registry.frame_size (importable) and inherit the vfx category's 64x64."""
+    registry.frame_size (importable), inheriting the vfx category's frame size
+    unless they carry a per-slot ER-1 override.
 
-    def test_four_new_slots_resolve_at_64x64(self):
+    This asserted a flat 64x64 for all four. `vfx_crater` was later given a
+    deliberate per-slot `{frame_w: 64, frame_h: 96}` in `slots.json` — the
+    per-slot override mechanism doing exactly its job — and the subtest went
+    red for a data change it should have followed. The rule (override wins,
+    else inherit the category) is derived from `slots.json` below, so a future
+    re-cut of any of these slots is tracked instead of breaking the suite."""
+
+    SLOTS = ("vfx_muzzle", "vfx_death", "vfx_slash", "vfx_crater")
+
+    def _expected_sizes(self, data_dir):
+        """{slot: (w, h)} for SLOTS, read from the `vfx` category in
+        slots.json: the category default, overridden per slot where an entry
+        is an object carrying its own frame_w/frame_h rather than a string."""
+        doc = data_io.load_json(Path(data_dir) / "slots.json")
+        category = next(c for c in doc["categories"] if c["key"] == "vfx")
+        default = (category["frame_w"], category["frame_h"])
+        sizes = {slot: default for slot in self.SLOTS}
+        for group in category["groups"]:
+            for entry in group["slots"]:
+                if isinstance(entry, dict) and entry["key"] in sizes:
+                    sizes[entry["key"]] = (entry["frame_w"], entry["frame_h"])
+        return default, sizes
+
+    def test_the_slots_resolve_at_their_declared_frame_size(self):
         with tempfile.TemporaryDirectory() as tmp:
             data_dir = fixture_copy(tmp)
             registry = load_registry(data_dir)
-        for slot in ("vfx_muzzle", "vfx_death", "vfx_slash", "vfx_crater"):
+            default, expected = self._expected_sizes(data_dir)
+        for slot in self.SLOTS:
             with self.subTest(slot=slot):
-                self.assertEqual(registry.frame_size(slot), (64, 64))
+                self.assertEqual(registry.frame_size(slot), expected[slot])
+        # At least one still plainly INHERITS, so this keeps covering the
+        # category-default path and not only the override path.
+        self.assertIn(default, expected.values())
 
 
 class TestEnginePurityCoversPlayOnce(unittest.TestCase):

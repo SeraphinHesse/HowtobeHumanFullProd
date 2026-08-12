@@ -124,7 +124,15 @@ class TestStormPriest(TierWalkMixin, unittest.TestCase):
 
     def extra_expected(self, tier, idx):
         return {
-            "damage": tier["base_dmg"] + idx * tier["dmg_per_level"],
+            # `max(1, ...)` is the prototype-exact "a defence building never
+            # deals 0 damage" floor that `DefenceBuilding.damage()` documents
+            # and applies last. This expectation reproduced the tier formula
+            # but NOT the floor, which was invisible while every tier had a
+            # non-zero `base_dmg`. The Storm Priest was then retuned to
+            # `base_dmg: 0` on all three tiers — it drops the "combat" tag and
+            # does its damage through Lightning Strike, so its own `damage()`
+            # is never consumed by anything — and all nine subtests went red.
+            "damage": max(1, tier["base_dmg"] + idx * tier["dmg_per_level"]),
             "upkeep": tier["base_upkeep"] + idx * tier["upkeep_per_level"],
             "range": tier["range_tiles"],
         }
@@ -145,12 +153,25 @@ class TestStormPriest(TierWalkMixin, unittest.TestCase):
 
 class TestDefenderRangeSensorSync(unittest.TestCase):
     def test_range_sensor_follows_tier(self):
+        """The `RangeSensor` component tracks the tier's `range_tiles` through
+        every tier advance.
+
+        Ranges are READ from balancing, never pinned. This used to assert
+        "Stone Thrower range 1 -> Slinger range 2"; the line was later retuned
+        to [1, 1, 2], so tier 2 no longer changed the number and the test went
+        red though the SYNC it exists to check was intact. Walking the whole
+        table also covers more than the single advance ever did."""
         from engine.core import RangeSensor
         d = Defender(0, 0, BAL)
-        # Stone Thrower range 1 -> Slinger range 2 after advancing a tier.
-        self.assertEqual(d.get_component(RangeSensor).range_tiles, 1)
-        d.advance_tier()
-        self.assertEqual(d.get_component(RangeSensor).range_tiles, 2)
+        ranges = [t["range_tiles"] for t in DEF]
+        for t, expected in enumerate(ranges):
+            with self.subTest(tier=t):
+                self.assertEqual(d.get_component(RangeSensor).range_tiles,
+                                 expected)
+            if t + 1 < len(ranges):
+                self.assertTrue(d.advance_tier())
+        # The table must actually vary somewhere, or this proves nothing.
+        self.assertGreater(len(set(ranges)), 1)
 
 
 if __name__ == "__main__":

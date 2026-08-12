@@ -38,12 +38,14 @@ TIERS = {
     # Tests the dispatch rig and the harness, not the game.
     "test_agent_forms": "meta",
     "test_build_script": "meta",
+    "test_ci_shards": "meta",  # the CI shard table covers every module once
     "test_data_guard": "meta",
     "test_fixture_guard": "meta",
     "test_orient_hook": "meta",
     "test_qt_harness": "meta",
     "test_smoke_pairing": "meta",
     "test_spawnclaude": "meta",
+    "test_test_guard": "meta",   # the PreToolUse hook enforcing the test policy
     "test_testgate": "meta",
     "test_tiers": "meta",
 
@@ -76,6 +78,7 @@ TIERS = {
     "test_bake_ui_sheets": "core",  # 10L wave 3: UI sheet baker
     "test_balancing_data": "core",
     "test_base_building": "core",
+    "test_beam_crater_sprites": "core",  # vfx-projectile-spritesheets: has-art toggle
     "test_boost": "core",
     "test_boss": "core",
     "test_building_movement": "core",  # Building Movement: move_cost/start_move
@@ -87,6 +90,7 @@ TIERS = {
     "test_combat_speed": "core",
     "test_components": "core",
     "test_condition_art": "core",
+    "test_construct_card": "core",  # the construct card's widget tree
     "test_coords": "core",
     "test_core": "core",
     "test_corpse": "core",
@@ -112,6 +116,7 @@ TIERS = {
     "test_layout_h_invariant": "core",  # Fix 1 (phase-10L wave3): layout_h pin
     "test_levelup": "core",
     "test_lightning": "core",
+    "test_map_overlays": "core",  # MapOverlays: the TIER OVERVIEW toggle pill
     "test_movement": "core",
     "test_names": "core",
     "test_nine_slice": "core",
@@ -161,16 +166,43 @@ TIERS = {
     "test_migration_timeline": "core",  # TimelinePLAN T6: unlock_min_round -> Timeline migration
     "test_timeline_ops": "core",  # TimelinePLAN T5: editor/timeline_ops.py
     "test_wall_render": "core",  # game/map/wall_render.py: the ONE wall emitter
+    # UiEditorParentingPLAN P-1: editor/widget_tree.py, the pure parent
+    # resolver. Qt-free (like editor/selection.py), but it is an editor module
+    # and tracks the editor suites.
+    "test_widget_tree": "editor",
     "test_xp_curve": "core",  # TimelinePLAN T3: best-case XP-curve calculator
 }
 
 
-def pytest_collection_modifyitems(items):
-    """Stamp each test with its module's tier."""
+#: tier -> per-test timeout budget, in seconds.
+#:
+#: Same doctrine as TIERS: one greppable table that cannot drift out of sync
+#: with itself, rather than a decorator sprinkled across 120 files. pytest.ini
+#: sets the floor (60s); this raises it for the tiers that legitimately need
+#: longer. The editor budget is deliberately roomy — the slowest legitimate
+#: editor test (TestThemeSwitch, ~23s) could degrade 4x and still not trip it,
+#: so a tripped budget means a HANG, not a slow machine.
+#:
+#: A single genuinely-slow test is raised with a one-line reviewable
+#: `@pytest.mark.timeout(n)` on that test. Never widen a whole tier to
+#: accommodate one outlier — that de-fangs the other 400.
+TIER_TIMEOUTS = {"core": 60, "editor": 120, "meta": 60}
+
+
+def pytest_collection_modifyitems(config, items):
+    """Stamp each test with its module's tier, and that tier's timeout."""
+    # Degrade cleanly if pytest-timeout is not installed: the tier markers
+    # still apply, and a `timeout` marker with no plugin to read it is inert.
+    has_timeout = config.pluginmanager.hasplugin("timeout")
     for item in items:
         tier = TIERS.get(item.path.stem)
-        if tier:
-            item.add_marker(getattr(pytest.mark, tier))
+        if not tier:
+            continue
+        item.add_marker(getattr(pytest.mark, tier))
+        # Only stamp when the test has no explicit marker of its own — an
+        # author's `@pytest.mark.timeout(n)` must win over the tier default.
+        if has_timeout and item.get_closest_marker("timeout") is None:
+            item.add_marker(pytest.mark.timeout(TIER_TIMEOUTS[tier]))
 
 
 @pytest.fixture(scope="session", autouse=True)

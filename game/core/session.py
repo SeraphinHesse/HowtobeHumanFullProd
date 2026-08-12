@@ -609,6 +609,11 @@ class Session:
                 st.round_num)
         if charge:
             st.base_lives -= 1
+            # The "LOST 1 LIFE" announcement ledger (the `boss_events`
+            # contract: a marker the UI drains, core stays free of ui
+            # balance). Inside the `charge` branch on purpose — a waived
+            # tutorial loss costs nothing and must announce nothing.
+            st.life_lost_events.append(st.round_num)
         if self.debug is not None:
             # A base breach applies NO HP damage — note_base_hit tracks
             # leaks/lives_lost separately, never fused with dmg_taken_buildings

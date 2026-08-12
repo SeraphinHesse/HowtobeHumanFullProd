@@ -146,7 +146,16 @@ validating writer; don't hand-edit the JSON.
   a beam or a lightning bolt, not a one-shot sprite. The same follow-up fixed
   a Fix-1 anchor/offset composition bug (`engine/assets/store.py`'s new
   `offset()` accessor, `game/anchors.py`, `editor/panels/viewport.py`) that
-  touches no schema. Since **Phase 9A** the other
+  touches no schema. **The Drummer buff-range telegraph feature** added a
+  sibling `procedural.drummer_aura` block (`color`/`alpha_min`/`alpha_max`/
+  `pulse_period_s`/`segments`) — the pulsing ring `game/ui/effects.py`'s
+  `submit_drummer_auras` draws around a live Drummer enemy, sized to that
+  enemy's own (pre-existing) `EnemyTypes.Drummer.support_range` value, not
+  this block. It also added one new `vfx` category slot,
+  `vfx_buff_arrow` — the little golden arrow shown above any enemy with an
+  active buff; unlike the ring, the arrow IS swappable art (E-37: with no
+  art imported it falls back to a small procedural golden triangle, drawn
+  by `submit_buff_arrows`). Since **Phase 9A** the other
   five hold the prototype's live tuning verbatim, restructured into the
   REPLAN nested feature tree (see planning/MIGRATION_PLAN.md): PascalCase
   group objects
@@ -504,6 +513,20 @@ validating writer; don't hand-edit the JSON.
   64×96; map tiles 64×32; ui / vfx 64×64 (except `ui_bg_main_menu`, 480×270 by
   per-slot override); backgrounds 480×270 (10K full-frame menu art, drawn as a
   screen-space `HudSprite` — not a world sprite). All data — edit `slots.json`.
+- **`ui` → "Card Portraits" (construct-card-widget-tree)**: twelve leaf
+  children, one per building type, each holding a single
+  `card_portrait_<building_type>` slot at a **per-slot 64×96 frame-size
+  override** (buildings are 64×96 while the `ui` category is 64×64 — the
+  `ui_bg_main_menu` precedent). All twelve ship art-less. They are the
+  OPT-IN portrait source for the construct panel's cards: nothing draws
+  them until BOTH a designer imports art AND
+  `data/ui/screens/building_panel.json`'s `defaults.use_card_portrait_slot`
+  is on; either missing falls back to the building's own tier sprite (E-37,
+  never a grey X). Leaf CHILDREN rather than a flat `slots` list because a
+  flat `ui` leaf makes "+ Variant" silently die (see the variant-family
+  bullet above). Adding these grew the generated cross-category
+  `sprite_slot` enum — `tools/gen_sprite_slot_enum.py` was re-run, as
+  `test_schema_slot_sync.py` requires.
 - **`ui` animation vocabulary is the four button states** (10L-A):
   `["idle", "hover", "pressed", "disabled"]` — one sheet per widget skin, one
   manifest ROW per state (row 0 = idle, schema-enforced as everywhere), and each
@@ -595,7 +618,16 @@ validating writer; don't hand-edit the JSON.
   `background: {slot} | {color}` sets the background (slot key OR RGB[A]);
   `defaults: {button_skin?, panel_skin?, font?, text_color?}` applies per-kind
   styling to DYNAMIC-count content that carries no id (construct cards, the
-  boss-history popup, levelup's option boxes — `ScreenSkinning.defaults()`);
+  boss-history popup, levelup's option boxes — `ScreenSkinning.defaults()`).
+  **Two `building_panel`-only BOOLS join it** (construct-card-widget-tree):
+  `price_is_click_target` (only the card's price pill opens the construct
+  preview, instead of the whole card) and `use_card_portrait_slot` (the card
+  portrait draws the `card_portrait_<building_type>` family instead of the
+  building's tier sprite). Both default false when absent, so an existing
+  screen doc that predates them keeps validating and rendering unchanged;
+  `defaults` values are never id-validated, so neither needed editor code.
+  Behaviour → `game/ui/CLAUDE.md`'s construct-card section.
+  Finally,
   `widgets: {<id>: {rect?, skin?, font?, color?, text_color?, label?,
   visible?}}` overrides any named widget's properties.
 - **`data/ui/screen_defaults.json`**: generated-but-committed file, written by
@@ -635,6 +667,55 @@ validating writer; don't hand-edit the JSON.
     (`hud_item_to_json`/`hud_item_from_json`), beside the dataclasses it
     describes, because the recorder (`tools/`) and the replay (`editor/`) both
     need it and neither may import the other.
+- **`widget.font_key` / `widget.align` (editable-ui-widgets)**: two more
+  OPTIONAL keys on a `screen_defaults.json` widget record, both pure DRAW
+  HINTS for the editor — nothing in the game reads them back. They exist so
+  the editor can give a POSITION-ONLY TEXT ANCHOR a real hit box: a widget
+  whose `rect` is `(x, y, 0, 0)` (every `hud.py` readout, the phase banner,
+  `boss_cutscene`'s headline, ~40 `building_panel` stat cells — the
+  anchor-rect convention in `game/ui/CLAUDE.md`) has zero AREA, and was
+  therefore impossible to click, drag or even see selected in the editor
+  despite having had an id since B3. `font_key` is the `data/ui/fonts.json`
+  preset the text is drawn at (so the editor MEASURES it at the right size
+  instead of guessing `md`); `align` is `left|center|right`, which way the
+  glyphs spread from the stored x. Both are recorded by
+  `tools/export_ui_layouts.py::_widget_entry` ONLY when the widget actually
+  carries them (`align` additionally only when it is not the `left` default),
+  so every button/panel entry stays byte-identical. The editor side is
+  `editor/panels/_screen_primitives.interaction_rect`.
+- **Per-slot buy-option ids**: `levelup`'s `option_box_0..2` and
+  `building_panel`'s `card_<building_type>` are ordinary widget records in
+  this file now — the "dynamic-count content gets no id" rule is lifted (see
+  `game/ui/CLAUDE.md`). They are recorded from `tools/screen_mocks.py` state
+  chosen to cover every slot: `LEVELUP_OPTIONS` holds THREE cards (the roll's
+  maximum) and the `construct` view unlocks every RESEARCH type before
+  building its cards. Widen that mock state, not the exporter, if a future
+  screen needs the same treatment.
+- **`widget.parent` (UiEditorParentingPLAN P-1/P-2)**: one more OPTIONAL key
+  on a `screen_defaults.json` widget record (a string, the id of another
+  widget in the SAME screen and view), and a matching OPTIONAL `parent` in
+  `ui_screen.schema.json`'s per-widget override object — the only per-widget
+  override key whose type is `["string", "null"]` rather than a bare type.
+  It is **AUTHORING metadata: nothing in `game/` reads it, ever.** The editor
+  cascades a move at EDIT time and the saved rects stay ABSOLUTE, so the
+  game's documented "no cascade" convention (`game/ui/CLAUDE.md`) and its flat
+  `setattr` apply loop are untouched — adding a runtime resolution step is
+  explicitly the parked P-6 idea, not this one.
+  - **Three states, and they are all different.** ABSENT in the override =
+    keep whatever `screen_defaults.json` says (itself absent = a root
+    widget). A STRING = the designer re-parented it. An explicit JSON
+    `null` = the designer REJECTED the default parent and re-rooted the
+    widget, which is why the override's type admits null while the defaults'
+    does not. `editor/ui_screen_session.py`'s `parent_override()` is the ONE
+    accessor that reads them apart.
+  - The defaults are written by `tools/export_ui_layouts.py`'s `_PARENTS`
+    (explicit pairs) + `_PARENT_CONTAINERS` (per-screen "everything else
+    belongs to this container"), and ONLY when the parent id is present in
+    the same widgets map — so each of `building_panel`'s five views parents to
+    whichever container it actually shows, and no view ever points at an
+    absent id. A dangling or cyclic chain resolves to ROOT in the editor
+    rather than raising (`editor/widget_tree.py`), so a hand-edit cannot hang
+    a Qt paint handler.
 - **`widget.text_id` / `widget.sample` (UT-1/UT-3)**: two OPTIONAL keys on a
   `screen_defaults.json` widget record, and `text_id` is also an optional
   per-widget override in `ui_screen.schema.json`. `text_id` is the
@@ -921,10 +1002,14 @@ validating writer; don't hand-edit the JSON.
 ## Verify before finishing
 Validate every touched file against its schema, then:
 ```bash
-py tools/smoke.py
-py tools/testgate.py check     # the gate is ZERO failures
+py tools/smoke.py                             # always — it schema-validates every data file
+py -m pytest tools/tests/test_<area>.py -q    # the tests that read what you changed
 ```
-Report agreement explicitly.
+**Which tests you may run is ROLE-scoped — the role table in §"Test Suite
+Policy" (root `CLAUDE.md`) is the only authority, and a `PreToolUse` hook
+enforces it.** A subagent stops at the two commands above; the single full
+`py tools/testgate.py check` belongs to the MAIN SESSION at handoff. The gate is
+ZERO failures. Report agreement explicitly.
 
 **`data/` is live designer content, and the tests must never touch it.** Tests
 copy it to a tempdir (`TempDataCase`); a session fixture hashes `data/` before

@@ -51,6 +51,11 @@ else.
   `asset_import.py`'s shape) is Qt-free and in `TestPurity` too, but — like
   `asset_import.py` uses Pillow — it uses pygame for a format-validation
   probe (`pygame.font.Font(path, 12)`), not rendering; ED-22 is unaffected.
+  `widget_tree.py` (UiEditorParentingPLAN P-1 — the screen-mode widget
+  HIERARCHY resolver: `resolve_parent`/`parent_map`/`build_tree`/
+  `descendants`/`ancestors`/`would_cycle`/`legal_parents` over
+  `screen_defaults.json`'s optional `parent` key plus the open doc's own
+  re-parenting override) is stdlib-only and in `TestPurity` too.
 - `ui_screen_session.py` — `UIScreenSession`, screen mode's session (B4, §
   below); Qt-only (a `QUndoStack`), no game imports, in `TestPurity`.
 
@@ -129,6 +134,26 @@ undo routing). Panel-level rendering/interaction detail lives in
   is ABSENT, never JSON `null` — and clearing prunes now-empty parent
   containers so a fully-reset widget disappears from the doc rather than
   lingering as `{}`).
+- **Widget PARENTING (UiEditorParentingPLAN) is an AUTHORING relationship,
+  not a runtime one.** The hierarchy is DATA — an optional `parent` per
+  widget in `data/ui/screen_defaults.json` (authored by the exporter) plus an
+  optional `parent` override per widget in `data/ui/screens/<id>.json` (the
+  designer's own re-parenting, D3). **Nothing in `game/` reads either.**
+  Moving a parent cascades at EDIT time and writes updated ABSOLUTE rects for
+  the whole subtree in ONE undo command, so the game's documented "no
+  cascade" convention (`game/ui/CLAUDE.md`) and its flat `setattr` apply loop
+  are untouched. Resizing does NOT cascade. Visibility inherits in the
+  editor PREVIEW only. Panel-level detail (the outliner tree, the drag,
+  the cascade, the hidden-by-parent note) lives in `editor/panels/CLAUDE.md`;
+  the pure resolver is `editor/widget_tree.py`.
+  - **`push_field` has ONE sentinel, and only this key needs it.** Every
+    push_* method spends `None` on "no override — the key is ABSENT", but
+    `parent` has a THIRD state: an explicit JSON `null` meaning "the designer
+    rejected the default parent; this widget is a root". `ui_screen_session`
+    exports `NO_PARENT` (a deepcopy-stable singleton `_apply_field` writes as
+    a real null) and `parent_override(widget_override)`, the ONE accessor
+    that reads the three states apart. A caller that reads
+    `override["parent"]` directly will silently turn a re-root into a no-op.
 - **Window-level undo/redo now ROUTES**: `MainWindow._on_undo`/`_on_redo`
   target `screen_session.undo_stack` while in screen mode, else
   `map_session.undo_stack` (`_active_undo_stack`) — Ctrl+Z/Y work across mode
@@ -311,9 +336,16 @@ import list** (the layering guard — `editor/` must never import `game/`).
 
 ## Verify before finishing
 ```bash
-py tools/testgate.py check     # the gate is ZERO failures
-py -m pytest -m editor         # just the Qt tier, while iterating
+py tools/smoke.py                                    # always
+py -m pytest tools/tests/test_<panel>.py -q          # the files your change touches
 ```
+**Which tests you may run is ROLE-scoped — the role table in §"Test Suite
+Policy" (root `CLAUDE.md`) is the only authority, and a `PreToolUse` hook
+enforces it.** A subagent stops at the two commands above. `py -m pytest -m
+editor` is a TIER SWEEP (the whole Qt tier, minutes) — main session only, and
+rarely worth it over naming the panel's own test file. The single full
+`py tools/testgate.py check` belongs to the MAIN SESSION at handoff. The gate is
+ZERO failures.
 Then launch `py editor/main.py` and exercise the changed panel/control; for
 data-writing features, confirm the JSON on disk validates and a Play subprocess
 loads it. State exactly what you exercised (live editor run vs static read).

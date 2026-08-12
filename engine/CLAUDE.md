@@ -263,6 +263,21 @@ reads it straight off `VfxParams` in `submit_projectiles`. Every direct
 switching every family in its combo, not just by reasoning about the
 dataclass.
 
+**Drummer buff-range telegraph (feature)** appended `DrummerAuraParams` the
+same way — one more required `drummer_aura` field on `VfxParams`
+(`procedural.drummer_aura`: colour, `alpha_min`/`alpha_max`, `pulse_period_s`,
+`segments`). It is the sixth dataclass `VfxSystem` never touches, and unlike
+`CraterParams`/`LightningParams` it owns no cosmetic fade-lifetime field
+either — the ring it describes is drawn fresh every frame straight off the
+live `DrummerAura` component (`game/enemies/components.py`) for as long as
+the Drummer enemy is alive, never spawned as its own scene GameObject.
+`game/ui/effects.py::submit_drummer_auras` reads it off `VfxParams.
+drummer_aura` and draws through the same `_polygon_ring` helper the mortar
+crater uses, with the alpha breathing over a sine pulse keyed off
+`FloaterManager`'s own `self._clock` (the `hud.py` XP-bar pulse shape). Every
+direct `VfxParams(...)` construction needed a `drummer_aura=` argument again
+(`editor/vfx_params.py`, `tools/tests/test_vfx.py`'s `VFX_PARAMS` fixture).
+
 ## Hard rules (whole package)
 - **pygame imports are allowed ONLY in** `render/`'s backend, `render/fonts.py`,
   `render/ground_cache.py`, the asset surface cache (`assets/store.py`,
@@ -278,7 +293,10 @@ dataclass.
 - **Tests** live in `tools/tests/` — still `unittest.TestCase`, but **run by
   pytest** (`pytest` + `pytest-xdist` are declared deps; pytest collects
   TestCase natively, so nothing was rewritten). From the repo root:
-  `py tools/testgate.py check`, or `py -m pytest -m core` for the fast tier.
+  `py -m pytest tools/tests/test_<area>.py -q` for the files you touched. Which
+  wider forms you may run is ROLE-scoped — see the role table in §"Test Suite
+  Policy" (root `CLAUDE.md`), the only authority, enforced by a `PreToolUse`
+  hook.
   SDL dummy drivers are set in-code, so no env setup is needed.
 - **Every new test module needs a tier** in `conftest.py`'s `TIERS` table.
   `test_tiers.py` fails if you forget — an unmarked module would silently never
@@ -286,8 +304,9 @@ dataclass.
 
 ## Verify before finishing
 - Pure-logic changes: run/extend the unit tests (coords round-trip,
-  playback_order, grid queries) — T-3. `py tools/testgate.py check --affected`
-  runs just the blast radius while you iterate.
+  playback_order, grid queries) — T-3, by naming the test file:
+  `py -m pytest tools/tests/test_coords.py -q`. `--affected` is a MAIN-SESSION
+  tool, not a subagent one: it runs the whole core tier as its safety pass.
 - Anything render/asset facing: run the headless smoke test (`tools/smoke.py`)
   and, if visuals changed, a live `py game/main.py` look. State exactly which you
   did.

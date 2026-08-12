@@ -497,6 +497,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
         gp["drag_select_enabled"] = False
         gp["panel"].log = gp["game_log"]
         gp["panel"].on_build_vfx = gp["floaters"].spawn_building_vfx
+        # The construct card's portrait asks the store whether a dedicated
+        # `card_portrait_*` slot has imported art before falling back to the
+        # building's own tier sprite (the `floaters.assets` precedent below;
+        # None-safe, so a bare BuildingUI in a test needs no store).
+        gp["panel"].assets = assets
         gp["floaters"].log = gp["game_log"]
         # -- /10J --
         # -- ESV-5/6: the handles _play/_anchored need to spawn a sprite
@@ -988,8 +993,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                 continue
             st = shell.state
             if st == GameState.CUTSCENE:
-                if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
-                    intro_player.skip()
+                # skip is now a 2s hold (left click/space/esc), polled
+                # continuously below — this branch only swallows input.
                 continue
             if shell.in_menu or st == GameState.PAUSED:
                 if event.type == pygame.KEYDOWN:
@@ -1007,8 +1012,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
             # -- TU-5: an in-gameplay cutscene overlay consumes ALL input
             # while active (mirrors the CUTSCENE branch above) --
             if gp["cutscene"] is not None:
-                if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
-                    gp["cutscene"].skip()
+                # skip is now a 2s hold (left click/space/esc), polled
+                # continuously below — this branch only swallows input.
                 continue
             # TU-6: the guided-chain whitelist lives at the existing choke
             # points instead (message-box click-swallow in
@@ -1149,16 +1154,31 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
             elif event.type == pygame.MOUSEWHEEL and event.y:
                 if gp["cheat"].visible:  # 10H: open menu swallows wheel zoom
                     continue
+                # The construct card list is taller than the panel once
+                # several building types are unlocked, so the wheel scrolls it
+                # while the cursor is over the panel — and still zooms the
+                # camera everywhere else. NEGATED for the same reason the menu
+                # wheel arm above is: pygame's MOUSEWHEEL.y is positive
+                # scrolling UP, while handle_scroll(+dy) moves DOWN the list.
+                if (panel.mode == "construct" and panel.preview is None
+                        and widgets.contains(panel.panel_rect,
+                                             *pygame.mouse.get_pos())):
+                    panel.handle_scroll(-event.y)
+                    continue
                 step_zoom(cs, 1 if event.y > 0 else -1, view_w, view_h)
 
         mx, my = pygame.mouse.get_pos()
         held = pygame.mouse.get_pressed()[0]   # 10L-A: skinned pressed state
+        keys = pygame.key.get_pressed()
+        # cutscene hold-to-skip: left click, space, or esc held continuously
+        skip_held = held or keys[pygame.K_SPACE] or keys[pygame.K_ESCAPE]
 
         # 2. simulate / update — per state
         _t_sim0 = time.perf_counter()
         st = shell.state
         if st == GameState.CUTSCENE:
             intro_player.update(dt)
+            intro_player.update_skip_hold(dt, skip_held)
             if intro_player.done:
                 intro_player.release()
                 shell.to_main_menu()
@@ -1178,6 +1198,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                     gp["cutscene"] = requested
             if gp["cutscene"] is not None:
                 gp["cutscene"].update(dt)
+                gp["cutscene"].update_skip_hold(dt, skip_held)
                 if gp["cutscene"].done:
                     gp["cutscene"].release()
                     gp["cutscene"] = None
@@ -1431,8 +1452,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
             surf = intro_player.frame_surface()
             if surf is not None:
                 window.blit(surf, (0, 0))
+            widgets.submit_progress_ring(
+                renderer, view_w // 2, view_h - 60, 10,
+                intro_player.skip_progress)
             renderer.submit_hud(HudText(
-                "press any key to skip", (view_w // 2, view_h - 40),
+                "hold to skip", (view_w // 2, view_h - 40),
                 "md", (210, 210, 210), align="center"))
             _t_flush_start = time.perf_counter()
             renderer.flush(window)
@@ -1520,6 +1544,9 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
             gp["floaters"].submit_gold_highlights(renderer)
             # -- /10J --
             gp["floaters"].submit_craters(renderer, cs, world.scene)  # 10B: world
+            # Drummer buff-range telegraph ring — always visible while a
+            # Drummer is alive, same world-overlay slot as the mortar crater.
+            gp["floaters"].submit_drummer_auras(renderer, cs, world.scene)
             gp["floaters"].submit_lightning(renderer, cs, world.scene)  # 10H
             # feature-storm-acolyte-multi-build: per-acolyte charge bars
             gp["floaters"].submit_lightning_charge_bars(
@@ -1589,6 +1616,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
             gp["floaters"].submit_beams(renderer, cs, world.scene)    # 10B: HUD
             gp["floaters"].submit_hp_bars(renderer, cs, world.scene)
             gp["floaters"].submit_enemy_hp_bars(renderer, cs, world.scene)
+            # Golden arrow above any enemy carrying an active buff.
+            gp["floaters"].submit_buff_arrows(renderer, cs, world.scene)
             gp["floaters"].submit(renderer, cs)
             gp["floaters"].submit_projectiles(renderer, cs, world.scene)  # 10J
             gp["floaters"].submit_fx(renderer, cs)  # 10J sparks/shards/slashes
@@ -1639,8 +1668,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                 surf = gp["cutscene"].frame_surface()
                 if surf is not None:
                     window.blit(surf, (0, 0))
+                widgets.submit_progress_ring(
+                    renderer, view_w // 2, view_h - 60, 10,
+                    gp["cutscene"].skip_progress)
                 renderer.submit_hud(HudText(
-                    "press any key to skip", (view_w // 2, view_h - 40),
+                    "hold to skip", (view_w // 2, view_h - 40),
                     "md", (210, 210, 210), align="center"))
                 renderer.flush(window)
             # -- 10G boss: undo the shake pan exactly (no clamp in between) --

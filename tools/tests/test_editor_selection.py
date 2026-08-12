@@ -54,17 +54,35 @@ class TestResolver(unittest.TestCase):
             "main_menu_bg")
 
     def test_walker_era_subgroups_with_variants(self):
-        # Walker is a leaf-children group (like Tiles): era subgroups, each
-        # holding its sprite variants. Subcategories are the eras; the level
-        # index selects a variant within an era (random-per-spawn in game).
+        """Walker is a leaf-children group (like Tiles): era subgroups, each
+        holding its sprite variants. Subcategories are the eras; the level
+        index selects a variant within an era (random-per-spawn in game).
+
+        The variant ROSTER is read from the registry, not pinned. It used to
+        spell out `("enemy_stage_1_v1", "enemy_stage_1_v2")`, so importing a
+        third walker variant in the editor turned this red — the exact "drop a
+        new `_v3` into the era and the pool grows with NO code change"
+        contract the feature advertises. What this test is really about is the
+        SHAPE (eras are the subcategories, the level index picks within an
+        era), which is asserted against the registry's own answer below."""
         subs = subcategories(self.reg, "enemies", ("Walker",))
         self.assertEqual(subs, ("Era 1", "Era 2", "Era 3", "Era 4"))
-        self.assertEqual(level_slots(self.reg, "enemies", ("Walker",), 0),
-                         ("enemy_stage_1_v1", "enemy_stage_1_v2"))
-        self.assertEqual(resolve_slot(self.reg, "enemies", ("Walker",), 0, 1),
-                         "enemy_stage_1_v2")
-        self.assertEqual(resolve_slot(self.reg, "enemies", ("Walker",), 3, 0),
-                         "enemy_stage_4_v1")
+
+        era_0 = level_slots(self.reg, "enemies", ("Walker",), 0)
+        self.assertEqual(era_0, self.reg.group_slots(
+            "enemies", ("Walker", "Era 1")))
+        self.assertGreater(len(era_0), 1, "era 1 must carry several variants, "
+                                          "or the index test below is vacuous")
+        # The level index selects WITHIN the era, in registry order.
+        for idx, slot in enumerate(era_0):
+            with self.subTest(variant=idx):
+                self.assertEqual(
+                    resolve_slot(self.reg, "enemies", ("Walker",), 0, idx),
+                    slot)
+        # ...and a different era resolves out of its own pool.
+        self.assertEqual(
+            resolve_slot(self.reg, "enemies", ("Walker",), 3, 0),
+            self.reg.group_slots("enemies", ("Walker", "Era 4"))[0])
 
     def test_tile_group_with_leaf_children(self):
         subs = subcategories(self.reg, "map", ("Tiles",))

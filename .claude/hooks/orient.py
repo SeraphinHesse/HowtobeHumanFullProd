@@ -99,6 +99,46 @@ After Step 0, do Step 1 from the router below: classify the task and read the ON
 package doc that matches it.
 """
 
+# Appended AFTER the router, deliberately: later text wins, and the router is
+# injected verbatim precisely so it cannot drift from the file on disk. This is
+# the ONE place the subagent's row of the role table is restated, and it exists
+# because a subagent reading the router top-to-bottom meets ~200 lines of
+# general policy before anything says "...but not you". Keeping the reminder
+# LAST is cheaper and more robust than maintaining a second copy of the router.
+SUBAGENT_TEST_ROLE = """\
+
+---
+
+# YOUR ROW OF THE TEST POLICY (read this last; it overrides anything above)
+
+You are a SUBAGENT. The router above is the project's general policy, written
+for everyone. Where it shows an exit gate, **your row of the table in
+§"Test Suite Policy" is what applies to you**, and it is narrow:
+
+    py tools/smoke.py                            # always
+    py -m pytest tools/tests/test_<file>.py -q   # the files YOUR diff touches
+
+You may NOT run:
+  * the full suite (`py tools/testgate.py check`)
+  * `--affected` (its safety pass is the whole core tier — the main session's
+    call, not yours)
+  * any tier sweep: `-m core`, `-m editor`, `-m meta`
+  * `py -m unittest discover ...` (the pre-pytest incantation; it runs
+    everything and is not the gate)
+
+Three further rules, all mechanically enforced by the `test_guard.py`
+`PreToolUse` hook — you will be DENIED, not warned:
+  1. Run each target ONCE. If you have edited nothing since, the result cannot
+     have changed. Re-running "to be sure" is the loop this repo exists to stop.
+  2. Never start a test run while another is in flight.
+  3. The single full run belongs to the MAIN SESSION, once, after your work
+     lands.
+
+If a red test is inside your blast radius, fix it. If it is clearly outside,
+report it and STOP — do not go looking, and do not widen your test command to
+find out more.
+"""
+
 
 def build_context(event: str) -> str:
     graph = GRAPH_BLOCK.format(status=graph_status())
@@ -121,6 +161,7 @@ def build_context(event: str) -> str:
         + "You are a subagent in this repo and did not receive these automatically.\n"
         + "They override your default behavior. Follow them exactly.\n\n"
         + router
+        + SUBAGENT_TEST_ROLE
     )
 
 

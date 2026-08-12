@@ -643,6 +643,15 @@ transitions it into a carrier (see `game/enemies/CLAUDE.md`).
 `Session.on_enemy_death` and `on_base_hit`; the gore gates live in the FX
 layer, core stays ui-free). No phase/payday ordering change.
 
+**A third, added later: `life_lost_events`** — the `boss_events` marker
+contract, one entry (the round number) appended by `on_base_hit` **inside its
+`charge` branch**, so a TU-7 waived tutorial loss (which costs no life)
+queues no announcement. Drained by `game/ui/effects.py`'s
+`spawn_life_lost_events` into the "YOU / LOST 1 LIFE" banner. No coalescing
+is needed or wanted: `_wipe_pending`/`_wipe_round` despawn every enemy and end
+the round on the first base hit, so the ledger can hold at most one entry per
+round by construction.
+
 ## Names write (9H)
 `game/core/names.py append_random_name` persists the add-name menu's typed name to
 `buildings.json` `BuildingsGlobal.random_names` via `write_validated` — the one
@@ -650,5 +659,8 @@ runtime data write (disk I/O stays out of pygame-pure `game/ui`).
 
 ## Verify
 Phase-machine unit tests; headless 3-round currency ledger matches
-prototype-computed values: `py -m unittest discover -s tools/tests -t .`. Live
+prototype-computed values: `py -m pytest tools/tests/test_<area>.py -q`. Live
 `py game/main.py` for phase/combat behavior.
+
+Which tests you may run is ROLE-scoped — the role table in §"Test Suite Policy"
+(root `CLAUDE.md`) is the only authority, enforced by a `PreToolUse` hook.

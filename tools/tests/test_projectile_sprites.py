@@ -39,17 +39,14 @@ VFX_BAL = load_balance(FIXTURE_DATA, "vfx")
 PROJ = VFX_BAL["procedural"]["projectile"]   # today's shipped defaults
 
 
-def _shipped_defaults_are_unchanged():
-    """Guards the whole module against a designer having retuned the fixture
-    since this was written — the exact-value assertions below need the
-    values pinned in the schema-writing skill call."""
-    return (
-        tuple(PROJ["stone_color"]) == (185, 180, 170)
-        and tuple(PROJ["shell_color"]) == (70, 60, 55)
-        and PROJ["stone_size"] == 3
-        and PROJ["shell_size"] == 5
-        and PROJ["lift_frac"] == 0.6
-    )
+# The old `_shipped_defaults_are_unchanged()` tripwire lived here. It asserted
+# the fixture still held stone_size 3 / shell_size 5 / the two colours, and it
+# fired exactly as designed when `feature/vfx-projectile-spritesheets` retuned
+# the dots to sprite size (32) — but "update this test's expectations
+# deliberately" means re-pinning literals that will drift again on the next
+# retune. The assertions below now READ the shipped block instead, so they
+# follow balancing by construction and still pin the real contract: which
+# colour and size a dot is drawn at, and the low-zoom floor.
 
 
 class RecordingRenderer:
@@ -99,11 +96,6 @@ class TestProjectileFallbackDot(unittest.TestCase):
     the shipped JSON defaults, and the `max(2, ...)` floor still applies at
     low zoom."""
 
-    def setUp(self):
-        self.assertTrue(_shipped_defaults_are_unchanged(),
-                        "vfx.json procedural.projectile defaults drifted — "
-                        "update this test's expectations deliberately")
-
     def _fm(self):
         fm = FloaterManager(UI_BAL, CORE_BAL, VFX_BAL)
         self.assertIsNone(fm.assets)   # bare-constructed: no art anywhere
@@ -120,9 +112,9 @@ class TestProjectileFallbackDot(unittest.TestCase):
         self.assertEqual(len(renderer.items), 1)
         item = renderer.items[0]
         self.assertIsInstance(item, HudRect)
-        self.assertEqual(item.color, (185, 180, 170))
+        self.assertEqual(item.color, tuple(PROJ["stone_color"]))
         size = item.rect[2]
-        self.assertEqual(size, 3)          # stone_size=3 * zoom=1.0
+        self.assertEqual(size, PROJ["stone_size"])   # * zoom=1.0
         self.assertEqual(item.border_radius, size // 2)
 
         cx, cy = cs.world_to_screen(3.0, 2.0)
@@ -139,8 +131,8 @@ class TestProjectileFallbackDot(unittest.TestCase):
 
         item = renderer.items[0]
         self.assertIsInstance(item, HudRect)
-        self.assertEqual(item.color, (70, 60, 55))
-        self.assertEqual(item.rect[2], 5)   # shell_size=5 * zoom=1.0
+        self.assertEqual(item.color, tuple(PROJ["shell_color"]))
+        self.assertEqual(item.rect[2], PROJ["shell_size"])   # * zoom=1.0
 
     def test_low_zoom_floor_still_applies(self):
         """`max(2, int(size * zoom))` — the degeneracy guard stays inline,

@@ -1,0 +1,59 @@
+{
+  "context": [
+    ".claude/commands/add-vfx.md",
+    "engine/CLAUDE.md",
+    "data/CLAUDE.md"
+  ],
+  "description": "Spawns an agent that adds a VFX effect for one specific building or enemy type: a tuned procedural effect (or new engine/vfx emitter family) bound through a new open per-type trigger, plus a placeholder vfx_* sprite slot for later art. There is no image-generation tool in this repo, so the visual comes from tuned numeric particle parameters (colour, shape, velocity, life), not generated pixel art.",
+  "fields": [
+    {
+      "description": "The building or enemy TYPE this effect belongs to, e.g. 'Storm Priest' or 'Drummer' — becomes the triggers_by_type key.",
+      "key": "target_type",
+      "label": "Building/enemy type",
+      "placeholder": "Storm Priest",
+      "required": true,
+      "type": "string"
+    },
+    {
+      "default": "building",
+      "description": "Whether the target is a building or an enemy type — picks which watcher call site (watch_buildings vs watch_enemies) gets wired.",
+      "key": "target_kind",
+      "label": "Target kind",
+      "options": [
+        "building",
+        "enemy"
+      ],
+      "type": "enum"
+    },
+    {
+      "default": "attack",
+      "description": "When the effect fires. Pick \"New moment\" to name one not listed — attack/death/place/hit/tier_up/level_up are just the common cases, not a closed set.",
+      "key": "moment",
+      "label": "Trigger moment",
+      "options": [
+        "attack",
+        "death",
+        "place",
+        "hit",
+        "tier_up",
+        "level_up",
+        "New moment"
+      ],
+      "type": "enum"
+    },
+    {
+      "default": true,
+      "description": "Try to match an existing engine/vfx emitter shape (spark/slash/muzzle/splatter/beam/crater/lightning/gold_highlight/drummer_aura) before defining a brand-new dataclass+emitter.",
+      "key": "reuse_existing_family",
+      "label": "Reuse an existing procedural shape",
+      "type": "boolean"
+    }
+  ],
+  "git_default": "branch",
+  "id": "add-vfx",
+  "schema_version": 1,
+  "selector_context": "vfx",
+  "skill": "add-vfx",
+  "slug_field": "target_type",
+  "title": "Add New VFX Effect"
+}

@@ -157,7 +157,7 @@
       "type": "string"
     },
     "building.construct.card": {
-      "description": "One construct-mode card's caption. `name` is the tier's display name, `cost` the love price (which escalates for repeat-priced types).",
+      "description": "One construct-mode card's NAME block, wrapped to at most two rows. `name` is the tier's display name. The card's love price is a separate widget on the card and resolves through `building.stat.value`.",
       "type": "string"
     },
     "building.construct.title": {
@@ -170,6 +170,10 @@
     },
     "building.flash.not_enough_love": {
       "description": "Red button flash when the player cannot afford an action. No placeholders.",
+      "type": "string"
+    },
+    "building.flash.painter_tile_used": {
+      "description": "Red button flash when every selected tile is already permanently barred from hosting another Painter (a completed Painter payout on that tile). No placeholders.",
       "type": "string"
     },
     "building.hint.research": {
@@ -636,6 +640,7 @@
     "building.construct.title",
     "building.flash.cannot_move",
     "building.flash.not_enough_love",
+    "building.flash.painter_tile_used",
     "building.hint.research",
     "building.hint.tier_locked",
     "building.hint.tier_unoffered",
@@ -745,4 +750,3 @@
   "title": "strings",
   "type": "object"
 }
-

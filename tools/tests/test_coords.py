@@ -154,6 +154,22 @@ class TestCamera(unittest.TestCase):
         self.assertAlmostEqual(sx, 295.0)
         self.assertAlmostEqual(sy, 250.0)
 
+    def test_mutators_keep_pan_integer(self):
+        # Integer-pan invariant (JitteryMapFix): a fractional pan makes the
+        # ground cache and the per-item sprite path quantize it at different
+        # sub-pixel phases (layers desync while panning). Every mutator must
+        # leave pan whole, even from fractional inputs / centring division.
+        cs = make_cs(pan_x=0.25, pan_y=-0.75)  # direct construction may be float
+        cs.pan(10.4, -3.3)
+        self.assertEqual(cs.camera.pan_x, round(cs.camera.pan_x))
+        self.assertEqual(cs.camera.pan_y, round(cs.camera.pan_y))
+        cs.clamp(801, 601)          # odd viewport → centring halves would fracture
+        self.assertEqual(cs.camera.pan_x, round(cs.camera.pan_x))
+        self.assertEqual(cs.camera.pan_y, round(cs.camera.pan_y))
+        cs.center_on(3.5, 7.25, 801, 601)
+        self.assertEqual(cs.camera.pan_x, round(cs.camera.pan_x))
+        self.assertEqual(cs.camera.pan_y, round(cs.camera.pan_y))
+
     def test_center_on_still_clamps_off_map_target(self):
         # a target past the map edge is re-clamped onto the map (never off it)
         cs = make_cs()

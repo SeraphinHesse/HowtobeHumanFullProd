@@ -11,15 +11,22 @@ preview + next-tier card, and the DIED LAST ROUND tag. Costs are gated
 against ``session.state.love`` here and spent by this module (the 9D/9F
 split: ``place_building`` / ``upgrade`` never touch RunState).
 
-**fix/batch-tier-advance**: tier ADVANCE now batches too —
-``_batch_advance_targets`` (``game.core.levelup.advance_batch_plan``) sweeps
-a multi-selection for every building whose next tier is reachable right now,
-catching each one up through any remaining in-tier levels before advancing
-it, one combined all-or-nothing cost. A building that can never reach its
-next tier yet (already at the final tier, next tier unresearched, or
-round-gated) is excluded from the batch and left untouched. A single
-selection is unaffected — it still upgrades/advances one step at a time via
-the primary-only path.
+**fix/batch-tier-advance (reworked into a two-stage catch-up-then-advance
+flow)**: a multi-selection's UPGRADE/ADVANCE button is ONE unified flow now,
+replacing the old "plain in-tier batch" and "advance batch" paths. Stage A
+(``_batch_upgrade_targets``) always wins while ANY selected building hasn't
+reached level 3 of its current tier yet — swept across the WHOLE selection,
+not gated on the primary tile's own mode (the old gate on the primary is
+what used to grey the button out entirely whenever the primary itself
+couldn't upgrade/advance, even though other selected buildings still
+could). Only once nothing needs catching up does Stage B
+(``_batch_advance_targets`` / ``game.core.levelup.advance_batch_plan``) run,
+advancing whichever selected buildings can reach their next tier right now;
+one that can't (already at the final tier, next tier unresearched, or
+round-gated) is left sitting at level 3, untouched — it never blocks the
+rest. A single selection is unaffected — it still upgrades/advances one step
+at a time via the primary-only path, since both batch sweeps are gated on
+``len(selected_tiles) > 1``.
 
 10A wired the research gates: the construct list only offers types the run has
 earned, and the upgrade button runs the five-mode ``levelup.upgrade_gate``
@@ -52,7 +59,9 @@ from game.core.wall_era import sync_wall_art_era  # wall-era-art feature
 from game.core.xp import scaled_base_income
 from game.debug import events as dbg  # debug-mode-telemetry Phase 2
 from game.map import edge_world_points  # wall-edge selection highlight
-from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition, TileState
+from game.map.tiles import (
+    CONDITION_BLOCKS_BUILD, CONDITION_MODIFIER_KEY, TileCondition, TileState,
+)
 
 from engine.render.fonts import layout_h
 
@@ -60,7 +69,8 @@ from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .strings import T
 from .widgets import (
     Button, anim_ms, contains, label_holder, submit_label, submit_panel,
-    submit_tile_diamond, submit_text, text_h, text_size
+    submit_tile_diamond, submit_tile_diamond_fill, submit_text, text_h,
+    text_size
 )
 from . import widgets
 
@@ -69,6 +79,64 @@ from . import widgets
 # id namespaces ("preview_*" prefix keeps ConstructPreview's ids from
 # colliding with BuildingUI's own).
 SCREEN_ID = "building_panel"
+
+#: Id prefix for a construct card, completed by the card's `building_type`
+#: (`card_defence`, `card_economic`, …). The type is the stable key that makes
+#: a dynamic-count card list individually overridable; `_clear_card_ids` uses
+#: this same prefix to sweep the previous build's entries out of `self.ids`.
+_CARD_ID_PREFIX = "card_"
+
+#: Slot-key prefix for the OPTIONAL dedicated card-portrait art family
+#: (`data/slots.json`'s `ui` -> "Card Portraits"), completed by the card's
+#: `building_type`. Only consulted when the screen's
+#: `defaults.use_card_portrait_slot` is on — see `_card_portrait_slot`.
+_CARD_PORTRAIT_PREFIX = "card_portrait_"
+
+#: The love icon drawn inside a card's price button — the baked HUD sprite
+#: `hud.py` already signposts love with. NOT a text glyph: `widgets.HEART`
+#: was deleted because the game font has no glyph for it (`game/ui/CLAUDE.md`
+#: "The love glyph is GONE").
+_CARD_LOVE_ICON = "ui_icon_love"
+
+# -- Construct-card geometry (the widget-tree card) ------------------------
+# A card is a PARENT holding four children: a square creature portrait on the
+# left, a wrapped name block top-right, and a price button under it carrying a
+# love icon + the number. Every rect below is ABSOLUTE — `parent` is EDITOR
+# authoring metadata that nothing in `game/` reads (`editor/widget_tree.py`),
+# so `_build_construct` lays its own children out and no cascade exists at
+# runtime.
+#
+# The vertical fit, at "sm" (`layout_h` 11, so `_row_step("sm")` == 12):
+#   portrait   y+3  .. y+37   (34 square)
+#   name       two rows from y+2 -> last row ends y+2+12+11 = y+25
+#   price btn  y+24 .. y+38   (14 tall: over the 12px click-target floor and
+#                              over its own layout_h 11 — `test_ui_min_targets`)
+# The name's second row and the price button share one pixel of the card's
+# 40px height; the glyphs themselves do not touch, since "sm" draws 9px tall
+# inside its 11px layout box.
+_CARD_INSET = 6            # card column inset inside the panel (`_card_column`)
+_CARD_H = 40
+_CARD_GAP = 4              # list pitch = _CARD_H + _CARD_GAP
+_CARD_PAD = 3              # portrait inset from the card's top-left corner
+_CARD_PORTRAIT = 34        # square portrait side
+_CARD_COL_X = 41           # right column x, relative to the card's left edge
+_CARD_PRICE_TOP = 24       # price button top, relative to the card's top
+_CARD_PRICE_H = 14
+_CARD_ICON = 10            # love icon side, inside the price button
+_CARD_LIST_TOP = 32        # first card's y at scroll offset 0
+_CARD_LIST_BOTTOM_PAD = 30 # clearance for the terrain badge at the panel foot
+# Construct-panel-only grey fill alpha for a tile already barred from hosting
+# another Painter (widgets.C_PAINTER_USED) — same alpha-tuple pattern as
+# overlays.py's _TIER_OVERVIEW_ALPHA.
+_PAINTER_USED_ALPHA = 130
+# The price pill carries its OWN skin rather than inheriting the card body's
+# `defaults.button_skin`: the body is a full-card 9-slice, and stretching that
+# same art through a 74x14 pill reads as a squashed card. Baked here for the
+# same reason `_CARD_LOVE_ICON` is — it names a specific piece of art, and a
+# designer who wants another one overrides `card_<btype>_price`'s `skin` in the
+# editor, per card, without touching the body.
+_CARD_PRICE_SKIN = "ui_button_pill"
+# -- /construct-card geometry ---------------------------------------------
 
 # 10I: tooltip chrome — dark panel, 1px border in the condition colour
 # (prototype building_ui.py:1440-1455).
@@ -83,6 +151,9 @@ _DICE_GLYPH = "⚄"
 # which the centred draw then overhung top and bottom. 14x13 is the smallest
 # box that holds the glyph and clears the floor.
 _CLOSE_W, _CLOSE_H = 14, 13
+#: Font for the CONFIRM/CANCEL row shared by ConstructPreview and MovePreview.
+#: "md", not "lg" — see the comment at ConstructPreview's button row.
+_PREVIEW_BTN_FONT = "md"
 
 
 def _row_step(font_key, leading=1):
@@ -197,7 +268,8 @@ def _building_stats(b):
     if hasattr(b, "payout_amount"):     # painter — risky economy (no yield)
         rows.append(("progress", f"{b.progress}/{b.rounds_to_payout()}"))
         rows.append(("payout", f"{b.payout_amount()}"))
-        rows.append(("pays_in", f"{b.rounds_to_payout()} rounds"))
+        remaining = max(0, b.rounds_to_payout() - b.progress)
+        rows.append(("pays_in", f"{remaining} rounds"))
     elif hasattr(b, "streak_max"):      # meditator — compounding economy
         rows.append(("yield", b.yield_amount()))  # pure (no streak advance)
         rows.append(("streak", f"{b.streak}/{b.streak_max()}"))
@@ -260,9 +332,16 @@ class ConstructPreview:
                                T("building.btn.dice"), "md")
         self.close_btn = Button((x + pw - 17, y + 3, _CLOSE_W, _CLOSE_H),
                                 T("building.btn.close"), "md")
+        # Font "md", not "lg": CONFIRM needs 79px at "lg" under the SHIPPED
+        # pixel font (`data/ui/active_font.json` -> pixel_emulator, wider per
+        # glyph than the `SysFont("monospace")` fallback these constants were
+        # authored against) in a 70px button, and there is no shorter word for
+        # it. At "md" it needs 59. CANCEL moves with it so the pair stays one
+        # row; `_PREVIEW_BTN_FONT` is shared with `MovePreview` below, which
+        # shares this modal's chrome and its `preview_*` id namespace.
         btn_y, bw, bh = y + ph - 24, 70, 17
-        left = Button((x + 8, btn_y, bw, bh), "", "lg")
-        right = Button((x + pw - 8 - bw, btn_y, bw, bh), "", "lg")
+        left = Button((x + 8, btn_y, bw, bh), "", _PREVIEW_BTN_FONT)
+        right = Button((x + pw - 8 - bw, btn_y, bw, bh), "", _PREVIEW_BTN_FONT)
         show_cancel = ui_balance["Timing"]["construct_show_cancel"]
         confirm_right = ui_balance["Timing"]["confirm_on_right_side"]
         if show_cancel:
@@ -272,7 +351,8 @@ class ConstructPreview:
             self.cancel_btn.label = T("building.btn.cancel")
         else:
             self.confirm_btn = Button((x + 8, btn_y, pw - 16, bh),
-                                      T("building.btn.confirm"), "lg")
+                                      T("building.btn.confirm"),
+                                      _PREVIEW_BTN_FONT)
             self.cancel_btn = None
         # 10L-B: geometry is fixed for this instance's whole lifetime (a
         # fresh ConstructPreview is built each time the modal opens), so
@@ -459,10 +539,12 @@ class MovePreview:
         self.close_btn = Button((x + pw - 17, y + 3, _CLOSE_W, _CLOSE_H),
                                 T("building.btn.close"), "md")
         btn_y, bw, bh = y + ph - 24, 70, 17
-        left = Button((x + 8, btn_y, bw, bh), "", "lg")
-        right = Button((x + pw - 8 - bw, btn_y, bw, bh), "", "lg")
+        left = Button((x + 8, btn_y, bw, bh), "", _PREVIEW_BTN_FONT)
+        right = Button((x + pw - 8 - bw, btn_y, bw, bh), "", _PREVIEW_BTN_FONT)
         # Same two `ui.Timing` keys ConstructPreview reads — the modal chrome
         # convention is shared, so a designer flipping them moves both modals.
+        # `_PREVIEW_BTN_FONT` is shared for the same reason (see its use in
+        # ConstructPreview above for why CONFIRM is not "lg").
         show_cancel = ui_balance["Timing"]["construct_show_cancel"]
         confirm_right = ui_balance["Timing"]["confirm_on_right_side"]
         if show_cancel:
@@ -472,7 +554,8 @@ class MovePreview:
             self.cancel_btn.label = T("building.btn.cancel")
         else:
             self.confirm_btn = Button((x + 8, btn_y, pw - 16, bh),
-                                      T("building.btn.confirm"), "lg")
+                                      T("building.btn.confirm"),
+                                      _PREVIEW_BTN_FONT)
             self.cancel_btn = None
         # Geometry is fixed for this instance's whole lifetime (a fresh
         # MovePreview is built each time the modal opens), so ids/apply run
@@ -600,6 +683,7 @@ class BuildingUI:
         self._buildings_balance = None
         self._highlight_tiles = []
         self._highlight_edges = []
+        self._painter_used_tiles = []
         self._hover_cost = None
         self._action_cost = 0
         self._clock = 0.0  # 10L-A: one anim clock per screen
@@ -633,6 +717,22 @@ class BuildingUI:
             "md")
         self.move_btn.visible = False
         self.cards = []
+        #: `{building_type: SimpleNamespace}` — the card's CHILD widgets
+        #: (portrait / two name rows / price button / love icon / price text)
+        #: plus the wrapped name lines and the live cost the draw pass needs.
+        #: `self.cards` stays `[(btype, card_button)]` so `card_rect`, the
+        #: hover pass and `_construct_click` are unchanged in shape.
+        self._card_parts = {}
+        # -- construct-card list: first VISIBLE card index. The list is taller
+        # than the panel once several types are unlocked (12 cards x 44px
+        # against a ~298px viewport), so it scrolls; the host routes the wheel
+        # here from `main.py`'s gameplay MOUSEWHEEL branch. Reset by close(). --
+        self.scroll_offset = 0
+        #: Host-wired `engine.assets.AssetStore` (the `FloaterManager.assets`
+        #: precedent), used ONLY to ask whether a dedicated card portrait has
+        #: imported art. None (headless, tests, bare construction) reads as
+        #: "no art" and keeps the tier-sprite fallback — never raises.
+        self.assets = None
         # -- 10G boss: base_info "BOSS CHOICES" button + history popup --
         self.boss_btn = Button(
             (self.panel_x + 6, 210, self.panel_w - 12, 16),
@@ -788,8 +888,11 @@ class BuildingUI:
         self._upgrade_hint = None
         self._highlight_tiles = []
         self._highlight_edges = []
+        self._painter_used_tiles = []
         self._hover_cost = None
         self.cards = []
+        self._card_parts = {}
+        self.scroll_offset = 0   # a fresh panel always opens at the top
         # -- 10J --
         self.selected_tiles = []
         self._name_editing = False
@@ -936,14 +1039,125 @@ class BuildingUI:
                     hl.append((t.col, t.row, widgets.C_HIGHLIGHT2))
         self._highlight_tiles = hl
 
+    # -- construct card: geometry, art + the two screen-level bools ---------
+
+    def _card_defaults(self):
+        """The screen's ``defaults`` section, read FRESH (no caching — the
+        `defaults.button_skin` precedent). Two card-specific bools live here
+        alongside the skins, both defaulting False:
+
+        ``price_is_click_target`` — when on, ONLY the price button opens the
+        construct preview; the portrait and the name go inert. Off (default),
+        the whole card is the click target exactly as it always was and the
+        price button is drawn but never hit-tested.
+
+        ``use_card_portrait_slot`` — see `_card_portrait_slot`.
+        """
+        return self.skinning.defaults(self.screen_id)
+
+    def _card_column(self):
+        """``(x, w)`` of the card column — the panel's own box, inset.
+
+        Cards are DYNAMIC-count content: they are laid out in code and cannot
+        be re-authored id-by-id in the editor the way a static widget can. So
+        when a designer resizes or moves the `panel` container, the column has
+        to follow it in code or it is left stranded in the old panel's
+        footprint. `self.panel_x`/`panel_w` are the ctor's CODE defaults and
+        never see the override (only `panel_rect` is refreshed, and only at
+        submit — after `_build_construct` has already run), which is exactly
+        why the authored rect is read straight off the skinning here.
+
+        No override (every screen that ships one absent, and the disk-free
+        `ScreenSkinning.empty()` the exporter records with) falls back to the
+        code defaults, so `screen_defaults.json` is unchanged by this."""
+        rect = self.skinning.widget_rect(self.screen_id, "panel")
+        px, pw = (rect[0], rect[2]) if rect else (self.panel_x, self.panel_w)
+        return px + _CARD_INSET, pw - 2 * _CARD_INSET
+
+    def _card_list_viewport(self):
+        """``(top, bottom)`` of the scrolling card list. Derived, never a
+        literal: the bottom clears the terrain badge `_submit_construct` draws
+        at the panel foot (`self.view_h - 20`, tooltip above)."""
+        return _CARD_LIST_TOP, self.view_h - _CARD_LIST_BOTTOM_PAD
+
+    def _cards_visible(self):
+        """How many cards fit in the viewport at once (at least 1, so a very
+        short surface still shows the card the wheel is scrolled to)."""
+        top, bottom = self._card_list_viewport()
+        return max(1, (bottom - top) // (_CARD_H + _CARD_GAP))
+
+    def _card_in_viewport(self, rect):
+        """Is this card fully inside the scrolling list's window?
+
+        Gated on at DRAW and at HIT, ANDed with `is_visible` — deliberately
+        NOT expressed by setting `visible = False` on the off-window cards:
+        `visible` is the DESIGNER's override key and forcing it here would
+        fight an override. Every card is built at its absolute rect every
+        frame regardless of scroll, so `self.ids` (and therefore
+        `skinning.apply` and the exporter) always sees the full id set."""
+        top, bottom = self._card_list_viewport()
+        return rect[1] >= top and rect[1] + rect[3] <= bottom
+
+    def _card_portrait_slot(self, btype, tier_idx):
+        """The sprite slot a card's portrait panel draws.
+
+        Default: the building's OWN tier sprite — the same
+        `create(...).slot_key()` idiom `_next_tier_card` uses for the upgrade
+        panel's thumbnail, so a card shows the creature that placing it
+        actually spawns, with no new art to import.
+
+        With `defaults.use_card_portrait_slot` on, it switches to the
+        dedicated `card_portrait_<btype>` family instead — falling back to the
+        tier sprite whenever that slot has no imported art (E-37: never a grey
+        X). The "has art" probe is `animation_total_ms(slot, "idle") is not
+        None`, the SAME signal `engine.vfx.spawn_play_once` uses, so the two
+        can never disagree about what "imported" means."""
+        tier_slot = create(btype, 0, 0, self._buildings_balance,
+                           tier_idx).slot_key()
+        if not self._card_defaults().get("use_card_portrait_slot"):
+            return tier_slot
+        slot = f"{_CARD_PORTRAIT_PREFIX}{btype}"
+        store = self.assets
+        if store is None:
+            return tier_slot
+        has_art = store.animation_total_ms(slot, "idle") is not None
+        return slot if has_art else tier_slot
+
+    def handle_scroll(self, dy):
+        """Scroll the construct card list by ``dy`` cards, clamped.
+
+        Sign follows `HighscoresScreen.scroll` (the repo's only other scroll
+        seam): a POSITIVE ``dy`` moves DOWN the list. pygame's `MOUSEWHEEL.y`
+        is positive scrolling UP, so the host negates it — same as the menu
+        wheel arm in `main.py`. A no-op outside construct mode.
+
+        Rebuilds the card list, because a card's rect is ABSOLUTE and the
+        offset is baked into it at build time — `open_for_tile` is otherwise
+        the only thing that ever calls `_build_construct`, so without this the
+        offset would move and nothing on screen would. Cheap: this runs on a
+        wheel event, never per frame."""
+        if self.mode != "construct":
+            return
+        limit = max(0, len(self.cards) - self._cards_visible())
+        offset = max(0, min(limit, self.scroll_offset + int(dy)))
+        if offset == self.scroll_offset:
+            return
+        self.scroll_offset = offset
+        self._build_construct()
+
     def _build_construct(self):
+        self._clear_card_ids()
         self.cards = []
-        y = 32
         state = self._session.state
-        # B3: construct cards are dynamic-count (never id'd) and inherit the
-        # screen's defaults.button_skin instead — {} (no override) means None,
+        # Each card is a WIDGET TREE id'd off `card_<building_type>` (see
+        # `_clear_card_ids`, which sweeps all seven with that one prefix) — the
+        # COUNT is dynamic (only unlocked types show), but the building type is
+        # a stable key, so every part of every card is individually
+        # overridable: rect, skin, tint, label, text colour, visibility.
+        # `defaults.button_skin` remains the screen-level fallback for a card
+        # with no `skin` override of its own — {} (no override) means None,
         # the unskinned flat-rect card the golden parity pin already covers.
-        skin = self.skinning.defaults(self.screen_id).get("button_skin")
+        skin = self._card_defaults().get("button_skin")
         # feature-storm-acolyte-multi-build: the Storm Priest run-singleton
         # ban is LIFTED — several may be placed, each priced steeper than the
         # last via the group's `repeat_cost_multiplier`. This is the SAME
@@ -951,21 +1165,118 @@ class BuildingUI:
         # once for every card (a no-op price-wise for every type without the
         # multiplier key).
         repeat_count = count_tag(self._session.tilemap, LIGHTNING_SOURCE_TAG)
+        cx, cw = self._card_column()
+        col_x = cx + _CARD_COL_X                 # the right column's left edge
+        col_w = cw - _CARD_COL_X - _CARD_PAD     # name wrap width + price width
+        step = _row_step("sm")
+        top, _bottom = self._card_list_viewport()
+        y = top - self.scroll_offset * (_CARD_H + _CARD_GAP)
         for btype in BUILDING_CLASSES:
             if not buildable(state, btype):
                 continue  # type not unlocked / tier 1 not researched (10A)
             tier_idx = tiers_unlocked_for(state, btype) - 1
             cost = build_cost(btype, self._buildings_balance, tier_idx,
                               repeat_count)
-            name = BUILDING_CLASSES[btype]._resolve_tiers(
+            tier_name = BUILDING_CLASSES[btype]._resolve_tiers(
                 self._buildings_balance)[tier_idx]["name"]
-            label = T("building.construct.card", name=name, cost=cost)
-            btn = Button((self.panel_x + 6, y, self.panel_w - 12, 21),
-                         label, "md", skin=skin)
+            # The card body: the parent, and (unless `price_is_click_target`
+            # is on) the click target. Its own label is empty — the name is
+            # its own child widget now, so a designer can place the two
+            # independently.
+            btn = Button((cx, y, cw, _CARD_H), "", "sm", skin=skin)
+            portrait = SimpleNamespace(
+                rect=(cx + _CARD_PAD, y + _CARD_PAD,
+                      _CARD_PORTRAIT, _CARD_PORTRAIT),
+                skin=self._card_portrait_slot(btype, tier_idx), visible=True)
+            price = Button((col_x, y + _CARD_PRICE_TOP, col_w, _CARD_PRICE_H),
+                           "", "sm", skin=_CARD_PRICE_SKIN)
+            # Painter, every selected tile already barred (`used_painter_tiles`):
+            # disable the card outright rather than let the player click through
+            # to a preview that can only fail. A MIXED batch (some barred, some
+            # fresh) stays enabled — placement already skips only the barred
+            # tiles and builds on the rest (`_do_place`), so disabling here
+            # would block placements that would actually succeed. Both click
+            # targets are disabled since `price_is_click_target` picks which
+            # one is live.
+            if (btype == "painter" and self.selected_tiles
+                    and all((t.col, t.row) in
+                            getattr(state, "used_painter_tiles", ())
+                            for t in self.selected_tiles)):
+                btn.enabled = False
+                price.enabled = False
+            icon = SimpleNamespace(
+                rect=(col_x + _CARD_PAD, y + _CARD_PRICE_TOP + 2,
+                      _CARD_ICON, _CARD_ICON),
+                skin=_CARD_LOVE_ICON, visible=True)
+            price_text = label_holder(
+                (col_x + _CARD_PAD + _CARD_ICON + 3, y + _CARD_PRICE_TOP + 2,
+                 0, 0), text_id="building.stat.value", font_key="sm")
+            # The name occupies TWO id'd rows so a designer can place them
+            # independently. `cost` is passed even though the shipped template
+            # no longer spends it: `T` is `str.format`, which ignores a surplus
+            # kwarg but raises KeyError on a missing one — so a designer who
+            # puts `{cost}` back into the name template gets the price in the
+            # name block instead of a crash.
+            #
+            # The WRAP itself is deliberately NOT done here. `wrap_text`
+            # measures the live font, and this text is recorded into
+            # `data/ui/screen_defaults.json`'s `label` — a stored artifact,
+            # which `game/ui/CLAUDE.md`'s "layout_h, never a live font
+            # measurement" rule forbids from depending on a measurement
+            # (Windows and Linux/CI disagree by a pixel, and a bigger font
+            # preset must not re-break the lines in a committed file). So the
+            # holder stores the WHOLE name and `_submit_construct` wraps it at
+            # DRAW time, where a live metric is allowed. Row 2's stored label
+            # is always empty for the same reason.
+            name = T("building.construct.card", name=tier_name, cost=cost)
+            name_1 = label_holder((col_x, y + 2, 0, 0), label=name,
+                                  font_key="sm")
+            # `_name2`, NOT `_name_2`: the exporter derives a card child's
+            # parent from its id prefix, and `card_x_name_2` would nest under
+            # `card_x_name` instead of sitting beside it as a sibling row.
+            name_2 = label_holder((col_x, y + 2 + step, 0, 0), font_key="sm")
             self.cards.append((btype, btn))
-            y += 25
+            self._card_parts[btype] = SimpleNamespace(
+                portrait=portrait, price=price, icon=icon,
+                price_text=price_text, name_1=name_1, name_2=name_2,
+                name_w=col_w, cost=cost)
+            key = f"{_CARD_ID_PREFIX}{btype}"
+            self.ids[key] = ("button", btn)
+            self.ids[f"{key}_portrait"] = ("panel", portrait)
+            self.ids[f"{key}_name"] = ("label", name_1)
+            self.ids[f"{key}_name2"] = ("label", name_2)
+            self.ids[f"{key}_price"] = ("button", price)
+            self.ids[f"{key}_price_icon"] = ("panel", icon)
+            self.ids[f"{key}_price_text"] = ("label", price_text)
+            y += _CARD_H + _CARD_GAP
         self._highlight_tiles = [(t.col, t.row, widgets.C_HIGHLIGHT)
                                  for t in self.selected_tiles]
+        # Grey out every BUILDABLE tile that already hosted a Painter and
+        # paid out (`state.used_painter_tiles`) — visible only while this
+        # construct panel is open, so the player understands, right when
+        # they're picking where to build, why a Painter can't go there again
+        # (`place_building`'s enforcement, `game/buildings/registry.py`).
+        tm = self._session.tilemap
+        self._painter_used_tiles = [
+            (col, row) for col, row in getattr(state, "used_painter_tiles", ())
+            if (t := tm.get(col, row)) is not None
+            and t.state == TileState.BUILDABLE]
+
+    def _clear_card_ids(self):
+        """Drop last build's `card_*` entries from `self.ids`.
+
+        Unlike every other id in this panel, a card's Button is rebuilt on
+        every `_build_construct` (its label carries a live price), so its ids
+        entry would otherwise point at a dead Button — `skinning.apply` would
+        keep writing overrides onto an object nothing draws, and a type that
+        stopped being buildable would linger in the dict forever.
+
+        The card is a widget TREE now — portrait, two name rows, price button,
+        love icon, price text — but every one of its ids starts with the same
+        `card_` prefix, so this sweep needed no change to cover them."""
+        for key in [k for k in self.ids if k.startswith(_CARD_ID_PREFIX)]:
+            del self.ids[key]
+        self._card_parts = {}
 
     def _batch_upgrade_targets(self):
         """``[(building, cost)]`` across the selection whose upgrade state is
@@ -1005,21 +1316,32 @@ class BuildingUI:
 
     def _build_upgrade(self):
         mode, cost, label, hint = self._upgrade_state(self._selected)
-        advance_targets = self._batch_advance_targets()
-        if advance_targets:
-            # A multi-selection where at least one building can reach its
-            # next tier (possibly after catching up on remaining in-tier
-            # levels first) shows ONE combined ADVANCE action — buildings
-            # that can't get there yet are left out of it (see
-            # `_batch_advance_targets`).
-            cost = sum(c for _, c, _ in advance_targets)
-            mode = "tier_upgrade"
-            label = f"ADVANCE ×{len(advance_targets)}  {cost}"
-            hint = None
-        elif mode == "in_tier" and len(self.selected_tiles) > 1:
-            targets = self._batch_upgrade_targets()
-            cost = sum(c for _, c in targets)
-            label = T("building.action.upgrade_many", n=len(targets), cost=cost)
+        if len(self.selected_tiles) > 1:
+            # Two-stage batch flow (catch-up-then-advance): Stage A always
+            # wins while ANY selected building hasn't reached level 3 yet —
+            # swept across the WHOLE selection, not gated on the primary
+            # tile's own mode, so a primary that's itself blocked (tier
+            # maxed but unresearched, or at its final tier) no longer greys
+            # out a batch that other selected buildings could still take.
+            # Only once nothing needs catching up does Stage B (ADVANCE) run.
+            upgrade_targets = self._batch_upgrade_targets()
+            if upgrade_targets:
+                cost = sum(c for _, c in upgrade_targets)
+                mode = "in_tier"
+                label = T("building.action.upgrade_many",
+                          n=len(upgrade_targets), cost=cost)
+                hint = None
+            else:
+                advance_targets = self._batch_advance_targets()
+                if advance_targets:
+                    # Every selected building is already at level 3 — advance
+                    # whichever can reach their next tier right now; a
+                    # building that still can't (final tier / unresearched /
+                    # round-gated) is left sitting at level 3, untouched.
+                    cost = sum(c for _, c, _ in advance_targets)
+                    mode = "tier_upgrade"
+                    label = f"ADVANCE ×{len(advance_targets)}  {cost}"
+                    hint = None
         self.action_btn.rect = (
             self.panel_x + 6, self.view_h - 60, self.panel_w - 12, 18)
         self.action_btn.enabled = mode in ("in_tier", "tier_upgrade")
@@ -1220,8 +1542,23 @@ class BuildingUI:
             # computed once per hover pass.
             repeat_count = count_tag(self._session.tilemap, LIGHTNING_SOURCE_TAG)
             for btype, btn in self.cards:
+                parts = self._card_parts.get(btype)
+                on_screen = self._card_in_viewport(btn.rect)
                 btn.hover(mx, my, mouse_down)
-                if btn.hovered:
+                # Never skip hover() outright — a stale True from before an
+                # override hid the card would otherwise linger (the rule every
+                # id'd button in this file follows). A card scrolled out of
+                # the list window is cleared the same way.
+                btn.hovered = btn.hovered and is_visible(btn) and on_screen
+                if parts is not None:
+                    # The price pill lights up with its card whether or not it
+                    # is the click target — it is part of one card, and a
+                    # half-lit card reads as broken.
+                    parts.price.hover(mx, my, mouse_down)
+                    parts.price.hovered = (parts.price.hovered
+                                           and is_visible(parts.price)
+                                           and on_screen)
+                if btn.hovered or (parts is not None and parts.price.hovered):
                     tier_idx = tiers_unlocked_for(state, btype) - 1
                     self._hover_cost = _batch_cost(
                         btype, self._buildings_balance, tier_idx,
@@ -1341,8 +1678,21 @@ class BuildingUI:
         return contains(self.panel_rect, mx, my)
 
     def _construct_click(self, mx, my, session, buildings_balance):
+        # `defaults.price_is_click_target` picks WHICH rect opens the preview:
+        # off (the default) the whole card does, exactly as it always has; on,
+        # only the price pill does and the portrait/name go inert. Nothing
+        # downstream of the hit changes — same cost, same batch total, same
+        # ConstructPreview.
+        price_clicks = bool(self._card_defaults().get("price_is_click_target"))
         for btype, btn in self.cards:
-            if btn.hit(mx, my):
+            parts = self._card_parts.get(btype)
+            if price_clicks:
+                target = parts.price if parts is not None else None
+            else:
+                target = btn
+            if (target is not None and is_visible(target)
+                    and self._card_in_viewport(btn.rect)
+                    and target.hit(mx, my)):
                 tier_idx = tiers_unlocked_for(session.state, btype) - 1
                 # feature-storm-acolyte-multi-build: the same already-placed
                 # count `_build_construct` priced the card off.
@@ -1357,6 +1707,9 @@ class BuildingUI:
                 total = _batch_cost(btype, buildings_balance, tier_idx,
                                     repeat_count, count)
                 if session.state.love < total:
+                    # Always flash the CARD, never the price pill, whichever
+                    # was clicked: the message is a sentence and the card body
+                    # is the only part of the tree wide enough to read it.
                     btn.start_flash(self._flash_dur,
                                         T("building.flash.not_enough_love"))
                 else:
@@ -1410,14 +1763,41 @@ class BuildingUI:
             return True
         if is_visible(self.action_btn) and self.action_btn.hit(mx, my):
             mode, cost, _, _ = self._upgrade_state(b)
-            advance_targets = self._batch_advance_targets()
-            if advance_targets:
-                # Multi-selection where at least one building can reach its
-                # next tier now (batch ADVANCE) — catch each up through any
-                # remaining in-tier levels, then advance it, one combined
-                # all-or-nothing cost. Buildings that can't get there yet
-                # (max tier / unresearched / round-gated) are excluded by
-                # `_batch_advance_targets` and untouched here.
+            # Two-stage batch flow (catch-up-then-advance), multi-select
+            # only — mirrors `_build_upgrade`'s priority: Stage A (catch up
+            # to level 3) always wins over Stage B (advance) while anything
+            # in the selection still needs it, swept across the WHOLE
+            # selection rather than gated on the primary tile's own mode.
+            upgrade_targets, advance_targets = [], []
+            if len(self.selected_tiles) > 1:
+                upgrade_targets = self._batch_upgrade_targets()
+                if not upgrade_targets:
+                    advance_targets = self._batch_advance_targets()
+            if upgrade_targets:
+                # Stage A: every selected building below level 3 levels up
+                # one step, one combined cost. Covers both the old plain
+                # in-tier batch and the case that used to grey the button
+                # out (a blocked primary alongside a still-catching-up
+                # building).
+                total = sum(c for _, c in upgrade_targets)
+                if st.love < total:
+                    self.action_btn.start_flash(self._flash_dur,
+                                                T("building.flash.not_enough_love"))
+                    return True
+                st.spend_love(total)
+                for tb, _c in upgrade_targets:
+                    tb.upgrade()
+                    sync_wall_art_era(st, tb, session.enemies_balance)  # wall-era-art
+                    if self.on_build_vfx is not None:
+                        lvl = tb.get_component(TierState).current_level_in_tier
+                        self.on_build_vfx(tb.col, tb.row,
+                                          "level1" if lvl == 2 else "level2")
+            elif advance_targets:
+                # Stage B: every selected building already at level 3 —
+                # advance whichever can reach their next tier now, one
+                # combined all-or-nothing cost. Buildings that can't get
+                # there yet (max tier / unresearched / round-gated) are
+                # excluded by `_batch_advance_targets` and untouched here.
                 total = sum(c for _, c, _ in advance_targets)
                 if st.love < total:
                     self.action_btn.start_flash(self._flash_dur,
@@ -1441,8 +1821,8 @@ class BuildingUI:
             elif mode not in ("in_tier", "tier_upgrade"):
                 return True  # max / not researched / round-gated: inert
             elif mode == "tier_upgrade":
-                # Single-selection tier advance (a multi-select with an
-                # eligible building is handled by `advance_targets` above).
+                # Single-selection tier advance (a multi-select is handled
+                # by `advance_targets` above).
                 if st.love < cost:
                     self.action_btn.start_flash(self._flash_dur,
                                                 T("building.flash.not_enough_love"))
@@ -1460,6 +1840,9 @@ class BuildingUI:
                 if self.on_build_vfx is not None:
                     self.on_build_vfx(b.col, b.row, "tier")
             else:
+                # Single-selection in-tier upgrade (a multi-select is
+                # handled by `upgrade_targets` above; `_batch_upgrade_targets`
+                # naturally returns a 1-item list here).
                 targets = self._batch_upgrade_targets()
                 total = sum(c for _, c in targets)
                 if st.love < total:
@@ -1539,13 +1922,19 @@ class BuildingUI:
                                         T("building.flash.not_enough_love"))
             return
         placed_any = False
+        painter_blocked = True  # stays True only if EVERY tile hit the bar
         for i, tile in enumerate(self.selected_tiles or [self.tile]):
             try:
                 building, cost = place_building(
                     session.tilemap, tile, p.building_type, st.love,
                     buildings_balance, scene, occupancy, state=st)
             except PlacementError:
+                if not (p.building_type == "painter"
+                        and (tile.col, tile.row) in
+                        getattr(st, "used_painter_tiles", ())):
+                    painter_blocked = False
                 continue
+            painter_blocked = False
             st.spend_love(cost)
             st.buildings_placed += 1
             placed_any = True
@@ -1561,8 +1950,9 @@ class BuildingUI:
             if self.on_build_vfx is not None:  # 10J: sparks + gold highlight
                 self.on_build_vfx(tile.col, tile.row, "place")
         if not placed_any:
-            p.confirm_btn.start_flash(self._flash_dur,
-                                        T("building.flash.not_enough_love"))
+            msg = (T("building.flash.painter_tile_used") if painter_blocked
+                   else T("building.flash.not_enough_love"))
+            p.confirm_btn.start_flash(self._flash_dur, msg)
             return
         self.last_placed_type = p.building_type  # TU-6: signal a real placement
         self.preview = None
@@ -1580,8 +1970,11 @@ class BuildingUI:
         self._dice_up.update(dt)  # 10J rename dice
         self.boss_btn.update(dt)          # -- 10G boss --
         self._boss_close_btn.update(dt)   # -- 10G boss --
-        for _, btn in self.cards:
+        for btype, btn in self.cards:
             btn.update(dt)
+            parts = self._card_parts.get(btype)
+            if parts is not None:
+                parts.price.update(dt)   # its own hover/flash clock
         if self.preview is not None:
             self.preview.update(dt)
 
@@ -1589,11 +1982,28 @@ class BuildingUI:
         t = anim_ms(self._clock)
         for col, row, color in self._highlight_tiles:
             submit_tile_diamond(renderer, col, row, color)
+        for col, row in self._painter_used_tiles:
+            submit_tile_diamond_fill(
+                renderer, col, row,
+                (*widgets.C_PAINTER_USED, _PAINTER_USED_ALPHA))
         # Each selected wall builder's actual EDGES, as thick world-space
         # lines. Sits BEFORE the `visible` guard exactly like the tile
         # diamonds above it, so the two behave identically.
         for pts in self._highlight_edges:
             renderer.submit_overlay_lines(pts, widgets.C_HIGHLIGHT, width=4)
+        # Building Movement: the straight-line (Manhattan) path to the picked
+        # destination, shown once a destination is chosen — L-shaped
+        # (col-first, then row), matching the tiles move_distance() actually
+        # counts. Derived fresh from the live preview every frame (no stored
+        # state, no fade clock); sits before the `visible` guard like the
+        # highlights above it, so it behaves identically.
+        if isinstance(self.preview, MovePreview):
+            b, dest = self.preview.building, self.preview.dest_tile
+            path_pts = [(b.col + 0.5, b.row + 0.5),
+                        (dest.col + 0.5, b.row + 0.5),
+                        (dest.col + 0.5, dest.row + 0.5)]
+            renderer.submit_overlay_lines(path_pts, widgets.C_MOVE_HIGHLIGHT,
+                                          width=3)
         if not self.visible:
             return
         # -- 10I: badge rect/tooltip refresh each frame (base_info shows no
@@ -1649,8 +2059,54 @@ class BuildingUI:
     def _submit_construct(self, renderer, anim_ms=0):
         submit_label(renderer, self._text["construct_title"],
                      color=widgets.C_UI_TEXT)
-        for _, btn in self.cards:
-            btn.submit(renderer, anim_ms=anim_ms)
+        # Each card is a widget tree, drawn in the house back-to-front order
+        # (panel/background -> buttons -> standalone text). Every part follows
+        # the same rules as any other id'd widget: a `visible: false` override
+        # skips it, and `color`/`text_color` ride along via button_kwargs.
+        # `_card_in_viewport` is the scroll window — a card scrolled out of the
+        # list is simply not drawn (see that method for why this is not
+        # expressed as `visible = False`).
+        for btype, btn in self.cards:
+            parts = self._card_parts.get(btype)
+            if parts is None or not self._card_in_viewport(btn.rect):
+                continue
+            # The card BODY first: it is this tree's background, and the HUD
+            # queue is drawn in pure submission order (`Renderer.submit_hud`
+            # appends; nothing sorts), so anything submitted after it lands on
+            # top. Drawing the portrait first instead hides it completely the
+            # moment the body carries real art — the whole 34x34 sits inside
+            # the body's rect. That stayed invisible for as long as
+            # `defaults.button_skin` was unset and the body drew as a flat
+            # rect, and broke the screen the day a designer skinned the card.
+            if is_visible(btn):
+                btn.submit(renderer, anim_ms=anim_ms, **button_kwargs(btn))
+            # then the portrait, on top of the body it sits in
+            if is_visible(parts.portrait):
+                submit_panel(renderer, parts.portrait.rect,
+                             skin=parts.portrait.skin,
+                             tint=getattr(parts.portrait, "tint", None),
+                             anim_ms=anim_ms)
+            if is_visible(parts.price):
+                parts.price.submit(renderer, anim_ms=anim_ms,
+                                   **button_kwargs(parts.price))
+            if is_visible(parts.icon):
+                submit_panel(renderer, parts.icon.rect, skin=parts.icon.skin,
+                             tint=getattr(parts.icon, "tint", None),
+                             anim_ms=anim_ms)
+            # then the text, always on top. The name is wrapped HERE, not in
+            # `_build_construct` — a live font measurement is allowed at draw
+            # time but must never reach a stored rect or the exported
+            # `label` (see the note where the holders are built). Row 1 owns
+            # the whole name, so a designer's `label` override on it still
+            # drives both rows; row 2 lends only its position, font and colour,
+            # and draws nothing when the name fits on one line.
+            lines = widgets.wrap_text(parts.name_1.label or "", "sm",
+                                      parts.name_w, max_lines=2)
+            for holder, line in zip((parts.name_1, parts.name_2), lines):
+                submit_label(renderer, holder, text=line,
+                             color=widgets.C_UI_TEXT)
+            submit_label(renderer, parts.price_text, value=parts.cost,
+                         color=widgets.C_UI_TEXT)
         # -- 10I: tile terrain footer badge (tooltip above) --
         self._submit_cond_badge(renderer, self.tile.condition,
                                 self.view_h - 20, above=True)
@@ -1843,6 +2299,8 @@ class BuildingUI:
         deliberately NOT listed."""
         if condition == TileCondition.GRASS:
             return ["No terrain effect"]
+        if condition in CONDITION_BLOCKS_BUILD:
+            return ["Unbuildable tile"]
         mods = self._session.tilemap.balance["TileConditions"]["modifiers"]
         m = mods.get(CONDITION_MODIFIER_KEY.get(condition), {})
         lines = []

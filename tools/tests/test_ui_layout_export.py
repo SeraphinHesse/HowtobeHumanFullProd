@@ -16,6 +16,7 @@ import unittest
 from pathlib import Path
 
 from tools.export_ui_layouts import main as export_main
+from game.ui import strings as _strings
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -278,14 +279,55 @@ class TestWidgetDisplayNames(unittest.TestCase):
                     self.assertEqual(spec.get("display_name"), expected)
 
     def test_unmapped_id_carries_no_display_name_key(self):
-        """An id absent from ``_DISPLAY_NAMES`` gets NO ``display_name`` key
-        at all (the file stays minimal; fallback is the reader's job) — hud's
-        second-pass readouts (``love_text``, ``lvl_label``, ...) are real,
-        always-present ids that are NOT in ``_DISPLAY_NAMES["hud"]``."""
+        """An id absent from ``_DISPLAY_NAMES`` (and matching no derivation
+        rule) gets NO ``display_name`` key at all — the file stays minimal and
+        falling back to the raw id is the reader's job.
+
+        The example used to be ``hud.love_text``. Every hud id is mapped now
+        (a designer asked for the Love counter, Round counter, Level counter
+        and XP bar by NAME and could not find them in the editor's list), so
+        the example moved to ``cheat_menu.btn_toggle_debug`` — a real,
+        always-present id that ``_DISPLAY_NAMES["cheat_menu"]`` does not
+        list."""
+        cheat_widgets = self.defaults["cheat_menu"]["widgets"]
+        self.assertIn("btn_toggle_debug", cheat_widgets)
+        self.assertNotIn("display_name", cheat_widgets["btn_toggle_debug"])
+        # ...and the hud ids that motivated the change ARE named now.
         hud_widgets = self.defaults["hud"]["widgets"]
-        self.assertIn("love_text", hud_widgets)
-        self.assertNotIn("display_name", hud_widgets["love_text"])
+        self.assertEqual(hud_widgets["love_text"]["display_name"],
+                         "Love counter")
+        self.assertEqual(hud_widgets["round_label"]["display_name"],
+                         "Round counter")
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTheExporterDoesNotLeakTheStringTable(unittest.TestCase):
+    """Running the exporter must leave `game.ui.strings._STRINGS` untouched.
+
+    The exporter is a HOST: it binds the live string table so the artifacts
+    record real templates rather than the module's fallbacks. `_STRINGS` is
+    mutated IN PLACE, so before `_string_table_restored` existed, importing
+    and calling `main()` from a test poisoned every later test in the same
+    xdist worker.
+
+    That is not hypothetical — it turned CI's `core` shard red while Windows
+    stayed green: this module exported, and `test_strings_data`'s
+    fallback-equals-fixture pin (also `core`) then compared the LIVE value
+    against its fixture and reported a drift that did not exist. Whether it
+    fired depended only on which files shared a worker.
+
+    Asserted by VALUE, not by "the export ran" — the failure mode is a silent
+    mutation, so the test has to look at the table itself.
+    """
+
+    def test_the_string_table_is_identical_afterwards(self):
+        before = dict(_strings._STRINGS)
+        with tempfile.TemporaryDirectory() as tmp:
+            export_main(data_root=None, output_dir=tmp)
+        self.assertEqual(
+            _strings._STRINGS, before,
+            "the exporter leaked its configure_strings into the process; see "
+            "tools/export_ui_layouts._string_table_restored")
