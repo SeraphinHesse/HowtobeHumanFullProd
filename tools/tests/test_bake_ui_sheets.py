@@ -20,6 +20,7 @@ from PIL import Image
 
 from engine import data_io
 from tools.bake_ui_sheets import bake
+from tools.tests.temp_data import DataDirCase
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -49,15 +50,13 @@ _BUTTON_TYPE_SLOTS = (
 _FRAME = 64
 
 
-class TestBakeUISheets(unittest.TestCase):
-    def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.data_dir = Path(tmp.name) / "data"
-        shutil.copytree(REPO / "data", self.data_dir)
-        history_dir = self.data_dir / "balancing_history"
-        if history_dir.exists():
-            shutil.rmtree(history_dir)
+class TestBakeUISheets(DataDirCase):
+    """DataDirCase gives the tempdir data/ copy (and the balancing_history
+    prune) — this class had duplicated both by hand.
+
+    The pruned template keeps every PNG's real bytes; only audio/video are
+    stood in as empty files. This suite decodes the real
+    imported/main_menu_bg.png, so it needs no FULL_ASSETS."""
 
     def _manifest(self):
         return data_io.load_json(

@@ -461,4 +461,7 @@ full-map `sync_occupancy`). Detail → `game/PERF.md`.
 ## Verify
 Headless test upgrades both lines to tier max asserting hp/dmg/yield per REPLAN
 tables at every step; live: both animate on tiles.
-`py -m unittest discover -s tools/tests -t .` + `py game/main.py`.
+`py -m pytest tools/tests/test_<area>.py -q` + `py game/main.py`.
+
+Which tests you may run is ROLE-scoped — the role table in §"Test Suite Policy"
+(root `CLAUDE.md`) is the only authority, enforced by a `PreToolUse` hook.

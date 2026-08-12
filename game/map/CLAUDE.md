@@ -540,4 +540,7 @@ Dijkstras. Full rationale + measured numbers → `game/PERF.md`.
 ## Verify
 Unlock-chunk fixture asserts receded tiles + costs match prototype; spawn→base
 path matches prototype on identical grid:
-`py -m unittest discover -s tools/tests -t .`
+`py -m pytest tools/tests/test_<area>.py -q`
+
+Which tests you may run is ROLE-scoped — the role table in §"Test Suite Policy"
+(root `CLAUDE.md`) is the only authority, enforced by a `PreToolUse` hook.

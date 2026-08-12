@@ -1,0 +1,155 @@
+{
+  "$defs": {
+    "color": {
+      "description": "RGB or RGBA, 0-255 per channel.",
+      "items": {
+        "maximum": 255,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "maxItems": 4,
+      "minItems": 3,
+      "type": "array"
+    },
+    "item": {
+      "description": "One recorded HUD primitive. `type` selects which engine/render/hud.py dataclass it round-trips to (rect=HudRect, text=HudText, sprite=HudSprite, lines=HudLines); the remaining keys are that dataclass's fields, always emitted in full so a default changing in the engine shows up as a real diff here.",
+      "properties": {
+        "align": {
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ],
+          "type": "string"
+        },
+        "anim_time_ms": {
+          "type": "integer"
+        },
+        "animation": {
+          "type": "string"
+        },
+        "border_radius": {
+          "type": "integer"
+        },
+        "closed": {
+          "type": "boolean"
+        },
+        "color": {
+          "$ref": "#/$defs/color"
+        },
+        "dest": {
+          "$ref": "#/$defs/point"
+        },
+        "flip": {
+          "type": "boolean"
+        },
+        "font_key": {
+          "type": "string"
+        },
+        "points": {
+          "items": {
+            "$ref": "#/$defs/point"
+          },
+          "type": "array"
+        },
+        "pos": {
+          "$ref": "#/$defs/point"
+        },
+        "rect": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "size": {
+          "$ref": "#/$defs/point"
+        },
+        "slot_key": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "tint": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/color"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "type": {
+          "enum": [
+            "rect",
+            "text",
+            "sprite",
+            "lines"
+          ],
+          "type": "string"
+        },
+        "width": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "point": {
+      "items": {
+        "type": "number"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    }
+  },
+  "$id": "https://example.com/schemas/screen_previews.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "GENERATED, committed, never hand-edited: the draw list the editor's screen mode replays behind its draggable widget boxes, recorded by tools/export_ui_layouts.py driving every screen's real submit() against tools/screen_mocks.py's canned state. Keyed by screen id; building_panel additionally carries one entry per per-mode view.",
+  "patternProperties": {
+    "^[a-z][a-z0-9_]*$": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/item"
+          },
+          "type": "array"
+        },
+        "views": {
+          "additionalProperties": false,
+          "patternProperties": {
+            "^[a-z][a-z0-9_]*$": {
+              "additionalProperties": false,
+              "properties": {
+                "items": {
+                  "items": {
+                    "$ref": "#/$defs/item"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "items"
+              ],
+              "type": "object"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "type": "object"
+    }
+  },
+  "type": "object"
+}

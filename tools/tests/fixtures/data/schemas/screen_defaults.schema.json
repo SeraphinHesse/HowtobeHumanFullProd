@@ -3,7 +3,21 @@
     "widget": {
       "additionalProperties": false,
       "properties": {
+        "align": {
+          "description": "Horizontal anchor of the widget's text relative to rect[0] — recorded only when the widget carries an `align` attribute other than the 'left' default. The editor needs it to place the hit box of a POSITION-ONLY text anchor (rect w/h 0), whose drawn extent spreads left/both ways from the stored x.",
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ],
+          "type": "string"
+        },
         "display_name": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "font_key": {
+          "description": "The engine font preset (data/ui/fonts.json key) the widget draws its text at, when it carries one. Recorded so the editor can MEASURE a position-only text anchor at the right size instead of guessing 'md'.",
           "minLength": 1,
           "type": "string"
         },
@@ -21,6 +35,11 @@
         "label": {
           "type": "string"
         },
+        "parent": {
+          "description": "AUTHORING metadata only — the id of the widget in this same screen (and view) whose rect this widget's default position is computed from. The game never reads it: parenting cascades a move at EDIT time and the saved rects stay absolute. Absent means the widget is a root. A parent naming an id absent from this widgets map is treated as root by the editor, never an error.",
+          "minLength": 1,
+          "type": "string"
+        },
         "rect": {
           "items": {
             "type": "integer"
@@ -28,6 +47,13 @@
           "maxItems": 4,
           "minItems": 4,
           "type": "array"
+        },
+        "sample": {
+          "type": "string"
+        },
+        "text_id": {
+          "minLength": 1,
+          "type": "string"
         }
       },
       "required": [

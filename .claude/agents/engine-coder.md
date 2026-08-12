@@ -47,15 +47,22 @@ it as a cross-package finding — never cross the boundary yourself.
 2. Locate code via graphify, then read the pointed-at files.
 
 ## Exit gate (before reporting done)
-- **Run the MINIMAL gate. You NEVER run the full suite.** Do the least test that
-  proves your diff: `py tools/smoke.py` green + `py tools/testgate.py check
-  --affected` — **0 failures, 0 errors.** Nothing wider. The single full run is
-  owned by the orchestrator, once, after your work lands. Not you. See
-  §"Test Suite Policy" in the root CLAUDE.md. Read the `GATE INFO` line to see
-  what was actually selected, and never start a second run while one is in
-  flight.
-  The suite is green; there is no baseline and no tolerated failure. A red test
-  clearly outside your diff is a finding to report, not a rabbit hole.
+You are a SUBAGENT. Your row of the role table in §"Test Suite Policy" (root
+`CLAUDE.md`) is the whole of what you may run:
+
+```bash
+py tools/smoke.py                              # always
+py -m pytest tools/tests/test_<file>.py -q     # the files your diff touches
+```
+
+**Never the full suite, never `testgate check`, never a tier sweep, and not
+`--affected` either** (it runs the whole core tier as its safety pass — that is
+the orchestrator's call). A `PreToolUse` hook denies all of these. Run each
+target ONCE: if you have edited nothing since, the result cannot have changed,
+and the hook denies the repeat. Never start a second run while one is in flight.
+
+The suite is green; there is no baseline and no tolerated failure. A red test
+clearly outside your diff is a finding to report, not a rabbit hole.
 
 ## Report format
 Changed files; exit-gate results; blast radius checked; any subsystem doc
