@@ -90,6 +90,24 @@ dimension is **>= 12 logical px**, its static label fits in `w - 4`, and the
 button is at least `layout_h(font_key)` tall. Filter on the `kind` from the ids
 PAIR, never on `type(widget)` — panels/labels/bars are not click targets.
 
+**That test measures the font the game actually SHIPS**, not whatever font
+state the process happens to be in. `data/ui/active_font.json` boots
+`pixel_emulator`, which is wider per glyph than the `SysFont("monospace")`
+metrics every pixel constant in this package was authored against, so the two
+disagree — and while the test measured the fallback, twelve static labels
+overhung their buttons in game with the suite green. It now resolves the
+active face exactly as `game/main.py` does and installs it in `setUpModule`,
+restoring `engine.render.fonts`'s globals in `tearDownModule` (the
+`test_theme_data.py` no-leak rule). **So the rule for new UI copy is: measure
+it at the shipped face.** The two fixes that pass this check are (1) shorter
+copy and (2) a smaller font for that ONE widget — never a change to
+`data/ui/fonts.json`, whose presets are global and must not move. The twelve
+were fixed that way: copy for nine (e.g. `RETURN TO MENU`/`QUIT TO MENU` ->
+`MAIN MENU`, `HEATMAP` -> `HEAT`, `TIER OVERVIEW` -> `TIERS`, `DRAG SEL` ->
+`DRAG`), a per-widget `lg` -> `md` for the three with no words left to cut
+(`hud.btn_end_turn`, `main_menu`'s SET gear, and the preview modals'
+CONFIRM/CANCEL row via `building_ui._PREVIEW_BTN_FONT`). No rect grew.
+
 Controls between 12 and 16px are **printed as a non-blocking lint, never
 asserted.** `SCALED` preserves physical screen area (12 logical px == 24
 physical px at the 2x reference monitor), so a small control does not actually
@@ -735,11 +753,16 @@ deliberately unlisted, prototype-exact); the tooltip draws last/on top.
 `effective_range_tiles()` when present (mountain +1); the RANGE overlay stays
 raw.
 
-## TIER OVERVIEW pill (`btn_tier_overview`)
+## TIERS pill (`btn_tier_overview`)
 The third `MapOverlays` toggle pill, added after 10I, sitting beside RANGE
-(x=6, 41 wide) and HEATMAP (x=51, 41 wide) at **x=96** (69 wide — "TIER
-OVERVIEW" is 13 characters, ~65px at `sm`, so it needs a wider pill than its
-two neighbours; same 4px gap) on the same `view_h - 36` row. Active ⇒ every PLAYER-BUILT building's tile gets one
+(x=6) and HEAT (x=51) at **x=96** on the same `view_h - 36` row. **All three
+pills are 41 wide**, same 4px gap, which is what makes them read as one
+control group. Its label was `"TIER OVERVIEW"` in a specially-widened 69→76px
+pill until the label-fit check started measuring the shipped face (above):
+that copy needs 89px there, so it became `"TIERS"` (36px) and the pill came
+back down to the shared 41. The **widget id is unchanged** —
+`btn_tier_overview` is the on-disk contract in
+`data/ui/screens/overlays.json`. Active ⇒ every PLAYER-BUILT building's tile gets one
 alpha-filled diamond tinted by its current IN-TIER level.
 - **No mutual exclusion, anywhere.** `show_tier_overview` is a plain third
   flag beside `show_range`/`show_heatmap`, and `submit()` runs its pass as an
@@ -1779,4 +1802,7 @@ trigger call sites in `main.py`, never unified into one state machine:
 Live mouse-only loop — unlock, build both types, upgrade to tier 2, lose → game
 over screen; cold `py game/main.py`: cutscene → menu → rounds → pause/settings →
 add name → credits. Purity test in the suite:
-`py -m unittest discover -s tools/tests -t .`.
+`py -m pytest tools/tests/test_<area>.py -q`.
+
+Which tests you may run is ROLE-scoped — the role table in §"Test Suite Policy"
+(root `CLAUDE.md`) is the only authority, enforced by a `PreToolUse` hook.

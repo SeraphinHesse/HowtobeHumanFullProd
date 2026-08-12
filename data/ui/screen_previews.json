@@ -185,7 +185,7 @@
           257,
           219
         ],
-        "text": "ADD NAME",
+        "text": "ADD",
         "type": "text"
       },
       {
@@ -3098,10 +3098,10 @@
               225,
               195
             ],
-            "font_key": "lg",
+            "font_key": "md",
             "pos": [
               362,
-              232
+              233
             ],
             "text": "CONFIRM",
             "type": "text"
@@ -3145,10 +3145,10 @@
               225,
               195
             ],
-            "font_key": "lg",
+            "font_key": "md",
             "pos": [
               278,
-              232
+              233
             ],
             "text": "CANCEL",
             "type": "text"
@@ -4524,7 +4524,7 @@
           320,
           184
         ],
-        "text": "Unlock All Tech",
+        "text": "Unlock Tech",
         "type": "text"
       },
       {
@@ -4696,7 +4696,7 @@
           345,
           228
         ],
-        "text": "Go to Round",
+        "text": "Round",
         "type": "text"
       }
     ]
@@ -5255,7 +5255,7 @@
           320,
           239
         ],
-        "text": "RETURN TO MENU",
+        "text": "MAIN MENU",
         "type": "text"
       }
     ]
@@ -5587,10 +5587,10 @@
           225,
           195
         ],
-        "font_key": "lg",
+        "font_key": "md",
         "pos": [
           592,
-          329
+          330
         ],
         "text": "END TURN",
         "type": "text"
@@ -5843,7 +5843,7 @@
           28,
           94
         ],
-        "text": "DRAG SEL",
+        "text": "DRAG",
         "type": "text"
       }
     ]
@@ -6588,10 +6588,10 @@
           225,
           195
         ],
-        "font_key": "lg",
+        "font_key": "md",
         "pos": [
           420,
-          185
+          186
         ],
         "text": "SET",
         "type": "text"
@@ -6691,7 +6691,7 @@
           71,
           325
         ],
-        "text": "HEATMAP",
+        "text": "HEAT",
         "type": "text"
       },
       {
@@ -6704,7 +6704,7 @@
         "rect": [
           96,
           324,
-          69,
+          41,
           13
         ],
         "type": "rect",
@@ -6720,7 +6720,7 @@
         "rect": [
           96,
           324,
-          69,
+          41,
           13
         ],
         "type": "rect",
@@ -6735,10 +6735,10 @@
         ],
         "font_key": "sm",
         "pos": [
-          130,
+          116,
           325
         ],
-        "text": "TIER OVERVIEW",
+        "text": "TIERS",
         "type": "text"
       }
     ]
@@ -6947,7 +6947,7 @@
           320,
           204
         ],
-        "text": "QUIT TO MENU",
+        "text": "MAIN MENU",
         "type": "text"
       },
       {
