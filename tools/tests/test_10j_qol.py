@@ -19,7 +19,7 @@ from game.core import Session, load_balance
 from game.core import levelup as lv
 from game.enemies import Spawner
 from game.map.tile_map import TileMap
-from game.map.tiles import TileState
+from game.map.tiles import TileCondition, TileState
 from game.ui.building_ui import BuildingUI
 from game.ui.effects import FloaterManager
 from game.ui.game_log import GameLog, LIFETIME, MAX_MESSAGES
@@ -612,6 +612,27 @@ class TestLifeLostBanner(unittest.TestCase):
 
         fm.spawn_boss_events(_S)
         self.assertIsNone(fm._life_lost_age)
+
+
+class TestTerrainConditionTooltip(unittest.TestCase):
+    """Tile Condition Rework: the terrain badge's hover tooltip
+    (``_tile_cond_effect_lines``) must say "Unbuildable tile" for Pond,
+    never fall through to the generic "No terrain effect" a condition with
+    no modifiers otherwise gets."""
+
+    def test_pond_says_unbuildable(self):
+        _tm, _scene, _occupancy, session = make_world()
+        panel = make_panel()
+        panel._session = session
+        self.assertEqual(panel._tile_cond_effect_lines(TileCondition.POND),
+                         ["Unbuildable tile"])
+
+    def test_grass_is_still_no_terrain_effect(self):
+        _tm, _scene, _occupancy, session = make_world()
+        panel = make_panel()
+        panel._session = session
+        self.assertEqual(panel._tile_cond_effect_lines(TileCondition.GRASS),
+                         ["No terrain effect"])
 
 
 if __name__ == "__main__":
