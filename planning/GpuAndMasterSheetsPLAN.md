@@ -1,4 +1,4 @@
-<!-- status: NOT STARTED — phases G0–G4 then M1–M5 -->
+<!-- status: IN PROGRESS — G0 done; G1–G4 then M1–M5 remain -->
 
 # GpuAndMasterSheetsPLAN.md — GPU render backend, then master spritesheets
 
@@ -184,7 +184,7 @@ store cache contract, E-37 tolerance split), `editor/panels/CLAUDE.md`
 
 | Phase | Scope | Package | Depends on | Status |
 |-------|-------|---------|-----------|--------|
-| G0 | Measure the real render cost (no engine changes) | tools/game | — | not started |
+| G0 | Measure the real render cost (no engine changes) | tools/game | — | **DONE** — verdict in §6/G0: blit throughput dominates (84–97% of frame); Part A proceeds unchanged |
 | G1 | Backend seam + headless-renderer feasibility probe | engine | G0 verdict | not started |
 | G2 | `backend_gpu.py` — world sprites, overlays, texture cache | engine | G1 | not started |
 | G3 | Ground cache on the GPU path | engine | G2 | not started |
@@ -260,6 +260,97 @@ default.
 document, naming the dominant cost. **If the dominant cost is not blit
 throughput, stop and re-scope Part A with the user before G1.** Every later
 phase states its target against these numbers.
+
+#### G0 RESULTS (measured 2026-08-12, `phase-G1-umbrella`)
+
+Harness: `tools/profile_render.py` (new, committed — deterministic: fixed map
+file, seeded sprite placement, fixed serpentine pan, 300 measured frames after
+30 discarded warm-up frames). Machine: pygame-ce 2.5.7 / SDL 2.32.10, Python
+3.13.2, Windows 11, real `pygame.SCALED` window at `display.json`'s size.
+
+**`game/main.py` was NOT modified.** The per-frame timing split this phase was
+scoped to add **already exists** (`game/main.py:1690-1704`, documented as the
+"Frame-timing HUD" in `game/PERF.md:154-157`): windowed runs already print
+`sim/submit/flush/flip` mean ms beside the fps line, gated on `tune_gc` so
+headless stays silent. Widening it was judged unnecessary once the harness
+isolated the answer, and leaving the host untouched is strictly safer. The one
+split the existing instrumentation cannot make is HUD-draw vs world-draw (both
+land inside its `flush` bucket) — see the caveat below.
+
+All times in **ms, mean / p95 per frame.** `ground` = `GroundCache.ensure` +
+`blit`; `submit` = tile emit + `Renderer.submit`; `flush` = `Renderer.flush`
+(the backend's blits); `flip` = `display.flip` (the SCALED upscale).
+
+| Map | Zoom | Camera | Sprites | ground | submit | **flush** | flip | frame | fps |
+|---|---|---|---|---|---|---|---|---|---|
+| first_light 20² | 1.0 | static | 160 | 0.20 / 0.33 | 0.07 / 0.10 | **10.56 / 14.34** | 0.82 / 1.03 | 11.65 / 15.56 | 86 |
+| first_light 20² | 1.0 | panning | 160 | 0.59 / 0.95 | 0.05 / 0.07 | **10.07 / 12.92** | 0.61 / 0.77 | 11.32 / 14.33 | 88 |
+| first_light 20² | 2.0 | static | 160 | 0.19 / 0.30 | 0.06 / 0.08 | **7.08 / 7.94** | 0.59 / 0.78 | 7.91 / 8.90 | 126 |
+| first_light 20² | 2.0 | panning | 160 | 1.25 / 1.55 | 0.05 / 0.07 | **9.74 / 12.45** | 0.59 / 0.76 | 11.64 / 14.60 | 86 |
+| first_light 20² | 1.0 | static | 1016 | 0.20 / 0.33 | 0.23 / 0.40 | **63.02 / 101.03** | 0.87 / 1.22 | 64.32 / 103.51 | 15.5 |
+| first_light 20² | 1.0 | panning | 1016 | 0.66 / 1.06 | 0.21 / 0.33 | **61.09 / 71.84** | 0.81 / 1.05 | 62.76 / 73.43 | 15.9 |
+| first_light 20² | 2.0 | static | 1016 | 0.24 / 0.53 | 0.31 / 0.93 | **79.87 / 199.01** | 1.12 / 2.53 | 81.54 / 201.08 | 12.3 |
+| first_light 20² | 2.0 | panning | 1016 | 1.59 / 3.22 | 0.27 / 0.57 | **80.95 / 124.49** | 0.98 / 1.48 | 83.79 / 129.01 | 11.9 |
+| holex 1024² | 1.0 | static | 1016 | 0.21 / 0.32 | 0.24 / 0.40 | **14.72 / 19.45** | 0.91 / 1.39 | 16.08 / 21.51 | 62 |
+| holex 1024² | 1.0 | panning | 1016 | 2.68 / 4.80 | 0.24 / 0.56 | **13.51 / 17.40** | 0.83 / 1.21 | 17.27 / 23.94 | 58 |
+| holex 1024² | 2.0 | static | 1016 | 0.22 / 0.35 | 0.28 / 0.51 | **17.66 / 25.73** | 1.06 / 1.82 | 19.23 / 27.66 | 52 |
+| holex 1024² | 2.0 | panning | 1016 | 5.02 / 10.64 | 0.75 / 1.46 | **33.44 / 65.33** | 1.86 / 3.80 | 41.06 / 76.25 | 24 |
+
+The 1016-sprite cases are the **era-4 boss round** — `data/balancing/
+enemies.json`'s `EnemyTypes.Boss.round_counts` era 4 spawns 976 enemies
+(215 raiders + 700 regular + 61 siege); era 2 is 436. The 160-sprite cases are
+a mid-game reference. `first_light` (20×20) is the worst case *because* it is
+small: every sprite is on screen. On `holex` (1024²) the same 1016 sprites
+scatter far beyond the viewport, which is why its `flush` is 4× cheaper — that
+column is measuring how many sprites actually land on screen, not map size.
+
+**Asset store, warm** (`py tools/profile_render.py --warm-store`, every one of
+the 278 manifest slots resolved):
+
+| Metric | Value |
+|---|---|
+| Manifest entries | 278 |
+| Sheet Surfaces held | 274 |
+| Distinct source PNGs | 194 |
+| **Duplicate Surfaces** | **80** |
+| Sheet pixel memory | 94.7 MB |
+| **Of which duplicate decode** | **58.3 MB (62%)** |
+| Process RSS, cold → warm | 83 MB → 179 MB |
+
+**Verdict: the dominant cost IS blit throughput, and Part A proceeds
+unchanged.** `Renderer.flush` is **84–97% of every frame measured**, in every
+map / zoom / camera combination — 61–81 ms of a 63–84 ms frame at the era-4
+boss load, which is 12–16 fps and exactly the frame-rate complaint that
+motivated this plan. The three alternative hypotheses D9 named are all
+measured and all dead: per-frame Python in the submit loop is **0.05–0.75 ms**
+(under 1% of a frame, and it barely grows from 160 to 1016 sprites, so the
+depth sort and `DrawCall` construction are not the problem); `display.flip`'s
+SCALED upscale is **0.6–1.9 ms**; and the ground cache is **0.2–5.0 ms**, real
+but second-order — its cost tracks pan speed and map size exactly as
+`game/PERF.md` claims, peaking at 5.02 / 10.64 ms only in the 1024²-panning-
+at-max-zoom corner. So G2's Texture backend targets the one bucket that
+matters, and G3's ground-cache port is correctly ordered *after* it and
+correctly scoped as a smaller win. Independently, the warm-store table gives
+**M2 its own hard justification**: 80 of 274 sheet Surfaces are duplicate
+decodes of a PNG another slot already loaded, costing **58.3 MB** — 62% of all
+sheet pixel memory — before a single master sheet exists, and that number only
+grows once ten slots share one master PNG.
+
+**Two honest caveats on these numbers.**
+1. **The harness measures the render stack, not a live `Session`.** It builds
+   the same map doc / `AssetStore` / `Renderer` / `GroundCache` / SCALED window
+   `game/main.py` builds, then drives a fixed sprite population instead of real
+   `Enemy` objects — deliberate, because a fixed population is the only way two
+   runs compare, and a sprite's blit cost does not depend on what produced its
+   `RenderItem`. Simulation cost is therefore **not** in this table;
+   `game/main.py`'s own `sim` bucket measures that on real hardware.
+2. **The HUD pass is not broken out.** Its submit lands in the harness's
+   `submit` bucket only for world items, and in the real host its draw is
+   inside `flush` — no instrumentation separates HUD-draw from world-draw
+   today. The HUD is a few dozen items a frame against 1016 world sprites, so
+   it cannot plausibly be the dominant cost, but that is **inferred, not
+   measured**, and it is the one number a live late-round `py game/main.py`
+   run should confirm before G4 re-takes these measurements.
 
 ### Phase G1 — Backend seam + feasibility probe
 
