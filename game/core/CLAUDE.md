@@ -431,12 +431,20 @@ in `game/ui/CLAUDE.md`.
   is DELETED — there is one clock, in `EnemyScaling`, and no round arithmetic is
   written out here. `_begin_round_end` queues
   `pending_boss_cutscene = {boss_num, outcome}` (outcome = lives vs snapshot).
-  At ROUND_END expiry the pending cutscene **beats** `levelup_pending`;
+  At ROUND_END expiry the pending cutscene **beats** a due level-up;
   `Session.frozen` covers `BOSS_CUTSCENE` exactly like LEVELUP.
   `resolve_boss_cutscene(option, scene)` applies the stack, appends
   `(boss_num, option, outcome)` to `boss_choices` (the per-run history the
   base-info popup reads; no disk persistence), then chains → LEVELUP (if
-  pending) → payday, exactly once.
+  due) → payday, exactly once.
+  - **"Due" is `Session._levelup_due()`, the ONE place the two leveling modes
+    branch** — `levelup_pending` under XP leveling, `scripted_level_due(...)`
+    under scripted leveling — and BOTH the ROUND_END arm and the boss chain
+    call it. The chain used to read `levelup_pending` directly, which is
+    never set under scripting: a scripted level authored for a boss round
+    was silently skipped, and since every later row is keyed on
+    `village_level + 1`, the run was locked out of every subsequent level-up
+    too (win or loss alike — both outcomes take the cutscene path).
 - **Death spawn handshake (layering) — GENERALISED in ER-3**: `game/core` still
   imports NO `game/enemies`. The gate is **no longer `ETYPE == "boss"`** (that
   was a G-3 violation): `on_enemy_death` duck-types `death_spawn_plan` off ANY

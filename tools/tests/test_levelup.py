@@ -1100,6 +1100,27 @@ class TestScriptedLeveling(unittest.TestCase):
         session.pre_sim(0.1, scene)
         self.assertEqual(st.phase, GamePhase.INCOME)
 
+    def test_a_boss_round_still_pays_its_scripted_levelup(self):
+        """A boss cutscene DEFERS the level-up, it must not eat it.
+
+        The chain used to read `levelup_pending`, which is never set under
+        scripting — so a scripted level authored for a boss round was skipped,
+        and with village_level stuck every LATER row (keyed on
+        `village_level + 1`) was skipped too. Win or loss, both outcomes take
+        this same path."""
+        for outcome in ("win", "loss"):
+            with self.subTest(outcome=outcome):
+                session, _tm, scene, _occ = make_session(
+                    rng=NoShuffle, progression=scripted_progression({1: 0, 2: 5}))
+                st = session.state
+                st.phase, st.phase_timer, st.round_num = (
+                    GamePhase.ROUND_END, 0.0, 5)
+                st.pending_boss_cutscene = {"boss_num": 1, "outcome": outcome}
+                session.pre_sim(0.1, scene)
+                self.assertEqual(st.phase, GamePhase.BOSS_CUTSCENE)
+                session.resolve_boss_cutscene("A", scene)
+                self.assertEqual(st.phase, GamePhase.LEVELUP)
+
 
 class TestExactOfferSlots(unittest.TestCase):
     """Timeline.exact_offer_slots: the row IS the card set."""

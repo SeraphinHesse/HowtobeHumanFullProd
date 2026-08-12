@@ -401,14 +401,10 @@ class Session:
                 # (prototype game.py:1215-1226 — 10G added the first arm).
                 if st.pending_boss_cutscene:  # -- 10G boss --
                     self._begin_boss_cutscene()
-                # Designer-scripted leveling replaces the XP trigger with the
-                # Timeline's authored round; `round_num` is still
-                # pre-increment here (payday `++`s it — see _begin_round_end),
-                # so it IS the round that just finished. The priority chain
-                # (boss cutscene -> level-up -> payday) is unchanged.
-                elif (lv.scripted_level_due(st.village_level, st.round_num,
-                                            self.progression_balance)
-                      if st.scripted_leveling else st.levelup_pending):
+                # The priority chain (boss cutscene -> level-up -> payday) is
+                # unchanged; a cutscene defers the level-up to
+                # resolve_boss_cutscene, which asks the SAME question.
+                elif self._levelup_due():
                     self._begin_levelup()
                 else:
                     run_payday(st, self.tilemap, self.core_balance,
@@ -458,6 +454,27 @@ class Session:
             self._begin_round_end()
 
     # -- LEVELUP (10A) ----------------------------------------------------
+
+    def _levelup_due(self):
+        """Is a level-up owed right now? The ONE place the two leveling modes
+        branch, so every caller asks the same question.
+
+        Under designer-scripted leveling the XP trigger is replaced by the
+        Timeline's authored round; ``round_num`` is still PRE-increment at
+        every call site (payday ``++``s it — see ``_begin_round_end``), so it
+        IS the round that just finished. Both call sites — the ROUND_END arm
+        and ``resolve_boss_cutscene``'s chain — sit before that payday.
+
+        The boss chain used to read ``levelup_pending`` directly, which is
+        never set under scripting: a boss round that also carried a scripted
+        level-up silently skipped it, and since every later row is keyed on
+        ``village_level + 1``, the run was locked out of EVERY subsequent
+        level-up too."""
+        st = self.state
+        if st.scripted_leveling:
+            return lv.scripted_level_due(st.village_level, st.round_num,
+                                         self.progression_balance)
+        return st.levelup_pending
 
     def _begin_levelup(self, run_income=True, return_phase=None):
         """Open the modal window on the rolled options (prototype
@@ -544,7 +561,7 @@ class Session:
         if self.debug is not None:
             self.debug.emit(dbg.BOSS_CHOICE, boss_num=boss_num, option=option,
                             outcome=outcome)
-        if st.levelup_pending:
+        if self._levelup_due():
             self._begin_levelup()
         else:
             run_payday(st, self.tilemap, self.core_balance,
