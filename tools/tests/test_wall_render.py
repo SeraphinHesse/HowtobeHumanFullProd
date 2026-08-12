@@ -9,7 +9,7 @@ import unittest
 
 from game.map.tile_map import WallEdge
 from game.map.wall_render import (
-    LAYER, SIDE_OF_DELTA, edge_world_points, wall_render_items,
+    FRONT_SIDES, LAYER, SIDE_OF_DELTA, edge_world_points, wall_render_items,
 )
 
 
@@ -81,10 +81,16 @@ class TestWallRenderItems(unittest.TestCase):
         self.assertEqual(len(items), 4)
         self.assertEqual({i.animation for i in items},
                          {"edge_se", "edge_sw", "edge_nw", "edge_ne"})
+        by_animation = {it.animation: it for it in items}
         for it in items:
             self.assertEqual(it.slot_key, "wall_t2_lvl3")
-            self.assertEqual(it.layer, LAYER)
             self.assertEqual(it.world_pos, (1, 1))   # the PLAYER tile (col_a,row_a)
+            # fix/depth-sorted-world-fills: every side is the SAME layer as
+            # buildings now — depth is resolved by real position (or, for a
+            # same-tile tie, by the HOST's submission order around
+            # `FRONT_SIDES` — see game/main.py), not by a fixed layer split.
+            self.assertEqual(it.layer, LAYER)
+        self.assertEqual(FRONT_SIDES, {"edge_se", "edge_sw"})
 
     def test_slot_without_art_emits_nothing(self):
         tm = StubTileMap([edge(1, 1, 2, 1, StubOwner("wall_t3_lvl1"))])

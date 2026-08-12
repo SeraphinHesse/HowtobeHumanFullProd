@@ -54,13 +54,17 @@ VIEW_W, VIEW_H = 800, 600
 
 
 class FakeRenderer:
-    """Records every submit instead of drawing (the ``test_vfx.py`` stand-in;
-    the overlay pass only ever calls the two overlay methods)."""
+    """Records every submit instead of drawing (the ``test_vfx.py`` stand-in).
+    fix/depth-sorted-world-fills: the tile diamonds this module draws
+    (condition tint / RANGE / HEATMAP / TIER OVERVIEW) go through
+    ``submit_world_fill`` now, not the always-last overlay pass — see
+    ``engine/render/CLAUDE.md``'s "Depth-sorted world fills"."""
 
     def __init__(self):
         self.hud = []
         self.overlay_polys = []
         self.overlay_lines = []
+        self.world_fills = []
 
     def submit_hud(self, item):
         self.hud.append(item)
@@ -70,6 +74,11 @@ class FakeRenderer:
 
     def submit_overlay_lines(self, points, color, width=1, closed=False):
         self.overlay_lines.append((tuple(points), color, width, closed))
+
+    def submit_world_fill(self, points, world_pos, layer="entities",
+                          color=None, border=None, border_width=2):
+        self.world_fills.append(
+            (tuple(points), world_pos, layer, color, border, border_width))
 
 
 def synth(rows, base=(0, 0)):
@@ -101,9 +110,11 @@ def _center(btn):
 
 def tier_polys(renderer):
     """``{(col, row): rgba}`` for every recorded diamond, keyed by its
-    top-left world point (``submit_tile_diamond_fill`` emits
-    ``[(c, r), (c+1, r), (c+1, r+1), (c, r+1)]``)."""
-    return {pts[0]: color for pts, color in renderer.overlay_polys}
+    ``world_pos`` (fix/depth-sorted-world-fills: ``submit_tile_diamond_fill``
+    passes ``world_pos=(col, row)``, the SAME anchor a building's own
+    ``Transform`` uses)."""
+    return {wp: color for _pts, wp, _layer, color, _border, _bw
+            in renderer.world_fills}
 
 
 # ---------------------------------------------------------------------------
@@ -167,7 +178,7 @@ class TestTierOverviewSubmit(unittest.TestCase):
         place(tm, 1, 0)
         r = FakeRenderer()
         MapOverlays(VIEW_W, VIEW_H).submit(r, tm, None, full_window(tm))
-        self.assertEqual(r.overlay_polys, [])
+        self.assertEqual(r.world_fills, [])
 
     def test_one_diamond_per_building_with_the_matching_level_colour(self):
         tm = synth(["bbbbbb"])
@@ -268,7 +279,7 @@ class TestTierOverviewSubmit(unittest.TestCase):
         mo.show_tier_overview = True
         r = FakeRenderer()
         mo.submit(r, tm, None, full_window(tm))
-        self.assertEqual(r.overlay_polys, [])
+        self.assertEqual(r.world_fills, [])
 
     def test_tier_overview_composes_with_the_range_overlay(self):
         """Both on = both passes run; the tier diamond is drawn LAST, so it
@@ -281,7 +292,7 @@ class TestTierOverviewSubmit(unittest.TestCase):
         r = FakeRenderer()
         mo.submit(r, tm, None, full_window(tm))
         tier_rgba = _level_color(1) + (_TIER_OVERVIEW_ALPHA,)  # fresh placement = level 1
-        colors = [c for _pts, c in r.overlay_polys]
+        colors = [color for _pts, _wp, _layer, color, _border, _bw in r.world_fills]
         self.assertIn(widgets.C_RANGE_HIGHLIGHT + (55,), colors)
         self.assertEqual(colors[-1], tier_rgba)
         self.assertEqual(colors.count(tier_rgba), 1)

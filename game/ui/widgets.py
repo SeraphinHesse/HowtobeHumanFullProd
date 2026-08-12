@@ -280,22 +280,27 @@ def submit_label(renderer, holder, *, text=None, color=None, align=None, **fmt):
 
 def submit_tile_diamond(renderer, col, row, color, width=2):
     """A world-space diamond outline around tile ``(col, row)`` — a selection /
-    range / unlock highlight. Uses the overlay pass (world points, converted via
-    coords at flush), the natural fit for iso tile outlines."""
+    range / unlock highlight. fix/depth-sorted-world-fills: goes through
+    ``Renderer.submit_world_fill`` (world_pos=(col, row), the same anchor a
+    building's own ``Transform`` uses), NOT ``submit_overlay_lines`` — this
+    sorts into the SAME depth queue as buildings, so it can draw BEHIND a
+    building standing on/near this tile instead of always on top of every
+    sprite (see ``engine/render/CLAUDE.md``'s "Depth-sorted world fills")."""
     pts = [(col, row), (col + 1, row), (col + 1, row + 1), (col, row + 1)]
-    renderer.submit_overlay_lines(pts, color, width=width, closed=True)
+    renderer.submit_world_fill(pts, world_pos=(col, row), border=color,
+                               border_width=width)
 
 
 def submit_tile_diamond_fill(renderer, col, row, rgba, border=None,
                              border_width=2):
-    """An alpha-FILLED world-space tile diamond (10J overlay alpha) with an
-    optional outline — the prototype's SRCALPHA tile overlays (condition tint,
-    RANGE, heatmap)."""
+    """An alpha-FILLED world-space tile diamond with an optional outline —
+    the prototype's SRCALPHA tile overlays (condition tint, RANGE, heatmap,
+    tier overview). fix/depth-sorted-world-fills: same
+    ``Renderer.submit_world_fill`` mechanism as ``submit_tile_diamond`` above
+    — draws behind a building on/near this tile instead of always on top."""
     pts = [(col, row), (col + 1, row), (col + 1, row + 1), (col, row + 1)]
-    renderer.submit_overlay_polys(pts, rgba)
-    if border is not None:
-        renderer.submit_overlay_lines(pts, border, width=border_width,
-                                      closed=True)
+    renderer.submit_world_fill(pts, world_pos=(col, row), color=rgba,
+                               border=border, border_width=border_width)
 
 
 def submit_ui_box_highlight(renderer, rect, color=None, width=3):

@@ -383,16 +383,40 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   `wall_slot()`), same as it already duck-types occupants.
   - **`wall_render.py` is the ONE wall-art emitter** (pure, the `conditions.py`
     sibling): `wall_render_items(tile_map, col_min, col_max, row_min, row_max,
-    art_slots, anim_time_ms)` → `RenderItem`s on the **`terrain`** layer, one per
-    EDGE, positioned on the PLAYER tile (`(edge.col_a, edge.row_a)` — both
-    `place_walls_for_builder` and the `rebuild_walls` snapshot store the player
-    tile first; `_wall_key` normalises only the dict KEY, never the dataclass
-    fields). Slot = `edge.owner.wall_slot()` (duck-typed); animation row =
+    art_slots, anim_time_ms)` → `RenderItem`s, one per EDGE, positioned on the
+    PLAYER tile (`(edge.col_a, edge.row_a)` — both `place_walls_for_builder`
+    and the `rebuild_walls` snapshot store the player tile first; `_wall_key`
+    normalises only the dict KEY, never the dataclass fields). Slot =
+    `edge.owner.wall_slot()` (duck-typed); animation row =
     `SIDE_OF_DELTA[(dcol, drow)]`, the `walls` category's four
     `edge_se`/`edge_sw`/`edge_nw`/`edge_ne` rows. Same E-37 `art_slots` gating
     as condition art — an un-imported wall tier emits NOTHING, never a grey X.
     Several edges on one tile emit several items (different animation rows of
     the SAME slot) — a corner tile really is walled on two sides.
+    - **The draw LAYER is a SINGLE constant, `"entities"` — the same layer
+      buildings use (fix/depth-sorted-world-fills, supersedes an earlier
+      per-side `deco`/`terrain` split that only approximated correct depth —
+      see `wall_render.py`'s module docstring for why that version was a
+      real bug: a back-facing wall segment that was actually NEARER the
+      camera than some building elsewhere still drew behind it,
+      unconditionally, because the renderer sorts by layer first).** Putting
+      every wall on `entities` makes it sort by the SAME `wx+wy`/`wy` iso
+      depth rule two buildings already sort by — real per-tile depth against
+      ANY building anywhere, no special-casing, because walls already use
+      the exact anchor point (`(edge.col_a, edge.row_a)`) a building's own
+      `Transform` uses (`game/buildings/building.py`).
+      **The one thing real position can't resolve is a wall and a building
+      on the SAME tile** — an exact depth-sort tie, resolved by SUBMISSION
+      ORDER (Python's stable sort), which is a HOST concern:
+      `game/main.py` submits the two far sides (`edge_nw`/`edge_ne`) BEFORE
+      `world.scene.render_items()` (a same-tile building draws on top of its
+      own back wall) and the two near sides (`edge_se`/`edge_sw`,
+      `wall_render.FRONT_SIDES` — a PUBLIC constant for exactly this) AFTER
+      it (a same-tile building draws BEHIND its own near wall — a fence in
+      front of a house). See `game/CLAUDE.md`'s host-wiring section for the
+      exact call sites, and `engine/render/CLAUDE.md`'s "Depth-sorted world
+      fills" for the underlying mechanism (`Renderer.submit_world_fill`,
+      also used by every tile-highlight overlay).
     **Wall-era-art feature**: it tries the owner's optional
     `edge.owner.wall_era_slot()` FIRST (the frozen era-stamped key —
     `game/buildings/structure.py`/`game/core/wall_era.py`) and falls back to

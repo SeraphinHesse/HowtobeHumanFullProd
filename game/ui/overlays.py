@@ -30,9 +30,11 @@ diff:
   component-presence check alone would tint it.
 
 Since the 10J FX sweep the overlays are alpha-FILLED diamonds with the
-prototype's exact alphas (tint fill 70 / border 140, RANGE fill 55, heatmap
-fill 50+130·t) via ``submit_overlay_polys``; outlines remain only where the
-prototype drew them.
+prototype's exact alphas (tint fill 70 / border 140, RANGE fill 55; heatmap
+fill was the prototype's 50+130·t and is now 50+70·t, fix/highlight-render-
+order, so the hottest tiles stay visibly see-through once overlays draw
+behind buildings) via ``submit_overlay_polys``; outlines remain only where
+the prototype drew them.
 
 Cost profile (large-map invariant): O(viewport) tint + O(defenders·r²)
 coverage + O(visited tiles) heatmap — never a full-map per-frame scan.
@@ -106,9 +108,10 @@ def _level_color(level_in_tier):
 
 def heat_color(t):
     """The prototype's blue→yellow→red heat ramp (``hud.py:452-465``) WITH its
-    alpha (10J): t=0 → (0,100,200,50), t=0.5 → (255,255,0,115),
-    t=1 → (255,0,0,180)."""
-    a = int(50 + 130 * t)
+    alpha (10J, capped lower by fix/highlight-render-order so hot tiles stay
+    see-through under buildings): t=0 → (0,100,200,50), t=0.5 →
+    (255,255,0,85), t=1 → (255,0,0,120)."""
+    a = int(50 + 70 * t)
     if t < 0.5:
         return (int(255 * 2 * t), int(100 + 155 * 2 * t),
                 int(200 - 200 * 2 * t), a)
