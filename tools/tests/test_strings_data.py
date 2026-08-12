@@ -62,6 +62,7 @@ _FIXTURE_STRINGS = {
     "building.construct.title": "BUILD",
     "building.flash.cannot_move": "CANNOT MOVE THERE",
     "building.flash.not_enough_love": "NOT ENOUGH LOVE",
+    "building.flash.painter_tile_used": "ALREADY PAINTED HERE",
     "building.hint.research": "Research it on levelup",
     "building.hint.tier_locked": "Unlocks at round {round}",
     "building.hint.tier_unoffered": "Not yet offered",

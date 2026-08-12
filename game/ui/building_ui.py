@@ -69,7 +69,8 @@ from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .strings import T
 from .widgets import (
     Button, anim_ms, contains, label_holder, submit_label, submit_panel,
-    submit_tile_diamond, submit_text, text_h, text_size
+    submit_tile_diamond, submit_tile_diamond_fill, submit_text, text_h,
+    text_size
 )
 from . import widgets
 
@@ -124,6 +125,10 @@ _CARD_PRICE_H = 14
 _CARD_ICON = 10            # love icon side, inside the price button
 _CARD_LIST_TOP = 32        # first card's y at scroll offset 0
 _CARD_LIST_BOTTOM_PAD = 30 # clearance for the terrain badge at the panel foot
+# Construct-panel-only grey fill alpha for a tile already barred from hosting
+# another Painter (widgets.C_PAINTER_USED) — same alpha-tuple pattern as
+# overlays.py's _TIER_OVERVIEW_ALPHA.
+_PAINTER_USED_ALPHA = 130
 # The price pill carries its OWN skin rather than inheriting the card body's
 # `defaults.button_skin`: the body is a full-card 9-slice, and stretching that
 # same art through a 74x14 pill reads as a squashed card. Baked here for the
@@ -263,7 +268,8 @@ def _building_stats(b):
     if hasattr(b, "payout_amount"):     # painter — risky economy (no yield)
         rows.append(("progress", f"{b.progress}/{b.rounds_to_payout()}"))
         rows.append(("payout", f"{b.payout_amount()}"))
-        rows.append(("pays_in", f"{b.rounds_to_payout()} rounds"))
+        remaining = max(0, b.rounds_to_payout() - b.progress)
+        rows.append(("pays_in", f"{remaining} rounds"))
     elif hasattr(b, "streak_max"):      # meditator — compounding economy
         rows.append(("yield", b.yield_amount()))  # pure (no streak advance)
         rows.append(("streak", f"{b.streak}/{b.streak_max()}"))
@@ -677,6 +683,7 @@ class BuildingUI:
         self._buildings_balance = None
         self._highlight_tiles = []
         self._highlight_edges = []
+        self._painter_used_tiles = []
         self._hover_cost = None
         self._action_cost = 0
         self._clock = 0.0  # 10L-A: one anim clock per screen
@@ -881,6 +888,7 @@ class BuildingUI:
         self._upgrade_hint = None
         self._highlight_tiles = []
         self._highlight_edges = []
+        self._painter_used_tiles = []
         self._hover_cost = None
         self.cards = []
         self._card_parts = {}
@@ -1182,6 +1190,20 @@ class BuildingUI:
                 skin=self._card_portrait_slot(btype, tier_idx), visible=True)
             price = Button((col_x, y + _CARD_PRICE_TOP, col_w, _CARD_PRICE_H),
                            "", "sm", skin=_CARD_PRICE_SKIN)
+            # Painter, every selected tile already barred (`used_painter_tiles`):
+            # disable the card outright rather than let the player click through
+            # to a preview that can only fail. A MIXED batch (some barred, some
+            # fresh) stays enabled — placement already skips only the barred
+            # tiles and builds on the rest (`_do_place`), so disabling here
+            # would block placements that would actually succeed. Both click
+            # targets are disabled since `price_is_click_target` picks which
+            # one is live.
+            if (btype == "painter" and self.selected_tiles
+                    and all((t.col, t.row) in
+                            getattr(state, "used_painter_tiles", ())
+                            for t in self.selected_tiles)):
+                btn.enabled = False
+                price.enabled = False
             icon = SimpleNamespace(
                 rect=(col_x + _CARD_PAD, y + _CARD_PRICE_TOP + 2,
                       _CARD_ICON, _CARD_ICON),
@@ -1229,6 +1251,16 @@ class BuildingUI:
             y += _CARD_H + _CARD_GAP
         self._highlight_tiles = [(t.col, t.row, widgets.C_HIGHLIGHT)
                                  for t in self.selected_tiles]
+        # Grey out every BUILDABLE tile that already hosted a Painter and
+        # paid out (`state.used_painter_tiles`) — visible only while this
+        # construct panel is open, so the player understands, right when
+        # they're picking where to build, why a Painter can't go there again
+        # (`place_building`'s enforcement, `game/buildings/registry.py`).
+        tm = self._session.tilemap
+        self._painter_used_tiles = [
+            (col, row) for col, row in getattr(state, "used_painter_tiles", ())
+            if (t := tm.get(col, row)) is not None
+            and t.state == TileState.BUILDABLE]
 
     def _clear_card_ids(self):
         """Drop last build's `card_*` entries from `self.ids`.
@@ -1890,13 +1922,19 @@ class BuildingUI:
                                         T("building.flash.not_enough_love"))
             return
         placed_any = False
+        painter_blocked = True  # stays True only if EVERY tile hit the bar
         for i, tile in enumerate(self.selected_tiles or [self.tile]):
             try:
                 building, cost = place_building(
                     session.tilemap, tile, p.building_type, st.love,
                     buildings_balance, scene, occupancy, state=st)
             except PlacementError:
+                if not (p.building_type == "painter"
+                        and (tile.col, tile.row) in
+                        getattr(st, "used_painter_tiles", ())):
+                    painter_blocked = False
                 continue
+            painter_blocked = False
             st.spend_love(cost)
             st.buildings_placed += 1
             placed_any = True
@@ -1912,8 +1950,9 @@ class BuildingUI:
             if self.on_build_vfx is not None:  # 10J: sparks + gold highlight
                 self.on_build_vfx(tile.col, tile.row, "place")
         if not placed_any:
-            p.confirm_btn.start_flash(self._flash_dur,
-                                        T("building.flash.not_enough_love"))
+            msg = (T("building.flash.painter_tile_used") if painter_blocked
+                   else T("building.flash.not_enough_love"))
+            p.confirm_btn.start_flash(self._flash_dur, msg)
             return
         self.last_placed_type = p.building_type  # TU-6: signal a real placement
         self.preview = None
@@ -1943,6 +1982,10 @@ class BuildingUI:
         t = anim_ms(self._clock)
         for col, row, color in self._highlight_tiles:
             submit_tile_diamond(renderer, col, row, color)
+        for col, row in self._painter_used_tiles:
+            submit_tile_diamond_fill(
+                renderer, col, row,
+                (*widgets.C_PAINTER_USED, _PAINTER_USED_ALPHA))
         # Each selected wall builder's actual EDGES, as thick world-space
         # lines. Sits BEFORE the `visible` guard exactly like the tile
         # diamonds above it, so the two behave identically.
