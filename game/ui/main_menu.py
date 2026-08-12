@@ -80,10 +80,15 @@ _BTN_W, _BTN_H, _GAP = 160, 26, 4
 # so a click on it can never start a run by accident.
 _GEAR_ACTION = "play_debug_settings"
 _GEAR_ID = "btn_play_debug_settings"
-# UR-5: the gear widened 26 -> 30. Its "SET" label measures 24px at "lg"
-# (unhalved), leaving 1px of margin a side in a 26px button. 405 + 30 = 435,
-# still well inside the 640px surface.
+# UR-5: the gear widened 26 -> 30. 405 + 30 = 435, still well inside the 640px
+# surface. Its label is font "md", not the Button default "lg": "SET" has no
+# words left to cut and measures 31px at "lg" under the SHIPPED pixel font
+# (``data/ui/active_font.json`` -> pixel_emulator, wider per glyph than the
+# ``SysFont("monospace")`` fallback these constants were authored against),
+# i.e. 35 with the 4px label margin in a 30px button. At "md" it needs 27.
+# A per-widget drop, deliberately NOT a change to ``data/ui/fonts.json``.
 _GEAR_W, _GEAR_GAP = 30, 5
+_GEAR_FONT = "md"
 
 SCREEN_ID = "main_menu"
 
@@ -106,7 +111,8 @@ class MainMenu:
         # debug-mode-telemetry: the PLAY DEBUG gear. Laid out beside its row in
         # ``layout()``; opens the debug-log settings modal (game/ui/
         # debug_settings.py) via the shell.
-        self.debug_gear = Button((0, 0, _GEAR_W, _BTN_H), "SET")
+        self.debug_gear = Button((0, 0, _GEAR_W, _BTN_H), "SET",
+                                 font_key=_GEAR_FONT)
         self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
         # 10L-B review fix (HIGH 1): static header text. Its own copy is NOT
         # game-state, so — unlike hud.py's dynamic readouts — "label" is a

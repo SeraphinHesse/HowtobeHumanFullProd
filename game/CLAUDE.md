@@ -554,9 +554,15 @@ test vs live round vs static read).
 
 ## Verify before finishing
 ```bash
-py tools/smoke.py              # headless data validation + 5-frame boot
-py tools/testgate.py check     # the gate is ZERO failures — GATE PASS or you're not done
+py tools/smoke.py                             # headless data validation + 5-frame boot
+py -m pytest tools/tests/test_<area>.py -q    # the files your change touches
 ```
+**Which tests you may run is ROLE-scoped — the role table in §"Test Suite
+Policy" (root `CLAUDE.md`) is the only authority, and a `PreToolUse` hook
+enforces it.** A subagent stops at the two commands above. The single full
+`py tools/testgate.py check` belongs to the MAIN SESSION at handoff and is not
+yours to run from here. The gate is ZERO failures — `GATE PASS` or you're not
+done.
 Then a live `py game/main.py` round for phase/combat/UI behavior. If balance
 changed: confirm schema validation passes — and that is all. **The prototype
 parity gate is deleted** (the migration is complete), so a balance value that

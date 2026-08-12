@@ -37,7 +37,7 @@ are `buildings` / `enemies` / `map` / `ui` / `core`.
 
 ## Verify
 - `py tools/smoke.py` — schema validation over all data files.
-- `py tools/testgate.py check --affected` — if a balancing-parity or editor-form
+- `py -m pytest tools/tests/test_<area>.py -q` — if a balancing-parity or editor-form
   test covers the domain (targeted, not the full suite).
 - Optional live: `py editor/main.py`, select the domain, confirm the new field renders
   with its bounds; `py game/main.py` confirms the value takes effect.
@@ -45,3 +45,11 @@ are `buildings` / `enemies` / `map` / `ui` / `core`.
 ## Final report
 - Changed files (json + schema); the key's path + bounds; verification performed.
 - Tag every claim **measured** / **verified** / **inferred** (see `/report`).
+
+> **Role note (test policy).** The command above names the test FILES for what
+> you changed, which every role may run. `py tools/testgate.py check --affected`
+> is a MAIN-SESSION mid-task tool — its safety pass is the whole core tier — and
+> the single full `check` belongs to the main session at handoff. If you are
+> running this skill inside a dispatched agent, the `test_guard.py` hook will
+> deny both. The role table in §"Test Suite Policy" (root `CLAUDE.md`) is the
+> only authority.

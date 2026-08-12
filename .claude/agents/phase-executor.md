@@ -38,10 +38,15 @@ drive it to done. You execute plans; you never write or rewrite them.
    breakage ships.
 
 ## Exit gate
-- **Umbrella workflow — MINIMAL gate only.** `py tools/smoke.py` green +
-  `py tools/testgate.py check --affected` — **0 failures, 0 errors.** Never run
-  the full suite; the full run happens once, after this work is merged into the
-  umbrella branch, owned by whoever does that merge.
+- **You are a SUBAGENT — MINIMAL gate only.** `py tools/smoke.py` green +
+  `py -m pytest tools/tests/test_<file>.py -q` over the files your phase
+  touched — **0 failures, 0 errors.** Never the full suite, never a tier sweep,
+  and **not `--affected`** (its safety pass is the whole core tier, which is the
+  main session's call). The `test_guard.py` `PreToolUse` hook denies all three.
+  The full run happens once, after this work is merged into the umbrella branch,
+  owned by whoever does that merge. §"Test Suite Policy" in the root
+  `CLAUDE.md` is the authority.
+- **Run each target once.** Re-running an unchanged selection is denied.
 - Run the brief's in-game Quick Test and state the result.
 - **Status write-back (always):** edit the phase's entry in the plan doc —
   `*(LANDED)*` with deferrals/divergences as sub-bullets, or the honest partial/

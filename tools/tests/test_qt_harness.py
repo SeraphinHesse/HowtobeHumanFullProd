@@ -15,6 +15,7 @@ import unittest
 from pathlib import Path
 
 from tools.tests.qt_harness import APP, QtCase, destroy, live_widgets
+from tools.tests.temp_data import TempDataCase
 
 import shiboken6
 from PySide6.QtCore import QObject
@@ -59,15 +60,12 @@ class TestDestroy(unittest.TestCase):
         self.assertEqual(live_widgets(), before)
 
 
-class TestNoLeakAcrossTests(QtCase):
+class TestNoLeakAcrossTests(TempDataCase):
     """A tracked MainWindow leaves no widgets behind — run repeatedly, the
-    count must not climb. This is the quadratic, caught in miniature."""
+    count must not climb. This is the quadratic, caught in miniature.
 
-    def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.data_dir = Path(tmp.name) / "data"
-        shutil.copytree(REPO / "data", self.data_dir)
+    Uses TempDataCase rather than its own copytree: this module's job is to
+    exercise the copy machinery, so it should be driving the real thing."""
 
     def test_repeated_mainwindow_construction_does_not_accumulate(self):
         from editor.main import MainWindow

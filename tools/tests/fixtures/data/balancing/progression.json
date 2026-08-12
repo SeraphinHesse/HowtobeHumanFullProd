@@ -40,9 +40,9 @@
           },
           {
             "assignment": {
-              "building_type": "blocker",
-              "kind": "unlock",
-              "tier_index": 0
+              "building_type": "defence",
+              "kind": "tier",
+              "tier_index": 1
             }
           }
         ],
@@ -73,9 +73,9 @@
           },
           {
             "assignment": {
-              "building_type": "defence",
-              "kind": "tier",
-              "tier_index": 1
+              "building_type": "blocker",
+              "kind": "unlock",
+              "tier_index": 0
             }
           },
           {

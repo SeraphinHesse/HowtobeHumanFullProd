@@ -264,12 +264,23 @@ class TestSpriteVariants(unittest.TestCase):
                 self.assertEqual(self._slot(e), slot)
 
     def test_random_variant_picked_at_spawn(self):
-        # Era 1 has two variants; over many spawns a seeded rng yields both.
+        """Over many spawns a seeded rng yields EVERY variant of the era's
+        family, and nothing outside it.
+
+        The family is read from the registry rather than pinned. It used to be
+        the literal `{"enemy_stage_1_v1", "enemy_stage_1_v2"}`, so importing a
+        third walker variant in the editor turned this red — the exact "drop a
+        new `_v3` into the era and the pool grows with NO code change" contract
+        the feature advertises (`game/enemies/CLAUDE.md`)."""
         tm = synth(["bbs"])
+        family = set(self.REG.group_slots("enemies", ("Walker", "Era 1")))
+        self.assertGreater(len(family), 1, "era 1 must have several variants, "
+                                           "or this test proves nothing")
         rng = random.Random(1234)
+        # Enough draws that every variant is overwhelmingly likely to appear.
         seen = {self._slot(Enemy(2, 0, ENEM, tm, 0, registry=self.REG,
-                                 rng=rng)) for _ in range(50)}
-        self.assertEqual(seen, {"enemy_stage_1_v1", "enemy_stage_1_v2"})
+                                 rng=rng)) for _ in range(50 * len(family))}
+        self.assertEqual(seen, family)
 
     def test_raider_resolves_its_own_group(self):
         tm = synth(["bbs"])
@@ -389,16 +400,46 @@ class TestSpawnComposition(unittest.TestCase):
                     self.assertEqual(etypes.count("formation"),
                                      expected_count("Formation", r))
 
-    def test_formations_accrete_one_every_three_rounds(self):
-        # The proposed tuning spells out to r16 -> 1, r19 -> 2, r22 -> 3 — and
-        # r22 is the D3' fence: it only survives the era-1 -> era-2 boundary
-        # because count_start is a NUMBER (era 2 anchors at 2.666..., not 2).
-        self.assertEqual(FORM["start_round"], 16)
-        self.assertAlmostEqual(FORM["eras"][0]["count_per_round"], 1 / 3)
-        for r, n in ((15, 0), (16, 1), (19, 2), (22, 3)):
+    def test_formations_accrete_one_per_cadence_across_the_era_boundary(self):
+        """One more formation every `1 / count_per_round` rounds, unbroken.
+
+        The cadence and the first round are DERIVED, never pinned — the old
+        version spelled out "r16 -> 1, r19 -> 2, r22 -> 3" and went red the day
+        `start_round` was retuned 16 -> 18, though the accretion it tests had
+        not changed at all.
+
+        What is actually load-bearing is the D3' fence: the run has to stay on
+        cadence THROUGH an era boundary, and it only does because `count_start`
+        is a NUMBER rather than an int (era 2 anchors at 2.666..., not 2). A
+        truncating anchor would drop a step exactly there, so the sweep below
+        deliberately runs far enough to cross one."""
+        start = FORM["start_round"]
+        cpr = FORM["eras"][0]["count_per_round"]
+        cadence = round(1 / cpr)
+        self.assertAlmostEqual(cpr * cadence, 1.0)   # a whole-round cadence
+        # Nothing before the start round.
+        for r in (1, start // 2, start - 1):
             with self.subTest(round=r):
                 _sp, etypes = self._counts(r)
-                self.assertEqual(etypes.count("formation"), n)
+                self.assertEqual(etypes.count("formation"), 0)
+        # ...then exactly one more per cadence, era boundaries included.
+        # Boss rounds are skipped, not asserted against: formations never spawn
+        # on one (`_boss_round` composes from `Boss.round_counts`, which carries
+        # no formation key — see `test_formations_never_spawn_on_a_boss_round`).
+        from engine.era_math import is_boss_round
+        checked = 0
+        for k in range(8):
+            r = start + k * cadence
+            if is_boss_round(r, SCALE["rounds_per_era"],
+                             SCALE["boss_round_in_era"]):
+                continue
+            with self.subTest(round=r):
+                _sp, etypes = self._counts(r)
+                self.assertEqual(etypes.count("formation"),
+                                 expected_count("Formation", r))
+                self.assertEqual(etypes.count("formation"), k + 1)
+            checked += 1
+        self.assertGreaterEqual(checked, 4, "the sweep must actually run")
 
     def test_formations_are_body_mixed_never_queue_leading(self):
         # Siege leads the wave; a 2x2 at the head would wall the choke point
@@ -502,11 +543,27 @@ class TestSpawnComposition(unittest.TestCase):
         # ES-3/D4: `batch_size` is how many queue entries ONE timer expiry
         # releases. It changes how many spawn EVENTS a wave takes; the round's
         # total is untouched by the knob.
+        # The round is DERIVED: batching is only observable on a wave with more
+        # than one enemy in it, and the arithmetic below is only clean while the
+        # wave is walkers-only. This was hardcoded to round 1, which carried
+        # several walkers when the test was written; a later retune dropped
+        # round 1 to exactly ONE walker, making `events_1 > 1` unsatisfiable
+        # and reddening a test whose subject is the knob, not the tuning.
+        round_num = None
+        for r in range(1, 60):
+            etypes = self._counts(r)[1]
+            if len(etypes) >= 2 and set(etypes) == {"standard"}:
+                round_num = r
+                break
+        self.assertIsNotNone(
+            round_num, "no walkers-only round carries 2+ enemies — the batch "
+                       "knob cannot be observed against this balancing")
+
         def drive(batch):
             enem = copy.deepcopy(ENEM)
             enem["EnemyScaling"]["eras"][0]["batch_size"] = batch
             sp = Spawner()
-            sp.begin_round(1, self.tm, enem, rng=FakeRng())
+            sp.begin_round(round_num, self.tm, enem, rng=FakeRng())
             scene, events = Scene(), 0
             for _ in range(2000):
                 if sp.done:
@@ -520,7 +577,7 @@ class TestSpawnComposition(unittest.TestCase):
 
         total_1, events_1 = drive(1)
         total_2, events_2 = drive(2)
-        self.assertEqual(total_1, expected_count("Standard", 1))
+        self.assertEqual(total_1, expected_count("Standard", round_num))
         self.assertGreater(events_1, 1)
         self.assertEqual(events_1, total_1)          # one per expiry at 1
         self.assertEqual(total_2, total_1)           # the total never moves
@@ -843,20 +900,34 @@ class TestFormation(unittest.TestCase):
         self.assertEqual(form.get_component(Movement).waypoints, [])
         self.assertFalse(form.get_component(PathAgent).reached_base)
 
-    def test_the_128x128_sheet_slices_and_draws_at_exactly_2x2_tiles(self):
+    def test_the_per_slot_frame_size_override_slices_and_fits_end_to_end(self):
         """ER-1's per-slot frame-size override, end to end — ER-4 is its FIRST
-        committed consumer. The 128x128 sheet is cut at 128x128 (not the
-        enemies category's 64x96), the grey-X placeholder sizes itself off that
-        override with NO manifest entry and does not raise (E-23/E-37), and the
-        downscale-only fit lands it at exactly 2x2 tiles at scale 1.0."""
+        committed consumer. The sheet is cut at the slot's OWN frame size
+        rather than the enemies category's default, the grey-X placeholder
+        sizes itself off that override with NO manifest entry and does not
+        raise (E-23/E-37), and the downscale-only fit is applied to it.
+
+        Every pixel number here is READ from the registry. It used to spell out
+        128x128 (and "exactly 2x2 tiles", which followed from it): the
+        Formation's art was later re-cut to 64x32 and the test went red for
+        naming the old sheet, not for any change in the override mechanism it
+        exists to cover. What must hold is that the slot's size DIFFERS from
+        the category default and is honoured all the way to the drawn frame."""
         from engine.assets.store import AssetStore
         from engine.render.renderer import fit_factor
 
+        default_size = self.REG.frame_size("enemy_stage_1_v1")
+        override = self.REG.frame_size("formation_stage_1")
+        self.assertNotEqual(
+            override, default_size,
+            "the Formation slot must carry a per-slot frame size, or this "
+            "test is a tautology over the category default")
+        # Every era of the type shares that override...
         for era in (1, 2, 3, 4):
-            self.assertEqual(
-                self.REG.frame_size(f"formation_stage_{era}"), (128, 128))
-        # ...while the category default is untouched.
-        self.assertEqual(self.REG.frame_size("enemy_stage_1_v1"), (64, 96))
+            self.assertEqual(self.REG.frame_size(f"formation_stage_{era}"),
+                             override)
+        # ...while other categories' slots keep the default.
+        self.assertEqual(self.REG.frame_size("enemy_stage_1_v1"), default_size)
         # The object form is normalised away: group_slots stays plain strings.
         self.assertEqual(self.REG.group_slots("enemies", ("Formation", "Era 1")),
                          ("formation_stage_1",))
@@ -864,15 +935,16 @@ class TestFormation(unittest.TestCase):
         store = AssetStore(registry=self.REG,
                            sprites_dir=FIXTURE_DATA / "sprites")
         frame = store.frame("formation_stage_1", "walk", 0)   # no manifest entry
-        self.assertEqual((frame.frame_w, frame.frame_h), (128, 128))
-        self.assertEqual(frame.surface.get_size(), (128, 128))
+        self.assertEqual((frame.frame_w, frame.frame_h), override)
+        self.assertEqual(frame.surface.get_size(), override)
 
-        # fit = min(1.0, 2*64 / 128) = 1.0 -> drawn 128px wide = 2 tiles.
+        # Downscale-only: the frame is fitted to the era's own footprint and
+        # never blown up past 1.0.
         tile_w = 64
-        fit = fit_factor(frame.frame_w, tile_w, fit_tiles=2.0)
-        self.assertEqual(fit, 1.0)
-        self.assertEqual(frame.frame_w * fit * FORM["eras"][0]["sprite_scale"],
-                         2 * tile_w)
+        fit_tiles = float(FORM["eras"][0]["footprint"])
+        fit = fit_factor(frame.frame_w, tile_w, fit_tiles=fit_tiles)
+        self.assertEqual(fit, min(1.0, fit_tiles * tile_w / frame.frame_w))
+        self.assertLessEqual(fit, 1.0)
 
     def test_the_registry_group_resolves_a_slot_per_era(self):
         tm = synth(["bbs"])
@@ -1512,20 +1584,31 @@ class TestDigger(unittest.TestCase):
 
     # -- composition ---------------------------------------------------------
 
-    def test_start_round_35_and_the_shared_count_formula(self):
+    def test_the_wave_carries_diggers_from_its_start_round_on(self):
         """Non-boss rounds only — a boss round composes from
-        `Boss.round_counts`, which carries no digger key (see the next test)."""
+        `Boss.round_counts`, which carries no digger key (see the next test).
+
+        `start_round` is READ, never pinned. This used to open with
+        `assertEqual(DIGGER["start_round"], 35)` and sweep a hardcoded round
+        list; retuning the type to 32 in the editor turned it red while the
+        composition it actually tests was still perfectly correct. Balancing is
+        the designer's to move (`game/CLAUDE.md`: "retune freely") — what must
+        hold is that composition AGREES with whatever the number is."""
         tm = synth(["bbs"])
         sp = Spawner()
-        self.assertEqual(DIGGER["start_round"], 35)
-        for rnd in (1, 14, 30, 34, 35, 36, 39, 45, 55):
+        start = DIGGER["start_round"]
+        # A sweep anchored on `start`, not on a literal: well before it, the
+        # boundary either side, and a spread of later rounds.
+        rounds = (1, start // 2, start - 1, start, start + 1,
+                  start + 4, start + 10, start + 20)
+        for rnd in rounds:
             with self.subTest(round=rnd):
                 sp.begin_round(rnd, tm, ENEM, rng=random.Random(7))
                 got = len([e for _, e in sp.pending() if e == "digger"])
                 self.assertEqual(got, expected_count("Digger", rnd))
-        # Round 35 is the first wave that carries one, and it is not empty.
-        self.assertGreaterEqual(expected_count("Digger", 35), 1)
-        self.assertEqual(expected_count("Digger", 34), 0)
+        # `start_round` really is the first wave that carries one.
+        self.assertGreaterEqual(expected_count("Digger", start), 1)
+        self.assertEqual(expected_count("Digger", start - 1), 0)
 
     def test_no_diggers_on_a_boss_round(self):
         """The SAME deliberate rule the Formation follows: `_boss_round`
@@ -2096,20 +2179,23 @@ class TestDrummer(unittest.TestCase):
 
     # -- the wave ----------------------------------------------------------
 
-    def test_round_25_is_the_first_wave_that_carries_drummers(self):
+    def test_the_start_round_is_the_first_wave_that_carries_drummers(self):
+        """`start_round` is READ, not pinned — see the Digger's twin of this
+        test for why (the literal 25 went stale the day the type was retuned
+        to 22, reddening a test whose subject was composition, not tuning)."""
         tm = synth(self.ROWS)
-        self.assertEqual(DRUM["start_round"], 25)
-        for rnd in (0, 1, 14, 24):
+        start = DRUM["start_round"]
+        for rnd in (0, 1, start // 2, start - 1):
             with self.subTest(round=rnd):
                 self.assertEqual(expected_count("Drummer", rnd), 0)
                 sp = Spawner()
                 sp.begin_round(rnd, tm, ENEM, rng=random.Random(3))
                 self.assertEqual(
                     [e for _t, e in sp.pending() if e == "drummer"], [])
-        wanted = expected_count("Drummer", 25)
+        wanted = expected_count("Drummer", start)
         self.assertGreaterEqual(wanted, 1)
         sp = Spawner()
-        sp.begin_round(25, tm, ENEM, rng=random.Random(3))
+        sp.begin_round(start, tm, ENEM, rng=random.Random(3))
         drummers = [e for _t, e in sp.pending() if e == "drummer"]
         self.assertEqual(len(drummers), wanted)
         # Body-mixed, never queue-leading (a support unit ahead of the units
