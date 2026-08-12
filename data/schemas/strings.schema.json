@@ -172,6 +172,10 @@
       "description": "Red button flash when the player cannot afford an action. No placeholders.",
       "type": "string"
     },
+    "building.flash.painter_tile_used": {
+      "description": "Red button flash when every selected tile is already permanently barred from hosting another Painter (a completed Painter payout on that tile). No placeholders.",
+      "type": "string"
+    },
     "building.hint.research": {
       "description": "Hint under a RESEARCH REQUIRED action button. No placeholders.",
       "type": "string"
@@ -636,6 +640,7 @@
     "building.construct.title",
     "building.flash.cannot_move",
     "building.flash.not_enough_love",
+    "building.flash.painter_tile_used",
     "building.hint.research",
     "building.hint.tier_locked",
     "building.hint.tier_unoffered",
