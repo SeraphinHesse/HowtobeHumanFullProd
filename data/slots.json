@@ -948,7 +948,8 @@
                 "deco_tree_v17",
                 "deco_tree_v18",
                 "deco_tree_v19",
-                "deco_tree_v20"
+                "deco_tree_v20",
+                "deco_tree_v21"
               ]
             },
             {
@@ -994,7 +995,9 @@
               "label": "Prop 3",
               "slots": [
                 "deco_prop_3",
-                "deco_prop_3_v2"
+                "deco_prop_3_v2",
+                "deco_prop_3_v3",
+                "deco_prop_3_v4"
               ]
             },
             {
