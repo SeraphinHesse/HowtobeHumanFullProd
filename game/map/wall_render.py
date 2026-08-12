@@ -1,14 +1,42 @@
-"""Edge-wall ART as RenderItems on the ``terrain`` draw layer.
+"""Edge-wall ART as RenderItems, depth-sorted against buildings for real.
 
 ``TileMap.wall_edges`` is the map-owned registry of destructible perimeter
 ``WallEdge``s a WallBuilder raised (see ``game/map/CLAUDE.md``). This module is
 the ONE place that turns those edges into RenderItems — the sibling of
 ``conditions.py``, which does the same job for tile-condition art.
 
-Why its own layer: like condition art, a wall must draw ABOVE the base map tiles
-(the ``ground`` layer the game composites through ``GroundCache``) and BELOW
-buildings, enemies, the base and deco. ``engine.render.LAYERS`` names that
-position ``terrain``, between ``ground`` and ``entities``.
+**fix/depth-sorted-world-fills (supersedes fix/wall-render-front-edges)**:
+every wall item now draws on the **same** ``entities`` layer as buildings —
+NOT split across ``deco``/``terrain`` any more. A prior version tried to
+approximate "near walls in front, far walls behind" with a fixed per-side
+layer choice; that only works UNIFORMLY (every front wall in front of EVERY
+building, regardless of actual position) because the renderer sorts by layer
+first (`engine/render/CLAUDE.md`) — a real user-visible bug, since a
+back-facing wall segment that is actually NEARER the camera than some
+building elsewhere would still draw behind it, unconditionally.
+
+Putting every wall on ``entities`` fixes that for real, because buildings
+themselves are positioned at their tile's RAW origin corner for depth-sort
+purposes (`Transform(wx=float(col), wy=float(row))`,
+`game/buildings/building.py`) — the EXACT SAME anchor `wall_render_items`
+already uses (`(edge.col_a, edge.row_a)`). So a wall and a building on
+DIFFERENT tiles now sort by the ordinary `wx+wy`/`wy` iso depth rule, exactly
+like two buildings already sort against each other — no special-casing
+needed, and no possibility of disagreeing with how the rest of the world
+already renders.
+
+**The one case this doesn't resolve on its own is a wall and a building
+sharing the SAME tile** — their `world_pos` and `layer` are then IDENTICAL, a
+genuine depth-sort tie, resolved by Python's stable sort purely on
+SUBMISSION ORDER. `game/main.py` is what decides that order (a host/frame
+concern, not this module's): it submits the two FAR sides
+(``edge_nw``/``edge_ne``, `FRONT_SIDES` below is `False` for these) BEFORE
+`world.scene.render_items()` (so a same-tile building draws on top — the
+wall is behind, correct: a back wall shouldn't float in front of the
+building sitting on it) and the two NEAR sides (``edge_se``/``edge_sw``)
+AFTER it (so the wall draws on top — a fence along the near edge of a tile
+should occlude the building behind it, the way a real fence would). See
+`game/CLAUDE.md`'s host-wiring section for the exact call sites.
 
 Windowed like ``conditions.py`` / ``engine.tilemap.visible_render_items`` — but
 by a DIFFERENT mechanism, and that is deliberate. ``conditions.py`` walks the
@@ -58,7 +86,7 @@ re-derives them wrong:
 from engine.render.item import RenderItem
 
 WALL_CATEGORY = "walls"
-LAYER = "terrain"
+LAYER = "entities"  # fix/depth-sorted-world-fills: same layer as buildings
 
 #: neighbour delta (d_col, d_row) -> the ``walls`` category animation row that
 #: draws the shared edge. See the module docstring for the derivation.
@@ -68,6 +96,13 @@ SIDE_OF_DELTA = {
     (-1, 0): "edge_nw",
     (0, -1): "edge_ne",
 }
+
+#: fix/depth-sorted-world-fills: the two near/bottom sides — PUBLIC so
+#: `game/main.py` can split wall submission around `world.scene.render_items()`
+#: for correct same-tile tie-breaking (see the module docstring). `edge_nw`/
+#: `edge_ne` (the far sides, `animation not in FRONT_SIDES`) go before
+#: buildings; these two go after.
+FRONT_SIDES = frozenset(("edge_se", "edge_sw"))
 
 
 def edge_world_points(col_a, row_a, col_b, row_b):
@@ -113,6 +148,12 @@ def wall_render_items(tile_map, col_min, col_max, row_min, row_max, art_slots,
     carrying several walls therefore emits several items — different animation
     rows of the SAME slot. That is CORRECT: a corner tile really is walled on two
     sides.
+
+    **fix/depth-sorted-world-fills**: every item's ``layer`` is the SAME
+    constant (``LAYER``, ``"entities"``) regardless of side — depth against
+    buildings is resolved by real tile position (the ordinary iso sort), not
+    by which side the edge is on. See the module docstring for the one
+    remaining case (same-tile ties) and where that's resolved.
 
     An owner without a ``wall_slot()`` method emits nothing rather than raising
     (headless fixtures own edges with stub builders).
