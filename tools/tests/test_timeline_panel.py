@@ -175,7 +175,16 @@ class TestScriptedLevelingSwitches(TempDataCase):
     def _panel(self):
         panel = self.track(TimelinePanel(data_dir=self.data_dir))
         panel.set_icon_provider(lambda slot_key: None)
-        # Pinned fixture — two authored levels, nothing from live data/.
+        # Pinned fixture — two authored levels and both flags OFF, nothing
+        # from live data/. TempDataCase copies the LIVE `data/` tree, so the
+        # shipped `progression.json` seeds these two checkboxes; it already
+        # ships `scripted_leveling: true`, and every case below is written
+        # against "both off" (data/CLAUDE.md: never assert against live
+        # `data/` content). Toggling through the checkbox rather than poking
+        # `_doc` keeps widget and doc in step, and the `_dirty = False` below
+        # swallows the staging those toggles cause.
+        panel.scripted_check.setChecked(False)
+        panel.exact_check.setChecked(False)
         panel._doc["Timeline"]["levels"] = []
         panel._rebuild_rows()
         panel.add_level(1)
