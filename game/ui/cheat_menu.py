@@ -61,7 +61,9 @@ _BUTTONS = (
     ("skip_round", "Skip Round"),
     ("trigger_levelup", "LEVEL UP"),
     ("inf_money", "Infinite Money"),
-    ("unlock_all", "Unlock All Tech"),
+    # "Unlock All Tech" needed 125px in the 114px row under the SHIPPED pixel
+    # font (data/ui/active_font.json -> pixel_emulator); "Unlock Tech" needs 92.
+    ("unlock_all", "Unlock Tech"),
     # debug-mode-telemetry: arm/disarm the DebugRecorder mid-run. Appended
     # LAST so the five prototype rows keep their order (and their exported
     # default rects' relative positions); the panel grew 30px for it.
@@ -89,7 +91,10 @@ class CheatMenu:
         self.close_btn = Button((0, 0, 10, 9), "X", "md")
         self.buttons = [(action, Button((0, 0, 0, 0), label, "md"))
                         for action, label in _BUTTONS]
-        self.go_btn = Button((0, 0, 0, 0), "Go to Round", "sm")
+        # "Go to Round" needed 80px in this 63px button under the SHIPPED pixel
+        # font; "Round" needs 39, and the field it sits beside already says
+        # what the number is.
+        self.go_btn = Button((0, 0, 0, 0), "Round", "sm")
         self.panel_rect = (0, 0, _PANEL_W, _PANEL_H)
         self.field_rect = (0, 0, 0, 0)
         self._divider_y = 0

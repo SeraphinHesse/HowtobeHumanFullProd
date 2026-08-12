@@ -134,17 +134,24 @@ class MapOverlays:
         self.show_tier_overview = False
         # Left of the phase banner, stacked above it (the banner sits at
         # view_h-13; hud End Turn owns the bottom-right corner).
-        # UR-5: 41 wide, not UR-2's halved 37 — "HEATMAP" measures 35px at
-        # "sm" (unhalved), leaving 1px of margin a side in a 37px pill. The
-        # gap between the two grows 2 -> 4 to keep them from touching.
-        # The third pill is sized the same way: "TIER OVERVIEW" is 13
-        # characters against "HEATMAP"'s 7, i.e. ~65px at "sm", so it gets a
-        # 69px pill (2px of margin a side) on the same row and the same 4px
-        # gap: 6, 51, 96.
+        # UR-5: 41 wide, not UR-2's halved 37. All THREE pills are 41 wide on
+        # one row at x = 6 / 51 / 96 (the same 4px gap), which is what makes
+        # them read as one control group.
+        #
+        # The copy is cut to fit the SHIPPED pixel font
+        # (`data/ui/active_font.json` -> pixel_emulator), which is wider per
+        # glyph than the `SysFont("monospace")` fallback every pixel constant
+        # in `game/ui` was authored against: "HEATMAP" needed 51px in a 41px
+        # pill and "TIER OVERVIEW" 89px. At "sm" under that font the shipped
+        # labels measure RANGE 38, HEAT 30, TIERS 36 including the 4px
+        # `LABEL_MARGIN` — so the third pill also came back DOWN, 76 -> 41,
+        # to the shared width instead of being the odd one out. (UR-5 had
+        # widened it 69 -> 76 for the fallback font; that number is gone with
+        # the long label that needed it.)
         self.range_btn = Button((6, view_h - 36, 41, 13), "RANGE", "sm")
-        self.heatmap_btn = Button((51, view_h - 36, 41, 13), "HEATMAP", "sm")
-        self.tier_overview_btn = Button((96, view_h - 36, 69, 13),
-                                        "TIER OVERVIEW", "sm")
+        self.heatmap_btn = Button((51, view_h - 36, 41, 13), "HEAT", "sm")
+        self.tier_overview_btn = Button((96, view_h - 36, 41, 13),
+                                        "TIERS", "sm")
         # Heatmap accumulators: distinct enemy ids per tile while the ENEMY
         # phase runs; snapshot to counts on the phase edge.
         self._current = {}

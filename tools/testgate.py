@@ -6,7 +6,7 @@
 
 Output is the whole point:
 
-    GATE PASS  1122 ran | 0 known | 0 new | 0 fixed | 0 unexpected skips
+    GATE PASS  2245 ran | 0 known | 0 new | 0 fixed | 0 unexpected skips
 
     GATE FAIL  1 problem(s)
       NEW FAILURE   tools/tests/test_boss.py::TestBoss::test_dead_goal_repaths
@@ -172,9 +172,22 @@ def cmd_check(args) -> int:
     if args.affected:
         selected, safety, note = affected_modules(args.base_ref)
         print(f"GATE INFO  --affected: {note}")
+        if safety is None:
+            # It could not narrow. REFUSE, rather than quietly running the
+            # whole suite behind a flag whose entire promise is "only the
+            # blast radius". A tool that silently does the expensive thing is
+            # why the "don't re-run the suite" rule kept getting broken: the
+            # agent asked for a narrow run, got a full one, and had no way to
+            # tell. Exit non-zero and say what to do instead.
+            print("GATE ABORT  --affected cannot narrow this diff.")
+            print("  Run the specific test files you touched instead:")
+            print("    py -m pytest tools/tests/test_<area>.py -x -q")
+            print("  Or, if you are the MAIN SESSION at handoff and you "
+                  "genuinely want the whole suite, ask for it explicitly:")
+            print("    py tools/testgate.py check")
+            return 2
         if not selected:
-            # Either "no .py changed" (safety == core tier) or "scaffolding
-            # changed" (safety == [], i.e. everything). One pass either way.
+            # "no .py changed" — safety is the core tier, which IS a narrowing.
             results, total = run_suite(extra + safety)
         else:
             # Pass 1: the affected modules IN FULL — no marker filter, so an
@@ -235,7 +248,7 @@ def changed_py_files(base_ref: str) -> list[str]:
     Committed-only (`git diff base...HEAD`) was the original bug and it was a
     silent one: on `Development` itself, or on any branch whose work is not
     committed yet, that range is EMPTY, `--affected` concluded it could not
-    narrow, and ran all ~1088 tests while printing that it was being selective.
+    narrow, and ran the WHOLE suite while printing that it was being selective.
     Agents then paid a full-suite wall-clock on every iteration. `base_ref` is
     resolved through merge-base so a stale `Development` does not drag in
     everything that landed on it since you branched.
@@ -280,7 +293,7 @@ def affected_modules(base_ref: str) -> tuple[list[str], list[str], str]:
     # alter collection or fixtures for every module in the suite.
     if any(f in ("conftest.py", "pytest.ini") or f.startswith("tools/tests/qt_harness")
            for f in changed):
-        return [], [], "test scaffolding changed; running everything"
+        return [], None, "test scaffolding changed; CANNOT NARROW"
 
     tests = {f for f in changed if f.startswith("tools/tests/")}
     sources = [f for f in changed if not f.startswith("tools/tests/")]

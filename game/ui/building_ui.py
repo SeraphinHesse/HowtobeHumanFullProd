@@ -149,6 +149,9 @@ _DICE_GLYPH = "⚄"
 # which the centred draw then overhung top and bottom. 14x13 is the smallest
 # box that holds the glyph and clears the floor.
 _CLOSE_W, _CLOSE_H = 14, 13
+#: Font for the CONFIRM/CANCEL row shared by ConstructPreview and MovePreview.
+#: "md", not "lg" — see the comment at ConstructPreview's button row.
+_PREVIEW_BTN_FONT = "md"
 
 
 def _row_step(font_key, leading=1):
@@ -327,9 +330,16 @@ class ConstructPreview:
                                T("building.btn.dice"), "md")
         self.close_btn = Button((x + pw - 17, y + 3, _CLOSE_W, _CLOSE_H),
                                 T("building.btn.close"), "md")
+        # Font "md", not "lg": CONFIRM needs 79px at "lg" under the SHIPPED
+        # pixel font (`data/ui/active_font.json` -> pixel_emulator, wider per
+        # glyph than the `SysFont("monospace")` fallback these constants were
+        # authored against) in a 70px button, and there is no shorter word for
+        # it. At "md" it needs 59. CANCEL moves with it so the pair stays one
+        # row; `_PREVIEW_BTN_FONT` is shared with `MovePreview` below, which
+        # shares this modal's chrome and its `preview_*` id namespace.
         btn_y, bw, bh = y + ph - 24, 70, 17
-        left = Button((x + 8, btn_y, bw, bh), "", "lg")
-        right = Button((x + pw - 8 - bw, btn_y, bw, bh), "", "lg")
+        left = Button((x + 8, btn_y, bw, bh), "", _PREVIEW_BTN_FONT)
+        right = Button((x + pw - 8 - bw, btn_y, bw, bh), "", _PREVIEW_BTN_FONT)
         show_cancel = ui_balance["Timing"]["construct_show_cancel"]
         confirm_right = ui_balance["Timing"]["confirm_on_right_side"]
         if show_cancel:
@@ -339,7 +349,8 @@ class ConstructPreview:
             self.cancel_btn.label = T("building.btn.cancel")
         else:
             self.confirm_btn = Button((x + 8, btn_y, pw - 16, bh),
-                                      T("building.btn.confirm"), "lg")
+                                      T("building.btn.confirm"),
+                                      _PREVIEW_BTN_FONT)
             self.cancel_btn = None
         # 10L-B: geometry is fixed for this instance's whole lifetime (a
         # fresh ConstructPreview is built each time the modal opens), so
@@ -526,10 +537,12 @@ class MovePreview:
         self.close_btn = Button((x + pw - 17, y + 3, _CLOSE_W, _CLOSE_H),
                                 T("building.btn.close"), "md")
         btn_y, bw, bh = y + ph - 24, 70, 17
-        left = Button((x + 8, btn_y, bw, bh), "", "lg")
-        right = Button((x + pw - 8 - bw, btn_y, bw, bh), "", "lg")
+        left = Button((x + 8, btn_y, bw, bh), "", _PREVIEW_BTN_FONT)
+        right = Button((x + pw - 8 - bw, btn_y, bw, bh), "", _PREVIEW_BTN_FONT)
         # Same two `ui.Timing` keys ConstructPreview reads — the modal chrome
         # convention is shared, so a designer flipping them moves both modals.
+        # `_PREVIEW_BTN_FONT` is shared for the same reason (see its use in
+        # ConstructPreview above for why CONFIRM is not "lg").
         show_cancel = ui_balance["Timing"]["construct_show_cancel"]
         confirm_right = ui_balance["Timing"]["confirm_on_right_side"]
         if show_cancel:
@@ -539,7 +552,8 @@ class MovePreview:
             self.cancel_btn.label = T("building.btn.cancel")
         else:
             self.confirm_btn = Button((x + 8, btn_y, pw - 16, bh),
-                                      T("building.btn.confirm"), "lg")
+                                      T("building.btn.confirm"),
+                                      _PREVIEW_BTN_FONT)
             self.cancel_btn = None
         # Geometry is fixed for this instance's whole lifetime (a fresh
         # MovePreview is built each time the modal opens), so ids/apply run

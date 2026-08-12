@@ -1,3 +1,10 @@
+> **SUPERSEDED — historical record.** This brief predates the ZERO-failure
+> gate. Any "baseline", "N pre-existing failures", "no NEW failures vs
+> Development" or `unittest discover` instruction below is DEAD: the suite is
+> green, the gate is ZERO, and a red test is yours. Which tests you may run is
+> role-scoped — §"Test Suite Policy" in the root `CLAUDE.md` is the only
+> authority. Do not follow this file's verification section.
+
 # Phase 10I Brief — Map Depth
 
 > Coordination artifact for the 10G–10I subagent batch. Planner fills §1–§4;

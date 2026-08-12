@@ -102,11 +102,18 @@ class TestEnemyHpBarAnchor(unittest.TestCase):
         decision): with an `hp_bar` anchor authored, the bar's reference
         point is the exact handle point — it no longer composes with
         `_sprite_top`'s footprint-fitted baseline (ESV-1's old D3 rule).
-        `Formation`'s slot (128px) is wider than the tile (64px), so its
-        footprint fit is measurably < 1 (ER-1) — the expected point below
-        still rides that fit (`fit_factor` is composed inside `sprite_
-        anchor_screen`/`anchor_world_point`, never bypassed), it just no
-        longer ALSO adds `_sprite_top`'s own baseline underneath it."""
+        The expected point below still rides the footprint fit (`fit_factor`
+        is composed inside `sprite_anchor_screen`/`anchor_world_point`, never
+        bypassed), it just no longer ALSO adds `_sprite_top`'s own baseline
+        underneath it.
+
+        The old version asserted `fit < 1.0` here, on the grounds that the
+        Formation's sheet was 128px against a 64px tile. That is a fact about
+        the ART, not about the rule under test: the sheet was later re-cut to
+        64x32, the fit became exactly 1.0 and the test went red without
+        anything it covers having changed. What actually has to hold is that
+        the anchored bar does NOT land where the unanchored baseline would —
+        which is "wins outright", stated directly and asserted below."""
         store = store_with_hp_bar_anchor(Formation.DEFAULT_SLOT, (12, -6))
         # Formation "dies" (D4 death_spawn) at half HP — damaged but ALIVE,
         # unlike the other enemy types' hp=1 convenience.
@@ -116,7 +123,12 @@ class TestEnemyHpBarAnchor(unittest.TestCase):
         anim = e.get_component(SpriteAnimator)
         frame_w, _frame_h = store.frame_size(anim.slot_key)
         s = fit_factor(frame_w, cs.geometry.tile_w, anim.fit_tiles) * anim.scale
-        self.assertLess(s, 1.0)   # the fixture really does downscale this sprite
+        self.assertGreater(s, 0.0)
+
+        # The anchor REPLACED the baseline rather than composing with it: the
+        # bar is not where the unanchored footprint-fit expression puts it.
+        cy = cs.world_to_screen(4.5, 4.5)[1]
+        self.assertNotEqual(y + h, expected_bar_bottom(Formation, cy))
 
         wx, wy = e.transform.world_pos
         offset_xy = store.offset(anim.slot_key)

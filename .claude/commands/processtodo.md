@@ -42,9 +42,10 @@ last, single-threaded. Add any newly discovered follow-ups back with `addtodo`.
    `/add-editor-feature`, `/add-asset-importer`) rather than hand-rolling the
    edits.** Run domains that share `game/core/**` in separate waves
    to avoid host-file conflicts; independent domains may run in parallel.
-3. Each agent's exit gate is the targeted one: `py tools/testgate.py check
-   --affected` and `py tools/smoke.py`, both green — never the full suite
-   per-agent. Balancing JSON edits go through
+3. Each agent's exit gate is the targeted one: `py tools/smoke.py` plus
+   `py -m pytest tools/tests/test_<file>.py -q` over the files it touched, both
+   green — never the full suite, a tier sweep, or `--affected` per-agent (the
+   `test_guard.py` hook denies those from a subagent). Balancing JSON edits go through
    `engine.data_io.write_validated` (canonical, schema-valid).
 4. Collect the per-domain PRs into the umbrella, resolve conflicts, then run
    the **one full gate** of the run — `py tools/testgate.py check` — on the

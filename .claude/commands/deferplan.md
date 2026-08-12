@@ -46,6 +46,13 @@ The leading `+` is the mode switch — that is the whole distinction.
 > You have no display. `py tools/smoke.py` and `py tools/testgate.py check` work;
 > `py game/main.py` and `py editor/main.py` do NOT. List every live visual check in
 > the PR body under "awaiting your live check" — never claim it as done.
+>
+> A deferred routine IS the main session for its own run, so the single full
+> `check` at handoff is yours to make — ONCE, at the end. While iterating, run
+> the specific test files you touched. Any agent you dispatch is a subagent and
+> gets the subagent row (§"Test Suite Policy", root `CLAUDE.md`); the
+> `test_guard.py` hook enforces this, and it also denies re-running a target
+> when nothing has changed, so do not retry a run to "confirm" it.
 
 ## Avoid
 - **Never `CronCreate`** for this — those jobs are session-only and die with the

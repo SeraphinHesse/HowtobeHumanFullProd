@@ -9,16 +9,14 @@ import unittest
 from pathlib import Path
 
 from editor import timeline_ops
+from tools.tests.temp_data import DataDirCase
 
 REPO = Path(__file__).resolve().parents[2]
 
 
-class TimelineOpsCase(unittest.TestCase):
-    def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.data_dir = Path(tmp.name) / "data"
-        shutil.copytree(REPO / "data", self.data_dir)
+class TimelineOpsCase(DataDirCase):
+    """DataDirCase gives the tempdir data/ copy — this class had duplicated
+    that copytree by hand."""
 
     def empty_doc(self):
         return {"Timeline": {"levels": []}}
