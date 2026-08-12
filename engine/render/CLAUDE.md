@@ -6,7 +6,7 @@ game window and the editor viewport use the SAME pipeline. When you change rende
 conventions, update THIS doc.
 
 **pygame lives here** (`backend.py`, `backend_gpu.py`, `fonts.py`,
-`ground_cache.py`) — `renderer.py`
+`ground_cache.py`, `ground_cache_gpu.py`) — `renderer.py`
 itself is pure orchestration. See the engine router's pygame-import allow-list.
 
 ## Render flow
@@ -403,6 +403,20 @@ off the cached surface.
   (non-scrolling) consumers only.
 - **NOT exported from `engine.render.__init__`** (which stays pure) — import it by
   full path `engine.render.ground_cache`, like the backend/store.
+- **GPU variant (G3, `ground_cache_gpu.py`)**: `GroundCacheGpu` sits behind the
+  same `ensure`/`blit`/`invalidate` surface, backed by a pair of render-target
+  `Texture`s instead of a `pygame.Surface`. `Surface.scroll`'s memmove becomes a
+  self-blit between the two textures, ping-ponged, because SDL cannot read and
+  write one render target in a single pass. The strip clip is
+  `renderer.set_viewport`, which also translates the strip's origin to `(0, 0)`
+  — compensated by shifting the private camera's pan by that same integer
+  amount, which `round_half_up`'s `floor(v + 0.5)` makes exact rather than
+  approximate. The background fill is `fill_rect`, never `clear()`, because
+  `clear()` measures as ignoring the viewport and wiping the whole target. The
+  diagonal-band derivation is shared through `ground_cache.band_for_rect`, not
+  copied. Nothing selects this class yet — `default_backend()` still returns
+  the Surface blitter and `game/main.py` still constructs `GroundCache`; G4
+  wires the host.
 
 ## Verify
 Render/asset-facing changes: headless smoke test (`tools/smoke.py`) and, if
