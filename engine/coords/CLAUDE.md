@@ -52,4 +52,7 @@ conventions, update THIS doc.
 
 ## Verify
 Coords round-trip unit tests (`world↔screen`), T-3:
-`py -m unittest discover -s tools/tests -t .`
+`py -m pytest tools/tests/test_<area>.py -q`
+
+Which tests you may run is ROLE-scoped — the role table in §"Test Suite Policy"
+(root `CLAUDE.md`) is the only authority, enforced by a `PreToolUse` hook.

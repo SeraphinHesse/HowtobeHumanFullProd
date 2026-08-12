@@ -170,5 +170,8 @@ crashes boot.** When you change asset conventions, update THIS doc.
 
 ## Verify
 `playback_order` + tolerance unit tests; the headless smoke test fails loud on an
-invalid committed manifest: `py -m unittest discover -s tools/tests -t .` +
+invalid committed manifest: `py -m pytest tools/tests/test_<area>.py -q` +
 `py tools/smoke.py`.
+
+Which tests you may run is ROLE-scoped — the role table in §"Test Suite Policy"
+(root `CLAUDE.md`) is the only authority, enforced by a `PreToolUse` hook.

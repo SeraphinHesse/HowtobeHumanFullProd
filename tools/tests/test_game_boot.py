@@ -17,18 +17,116 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 import jsonschema  # noqa: E402
 
 from engine import data_io, tilemap  # noqa: E402
+from engine.render import fonts as _fonts  # noqa: E402
 from game.main import main as game_main  # noqa: E402
+from game.ui import strings as _strings  # noqa: E402
+from game.ui import widgets as _widgets  # noqa: E402
+from tools.tests.temp_data import DataDirCase  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
 
 
-class TempDataBoot(unittest.TestCase):
+def _restore_font_state_after(case):
+    """Undo the theme globals that BOOTING THE GAME installs.
+
+    `test_theme_data.py`'s module docstring states the house rule: every test
+    that calls `configure_fonts`/`configure_palette` must `addCleanup`-restore
+    the unconfigured state, because those mutate module globals and "a leaked
+    configure poisons every later parity test in the same process". Booting
+    the game calls all three (`game/main.py` — fonts WITH the real
+    `active_font.json` TTF, palette, strings), and this module never restored
+    them, so it was the one place the rule was broken.
+
+    The damage was invisible and order-dependent: under `--dist loadfile` a
+    worker that ran this file first left the real Pixel Emulator face
+    installed, and every later text measurement in that worker used it instead
+    of the `SysFont("monospace")` fallback every UI parity/pin test is written
+    against. `test_ui_min_targets.TestStaticLabelFit` then reported twelve
+    static buttons overhanging (e.g. "RETURN TO MENU" needing 154px in a 120px
+    box) — real numbers for the shipped font, but produced by a test that had
+    no idea which font it was measuring, and only when the shuffle happened to
+    put the two files in one worker. It is exactly the flake that makes a
+    suite untrustworthy: green alone, red in CI, blamed on the last person to
+    touch anything.
+
+    Those twelve overhangs were a genuine finding about the real font, not an
+    artifact, and they are FIXED: the copy was cut to fit and three buttons
+    dropped a preset. `test_ui_min_targets.py` now installs the shipped face
+    in `setUpModule` and asserts against it, so that measurement is deliberate
+    and owned there — which is where it belongs. This cleanup exists so the
+    two modules cannot interfere either way.
+    """
+    font_family = (_fonts._FONT_PATH, _fonts._FONT_BYTES)
+    font_specs = dict(_fonts._FONT_SPECS)
+    palette = {name: getattr(_widgets, name)
+               for name in dir(_widgets) if name.startswith("C_")}
+    # ALL THREE, not two. `main()` calls configure_fonts + configure_palette +
+    # configure_strings, and the first version of this helper restored only the
+    # first two. The strings leak then behaved exactly like the font one and
+    # was just as invisible locally: `configure_strings` replaces `_STRINGS`
+    # IN PLACE from live `data/ui/strings.json`, so any later test in the same
+    # worker sees LIVE copy where it expected the module's unconfigured
+    # fallback. `test_strings_data.TestFallbackEqualsStock` — whose whole job
+    # is to catch dual-store drift between the Python literal and the JSON —
+    # passed on Windows (where the shuffle happened to separate them) and
+    # failed on CI's `core` shard, reporting a drift that did not exist.
+    strings_snapshot = dict(_strings._STRINGS)
+
+    def restore():
+        _fonts._FONT_PATH, _fonts._FONT_BYTES = font_family
+        # `_FONT_SPECS` is replaced IN PLACE by configure_fonts, so restore it
+        # the same way rather than rebinding the name.
+        _fonts._FONT_SPECS.clear()
+        _fonts._FONT_SPECS.update(font_specs)
+        _fonts._cache.clear()   # built from the OLD size/face — must not survive
+        for name, value in palette.items():
+            setattr(_widgets, name, value)
+        _strings._STRINGS.clear()
+        _strings._STRINGS.update(strings_snapshot)
+
+    case.addCleanup(restore)
+
+
+class TestTheRestoreCoversEveryThemeGlobal(unittest.TestCase):
+    """A new `configure_*` must not be able to leak the way the last three did.
+
+    This exact bug has now been found THREE times — fonts, palette, strings —
+    always the same shape: `game/main.py` configures a module global at boot,
+    this file boots the game, nothing restores it, and a later test in the same
+    xdist worker silently measures the live value. Each one was invisible on
+    the machine it was written on and only surfaced as a "flake" elsewhere.
+
+    So the helper's coverage is asserted rather than trusted: the set of
+    `configure_*` entry points the host calls is pinned, and adding a fourth
+    without teaching `_restore_font_state_after` about it fails HERE, with a
+    message saying what to do — instead of as someone else's flaky test three
+    weeks later.
+    """
+
+    def test_no_unrestored_configure_entry_point_exists(self):
+        import re
+        host = (REPO / "game" / "main.py").read_text(encoding="utf-8")
+        called = set(re.findall(r"\b(configure_\w+)\s*\(", host))
+        covered = {"configure_fonts",     # _FONT_PATH/_FONT_BYTES/_FONT_SPECS/_cache
+                   "configure_palette",   # widgets.C_*
+                   "configure_strings"}   # strings._STRINGS
+        self.assertEqual(
+            called, covered,
+            "game/main.py configures a module global this file's "
+            "`_restore_font_state_after` does not restore (or no longer needs "
+            "to). Booting the game leaks it into every later test in the same "
+            "xdist worker — the fonts/palette/strings bug, a fourth time. "
+            "Teach the helper to snapshot and restore it, then update this set.")
+
+
+class TempDataBoot(DataDirCase):
+    """DataDirCase gives the tempdir data/ copy — this class had duplicated
+    that copytree by hand."""
+
     def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.data_dir = Path(tmp.name) / "data"
-        shutil.copytree(REPO / "data", self.data_dir)
+        super().setUp()
         self.manifest_path = self.data_dir / "sprites" / "asset_manifest.json"
+        _restore_font_state_after(self)
 
 
 class TestCorruptManifestBoot(TempDataBoot):

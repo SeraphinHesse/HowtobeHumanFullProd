@@ -69,7 +69,7 @@ if it validates, it renders.
 ## Verify
 - `py tools/smoke.py` — validates the new spec (the `data/agent_forms/` directory
   exception pairs it with `agent_form.schema.json`); the file count goes up by one.
-- `py tools/testgate.py check --affected` — the all-specs sweep checks id /
+- `py -m pytest tools/tests/test_<area>.py -q` — the all-specs sweep checks id /
   skill file / context paths (targeted, not the full suite).
 - Live: reopen **Summon a Drunken Robot** in the editor — the new form is listed
   (specs load fresh on every open; no restart). State what you verified.
@@ -78,3 +78,11 @@ if it validates, it renders.
 - The new spec path + the skill path (if scaffolded); the fields and their types;
   the git default; verification performed.
 - Tag every claim **measured** / **verified** / **inferred** (see `/report`).
+
+> **Role note (test policy).** The command above names the test FILES for what
+> you changed, which every role may run. `py tools/testgate.py check --affected`
+> is a MAIN-SESSION mid-task tool — its safety pass is the whole core tier — and
+> the single full `check` belongs to the main session at handoff. If you are
+> running this skill inside a dispatched agent, the `test_guard.py` hook will
+> deny both. The role table in §"Test Suite Policy" (root `CLAUDE.md`) is the
+> only authority.

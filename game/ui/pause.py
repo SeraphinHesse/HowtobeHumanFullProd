@@ -22,7 +22,10 @@ from . import widgets
 _ITEMS = [
     ("RESUME", "resume"),
     ("SETTINGS", "settings"),
-    ("QUIT TO MENU", "quit_to_menu"),
+    # "QUIT TO MENU" needed 132px at "lg" in a 120px button under the SHIPPED
+    # pixel font; "MAIN MENU" needs 101, and reads the same as game_over.py's
+    # button (which took the identical copy fix).
+    ("MAIN MENU", "quit_to_menu"),
     ("QUIT GAME", "quit"),
 ]
 _ACTION_IDS = {

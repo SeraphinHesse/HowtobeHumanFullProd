@@ -39,6 +39,22 @@ ENEM = load_balance(FIXTURE_DATA, "enemies")
 UI = load_balance(FIXTURE_DATA, "ui")
 VFX = load_balance(FIXTURE_DATA, "vfx")
 
+# The pathing/movement suites in this module are written for a SINGLE-TILE
+# boss: they run on hand-drawn one-row lanes ("bbbs") where a 2x2 block simply
+# does not fit — every tile of row 1 is out of bounds, so the block is never
+# passable, no path is ever found, and the agent sits at target (-1, -1)
+# forever. The module used to get footprint 1 by ACCIDENT, from a fixture that
+# had drifted behind `data/balancing/enemies.json`; re-syncing the fixture
+# turned twelve of these tests red at once and cost a day to trace.
+#
+# So the dependency is stated here instead of being inherited: this module pins
+# the boss to footprint 1 and the two suites that are ABOUT the 2x2 block
+# (`TestBossFootprintTwoDoesNotFreezeBesideANeighbour`,
+# `TestChebyshevRangeGateNearestBlockTile`) opt back in explicitly on their own
+# deep copies. A future fixture sync cannot break either half again.
+for _row in ENEM["EnemyTypes"]["Boss"]["stats"]:
+    _row["footprint"] = 1
+
 BOSS = ENEM["EnemyTypes"]["Boss"]
 SCALE = ENEM["EnemyScaling"]
 RAIDER = ENEM["EnemyTypes"]["Raider"]
@@ -887,21 +903,31 @@ class TestConditionSpeedFloor(unittest.TestCase):
         return pa._condition_speed()
 
     def test_every_boss_era_moves_on_forest(self):
-        """Eras 0–3 are the ones the old clamp welded to a dead 0.0 (era 3 by
-        the hair of 0.4 − 0.4); era 4 merely crawled at 0.05. The floor lifts
-        all five to a fraction of their own speed — it is the LARGER term for
-        every era, so the boss is the one type the floor governs outright."""
+        """The floor lifts every era to a fraction of its OWN speed — it is the
+        LARGER term for all five, so the boss is the one type the floor governs
+        outright.
+
+        The premise is DERIVED from balancing, never pinned. It used to read
+        ``assertLessEqual(real - PEN, 0.0 if era <= 3 else 0.05)``, which
+        encoded the boss speeds of the day (0.3–0.45, so eras 0–3 subtracted to
+        exactly 0.0 — the dead latch this floor was built to fix). Those speeds
+        were later retuned to 0.58–0.7 and all five subtests went red while the
+        behaviour under test was still perfectly correct. Balancing is free to
+        move (`game/CLAUDE.md`: "retune freely"); what must hold is the
+        RELATIONSHIP, which is what the two assertions below state."""
         tm = synth(["bs"])
         for era, st in enumerate(BOSS["stats"]):
             with self.subTest(era=era):
                 real = st["move_speed"]
-                self.assertLessEqual(real - self.PEN,
-                                     0.0 if era <= 3 else 0.05)
                 speed = self._speed_on(create_enemy("boss", 1, 0, ENEM, tm,
                                                     era), TileCondition.FOREST)
+                # The floor governs: it beats the raw subtraction, and IS the
+                # speed the agent ends up moving at. Together these say the
+                # boss can never be welded to a standstill by forest, whatever
+                # its speed is retuned to.
+                self.assertGreater(real * self.FRAC, real - self.PEN)
                 self.assertGreater(speed, 0.0)
                 self.assertAlmostEqual(speed, real * self.FRAC)
-                self.assertGreater(real * self.FRAC, real - self.PEN)
 
     def test_the_four_normal_types_are_byte_identical(self):
         """D1's fence: the floor must move ONLY the boss. Each normal type is
@@ -1132,8 +1158,23 @@ class TestBossDoesNotRewind(unittest.TestCase):
         pa = boss.get_component(PathAgent)
         # Walk until the boss is mid-tile (not on a centre), then kill its
         # target out from under it — the exact rewind trigger.
-        while abs(boss.transform.wx - round(boss.transform.wx)) < 0.25:
+        #
+        # BOUNDED on purpose. This was a bare `while`, and when the boss stopped
+        # moving it span forever: the test did not fail, it HUNG, and under
+        # xdist the hang took the whole CI job down with it while reporting
+        # nothing at all. A test that cannot finish is strictly worse than a
+        # test that fails, so the loop now gives up and says what it saw.
+        # 250 frames at 0.02 is 5 simulated seconds — the boss covers a tile in
+        # well under one at any era's speed.
+        for _ in range(250):
+            if abs(boss.transform.wx - round(boss.transform.wx)) >= 0.25:
+                break
             scene.update(0.02)
+        else:
+            self.fail(
+                "the boss never left its tile centre in 5 simulated seconds — "
+                f"stuck at wx={boss.transform.wx!r}, blocked={pa.blocked}, "
+                f"target={(pa.target_col, pa.target_row)}")
         near.get_component(Health).damage(10 ** 9)
         scene.update(0.02)                       # the re-path frame
         self.assertEqual((pa.target_col, pa.target_row), (2, 0))

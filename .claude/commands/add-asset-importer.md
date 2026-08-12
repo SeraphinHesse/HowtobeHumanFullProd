@@ -45,7 +45,7 @@ use the editor's `+ Variant` button; for swapping one slot's art, use
 
 ## Verify
 - `py tools/smoke.py` — registry + manifest validate.
-- `py tools/testgate.py check --affected` — TestPurity + any registry/import
+- `py -m pytest tools/tests/test_<area>.py -q` — TestPurity + any registry/import
   test (targeted, not the full suite).
 - Live: `py editor/main.py` — the category's node appears in the tree; import a sheet
   onto a slot; it previews in the viewport; grey-X before import; and (if game-facing)
@@ -55,3 +55,11 @@ use the editor's `+ Variant` button; for swapping one slot's art, use
 - Changed files (slots.json + any editor wiring); the new category + its slots;
   verification performed; whether `editor/panels/CLAUDE.md` needed a durable update.
 - Tag every claim **measured** / **verified** / **inferred** (see `/report`).
+
+> **Role note (test policy).** The command above names the test FILES for what
+> you changed, which every role may run. `py tools/testgate.py check --affected`
+> is a MAIN-SESSION mid-task tool — its safety pass is the whole core tier — and
+> the single full `check` belongs to the main session at handoff. If you are
+> running this skill inside a dispatched agent, the `test_guard.py` hook will
+> deny both. The role table in §"Test Suite Policy" (root `CLAUDE.md`) is the
+> only authority.

@@ -21,10 +21,14 @@ umbrella branch.
    so the base is green by construction. There is no baseline to record: every
    later gate requires **zero failures**.
 
-   **Test-budget rule for every wave below:** all intermediate gates use
-   `py tools/testgate.py check --affected` — targeted tests only. The **full**
-   suite runs exactly ONCE, on the finished umbrella in Wave 4, right before the
-   PR. Never run it mid-orchestration.
+   **Test-budget rule for every wave below:** every dispatched agent's gate
+   is `py tools/smoke.py` + `py -m pytest tools/tests/test_<file>.py -q` over
+   the files it touched — nothing wider. A subagent may not run the full suite,
+   a tier sweep, or `--affected` (its safety pass is the whole core tier); the
+   `test_guard.py` hook denies all three. The **full** suite runs exactly ONCE,
+   from THIS main session, on the finished umbrella in Wave 4, right before the
+   PR. Never mid-orchestration. §"Test Suite Policy" in the root `CLAUDE.md` is
+   the authority.
 2. **Wave 1 — PLANNERS** (one **`planner` agent** per phase — launch ALL of them
    in ONE wave, a single message of parallel dispatches). Each reads the router
    `CLAUDE.md` → the relevant package/subsystem docs → current source (+ spec
@@ -48,7 +52,8 @@ umbrella branch.
    canonical pattern. The same ~10-minute exploration cap applies: the brief is
    the map — read it and the files in its §3 scope, then implement. Each runs
    the targeted gate (`py tools/smoke.py` +
-   `py tools/testgate.py check --affected` — NOT the full suite) and commits.
+   `py -m pytest tools/tests/test_<file>.py -q` over the files it touched —
+   NOT the full suite, NOT a tier sweep, NOT `--affected`) and commits.
    Coders never push or open PRs.
 4. **Wave 3 — REVIEWERS** (one **`reviewer` agent** per phase, parallel). Review the diff against the
    brief (behavior + cited numbers), repo conventions, test quality, scope
