@@ -239,9 +239,10 @@ class TileMap:
         self.on_zone_change = None
 
         # Perimeter edge walls placed by WallBuilder buildings (10E). Keyed by
-        # `_wall_key`. One WallEdge per edge — if two builders cover the same
-        # edge the later placement overwrites (last-placed owns it); documented
-        # as acceptable in the prototype.
+        # `_wall_key`. One WallEdge per edge — first claim wins: a newly-placed
+        # builder only raises walls on perimeter edges nobody currently owns,
+        # and never touches or reassigns an edge another WallBuilder already
+        # owns (its HP/max_hp/ownership are left untouched).
         self.wall_edges = {}
         # Buildings currently IN TRANSIT between two tiles (Building Movement).
         # A plain list of duck-typed order objects — `types.SimpleNamespace`s
@@ -1093,11 +1094,15 @@ class TileMap:
     def place_walls_for_builder(self, builder):
         """Raise walls on the outermost perimeter only: edges where a player tile
         faces an exterior combat tile (reachable from the spawn zone). Interior
-        concavities and the base pocket's inner edges are excluded. A snapshot of
-        the placed edges is frozen onto the builder so ``rebuild_walls`` can
-        restore destroyed segments without re-deriving the perimeter (prototype
-        ``place_walls_for_builder``). ``builder`` is duck-typed: ``wall_hp()`` +
-        ``set_wall_snapshot()``."""
+        concavities and the base pocket's inner edges are excluded. A newly-placed
+        builder only claims perimeter edges nobody currently owns — an edge
+        already owned by another WallBuilder is left completely untouched (not
+        even added to this builder's own snapshot), so a later placement can
+        never override an earlier builder's walls or progress. A snapshot of the
+        edges this builder actually claimed is frozen onto it so ``rebuild_walls``
+        can restore destroyed segments without re-deriving the perimeter
+        (prototype ``place_walls_for_builder``). ``builder`` is duck-typed:
+        ``wall_hp()`` + ``set_wall_snapshot()``."""
         wall_hp = builder.wall_hp()
         exterior = self._exterior_combat_tiles()
         snapshot = []
@@ -1109,6 +1114,8 @@ class TileMap:
                 if (nc, nr) not in exterior:
                     continue   # not exterior-facing — skip
                 key = _wall_key(tile.col, tile.row, nc, nr)
+                if key in self.wall_edges:
+                    continue   # already owned by another builder — hands off
                 self.wall_edges[key] = WallEdge(
                     tile.col, tile.row, nc, nr, wall_hp, wall_hp, builder)
                 snapshot.append([tile.col, tile.row, nc, nr])

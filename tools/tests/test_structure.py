@@ -20,6 +20,7 @@ from engine.physics import TileOccupancy
 from game.buildings import (
     BaseBuilding, Blocker, WallBuilder, attach_base, place_building,
 )
+from game.buildings.boost import BoostHP
 from game.buildings.components import WallBuilderState
 from game.buildings.registry import PlacementError
 from game.core import RunState, load_balance, run_payday
@@ -27,6 +28,7 @@ from game.enemies import create_enemy
 from game.enemies.components import EnemyCombat, PathAgent
 from game.map.pathfinder import find_path, find_path_ignoring_walls
 from game.map.tile_map import TileMap, WallEdge, _wall_key
+from game.map.tiles import TileState
 
 MAPBAL = load_balance(FIXTURE_DATA, "map")
 BUILD = load_balance(FIXTURE_DATA, "buildings")
@@ -35,6 +37,7 @@ ENEM = load_balance(FIXTURE_DATA, "enemies")
 
 BLOCKER = BUILD["StructureBuildings"]["Blocker"]["tiers"]
 WALLB = BUILD["StructureBuildings"]["WallBuilder"]["tiers"]
+HP_BOOST_T1 = BUILD["BoostBuildings"]["HP"]["tiers"][0]
 
 
 def synth(rows, base=(0, 0)):
@@ -94,9 +97,26 @@ class TestStructureStats(unittest.TestCase):
         self.assertEqual(
             w.upkeep(),
             WALLB[0]["base_upkeep"] + WALLB[0]["upkeep_per_level"])  # 6
-        self.assertEqual(w.wall_hp(), WALLB[0]["wall_hp"])         # const in tier
+        self.assertEqual(
+            w.wall_hp(),
+            WALLB[0]["wall_hp"] + WALLB[0]["wall_hp_per_level"])   # grows in tier
         w.advance_tier()                                           # Wooden
-        self.assertEqual(w.wall_hp(), WALLB[1]["wall_hp"])         # 120
+        self.assertEqual(w.wall_hp(), WALLB[1]["wall_hp"])         # back to level 1
+
+    def test_level_up_freezes_body_hp_but_grows_wall_hp(self):
+        # hp_per_level is now 0 for WallBuilder -- its OWN body HP is frozen at
+        # the tier's base_hp -- while wall_hp_per_level carries the growth that
+        # used to sit on the body (relocated, not duplicated).
+        w = WallBuilder(0, 0, BUILD)
+        self.assertEqual(w.max_hp(), WALLB[0]["base_hp"])
+        w.upgrade()                                                # lvl 2
+        self.assertEqual(w.max_hp(), WALLB[0]["base_hp"])          # still frozen
+        self.assertEqual(
+            w.wall_hp(),
+            WALLB[0]["wall_hp"] + WALLB[0]["wall_hp_per_level"])   # grew
+        w.advance_tier()                                           # Wooden
+        self.assertEqual(w.max_hp(), WALLB[1]["base_hp"])          # new tier base
+        self.assertEqual(w.wall_hp(), WALLB[1]["wall_hp"])         # back to level 1
 
     def test_upgrade_full_heals_owned_walls_to_the_new_wall_hp(self):
         # ``_on_apply_stats`` is a FULL-HEAL now (matching
@@ -254,6 +274,86 @@ class TestPaydayWallLifecycle(unittest.TestCase):
         run_payday(st, tm, core, occ, scene)
         self.assertFalse(w.alive)
         self.assertEqual(tm.wall_edges, {})             # perimeter permanently gone
+
+
+# ---------------------------------------------------------------------------
+class TestWallHpBoosterRegression(unittest.TestCase):
+    """Regression pin: an adjacent HP booster boosts ONLY the wall (wall_hp_pct
+    / wall_hp()), never the WallBuilder's own body HP -- unaffected by the
+    level-up-grows-wall-hp rework."""
+
+    def test_booster_boosts_wall_hp_not_body_hp(self):
+        tm, scene, occ = board(WALL_MAP)
+        st = run_state(wall_builder=1, boost_hp=1)
+        w, _ = place_building(tm, tm.get(1, 1), "wall_builder", 9999, BUILD,
+                              scene, occ, state=st)
+        place_building(tm, tm.get(0, 1), "boost_hp", 9999, BUILD,
+                       scene, occ, state=st)
+        body_hp_before = w.max_hp()
+        wall_hp_before = w.wall_hp()
+
+        run_payday(st, tm, CORE, occ, scene)               # slot 7: ramp applies
+
+        state = w.get_component(WallBuilderState)
+        self.assertAlmostEqual(state.wall_hp_pct, HP_BOOST_T1["wall_boost_per_turn"])
+        self.assertEqual(w.max_hp(), body_hp_before)        # body untouched
+        self.assertGreater(w.wall_hp(), wall_hp_before)     # wall boosted
+
+
+# ---------------------------------------------------------------------------
+# A 5x3 board whose player pocket (cols 0-2) faces a 2-deep exterior strip
+# (cols 3-4, both COMBAT) -- lets a test "buy" col 3 later (flip it to
+# BUILDABLE) to create genuinely NEW perimeter edges a first builder's
+# snapshot never covered.
+MULTI_MAP = ["bbbcc", "bbbcc", "ssscc"]
+
+
+class TestMultipleWallBuilders(unittest.TestCase):
+    """A newly-placed WallBuilder must never override another currently alive
+    WallBuilder's walls or progress (user decision, feature-wallbuilder-hp-
+    rework) -- it only ever claims perimeter edges nobody owns yet."""
+
+    def test_second_builder_leaves_first_builders_edges_untouched(self):
+        tm, scene, occ = board(WALL_MAP)
+        st = run_state(wall_builder=1)
+        a, _ = place_building(tm, tm.get(1, 1), "wall_builder", 9999, BUILD,
+                              scene, occ, state=st)
+        a.upgrade()                # leveled -- bigger wall_hp (auto-resynced)
+        before = {k: (e.owner, e.hp, e.max_hp) for k, e in tm.wall_edges.items()}
+        self.assertEqual(set(before), EXPECTED_WALL_KEYS)
+
+        # A second builder on the SAME territory: nothing left to claim.
+        b, _ = place_building(tm, tm.get(0, 1), "wall_builder", 9999, BUILD,
+                              scene, occ, state=st)
+
+        after = {k: (e.owner, e.hp, e.max_hp) for k, e in tm.wall_edges.items()}
+        self.assertEqual(before, after)                    # A's edges untouched
+        self.assertEqual(b.wall_snapshot(), [])             # B claimed nothing
+
+    def test_second_builder_only_claims_newly_unlocked_territory(self):
+        tm, scene, occ = board(MULTI_MAP)
+        st = run_state(wall_builder=1)
+        a, _ = place_building(tm, tm.get(1, 1), "wall_builder", 9999, BUILD,
+                              scene, occ, state=st)
+        before = {k: (e.owner, e.hp, e.max_hp) for k, e in tm.wall_edges.items()}
+        self.assertTrue(before)
+
+        # "Buy" col 3: it becomes player territory, exposing a fresh exterior
+        # boundary against col 4 that A's frozen snapshot never covered.
+        for row in (0, 1):
+            tm.set_tile_state(tm.get(3, row), TileState.BUILDABLE)
+
+        b, _ = place_building(tm, tm.get(3, 0), "wall_builder", 9999, BUILD,
+                              scene, occ, state=st)
+
+        after = {k: (e.owner, e.hp, e.max_hp) for k, e in tm.wall_edges.items()}
+        for key, val in before.items():
+            self.assertEqual(after[key], val)               # A's old edges intact
+            self.assertIsNot(after[key][0], b)               # never reassigned to B
+        new_keys = set(after) - set(before)
+        self.assertTrue(new_keys)                            # B claimed something
+        for key in new_keys:
+            self.assertIs(after[key][0], b)                  # ...and only the new bit
 
 
 # ---------------------------------------------------------------------------
