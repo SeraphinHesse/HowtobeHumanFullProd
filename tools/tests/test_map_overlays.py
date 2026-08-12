@@ -14,8 +14,11 @@ Covers the feature's two load-bearing promises —
    occupant carrying no ``TierState`` skipped rather than raising.
 
 Plus the JSON label surface: ``btn_tier_overview`` is an id, so its default
-``"TIER OVERVIEW"`` text is overridable through ``data/ui/screens/
-overlays.json`` for free (the generic per-widget ``label`` override).
+``"TIERS"`` text is overridable through ``data/ui/screens/overlays.json`` for
+free (the generic per-widget ``label`` override). (That default was
+``"TIER OVERVIEW"``, and its sibling ``"HEATMAP"``, until the static-label-fit
+check was taught to measure the font the game actually boots — see
+``tools/tests/test_ui_min_targets.py``.)
 
 Pure-Python, headless — the ``test_tile_conditions.py`` fixture style (a synth
 ``TileMapDoc`` -> real ``TileMap``, real balancing from the PINNED fixture,
@@ -293,7 +296,7 @@ class TestTierOverviewPillRender(unittest.TestCase):
         r = FakeRenderer()
         mo.submit_buttons(r)
         labels = [i.text for i in r.hud if hasattr(i, "text")]
-        self.assertEqual(labels, ["RANGE", "HEATMAP", "TIER OVERVIEW"])
+        self.assertEqual(labels, ["RANGE", "HEAT", "TIERS"])
 
     def test_active_gets_a_gold_rim_and_a_gold_label(self):
         mo = MapOverlays(VIEW_W, VIEW_H)
@@ -301,7 +304,7 @@ class TestTierOverviewPillRender(unittest.TestCase):
         r = FakeRenderer()
         mo.submit_buttons(r)
         label = next(i for i in r.hud
-                     if getattr(i, "text", None) == "TIER OVERVIEW")
+                     if getattr(i, "text", None) == "TIERS")
         self.assertEqual(label.color, widgets.C_GOLD)
         rims = [i for i in r.hud
                 if getattr(i, "rect", None) == mo.tier_overview_btn.rect
@@ -328,9 +331,12 @@ class TestTierOverviewLabel(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.data_dir = fixture_copy(self._tmp.name)
 
-    def test_default_label_is_tier_overview(self):
+    def test_default_label_is_tiers(self):
+        # Cut from "TIER OVERVIEW" when the label-fit check was taught to
+        # measure the SHIPPED font (data/ui/active_font.json ->
+        # pixel_emulator): the old copy needed 89px in a 76px pill there.
         mo = MapOverlays(VIEW_W, VIEW_H)
-        self.assertEqual(mo.tier_overview_btn.label, "TIER OVERVIEW")
+        self.assertEqual(mo.tier_overview_btn.label, "TIERS")
 
     def test_the_widget_id_is_registered(self):
         mo = MapOverlays(VIEW_W, VIEW_H)
@@ -340,12 +346,12 @@ class TestTierOverviewLabel(unittest.TestCase):
     def test_a_screen_override_changes_the_label(self):
         skinning = ScreenSkinning(self.data_dir)
         skinning._overrides["overlays"] = {
-            "widgets": {"btn_tier_overview": {"label": "TIERS"}}}
+            "widgets": {"btn_tier_overview": {"label": "LEVELS"}}}
         mo = MapOverlays(VIEW_W, VIEW_H, skinning)
-        self.assertEqual(mo.tier_overview_btn.label, "TIERS")
+        self.assertEqual(mo.tier_overview_btn.label, "LEVELS")
         # the siblings are untouched by that override
         self.assertEqual(mo.range_btn.label, "RANGE")
-        self.assertEqual(mo.heatmap_btn.label, "HEATMAP")
+        self.assertEqual(mo.heatmap_btn.label, "HEAT")
 
     def test_a_rect_override_moves_the_pill_and_its_hit_box(self):
         skinning = ScreenSkinning(self.data_dir)

@@ -61,6 +61,10 @@ ALLOWED = {
                           "ui_screen.schema.json tint property",
     "test_timeline_ops.py": "TempDataCase-style copy of the real tree, same "
                             "reason as test_editor_map_mode.py",
+    "test_ui_min_targets.py": "installs the SHIPPED font face to measure "
+                              "label fit against — the .otf is a binary, so "
+                              "data/fonts/ is read live; which face, and every "
+                              "geometry number, still come from the pin",
     "test_ui_layout_export.py": "diffs the committed screen_defaults.json "
                                 "against a fresh regeneration (staleness gate)",
     "test_video_source.py": "plays a shipped binary (mp4) — not in the fixture",

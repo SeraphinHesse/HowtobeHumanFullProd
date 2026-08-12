@@ -379,8 +379,16 @@ class TestConstructAtResearchedTier(unittest.TestCase):
         self.assertEqual(panel.mode, "construct")
         btype, btn = next(
             (bt, b) for bt, b in panel.cards if bt == "defence")
-        self.assertIn(tier1["name"], btn.label)   # "Slinger", not "Stone Thrower"
-        self.assertIn(str(tier1["build_cost"]), btn.label)
+        # A construct card is a widget TREE, not one button with one baked
+        # label (`game/ui/CLAUDE.md`, construct-card-widget-tree): the parent
+        # `card_<btype>` button is the click target and its own label is now
+        # `""`, while `card_<btype>_name` stores the text. Asserting on
+        # `btn.label` therefore compared against an empty string and failed
+        # with "'Slinger' not found in ''" — reading as "the panel offers the
+        # wrong tier" when the text had simply moved to a sibling widget.
+        card_text = panel.ids[f"card_{btype}_name"][1].label
+        self.assertIn(tier1["name"], card_text)   # "Slinger", not "Stone Thrower"
+        self.assertIn(str(tier1["build_cost"]), card_text)
 
         panel.handle_click(*click(btn), session, BUILDINGS_BAL, None, None)
         p = panel.preview

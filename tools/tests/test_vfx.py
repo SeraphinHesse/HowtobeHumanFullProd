@@ -54,6 +54,10 @@ from engine.vfx import (
     ProjectileParams, ShardBurstParams, SlashParams, SplatterParams,
     VfxParams, VfxSystem,
 )
+# The ONE place a vfx.json key name meets an engine.vfx dataclass field
+# (game/ui/CLAUDE.md) — imported so the round-trip tests below check the real
+# production mapping rather than re-implementing it.
+from game.ui.effects import _params_from_balance
 
 VFX_DATA_PATH = FIXTURE_DATA / "balancing" / "vfx.json"
 VFX_SCHEMA_PATH = FIXTURE_DATA / "schemas" / "vfx.schema.json"
@@ -439,11 +443,22 @@ class TestDefaultRoundTrip(unittest.TestCase):
         self.assertEqual(b["origin_lift_tiles"], 1.0)
 
     def test_crater(self):
+        """A real ROUND TRIP: every authored key reaches `CraterParams`
+        unchanged.
+
+        This used to restate the four magnitudes as literals. That was the
+        migration-era contract (brief §1.3: "the values did not change when
+        they moved from Python into JSON") and it expired the moment the
+        block became a designer lever — `life` was retuned to 0.0 and the
+        test went red for balancing doing exactly what balancing is for.
+        What still has to hold, and what is asserted now, is that the value
+        the ENGINE reads is the value the designer authored."""
         c = self.data["procedural"]["crater"]
-        self.assertEqual(c["color"], [120, 78, 66])
-        self.assertEqual(c["alpha"], 150)
-        self.assertEqual(c["life"], 1.0)
-        self.assertEqual(c["segments"], 12)
+        params = _params_from_balance(self.data)[1].crater
+        self.assertEqual(list(params.color), list(c["color"]))
+        self.assertEqual(params.alpha, c["alpha"])
+        self.assertEqual(params.life, c["life"])
+        self.assertEqual(params.segments, c["segments"])
 
     def test_lightning(self):
         lp = self.data["procedural"]["lightning"]
@@ -470,12 +485,15 @@ class TestDefaultRoundTrip(unittest.TestCase):
     # -- fix-anchor-offset-and-bullet-sprites Fix 2 (brief §4 test 10) -----
 
     def test_projectile(self):
+        """A real ROUND TRIP — see `test_crater` for why these stopped being
+        literals (`stone_size` was retuned 3 -> 32)."""
         p = self.data["procedural"]["projectile"]
-        self.assertEqual(p["stone_color"], [185, 180, 170])
-        self.assertEqual(p["shell_color"], [70, 60, 55])
-        self.assertEqual(p["stone_size"], 3)
-        self.assertEqual(p["shell_size"], 5)
-        self.assertEqual(p["lift_frac"], 0.6)
+        params = _params_from_balance(self.data)[1].projectile
+        self.assertEqual(list(params.stone_color), list(p["stone_color"]))
+        self.assertEqual(list(params.shell_color), list(p["shell_color"]))
+        self.assertEqual(params.stone_size, p["stone_size"])
+        self.assertEqual(params.shell_size, p["shell_size"])
+        self.assertEqual(params.lift_frac, p["lift_frac"])
 
     # -- Drummer buff-range telegraph -----------------------------------
 

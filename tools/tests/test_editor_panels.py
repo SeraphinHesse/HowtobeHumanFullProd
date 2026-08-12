@@ -451,13 +451,19 @@ class TestBalancingPanel(TempDataCase):
         """ER-5: footprint / sprite_scale / the whole death_spawn block (including
         the per-era spawns rows) reach the designer as real widgets.
 
-        BR-1 re-anchored the two sizing fields: they are still flat at the type
-        root for every ordinary type (Standard here), while the BOSS carries
-        them — plus its shake — inside each per-era ``stats`` row."""
+        BR-1 re-anchored the two sizing fields into the Boss's per-era
+        ``stats`` rows (plus its shake). The per-era-footprint change then did
+        the same for EVERY era-shaped type: ``footprint``/``sprite_scale`` live
+        in each type's own ``eras[]`` rows and **have no flat home left**
+        (`game/enemies/CLAUDE.md`). This test still named the deleted flat keys
+        `EnemyTypes/Standard/footprint`/`sprite_scale` and failed with a bare
+        `KeyError` — so the two subtests said "the panel lost these widgets"
+        when what had actually happened is that they moved."""
         panel = self.make_panel("enemies")
         for key, kind in (
-            ("EnemyTypes/Standard/footprint", QSpinBox),
-            ("EnemyTypes/Standard/sprite_scale", QDoubleSpinBox),
+            ("EnemyTypes/Standard/eras/0/footprint", QSpinBox),
+            ("EnemyTypes/Standard/eras/0/sprite_scale", QDoubleSpinBox),
+            ("EnemyTypes/Standard/eras/4/footprint", QSpinBox),
             ("EnemyTypes/Boss/stats/0/footprint", QSpinBox),
             ("EnemyTypes/Boss/stats/0/sprite_scale", QDoubleSpinBox),
             ("EnemyTypes/Boss/stats/4/shake/strength", QDoubleSpinBox),

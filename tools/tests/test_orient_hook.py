@@ -49,9 +49,16 @@ class OrientHookCase(unittest.TestCase):
         self.assertIn("Graph status:", context)
 
     def test_session_start_does_not_duplicate_claude_md(self):
-        """The main session auto-loads CLAUDE.md; re-injecting it wastes context."""
+        """The main session auto-loads CLAUDE.md; re-injecting it wastes context.
+
+        Asserted against the FILE, not against a heading that happened to be in
+        it. This used to be `assertNotIn("Design pillars", ...)`, which is a
+        proxy with two failure modes: rename the heading and the test passes
+        vacuously forever, or rename it while the hook IS duplicating and the
+        test still passes. Comparing to `CLAUDE.md`'s own text has neither."""
         _, doc = run_hook("SessionStart", {"source": "startup"})
-        self.assertNotIn("Design pillars", context_of(doc))
+        router = CLAUDE_MD.read_text(encoding="utf-8")
+        self.assertNotIn(router, context_of(doc))
 
     def test_subagent_start_injects_claude_md_verbatim(self):
         code, doc = run_hook("SubagentStart", {"agent_type": "Explore"})
@@ -75,10 +82,42 @@ class OrientHookCase(unittest.TestCase):
         self.assertIn(router, context)
 
     def test_graph_directive_precedes_the_router(self):
-        """Step 0 must be read before the package-doc routing in Step 1."""
+        """Step 0 must be read before the package-doc routing in Step 1.
+
+        Positions are taken against the ROUTER TEXT itself rather than a
+        heading inside it. `context.index("Design pillars")` raised
+        `ValueError` — not a clean assertion failure — the day that heading was
+        renamed, which is how a doc edit turned into a red suite."""
         _, doc = run_hook("SubagentStart", {"agent_type": "general-purpose"})
         context = context_of(doc)
-        self.assertLess(context.index("Step 0"), context.index("Design pillars"))
+        router = CLAUDE_MD.read_text(encoding="utf-8")
+        self.assertLess(context.index("Step 0"), context.index(router))
+
+    def test_a_subagent_is_told_its_own_test_role_LAST(self):
+        """The router is general policy written for everyone; a subagent needs
+        its own row, and it must come AFTER the router so later text wins.
+
+        This is the fix for the specific failure the whole test-policy rework
+        exists to close: the router contains an exit-gate section, a subagent
+        read it as addressed to itself, and ran the full suite. Behaviour, not
+        wording — it asserts the two commands the subagent MAY run appear, and
+        that they land after the router, never that a particular sentence is
+        present."""
+        _, doc = run_hook("SubagentStart", {"agent_type": "coder"})
+        context = context_of(doc)
+        router = CLAUDE_MD.read_text(encoding="utf-8")
+
+        self.assertLess(context.index(router), context.index("SUBAGENT"),
+                        "the role block must come after the router, or the "
+                        "router's general exit gate wins")
+        self.assertIn("py tools/smoke.py", context)
+        self.assertIn("py -m pytest tools/tests/test_", context)
+
+    def test_the_main_session_gets_no_subagent_role_block(self):
+        """It is not a subagent, and telling it that it may not run the gate
+        would break the one full run the policy is built around."""
+        _, doc = run_hook("SessionStart", {"source": "startup"})
+        self.assertNotIn("YOUR ROW OF THE TEST POLICY", context_of(doc))
 
     def test_malformed_stdin_does_not_break_the_session(self):
         result = subprocess.run(
