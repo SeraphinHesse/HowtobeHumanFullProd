@@ -1,8 +1,11 @@
 """engine.render — RenderItem pipeline (E-20..E-26).
 
 This __init__ and renderer.py stay pure Python; pygame lives only in
-engine.render.backend (loaded lazily on first flush, or injected).
+engine.render.backend (loaded lazily on first flush, or injected). The
+backend CONTRACT (`Backend` Protocol + `default_backend()`) lives in
+backend_api.py, which is itself pure — no pygame at module level.
 """
+from .backend_api import Backend, default_backend
 from .hud import (
     HUD_ITEM_TYPES, HudLines, HudRect, HudSprite, HudText, hud_item_from_json,
     hud_item_to_json,
@@ -15,6 +18,7 @@ from .renderer import (
 __all__ = [
     "HUD_ITEM_TYPES",
     "LAYERS",
+    "Backend",
     "DrawCall",
     "HudLines",
     "HudRect",
@@ -25,6 +29,7 @@ __all__ = [
     "RenderItem",
     "Renderer",
     "block_center_offset",
+    "default_backend",
     "fit_factor",
     "hud_item_from_json",
     "hud_item_to_json",
