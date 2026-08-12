@@ -6256,15 +6256,15 @@
           0
         ]
       },
-      "frame_h": 18,
-      "frame_w": 12,
+      "frame_h": 96,
+      "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 6,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
