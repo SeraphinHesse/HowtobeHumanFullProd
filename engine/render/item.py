@@ -66,3 +66,33 @@ class OverlayPolys:
 
     points: tuple  # ((x, y), ...) — world at submit, screen in the backend
     color: tuple  # RGB or RGBA
+
+
+@dataclass(frozen=True)
+class WorldFill:
+    """fix/depth-sorted-world-fills: a flat-color world-space polygon fill
+    (optional border), submitted via ``Renderer.submit_world_fill`` and
+    sorted into the SAME depth-ordered queue as ``RenderItem`` — unlike
+    ``OverlayLines``/``OverlayPolys`` (always drawn dead last, after every
+    sprite, regardless of when submitted), a ``WorldFill``'s draw position is
+    decided by its own ``world_pos``/``layer`` exactly like a building's, via
+    the SAME ``depth_key`` formula. That is what lets a tile highlight or a
+    wall segment draw BEHIND a specific building standing on/near it — a
+    fixed always-on-top or always-behind layer can only ever approximate
+    that; this participates in real per-tile depth instead.
+
+    ``points`` are WORLD-space (converted via coords at flush, same contract
+    as ``OverlayPolys``/``OverlayLines``). ``world_pos`` is the depth-sort
+    anchor — pass the SAME ``(col, row)`` a building's own ``Transform``
+    would use for the tile this fill belongs to, so ties against a same-tile
+    building resolve by SUBMISSION ORDER (Python's stable sort): submit the
+    fill before the building's ``RenderItem`` to draw it behind, after to
+    draw it in front. ``color`` is the fill (``None`` = outline only);
+    ``border`` is an optional outline colour drawn on top of the fill."""
+
+    points: tuple             # world-space polygon points, closed implicitly
+    world_pos: tuple          # (wx, wy) depth-sort anchor — the RenderItem convention
+    layer: str = "entities"
+    color: tuple = None       # RGB/RGBA fill; None = outline only
+    border: tuple = None      # RGB/RGBA outline colour; None = no outline
+    border_width: int = 2

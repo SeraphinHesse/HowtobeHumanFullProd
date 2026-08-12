@@ -135,6 +135,48 @@ backend draws it onto a bounding-box `SRCALPHA` scratch surface and blits; opaqu
 colors take the direct `pygame.draw.polygon` path). Tile fills, splatters, and
 glows use this; ellipses are caller-side polygon approximations.
 
+**Both of the above are ALWAYS drawn dead last, after every sprite in every
+layer, regardless of when in the frame they were submitted** — the docstrings
+say so directly ("overlays always draw on top"). This is correct and load-bearing
+for their actual consumers (editor grid lines, anchor handles, splatters/craters
+that are deliberately drawn over sprites — `game/ui/CLAUDE.md`'s "Known
+divergences"). **It is the WRONG primitive for anything that needs to draw
+BEHIND a specific building** — reordering the *submission* call relative to
+`world.scene.render_items()` has NO effect on either of these two, since `flush()`
+processes `self._queue` (every sprite) and `self._overlay` (every line/poly) as
+two separate, fixed-order passes. (This was a real bug: `fix/highlight-render-order`
+initially tried exactly that reorder for tile-highlight diamonds and it was a
+complete no-op on the actual rendered frame.)
+
+### Depth-sorted world fills — `submit_world_fill` / `WorldFill`
+(`fix/depth-sorted-world-fills`) For anything that DOES need to sort against a
+specific building's real tile position — a selection/heatmap/tier-overview
+diamond, a wall segment — use `Renderer.submit_world_fill(points, world_pos,
+layer="entities", color=None, border=None, border_width=2)` instead. Unlike
+`submit_overlay_polys`/`submit_overlay_lines`, this appends a `WorldFill` (see
+`item.py`'s docstring) to the SAME queue as `RenderItem` (`self._queue`, not
+`self._overlay`), so it goes through the SAME `depth_key = (layer_index,
+wx+wy, wy)` sort as every building — `flush()`'s single sorted loop
+`isinstance`-branches per item and builds the poly/line `DrawCall`s at that
+item's actual sorted position instead of in a separate trailing block.
+- **`world_pos` must match the tile's building-anchor convention** — the RAW
+  `(col, row)` a `Transform` uses (`game/buildings/building.py`:
+  `Transform(wx=float(col), wy=float(row))`), NOT the tile centre. Match it and
+  a same-tile building tie-breaks purely by SUBMISSION ORDER (Python's stable
+  sort): submit the fill before the building's `RenderItem` to draw behind it,
+  after to draw in front. A fill on a DIFFERENT tile sorts correctly against
+  ANY building anywhere via the ordinary `wx+wy`/`wy` comparison — the exact
+  same rule two buildings already sort by, so no extra math is needed for
+  cross-tile depth to be correct.
+- `color=None` draws outline-only (the `submit_tile_diamond` shape);
+  `border=None` skips the outline (the `submit_tile_diamond_fill` shape); both
+  set draws a filled diamond with an outline on top, same as before.
+- Consumers: `game/ui/widgets.py`'s `submit_tile_diamond`/
+  `submit_tile_diamond_fill` (→ every tile highlight: click/drag-select,
+  condition tint, RANGE, HEATMAP, TIER OVERVIEW, the tutorial highlight — one
+  choke point, so every caller of those two got this for free) and
+  `game/map/wall_render.py`'s wall-art emitter (see `game/map/CLAUDE.md`).
+
 ## Backend throughput (perf, for hundreds of entities/projectiles)
 `render/backend.py`:
 1. A module-level `WeakKeyDictionary` **scaled-frame cache** keyed by

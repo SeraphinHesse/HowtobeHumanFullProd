@@ -30,15 +30,21 @@ from tools.screen_mocks import (
 class RecordingRenderer:
     """Records every `submit_hud` call verbatim.
 
-    Screens are HUD-only — none calls `submit`/`submit_overlay_*` except
-    `BuildingUI`, whose world-space highlight lines need a live scene and are
-    therefore absent from every mock capture. The two overlay methods exist so
-    a screen that starts using them records rather than crashes.
+    Screens are HUD-only — none calls `submit`/`submit_overlay_*`/
+    `submit_world_fill` except `BuildingUI`: `capture_building_panel_views`'s
+    unlock/construct/preview/upgrade mocks DO populate `_highlight_tiles`
+    (`screen_mocks.py build_bp_view` calls `_build_unlock`/`_build_construct`/
+    `_build_upgrade` after setting `selected_tiles`), so `panel.submit()`
+    really does call `submit_world_fill` (fix/depth-sorted-world-fills — see
+    `engine/render/CLAUDE.md`) for those views. The three methods below exist
+    so any screen that uses them records rather than crashes; none of their
+    output is read back by this module.
     """
 
     def __init__(self):
         self.items = []
         self.overlay = []
+        self.world_fills = []
 
     def submit_hud(self, item):
         self.items.append(item)
@@ -48,6 +54,11 @@ class RecordingRenderer:
 
     def submit_overlay_polys(self, points, rgba):
         self.overlay.append(("polys", points, rgba))
+
+    def submit_world_fill(self, points, world_pos, layer="entities",
+                          color=None, border=None, border_width=2):
+        self.world_fills.append(
+            (points, world_pos, layer, color, border, border_width))
 
 
 def _capture(fn):

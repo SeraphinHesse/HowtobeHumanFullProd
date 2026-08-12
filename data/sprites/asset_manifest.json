@@ -3088,7 +3088,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
@@ -3139,7 +3139,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
@@ -3190,7 +3190,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
@@ -3241,7 +3241,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
@@ -3292,7 +3292,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
@@ -3332,7 +3332,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
@@ -3416,7 +3416,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
@@ -6237,6 +6237,78 @@
       ],
       "sheet": "imported/raider.png"
     },
+    "raider_stage_1": {
+      "anchors": {
+        "beam_endpoint": [
+          0,
+          0
+        ],
+        "floater_origin": [
+          -2,
+          -5
+        ],
+        "hp_bar": [
+          -2,
+          -13
+        ],
+        "impact": [
+          -1,
+          0
+        ]
+      },
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 6,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/raider_stage_1.png"
+    },
+    "raider_stage_2": {
+      "anchors": {
+        "beam_endpoint": [
+          -1,
+          0
+        ],
+        "floater_origin": [
+          -2,
+          -8
+        ],
+        "hp_bar": [
+          -2,
+          -12
+        ],
+        "impact": [
+          -1,
+          -2
+        ]
+      },
+      "frame_h": 18,
+      "frame_w": 12,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/raider_stage_2.png"
+    },
     "raider_stage_3": {
       "anchors": {
         "beam_endpoint": [
@@ -6254,10 +6326,6 @@
         "impact": [
           -1,
           0
-        ],
-        "muzzle": [
-          -25,
-          -4
         ]
       },
       "frame_h": 18,
@@ -6294,10 +6362,6 @@
         "impact": [
           -1,
           -1
-        ],
-        "muzzle": [
-          -28,
-          -4
         ]
       },
       "frame_h": 18,
