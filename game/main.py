@@ -1357,7 +1357,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                     pending = session.state.pending_boss_cutscene or {}
                     gp["panel"].close()  # the modal owns the screen
                     gp["boss_cutscene"].open(pending.get("boss_num", 1),
-                                             pending.get("outcome", "win"))
+                                             pending.get("outcome", "win"),
+                                             pending.get("love_reward", 0))
                 # -- /10G --
                 # -- feature-enemy-intro-dialogue: open the first queued entry
                 # on ITS phase edge (same pattern). Subsequent queued entries

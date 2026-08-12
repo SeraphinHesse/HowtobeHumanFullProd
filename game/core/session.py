@@ -560,7 +560,8 @@ class Session:
         st.pending_boss_cutscene = None
         if self.debug is not None:
             self.debug.emit(dbg.BOSS_CHOICE, boss_num=boss_num, option=option,
-                            outcome=outcome)
+                            outcome=outcome,
+                            love_reward=pending.get("love_reward", 0))
         if self._levelup_due():
             self._begin_levelup()
         else:
@@ -710,6 +711,18 @@ class Session:
 
     # -- helpers ----------------------------------------------------------
 
+    def _boss_loss_reward(self, era):
+        """This era's consolation love for a LOST boss round (0 = none).
+
+        Resolved through ``era_math.resolve_era_row`` with the boss's own
+        ``endgame_boss_scaling``, i.e. the exact path ``Boss._stat_row`` takes
+        — game/core cannot import game.enemies (it would close an import
+        cycle), so it calls the shared engine helper instead of the class."""
+        block = self.enemies_balance["EnemyTypes"]["Boss"]
+        row = era_math.resolve_era_row(block["stats"], max(0, int(era)),
+                                       block["endgame_boss_scaling"])
+        return int(row.get("loss_love_reward", 0))
+
     def _begin_round_end(self):
         st = self.state
         # -- 10G boss: queue the cutscene at a boss round's end (round_num is
@@ -721,11 +734,22 @@ class Session:
         rounds_per_era = scaling["rounds_per_era"]
         if era_math.is_boss_round(st.round_num, rounds_per_era,
                                   scaling["boss_round_in_era"]):
+            era = era_math.era_of_round(st.round_num, rounds_per_era)
+            outcome = ("win" if st.base_lives >= st.boss_lives_snapshot
+                       else "loss")
+            # A LOST boss round pays consolation love, straight off THIS era's
+            # boss stat row (`loss_love_reward`) — the same clamped/endgame-
+            # scaled resolve the Boss itself uses for hp/dmg, so era 6+ keeps
+            # paying whatever `endgame_boss_scaling` says. Paid here, once,
+            # the moment the outcome is known: the cutscene shows the number
+            # and the payday that follows it already sees the love.
+            reward = self._boss_loss_reward(era) if outcome == "loss" else 0
+            if reward:
+                st.add_love(reward)
             st.pending_boss_cutscene = {
-                "boss_num": era_math.era_of_round(
-                    st.round_num, rounds_per_era) + 1,
-                "outcome": ("win" if st.base_lives >= st.boss_lives_snapshot
-                            else "loss"),
+                "boss_num": era + 1,
+                "outcome": outcome,
+                "love_reward": reward,
             }
         # -- /10G --
         st.phase = GamePhase.ROUND_END

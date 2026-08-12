@@ -47,6 +47,7 @@
         "footprint": 1.0,
         "hp": 1.0,
         "interval": 1.0,
+        "loss_love_reward": 1.0,
         "move_speed": 1.0,
         "raiders": 1.0,
         "regular": 1.0,
@@ -163,6 +164,7 @@
           "dmg": 160,
           "footprint": 2,
           "hp": 1400,
+          "loss_love_reward": 30,
           "move_speed": 0.65,
           "name": "Throbbin Hood",
           "shake": {
@@ -177,6 +179,7 @@
           "dmg": 320,
           "footprint": 2,
           "hp": 3000,
+          "loss_love_reward": 60,
           "move_speed": 0.58,
           "name": "Cannon Fortress",
           "shake": {
@@ -191,6 +194,7 @@
           "dmg": 480,
           "footprint": 2,
           "hp": 6500,
+          "loss_love_reward": 100,
           "move_speed": 0.59,
           "name": "Wrecking Ball",
           "shake": {
@@ -205,6 +209,7 @@
           "dmg": 700,
           "footprint": 2,
           "hp": 10000,
+          "loss_love_reward": 150,
           "move_speed": 0.61,
           "name": "Iron Drill",
           "shake": {
@@ -219,6 +224,7 @@
           "dmg": 1000,
           "footprint": 2,
           "hp": 15000,
+          "loss_love_reward": 200,
           "move_speed": 0.7,
           "name": "Siege Tank",
           "shake": {
