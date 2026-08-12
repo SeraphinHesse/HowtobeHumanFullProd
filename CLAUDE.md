@@ -182,6 +182,7 @@ tasks, open with the skill.
 |----------------------------------------------------|-------------------|
 | Add / create a building type                       | `/add-building`   |
 | Add / create an enemy type                         | `/add-enemy`      |
+| Add / create a VFX effect for a building or enemy   | `/add-vfx`        |
 | Add / change a balancing tunable                   | `/add-balancing-value` |
 | Add an engine Component                             | `/add-engine-component` |
 | Add an editor feature/panel                        | `/add-editor-feature` |
