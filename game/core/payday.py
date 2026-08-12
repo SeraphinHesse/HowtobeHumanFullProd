@@ -90,7 +90,7 @@ def _process_painters(state, tilemap, occupancy, scene):
         state.add_love(payout)
         state.income_events.append((tile.col, tile.row, payout, "income"))
         state.painter_events.append(
-            (tile.col, tile.row, "painting finished", "finished"))
+            (tile.col, tile.row, "painting finished!", "finished"))
         state.used_painter_tiles.add((tile.col, tile.row))
         _free_tile(tilemap, tile, occupancy, scene)
 

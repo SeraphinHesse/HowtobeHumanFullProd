@@ -892,59 +892,22 @@ class TestConditionSpeedFloor(unittest.TestCase):
     LATCH: the penalty is a flat 0.4 t/s and the boss moves at 0.3–0.45, so
     eras 0–3 computed exactly 0.0 — and a unit at speed 0 never advances
     ``Movement.index``, which is the only thing that refreshes
-    ``_current_condition``, so the speed stayed 0 forever."""
+    ``_current_condition``, so the speed stayed 0 forever.
 
-    PEN = MAPBAL["TileConditions"]["modifiers"]["Forest"]["enemy_speed_penalty"]
+    The Tile Condition Rework removed ``enemy_speed_penalty`` from every
+    condition (see ``test_tile_conditions.TestEnemyModifiers``), so the two
+    per-era/per-type penalty tests that used to live here have no premise left
+    to state — nothing subtracts from a speed today. Do not resurrect them
+    against a hardcoded penalty; the ``max(real × FRAC, real − penalty)``
+    plumbing in ``game/enemies/components.py`` stays, unused, for a future
+    condition that wants it."""
+
     FRAC = MAPBAL["TileConditions"]["min_speed_fraction"]
 
     def _speed_on(self, enemy, condition):
         pa = enemy.get_component(PathAgent)
         pa._current_condition = condition
         return pa._condition_speed()
-
-    def test_every_boss_era_moves_on_forest(self):
-        """The floor lifts every era to a fraction of its OWN speed — it is the
-        LARGER term for all five, so the boss is the one type the floor governs
-        outright.
-
-        The premise is DERIVED from balancing, never pinned. It used to read
-        ``assertLessEqual(real - PEN, 0.0 if era <= 3 else 0.05)``, which
-        encoded the boss speeds of the day (0.3–0.45, so eras 0–3 subtracted to
-        exactly 0.0 — the dead latch this floor was built to fix). Those speeds
-        were later retuned to 0.58–0.7 and all five subtests went red while the
-        behaviour under test was still perfectly correct. Balancing is free to
-        move (`game/CLAUDE.md`: "retune freely"); what must hold is the
-        RELATIONSHIP, which is what the two assertions below state."""
-        tm = synth(["bs"])
-        for era, st in enumerate(BOSS["stats"]):
-            with self.subTest(era=era):
-                real = st["move_speed"]
-                speed = self._speed_on(create_enemy("boss", 1, 0, ENEM, tm,
-                                                    era), TileCondition.FOREST)
-                # The floor governs: it beats the raw subtraction, and IS the
-                # speed the agent ends up moving at. Together these say the
-                # boss can never be welded to a standstill by forest, whatever
-                # its speed is retuned to.
-                self.assertGreater(real * self.FRAC, real - self.PEN)
-                self.assertGreater(speed, 0.0)
-                self.assertAlmostEqual(speed, real * self.FRAC)
-
-    def test_the_four_normal_types_are_byte_identical(self):
-        """D1's fence: the floor must move ONLY the boss. Each normal type is
-        FASTER than its own floor even after the penalty, so ``real − penalty``
-        still wins and the number does not budge. If this goes red the floor has
-        leaked into the rest of the roster — that is a bug, not a rebalance."""
-        tm = synth(["bs"])
-        for etype, key, expect in (("standard", "Standard", 0.8),
-                                   ("raider", "Raider", 2.3),
-                                   ("siege", "SiegeCannon", 0.6),
-                                   ("formation", "Formation", 0.5)):
-            with self.subTest(etype=etype):
-                real = ENEM["EnemyTypes"][key]["eras"][0]["stats"]["move_speed"]
-                speed = self._speed_on(create_enemy(etype, 1, 0, ENEM, tm),
-                                       TileCondition.FOREST)
-                self.assertAlmostEqual(speed, real - self.PEN)
-                self.assertAlmostEqual(speed, expect)   # hand-computed
 
     def test_grass_is_still_the_unpenalised_speed(self):
         tm = synth(["bs"])

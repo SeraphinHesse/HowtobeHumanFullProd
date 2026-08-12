@@ -173,10 +173,43 @@ class TestSelectorContextMenu(TempDataCase):
         self.assertIsNone(panel._context_menu(group))
         self.assertIsNone(panel._context_menu(panel._maps_branch))
 
+    def _category_roots(self, panel):
+        """Every CATEGORY ROOT in the tree (payload path == ()), in tree order
+        — including the ones nested under "map" (deco/conditions), whose
+        payload path is () too."""
+        keys, stack = [], [panel.topLevelItem(i)
+                           for i in range(panel.topLevelItemCount())]
+        while stack:
+            item = stack.pop(0)
+            payload = item.data(0, _PAYLOAD_ROLE)
+            if payload is not None and tuple(payload[1]) == ():
+                keys.append(payload[0])
+            stack.extend(item.child(i) for i in range(item.childCount()))
+        return keys
+
+    def _category_without_a_spec(self, panel):
+        """A category key that genuinely has NO form spec, DERIVED at runtime
+        from the same data/agent_forms/*.json roster the panel consults —
+        never a hardcoded example. ("vfx" used to be hardcoded here; then
+        add-vfx.json was added and the premise silently became false.)"""
+        contexts = set()
+        for path in sorted((self.data_dir / "agent_forms").glob("*.json")):
+            spec = json.loads(path.read_text(encoding="utf-8"))
+            contexts.add(spec.get("selector_context"))
+        for key in self._category_roots(panel):
+            if key not in contexts:
+                return key
+        return None
+
     def test_category_without_a_spec_offers_no_menu(self):
         panel = self.make()
-        self.assertEqual(panel._add_entries("vfx"), [])
-        self.assertIsNone(panel._context_menu(panel._find_item("vfx", ())))
+        key = self._category_without_a_spec(panel)
+        if key is None:
+            self.skipTest(
+                "every category in the tree now has a form spec — no spec-less "
+                "category left to assert against")
+        self.assertEqual(panel._add_entries(key), [])
+        self.assertIsNone(panel._context_menu(panel._find_item(key, ())))
 
     def test_broken_spec_does_not_break_right_click(self):
         """An unhandled exception in a Qt event handler can abort the process:

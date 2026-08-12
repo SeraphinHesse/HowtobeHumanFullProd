@@ -529,15 +529,19 @@ class FloaterManager:
 
     def spawn_painter_events(self, state):
         """Drain ``state.painter_events`` (filled by the payday Painter slot +
-        revive) into 1.5s message floaters — gold "painting finished", red
-        "painting lost!". Called on the INCOME edge beside the income floaters."""
+        revive) into 1.5s message floaters — gold "painting finished!", red
+        "painting lost!" — AND a game-log line for both, so a completed
+        payout is not just a fleeting floater the player can miss (the tile
+        greys out in the construct panel from then on; this is the one-time
+        notice that it just happened). Called on the INCOME edge beside the
+        income floaters."""
         fl = self._vfx_params.floaters
         for col, row, text, kind in state.painter_events:
             color = (fl.painter_finished_color if kind == "finished"
                      else fl.painter_lost_color)
             self._floaters.append(
                 _Floater(col + 0.5, row + 0.5, text, color, fl.painter_life))
-            if self.log is not None and kind == "lost":  # 10J game log
+            if self.log is not None:  # 10J game log
                 self.log.post(text)
         state.painter_events.clear()
 

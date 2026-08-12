@@ -18,10 +18,34 @@ on:
     branches: [Development]
 
 concurrency:
-  # A new push to the same PR cancels the previous run — no point gating a
-  # commit that has already been superseded.
-  group: tests-${{ github.ref }}
-  cancel-in-progress: true
+  # Keyed on the PR number (not `github.ref`) for pull_request events, so the
+  # key names the thing being gated rather than a ref that GitHub rewrites
+  # underneath us.
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+
+  # ONLY cancel superseded PUSH runs. Never cancel a pull_request run.
+  #
+  # This was `true` unconditionally, and it made every open PR go red whenever
+  # ANY PR landed. The mechanism: for a pull_request event `github.ref` is
+  # `refs/pull/N/merge`, and GitHub recomputes that merge ref for every open PR
+  # each time the base branch moves. Each recompute enqueues a fresh run in the
+  # same concurrency group, and `cancel-in-progress` then evicts the run already
+  # in flight with:
+  #
+  #     Canceling since a higher priority waiting request
+  #     for tests-refs/pull/116/merge exists
+  #
+  # The `gate` job is `if: always()`, so it survives the eviction, sees
+  # `smoke: cancelled` / `suite: cancelled`, and prints GATE FAIL about two
+  # seconds in. That is indistinguishable at a glance from a genuinely broken
+  # branch — and it is the SECOND time this workflow has turned a cancellation
+  # into a false red (see the sharding note in the header, where a 20-minute
+  # timeout also reported as `cancelled`). Landing three PRs in a row turned
+  # every other open PR red for reasons that had nothing to do with their code.
+  #
+  # A PR run costs ~1-3 min per shard. Letting a superseded PR run finish is
+  # cheaper than a human or an agent re-diagnosing a phantom failure.
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 env:
   # This repo's headless convention. Qt and SDL both read these at import

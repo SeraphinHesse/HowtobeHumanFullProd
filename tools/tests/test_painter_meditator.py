@@ -140,7 +140,7 @@ class TestPainterPayout(unittest.TestCase):
         self.assertIsNone(tile.occupant)
         self.assertIsNone(occ.get((1, 0)))
         self.assertIn((1, 0), st.used_painter_tiles)
-        self.assertIn((1, 0, "painting finished", "finished"),
+        self.assertIn((1, 0, "painting finished!", "finished"),
                       st.painter_events)
         scene.update(0.0)                              # flush the despawn
         self.assertNotIn(painter, scene.by_tag("building"))

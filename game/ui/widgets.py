@@ -70,6 +70,10 @@ C_TUTORIAL_HIGHLIGHT = (255, 255, 255)  # TU-6: guided-chain highlight (white)
 # from, and game/ui/CLAUDE.md's palette section).
 C_MOVE_HIGHLIGHT = (80, 200, 255)    # move-destination tiles (cyan)
 C_RANGE_HIGHLIGHT = (180, 40, 40)    # defence attack range
+# Construct panel: a tile that already hosted a Painter and paid out, so it
+# can never host another one. Same "plain code constant" exception as
+# C_MOVE_HIGHLIGHT above.
+C_PAINTER_USED = (110, 110, 110)     # grey — barred painter tile
 C_PANEL_STONE = (40, 32, 58)         # HUD "stone pill" body
 C_PANEL_INSET = (150, 135, 185)
 C_PURPLE = (168, 105, 222)           # the house purple (matches the XP bar fill)
