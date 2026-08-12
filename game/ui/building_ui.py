@@ -59,7 +59,9 @@ from game.core.wall_era import sync_wall_art_era  # wall-era-art feature
 from game.core.xp import scaled_base_income
 from game.debug import events as dbg  # debug-mode-telemetry Phase 2
 from game.map import edge_world_points  # wall-edge selection highlight
-from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition, TileState
+from game.map.tiles import (
+    CONDITION_BLOCKS_BUILD, CONDITION_MODIFIER_KEY, TileCondition, TileState,
+)
 
 from engine.render.fonts import layout_h
 
@@ -2297,6 +2299,8 @@ class BuildingUI:
         deliberately NOT listed."""
         if condition == TileCondition.GRASS:
             return ["No terrain effect"]
+        if condition in CONDITION_BLOCKS_BUILD:
+            return ["Unbuildable tile"]
         mods = self._session.tilemap.balance["TileConditions"]["modifiers"]
         m = mods.get(CONDITION_MODIFIER_KEY.get(condition), {})
         lines = []

@@ -17,7 +17,7 @@
         "display_name": "Add button",
         "font_key": "lg",
         "kind": "button",
-        "label": "ADD NAME",
+        "label": "ADD",
         "parent": "panel",
         "rect": [
           217,
@@ -1528,7 +1528,7 @@
         "widgets": {
           "preview_cancel_btn": {
             "display_name": "Construct cancel button",
-            "font_key": "lg",
+            "font_key": "md",
             "kind": "button",
             "label": "CANCEL",
             "parent": "preview_panel",
@@ -1554,7 +1554,7 @@
           },
           "preview_confirm_btn": {
             "display_name": "Construct confirm button",
-            "font_key": "lg",
+            "font_key": "md",
             "kind": "button",
             "label": "CONFIRM",
             "parent": "preview_panel",
@@ -3862,7 +3862,7 @@
       },
       "preview_cancel_btn": {
         "display_name": "Construct cancel button",
-        "font_key": "lg",
+        "font_key": "md",
         "kind": "button",
         "label": "CANCEL",
         "parent": "preview_panel",
@@ -3888,7 +3888,7 @@
       },
       "preview_confirm_btn": {
         "display_name": "Construct confirm button",
-        "font_key": "lg",
+        "font_key": "md",
         "kind": "button",
         "label": "CONFIRM",
         "parent": "preview_panel",
@@ -4612,7 +4612,7 @@
         "display_name": "Go To Round button",
         "font_key": "sm",
         "kind": "button",
-        "label": "Go to Round",
+        "label": "Round",
         "parent": "panel",
         "rect": [
           314,
@@ -4676,7 +4676,7 @@
         "display_name": "Unlock All Tech button",
         "font_key": "md",
         "kind": "button",
-        "label": "Unlock All Tech",
+        "label": "Unlock Tech",
         "parent": "panel",
         "rect": [
           263,
@@ -4843,7 +4843,7 @@
         "display_name": "Return To Menu button",
         "font_key": "lg",
         "kind": "button",
-        "label": "RETURN TO MENU",
+        "label": "MAIN MENU",
         "parent": "backdrop",
         "rect": [
           260,
@@ -4916,7 +4916,7 @@
         "display_name": "Drag-select toggle",
         "font_key": "sm",
         "kind": "button",
-        "label": "DRAG SEL",
+        "label": "DRAG",
         "rect": [
           6,
           93,
@@ -4926,7 +4926,7 @@
       },
       "btn_end_turn": {
         "display_name": "End Turn button",
-        "font_key": "lg",
+        "font_key": "md",
         "kind": "button",
         "label": "END TURN",
         "rect": [
@@ -5313,7 +5313,7 @@
         ]
       },
       "btn_play_debug_settings": {
-        "font_key": "lg",
+        "font_key": "md",
         "kind": "button",
         "label": "SET",
         "parent": "backdrop",
@@ -5385,7 +5385,7 @@
         "display_name": "Heatmap overlay toggle",
         "font_key": "sm",
         "kind": "button",
-        "label": "HEATMAP",
+        "label": "HEAT",
         "rect": [
           51,
           324,
@@ -5409,11 +5409,11 @@
         "display_name": "Tier overview toggle",
         "font_key": "sm",
         "kind": "button",
-        "label": "TIER OVERVIEW",
+        "label": "TIERS",
         "rect": [
           96,
           324,
-          69,
+          41,
           13
         ]
       }
@@ -5450,7 +5450,7 @@
         "display_name": "Quit To Menu button",
         "font_key": "lg",
         "kind": "button",
-        "label": "QUIT TO MENU",
+        "label": "MAIN MENU",
         "parent": "backdrop",
         "rect": [
           260,
@@ -5586,7 +5586,7 @@
       "btn_set_default": {
         "font_key": "md",
         "kind": "button",
-        "label": "SET DEFAULT",
+        "label": "DEFAULT",
         "parent": "backdrop",
         "rect": [
           405,
