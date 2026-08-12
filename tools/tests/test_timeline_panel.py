@@ -25,6 +25,32 @@ def _drop_event(mime):
 
 
 class TestTimelinePanel(TempDataCase):
+    def setUp(self):
+        """Start every test from an EMPTY Timeline, and say so.
+
+        PIN, don't assume (`data/CLAUDE.md`). Every test below is written
+        against "the seeded empty doc" — it adds village level 1, drops a card
+        on it, saves. That only worked because the fixture's
+        `balancing/progression.json` happened to ship an empty
+        `Timeline.levels`; when the fixture was re-synced from live data it
+        arrived with 7 levels and all 36 `(building_type, tier_index)` pairs
+        already placed, and the module broke three different ways at once:
+        `add_level(1)` collided with an existing level 1, assigning
+        `("blocker", 0)` tripped `validate_uniqueness`, and the resulting
+        `_on_save` error path put up a MODAL `QMessageBox` that blocks
+        forever under an offscreen QApplication — so the suite HUNG rather
+        than failed (caught only because `pytest-timeout` is now installed).
+
+        Emptying it here is a write into `TempDataCase`'s throwaway copy of
+        `data/`, never the repo, and it makes the premise independent of
+        whatever the designer's live timeline holds.
+        """
+        super().setUp()
+        from editor import timeline_ops
+        doc = timeline_ops.load_progression(self.data_dir)
+        doc["Timeline"]["levels"] = []
+        timeline_ops.save_progression(doc, self.data_dir)
+
     def _panel(self):
         panel = self.track(TimelinePanel(data_dir=self.data_dir))
         panel.set_icon_provider(lambda slot_key: None)  # no viewport in this test

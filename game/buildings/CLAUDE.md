@@ -148,14 +148,28 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   doc); the payday teardown/rebuild is `game/core` (slots 8/10).
   **`wall_hp()` is per TIER *and* LEVEL**: `wall_hp + lvl_idx *
   wall_hp_per_level`, composed exactly like `upkeep()` beside it.
-  `wall_hp_per_level` is seeded **0** in all three tiers, so the shipped
-  behaviour is the prototype's flat per-tier value until a designer tunes it.
-  Consequently `_on_apply_stats()` now fires meaningfully on LEVEL upgrades too
-  (it always ran on both, but a level upgrade could not previously change
-  `wall_hp()`), and it **FULL-HEALS** owned edges (`edge.hp = new_hp`, was
+  **`hp_per_level` is seeded `0` for WallBuilder specifically (feature-
+  wallbuilder-hp-rework, user decision)** — unlike every other `Building`
+  subclass, its own body HP (`max_hp()`) is frozen at the tier's `base_hp` and
+  never grows with level. The per-level growth that used to sit on the body
+  was relocated onto `wall_hp_per_level` instead (100/100/150 across the 3
+  tiers, mirroring the old `hp_per_level` values) — so a level-up now grows
+  the WALL's HP, not the builder's own. `_on_apply_stats()` fires on LEVEL
+  upgrades too (it always ran on both, but before this rework a level upgrade
+  could not change `wall_hp()`, since `wall_hp_per_level` shipped seeded `0`),
+  and it **FULL-HEALS** owned edges (`edge.hp = new_hp`, was
   `min(edge.hp, new_hp)`) — matching `Building.apply_tier_stats`'s
   every-re-apply `hp = max_hp` rule, so walls follow the same
   upgrade-heals-you contract the builder itself has.
+  - **An adjacent HP booster (`boost_hp`) only ever affects `wall_hp()`, never
+    the WallBuilder's own body HP** — see the wall-hp-boost-feature section
+    below; this is unaffected by the level-up rework and was pinned by a
+    regression test (`tools/tests/test_structure.py`'s
+    `TestWallHpBoosterRegression`) when the rework landed.
+  - **A newly-placed WallBuilder never overrides another currently alive
+    WallBuilder's walls or progress** (user decision, same rework) — see
+    `game/map/CLAUDE.md`'s "Edge walls are LIVE" section for the ownership
+    rule `place_walls_for_builder` now enforces.
   - **The WALLS have their own art family, separate from the builder's flat
     `SLOT`**: `WallBuilder.wall_slot()` → `wall_t{tier}_lvl{level}` (both
     1-based — the 9 `Base` keys in `data/slots.json`'s `walls` category), reading the
@@ -447,4 +461,7 @@ full-map `sync_occupancy`). Detail → `game/PERF.md`.
 ## Verify
 Headless test upgrades both lines to tier max asserting hp/dmg/yield per REPLAN
 tables at every step; live: both animate on tiles.
-`py -m unittest discover -s tools/tests -t .` + `py game/main.py`.
+`py -m pytest tools/tests/test_<area>.py -q` + `py game/main.py`.
+
+Which tests you may run is ROLE-scoped — the role table in §"Test Suite Policy"
+(root `CLAUDE.md`) is the only authority, enforced by a `PreToolUse` hook.

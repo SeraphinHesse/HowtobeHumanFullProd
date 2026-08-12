@@ -41,7 +41,10 @@ class AddNameScreen:
         self.msg = ""
         self.msg_color = widgets.C_UI_TEXT_DIM
         self.pool_count = 0
-        self.add_btn = Button((0, 0, 80, 20), "ADD NAME")
+        # "ADD NAME" needed 91px in this 80px button under the SHIPPED pixel
+        # font (data/ui/active_font.json -> pixel_emulator); "ADD" needs 37,
+        # and the screen title already says "ADD A NAME".
+        self.add_btn = Button((0, 0, 80, 20), "ADD")
         self.back_btn = Button((0, 0, 65, 20), "BACK")
         self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
         self._panel = SimpleNamespace(rect=(0, 0, _PW, _PH), skin=None)

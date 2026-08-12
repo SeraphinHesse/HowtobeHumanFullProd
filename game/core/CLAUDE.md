@@ -580,5 +580,8 @@ runtime data write (disk I/O stays out of pygame-pure `game/ui`).
 
 ## Verify
 Phase-machine unit tests; headless 3-round currency ledger matches
-prototype-computed values: `py -m unittest discover -s tools/tests -t .`. Live
+prototype-computed values: `py -m pytest tools/tests/test_<area>.py -q`. Live
 `py game/main.py` for phase/combat behavior.
+
+Which tests you may run is ROLE-scoped — the role table in §"Test Suite Policy"
+(root `CLAUDE.md`) is the only authority, enforced by a `PreToolUse` hook.

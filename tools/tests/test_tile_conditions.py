@@ -21,14 +21,16 @@ from tools.tests.fixture_data import FIXTURE_DATA
 from engine import tilemap
 from engine.core import Health, Movement, RangeSensor, Scene
 from engine.physics import TileOccupancy
-from game.buildings import BaseBuilding, attach_base, place_building
-from game.buildings.components import BoostReceiver, RoundStats
+from game.buildings import (
+    BaseBuilding, PlacementError, attach_base, place_building,
+)
+from game.buildings.components import RoundStats
 from game.buildings.coverage import (
     defence_covered_tiles, wire_defence_coverage,
 )
 from game.core.balance import load_balance
 from game.core.phases import GamePhase
-from game.enemies import Enemy, SiegeCannon
+from game.enemies import Enemy
 from game.enemies.components import EnemyCombat, PathAgent
 from game.map.pathfinder import find_path
 from game.map.tile_map import TileMap
@@ -289,34 +291,33 @@ class TestPondRouting(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# 3b. Tile Condition Rework: a pond blocks building placement outright
+# ---------------------------------------------------------------------------
+class TestPondBlocksPlacement(unittest.TestCase):
+    def test_pond_condition_rejects_placement_even_on_a_buildable_tile(self):
+        tm = synth(["bbbbb"])
+        tile = tm.get(2, 0)
+        tile.condition = TileCondition.POND
+        with self.assertRaises(PlacementError):
+            place_building(tm, tile, "defence", LOVE, BUILD, Scene(),
+                           TileOccupancy())
+        self.assertIsNone(tile.occupant)
+
+    def test_a_non_pond_buildable_tile_still_places(self):
+        tm = synth(["bbbbb"])
+        tile = tm.get(2, 0)
+        tile.condition = TileCondition.MOUNTAIN
+        b, _ = place_building(tm, tile, "defence", LOVE, BUILD, Scene(),
+                              TileOccupancy())
+        self.assertIsNotNone(b)
+        self.assertIs(tile.occupant, b)
+
+
+# ---------------------------------------------------------------------------
 # 4. Defence stat modifiers (snapshot at placement; prototype order)
 # ---------------------------------------------------------------------------
 class TestDefenceModifiers(unittest.TestCase):
     T0 = BUILD["DefenceBuildings"]["BasicDefence"]["tiers"][0]
-
-    def test_forest_cuts_damage(self):
-        b = place(synth(["bbbbb"]), 2, 0, "defence", TileCondition.FOREST)
-        pen = MODS["Forest"]["def_dmg_penalty"]
-        self.assertEqual(b.damage(),
-                         max(1, int(self.T0["base_dmg"] * (1.0 - pen))))
-        self.assertEqual(b._tile_condition, TileCondition.FOREST)
-
-    def test_forest_cut_composes_after_the_boost_multiply(self):
-        b = place(synth(["bbbbb"]), 2, 0, "defence", TileCondition.FOREST)
-        b.get_component(BoostReceiver).damage_pct = 0.5
-        pen = MODS["Forest"]["def_dmg_penalty"]
-        expected = int(int(self.T0["base_dmg"] * 1.5) * (1.0 - pen))
-        self.assertEqual(b.damage(), max(1, expected))
-
-    def test_pond_slows_attacks_after_the_boost_multiply(self):
-        b = place(synth(["bbbbb"]), 2, 0, "defence", TileCondition.POND)
-        pen = MODS["Pond"]["def_attack_speed_penalty"]
-        self.assertAlmostEqual(b.attack_speed(),
-                               self.T0["attack_speed"] * (1.0 + pen))
-        b.get_component(BoostReceiver).speed_pct = 0.2
-        self.assertAlmostEqual(
-            b.attack_speed(),
-            self.T0["attack_speed"] * 0.8 * (1.0 + pen))
 
     def test_mountain_range_bonus_keeps_raw_range_raw(self):
         b = place(synth(["bbbbb"]), 2, 0, "defence", TileCondition.MOUNTAIN)
@@ -330,36 +331,30 @@ class TestDefenceModifiers(unittest.TestCase):
         self.assertEqual(b.get_component(RangeSensor).range_tiles,
                          self.T0["range_tiles"] + bonus)
 
+    def test_forest_is_now_neutral_for_defence(self):
+        b = place(synth(["bbbbb"]), 2, 0, "defence", TileCondition.FOREST)
+        self.assertEqual(b.damage(), self.T0["base_dmg"])
+        self.assertAlmostEqual(b.attack_speed(), self.T0["attack_speed"])
+
     def test_grass_is_neutral(self):
         b = place(synth(["bbbbb"]), 2, 0, "defence")
         self.assertEqual(b.damage(), self.T0["base_dmg"])
         self.assertAlmostEqual(b.attack_speed(), self.T0["attack_speed"])
         self.assertEqual(b.effective_range_tiles(), b.range_tiles())
 
-    def test_aoe_leaf_takes_pond_and_mountain(self):
+    def test_aoe_leaf_takes_the_mountain_range_bonus(self):
         a0 = BUILD["DefenceBuildings"]["AOEDefence"]["tiers"][0]
-        b = place(synth(["bbbbb"]), 2, 0, "aoe_defence", TileCondition.POND)
-        self.assertAlmostEqual(
-            b.attack_speed(),
-            a0["attack_speed"] * (1 + MODS["Pond"]["def_attack_speed_penalty"]))
-        b2 = place(synth(["bbbbb"]), 2, 0, "aoe_defence",
-                   TileCondition.MOUNTAIN)
-        self.assertEqual(b2.range_tiles(), a0["range_tiles"])
-        self.assertEqual(b2.effective_range_tiles(),
+        b = place(synth(["bbbbb"]), 2, 0, "aoe_defence",
+                  TileCondition.MOUNTAIN)
+        self.assertEqual(b.range_tiles(), a0["range_tiles"])
+        self.assertEqual(b.effective_range_tiles(),
                          a0["range_tiles"] + MODS["Mountain"]["def_range_bonus"])
         # PROTOTYPE INCONSISTENCY kept for parity: the mortar TARGETS with its
         # RAW range (aoe_defence_building.py:308) — the mountain bonus only
         # ever shows in its panel row; the sensor mirrors the targeting value.
-        self.assertEqual(b2.targeting_range_tiles(), a0["range_tiles"])
-        self.assertEqual(b2.get_component(RangeSensor).range_tiles,
+        self.assertEqual(b.targeting_range_tiles(), a0["range_tiles"])
+        self.assertEqual(b.get_component(RangeSensor).range_tiles,
                          a0["range_tiles"])
-
-    def test_beam_leaf_takes_the_pond_interval(self):
-        s0 = BUILD["DefenceBuildings"]["BeamDefence"]["tiers"][0]
-        b = place(synth(["bbbbb"]), 2, 0, "sun_scorcher", TileCondition.POND)
-        self.assertAlmostEqual(
-            b.attack_speed(),
-            s0["attack_speed"] * (1 + MODS["Pond"]["def_attack_speed_penalty"]))
 
     def test_unplaced_preview_building_is_neutral(self):
         from game.buildings.registry import create
@@ -374,17 +369,14 @@ class TestDefenceModifiers(unittest.TestCase):
 class TestEconomyModifiers(unittest.TestCase):
     Y0 = BUILD["EconomyBuildings"]["Musicians"]["tiers"][0]["base_yield"]
 
-    def test_musician_mountain_pond_forest(self):
-        pen = MODS["Mountain"]["eco_yield_penalty"]
+    def test_musician_mountain_is_now_neutral(self):
         b = place(synth(["bbbbb"]), 2, 0, "economic", TileCondition.MOUNTAIN)
-        self.assertEqual(b.yield_amount(), max(0, int(self.Y0 * (1.0 - pen))))
-        for cond, key in ((TileCondition.POND, "Pond"),
-                          (TileCondition.FOREST, "Forest")):
-            with self.subTest(cond=cond):
-                b = place(synth(["bbbbb"]), 2, 0, "economic", cond)
-                bonus = MODS[key]["eco_yield_bonus"]
-                self.assertEqual(b.yield_amount(),
-                                 int(self.Y0 * (1.0 + bonus)))
+        self.assertEqual(b.yield_amount(), self.Y0)
+
+    def test_musician_forest_bonus(self):
+        b = place(synth(["bbbbb"]), 2, 0, "economic", TileCondition.FOREST)
+        bonus = MODS["Forest"]["eco_yield_bonus"]
+        self.assertEqual(b.yield_amount(), int(self.Y0 * (1.0 + bonus)))
 
     def test_musician_grass_neutral(self):
         b = place(synth(["bbbbb"]), 2, 0, "economic")
@@ -407,9 +399,13 @@ class TestEconomyModifiers(unittest.TestCase):
 # 6. Enemy modifiers (last-ARRIVED tile; spawn tile never applies)
 # ---------------------------------------------------------------------------
 class TestEnemyModifiers(unittest.TestCase):
-    SPEED_PEN = MODS["Mountain"]["enemy_speed_penalty"]
-    DMG_BONUS = MODS["Mountain"]["enemy_dmg_bonus"]
-    MIN_FRACTION = MAPBAL["TileConditions"]["min_speed_fraction"]
+    """Tile Condition Rework: Forest/Mountain no longer carry enemy-facing
+    modifiers (each condition keeps exactly one player-facing headline
+    effect). Pond never carried them either — this class pins that
+    neutrality across the board. The generic enemy_dmg_bonus/
+    enemy_speed_penalty plumbing in game/enemies/components.py is left in
+    place, unused by any condition today, available again if a future
+    condition wants it."""
 
     @staticmethod
     def _walk_until(scene, mv, index, limit=400, dt=0.05):
@@ -420,7 +416,7 @@ class TestEnemyModifiers(unittest.TestCase):
             scene.update(dt)
         return False
 
-    def test_mountain_slows_after_arrival_not_at_spawn(self):
+    def test_mountain_no_longer_slows_enemies(self):
         tm = synth(["bbccs"])
         tm.get(4, 0).condition = TileCondition.FOREST   # spawn tile: ignored
         tm.get(3, 0).condition = TileCondition.MOUNTAIN
@@ -430,31 +426,11 @@ class TestEnemyModifiers(unittest.TestCase):
         scene.spawn(e)
         scene.update(0.0)          # flush spawn queue -> on_spawn -> path
         mv = e.get_component(Movement)
-        scene.update(0.01)
-        # waypoint 0 is the spawn tile itself — its condition never applies
-        self.assertLessEqual(mv.index, 1)
-        self.assertAlmostEqual(mv.speed, base_speed)
-        # arrive at (3,0): waypoints[1] -> index 2 -> mountain slow
+        # arrive at (3,0): waypoints[1] -> index 2
         self.assertTrue(self._walk_until(scene, mv, 2))
         pa = e.get_component(PathAgent)
         self.assertEqual(pa._current_condition, TileCondition.MOUNTAIN)
-        self.assertAlmostEqual(mv.speed,
-                               max(0.0, base_speed - self.SPEED_PEN))
-
-    def test_speed_is_floored_at_a_fraction_of_the_units_own_speed(self):
-        """BP-1: the penalty subtracts, but never below
-        ``move_speed × min_speed_fraction``. It used to clamp at 0 instead,
-        which welded any unit slower than the flat penalty to the floor for
-        good (only the boss is — see ``test_boss.TestConditionSpeedFloor``).
-        Siege is the closest of the normal types to that line and still clears
-        it: 1.0 − 0.4 = 0.6 beats its 0.5 floor, so its number is unmoved."""
-        tm = synth(["bbccs"])
-        real = ENEM["EnemyTypes"]["SiegeCannon"]["eras"][0]["stats"]["move_speed"]
-        s = SiegeCannon(4, 0, ENEM, tm)
-        pa = s.get_component(PathAgent)
-        pa._current_condition = TileCondition.MOUNTAIN
-        self.assertAlmostEqual(pa._condition_speed(), real - self.SPEED_PEN)
-        self.assertGreater(pa._condition_speed(), real * self.MIN_FRACTION)
+        self.assertAlmostEqual(mv.speed, base_speed)
 
     def test_pond_applies_neither_modifier(self):
         tm = synth(["bbccs"])
@@ -464,40 +440,6 @@ class TestEnemyModifiers(unittest.TestCase):
         pa._current_condition = TileCondition.POND
         self.assertAlmostEqual(pa._condition_speed(), pa._real_speed)
         self.assertEqual(ec._effective_dmg(pa), ec.dmg)
-
-    def test_mountain_boosts_blocking_building_damage(self):
-        tm = synth(["bbccs"])
-        blocker = place(tm, 1, 0, "defence")          # blocks the lane
-        tm.get(2, 0).condition = TileCondition.MOUNTAIN
-        scene = Scene()
-        e = Enemy(4, 0, ENEM, tm)
-        scene.spawn(e)
-        scene.update(0.0)
-        mv = e.get_component(Movement)
-        pa = e.get_component(PathAgent)
-        hp0 = blocker.get_component(Health).hp
-        # walk to (2,0) (mountain), then block on (1,0) and land >= 1 hit
-        for _ in range(600):
-            scene.update(0.05)
-            if blocker.get_component(Health).hp < hp0:
-                break
-        self.assertTrue(pa.blocked)
-        self.assertEqual(pa._current_condition, TileCondition.MOUNTAIN)
-        expected = max(1, int(e.dmg * (1.0 + self.DMG_BONUS)))
-        dealt = hp0 - blocker.get_component(Health).hp
-        self.assertEqual(dealt % expected, 0)
-        self.assertGreaterEqual(dealt, expected)
-        self.assertEqual(
-            blocker.get_component(RoundStats).dmg_taken_this_round, dealt)
-
-    def test_wall_attack_uses_the_effective_damage_too(self):
-        tm = synth(["bbccs"])
-        e = Enemy(4, 0, ENEM, tm)
-        pa = e.get_component(PathAgent)
-        ec = e.get_component(EnemyCombat)
-        pa._current_condition = TileCondition.MOUNTAIN
-        expected = max(1, int(ec.dmg * (1.0 + self.DMG_BONUS)))
-        self.assertEqual(ec._effective_dmg(pa), expected)
 
 
 # ---------------------------------------------------------------------------
@@ -714,10 +656,11 @@ class TestOverlays(unittest.TestCase):
         self.assertNotIn((4 + 2, 0 + 2), cov)    # boosts add no square
 
     def test_heat_ramp_endpoints(self):
-        # 10J: the ramp carries the prototype's alpha (50 + 130*t) again
+        # fix/highlight-render-order: alpha capped lower (50 + 70*t, was
+        # 50 + 130*t) so the hottest tiles stay see-through under buildings.
         self.assertEqual(heat_color(0.0), (0, 100, 200, 50))
-        self.assertEqual(heat_color(0.5), (255, 255, 0, 115))
-        self.assertEqual(heat_color(1.0), (255, 0, 0, 180))
+        self.assertEqual(heat_color(0.5), (255, 255, 0, 85))
+        self.assertEqual(heat_color(1.0), (255, 0, 0, 120))
 
 
 # ---------------------------------------------------------------------------

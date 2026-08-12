@@ -6256,15 +6256,15 @@
           0
         ]
       },
-      "frame_h": 18,
-      "frame_w": 12,
+      "frame_h": 96,
+      "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 6,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -8753,16 +8753,22 @@
       ]
     },
     "ui_button_end_turn": {
-      "frame_h": 64,
-      "frame_w": 64,
+      "frame_h": 50,
+      "frame_w": 72,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 6,
+          "hidden": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -8770,25 +8776,20 @@
         {
           "animation": "hover",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 6,
+          "hidden": [
+            3,
+            4,
+            5
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         },
         {
           "animation": "pressed",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "disabled",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 6,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -8855,17 +8856,115 @@
         4
       ]
     },
+    "ui_button_panel_v2": {
+      "frame_h": 55,
+      "frame_w": 42,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 6,
+          "hidden": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hover",
+          "fps": 6,
+          "frames": 6,
+          "hidden": [
+            3,
+            4,
+            5
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "pressed",
+          "fps": 6,
+          "frames": 6,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/ui_button_panel_v2.png"
+    },
+    "ui_button_panel_v3": {
+      "frame_h": 30,
+      "frame_w": 103,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 6,
+          "hidden": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hover",
+          "fps": 6,
+          "frames": 6,
+          "hidden": [
+            3,
+            4,
+            5
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "pressed",
+          "fps": 6,
+          "frames": 6,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/ui_button_panel_v3.png"
+    },
     "ui_button_pause": {
-      "frame_h": 64,
-      "frame_w": 64,
+      "frame_h": 49,
+      "frame_w": 48,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 6,
+          "hidden": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -8873,25 +8972,20 @@
         {
           "animation": "hover",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 6,
+          "hidden": [
+            3,
+            4,
+            5
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         },
         {
           "animation": "pressed",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "disabled",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 6,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -9100,6 +9194,24 @@
         4,
         4
       ]
+    },
+    "ui_panel_v2": {
+      "frame_h": 360,
+      "frame_w": 167,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/ui_panel_v2.png"
     },
     "vfx_crater": {
       "frame_h": 96,

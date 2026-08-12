@@ -183,7 +183,13 @@ class Hud:
     def __init__(self, view_w, view_h, skinning=None):
         self.screen_id = SCREEN_ID
         self.skinning = skinning or ScreenSkinning.empty()
-        self.end_turn = Button((0, 0, 80, 30), "END TURN", font_key="lg")
+        # font "md", not "lg": "END TURN" has no words left to cut and needs
+        # 90px at "lg" under the SHIPPED pixel font (data/ui/active_font.json
+        # -> pixel_emulator, wider per glyph than the SysFont fallback these
+        # constants were authored against) in an 80px button. At "md" it needs
+        # 68. A per-widget drop, deliberately NOT a change to
+        # `data/ui/fonts.json` — the global presets must not move.
+        self.end_turn = Button((0, 0, 80, 30), "END TURN", font_key="md")
         self.pause = Button((0, 0, 45, 15), "PAUSE", font_key="md")
         # -- 10L: fast-forward combat-speed buttons (top-left, below the
         # love/xp/income/lives/tiles readout column) --
@@ -192,12 +198,14 @@ class Hud:
         self.speed_2x = Button((0, 0, 28, 14), "2×", font_key="sm")
         # -- /10L speed --
         # -- drag-select: an always-available toggle sitting directly under the
-        # speed row. Wider than a speed button because the label is 8 chars at
+        # speed row. Wider than a speed button because its label is longer at
         # font "sm"; the 14px height matches so the two rows read as a stack.
         # The FLIP itself lives in main.py's handle_world_click (never in
         # hit(), which the host calls twice per click) — this widget only
-        # reports the click and draws the active rim off the host's flag. --
-        self.drag_select_btn = Button((0, 0, 45, 14), "DRAG SEL", font_key="sm")
+        # reports the click and draws the active rim off the host's flag.
+        # Copy cut "DRAG SEL" -> "DRAG": the old label needed 58px in this
+        # 45px button under the SHIPPED pixel font; "DRAG" needs 32. --
+        self.drag_select_btn = Button((0, 0, 45, 14), "DRAG", font_key="sm")
         # -- /drag-select --
         self._clock = 0.0  # drives the levelup-pending pulse
         # The building panel is a full-height right sidebar and the HUD submits

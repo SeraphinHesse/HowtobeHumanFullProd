@@ -41,7 +41,12 @@ class GameOverScreen:
     def __init__(self, view_w, view_h, skinning=None):
         self.screen_id = SCREEN_ID
         self.skinning = skinning or ScreenSkinning.empty()
-        self.button = Button((0, 0, 120, 23), "RETURN TO MENU", font_key="lg")
+        # Copy, not geometry: "RETURN TO MENU" needs 154px at "lg" under the
+        # SHIPPED pixel font (data/ui/active_font.json -> pixel_emulator),
+        # which is wider per glyph than the SysFont("monospace") fallback every
+        # pixel constant here was authored against. "MAIN MENU" needs 101 in
+        # the same 120px box, and matches the pause screen's row verbatim.
+        self.button = Button((0, 0, 120, 23), "MAIN MENU", font_key="lg")
         self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
         self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl",
                                       text_color=widgets.C_RED, label=_TITLE,

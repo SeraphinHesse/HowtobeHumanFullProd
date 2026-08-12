@@ -88,7 +88,10 @@ class SettingsScreen:
         self.settings = settings
         self.dm_left = Button((0, 0, 20, 20), "<")
         self.dm_right = Button((0, 0, 20, 20), ">")
-        self.default_btn = Button((0, 0, 85, 20), "SET DEFAULT", font_key="md")
+        # "SET DEFAULT" needed 91px in this 85px button under the SHIPPED
+        # pixel font; "DEFAULT" needs 59. The row it sits on already reads
+        # "Display mode", so the verb is redundant.
+        self.default_btn = Button((0, 0, 85, 20), "DEFAULT", font_key="md")
         # What data/display.json currently boots into; host-set, None = unknown.
         self.saved_default = None
         self.toggles = [(attr, text_id, Button((0, 0, 45, 20), "ON"))

@@ -9,11 +9,12 @@
       ]
     },
     "btn_end_turn": {
+      "label": "",
       "rect": [
-        552,
-        322,
-        80,
-        30
+        568,
+        310,
+        72,
+        50
       ],
       "skin": "ui_button_end_turn",
       "text_color": [
@@ -23,11 +24,12 @@
       ]
     },
     "btn_pause": {
+      "label": "",
       "rect": [
-        587,
-        6,
-        45,
-        15
+        592,
+        0,
+        48,
+        49
       ],
       "skin": "ui_button_pause"
     },

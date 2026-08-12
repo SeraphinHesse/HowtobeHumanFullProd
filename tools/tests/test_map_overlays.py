@@ -14,8 +14,11 @@ Covers the feature's two load-bearing promises —
    occupant carrying no ``TierState`` skipped rather than raising.
 
 Plus the JSON label surface: ``btn_tier_overview`` is an id, so its default
-``"TIER OVERVIEW"`` text is overridable through ``data/ui/screens/
-overlays.json`` for free (the generic per-widget ``label`` override).
+``"TIERS"`` text is overridable through ``data/ui/screens/overlays.json`` for
+free (the generic per-widget ``label`` override). (That default was
+``"TIER OVERVIEW"``, and its sibling ``"HEATMAP"``, until the static-label-fit
+check was taught to measure the font the game actually boots — see
+``tools/tests/test_ui_min_targets.py``.)
 
 Pure-Python, headless — the ``test_tile_conditions.py`` fixture style (a synth
 ``TileMapDoc`` -> real ``TileMap``, real balancing from the PINNED fixture,
@@ -51,13 +54,17 @@ VIEW_W, VIEW_H = 800, 600
 
 
 class FakeRenderer:
-    """Records every submit instead of drawing (the ``test_vfx.py`` stand-in;
-    the overlay pass only ever calls the two overlay methods)."""
+    """Records every submit instead of drawing (the ``test_vfx.py`` stand-in).
+    fix/depth-sorted-world-fills: the tile diamonds this module draws
+    (condition tint / RANGE / HEATMAP / TIER OVERVIEW) go through
+    ``submit_world_fill`` now, not the always-last overlay pass — see
+    ``engine/render/CLAUDE.md``'s "Depth-sorted world fills"."""
 
     def __init__(self):
         self.hud = []
         self.overlay_polys = []
         self.overlay_lines = []
+        self.world_fills = []
 
     def submit_hud(self, item):
         self.hud.append(item)
@@ -67,6 +74,11 @@ class FakeRenderer:
 
     def submit_overlay_lines(self, points, color, width=1, closed=False):
         self.overlay_lines.append((tuple(points), color, width, closed))
+
+    def submit_world_fill(self, points, world_pos, layer="entities",
+                          color=None, border=None, border_width=2):
+        self.world_fills.append(
+            (tuple(points), world_pos, layer, color, border, border_width))
 
 
 def synth(rows, base=(0, 0)):
@@ -98,9 +110,11 @@ def _center(btn):
 
 def tier_polys(renderer):
     """``{(col, row): rgba}`` for every recorded diamond, keyed by its
-    top-left world point (``submit_tile_diamond_fill`` emits
-    ``[(c, r), (c+1, r), (c+1, r+1), (c, r+1)]``)."""
-    return {pts[0]: color for pts, color in renderer.overlay_polys}
+    ``world_pos`` (fix/depth-sorted-world-fills: ``submit_tile_diamond_fill``
+    passes ``world_pos=(col, row)``, the SAME anchor a building's own
+    ``Transform`` uses)."""
+    return {wp: color for _pts, wp, _layer, color, _border, _bw
+            in renderer.world_fills}
 
 
 # ---------------------------------------------------------------------------
@@ -164,7 +178,7 @@ class TestTierOverviewSubmit(unittest.TestCase):
         place(tm, 1, 0)
         r = FakeRenderer()
         MapOverlays(VIEW_W, VIEW_H).submit(r, tm, None, full_window(tm))
-        self.assertEqual(r.overlay_polys, [])
+        self.assertEqual(r.world_fills, [])
 
     def test_one_diamond_per_building_with_the_matching_level_colour(self):
         tm = synth(["bbbbbb"])
@@ -265,7 +279,7 @@ class TestTierOverviewSubmit(unittest.TestCase):
         mo.show_tier_overview = True
         r = FakeRenderer()
         mo.submit(r, tm, None, full_window(tm))
-        self.assertEqual(r.overlay_polys, [])
+        self.assertEqual(r.world_fills, [])
 
     def test_tier_overview_composes_with_the_range_overlay(self):
         """Both on = both passes run; the tier diamond is drawn LAST, so it
@@ -278,7 +292,7 @@ class TestTierOverviewSubmit(unittest.TestCase):
         r = FakeRenderer()
         mo.submit(r, tm, None, full_window(tm))
         tier_rgba = _level_color(1) + (_TIER_OVERVIEW_ALPHA,)  # fresh placement = level 1
-        colors = [c for _pts, c in r.overlay_polys]
+        colors = [color for _pts, _wp, _layer, color, _border, _bw in r.world_fills]
         self.assertIn(widgets.C_RANGE_HIGHLIGHT + (55,), colors)
         self.assertEqual(colors[-1], tier_rgba)
         self.assertEqual(colors.count(tier_rgba), 1)
@@ -293,7 +307,7 @@ class TestTierOverviewPillRender(unittest.TestCase):
         r = FakeRenderer()
         mo.submit_buttons(r)
         labels = [i.text for i in r.hud if hasattr(i, "text")]
-        self.assertEqual(labels, ["RANGE", "HEATMAP", "TIER OVERVIEW"])
+        self.assertEqual(labels, ["RANGE", "HEAT", "TIERS"])
 
     def test_active_gets_a_gold_rim_and_a_gold_label(self):
         mo = MapOverlays(VIEW_W, VIEW_H)
@@ -301,7 +315,7 @@ class TestTierOverviewPillRender(unittest.TestCase):
         r = FakeRenderer()
         mo.submit_buttons(r)
         label = next(i for i in r.hud
-                     if getattr(i, "text", None) == "TIER OVERVIEW")
+                     if getattr(i, "text", None) == "TIERS")
         self.assertEqual(label.color, widgets.C_GOLD)
         rims = [i for i in r.hud
                 if getattr(i, "rect", None) == mo.tier_overview_btn.rect
@@ -328,9 +342,12 @@ class TestTierOverviewLabel(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.data_dir = fixture_copy(self._tmp.name)
 
-    def test_default_label_is_tier_overview(self):
+    def test_default_label_is_tiers(self):
+        # Cut from "TIER OVERVIEW" when the label-fit check was taught to
+        # measure the SHIPPED font (data/ui/active_font.json ->
+        # pixel_emulator): the old copy needed 89px in a 76px pill there.
         mo = MapOverlays(VIEW_W, VIEW_H)
-        self.assertEqual(mo.tier_overview_btn.label, "TIER OVERVIEW")
+        self.assertEqual(mo.tier_overview_btn.label, "TIERS")
 
     def test_the_widget_id_is_registered(self):
         mo = MapOverlays(VIEW_W, VIEW_H)
@@ -340,12 +357,12 @@ class TestTierOverviewLabel(unittest.TestCase):
     def test_a_screen_override_changes_the_label(self):
         skinning = ScreenSkinning(self.data_dir)
         skinning._overrides["overlays"] = {
-            "widgets": {"btn_tier_overview": {"label": "TIERS"}}}
+            "widgets": {"btn_tier_overview": {"label": "LEVELS"}}}
         mo = MapOverlays(VIEW_W, VIEW_H, skinning)
-        self.assertEqual(mo.tier_overview_btn.label, "TIERS")
+        self.assertEqual(mo.tier_overview_btn.label, "LEVELS")
         # the siblings are untouched by that override
         self.assertEqual(mo.range_btn.label, "RANGE")
-        self.assertEqual(mo.heatmap_btn.label, "HEATMAP")
+        self.assertEqual(mo.heatmap_btn.label, "HEAT")
 
     def test_a_rect_override_moves_the_pill_and_its_hit_box(self):
         skinning = ScreenSkinning(self.data_dir)

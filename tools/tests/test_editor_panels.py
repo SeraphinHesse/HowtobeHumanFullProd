@@ -21,6 +21,9 @@ from unittest import mock
 # Sets the headless env vars and owns the one QApplication — import it before
 # PySide6, which reads those vars at import time.
 from tools.tests.qt_harness import APP as _APP, QtCase
+# Re-exported: TempDataCase's home is temp_data.py, but every import site in
+# the suite spells it `from tools.tests.test_editor_panels import TempDataCase`.
+from tools.tests.temp_data import TempDataCase  # noqa: F401
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QKeySequence, QPalette
@@ -52,165 +55,12 @@ def read_domain(data_dir, domain):
     )
 
 
-class TempDataCase(QtCase):
-    """Copies data/ into a temp dir so writes never touch the repo. Also
-    clears balancing_history/ in the COPY (never the repo) — it's a
-    runtime-populated log, not seed content, and the repo copy may carry
-    real entries from live editor sessions that would otherwise leak into
-    every test's starting state.
-
-    Inherits QtCase: wrap every widget you build in self.track(...) so it is
-    destroyed with the test rather than leaked for the life of the process."""
-
-    def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.data_dir = Path(tmp.name) / "data"
-        shutil.copytree(REPO / "data", self.data_dir)
-        history_dir = self.data_dir / "balancing_history"
-        if history_dir.exists():
-            shutil.rmtree(history_dir)
-
-    def unassign_slot(self, *slot_keys):
-        """Guarantee each `slot_key` has NO ART AT ALL in the temp copy.
-
-        Never assume a slot is unassigned just because it is TODAY. Art lands
-        on slots over time, and a test that picks today's empty slot as its
-        "no art here" fixture is a time bomb: commit 2512a84 gave
-        painter_t1_lvl1 an `idle` row and silently broke five tests that had
-        done exactly that. Pin the fixture instead of inheriting it from
-        whatever the artists last imported.
-
-        Dropping the manifest ENTRY is not enough on its own: a slot with no
-        entry still resolves art from `imported/<slot>.png`
-        (`details.py:_sheet_ref`), so an artist merely dropping a PNG next to
-        the key re-arms the slot. 8e0e7d3 added cond_mountain_buildable.png and
-        reddened the tint test that way, with no code change anywhere.
-        `_rewrite_manifest` deletes the fallback sheet too."""
-        self._rewrite_manifest(lambda k: k in slot_keys)
-
-    def unassign_family(self, *prefixes):
-        """Empty every slot whose key starts with one of `prefixes`.
-
-        A ● marker on a GROUP node lights up if ANY slot under it has art, so
-        emptying one tier of Painter is not enough — all nine painter_* slots
-        have sheets. Keying off the prefix means a future painter_t4 is
-        covered too, instead of quietly re-reddening the test."""
-        self._rewrite_manifest(lambda k: k.startswith(prefixes))
-
-    def pin_slot_rows(self, slot_key, animations, *, frames=4, fps=8,
-                      hidden=(), sheet=None):
-        """Pin a slot's manifest entry to exactly `animations` (one row each),
-        and write a matching synthetic sheet.
-
-        The counterpart to `unassign_slot` for "this slot HAS art of this
-        shape". A test that reads the ROW COUNT or the animation names of a
-        real slot is asserting what an artist last imported, not what the code
-        does: `cff77c7` ("Stonethrower all eras") grew stone_thrower_t1_lvl1
-        from 2 rows to 6 and reddened two tests that had nothing to do with
-        eras. Supply the state instead of inheriting it.
-
-        Returns the entry dict as written. `hidden` applies to the LAST row
-        (the one those tests inspect); `sheet` overrides the ref, which is how
-        you pin a shared sheet."""
-        from PIL import Image
-
-        registry = load_registry(self.data_dir)
-        frame_w, frame_h = registry.frame_size(slot_key)
-        ref = sheet or f"imported/{slot_key}.png"
-        png = self.data_dir / "sprites" / ref
-        png.parent.mkdir(parents=True, exist_ok=True)
-        Image.new("RGBA", (frames * frame_w, len(animations) * frame_h),
-                  (200, 60, 60, 255)).save(png)
-
-        rows = [{"animation": name, "frames": frames, "fps": fps,
-                 "hidden": [], "loop_start": 0, "loop_end": 0, "loop_count": 1}
-                for name in animations]
-        rows[-1]["hidden"] = list(hidden)
-        entry = {"sheet": ref, "frame_w": frame_w, "frame_h": frame_h,
-                 "offset_x": 0, "offset_y": 0, "rows": rows}
-
-        path = self.data_dir / "sprites" / "asset_manifest.json"
-        doc = data_io.load_json(path)
-        doc["entries"][slot_key] = entry
-        data_io.write_validated(
-            doc, path,
-            self.data_dir / "schemas" / "asset_manifest.schema.json")
-        return entry
-
-    def _rewrite_manifest(self, should_drop):
-        path = self.data_dir / "sprites" / "asset_manifest.json"
-        doc = data_io.load_json(path)
-        doc["entries"] = {k: v for k, v in doc["entries"].items()
-                          if not should_drop(k)}
-        data_io.write_validated(
-            doc, path,
-            self.data_dir / "schemas" / "asset_manifest.schema.json")
-        self._drop_fallback_sheets(doc, should_drop)
-
-    def _drop_fallback_sheets(self, doc, should_drop):
-        """Delete `imported/<key>.png` for every selected slot — an entryless
-        key is only genuinely empty once its fallback sheet is gone too.
-
-        Selection is over the REGISTRY's slot keys, not the manifest's: the
-        whole point is that a slot can carry art with no entry at all. Never
-        touches a sheet a SURVIVING entry links to — one PNG can back many
-        slots (`editor/panels/CLAUDE.md`, "Use Spritesheet…"), and deleting a
-        shared file would silently empty an unrelated slot."""
-        kept_refs = {e.get("sheet") for e in doc["entries"].values()}
-        for key in load_registry(self.data_dir).slot_keys():
-            if not should_drop(key):
-                continue
-            ref = f"imported/{key}.png"
-            if ref in kept_refs:
-                continue
-            png = self.data_dir / "sprites" / ref
-            if png.exists():
-                png.unlink()
-
-    def drop_slot_variants(self, *stems):
-        """Strip generated `<stem>_v<N>` variants from the temp slots.json.
-
-        `add_variant` numbers the next variant from what already exists, so any
-        test asserting "the next one is _v2" is really asserting "the repo has
-        no variants yet" — a fact about live data, not about the code. Pin it:
-        strip the variants, and the arithmetic is the test's own."""
-        pattern = re.compile(
-            r"^(?:%s)_v\d+$" % "|".join(re.escape(s) for s in stems))
-
-        def is_key_list(key, value):
-            # "slots" means two things in this file: a category's slot
-            # DEFINITIONS (dicts) and a group's slot KEY list (strings). Only
-            # the latter is ours.
-            return (key == "slots" and isinstance(value, list)
-                    and all(isinstance(s, str) for s in value))
-
-        def scrub(node):
-            if isinstance(node, dict):
-                return {k: ([s for s in v if not pattern.match(s)]
-                            if is_key_list(k, v) else scrub(v))
-                        for k, v in node.items()}
-            if isinstance(node, list):
-                return [scrub(item) for item in node]
-            return node
-
-        path = self.data_dir / "slots.json"
-        data_io.write_validated(
-            scrub(data_io.load_json(path)), path,
-            self.data_dir / "schemas" / "slots.schema.json")
-
-    def empty_screens(self, *screen_ids):
-        """Pin `data/ui/screens/<screen_id>.json` to `{}` in the temp copy —
-        the "no override written yet" starting state some UIScreenSession /
-        viewport tests assume for their fixture screen. Same "pin, don't
-        inherit" rule as `unassign_slot`/`unassign_family`: a screen a
-        designer has since styled in the live repo (10L wave 3 baked every
-        screen a real skin) must not silently change what these tests start
-        from."""
-        schema = self.data_dir / "schemas" / "ui_screen.schema.json"
-        for screen_id in screen_ids:
-            path = self.data_dir / "ui" / "screens" / f"{screen_id}.json"
-            data_io.write_validated({}, path, schema)
+# TempDataCase grew up in this file, but seven other modules already reached
+# across to import it from here and three more had copy-pasted its copytree by
+# hand. It now lives in tools/tests/temp_data.py (which also builds the pruned
+# session template each copy comes from) and is re-exported here so that every
+# existing `from tools.tests.test_editor_panels import TempDataCase` keeps
+# working unchanged.
 
 
 class TestDomainsDerivation(TempDataCase):
@@ -323,10 +173,43 @@ class TestSelectorContextMenu(TempDataCase):
         self.assertIsNone(panel._context_menu(group))
         self.assertIsNone(panel._context_menu(panel._maps_branch))
 
+    def _category_roots(self, panel):
+        """Every CATEGORY ROOT in the tree (payload path == ()), in tree order
+        — including the ones nested under "map" (deco/conditions), whose
+        payload path is () too."""
+        keys, stack = [], [panel.topLevelItem(i)
+                           for i in range(panel.topLevelItemCount())]
+        while stack:
+            item = stack.pop(0)
+            payload = item.data(0, _PAYLOAD_ROLE)
+            if payload is not None and tuple(payload[1]) == ():
+                keys.append(payload[0])
+            stack.extend(item.child(i) for i in range(item.childCount()))
+        return keys
+
+    def _category_without_a_spec(self, panel):
+        """A category key that genuinely has NO form spec, DERIVED at runtime
+        from the same data/agent_forms/*.json roster the panel consults —
+        never a hardcoded example. ("vfx" used to be hardcoded here; then
+        add-vfx.json was added and the premise silently became false.)"""
+        contexts = set()
+        for path in sorted((self.data_dir / "agent_forms").glob("*.json")):
+            spec = json.loads(path.read_text(encoding="utf-8"))
+            contexts.add(spec.get("selector_context"))
+        for key in self._category_roots(panel):
+            if key not in contexts:
+                return key
+        return None
+
     def test_category_without_a_spec_offers_no_menu(self):
         panel = self.make()
-        self.assertEqual(panel._add_entries("vfx"), [])
-        self.assertIsNone(panel._context_menu(panel._find_item("vfx", ())))
+        key = self._category_without_a_spec(panel)
+        if key is None:
+            self.skipTest(
+                "every category in the tree now has a form spec — no spec-less "
+                "category left to assert against")
+        self.assertEqual(panel._add_entries(key), [])
+        self.assertIsNone(panel._context_menu(panel._find_item(key, ())))
 
     def test_broken_spec_does_not_break_right_click(self):
         """An unhandled exception in a Qt event handler can abort the process:
@@ -601,13 +484,19 @@ class TestBalancingPanel(TempDataCase):
         """ER-5: footprint / sprite_scale / the whole death_spawn block (including
         the per-era spawns rows) reach the designer as real widgets.
 
-        BR-1 re-anchored the two sizing fields: they are still flat at the type
-        root for every ordinary type (Standard here), while the BOSS carries
-        them — plus its shake — inside each per-era ``stats`` row."""
+        BR-1 re-anchored the two sizing fields into the Boss's per-era
+        ``stats`` rows (plus its shake). The per-era-footprint change then did
+        the same for EVERY era-shaped type: ``footprint``/``sprite_scale`` live
+        in each type's own ``eras[]`` rows and **have no flat home left**
+        (`game/enemies/CLAUDE.md`). This test still named the deleted flat keys
+        `EnemyTypes/Standard/footprint`/`sprite_scale` and failed with a bare
+        `KeyError` — so the two subtests said "the panel lost these widgets"
+        when what had actually happened is that they moved."""
         panel = self.make_panel("enemies")
         for key, kind in (
-            ("EnemyTypes/Standard/footprint", QSpinBox),
-            ("EnemyTypes/Standard/sprite_scale", QDoubleSpinBox),
+            ("EnemyTypes/Standard/eras/0/footprint", QSpinBox),
+            ("EnemyTypes/Standard/eras/0/sprite_scale", QDoubleSpinBox),
+            ("EnemyTypes/Standard/eras/4/footprint", QSpinBox),
             ("EnemyTypes/Boss/stats/0/footprint", QSpinBox),
             ("EnemyTypes/Boss/stats/0/sprite_scale", QDoubleSpinBox),
             ("EnemyTypes/Boss/stats/4/shake/strength", QDoubleSpinBox),

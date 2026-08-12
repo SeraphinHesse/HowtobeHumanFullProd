@@ -293,7 +293,10 @@ direct `VfxParams(...)` construction needed a `drummer_aura=` argument again
 - **Tests** live in `tools/tests/` — still `unittest.TestCase`, but **run by
   pytest** (`pytest` + `pytest-xdist` are declared deps; pytest collects
   TestCase natively, so nothing was rewritten). From the repo root:
-  `py tools/testgate.py check`, or `py -m pytest -m core` for the fast tier.
+  `py -m pytest tools/tests/test_<area>.py -q` for the files you touched. Which
+  wider forms you may run is ROLE-scoped — see the role table in §"Test Suite
+  Policy" (root `CLAUDE.md`), the only authority, enforced by a `PreToolUse`
+  hook.
   SDL dummy drivers are set in-code, so no env setup is needed.
 - **Every new test module needs a tier** in `conftest.py`'s `TIERS` table.
   `test_tiers.py` fails if you forget — an unmarked module would silently never
@@ -301,8 +304,9 @@ direct `VfxParams(...)` construction needed a `drummer_aura=` argument again
 
 ## Verify before finishing
 - Pure-logic changes: run/extend the unit tests (coords round-trip,
-  playback_order, grid queries) — T-3. `py tools/testgate.py check --affected`
-  runs just the blast radius while you iterate.
+  playback_order, grid queries) — T-3, by naming the test file:
+  `py -m pytest tools/tests/test_coords.py -q`. `--affected` is a MAIN-SESSION
+  tool, not a subagent one: it runs the whole core tier as its safety pass.
 - Anything render/asset facing: run the headless smoke test (`tools/smoke.py`)
   and, if visuals changed, a live `py game/main.py` look. State exactly which you
   did.

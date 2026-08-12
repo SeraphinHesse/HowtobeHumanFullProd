@@ -65,7 +65,7 @@ data + the checklist and hands off.
 
 ## Verify
 - `py tools/smoke.py` — slots.json + the new balancing file validate.
-- `py tools/testgate.py check --affected` — zero failures (item 1 of the
+- `py -m pytest tools/tests/test_<area>.py -q` — zero failures (item 1 of the
   checklist is the one that bites). Not the full suite — the one full check
   belongs to whoever hands the work back (CLAUDE.md Step 2).
 - Live: `py editor/main.py` → the new category is a top-level tree node; a balancing
@@ -75,3 +75,11 @@ data + the checklist and hands off.
 Changed files; the new category key + whether it is a balancing domain; which checklist
 items applied; verification performed; whether `data/CLAUDE.md` needed a durable update.
 - Tag every claim **measured** / **verified** / **inferred** (see `/report`).
+
+> **Role note (test policy).** The command above names the test FILES for what
+> you changed, which every role may run. `py tools/testgate.py check --affected`
+> is a MAIN-SESSION mid-task tool — its safety pass is the whole core tier — and
+> the single full `check` belongs to the main session at handoff. If you are
+> running this skill inside a dispatched agent, the `test_guard.py` hook will
+> deny both. The role table in §"Test Suite Policy" (root `CLAUDE.md`) is the
+> only authority.

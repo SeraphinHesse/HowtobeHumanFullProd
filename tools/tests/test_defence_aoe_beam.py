@@ -29,6 +29,17 @@ MAPBAL = load_balance(FIXTURE_DATA, "map")
 BUILD = load_balance(FIXTURE_DATA, "buildings")
 ENEM = load_balance(FIXTURE_DATA, "enemies")
 VFX = load_balance(FIXTURE_DATA, "vfx")
+# PIN, don't assume (data/CLAUDE.md), the same shape as `test_enemy_hp_bars`'s
+# `at_hp_fraction` pin. Two tests below assert the mortar spawns a cosmetic
+# `Crater` and that it ages out — geometry and lifecycle, never balance. The
+# crater's lifetime is a designer lever, and `feature/vfx-projectile-
+# spritesheets` set `procedural.crater.life` to 0.0 (the real crater is a
+# `vfx_crater` SPRITE now, played through the `splash_impact` trigger, so the
+# procedural marker is deliberately off). At life 0.0 the object despawns on
+# its first update and both tests read "no crater was ever spawned" — which is
+# not what they are about. Give it a lifetime so the object is observable.
+CRATER_LIFE = 1.0
+VFX["procedural"]["crater"]["life"] = CRATER_LIFE
 
 AOE = BUILD["DefenceBuildings"]["AOEDefence"]["tiers"]
 BEAM = BUILD["DefenceBuildings"]["BeamDefence"]["tiers"]
@@ -152,8 +163,8 @@ class TestSplash(unittest.TestCase):
         target = frozen_enemy(scene, tm, 2, 1, hp=100000)
         self._fire_one_shell(scene, tm, [target])
         self.assertEqual(len(scene.by_tag("crater")), 1)
-        # CRATER_LIFE = 1.0s: age it past its life; it self-despawns.
-        for _ in range(30):
+        # Age it past CRATER_LIFE (pinned above); it self-despawns.
+        for _ in range(int(CRATER_LIFE / 0.05) + 10):
             scene.update(0.05)
         self.assertEqual(scene.by_tag("crater"), [])
 

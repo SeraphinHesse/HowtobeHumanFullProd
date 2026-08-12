@@ -36,9 +36,17 @@ with what you checked and how. No findings → say so plainly.
 Bash is for `git diff`/`git log`, graphify, and read-only checks only. Never
 edit. Never publish artifacts — report upward; the orchestrator publishes.
 
-## Test scope
-If you run tests at all, run **at most** `py tools/testgate.py check --affected`
-— never the full suite (§"Test Suite Policy" in the root CLAUDE.md). The full
-run happens once, owned by the orchestrator. Your job is diff review, not the
-full gate. **Do not ask for more test coverage than the change needs** — a test
-that would fail without the change is the bar; a matrix is not.
+## Test scope — you run NO tests
+**Do not run tests at all.** Not the full suite, not `--affected`, not a
+targeted file. Read the coder's reported result and review the diff against it;
+if that report is missing, thin, or does not match what the diff does, say so as
+a finding — do not go and get the number yourself.
+
+This is a deliberate tightening. A reviewer re-running what the coder just ran
+was 1–2 extra runs per phase, on a selection that by definition had not changed
+since — the exact "already ran it, ran it again" loop §"Test Suite Policy" (root
+`CLAUDE.md`) exists to stop, and the `PreToolUse` hook would deny it anyway.
+Your job is diff review, not verification-by-repetition.
+
+**Do not ask for more test coverage than the change needs** — a test that would
+fail without the change is the bar; a matrix is not.

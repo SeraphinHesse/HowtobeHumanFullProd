@@ -488,6 +488,39 @@ did change — see the fixed callouts above).
   feed are unaffected, only which literal round they fire on shifted down by
   one.
 
+## Wall + tile-highlight render order — host wiring (fix/depth-sorted-world-fills)
+Every tile-diamond highlight (click/drag-select, condition tint, RANGE,
+HEATMAP, TIER OVERVIEW, the tutorial highlight) and every wall segment now
+draws through `Renderer.submit_world_fill`/a `RenderItem` on the `entities`
+layer — the SAME depth-sorted queue buildings use (`engine/render/CLAUDE.md`'s
+"Depth-sorted world fills"; the wall side of it is `game/map/CLAUDE.md`'s
+"Edge walls are LIVE" section). Position-based depth against a building on a
+DIFFERENT tile is automatic (the ordinary iso sort). `main.py` owns the ONE
+thing position can't resolve — a same-tile TIE, broken by submission order:
+- **Highlights submit BEFORE `world.scene.render_items()`** (`gp["overlays"]
+  .submit(...)`, the tutorial highlight, the drag-select live rectangle,
+  `gp["panel"].submit(...)`) — so a same-tile building draws ON TOP of its
+  own highlight.
+- **Wall edges split around it**: the two far sides (`edge_nw`/`edge_ne`)
+  submit BEFORE (same-tile building draws over its own back wall); the two
+  near sides (`edge_se`/`edge_sw`, `game.map.wall_render.FRONT_SIDES`) submit
+  AFTER (a same-tile building draws BEHIND its own near wall — a fence in
+  front of a house). `wall_render_items()` still returns one unfiltered list;
+  `main.py` partitions it by `item.animation in FRONT_SIDES` at the call site.
+
+**A prior version of this fix (fix/highlight-render-order) tried to solve
+the highlight half by reordering these same submission calls, without
+changing the underlying primitive — a real no-op bug**: `widgets
+.submit_tile_diamond`/`_fill` used to go through `Renderer
+.submit_overlay_lines`/`submit_overlay_polys`, a SEPARATE pass `flush()`
+always draws dead last, after every world sprite, regardless of submission
+order. Reordering the calls changed nothing about the rendered frame. Fixed
+by routing those two helpers through `submit_world_fill` instead — see
+`engine/render/CLAUDE.md` for why `submit_overlay_lines`/`submit_overlay_polys`
+remain correct AS-IS for their other consumers (editor grid lines, anchor
+handles, splatters/craters, which are deliberately drawn over sprites) and
+are not what a new "draw this behind a building" consumer should reach for.
+
 ## Building Movement — host wiring
 The feature's rules are `game/buildings/movement.py`
 (`game/buildings/CLAUDE.md`), its panel/modal `game/ui/building_ui.py`
@@ -554,9 +587,15 @@ test vs live round vs static read).
 
 ## Verify before finishing
 ```bash
-py tools/smoke.py              # headless data validation + 5-frame boot
-py tools/testgate.py check     # the gate is ZERO failures — GATE PASS or you're not done
+py tools/smoke.py                             # headless data validation + 5-frame boot
+py -m pytest tools/tests/test_<area>.py -q    # the files your change touches
 ```
+**Which tests you may run is ROLE-scoped — the role table in §"Test Suite
+Policy" (root `CLAUDE.md`) is the only authority, and a `PreToolUse` hook
+enforces it.** A subagent stops at the two commands above. The single full
+`py tools/testgate.py check` belongs to the MAIN SESSION at handoff and is not
+yours to run from here. The gate is ZERO failures — `GATE PASS` or you're not
+done.
 Then a live `py game/main.py` round for phase/combat/UI behavior. If balance
 changed: confirm schema validation passes — and that is all. **The prototype
 parity gate is deleted** (the migration is complete), so a balance value that

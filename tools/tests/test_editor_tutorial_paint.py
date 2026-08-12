@@ -16,6 +16,7 @@ from pathlib import Path
 # Sets the headless env vars and owns the one QApplication — import it before
 # PySide6, which reads those vars at import time.
 from tools.tests.qt_harness import APP as _APP, QtCase
+from tools.tests.temp_data import TempDataCase
 
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtTest import QTest
@@ -37,15 +38,12 @@ class RecordingBackend:
         self.calls = list(draw_calls)
 
 
-class MapModeCase(QtCase):
+class MapModeCase(TempDataCase):
     """MainWindow against a temp data/ copy, starter map selected — mirrors
     test_editor_map_mode.MapModeCase."""
 
     def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.data_dir = Path(tmp.name) / "data"
-        shutil.copytree(REPO / "data", self.data_dir)
+        super().setUp()
         self.set_active_map(STARTER)
         self.window = self.track(MainWindow(data_dir=self.data_dir))
         self.window.resize(1280, 720)

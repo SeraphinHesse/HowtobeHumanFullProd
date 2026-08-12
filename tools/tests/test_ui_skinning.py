@@ -184,6 +184,23 @@ def _screen_captures():
 #: string-table lookup. Exactly ONE primitive in the entry changed (text +
 #: pos, same index) — nothing else moved, and every other screen's entry is
 #: byte-identical.
+#: Regenerated a TENTH time (shipped-font label fit): twelve static button
+#: labels overhung their buttons under the font the game ACTUALLY boots
+#: (``data/ui/active_font.json`` -> ``pixel_emulator``), which is wider per
+#: glyph than the ``SysFont("monospace")`` metrics every pixel constant in
+#: ``game/ui`` was authored against. Six entries moved, and ONLY as copy or
+#: ``font_key``: ``add_name`` (ADD NAME -> ADD), ``cheat_menu`` (Unlock All
+#: Tech -> Unlock Tech, Go to Round -> Round), ``game_over`` (RETURN TO MENU
+#: -> MAIN MENU), ``hud`` (DRAG SEL -> DRAG; END TURN lg -> md, which shifts
+#: its centred baseline 1px), ``main_menu`` (the SET gear lg -> md, same 1px
+#: shift), ``pause`` (QUIT TO MENU -> MAIN MENU). **Not one rect in this
+#: baseline changed**, which is what says the fix was copy and per-widget
+#: font, never layout. (``overlays``'s TIERS pill DID narrow 76 -> 41, but
+#: that screen is not in this capture — see ``data/ui/screen_defaults.json``.)
+#: The measurement itself now lives in
+#: ``test_ui_min_targets.py``, which installs the shipped face for its own
+#: module so this can never regress invisibly again; THIS file still captures
+#: under the fallback face, which is why its ``pos`` values are unchanged.
 _BASELINE = {
     "main_menu": [
         HudRect(rect=(0, 0, 640, 360), color=(18, 30, 20), border_radius=0, width=0),
@@ -213,7 +230,7 @@ _BASELINE = {
         HudText(text='QUIT', pos=(320, 335), font_key='lg', color=(235, 225, 195), align='center'),
         HudRect(rect=(405, 180, 30, 26), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(405, 180, 30, 26), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='SET', pos=(420, 185), font_key='lg', color=(235, 225, 195), align='center'),
+        HudText(text='SET', pos=(420, 186), font_key='md', color=(235, 225, 195), align='center'),
     ],
     "pause": [
         HudRect(rect=(0, 0, 640, 360), color=(0, 0, 0, 150), border_radius=0, width=0),
@@ -228,7 +245,7 @@ _BASELINE = {
         HudText(text='SETTINGS', pos=(320, 175), font_key='lg', color=(235, 225, 195), align='center'),
         HudRect(rect=(260, 200, 120, 23), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(260, 200, 120, 23), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='QUIT TO MENU', pos=(320, 204), font_key='lg', color=(235, 225, 195), align='center'),
+        HudText(text='MAIN MENU', pos=(320, 204), font_key='lg', color=(235, 225, 195), align='center'),
         HudRect(rect=(260, 229, 120, 23), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(260, 229, 120, 23), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='QUIT GAME', pos=(320, 233), font_key='lg', color=(235, 225, 195), align='center'),
@@ -305,7 +322,7 @@ _BASELINE = {
         HudText(text='Names in pool: 3', pos=(217, 206), font_key='sm', color=(150, 140, 120), align='left'),
         HudRect(rect=(217, 217, 80, 20), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(217, 217, 80, 20), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='ADD NAME', pos=(257, 219), font_key='lg', color=(235, 225, 195), align='center'),
+        HudText(text='ADD', pos=(257, 219), font_key='lg', color=(235, 225, 195), align='center'),
         HudRect(rect=(358, 217, 65, 20), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(358, 217, 65, 20), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='BACK', pos=(390, 219), font_key='lg', color=(235, 225, 195), align='center'),
@@ -318,7 +335,7 @@ _BASELINE = {
         HudText(text='Enemies Killed: 9', pos=(320, 193), font_key='md', color=(235, 225, 195), align='center'),
         HudRect(rect=(260, 235, 120, 23), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(260, 235, 120, 23), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='RETURN TO MENU', pos=(320, 239), font_key='lg', color=(235, 225, 195), align='center'),
+        HudText(text='MAIN MENU', pos=(320, 239), font_key='lg', color=(235, 225, 195), align='center'),
     ],
     "levelup": [
         HudRect(rect=(0, 0, 640, 360), color=(0, 0, 0, 185), border_radius=0, width=0),
@@ -362,7 +379,7 @@ _BASELINE = {
         HudRect(rect=(552, 320, 80, 1), color=(80, 65, 120), border_radius=0, width=0),
         HudRect(rect=(552, 322, 80, 30), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(552, 322, 80, 30), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='END TURN', pos=(592, 329), font_key='lg', color=(235, 225, 195), align='center'),
+        HudText(text='END TURN', pos=(592, 330), font_key='md', color=(235, 225, 195), align='center'),
         HudRect(rect=(587, 6, 45, 15), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(587, 6, 45, 15), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='PAUSE', pos=(609, 7), font_key='md', color=(235, 225, 195), align='center'),
@@ -378,7 +395,7 @@ _BASELINE = {
         HudText(text='2×', pos=(82, 77), font_key='sm', color=(150, 140, 120), align='center'),
         HudRect(rect=(6, 93, 45, 14), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(6, 93, 45, 14), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='DRAG SEL', pos=(28, 94), font_key='sm', color=(235, 225, 195), align='center'),
+        HudText(text='DRAG', pos=(28, 94), font_key='sm', color=(235, 225, 195), align='center'),
     ],
     "building_panel": [
     ],
@@ -404,7 +421,7 @@ _BASELINE = {
         HudText(text='Infinite Money', pos=(320, 169), font_key='md', color=(235, 225, 195), align='center'),
         HudRect(rect=(263, 184, 114, 13), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(263, 184, 114, 13), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='Unlock All Tech', pos=(320, 184), font_key='md', color=(235, 225, 195), align='center'),
+        HudText(text='Unlock Tech', pos=(320, 184), font_key='md', color=(235, 225, 195), align='center'),
         HudRect(rect=(263, 199, 114, 13), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(263, 199, 114, 13), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='Debug Log', pos=(320, 199), font_key='md', color=(235, 225, 195), align='center'),
@@ -415,7 +432,7 @@ _BASELINE = {
         HudText(text='round', pos=(266, 229), font_key='sm', color=(150, 140, 120), align='left'),
         HudRect(rect=(314, 227, 63, 13), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(314, 227, 63, 13), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='Go to Round', pos=(345, 228), font_key='sm', color=(235, 225, 195), align='center'),
+        HudText(text='Round', pos=(345, 228), font_key='sm', color=(235, 225, 195), align='center'),
     ],
     "game_log": [
         HudText(text='Test message', pos=(4, 344), font_key='sm', color=(220, 200, 155, 255), align='left'),

@@ -9,6 +9,7 @@ can never end up with two overhead bars.
 Headless/pure: real enemies + real coords over the shipped data, a recording
 renderer instead of a window.
 """
+import dataclasses
 import unittest
 from pathlib import Path
 
@@ -38,11 +39,39 @@ CORE_BAL = load_balance(FIXTURE_DATA, "core")
 UI_BAL = load_balance(FIXTURE_DATA, "ui")
 VFX_BAL = load_balance(FIXTURE_DATA, "vfx")  # ESV-3a: FloaterManager's 3rd arg
 
+
+def _manifest_without_hp_bar_anchors():
+    """The shipped manifest with every `hp_bar` anchor stripped.
+
+    PIN, don't assume (`data/CLAUDE.md`), exactly like the `at_hp_fraction`
+    pin above. This module is about the pre-anchor FALLBACK geometry — the
+    footprint-fitted `_sprite_top` baseline — and since
+    fix-anchor-origin-parity an authored `hp_bar` anchor "wins outright" and
+    REPLACES that baseline (`test_hp_bar_anchors.py` is what covers the
+    anchored path). The fixture carried no `hp_bar` anchors when this module
+    was written, so it got the fallback by accident; the day art was imported
+    with real handles, seven geometry assertions here started measuring the
+    anchor path instead and went red for the wrong reason.
+
+    Stating the premise keeps both halves honest: this module always measures
+    the fallback, and `test_hp_bar_anchors.py` always authors its own anchor.
+    """
+    manifest = load_manifest(FIXTURE_DATA / "sprites" / "asset_manifest.json")
+    for slot in manifest.slots():
+        entry = manifest.entry(slot)
+        anchors = tuple((n, p) for n, p in (entry.anchors or ())
+                        if n != "hp_bar")
+        if anchors != tuple(entry.anchors or ()):
+            manifest = manifest.override(
+                slot, dataclasses.replace(entry, anchors=anchors))
+    return manifest
+
+
 # The real store, so the bar pass sizes each sprite off the SHIPPED sheets
-# (walker 22x26, raider 12x18, siege 36x28, boss era 0 72x56) exactly as the
-# renderer will. frame_size() is pure metadata — no surface is ever loaded.
+# exactly as the renderer will (sizes are READ from the manifest, never pinned
+# here — art gets re-cut). frame_size() is pure metadata: no surface is loaded.
 ASSETS = AssetStore(
-    manifest=load_manifest(FIXTURE_DATA / "sprites" / "asset_manifest.json"),
+    manifest=_manifest_without_hp_bar_anchors(),
     registry=load_registry(FIXTURE_DATA),
     sprites_dir=FIXTURE_DATA / "sprites")
 TILE_W = 64
@@ -70,16 +99,25 @@ def drawn_sprite_h(cls, zoom=1):
     return frame_h * zoom * fit * sprite_scale
 
 
-def expected_bar_bottom(cls, cy, zoom=1):
-    """Where the bar's BOTTOM edge must land: HP_BAR_PAD above the drawn head.
+def drawn_sprite_top(cls, cy, zoom=1):
+    """The screen y of the drawn sprite's TOP edge — its head.
 
-    `cy` is the ANCHOR tile's centre; a multi-tile unit draws on its BLOCK centre,
-    (footprint-1)*tile_h/2 lower (ER-5). Every shipping enemy is footprint 1, so
-    this term is 0 for all of them — it is exercised by the explicit 2-tile case
-    in TestBarGeometry.
+    `cy` is the ANCHOR tile's centre; a multi-tile unit draws on its BLOCK
+    centre, (footprint-1)*tile_h/2 lower (ER-5). This used to be spelled out
+    inline in `expected_bar_bottom` only, and the two tests that need the head
+    on its own re-derived it as a bare `cy - drawn_sprite_h/2`, silently
+    DROPPING the block-centre term. That was invisible while every enemy in the
+    fixture was footprint 1 and broke the moment the Boss became a real 2x2:
+    the two copies disagreed by exactly tile_h/2. One definition, used by all
+    three call sites, is what keeps that from recurring.
     """
     shift = (render_fit(cls)[0] - 1) / 2 * 32 * zoom       # tile_h = 32
-    return int(cy + shift - drawn_sprite_h(cls, zoom) / 2 - cls.HP_BAR_PAD * zoom)
+    return cy + shift - drawn_sprite_h(cls, zoom) / 2
+
+
+def expected_bar_bottom(cls, cy, zoom=1):
+    """Where the bar's BOTTOM edge must land: HP_BAR_PAD above the drawn head."""
+    return int(drawn_sprite_top(cls, cy, zoom) - cls.HP_BAR_PAD * zoom)
 
 
 class RecordingRenderer:
@@ -226,7 +264,7 @@ class TestBarGeometry(unittest.TestCase):
                 self.assertEqual((w, h), (cls.HP_BAR_W, cls.HP_BAR_H))
                 self.assertEqual(y + h, expected_bar_bottom(cls, cy))
                 # and it really does hug the head — never floats off it
-                gap = (cy - drawn_sprite_h(cls) / 2) - (y + h)
+                gap = drawn_sprite_top(cls, cy) - (y + h)
                 self.assertAlmostEqual(gap, cls.HP_BAR_PAD, delta=1.0)
 
     def test_boss_bar_follows_its_era_sprite(self):
@@ -237,7 +275,7 @@ class TestBarGeometry(unittest.TestCase):
         r, cs = submit([boss])
         _x, y, _w, h = r.bars()[0]
         cy = cs.world_to_screen(6.5, 6.5)[1]
-        sprite_top = cy - drawn_sprite_h(Boss) / 2
+        sprite_top = drawn_sprite_top(Boss, cy)
         self.assertLess(abs((y + h) - (sprite_top - Boss.HP_BAR_PAD)), 1.0)
         # the pre-ER-1 constant would have parked it ~23px above the head
         self.assertGreater(y + h, int(cy) - 48 + 10)

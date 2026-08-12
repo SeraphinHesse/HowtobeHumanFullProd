@@ -336,9 +336,16 @@ import list** (the layering guard — `editor/` must never import `game/`).
 
 ## Verify before finishing
 ```bash
-py tools/testgate.py check     # the gate is ZERO failures
-py -m pytest -m editor         # just the Qt tier, while iterating
+py tools/smoke.py                                    # always
+py -m pytest tools/tests/test_<panel>.py -q          # the files your change touches
 ```
+**Which tests you may run is ROLE-scoped — the role table in §"Test Suite
+Policy" (root `CLAUDE.md`) is the only authority, and a `PreToolUse` hook
+enforces it.** A subagent stops at the two commands above. `py -m pytest -m
+editor` is a TIER SWEEP (the whole Qt tier, minutes) — main session only, and
+rarely worth it over naming the panel's own test file. The single full
+`py tools/testgate.py check` belongs to the MAIN SESSION at handoff. The gate is
+ZERO failures.
 Then launch `py editor/main.py` and exercise the changed panel/control; for
 data-writing features, confirm the JSON on disk validates and a Play subprocess
 loads it. State exactly what you exercised (live editor run vs static read).
