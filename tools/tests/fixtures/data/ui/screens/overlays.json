@@ -5,6 +5,9 @@
     },
     "btn_range": {
       "skin": "ui_button_pill"
+    },
+    "btn_tier_overview": {
+      "skin": "ui_button_pill"
     }
   }
 }
