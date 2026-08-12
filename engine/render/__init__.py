@@ -10,7 +10,7 @@ from .hud import (
     HUD_ITEM_TYPES, HudLines, HudRect, HudSprite, HudText, hud_item_from_json,
     hud_item_to_json,
 )
-from .item import LAYERS, DrawCall, OverlayLines, OverlayPolys, RenderItem
+from .item import LAYERS, DrawCall, OverlayLines, OverlayPolys, RenderItem, WorldFill
 from .renderer import (
     Renderer, block_center_offset, fit_factor, sprite_anchor_screen,
 )
@@ -28,6 +28,7 @@ __all__ = [
     "OverlayPolys",
     "RenderItem",
     "Renderer",
+    "WorldFill",
     "block_center_offset",
     "default_backend",
     "fit_factor",

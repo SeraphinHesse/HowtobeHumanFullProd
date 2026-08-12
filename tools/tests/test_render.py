@@ -16,7 +16,8 @@ import pathlib
 from engine.assets.types import Frame
 from engine.coords import Camera, CoordinateSystem, Geometry
 from engine.render import (
-    LAYERS, HudSprite, OverlayLines, RenderItem, Renderer, block_center_offset,
+    LAYERS, HudSprite, OverlayLines, OverlayPolys, RenderItem, Renderer,
+    WorldFill, block_center_offset,
 )
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
@@ -605,6 +606,112 @@ class TestCropBackend(unittest.TestCase):
         # never leaks a growing set of surfaces per call.
         self.assertIn(src, backend._scale_cache)
         self.assertEqual(len(backend._scale_cache[src]), 1)
+
+
+class TestWorldFillDepthSort(unittest.TestCase):
+    """fix/depth-sorted-world-fills: ``submit_world_fill`` participates in the
+    SAME depth-sorted queue as ``RenderItem`` (unlike ``submit_overlay_polys``/
+    ``submit_overlay_lines``, which stay a separate always-drawn-last pass —
+    covered by ``TestOverlaysDrawLast`` below)."""
+
+    def test_same_tile_tie_resolves_by_submission_order(self):
+        """A WorldFill and a RenderItem sharing a world_pos/layer are an exact
+        depth-sort tie — Python's stable sort then preserves submission
+        order. Submit the fill first and it draws BEHIND the sprite (the
+        tile-highlight-behind-a-building case); submit it after and it draws
+        in FRONT (the near-wall-in-front-of-a-building case)."""
+        backend = RecordingBackend()
+        r = Renderer(make_cs(), FakeAssets(), backend=backend)
+        r.submit_world_fill([(0, 0), (1, 0), (1, 1), (0, 1)],
+                            world_pos=(0, 0), color=(255, 0, 0))
+        r.submit(RenderItem("building", (0, 0), layer="entities"))
+        r.flush(target=None)
+        kinds = [type(c).__name__ for c in backend.calls]
+        self.assertEqual(kinds, ["OverlayPolys", "DrawCall"])
+
+        backend2 = RecordingBackend()
+        r2 = Renderer(make_cs(), FakeAssets(), backend=backend2)
+        r2.submit(RenderItem("building", (0, 0), layer="entities"))
+        r2.submit_world_fill([(0, 0), (1, 0), (1, 1), (0, 1)],
+                             world_pos=(0, 0), color=(255, 0, 0))
+        r2.flush(target=None)
+        kinds2 = [type(c).__name__ for c in backend2.calls]
+        self.assertEqual(kinds2, ["DrawCall", "OverlayPolys"])
+
+    def test_different_tile_sorts_by_real_position_regardless_of_submission_order(self):
+        """A fill on a tile NEARER the camera (larger wx+wy) draws in front of
+        a building on a FARTHER tile even when submitted FIRST — true
+        per-position depth, not a fixed always-on-top/always-behind rule."""
+        backend = RecordingBackend()
+        r = Renderer(make_cs(), FakeAssets(), backend=backend)
+        # near tile (5,5): submitted FIRST
+        r.submit_world_fill([(5, 5), (6, 5), (6, 6), (5, 6)],
+                            world_pos=(5, 5), color=(255, 0, 0))
+        # far tile (0,0): submitted SECOND
+        r.submit(RenderItem("building", (0, 0), layer="entities"))
+        r.flush(target=None)
+        kinds = [type(c).__name__ for c in backend.calls]
+        # the FAR building still draws first (behind) despite submitting
+        # after the near fill — position wins, not submission order.
+        self.assertEqual(kinds, ["DrawCall", "OverlayPolys"])
+
+    def test_color_none_draws_outline_only(self):
+        backend = RecordingBackend()
+        r = Renderer(make_cs(), FakeAssets(), backend=backend)
+        r.submit_world_fill([(0, 0), (1, 0), (1, 1), (0, 1)],
+                            world_pos=(0, 0), border=(1, 2, 3))
+        r.flush(target=None)
+        self.assertEqual(len(backend.calls), 1)
+        self.assertIsInstance(backend.calls[0], OverlayLines)
+
+    def test_border_none_draws_fill_only(self):
+        backend = RecordingBackend()
+        r = Renderer(make_cs(), FakeAssets(), backend=backend)
+        r.submit_world_fill([(0, 0), (1, 0), (1, 1), (0, 1)],
+                            world_pos=(0, 0), color=(1, 2, 3))
+        r.flush(target=None)
+        self.assertEqual(len(backend.calls), 1)
+        self.assertIsInstance(backend.calls[0], OverlayPolys)
+
+    def test_fill_and_border_together_draws_poly_then_outline(self):
+        backend = RecordingBackend()
+        r = Renderer(make_cs(), FakeAssets(), backend=backend)
+        r.submit_world_fill([(0, 0), (1, 0), (1, 1), (0, 1)],
+                            world_pos=(0, 0), color=(1, 2, 3), border=(4, 5, 6))
+        r.flush(target=None)
+        kinds = [type(c).__name__ for c in backend.calls]
+        self.assertEqual(kinds, ["OverlayPolys", "OverlayLines"])
+
+    def test_rejects_neither_color_nor_border(self):
+        r = Renderer(make_cs(), FakeAssets(), backend=RecordingBackend())
+        with self.assertRaises(ValueError):
+            r.submit_world_fill([(0, 0), (1, 0), (1, 1)], world_pos=(0, 0))
+
+    def test_rejects_too_few_points(self):
+        r = Renderer(make_cs(), FakeAssets(), backend=RecordingBackend())
+        with self.assertRaises(ValueError):
+            r.submit_world_fill([(0, 0), (1, 0)], world_pos=(0, 0), color=(1, 2, 3))
+
+    def test_rejects_unknown_layer(self):
+        r = Renderer(make_cs(), FakeAssets(), backend=RecordingBackend())
+        with self.assertRaises(ValueError):
+            r.submit_world_fill([(0, 0), (1, 0), (1, 1)], world_pos=(0, 0),
+                                layer="hud", color=(1, 2, 3))
+
+
+class TestOverlaysDrawLast(unittest.TestCase):
+    """submit_overlay_lines/polys are UNCHANGED by fix/depth-sorted-world-
+    fills: still a separate pass, always drawn dead last regardless of
+    submission order — see engine/render/CLAUDE.md."""
+
+    def test_overlay_poly_draws_after_a_later_submitted_sprite(self):
+        backend = RecordingBackend()
+        r = Renderer(make_cs(), FakeAssets(), backend=backend)
+        r.submit_overlay_polys([(0, 0), (1, 0), (1, 1)], (1, 2, 3))
+        r.submit(RenderItem("ent", (9, 9), layer="entities"))
+        r.flush(target=None)
+        kinds = [type(c).__name__ for c in backend.calls]
+        self.assertEqual(kinds, ["DrawCall", "OverlayPolys"])
 
 
 class TestPixelQuantizer(unittest.TestCase):

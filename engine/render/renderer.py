@@ -22,7 +22,7 @@ authored in frame pixels).
 """
 from . import backend_api
 from .hud import HudLines, HudRect, HudSprite, HudText
-from .item import LAYERS, DrawCall, OverlayLines, OverlayPolys
+from .item import LAYERS, DrawCall, OverlayLines, OverlayPolys, WorldFill
 
 _HUD_TYPES = (HudRect, HudText, HudSprite, HudLines)
 
@@ -104,6 +104,22 @@ class Renderer:
             raise ValueError(f"unknown draw layer {item.layer!r}; expected one of {LAYERS}")
         self._queue.append(item)
 
+    def submit_world_fill(self, points, world_pos, layer="entities",
+                          color=None, border=None, border_width=2):
+        """fix/depth-sorted-world-fills: a WorldFill, appended to the SAME
+        queue as RenderItem so it sorts by real tile depth against buildings
+        (see WorldFill's docstring) — unlike submit_overlay_lines/polys
+        below, which stay a separate always-drawn-last pass and are
+        UNCHANGED by this. ``points`` are WORLD units, converted at flush."""
+        if len(points) < 3:
+            raise ValueError("world fill needs at least 3 points")
+        if layer not in LAYERS:
+            raise ValueError(f"unknown draw layer {layer!r}; expected one of {LAYERS}")
+        if color is None and border is None:
+            raise ValueError("world fill needs a color, a border, or both")
+        self._queue.append(WorldFill(tuple(points), world_pos, layer, color,
+                                     border, border_width))
+
     def submit_overlay_lines(self, points, color, width=1, closed=False):
         """E-24 overlay pass: a polyline in WORLD coordinates (e.g. the
         editor's grid lines). Converted via coords at flush and appended
@@ -148,6 +164,22 @@ class Renderer:
         half_h = coords.geometry.tile_h / 2
         draw_calls = []
         for item in ordered:
+            if isinstance(item, WorldFill):
+                # fix/depth-sorted-world-fills: reuses the OverlayPolys/
+                # OverlayLines DrawCall shapes (the backend already
+                # isinstance-dispatches them) but builds them HERE, in
+                # depth-sorted position, instead of in the always-last
+                # overlay block below — that is the entire mechanism that
+                # lets a WorldFill draw behind or in front of a specific
+                # building.
+                screen_points = tuple(coords.world_to_screen(*p) for p in item.points)
+                if item.color is not None:
+                    draw_calls.append(OverlayPolys(points=screen_points, color=item.color))
+                if item.border is not None:
+                    draw_calls.append(OverlayLines(
+                        points=screen_points, color=item.border,
+                        width=item.border_width, closed=True))
+                continue
             frame = self._assets.frame(item.slot_key, item.animation, item.anim_time_ms)
             # Multi-tile units are ADDRESSED by their anchor tile but DRAWN on
             # their block centre. Note this shifts the blit only — depth_key

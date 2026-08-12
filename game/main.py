@@ -90,7 +90,7 @@ from game.map import (
 )
 from game.map.tiles import CONDITION_CATEGORY
 from game.map.tiles import TileState  # 10J: multi-select category
-from game.map.wall_render import WALL_CATEGORY
+from game.map.wall_render import FRONT_SIDES, WALL_CATEGORY
 from game.tutorial import TutorialDirector  # TU-6
 from game.ui import (
     BossCutscene, BuildingUI, CheatMenu, EnemyIntroWindow, FloaterManager,
@@ -748,6 +748,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
             return
         if hud_action == "end_turn":
             session.end_turn()
+            # fix/highlight-render-order: the heatmap always shows the round
+            # currently in progress — blank it here so nothing lingers from
+            # the round just ended; track()/the ENEMY-phase-edge snapshot
+            # rebuild it live over the new round.
+            gp["overlays"].path_heatmap.clear()
             gp["tutorial"].on_end_turn()  # TU-6: no-op unless this was the gated step
             return
         # -- 10L: fast-forward combat-speed buttons --
@@ -1068,6 +1073,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                         shell.state = GameState.PAUSED  # Esc opens pause
                 elif event.key == pygame.K_SPACE:
                     session.end_turn()  # dev convenience beside the button
+                    gp["overlays"].path_heatmap.clear()  # fix/highlight-render-order
                     gp["tutorial"].on_end_turn()  # TU-6: no-op unless gated step
                 elif session.state.phase == GamePhase.ENEMY:
                     # Combat-speed shortcuts + quick-skip (10F). 1.5x/2x are
@@ -1523,21 +1529,87 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                     world.tile_map, cmin, cmax, rmin, rmax, condition_art,
                     anim_time_ms=int(deco_clock_ms)):
                 renderer.submit(item)
-            # Edge-wall art on the SAME `terrain` layer as condition art —
-            # above the ground tiles, below everything on `entities`/`deco`.
-            # Reuses the window above; one item per perimeter edge, and
-            # nothing at all for a wall tier with no imported sheet.
-            for item in wall_render_items(world.tile_map, cmin, cmax, rmin, rmax,
-                                          wall_art, anim_time_ms=int(deco_clock_ms)):
-                renderer.submit(item)
-            for item in world.scene.render_items():
-                renderer.submit(item)
-            # -- 10I: condition tint + RANGE/HEATMAP overlays — before the
-            # panel submit so selection highlights draw over them; reuses the
-            # visible-tile window computed above --
+            # Edge-wall art (fix/depth-sorted-world-fills) — every wall item
+            # is on the SAME `entities` layer as buildings now, so it sorts
+            # by real tile position against ANY building on the map (the
+            # ordinary iso depth rule, not a fixed layer). The ONE thing
+            # position can't resolve is a wall and a building on the SAME
+            # tile (an exact depth-sort tie) — that's decided by SUBMISSION
+            # ORDER instead: the two far sides (edge_nw/edge_ne) submit HERE,
+            # before world.scene.render_items(), so a same-tile building
+            # draws on top of its own back wall; the two near sides
+            # (edge_se/edge_sw, `wall_render.FRONT_SIDES`, imported as
+            # `FRONT_SIDES`) submit AFTER it,
+            # below, so a same-tile building draws BEHIND its own near wall
+            # (a fence in front of a house). See `game/map/wall_render.py`'s
+            # module docstring. Nothing at all for a wall tier with no
+            # imported sheet.
+            wall_items = wall_render_items(world.tile_map, cmin, cmax, rmin, rmax,
+                                           wall_art, anim_time_ms=int(deco_clock_ms))
+            front_wall_items = []
+            for item in wall_items:
+                if item.animation in FRONT_SIDES:
+                    front_wall_items.append(item)
+                else:
+                    renderer.submit(item)
+            # -- fix/depth-sorted-world-fills (supersedes fix/highlight-render-
+            # order): every colored tile highlight/overlay (condition tint,
+            # RANGE, HEATMAP, TIER OVERVIEW, the tutorial guided-chain
+            # highlight, the drag-select live rectangle, and the panel's
+            # click/drag-select selection highlights) goes through
+            # `widgets.submit_tile_diamond`/`_fill`, which now submits a
+            # WorldFill — a REAL depth-sorted item, not the always-last
+            # overlay pass. Submitting these BEFORE world.scene.render_items()
+            # is what makes them draw BEHIND a same-tile building (a
+            # submission-order tie-break, same mechanism as the walls above);
+            # against a building on ANY OTHER tile they sort correctly by
+            # real position regardless of submission order. See
+            # `engine/render/CLAUDE.md`'s "Depth-sorted world fills". --
             gp["overlays"].submit(renderer, world.tile_map, world.scene,
                                   (cmin, cmax, rmin, rmax))
-            # -- /10I --
+            # -- TU-6: the guided-chain tile highlight (0 or 1 tiles) — world
+            # overlay, before buildings and before the panel's own selection
+            # highlights --
+            for col, row in gp["tutorial"].tile_highlight_targets():
+                widgets.submit_tile_diamond(renderer, col, row,
+                                            widgets.C_TUTORIAL_HIGHLIGHT)
+            # -- /TU-6 --
+            # -- drag-select: the live rectangle, same world-overlay slot as
+            # the tutorial highlight. It runs the SAME _SEL_CATEGORY filter
+            # AND the same tutorial.allows(("tile", ...)) gate finish_drag_select
+            # does (review fix: a preview that skipped the gate could show a
+            # tile during the round-0 tutorial that release would then refuse
+            # to select), so a tile shown here is exactly a tile that will be
+            # selected on release. --
+            if gp["drag_select_enabled"] and drag_select_from is not None:
+                cur = drag_select_current or drag_select_from
+                sel_cat = _SEL_CATEGORY.get(drag_select_from.state)
+                tutorial = gp["tutorial"]
+                if sel_cat is not None and tutorial.allows(
+                        ("tile", drag_select_from.col, drag_select_from.row)):
+                    c0, c1 = sorted((drag_select_from.col, cur.col))
+                    r0, r1 = sorted((drag_select_from.row, cur.row))
+                    for row in range(r0, r1 + 1):
+                        for col in range(c0, c1 + 1):
+                            t = world.tile_map.get(col, row)
+                            if (t is not None
+                                    and _SEL_CATEGORY.get(t.state) == sel_cat
+                                    and tutorial.allows(("tile", col, row))):
+                                widgets.submit_tile_diamond_fill(
+                                    renderer, col, row,
+                                    widgets.C_HIGHLIGHT + (70,))
+            # -- /drag-select --
+            gp["panel"].submit(renderer, session)
+            # -- /fix/depth-sorted-world-fills --
+            for item in world.scene.render_items():
+                renderer.submit(item)
+            # fix/depth-sorted-world-fills: the two near-side wall edges,
+            # held back above so THEY draw on top of (in front of) a
+            # same-tile building (see the comment at the wall_render_items()
+            # call) — a fence along the near edge of a tile occludes
+            # whatever's behind it.
+            for item in front_wall_items:
+                renderer.submit(item)
             # -- 10J: blood + gold-highlight fills (world overlay, before the
             # panel's selection highlights) --
             gp["floaters"].submit_splatters(renderer, cs)
@@ -1581,38 +1653,6 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                         (int(scx), int(scy - sh * 21 // 96)), "md",
                         widgets.C_MOVE_HIGHLIGHT, align="center")
             # -- /Building Movement --
-            # -- TU-6: the guided-chain tile highlight (0 or 1 tiles) — world
-            # overlay, before the panel's own selection highlights --
-            for col, row in gp["tutorial"].tile_highlight_targets():
-                widgets.submit_tile_diamond(renderer, col, row,
-                                            widgets.C_TUTORIAL_HIGHLIGHT)
-            # -- /TU-6 --
-            # -- drag-select: the live rectangle, same world-overlay slot as
-            # the tutorial highlight. It runs the SAME _SEL_CATEGORY filter
-            # AND the same tutorial.allows(("tile", ...)) gate finish_drag_select
-            # does (review fix: a preview that skipped the gate could show a
-            # tile during the round-0 tutorial that release would then refuse
-            # to select), so a tile shown here is exactly a tile that will be
-            # selected on release. --
-            if gp["drag_select_enabled"] and drag_select_from is not None:
-                cur = drag_select_current or drag_select_from
-                sel_cat = _SEL_CATEGORY.get(drag_select_from.state)
-                tutorial = gp["tutorial"]
-                if sel_cat is not None and tutorial.allows(
-                        ("tile", drag_select_from.col, drag_select_from.row)):
-                    c0, c1 = sorted((drag_select_from.col, cur.col))
-                    r0, r1 = sorted((drag_select_from.row, cur.row))
-                    for row in range(r0, r1 + 1):
-                        for col in range(c0, c1 + 1):
-                            t = world.tile_map.get(col, row)
-                            if (t is not None
-                                    and _SEL_CATEGORY.get(t.state) == sel_cat
-                                    and tutorial.allows(("tile", col, row))):
-                                widgets.submit_tile_diamond_fill(
-                                    renderer, col, row,
-                                    widgets.C_HIGHLIGHT + (70,))
-            # -- /drag-select --
-            gp["panel"].submit(renderer, session)
             gp["floaters"].submit_beams(renderer, cs, world.scene)    # 10B: HUD
             gp["floaters"].submit_hp_bars(renderer, cs, world.scene)
             gp["floaters"].submit_enemy_hp_bars(renderer, cs, world.scene)
