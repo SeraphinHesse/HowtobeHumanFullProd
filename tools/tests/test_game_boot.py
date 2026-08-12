@@ -19,6 +19,7 @@ import jsonschema  # noqa: E402
 from engine import data_io, tilemap  # noqa: E402
 from engine.render import fonts as _fonts  # noqa: E402
 from game.main import main as game_main  # noqa: E402
+from game.ui import strings as _strings  # noqa: E402
 from game.ui import widgets as _widgets  # noqa: E402
 from tools.tests.temp_data import DataDirCase  # noqa: E402
 
@@ -59,6 +60,17 @@ def _restore_font_state_after(case):
     font_specs = dict(_fonts._FONT_SPECS)
     palette = {name: getattr(_widgets, name)
                for name in dir(_widgets) if name.startswith("C_")}
+    # ALL THREE, not two. `main()` calls configure_fonts + configure_palette +
+    # configure_strings, and the first version of this helper restored only the
+    # first two. The strings leak then behaved exactly like the font one and
+    # was just as invisible locally: `configure_strings` replaces `_STRINGS`
+    # IN PLACE from live `data/ui/strings.json`, so any later test in the same
+    # worker sees LIVE copy where it expected the module's unconfigured
+    # fallback. `test_strings_data.TestFallbackEqualsStock` — whose whole job
+    # is to catch dual-store drift between the Python literal and the JSON —
+    # passed on Windows (where the shuffle happened to separate them) and
+    # failed on CI's `core` shard, reporting a drift that did not exist.
+    strings_snapshot = dict(_strings._STRINGS)
 
     def restore():
         _fonts._FONT_PATH, _fonts._FONT_BYTES = font_family
@@ -69,8 +81,42 @@ def _restore_font_state_after(case):
         _fonts._cache.clear()   # built from the OLD size/face — must not survive
         for name, value in palette.items():
             setattr(_widgets, name, value)
+        _strings._STRINGS.clear()
+        _strings._STRINGS.update(strings_snapshot)
 
     case.addCleanup(restore)
+
+
+class TestTheRestoreCoversEveryThemeGlobal(unittest.TestCase):
+    """A new `configure_*` must not be able to leak the way the last three did.
+
+    This exact bug has now been found THREE times — fonts, palette, strings —
+    always the same shape: `game/main.py` configures a module global at boot,
+    this file boots the game, nothing restores it, and a later test in the same
+    xdist worker silently measures the live value. Each one was invisible on
+    the machine it was written on and only surfaced as a "flake" elsewhere.
+
+    So the helper's coverage is asserted rather than trusted: the set of
+    `configure_*` entry points the host calls is pinned, and adding a fourth
+    without teaching `_restore_font_state_after` about it fails HERE, with a
+    message saying what to do — instead of as someone else's flaky test three
+    weeks later.
+    """
+
+    def test_no_unrestored_configure_entry_point_exists(self):
+        import re
+        host = (REPO / "game" / "main.py").read_text(encoding="utf-8")
+        called = set(re.findall(r"\b(configure_\w+)\s*\(", host))
+        covered = {"configure_fonts",     # _FONT_PATH/_FONT_BYTES/_FONT_SPECS/_cache
+                   "configure_palette",   # widgets.C_*
+                   "configure_strings"}   # strings._STRINGS
+        self.assertEqual(
+            called, covered,
+            "game/main.py configures a module global this file's "
+            "`_restore_font_state_after` does not restore (or no longer needs "
+            "to). Booting the game leaks it into every later test in the same "
+            "xdist worker — the fonts/palette/strings bug, a fourth time. "
+            "Teach the helper to snapshot and restore it, then update this set.")
 
 
 class TempDataBoot(DataDirCase):
