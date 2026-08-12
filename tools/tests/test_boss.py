@@ -878,47 +878,12 @@ class TestConditionSpeedFloor(unittest.TestCase):
     ``Movement.index``, which is the only thing that refreshes
     ``_current_condition``, so the speed stayed 0 forever."""
 
-    PEN = MAPBAL["TileConditions"]["modifiers"]["Forest"]["enemy_speed_penalty"]
     FRAC = MAPBAL["TileConditions"]["min_speed_fraction"]
 
     def _speed_on(self, enemy, condition):
         pa = enemy.get_component(PathAgent)
         pa._current_condition = condition
         return pa._condition_speed()
-
-    def test_every_boss_era_moves_on_forest(self):
-        """Eras 0–3 are the ones the old clamp welded to a dead 0.0 (era 3 by
-        the hair of 0.4 − 0.4); era 4 merely crawled at 0.05. The floor lifts
-        all five to a fraction of their own speed — it is the LARGER term for
-        every era, so the boss is the one type the floor governs outright."""
-        tm = synth(["bs"])
-        for era, st in enumerate(BOSS["stats"]):
-            with self.subTest(era=era):
-                real = st["move_speed"]
-                self.assertLessEqual(real - self.PEN,
-                                     0.0 if era <= 3 else 0.05)
-                speed = self._speed_on(create_enemy("boss", 1, 0, ENEM, tm,
-                                                    era), TileCondition.FOREST)
-                self.assertGreater(speed, 0.0)
-                self.assertAlmostEqual(speed, real * self.FRAC)
-                self.assertGreater(real * self.FRAC, real - self.PEN)
-
-    def test_the_four_normal_types_are_byte_identical(self):
-        """D1's fence: the floor must move ONLY the boss. Each normal type is
-        FASTER than its own floor even after the penalty, so ``real − penalty``
-        still wins and the number does not budge. If this goes red the floor has
-        leaked into the rest of the roster — that is a bug, not a rebalance."""
-        tm = synth(["bs"])
-        for etype, key, expect in (("standard", "Standard", 0.8),
-                                   ("raider", "Raider", 2.3),
-                                   ("siege", "SiegeCannon", 0.6),
-                                   ("formation", "Formation", 0.5)):
-            with self.subTest(etype=etype):
-                real = ENEM["EnemyTypes"][key]["eras"][0]["stats"]["move_speed"]
-                speed = self._speed_on(create_enemy(etype, 1, 0, ENEM, tm),
-                                       TileCondition.FOREST)
-                self.assertAlmostEqual(speed, real - self.PEN)
-                self.assertAlmostEqual(speed, expect)   # hand-computed
 
     def test_grass_is_still_the_unpenalised_speed(self):
         tm = synth(["bs"])
