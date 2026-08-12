@@ -25,11 +25,19 @@ selection and the HUD composite are G4.
 The win over `backend.py`: a source surface is uploaded to the GPU ONCE and all
 scaling lives in the destination rect, so zoom != 1 costs no
 `pygame.transform.scale` per frame.
+
+**Precondition a caller must respect: a cached Texture is a SNAPSHOT of its
+source surface at first draw, and is never refreshed.** `backend.py:40-42`
+returns the LIVE source surface at 1:1, so a consumer that mutates a surface in
+place and keeps handing it to the same `DrawCall` renders correctly there and
+would silently freeze at first-frame contents here. Nothing shipped does this
+(`AssetStore` frames are immutable memoized slices), but a future one must
+either hand over a fresh surface or call `clear_cache()`.
 """
 import weakref
 
 import pygame
-from pygame._sdl2.video import Texture
+from pygame._sdl2.video import SCALEQUALITY_NEAREST, Texture
 
 from .item import OverlayLines, OverlayPolys, round_half_up as _round
 
@@ -71,18 +79,30 @@ def _texture(target, surface):
     key = id(target)
     texture = by_renderer.get(key)
     if texture is None:
-        texture = Texture.from_surface(target, surface)
-        # Explicit rather than relying on from_surface's default: the Surface
-        # backend alpha-blends every sprite blit, so the GPU path must too.
-        texture.blend_mode = pygame.BLENDMODE_BLEND
+        texture = _upload(target, surface)
         by_renderer[key] = texture
     return texture
 
 
-def _scratch_texture(target, surface):
-    """Upload a per-call scratch surface. Deliberately NOT cached — its pixels
-    are unique to one overlay call."""
-    texture = Texture.from_surface(target, surface)
+def _upload(target, surface):
+    """Upload `surface` to a Texture with BOTH filter-affecting properties set
+    EXPLICITLY, never inherited.
+
+    `Texture.from_surface` takes no `scale_quality`, so its filter comes from
+    `SDL_HINT_RENDER_SCALE_QUALITY` at creation time — a process-wide default
+    that the `SDL_RENDER_SCALE_QUALITY` env var can override and that is not
+    contractually stable across pygame-ce versions. Pixel art with hard edges
+    and per-pixel alpha is the whole aesthetic here (`engine/render/CLAUDE.md`,
+    "transform.scale, not smoothscale"), and linear filtering at zoom would
+    fringe every alpha edge — so the nearest-pixel sampler is pinned in code
+    via the constructor, and the surface is uploaded with `update()`.
+    `blend_mode` is likewise explicit: the empty-texture constructor leaves it
+    at `BLENDMODE_NONE` (measured), while the Surface backend alpha-blends
+    every sprite blit.
+    """
+    texture = Texture(target, surface.get_size(),
+                      scale_quality=SCALEQUALITY_NEAREST)
+    texture.update(surface)
     texture.blend_mode = pygame.BLENDMODE_BLEND
     return texture
 
@@ -109,8 +129,8 @@ def _draw_lines(target, call):
     scratch = pygame.Surface((w, h), pygame.SRCALPHA)
     pygame.draw.lines(scratch, call.color, call.closed,
                       [(x - min_x, y - min_y) for x, y in points], call.width)
-    _scratch_texture(target, scratch).draw(
-        dstrect=pygame.Rect(min_x, min_y, w, h))
+    # Not cached: the scratch pixels are unique to this one overlay call.
+    _upload(target, scratch).draw(dstrect=pygame.Rect(min_x, min_y, w, h))
 
 
 def _draw_polys(target, call):
@@ -132,8 +152,8 @@ def _draw_polys(target, call):
     scratch = pygame.Surface((w, h), pygame.SRCALPHA)
     pygame.draw.polygon(scratch, call.color,
                         [(x - min_x, y - min_y) for x, y in points])
-    _scratch_texture(target, scratch).draw(
-        dstrect=pygame.Rect(min_x, min_y, w, h))
+    # Not cached: the scratch pixels are unique to this one overlay call.
+    _upload(target, scratch).draw(dstrect=pygame.Rect(min_x, min_y, w, h))
 
 
 _HUD_MSG = (
@@ -178,12 +198,16 @@ def draw(target, draw_calls):
         # The texture is CACHED and SHARED, so colour/alpha modulation LEAKS
         # into the next draw from the same source — the hazard backend.py:223's
         # surface.copy() sidesteps on the Surface path. Set, draw, reset.
+        # The `try` opens BEFORE the first assignment: if `texture.color`
+        # succeeds and `texture.alpha` then raises on a malformed tint, the
+        # colour modulation would otherwise leak onto the shared cached texture
+        # and silently tint every later draw from that source.
         tint = call.tint
-        if tint is not None:
-            texture.color = tuple(tint[:3])
-            if len(tint) == 4:
-                texture.alpha = tint[3]
         try:
+            if tint is not None:
+                texture.color = tuple(tint[:3])
+                if len(tint) == 4:
+                    texture.alpha = tint[3]
             texture.draw(dstrect=dst, flip_x=bool(call.flip), flip_y=False)
         finally:
             if tint is not None:

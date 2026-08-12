@@ -94,7 +94,14 @@ class TestParity(GpuBackendCase):
             # zoom != 1, non-integer multiple, dest AND size on a .5 tie so
             # round_half_up (floor(v + 0.5)) is actually exercised.
             DrawCall(surface=src, dest=(30.5, 20.5), size=(20.5, 20.5)),
-            DrawCall(surface=src, dest=(60.0, 20.0), size=(16, 16), flip=True),
+            # Flip at a NON-INTEGER factor (8 -> 21px, a .5 tie). The two
+            # backends compose flip and resample in OPPOSITE orders —
+            # backend.py:219-221 scales then mirrors, while this one hands SDL
+            # an unscaled texture and asks for a mirrored read. At an integer
+            # factor k the two are provably equal ((kS-1-i)//k == S-1-i//k), so
+            # an x2 case cannot detect a divergence; a non-integer factor can.
+            DrawCall(surface=src, dest=(60.0, 20.0), size=(20.5, 20.5),
+                     flip=True),
             # The modulation-leak pin: a tinted draw immediately followed by an
             # untinted draw from the SAME (cached, shared) source surface.
             DrawCall(surface=src, dest=(90.0, 20.0), size=(24, 24),
@@ -152,19 +159,18 @@ class TestTextureCache(GpuBackendCase):
             for x in range(12)
         ]
         uploads = []
-        real = Texture.from_surface
 
-        def spy(renderer, surface):
-            uploads.append(surface)
-            return real(renderer, surface)
+        def spy(renderer, size, **kwargs):
+            uploads.append(size)
+            return Texture(renderer, size, **kwargs)
 
-        backend_gpu.Texture = type("T", (), {"from_surface": staticmethod(spy)})
+        backend_gpu.Texture = spy
         try:
             self.render_gpu(calls)
         finally:
             backend_gpu.Texture = Texture
         self.assertEqual(len(uploads), 1)
-        self.assertIs(uploads[0], src)
+        self.assertEqual(uploads[0], src.get_size())
         by_renderer = backend_gpu._texture_cache[src]
         self.assertEqual(list(by_renderer), [id(self.renderer)])
 
