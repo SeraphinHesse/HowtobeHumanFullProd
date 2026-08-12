@@ -5,7 +5,7 @@
 > plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
 > screen).
 
-<!-- status: IN PROGRESS — G0 done; G1–G4 then M1–M5 remain -->
+<!-- status: IN PROGRESS — G0, G1, M1 done; G2–G4 and M2–M5 remain -->
 
 # GpuAndMasterSheetsPLAN.md — GPU render backend, then master spritesheets
 
@@ -179,11 +179,28 @@ store cache contract, E-37 tolerance split), `editor/panels/CLAUDE.md`
 - `engine/render/` is small: `backend.py` 227 lines, `renderer.py` 211,
   `ground_cache.py` 186, `hud.py` 141, `fonts.py` 186, `item.py` 68. The
   migration is contained.
-- **Unverified and load-bearing:** whether an SDL2 `Renderer` can be created at
-  all under `SDL_VIDEODRIVER=dummy`. Phase G1 must answer this experimentally
-  before G2 is written; the answer only affects whether the GPU path can be
-  *tested* headlessly, not the dual-backend decision itself (D6 stands either
-  way).
+- **RESOLVED by G1's probe (measured 2026-08-12) — the dummy driver CAN host a
+  Renderer.** This was the plan's one "unverified and load-bearing" item: whether
+  an SDL2 `Renderer` can be created at all under `SDL_VIDEODRIVER=dummy`, which
+  decides whether the GPU path can be *tested* headlessly. It can. A throwaway
+  probe (one fresh subprocess per driver, since SDL init is process-global)
+  drove `pygame.init()` → `pygame._sdl2.video.Window` → `Renderer` →
+  `Texture.from_surface` upload → `clear()` + `draw()` + `to_surface()` readback
+  + a pixel comparison:
+
+  | Driver | Result |
+  |---|---|
+  | **`dummy`** | **full success** — Window, Renderer, Texture upload, draw and `to_surface()` readback all worked; the read-back pixel `(10, 200, 30)` matched the uploaded colour exactly |
+  | `offscreen` | fails at `Window()`: "offscreen not available" |
+  | `software` | fails at `Window()`: "software not available" |
+
+  `dummy` is the one that matters — it is already the driver the entire test
+  suite and `tools/smoke.py` run under. **So G2's parity test can run in normal
+  CI and must NOT be marked live-only**, and §9's "reduction in safety" risk is
+  retired. `offscreen`/`software` being unavailable in this SDL build is moot.
+  (D6's dual backend was never contingent on this — it stands either way,
+  because the editor's `SDL_VIDEODRIVER=dummy` module-level rule is about the
+  editor keeping the Surface path, not about testability.)
 
 ---
 
@@ -192,11 +209,11 @@ store cache contract, E-37 tolerance split), `editor/panels/CLAUDE.md`
 | Phase | Scope | Package | Depends on | Status |
 |-------|-------|---------|-----------|--------|
 | G0 | Measure the real render cost (no engine changes) | tools/game | — | **DONE** — verdict in §6/G0: blit throughput dominates (84–97% of frame); Part A proceeds unchanged |
-| G1 | Backend seam + headless-renderer feasibility probe | engine | G0 verdict | not started |
+| G1 | Backend seam + headless-renderer feasibility probe | engine | G0 verdict | **DONE** — `backend_api.py` seam; probe says the dummy driver CAN host a Renderer (§4), so G2's parity test runs in CI |
 | G2 | `backend_gpu.py` — world sprites, overlays, texture cache | engine | G1 | not started |
 | G3 | Ground cache on the GPU path | engine | G2 | not started |
 | G4 | Host wiring, HUD composite, fallback, re-measure | engine + game | G3 | not started |
-| M1 | Data layer: master-sheet registry + schema + `row_start` | data | — | not started |
+| M1 | Data layer: master-sheet registry + schema + `row_start` | data | — | **DONE** — schema + seeded registry + `data/sprites/master/`; existing manifest byte-identical |
 | M2 | Engine: `row_start` slicing + sheet-path-keyed store | engine | M1, G2 | not started |
 | M3 | Editor: pure master-sheet import module + picker dialog | editor | M1 | not started |
 | M4 | DetailsPanel: button, row window, narrowed preview + rows | editor | M2, M3 | not started |
@@ -787,10 +804,11 @@ and run those once.
 
 - **G0 may invalidate Part A's shape** (D9). The plan explicitly permits a
   re-scope; taking it is the success case, not a failure.
-- **SDL2 Renderer under the dummy video driver is unverified** (§4). If it
-  cannot run headless, G2/G3's parity coverage becomes a live-only check and CI
-  covers the Surface path only — a real reduction in safety that must be stated
-  on the PR, not glossed.
+- ~~**SDL2 Renderer under the dummy video driver is unverified**~~ — **RETIRED
+  by G1's probe** (§4, measured 2026-08-12). The `dummy` driver hosts
+  `Window`/`Renderer`/`Texture` upload/draw/`to_surface()` readback correctly,
+  so G2/G3's parity coverage runs in normal CI and the feared reduction in
+  safety does not apply.
 - **Pixel parity between SDL's scaler and `pygame.transform.scale` is not
   guaranteed.** The plan accepts a pinned tolerance rather than pretending to
   bit-identity. If the difference is visible on pixel art at zoom, that is a
