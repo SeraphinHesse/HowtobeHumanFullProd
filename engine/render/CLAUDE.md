@@ -5,7 +5,8 @@ RenderItem submit → resolve frames via assets → depth sort → coords → bl
 game window and the editor viewport use the SAME pipeline. When you change render
 conventions, update THIS doc.
 
-**pygame lives here** (`backend.py`, `fonts.py`, `ground_cache.py`) — `renderer.py`
+**pygame lives here** (`backend.py`, `backend_gpu.py`, `fonts.py`,
+`ground_cache.py`) — `renderer.py`
 itself is pure orchestration. See the engine router's pygame-import allow-list.
 
 ## Render flow
@@ -150,6 +151,22 @@ glows use this; ellipses are caller-side polygon approximations.
 2. Plain sprite draws accumulate into one `target.blits(...)` **batch**, flushed
    whenever a non-sprite (overlay/HUD) call must land in order.
 Both are pixel-transparent (tests in `test_render.TestBackendThroughput`).
+
+## Second backend: `render/backend_gpu.py` (G2), the WORLD path only
+A second `Backend` draws the same flat draw list onto a
+`pygame._sdl2.video.Renderer` instead of a `Surface`: the source uploads to a
+`Texture` once and all scaling lives in the destination rect, so zoom ≠ 1 costs
+no `transform.scale` per frame. **Sprites and overlays only** — `HudRect`/
+`HudLines`/`HudText`, `DrawCall.slice` and `DrawCall.crop_rect` stay
+single-implementation on `backend.py` and raise `NotImplementedError` here
+(D7; the HUD composites over the GPU frame in G4). Its texture cache is keyed by
+source-surface identity in a `WeakKeyDictionary` exactly like `_scale_cache`
+above (weak eviction is what stops the grey-X placeholder leaking a texture per
+call), with an inner `id(renderer)` key because pygame-ce's `Renderer` is not
+weak-referenceable; `clear_cache()` clears it. Dests, sizes and overlay points
+still go through `round_half_up` and reach SDL as integer `Rect`s, never floats.
+**Nothing selects it yet** — `default_backend()` is still the Surface backend and
+G4 wires the host. Parity is pinned in `test_render_backend_parity.py`.
 
 ## Nine-slice (A2) — `DrawCall.slice`, HUD only
 A `DrawCall` may carry `slice = (left, top, right, bottom)` — nine-slice margins

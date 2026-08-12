@@ -134,6 +134,7 @@ TIERS = {
     "test_projectile_sprites": "core",  # fix-anchor-offset-and-bullet-sprites Fix 2
     "test_range_sensor": "core",
     "test_render": "core",
+    "test_render_backend_parity": "core",
     "test_right_click_dismiss": "core",
     "test_scenarios": "core",
     "test_scene_query": "core",

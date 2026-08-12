@@ -1,4 +1,4 @@
-<!-- status: IN PROGRESS — G0, G1, M1 done; G2–G4 and M2–M5 remain -->
+<!-- status: IN PROGRESS — G0, G1, G2, M1 done; G3/G4 and M2–M5 remain -->
 
 # GpuAndMasterSheetsPLAN.md — GPU render backend, then master spritesheets
 
@@ -203,7 +203,7 @@ store cache contract, E-37 tolerance split), `editor/panels/CLAUDE.md`
 |-------|-------|---------|-----------|--------|
 | G0 | Measure the real render cost (no engine changes) | tools/game | — | **DONE** — verdict in §6/G0: blit throughput dominates (84–97% of frame); Part A proceeds unchanged |
 | G1 | Backend seam + headless-renderer feasibility probe | engine | G0 verdict | **DONE** — `backend_api.py` seam; probe says the dummy driver CAN host a Renderer (§4), so G2's parity test runs in CI |
-| G2 | `backend_gpu.py` — world sprites, overlays, texture cache | engine | G1 | not started |
+| G2 | `backend_gpu.py` — world sprites, overlays, texture cache | engine | G1 | **DONE** — parity within a pinned tolerance of 1 (§6/G2 RESULTS); nothing selects it yet, G4 wires the host |
 | G3 | Ground cache on the GPU path | engine | G2 | not started |
 | G4 | Host wiring, HUD composite, fallback, re-measure | engine + game | G3 | not started |
 | M1 | Data layer: master-sheet registry + schema + `row_start` | data | — | **DONE** — schema + seeded registry + `data/sprites/master/`; existing manifest byte-identical |
@@ -435,6 +435,101 @@ evicts its texture.
 untouched and green; if the G1 probe said the dummy driver cannot host a
 Renderer, the parity test is marked live-only and the phase report says so
 explicitly.
+
+#### G2 RESULTS (measured 2026-08-12, `phase-G2-umbrella`)
+
+`engine/render/backend_gpu.py` + `tools/tests/test_render_backend_parity.py`,
+plus one `conftest.py` `TIERS` line (`"test_render_backend_parity": "core"` —
+it runs in normal CI, not live-only, per §4's probe) and the two doc edits.
+`backend.py`, `backend_api.py`, `renderer.py`, `__init__.py` and
+`ground_cache.py` are untouched: **nothing selects this backend**,
+`default_backend()` still returns the Surface blitter, and G4 wires the host.
+
+**Three plan statements this phase corrected** — the source won each time:
+1. **There is no `flip_y`.** `DrawCall` carries a single horizontal `flip: bool`
+   (`item.py:44`, `backend_api.py:40`). The backend passes
+   `flip_x=call.flip, flip_y=False`; no field was added to `DrawCall`.
+2. **`Renderer.blit` cannot carry the sprite draw** — measured on pygame-ce
+   2.5.7, its signature is `blit(source, dest=None, area=None,
+   special_flags=0)` with no flip parameters and a docstring saying
+   `special_flags` "have no effect at this moment". The path is
+   `Texture.draw(srcrect, dstrect, angle, origin, flip_x, flip_y)`.
+3. **`tint` → `texture.color`/`texture.alpha` leaks without a reset.** The
+   Surface path's `surface.copy()` (`backend.py:223`) is what stops the shared
+   source being mutated; modulation is persistent state on a *cached, shared*
+   Texture, so the backend sets and resets it inside one `try/finally` that
+   opens before the first assignment. Pinned by a tinted-then-untinted draw
+   from the same source surface.
+
+**Overlays are CPU-rasterized into a scratch Surface and uploaded per call**,
+for both `OverlayLines` and `OverlayPolys` — no native/scratch split.
+Measured: SDL's `Renderer.draw_line(p1, p2)` takes no width, while
+`OverlayLines.width` is an arbitrary int (`item.py:57`), and no native
+primitive covers `OverlayPolys`' arbitrary-length polygon with optional alpha.
+Rasterizing through the *same* `pygame.draw` calls is parity-exact by
+construction instead of requiring two rasterizers to agree forever. The cost
+of that choice is recorded as a G4 risk in §9 — it is unmeasured.
+
+**Texture cache**: outer key is the source Surface in a `WeakKeyDictionary`
+(mirroring `backend.py`'s `_scale_cache`, so the grey-X placeholder's
+fresh-surface-per-call never leaks a texture); inner key is `id(renderer)`,
+because **pygame-ce 2.5.7's `Renderer` is not weak-referenceable** — measured,
+`weakref.ref` raises `TypeError` (same for `Texture`). Id reuse cannot mix
+renderers up: a cached `Texture` holds a strong reference to its `Renderer`, so
+while any entry keyed `id(R)` lives, `R` lives. `clear_cache()` is exported.
+
+**Nearest sampling is pinned in code, not inherited.** Textures are built as
+`Texture(renderer, size, scale_quality=SCALEQUALITY_NEAREST)` + `update()`
+rather than `Texture.from_surface`, because `from_surface` takes no
+`scale_quality` and the filter would then come from
+`SDL_HINT_RENDER_SCALE_QUALITY` — default nearest, but overridable process-wide
+by the `SDL_RENDER_SCALE_QUALITY` env var. Pixel art is the aesthetic; the
+filter is not something to inherit. That switch surfaced a real trap: **the
+empty-texture constructor leaves `blend_mode` at `0` (`BLENDMODE_NONE`)** where
+`from_surface` returned `1` (`BLENDMODE_BLEND`), so the explicit `blend_mode`
+assignment became load-bearing — without it every sprite would have drawn with
+alpha ignored.
+
+**Parity, measured under `SDL_VIDEODRIVER=dummy`** (200×160 fixture: a 1:1
+sprite, a `.5`-tie dest *and* size, a flipped sprite, a tinted sprite followed
+by an untinted one from the same source, a width-3 open polyline, a width-2
+closed polyline, an opaque triangle, an alpha-100 quad):
+
+| Metric | Value |
+|---|---|
+| Max per-channel \|CPU − GPU\| | **1** |
+| Differing pixels | 1234 / 32000 (3.86%) |
+| Delta histogram | `{1: 1234}` |
+| Where they are | **all** inside the alpha < 255 `OverlayPolys` |
+| Scaled / flipped / tinted sprites | **byte-identical** |
+
+`CHANNEL_TOLERANCE = 1`, a named module constant with a comment recording
+exactly the above. **No blur finding**: the delta is one-ULP alpha-blend
+rounding, not resampling, and an 8×8 → 21×21 GPU draw compared to
+`pygame.transform.scale(s, (21, 21))` gave **0** mismatching pixels.
+
+**The flip × non-integer-scale question was raised in review and is retired,
+measured 0.** The two paths compose flip and resample in opposite orders —
+`backend.py:219-221` scales *then* mirrors; the GPU path hands SDL an unscaled
+texture and asks it to resample a *mirrored* read — which are provably equal
+only at integer factors (`(kS−1−i)//k == S−1−i//k`), so the original test's
+exact-×2 flipped sprite could not have seen a divergence. Re-measured on a
+fixture with an asymmetric leftmost column (so a one-column mirror error is
+unmissable), at factors 1.125 / 1.5 / 1.625 / 2.0 / 2.5625 / 2.625 / 3.8125:
+**max delta 0, 0 differing pixels at every factor.** Byte-identical, not
+merely within tolerance. Seven sampled factors is strong evidence, not a proof
+of the general S→D case.
+
+**G2 moved no fps number and could not have** — no host calls this backend.
+G0's measurements (`flush` at 84–97% of frame; 61–81 ms of a 63–84 ms frame at
+the era-4 boss load, 12–16 fps) are **G4's to re-take**.
+
+**Still open — the live look was NOT run.** The brief's Quick Test (a real
+non-dummy window, a real sheet from `data/sprites/imported/`, a saved CPU/GPU
+PNG pair compared at 1:1 and magnified) needs a human at a display; every
+number above comes from the dummy driver in one environment. It is the only
+check that would independently catch a sampling-quality regression, and it
+carries forward to G4's live gate.
 
 ### Phase G3 — Ground cache on the GPU path
 
@@ -810,6 +905,37 @@ and run those once.
 - **Two backends is two implementations to keep in parity**, forever. Mitigated
   by the parity test and by keeping HUD / nine-slice / fonts / crop
   single-implementation on the Surface path (D7).
+- **G4 MUST profile the overlay path, not just the sprite path** (raised in G2's
+  review, deferred there deliberately). `backend_gpu.py` rasterizes both
+  `OverlayLines` and `OverlayPolys` into a bounding-box `SRCALPHA` scratch
+  Surface and uploads it **per call, per frame, uncached** — the only route that
+  is parity-exact, since SDL's `draw_line` has no width and no native primitive
+  covers an arbitrary-length alpha polygon. Two consequences the Surface backend
+  does not have: (a) the scratch is sized from the raw point bounding box with
+  **no clip to the target**, while `backend.py:190` draws straight onto the
+  target and clips — a polyline with one point far off-screen (the renderer
+  converts world→screen without clipping) asks for a surface that wide every
+  frame; (b) per-frame alloc → CPU rasterize → upload → destroy churn, on a path
+  the game feeds tile fills, splatters, glows and drummer-aura rings through.
+  G0 profiled `flush` as one bucket and never separated overlays, so this is
+  **unmeasured**: G4's re-measure must break the overlay pass out, or the port
+  can move frame time the wrong way at exactly the boss load this plan exists to
+  fix.
+- **`backend_gpu` snapshots a source Surface at first upload and never
+  refreshes it**, where `backend.py` returns the live surface at 1:1. A
+  consumer that mutates a surface in place and keeps handing it to the same
+  `DrawCall` renders correctly on the Surface path and freezes at its
+  first-frame contents on the GPU path, with no error. No shipped consumer does
+  this today; it is a new precondition G3/G4 must not violate (the ground cache
+  in particular composites into a surface it reuses — G3 must upload a target
+  Texture, never hand a mutated cache Surface to `backend_gpu`).
+- **A non-zero `slice` on a 1:1-sized draw diverges between the backends.**
+  `backend.py:216` takes the nine-patch branch only when the dest size differs
+  from the source, so such a call is a legal plain scale there; `backend_gpu`
+  raises `NotImplementedError` on any non-zero slice. That guard is exactly what
+  G2 was specified to write (slice is HUD-only and must be asserted, not
+  implemented twice), so it is not a defect — but it is a latent crash if G4's
+  HUD-composite split ever lets a sliced `DrawCall` reach the world path.
 - **`row_start` interacts with sheet sharing.** Two slots on one master sheet
   with overlapping windows is legal and probably intentional. Two slots on one
   sheet with different frame sizes is not — which is exactly why the master sheet
