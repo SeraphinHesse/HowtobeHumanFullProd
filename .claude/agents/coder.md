@@ -42,18 +42,26 @@ You are a coder: you implement ONE scoped task and verify it.
 - Never publish artifacts — report upward; the orchestrator publishes.
 
 ## Exit gate (before reporting done)
-- **Run the MINIMAL gate. You NEVER run the full suite.** Do the least test that
-  proves your diff: `py tools/smoke.py` green + `py tools/testgate.py check
-  --affected` — **0 failures, 0 errors.** Nothing wider. The single full run is
-  owned by the orchestrator, once, after your work lands. Not you. See
-  §"Test Suite Policy" in the root CLAUDE.md.
-- **Read the `GATE INFO` line `--affected` prints.** It tells you what was
-  actually selected. It now narrows to the affected modules plus the core tier,
-  and only widens to everything when `conftest.py` / `pytest.ini` /
-  `qt_harness` changed. If it says it is running everything and your dispatch
-  says the orchestrator owns the gate, kill it and run `py tools/smoke.py` ONLY.
+You are a SUBAGENT. Your row of the role table in §"Test Suite Policy" (root
+`CLAUDE.md`) is the whole of what you may run:
+
+```bash
+py tools/smoke.py                              # always
+py -m pytest tools/tests/test_<file>.py -q     # the files your diff touches
+```
+
+- **Never the full suite, never `testgate check`, never a tier sweep (`-m core`
+  / `-m editor` / `-m meta`), and not `--affected` either** — `--affected` runs
+  the whole core tier as its safety pass, which is hundreds of tests and is the
+  orchestrator's call, not yours. A `PreToolUse` hook denies all of these; if
+  you see that denial, you asked for something this row does not allow.
+- **The single full run is owned by the orchestrator**, once, after your work
+  lands. Not you.
+- **Run each target ONCE.** If you ran it and have edited nothing since, the
+  result cannot have changed — re-running to "make sure" is the loop this repo
+  exists to prevent, and the hook denies it.
 - **Never start a second test run while one is in flight** — duplicate runs
-  exhaust memory.
+  exhaust memory, and the hook denies that too.
 - The suite is green; there is no baseline and no tolerated failure. If a red
   test is inside your blast radius, you broke it — fix it. Before you may call
   one "outside your diff", you must clear the falsification bar in Hard rules

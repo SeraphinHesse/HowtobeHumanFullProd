@@ -11,6 +11,11 @@ py tools/smoke.py
 py tools/testgate.py check
 ```
 
+**Only the MAIN SESSION, at handoff, runs that second line** — the role table in
+§"Test Suite Policy" (root `CLAUDE.md`) is the authority, and a `PreToolUse`
+hook denies it from a subagent. A subagent invoking this command runs
+`py tools/smoke.py` plus the specific test files it touched, and nothing else.
+
 Read the last line. That is the whole gate:
 
 ```
@@ -41,12 +46,20 @@ py tools/testgate.py check --affected
 Diffs against `Development`, asks Graphify for the blast radius of what you
 changed, and runs only those test modules — always union'd with the `core` tier
 as cheap insurance. A change confined to `engine/tilemap.py` selects 23 modules
-and skips the entire editor tier. If the selection is uncertain for any reason
-(a `conftest.py`/`pytest.ini` change, a stale graph), it silently falls back to
-running everything: a gate that under-selects is worse than a slow one.
+and skips the entire editor tier.
 
-Use `--affected` while iterating. Run the **full** `check` once before you hand
-work back.
+**If it cannot narrow, it ABORTS — it does not widen.** A `conftest.py` /
+`pytest.ini` / `qt_harness` change, or no matching test module, prints
+`GATE ABORT` and exits non-zero *having run nothing*, telling you to name the
+files yourself. So the `GATE INFO` line is trustworthy: if it ran, it narrowed.
+(This doc used to say the opposite — "it silently falls back to running
+everything: a gate that under-selects is worse than a slow one" — while the root
+`CLAUDE.md` said to kill it when that happened. Same tool, opposite advice, and
+the tool now does neither: it refuses. Do not reintroduce a silent widening.)
+
+**`--affected` is a MAIN-SESSION mid-task tool, not a subagent one**: its
+core-tier safety pass is hundreds of tests. Subagents name their files instead.
+Run the **full** `check` once, from the main session, before handing work back.
 
 ## Tiers
 ```
@@ -54,6 +67,8 @@ py -m pytest -m core        # engine + game + data. Fast.
 py -m pytest -m editor      # the PySide6 suites. Slow.
 py -m pytest -m meta        # the agent scaffolding.
 ```
+These are TIER SWEEPS — main session only (the hook denies them from a
+subagent), and usually the wrong reach: name the test file you touched.
 CI runs the WHOLE suite — no tier is excluded. (There used to be a `migration`
 tier holding the prototype-parity gate; the migration is complete and it is
 deleted.)

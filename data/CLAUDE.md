@@ -975,10 +975,14 @@ validating writer; don't hand-edit the JSON.
 ## Verify before finishing
 Validate every touched file against its schema, then:
 ```bash
-py tools/smoke.py
-py tools/testgate.py check     # the gate is ZERO failures
+py tools/smoke.py                             # always — it schema-validates every data file
+py -m pytest tools/tests/test_<area>.py -q    # the tests that read what you changed
 ```
-Report agreement explicitly.
+**Which tests you may run is ROLE-scoped — the role table in §"Test Suite
+Policy" (root `CLAUDE.md`) is the only authority, and a `PreToolUse` hook
+enforces it.** A subagent stops at the two commands above; the single full
+`py tools/testgate.py check` belongs to the MAIN SESSION at handoff. The gate is
+ZERO failures. Report agreement explicitly.
 
 **`data/` is live designer content, and the tests must never touch it.** Tests
 copy it to a tempdir (`TempDataCase`); a session fixture hashes `data/` before

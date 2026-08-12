@@ -41,4 +41,7 @@ The `Movement`/`RangeSensor` *components* that wrap these live in `engine/core/`
 
 ## Verify
 Unit tests (grid radius/Chebyshev queries, occupancy, waypoint advance):
-`py -m unittest discover -s tools/tests -t .`
+`py -m pytest tools/tests/test_<area>.py -q`
+
+Which tests you may run is ROLE-scoped — the role table in §"Test Suite Policy"
+(root `CLAUDE.md`) is the only authority, enforced by a `PreToolUse` hook.
