@@ -1,4 +1,4 @@
-<!-- status: IN PROGRESS — G0, G1, G2, M1 done; G3/G4 and M2–M5 remain -->
+<!-- status: IN PROGRESS — G0, G1, G2, G3, M1 done; G4 and M2–M5 remain -->
 
 # GpuAndMasterSheetsPLAN.md — GPU render backend, then master spritesheets
 
@@ -204,7 +204,7 @@ store cache contract, E-37 tolerance split), `editor/panels/CLAUDE.md`
 | G0 | Measure the real render cost (no engine changes) | tools/game | — | **DONE** — verdict in §6/G0: blit throughput dominates (84–97% of frame); Part A proceeds unchanged |
 | G1 | Backend seam + headless-renderer feasibility probe | engine | G0 verdict | **DONE** — `backend_api.py` seam; probe says the dummy driver CAN host a Renderer (§4), so G2's parity test runs in CI |
 | G2 | `backend_gpu.py` — world sprites, overlays, texture cache | engine | G1 | **DONE** — parity within a pinned tolerance of 1 (§6/G2 RESULTS); nothing selects it yet, G4 wires the host |
-| G3 | Ground cache on the GPU path | engine | G2 | not started |
+| G3 | Ground cache on the GPU path | engine | G2 | **DONE** — `ground_cache_gpu.py` on render-target textures, pins parameterised over both implementations (§6/G3 RESULTS); still nothing selects it, G4 wires the host |
 | G4 | Host wiring, HUD composite, fallback, re-measure | engine + game | G3 | not started |
 | M1 | Data layer: master-sheet registry + schema + `row_start` | data | — | **DONE** — schema + seeded registry + `data/sprites/master/`; existing manifest byte-identical |
 | M2 | Engine: `row_start` slicing + sheet-path-keyed store | engine | M1, G2 | not started |
@@ -542,9 +542,13 @@ same public signature.
 `engine/render/CLAUDE.md`, `tools/tests/test_ground_cache.py`.
 
 **Design notes**
-- Same `ensure(view_w, view_h, ground_items_fn)` signature, so both callers
-  (game and editor) are untouched and the content-agnostic callback contract
-  holds.
+- Same `ensure(view_w, view_h, ground_items_fn)` signature, so every caller is
+  untouched and the content-agnostic callback contract holds. **Corrected in
+  G3 (verified): "both callers (game and editor)" was wrong — the editor never
+  uses `GroundCache` at all**, it submits ground tiles directly
+  (`editor/panels/viewport.py:1816-1818`). The real callers are `game/main.py`
+  (`:339`, `:432-433`, `:1503-1508`), `tools/profile_render.py` (`:194`,
+  `:263-264`) and the test module.
 - The `Surface.scroll` memmove becomes a **self-blit between two render-target
   textures** — SDL cannot read and write one target in a single pass — then the
   newly-exposed strip is repainted.
@@ -566,6 +570,91 @@ both implementations rather than copy-pasted.
 **Exit gate**: both variants pass the same pin suite; a live look at panning a
 large map in `py game/main.py` with no seams or stutter — state that it was a
 live run, not a reasoned claim.
+
+#### G3 RESULTS (measured 2026-08-12, `phase-G3-umbrella`)
+
+`engine/render/ground_cache_gpu.py` (new, `GroundCacheGpu`), the shared
+`band_for_rect(...)` extraction in `ground_cache.py`, both doc edits, and
+`tools/tests/test_ground_cache.py` reworked so the existing pins run against
+**both** implementations. `conftest.py` needed no `TIERS` line —
+`"test_ground_cache": "core"` already existed and the GPU class lives in that
+same module. `backend_gpu.py`, `backend.py`, `backend_api.py`, `renderer.py`,
+`__init__.py`, `item.py` and `game/**` are untouched: **nothing selects this
+either**, `default_backend()` still returns the Surface blitter, and G4 wires
+the host.
+
+**New module, not a variant class** (the choice §6/G3 left to the implementer).
+The decisive criterion is import cost: a module-level `pygame._sdl2.video`
+import inside `ground_cache.py` would make every importer of the *Surface*
+path — the game host, `tools/profile_render.py`, the tests — depend on the SDL2
+layer loading. Its only real cost, duplicating the band derivation, is removed
+by extracting `ground_cache.py:137-145` into a pure module-level
+`band_for_rect(...)` that both `_paint` implementations call. That extraction is
+the whole of the `ground_cache.py` diff (32 lines, behaviour-preserving).
+
+**Three SDL facts measured on pygame-ce 2.5.7 / SDL 2.32.10, not assumed.**
+A render target is `Texture(renderer, size, target=True,
+scale_quality=SCALEQUALITY_NEAREST)` with `renderer.target = tex / None`;
+readback is `renderer.to_surface()` (**`Texture` has no `to_surface`**). Two
+traps that would each have produced a subtly wrong ground layer:
+1. **`set_viewport` clips *and translates*** — a fill at `(0, 0)` inside a
+   viewport at `(12, 12)` lands at `(12, 12)`. The anchor technique survives it
+   because the translation is compensated by shifting the private camera pan by
+   integer `+(x0, y0)`, and `floor(v + k + 0.5) == floor(v + 0.5) + k` for
+   integer `k` keeps that rounding-exact.
+2. **`clear()` ignores the viewport and wipes the whole target** — so the strip
+   background is `fill_rect`, never `clear()`. The viewport also resets on every
+   target switch, and a `target=True` texture's `blend_mode` is
+   `BLENDMODE_NONE`.
+
+**Parity is NOT byte-exact; `GPU_CHANNEL_TOLERANCE = 2`** (G2's backend pin is
+1). Measured against a from-scratch direct render: zoom 1 max delta 1 over
+38100/76800 px; zoom 2 max delta 1 over 47585/76800 px; map edge max delta 1
+over 25965/76800 px; 11 scroll steps across both scroll pins max delta 1
+throughout; and the **tint (editor) path max delta 2**, histogram
+`{1: 35795, 2: 7338}` — the only scenario reaching 2, i.e. tint modulation
+compounding on the same alpha-blend rounding G2 already pinned. The ~50%
+differing-pixel fraction is geometric, not alarming: the fixture ships **no
+sprite PNGs**, so every ground tile falls back to the grey-X placeholder, whose
+fill is `(110, 110, 110, 200)` — per-pixel alpha — across the whole tile
+rectangle, so about half of all on-screen ground pixels pass through an alpha
+blend on every draw.
+
+**The tolerance was negative-controlled, not trusted** (measured by the
+orchestrator, not the implementer). The live question was whether a ±2
+per-channel tolerance could mask a one-pixel *spatial* shift — the failure the
+scroll pins exist to catch. Injecting `+1` on the blit dest's x made the pins
+fail at **max per-channel delta 140**, 70× the tolerance, failing 7 of the 11
+GPU tests including both scroll pins and `test_blit_offset_sign`. The
+placeholder's opaque border and cross lines are what make a misalignment
+unmissable. The perturbation was reverted; the tree is byte-identical.
+
+**Tests**: the pins moved into a mixin (`_make_cache`, `_blit_to_surface`,
+`_capture_blit_dest`, `CHANNEL_TOLERANCE` are the only seams the two subclasses
+supply), so the CPU and GPU classes cannot drift apart — collection went **8 →
+18**, all green, no skips (the GPU class builds a real `Window`/`Renderer`
+unconditionally under the dummy driver). Two GPU-only mechanics tests: target
+and viewport are restored after `ensure`, after `blit` and after a scroll; and
+the two render-target textures are distinct objects whose identities actually
+swap across a scrolling `ensure`.
+
+**G3 moved no fps number and could not have** — no host calls it. Its honest
+ceiling is G0's measured ground-cache cost of **0.2–5.0 ms mean / 10.64 ms
+p95**, real but second-order against `flush` at 84–97% of frame, and only in
+the 1024²-panning-at-max-zoom corner. G4 re-takes the measurements.
+
+**`WorldFill` (PR #122) changes nothing here** (verified): every
+`submit_world_fill` caller uses the `layer="entities"` default
+(`game/ui/widgets.py:294,306`); `layer="ground"` appears only in
+`engine/tilemap.py:286,328,384`; and the cache's private `Renderer` can only
+ever see `band_render_items` output.
+
+**Still open — the live look, and this phase could not have run it even with a
+human present.** `default_backend()` is still the Surface blitter, so a
+`py game/main.py` pan would exercise the *Surface* cache and prove only that the
+`band_for_rect` extraction is a no-op. Exercising `GroundCacheGpu` live needs
+either a throwaway harness at a real display or G4's wiring. It carries forward
+into G4's live gate alongside G2's outstanding pixel-art look.
 
 ### Phase G4 — Host wiring, HUD composite, fallback
 
@@ -936,6 +1025,22 @@ and run those once.
   G2 was specified to write (slice is HUD-only and must be asserted, not
   implemented twice), so it is not a defect — but it is a latent crash if G4's
   HUD-composite split ever lets a sliced `DrawCall` reach the world path.
+- **G4 now inherits THREE live checks, none of which has ever been run**: G2's
+  pixel-art look (a real non-dummy window, a real sheet from
+  `data/sprites/imported/`, a CPU/GPU PNG pair at 1:1 and magnified), G3's
+  large-map pan for seams and stutter, and G4's own fallback-vs-GPU comparison.
+  All three are blocked on the same thing — nothing selects the GPU path until
+  G4 wires it — so G4 is the first phase where any of them is even *possible*,
+  and it should be run with a human at a display (§5.1 already flags G4 as
+  `/execute-phase` for exactly this).
+- **The GPU parity tolerances are pinned per phase and must not be nudged.**
+  `backend_gpu` is 1, `GroundCacheGpu` is 2 (tint path only, §6/G3 RESULTS). A
+  later phase that finds a pin failing has found a regression; widening the
+  constant to make a phase pass is the one move this plan forbids outright, and
+  both constants carry the measured histogram in a comment so the next reader
+  can tell drift from noise. G3's tolerance was negative-controlled (a 1px
+  injected shift fails at delta 140), so it is known to still catch the
+  misalignment class it exists for — repeat that control if either number moves.
 - **`row_start` interacts with sheet sharing.** Two slots on one master sheet
   with overlapping windows is legal and probably intentional. Two slots on one
   sheet with different frame sizes is not — which is exactly why the master sheet

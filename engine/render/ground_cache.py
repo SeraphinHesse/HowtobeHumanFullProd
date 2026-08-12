@@ -34,6 +34,31 @@ from .item import round_half_up as _round
 from .renderer import Renderer
 
 
+def band_for_rect(rect, pan_x, pan_y, half_w, half_h):
+    """(d_min, d_max, s_min, s_max) for cache-surface pixel ``rect`` under a
+    camera panned at (pan_x, pan_y), with ``half_w``/``half_h`` the
+    zoom-scaled tile half-extents (``tile_w/2*zoom``, ``tile_h/2*zoom``).
+
+    A thin *screen* strip is a *diagonal* in tile space, so the strip is
+    addressed as an iso-diagonal band (``d = col - row``, ``s = col + row``)
+    rather than an axis-aligned tile rectangle, which would balloon to nearly
+    the whole viewport (and re-introduce map-size scaling).
+    ``d = (screen_x + pan_x)/half_w``, ``s = (screen_y + pan_y)/half_h``; a
+    diamond spans +/-1 in d and [s, s+2] down-screen, so d is padded by 1 and
+    s by (-2, 0) to catch every diamond that laps the rect.
+
+    Shared verbatim by ``GroundCache._paint`` (Surface) and
+    ``GroundCacheGpu._paint`` (SDL Texture) so the derivation cannot drift
+    between the two implementations — see ``engine/render/ground_cache_gpu.py``.
+    """
+    x0, y0, w, h = rect
+    d_min = math.floor((x0 + pan_x) / half_w) - 1
+    d_max = math.ceil((x0 + w + pan_x) / half_w) + 1
+    s_min = math.floor((y0 + pan_y) / half_h) - 2
+    s_max = math.ceil((y0 + h + pan_y) / half_h)
+    return d_min, d_max, s_min, s_max
+
+
 class GroundCache:
     def __init__(self, coords, assets, *, pixel_margin=192, bg_color=None):
         self._coords = coords                 # the host's live CoordinateSystem
@@ -138,11 +163,8 @@ class GroundCache:
         z = cam.zoom
         hw = self._coords.geometry.tile_w / 2 * z
         hh = self._coords.geometry.tile_h / 2 * z
-        x0, y0, w, h = rect
-        d_min = math.floor((x0 + cam.pan_x) / hw) - 1
-        d_max = math.ceil((x0 + w + cam.pan_x) / hw) + 1
-        s_min = math.floor((y0 + cam.pan_y) / hh) - 2
-        s_max = math.ceil((y0 + h + cam.pan_y) / hh)
+        d_min, d_max, s_min, s_max = band_for_rect(
+            rect, cam.pan_x, cam.pan_y, hw, hh)
         clip_rect = pygame.Rect(rect)
         prev = self._surface.get_clip()
         self._surface.set_clip(clip_rect)

@@ -281,7 +281,8 @@ direct `VfxParams(...)` construction needed a `drummer_aura=` argument again
 ## Hard rules (whole package)
 - **pygame imports are allowed ONLY in** `render/`'s backends (`render/backend.py`
   and `render/backend_gpu.py`, the SDL2/Texture world backend), `render/fonts.py`,
-  `render/ground_cache.py`, the asset surface cache (`assets/store.py`,
+  `render/ground_cache.py`, `render/ground_cache_gpu.py` (the SDL2/Texture ground
+  cache), the asset surface cache (`assets/store.py`,
   `assets/placeholder.py`), `engine/audio.py`, and `engine/video.py`. `coords/`,
   `core/`, `physics/`, `tilemap.py`, `data_io.py`, `video_playback.py`, and asset
   *metadata* code are pure Python — that is what keeps game logic
