@@ -1,8 +1,9 @@
 """Renderer (E-21/E-22): submit → resolve via assets → depth sort → coords
 → hand a flat DrawCall list to the backend.
 
-Pure orchestration — no pygame imports here; the default pygame backend is
-resolved lazily inside flush(), and tests inject a recording backend.
+Pure orchestration — no pygame imports here; the backend contract lives in
+`backend_api.py` (`Backend` Protocol + `default_backend()`), resolved
+lazily inside flush(), and tests inject a recording backend.
 
 Anchor convention: a frame is blitted CENTRED on the tile — horizontally on
 its world position, vertically on the tile diamond's centre (world_to_screen y
@@ -19,6 +20,7 @@ the knob for art that IS smaller than its footprint). Per-entry manifest
 offset_x/offset_y nudge from the anchor, riding the same scale (they are
 authored in frame pixels).
 """
+from . import backend_api
 from .hud import HudLines, HudRect, HudSprite, HudText
 from .item import LAYERS, DrawCall, OverlayLines, OverlayPolys
 
@@ -200,9 +202,7 @@ class Renderer:
             else:
                 draw_calls.append(hud)
         if self._backend is None:
-            from . import backend as _pygame_backend
-
-            self._backend = _pygame_backend.draw
+            self._backend = backend_api.default_backend()
         self._backend(target, draw_calls)
         count = len(self._queue) + len(self._overlay) + len(self._hud)
         self._queue.clear()

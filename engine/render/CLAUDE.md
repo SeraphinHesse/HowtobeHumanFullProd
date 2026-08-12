@@ -9,9 +9,14 @@ conventions, update THIS doc.
 itself is pure orchestration. See the engine router's pygame-import allow-list.
 
 ## Render flow
-- `Renderer(coords, assets, backend=None)` — `renderer.py` produces `DrawCall`s;
-  the pygame backend (`render/backend.py`) is lazily imported on first `flush()`
-  and injectable for tests.
+- `Renderer(coords, assets, backend=None)` — `renderer.py` produces `DrawCall`s.
+  The backend CONTRACT (G1) lives in `render/backend_api.py`: a `Backend`
+  `typing.Protocol` (`__call__(target, draw_calls) -> None`, documentation +
+  a type hook, not a runtime check) plus `default_backend()`, which resolves
+  and returns `render/backend.py`'s `draw` function. `backend_api.py` is pure
+  (no pygame at module level), so the pygame allow-list below is unchanged.
+  Resolution is still lazy — `Renderer.flush()` calls `default_backend()` on
+  first flush and memoises the result — and still injectable for tests.
 - Draw layers fixed: `LAYERS = ("ground", "terrain", "entities", "deco",
   "overlay")` (E-26); HUD is drawn by the host after flush. **`terrain` sits
   between `ground` and `entities`** for content that overlays the ground tiles
