@@ -224,14 +224,30 @@ def _session_id(payload: dict) -> str:
 
 
 def mark_role(payload: dict) -> int:
-    """Record this session's role at SessionStart / SubagentStart."""
+    """Record this session's role at SessionStart / SubagentStart.
+
+    **A `main` marker is never downgraded to `sub`.** When a subagent inherits
+    its parent's session id, its `SubagentStart` writes to the SAME marker path
+    the parent's `SessionStart` wrote — so a plain write would relabel the main
+    session `sub` and deny it the one full `testgate check` the whole policy is
+    built around. That is not hypothetical: it denied phase G2's handoff gate.
+    `_role()` is documented to fail OPEN for exactly this collision, and this
+    guard is what makes that docstring true.
+    """
     sid = _session_id(payload)
     if not sid:
         return 0
     event = payload.get("hook_event_name") or payload.get("hookEventName") or ""
     role = "sub" if event == "SubagentStart" else "main"
     _state().mkdir(parents=True, exist_ok=True)
-    (_state() / f"role-{_safe(sid)}").write_text(role, encoding="utf-8")
+    marker = _state() / f"role-{_safe(sid)}"
+    if role == "sub":
+        try:
+            if marker.read_text(encoding="utf-8").strip() == "main":
+                return 0
+        except OSError:
+            pass
+    marker.write_text(role, encoding="utf-8")
     return 0
 
 

@@ -112,6 +112,16 @@ class TestRoleGuard(GuardCase):
         self.start("S-MAIN", subagent=False)
         self.assertEqual(self.pre(FULL)[0], 0)
 
+    def test_a_subagent_sharing_the_parents_session_id_cannot_demote_it(self):
+        """The marker is keyed by session id, and a subagent may INHERIT its
+        parent's — so its `SubagentStart` lands on the main session's own
+        marker. A plain write relabelled the main session `sub` and denied it
+        the one full gate the policy is built around (it denied phase G2's
+        handoff). `mark_role` refuses the downgrade; `_role` fails open."""
+        self.start("S-MAIN", subagent=False)
+        self.start("S-MAIN", subagent=True)      # same id, as the runtime does
+        self.assertEqual(self.pre(FULL, "S-MAIN")[0], 0)
+
     def test_an_unknown_session_fails_OPEN(self):
         """No marker (a resumed session, a runtime that shares session ids)
         must not be treated as a subagent — see `_role`'s docstring."""
