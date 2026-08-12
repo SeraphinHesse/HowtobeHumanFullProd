@@ -1,7 +1,7 @@
 ---
 description: Execute a range of phases from an implementation-plan document by orchestrating parallel planner/coder/reviewer subagent waves under an umbrella branch.
 argument-hint: <plan-file> <phase-range e.g. 10G-10I> [spec-repo-path]
-allowed-tools: Agent, Read, Write, Edit, Glob, Grep, Bash(git *), Bash(gh *), Bash(py tools/smoke.py*), Bash(py tools/testgate.py*), Bash(py -m pytest*)
+allowed-tools: Agent, SendMessage, Skill, Artifact, Read, Write, Edit, Glob, Grep, Bash(git *), Bash(gh *), Bash(py tools/smoke.py*), Bash(py tools/testgate.py*), Bash(py -m pytest*)
 disable-model-invocation: true
 ---
 
@@ -29,6 +29,27 @@ umbrella branch.
    from THIS main session, on the finished umbrella in Wave 4, right before the
    PR. Never mid-orchestration. §"Test Suite Policy" in the root `CLAUDE.md` is
    the authority.
+
+   **A denied test run is a REPORT, never a retry.** `test_guard.py` denies with
+   exit 2 and a reason; every dispatched agent must be told, verbatim:
+
+   > If `test_guard` denies a test command, do NOT re-issue it, do not vary the
+   > flags (the guard normalises `-q/-v/-x/-n/--tb`, so a reworded command
+   > fingerprints identically), and do not reach for the guard's escape hatch.
+   > Report the deny text and the result it quotes back to the orchestrator and
+   > stop testing. Retrying is the loop the guard exists to stop.
+
+   Two denies are expected in a parallel wave and must not be fought:
+   - *"already ran this exact target and NOTHING has changed"* — the guard
+     fingerprints the **main checkout's** diff. Worktrees are gitignored, so a
+     coder's own edits may be invisible to it and a legitimate re-run after a
+     fix can be denied. Accept the quoted earlier result; if it was a FAIL that
+     you believe you have since fixed, say exactly that in your report and let
+     the orchestrator verify at the umbrella.
+   - *"another test run is already in flight"* — the lock may be shared across
+     the wave. Do not wait-loop and do not delete the lock; report and stop.
+     Only THIS orchestrator may clear a lock, and only after confirming no run
+     is live (the deny prints the path).
 2. **Wave 1 — PLANNERS** (one **`planner` agent** per phase — launch ALL of them
    in ONE wave, a single message of parallel dispatches). Each reads the router
    `CLAUDE.md` → the relevant package/subsystem docs → current source (+ spec
@@ -58,10 +79,21 @@ umbrella branch.
 4. **Wave 3 — REVIEWERS** (one **`reviewer` agent** per phase, parallel). Review the diff against the
    brief (behavior + cited numbers), repo conventions, test quality, scope
    respected. Send findings back to the SAME coder agent via `SendMessage` for
-   fixes; coder re-runs the targeted gate (`--affected`).
+   fixes; the coder re-runs its **named-file** gate
+   (`py -m pytest tools/tests/test_<file>.py`) — never `--affected`, which the
+   hook denies for subagents because its safety pass is the whole core tier.
+   **At most TWO fix rounds per phase.** If findings survive round 2, stop the
+   ping-pong: record the open findings in the phase's brief and carry them to
+   Wave 4 as orchestrator work or a flagged item in the final report. An
+   unbounded reviewer↔coder loop is the other way this skill can fail to
+   terminate.
 5. **Wave 4 — Integrate.** Merge phase branches into the umbrella
-   **sequentially in plan order**, resolving conflicts and re-running the
-   targeted gate (`--affected`) after each merge. One **`reviewer`** agent over
+   **sequentially in plan order**, resolving conflicts and re-running
+   `py tools/testgate.py check --affected` after each merge — legal here because
+   this is the MAIN session, mid-task. If it prints `GATE ABORT` (it aborts
+   rather than widening) it exits non-zero **without running anything**: that is
+   not a test failure and not something to retry — name the affected test files
+   yourself and run those once. One **`reviewer`** agent over
    the umbrella's full diff. Update the plan document's phase table + any
    package CLAUDE.md that changed architecturally. Then run the **one and only
    full gate** of the orchestration: `py tools/testgate.py check` on the
@@ -82,12 +114,22 @@ umbrella branch.
 - Running the full suite anywhere except the single Wave-4 umbrella gate.
 - Letting any agent's exploration run past ~10 minutes before it produces its
   deliverable.
+- **Re-issuing any test command that was denied, or that you already ran with
+  nothing edited since.** One deny → report it and move on.
+- Instructing a subagent to run `--affected` — the hook denies it; the deny then
+  invites exactly the retry loop above.
+- Unbounded reviewer↔coder fix rounds (cap: two).
 
 ## Verify
-- After each wave: targeted gate (`--affected`) green (0 failures) on every
-  phase branch, then on the umbrella after each sequential merge.
+- After each wave: every phase branch's **named-file** gate green (0 failures) —
+  as reported by its coder, not re-run by you — then
+  `py tools/testgate.py check --affected` on the umbrella after each sequential
+  merge.
 - Once, on the finished umbrella before the PR: full `py tools/testgate.py
-  check` green. State what you verified.
+  check` green. State what you verified. If this single run is denied by an
+  in-flight lock left behind by a dead subagent, confirm nothing is running,
+  delete the lock file the deny message names, and run it once — do not re-issue
+  it blind.
 
 ## Final report
 - Per-phase: branch name, brief path, review outcome.
