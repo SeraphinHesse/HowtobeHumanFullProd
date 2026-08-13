@@ -30,6 +30,10 @@ ANCHOR_NAMES = (
     "beam_endpoint",
 )
 
+# D12: the engine distinguishes "manual" from not-manual and nothing more.
+# What a season or a building colour MEANS lives in game/ and editor/.
+COLUMN_MODES = ("manual", "season", "building_color")
+
 
 def playback_order(num_frames, hidden=(), loop=None):
     """Ordered frame columns to play for one row (prototype-exact).
@@ -102,6 +106,19 @@ class ManifestEntry:
     # "row i of THIS entry's rows[]", and `AssetStore._frame_surface` is the
     # single place the window is applied. Omitted ⇒ 0 ⇒ byte-identical entry.
     row_start: int = 0
+    # Master-column window (D1/D2/D3, MasterSheetColumnsPLAN). Also a SLICING
+    # concern only, the horizontal twin of `row_start` above: `column` is the
+    # 0-based master COLUMN this entry cuts from, `column_width` is how many
+    # frame-columns one master column spans (measured in FRAMES, not pixels,
+    # D1 — ties the column boundary to the grid the sheet already owns), and
+    # `column_mode` declares WHO picks the column (`manual`, or a live caller
+    # value for anything else, D3/D12). `Track.row`/`playback_order`/
+    # `current_frame` keep meaning "row i / frame j of THIS entry's own
+    # rows[]"; `AssetStore._frame_surface` is the single place the window is
+    # applied. Omitted `column_width` ⇒ 0 ⇒ byte-identical entry.
+    column: int = 0
+    column_mode: str = "manual"
+    column_width: int = 0
 
     def anchor(self, name):
         """(x, y) frame-px anchor point named `name` (ESV-1), or None when
@@ -216,6 +233,33 @@ def entry_from_dict(slot_key, raw):
     if row_start < 0:
         raise ValueError(f"{slot_key}: row_start must be >= 0")
 
+    column = raw.get("column", 0)
+    # Same defensive shape as `row_start`: no int() coercion, because True,
+    # 3.7 and "3" would all sail through it and silently pick a column the
+    # designer never authored. `load_manifest` is the E-37 layer that turns
+    # this raise into warn-and-skip-this-entry.
+    if isinstance(column, bool) or not isinstance(column, int):
+        raise ValueError(f"{slot_key}: column must be an integer")
+    if column < 0:
+        raise ValueError(f"{slot_key}: column must be >= 0")
+
+    column_mode = raw.get("column_mode", "manual")
+    if not isinstance(column_mode, str) or column_mode not in COLUMN_MODES:
+        raise ValueError(f"{slot_key}: column_mode must be one of "
+                          f"{COLUMN_MODES}, got {column_mode!r}")
+
+    # Absent -> 0 ("no columns"). An explicitly authored 0 is invalid (the
+    # schema declares minimum: 1) — the sentinel below tells "absent" from
+    # "present" so the parser agrees exactly with the schema.
+    if "column_width" in raw:
+        column_width = raw["column_width"]
+        if isinstance(column_width, bool) or not isinstance(column_width, int):
+            raise ValueError(f"{slot_key}: column_width must be an integer")
+        if column_width < 1:
+            raise ValueError(f"{slot_key}: column_width must be >= 1")
+    else:
+        column_width = 0
+
     return ManifestEntry(
         slot_key=slot_key,
         sheet=sheet,
@@ -228,6 +272,9 @@ def entry_from_dict(slot_key, raw):
         anchors=anchors,
         tint_overlay=tint_overlay,
         row_start=row_start,
+        column=column,
+        column_mode=column_mode,
+        column_width=column_width,
     )
 
 

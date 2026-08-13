@@ -218,6 +218,43 @@ class TestEntryFromDict(unittest.TestCase):
             with self.subTest(row_start=bad), self.assertRaises(ValueError):
                 entry_from_dict("s", raw)
 
+    def test_column_keys_absent_default(self):
+        e = entry_from_dict("s", entry_dict([row()]))
+        self.assertEqual((e.column, e.column_mode, e.column_width),
+                         (0, "manual", 0))
+
+    def test_column_keys_parsed(self):
+        raw = entry_dict([row()])
+        raw["column"] = 2
+        raw["column_mode"] = "season"
+        raw["column_width"] = 4
+        e = entry_from_dict("s", raw)
+        self.assertEqual((e.column, e.column_mode, e.column_width),
+                         (2, "season", 4))
+        # the window is a SLICING concern: row indices above it are unchanged
+        self.assertEqual(e.animations["idle"].row, 0)
+
+    def test_bad_column_raises(self):
+        for bad in (True, 3.7, "3", -1, None, [3]):
+            raw = entry_dict([row()])
+            raw["column"] = bad
+            with self.subTest(column=bad), self.assertRaises(ValueError):
+                entry_from_dict("s", raw)
+
+    def test_bad_column_width_raises(self):
+        for bad in (True, 3.7, "3", -1, None, [3], 0):
+            raw = entry_dict([row()])
+            raw["column_width"] = bad
+            with self.subTest(column_width=bad), self.assertRaises(ValueError):
+                entry_from_dict("s", raw)
+
+    def test_bad_column_mode_raises(self):
+        for bad in ("seasonal", 1, None):
+            raw = entry_dict([row()])
+            raw["column_mode"] = bad
+            with self.subTest(column_mode=bad), self.assertRaises(ValueError):
+                entry_from_dict("s", raw)
+
 
 class TestCurrentFrame(unittest.TestCase):
     def manifest(self):
@@ -376,6 +413,18 @@ class TestLoadManifestTolerance(unittest.TestCase):
     def test_corrupt_row_start_warns_and_skips_that_entry(self):
         bad = entry_dict([row()])
         bad["row_start"] = "3"
+        doc = {"version": 2, "entries": {
+            "good": entry_dict([row()]),
+            "bad": bad,
+        }}
+        path = self.write(json.dumps(doc))
+        with self.assertLogs("engine.assets.manifest", level="WARNING"):
+            m = load_manifest(path)   # warn + skip, never raise (E-37)
+        self.assertEqual(m.slots(), ("good",))
+
+    def test_corrupt_column_mode_warns_and_skips_that_entry(self):
+        bad = entry_dict([row()])
+        bad["column_mode"] = "seasonal"
         doc = {"version": 2, "entries": {
             "good": entry_dict([row()]),
             "bad": bad,
