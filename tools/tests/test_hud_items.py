@@ -30,7 +30,8 @@ class FakeAssets:
         self.sizes = sizes or {}
         self.default = default
 
-    def frame(self, slot_key, animation="idle", anim_time_ms=0, extra_hidden=None):
+    def frame(self, slot_key, animation="idle", anim_time_ms=0, extra_hidden=None,
+              column=0):
         w, h = self.sizes.get(slot_key, self.default)
         return Frame(surface=f"SURF:{slot_key}", frame_w=w, frame_h=h)
 
@@ -42,7 +43,8 @@ class RecordingAssets(FakeAssets):
         super().__init__(*a, **kw)
         self.calls = []
 
-    def frame(self, slot_key, animation="idle", anim_time_ms=0, extra_hidden=None):
+    def frame(self, slot_key, animation="idle", anim_time_ms=0, extra_hidden=None,
+              column=0):
         self.calls.append((slot_key, animation, anim_time_ms))
         return super().frame(slot_key, animation, anim_time_ms,
                              extra_hidden=extra_hidden)
