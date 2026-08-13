@@ -147,7 +147,7 @@ prototype-exact animation semantics for nothing.
 
 | Section | Title | Phases | Depends on | Status |
 |---|---|---|---|---|
-| S1 | Column core — data + engine | C1, C2, C3 | — | not started |
+| S1 | Column core — data + engine | C1, C2, C3 | — | **LANDED** (`section-S1`) |
 | S2 | Editor surfaces | E1, E2, E3, E4, E5 | S1 | not started |
 | S3 | Building colour | B1, B2, B3 | S1 | not started |
 | S4 | Seasons | N1, N2 | S1 | not started |
@@ -182,11 +182,15 @@ same pixels.
 
 | Phase | Scope (package) | Status |
 |---|---|---|
-| C1 | data | not started |
-| C2 | engine | not started |
-| C3 | engine | not started |
+| C1 | data | *(LANDED)* `phase-C1-data-layer` @ `be45213` |
+| C2 | engine | *(LANDED)* `phase-C2-manifest-store` @ `60f0954` |
+| C3 | engine + editor | *(LANDED)* `phase-C3-registry-render` @ `f9c2732` |
 
-#### Phase C1 — Data layer
+**Section gate (measured, on the merged `section-S1`):** `py tools/smoke.py` → OK;
+`py -m pytest` over the 7 touched test files → **204 passed, 49 subtests, 0
+failed, 0 skipped**. Handoff: `docs/handoffs/section-S1.md`.
+
+#### Phase C1 — Data layer *(LANDED)*
 
 **Goal.** The two schemas describe columns, and the one committed registry entry
 is migrated. No engine or editor code.
@@ -235,7 +239,7 @@ entry with none of the three new keys still validates; `column: -1`,
 registry, so the schema edit and the data edit must land together) plus
 `py -m pytest tools/tests/test_assets_manifest.py -x -q`.
 
-#### Phase C2 — Manifest parse + the frame cut
+#### Phase C2 — Manifest parse + the frame cut *(LANDED)*
 
 **Goal.** The engine can cut a column block out of a sheet, and caches it
 correctly.
@@ -279,7 +283,7 @@ one slot return two different surfaces (the cache-key pin); a corrupt `column`,
 **Exit gate.** `py -m pytest tools/tests/test_assets_manifest.py
 tools/tests/test_asset_store.py -x -q` plus `py tools/smoke.py`.
 
-#### Phase C3 — Master-sheet registry loader + render threading
+#### Phase C3 — Master-sheet registry loader + render threading *(LANDED)*
 
 **Goal.** Both consumer packages can read the registry, and a render item can
 carry a column.
