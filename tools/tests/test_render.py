@@ -837,5 +837,36 @@ class TestHudTargetSplit(unittest.TestCase):
         self.assertEqual(counts, [5, 5])
 
 
+class TestProfileRenderCli(unittest.TestCase):
+    """G4 §2.9(b): the render profiler's new `--backend` / `--overlays` flags.
+
+    Parser-level only — the harness itself is a measurement tool, not shipped
+    behaviour, and a real profiling run in the suite would cost minutes. It
+    lives in this module rather than a new one because a new test module needs
+    a `conftest.py` TIERS entry and that file was outside the task's scope.
+    """
+
+    def _parse(self, argv):
+        from tools.profile_render import parse_args
+        return parse_args(argv)
+
+    def test_backend_defaults_to_surface_and_accepts_gpu(self):
+        self.assertEqual(self._parse([]).backend, "surface")
+        self.assertEqual(self._parse(["--backend=gpu"]).backend, "gpu")
+        # A typo must not silently profile the other backend.
+        with self.assertRaises(SystemExit):
+            self._parse(["--backend=opengl"])
+
+    def test_overlays_and_far_polyline(self):
+        args = self._parse([])
+        self.assertEqual(args.overlays, 0)
+        self.assertFalse(args.far_polyline)
+        args = self._parse(["--overlays", "40", "--far-polyline"])
+        self.assertEqual(args.overlays, 40)
+        self.assertTrue(args.far_polyline)
+        with self.assertRaises(SystemExit):
+            self._parse(["--overlays", "-1"])
+
+
 if __name__ == "__main__":
     unittest.main()
