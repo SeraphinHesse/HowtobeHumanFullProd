@@ -28,6 +28,19 @@ start implementing the plan's contents.
      row per phase.
    - Per-phase: **Goal**, **Files** (new / modified), **Tests**, **Exit gate**.
    - A closing **Risks / open items** section.
+
+   **Per-phase Tests / Exit gate must be written in the executing role's
+   terms.** Phases are executed by subagents (`coder`, `engine-coder`,
+   `phase-executor`) or by `/execute-phase`, so a phase's gate is
+   `py tools/smoke.py` + `py -m pytest tools/tests/test_<file>.py -q` over that
+   phase's files, plus a concrete in-game Quick Test. **Never write "full suite
+   green", `py tools/testgate.py check`, `--affected`, or a tier sweep
+   (`-m core` / `-m editor` / `-m meta`) into a phase row** — `test_guard.py`
+   denies all four from a subagent, so such a gate cannot be run by whoever
+   executes the phase. The one full `check` happens ONCE, in the main session,
+   at handoff — mention it only as the plan's closing step, never per phase.
+   §"Test Suite Policy" in the root `CLAUDE.md` is the authority; link to it
+   instead of restating a different rule in the plan doc.
    Keep it token-light and route to subsystem docs rather than pasting
    architecture.
 4. **Offer to activate it**: tell the user they can run

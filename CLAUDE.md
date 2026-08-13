@@ -50,7 +50,12 @@ that breaks this table is *denied*, not merely discouraged.
   SESSION, as the last step before handing work back or opening a PR — or when
   the user explicitly asks. Never mid-task, never twice.
 - **Never launch a second test run while another is in flight.** Duplicate runs
-  exhaust memory; the hook denies this outright.
+  exhaust memory; the hook denies this outright. A run that *crashed* does not
+  count: the hook checks whether a test process is actually alive and releases
+  the lock when none is. So a denial here means a run really is going — wait
+  for it (the message names the clock time it clears), never delete the lock
+  file, and never escalate it to the user as a test-policy question. It is a
+  queue, not a refusal.
 - **Re-running an unchanged target is the exact loop this policy exists to
   stop.** If you ran a target and edited nothing since, the result has not
   changed — do not run it again to "make sure". The hook denies this too, and

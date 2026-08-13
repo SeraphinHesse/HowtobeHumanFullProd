@@ -1,0 +1,2 @@
+{"t": "run_start", "round": 0, "phase": "BUILDING", "frame": 0, "wall_ms": 2521, "level": 1, "run_id": "run-20260812-213204", "map_id": "autumn", "seed": null, "love": 25, "lives": 3, "player_name": null, "player_skill": null}
+{"t": "run_end", "round": 1, "phase": "BUILDING", "frame": 960, "wall_ms": 16104, "outcome": "quit_to_menu", "rounds": 0}

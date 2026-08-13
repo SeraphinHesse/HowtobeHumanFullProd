@@ -711,6 +711,8 @@ class Digger(Enemy):
         return (BurrowAgent(
             dig_range_tiles=int(block["dig_range_tiles"]),
             dig_speed=float(block["dig_speed"]),
+            dig_hop_long_tiles=int(block["dig_hop_long_tiles"]),
+            dig_hop_short_tiles=int(block["dig_hop_short_tiles"]),
             emerge_cooldown=float(block["emerge_cooldown"]),
             min_target_distance_tiles=int(block["min_target_distance_tiles"])),)
 
