@@ -59,27 +59,34 @@ class MasterSheetImportTest(DataDirCase):
 
     def test_import_writes_png_and_schema_valid_entry(self):
         sheet_id = master_sheet_import.import_master_sheet(
-            self.data_dir, self.source, "Village Folk", 32, 48)
+            self.data_dir, self.source, "Village Folk", 32, 48, 2,
+            columns=("red", "blue"))
         self.assertEqual(sheet_id, "village_folk")
         png = self.data_dir / "sprites" / "master" / "village_folk.png"
         self.assertTrue(png.is_file())
         # write_registry_doc goes through write_validated, so a re-load that
-        # carries exactly the five required keys is the validity assertion.
-        # `column_width` is the C3 stopgap default: the 128px-wide source is
-        # ONE column of 128 // 32 = 4 frames, so no slot's art can move.
+        # carries the required keys is the validity assertion. `column_width`
+        # is the DESIGNER'S value now (E1), not derived from the PNG's width.
         self.assertEqual(
             self.registry()["entries"]["village_folk"],
             {"file": "master/village_folk.png", "display_name": "Village Folk",
-             "frame_w": 32, "frame_h": 48, "column_width": 4})
+             "frame_w": 32, "frame_h": 48, "column_width": 2,
+             "columns": ["red", "blue"]})
+
+    def test_no_colour_names_omits_the_columns_key(self):
+        """Omit-at-default: an unnamed sheet carries no `columns` at all."""
+        master_sheet_import.import_master_sheet(
+            self.data_dir, self.source, "Village Folk", 32, 48, 4)
+        self.assertNotIn("columns", self.registry()["entries"]["village_folk"])
 
     def test_reimport_same_bytes_leaves_the_file_untouched(self):
         sheet_id = master_sheet_import.import_master_sheet(
-            self.data_dir, self.source, "Village Folk", 32, 48)
+            self.data_dir, self.source, "Village Folk", 32, 48, 4)
         png = self.data_dir / "sprites" / "master" / f"{sheet_id}.png"
         before, mtime = png.read_bytes(), png.stat().st_mtime_ns
 
         again = master_sheet_import.import_master_sheet(
-            self.data_dir, self.source, "Village Folk", 32, 64)
+            self.data_dir, self.source, "Village Folk", 32, 64, 4)
 
         self.assertEqual(again, sheet_id)
         self.assertEqual(png.read_bytes(), before)
@@ -89,17 +96,17 @@ class MasterSheetImportTest(DataDirCase):
 
     def test_slugify_and_collision_never_overwrites(self):
         first = master_sheet_import.import_master_sheet(
-            self.data_dir, self.source, "Village Folk!! v1", 32, 48)
+            self.data_dir, self.source, "Village Folk!! v1", 32, 48, 4)
         self.assertEqual(first, "village_folk_v1")
         digits = master_sheet_import.import_master_sheet(
             self.data_dir, make_png(self.data_dir / "incoming" / "d.png", 8, 8),
-            "2nd batch", 8, 8)
+            "2nd batch", 8, 8, 1)
         self.assertEqual(digits, "sheet_2nd_batch")
 
         other = make_png(self.data_dir / "incoming" / "other.png", 64, 64,
                          colour=(200, 30, 30, 255))
         second = master_sheet_import.import_master_sheet(
-            self.data_dir, other, "Village Folk!! v1", 16, 16)
+            self.data_dir, other, "Village Folk!! v1", 16, 16, 4)
 
         self.assertEqual(second, "village_folk_v1_2")
         entries = self.registry()["entries"]
@@ -109,10 +116,10 @@ class MasterSheetImportTest(DataDirCase):
 
     def test_master_sheets_lists_users_orphans_and_sorts_by_display_name(self):
         shared = master_sheet_import.import_master_sheet(
-            self.data_dir, self.source, "zebra crowd", 32, 48)
+            self.data_dir, self.source, "zebra crowd", 32, 48, 2)
         orphan = master_sheet_import.import_master_sheet(
             self.data_dir, make_png(self.data_dir / "incoming" / "o.png", 8, 8),
-            "Alpha spare", 8, 8)
+            "Alpha spare", 8, 8, 1)
 
         path = self.data_dir / "sprites" / "asset_manifest.json"
         doc = data_io.load_json(path)
@@ -131,6 +138,9 @@ class MasterSheetImportTest(DataDirCase):
         self.assertEqual(by_id[shared].users,
                          ("flute_player_t1_lvl1", "painter_t1_lvl1"))
         self.assertEqual(by_id[shared].grid(), (4, 4))
+        # grid() counts FRAME columns; column_count() counts MASTER columns at
+        # the sheet's own column_width: 128px // (2 frames * 32px) == 2.
+        self.assertEqual(by_id[shared].column_count(), 2)
         self.assertEqual(by_id[orphan].users, ())       # listed anyway (§9)
         # "Alpha spare" before "zebra crowd" — display_name, case-insensitive.
         self.assertEqual([sheet.sheet_id for sheet in sheets],
@@ -166,7 +176,7 @@ class RegistryUnreadableTest(DataDirCase):
         pin_empty_registry(self.data_dir)
         source = make_png(self.data_dir / "incoming" / "raw.png", 128, 192)
         master_sheet_import.import_master_sheet(
-            self.data_dir, source, "Village Folk", 32, 48)
+            self.data_dir, source, "Village Folk", 32, 48, 4)
 
         registry = master_sheet_import.registry_path(self.data_dir)
         doc = data_io.load_json(registry)
@@ -179,7 +189,7 @@ class RegistryUnreadableTest(DataDirCase):
         other = make_png(self.data_dir / "incoming" / "other.png", 64, 64)
         with self.assertRaises(master_sheet_import.RegistryUnreadableError):
             master_sheet_import.import_master_sheet(
-                self.data_dir, other, "Other Sheet", 32, 32)
+                self.data_dir, other, "Other Sheet", 32, 32, 2)
 
         self.assertEqual(registry.read_bytes(), before)   # nothing overwritten
         self.assertFalse(                                 # no orphan PNG either
@@ -189,7 +199,7 @@ class RegistryUnreadableTest(DataDirCase):
         master_sheet_import.registry_path(self.data_dir).unlink()
         source = make_png(self.data_dir / "incoming" / "raw.png", 128, 192)
         sheet_id = master_sheet_import.import_master_sheet(
-            self.data_dir, source, "Village Folk", 32, 48)
+            self.data_dir, source, "Village Folk", 32, 48, 4)
         self.assertIn(
             sheet_id,
             master_sheet_import.load_registry_doc(self.data_dir)["entries"])
@@ -203,7 +213,7 @@ class GridInUseTest(DataDirCase):
         pin_empty_registry(self.data_dir)
         self.source = make_png(self.data_dir / "incoming" / "raw.png", 128, 192)
         self.sheet_id = master_sheet_import.import_master_sheet(
-            self.data_dir, self.source, "Village Folk", 32, 48)
+            self.data_dir, self.source, "Village Folk", 32, 48, 2)
 
     def link_slots(self, *slots):
         path = self.data_dir / "sprites" / "asset_manifest.json"
@@ -226,7 +236,7 @@ class GridInUseTest(DataDirCase):
 
         with self.assertRaises(master_sheet_import.GridInUseError) as caught:
             master_sheet_import.import_master_sheet(
-                self.data_dir, self.source, "Village Folk", 64, 64)
+                self.data_dir, self.source, "Village Folk", 64, 64, 2)
 
         message = str(caught.exception)
         self.assertIn("painter_t1_lvl1", message)      # names the users to fix
@@ -238,11 +248,29 @@ class GridInUseTest(DataDirCase):
 
     def test_changed_grid_with_zero_users_still_rewrites_the_entry(self):
         again = master_sheet_import.import_master_sheet(
-            self.data_dir, self.source, "Village Folk", 64, 64)
+            self.data_dir, self.source, "Village Folk", 64, 64, 2)
         self.assertEqual(again, self.sheet_id)
         entry = data_io.load_json(
             self.data_dir / "sprites" / "master_sheets.json")["entries"][again]
         self.assertEqual((entry["frame_w"], entry["frame_h"]), (64, 64))
+
+    def test_changed_column_width_alone_with_users_is_refused(self):
+        """D10 — the guard covers the COLUMN axis too: an unchanged frame size
+        does not make a `column_width` change safe, it re-points every column
+        window at different pixels."""
+        self.link_slots("painter_t1_lvl1")
+        with self.assertRaises(master_sheet_import.GridInUseError) as caught:
+            master_sheet_import.import_master_sheet(
+                self.data_dir, self.source, "Village Folk", 32, 48, 4)
+        self.assertIn("painter_t1_lvl1", str(caught.exception))
+
+    def test_changed_column_width_with_zero_users_rewrites_the_entry(self):
+        again = master_sheet_import.import_master_sheet(
+            self.data_dir, self.source, "Village Folk", 32, 48, 4)
+        self.assertEqual(again, self.sheet_id)
+        entry = data_io.load_json(
+            self.data_dir / "sprites" / "master_sheets.json")["entries"][again]
+        self.assertEqual(entry["column_width"], 4)
 
     def test_reimporting_a_family_members_bytes_reuses_that_member(self):
         """M4 §2.2 — the byte-identity check scans the slug FAMILY, so
@@ -250,17 +278,31 @@ class GridInUseTest(DataDirCase):
         other = make_png(self.data_dir / "incoming" / "other.png", 64, 64,
                          colour=(200, 30, 30, 255))
         second = master_sheet_import.import_master_sheet(
-            self.data_dir, other, "Village Folk", 16, 16)
+            self.data_dir, other, "Village Folk", 16, 16, 4)
         self.assertEqual(second, f"{self.sheet_id}_2")
 
         again = master_sheet_import.import_master_sheet(
-            self.data_dir, other, "Village Folk", 16, 16)
+            self.data_dir, other, "Village Folk", 16, 16, 4)
 
         self.assertEqual(again, second)
         self.assertEqual(
             sorted(data_io.load_json(
                 self.data_dir / "sprites" / "master_sheets.json")["entries"]),
             [self.sheet_id, second])
+
+
+class ParseColumnsTest(unittest.TestCase):
+    """E1 — the Colours field's pure slugify+validate step. No filesystem: the
+    schema bounds fall back to their own numbers when no data_dir is given."""
+
+    def test_slugifies_and_drops_blanks(self):
+        self.assertEqual(
+            master_sheet_import.parse_columns(" Deep Red, , ANCIENT-blue "),
+            ("deep_red", "ancient_blue"))
+
+    def test_duplicate_slug_is_rejected(self):
+        with self.assertRaises(ValueError):
+            master_sheet_import.parse_columns("Red, red")
 
 
 class MasterSheetDialogTest(TempDataCase):
@@ -275,10 +317,10 @@ class MasterSheetDialogTest(TempDataCase):
 
         source = make_png(self.data_dir / "incoming" / "raw.png", 64, 64)
         first = master_sheet_import.import_master_sheet(
-            self.data_dir, source, "Alpha crowd", 32, 32)
+            self.data_dir, source, "Alpha crowd", 32, 32, 2)
         second = master_sheet_import.import_master_sheet(
             self.data_dir, make_png(self.data_dir / "incoming" / "b.png", 16, 8),
-            "Beta crowd", 8, 8)
+            "Beta crowd", 8, 8, 2)
 
         dialog = self.track(MasterSheetDialog(data_dir=self.data_dir))
         self.assertEqual([s.sheet_id for s in dialog.visible_sheets()],
@@ -292,11 +334,19 @@ class MasterSheetDialogTest(TempDataCase):
         dialog._name.setText("Gamma crowd")
         dialog._frame_w.setValue(12)
         dialog._frame_h.setValue(12)
+        dialog._column_width.setValue(2)
+        dialog._colours.setText("Pink, Blue")
         imported = dialog.perform_import()
         self.assertEqual(imported, "gamma_crowd")
         self.assertEqual(dialog.chosen(), "gamma_crowd")
         self.assertIn("gamma_crowd",
                       [s.sheet_id for s in dialog.visible_sheets()])
+        # E1 — the two new fields reach the registry, slugified.
+        entry = data_io.load_json(
+            self.data_dir / "sprites" / "master_sheets.json"
+        )["entries"]["gamma_crowd"]
+        self.assertEqual(entry["column_width"], 2)
+        self.assertEqual(entry["columns"], ["pink", "blue"])
 
 
 if __name__ == "__main__":
