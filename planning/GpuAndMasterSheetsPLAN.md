@@ -207,7 +207,7 @@ store cache contract, E-37 tolerance split), `editor/panels/CLAUDE.md`
 | G3 | Ground cache on the GPU path | engine | G2 | **DONE** — `ground_cache_gpu.py` on render-target textures, pins parameterised over both implementations (§6/G3 RESULTS); still nothing selects it, G4 wires the host |
 | G4 | Host wiring, HUD composite, fallback, re-measure | engine + game | G3 | **DONE** — `--backend={gpu,surface,auto}` wires the host, HUD composites as one streaming upload/frame, D8 fallback tested; `GATE PASS 2334`. **All five §4.3 live checks passed at a display**, closing G2's pixel-art look and G3's large-map pan. Re-measure (SOFTWARE renderer, §6/G4 RESULTS): boss-load `world` 61–69 ms → 9.5–11.5 ms, but GPU **slower on every holex row** and the overlay pass **6× worse** — that regression is a live Part-A decision |
 | G5 | Overlay pass: clip the scratch to the target, reuse the buffer | engine | G4 | **DONE** — `9de2018`, merged `a180001` on `phase-G5-G6-umbrella`; brief `docs/briefs/phase-G5-overlay-clip-reuse.md`. Clip-before-allocate + one scratch buffer grown to the high-water mark, in `backend_gpu.py` alone. Re-measure (§6/G5 RE-MEASURE, same-session pre/post): gpu overlay Δ **1.92→0.77** (40), **8.76→2.73** (200, now faster than Surface), **3.51→0.13** (far polyline). `CHANNEL_TOLERANCE` untouched; parity green at tolerance 1 |
-| G6 | Retire G0's inferred HUD-cost claim (live frame timings) | — (measurement only) | G4 | **DONE** — live `--backend=gpu` run at a display, late round, 17 samples (§6/G4 RESULTS → G6 RESULTS). `hud` **0.80 ms** + `composite` **0.10 ms** = 3% of a ~29.9 ms frame: G0's claim **confirmed**, D7 stands, §9 bullet retired. Raised a NEW out-of-scope finding — drawing is now 21% of the frame and `sim`+`submit` 50%, inverting G0's 84–97%. Surface control run + the `target_texture`/streaming unknowns still owed |
+| G6 | Retire G0's inferred HUD-cost claim (live frame timings) | — (measurement only) | G4 | **DONE** — live run at a display via the editor's Play (no flag → `auto` → GPU; confirmed by `composite` ≠ 0), late round, 17 samples (§6/G4 RESULTS → G6 RESULTS). `hud` **0.80 ms** + `composite` **0.10 ms** = 3% of a ~29.9 ms frame: G0's claim **confirmed**, D7 stands, §9 bullet retired. Raised a NEW out-of-scope finding — drawing is now 21% of the frame and `sim`+`submit` 50%, inverting G0's 84–97%. Surface control run + the `target_texture`/streaming unknowns still owed |
 | M1 | Data layer: master-sheet registry + schema + `row_start` | data | — | **DONE** — schema + seeded registry + `data/sprites/master/`; existing manifest byte-identical |
 | M2 | Engine: `row_start` slicing + sheet-path-keyed store | engine | M1, G2 | **DONE** — `48de489` + review fixes `81a2aa2`, merged `12ba043`. `row_start` applied in `AssetStore._frame_surface` only; store re-keyed on `entry.sheet`, so one PNG = one decode |
 | M3 | Editor: pure master-sheet import module + picker dialog | editor | M1 | **DONE** — `c8707a4` + review fix `fc7cd62`, merged `ff81203`. `editor/master_sheet_import.py` + `panels/master_sheet_dialog.py`. Left three carry-forwards, all ruled on in M4's brief §2 |
@@ -834,8 +834,26 @@ owed.*
 
 #### G6 RESULTS (2026-08-13) — live, at a display, GPU backend, late round
 
-**MEASURED**, not inferred: a live `py game/main.py --backend=gpu` carried to a
-late round, 17 consecutive one-second samples read off the frame-timing line.
+**MEASURED**, not inferred: a live windowed run carried to a late round, 17
+consecutive one-second samples read off the frame-timing line.
+
+**How it was launched, and why that is worth recording.** Not
+`py game/main.py --backend=gpu` — it was the **editor's Play button**, which
+runs `[python, game/main.py]` with **no `--backend` flag at all**
+(`editor/run_controls.py:31-33`). That leaves `backend=None` → `choice =
+"auto"` (`game/main.py:713`), and the `auto`→`surface` downgrade applies only
+when `max_frames is not None` (headless), so a windowed run stays on `auto` and
+takes the GPU path. **The samples confirm it independently rather than by
+assumption**: `composite` reads 0.10 ms in all 17, and the Surface presenter
+hardcodes `last_composite_ms = 0.0` — *"no composite on this path, ever"*
+(`game/main.py:212`) — so a nonzero `composite` is only producible by the GPU
+stack. This is the GPU backend.
+
+Two consequences. The concurrent-editor contention noted below is **inherent to
+measuring via Play**, not an accident of this run: Play spawns the game as a
+child process while the editor stays open. And the still-owed Surface control
+run **cannot** be taken from the editor — Play has no way to request a backend,
+so it needs `py game/main.py --backend=surface` from a terminal.
 
 | bucket | mean ms/frame | min | max |
 |---|---|---|---|
