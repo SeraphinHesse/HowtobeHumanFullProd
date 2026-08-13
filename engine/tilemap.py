@@ -76,6 +76,12 @@ class TileMapDoc:
     # runtime condition.
     tile_conditions: dict = None
     camera_start: dict = None  # {"col": int, "row": int, "slot": str} OR None
+    # {"col": int, "row": int, "slot": str} OR None — the camera's play-area
+    # CENTRE. Same single-tile shape as camera_start, but unlike it the marker
+    # is deliberately NOT emitted by either render emitter: the game never
+    # draws it and the editor draws its own blue outline. `tilemap.py` neither
+    # knows nor cares that the caller anchors a camera travel limit on it.
+    camera_limit_center: dict = None
     # {"col": int, "row": int, "slot": str} OR None — the 2×2 starting area's
     # MIN corner (spans col..col+1 × row..row+1). Deliberately NOT emitted by
     # the render emitters: the game never draws it and the editor draws a pure
@@ -131,6 +137,9 @@ def from_dict(data):
         },
         camera_start=(dict(data["camera_start"])
                       if data["camera_start"] is not None else None),
+        camera_limit_center=(dict(data["camera_limit_center"])
+                             if data["camera_limit_center"] is not None
+                             else None),
         start_area=(dict(data["start_area"])
                     if data["start_area"] is not None else None),
         tutorial_flute=(dict(data["tutorial_flute"])
@@ -143,6 +152,9 @@ def from_dict(data):
 def to_dict(doc):
     return {
         "base": dict(doc.base) if doc.base is not None else None,
+        "camera_limit_center": (dict(doc.camera_limit_center)
+                                if doc.camera_limit_center is not None
+                                else None),
         "camera_start": (dict(doc.camera_start)
                          if doc.camera_start is not None else None),
         "cols": doc.cols,
@@ -204,6 +216,12 @@ def validate_doc(doc):
         raise ValueError(
             f"map {doc.map_id!r}: camera_start {doc.camera_start} outside "
             f"{doc.cols}x{doc.rows}")
+    if doc.camera_limit_center is not None and not (
+            0 <= doc.camera_limit_center["col"] < doc.cols
+            and 0 <= doc.camera_limit_center["row"] < doc.rows):
+        raise ValueError(
+            f"map {doc.map_id!r}: camera_limit_center {doc.camera_limit_center} "
+            f"outside {doc.cols}x{doc.rows}")
     if doc.start_area is not None and not (
             0 <= doc.start_area["col"] and doc.start_area["col"] + 1 < doc.cols
             and 0 <= doc.start_area["row"]
@@ -427,6 +445,12 @@ def camera_start_slot_from_schema(schema):
     return _object_slot_from_schema(schema, "camera_start")
 
 
+def camera_limit_center_slot_from_schema(schema):
+    """The const-pinned camera play-area CENTRE slot (the editor's placement
+    brush). Never rendered — the editor draws its own outline."""
+    return _object_slot_from_schema(schema, "camera_limit_center")
+
+
 def start_area_slot_from_schema(schema):
     """The const-pinned 2×2 starting-area slot (the editor's placement brush)."""
     return _object_slot_from_schema(schema, "start_area")
@@ -500,6 +524,7 @@ def new_doc(map_id, display_name, cols, rows, schema_path):
         stage_zones={},
         tile_conditions={},
         camera_start=None,
+        camera_limit_center=None,
         start_area=None,
         tutorial_flute=None,
         tutorial_stone=None,

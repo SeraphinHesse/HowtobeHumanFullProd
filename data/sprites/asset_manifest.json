@@ -6247,8 +6247,34 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 6,
+          "frames": 8,
+          "hidden": [
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 8,
           "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            4,
+            5,
+            6,
+            7
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0

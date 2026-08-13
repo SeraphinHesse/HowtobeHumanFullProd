@@ -31,7 +31,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-from PySide6.QtCore import Qt, QTimer
+import shiboken6
+from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QAction, QFont, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
@@ -51,7 +52,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from editor import agent_forms, keybinds, registry_ops, selection, theme, theme_ops
+from editor import (
+    agent_forms, keybinds, registry_ops, selection, test_report, test_runner,
+    theme, theme_ops,
+)
 from editor.thats_my_producer import show_thats_my_producer
 from editor.agent_form_dialog import AgentFormDialog
 from editor.map_session import MapSession
@@ -72,6 +76,7 @@ from editor.panels.selector import SelectorPanel
 from editor.panels.timeline import TimelinePanel
 from editor.panels.tutorial_panel import TutorialPanel
 from editor.panels.strings_panel import StringsPanel
+from editor.panels.test_run_panel import TestRunPanel
 from editor.panels.viewport import ViewportPanel
 from editor.panels.vfx_preview import VfxPreviewPanel
 from engine import data_io
@@ -85,6 +90,58 @@ FRAME_INTERVAL_MS = 16  # ~60fps tick, timer-driven (no busy-spin)
 _PREVIEW_DEBOUNCE_MS = 300
 LOGO_PATH = Path(__file__).resolve().parent / "assets" / "drunken_donuts_logo.png"
 PREFS_PATH = REPO / ".editor_prefs.json"
+
+
+class _TestRunWorker(QObject):
+    """Runs ONE `test_runner.TestRun` off the GUI thread (TestRunnerPLAN TR-5).
+
+    The editor's FIRST worker thread. Two rules, and neither is optional:
+
+    1. **A callback in here may do exactly one thing: `emit`.** TR-3 calls
+       `on_progress` on THIS thread; touching a QLabel, the panel or the status
+       bar from here is a cross-thread widget write, i.e. the classic
+       intermittent crash. `MainWindow`'s slots do all the rendering.
+    2. **The marshalling is Qt's automatic queued delivery.** These signals are
+       connected to `MainWindow` slots with the default `AutoConnection`; since
+       the emitter lives on the worker thread and the receiver on the GUI
+       thread, Qt queues each emission onto the GUI event loop. Do NOT
+       hand-roll it with `QMetaObject.invokeMethod` or `singleShot(0)`, and do
+       NOT force `Qt.DirectConnection` (that would run the slot here).
+
+    `shiboken6.isValid(self)` guards every emit — the same guard `RunControls`
+    uses for exactly this hazard (a C++ object freed under a live signal).
+    """
+
+    progress = Signal(str, int, object, str)  # domain, done, total|None, state
+    finished = Signal(object)                 # TR-3 RunResult
+    failed = Signal(str)
+
+    def __init__(self, domain=None, factory=None):
+        super().__init__()
+        self._domain = domain
+        self._factory = factory or test_runner.TestRun
+        self._run = None
+
+    def run(self):
+        try:
+            self._run = self._factory(domain=self._domain,
+                                      on_progress=self._emit_progress)
+            result = self._run.run()
+        except Exception as exc:
+            if shiboken6.isValid(self):
+                self.failed.emit(f"{type(exc).__name__}: {exc}")
+            return
+        if shiboken6.isValid(self):
+            self.finished.emit(result)
+
+    def _emit_progress(self, domain, done, total, state):
+        if shiboken6.isValid(self):
+            self.progress.emit(domain, done, total, state)
+
+    def cancel(self):
+        run = self._run
+        if run is not None:
+            run.cancel()
 
 
 class MainWindow(QMainWindow):
@@ -193,6 +250,8 @@ class MainWindow(QMainWindow):
         self.palette.deco_flip_toggled.connect(self.viewport.set_deco_flip)
         self.palette.base_armed.connect(self.viewport.arm_base)
         self.palette.camera_armed.connect(self.viewport.arm_camera)
+        self.palette.camera_limit_center_armed.connect(
+            self.viewport.arm_camera_limit_center)
         self.palette.start_area_armed.connect(self.viewport.arm_start_area)
         self.palette.tutorial_flute_armed.connect(self.viewport.arm_tutorial_flute)
         self.palette.tutorial_stone_armed.connect(self.viewport.arm_tutorial_stone)
@@ -384,6 +443,18 @@ class MainWindow(QMainWindow):
         producer_btn = QPushButton("thats my prod")
         producer_btn.clicked.connect(lambda: show_thats_my_producer(self))
         agents_toolbar.addWidget(producer_btn)
+
+        # TestRunnerPLAN TR-5 (R3): the run window is a POPUP, not a dock, and
+        # its button sits immediately after "thats my prod". Pressing it shows
+        # the window and starts a FULL run; the editor stays usable meanwhile.
+        self.test_run_panel = TestRunPanel(parent=self)
+        self.test_run_button = QPushButton("Run tests")
+        self.test_run_button.clicked.connect(self._on_show_test_run_panel)
+        agents_toolbar.addWidget(self.test_run_button)
+        self.test_run_panel.run_requested.connect(self._on_run_tests)
+        self._test_thread = None
+        self._test_worker = None
+        self._test_domain = None   # None == the run in flight is a FULL run
 
         self.palette.setVisible(False)
         # Height floor so the nested viewport_row can't collapse to 0 when the
@@ -1080,6 +1151,89 @@ class MainWindow(QMainWindow):
         dialog = SpawnClaudeDialog(
             data_dir=self._data_dir, repo=REPO, parent=self)
         dialog.exec()
+
+    # -- the test-run window (TestRunnerPLAN TR-5) -------------------------
+    #
+    # The shell owns the THREAD; the panel owns the VIEW and the in-flight
+    # warning. `_on_test_*` are the only callers of `TestRunPanel.apply_*`, and
+    # they run on the GUI thread because Qt queues the worker's signals onto it.
+
+    def _on_show_test_run_panel(self):
+        """The "Run tests" toolbar button: pop the window up and start a FULL
+        run. Non-modal — the editor stays usable while the run goes."""
+        self.test_run_panel.show()
+        self.test_run_panel.raise_()
+        self.test_run_panel.activateWindow()
+        self.test_run_panel.request_run(None)
+
+    def _on_run_tests(self, domain):
+        """`TestRunPanel.run_requested` → one worker thread. A second run while
+        one is in flight is REFUSED, not queued (the RunControls rule)."""
+        if self._test_thread is not None:
+            self.statusBar().showMessage("A test run is already in flight", 5000)
+            return
+        try:
+            self._test_domain = domain
+            # TR-6: the tree as it is BEFORE the run. `test_report` compares it
+            # against the tree at finish and credits the run in the guard's
+            # ledger only if they match; None just means "not credited".
+            self._test_fingerprint = test_report.run_start_fingerprint()
+            self.test_run_panel.begin_run(domain)
+            worker = _TestRunWorker(domain)
+            thread = QThread(self)
+            worker.moveToThread(thread)
+            thread.started.connect(worker.run)
+            worker.progress.connect(self._on_test_progress)
+            worker.finished.connect(self._on_test_finished)
+            worker.failed.connect(self._on_test_failed)
+            self._test_worker = worker
+            self._test_thread = thread
+            thread.start()
+        except Exception as exc:   # never raise out of a Qt slot
+            self._stop_test_thread()
+            self.test_run_panel.apply_failed(str(exc))
+
+    def _on_test_progress(self, domain, done, total, state):
+        self.test_run_panel.apply_progress(domain, done, total, state)
+
+    def _on_test_finished(self, result):
+        self._stop_test_thread()
+        report_path = None
+        try:
+            report_path = test_report.write_report(
+                result,
+                started_fingerprint=getattr(self, "_test_fingerprint", None))
+        except Exception as exc:
+            self.statusBar().showMessage(f"Report not written: {exc}", 8000)
+        # Ledger credit for this run is TR-6's, and it hooks into
+        # editor/test_report.py (reconciliation R5.2) — NOT here. It gates on a
+        # COMPLETED full run with a parsed verdict; a cancelled run and a
+        # per-area re-run (`self._test_domain is not None`) record nothing. The
+        # only thing the shell contributes is the start fingerprint above.
+        self.test_run_panel.apply_finished(result, report_path)
+
+    def _on_test_failed(self, message):
+        self._stop_test_thread()
+        self.test_run_panel.apply_failed(message)
+
+    def _stop_test_thread(self, cancel=False):
+        """Join and drop the worker thread. Safe to call with none running."""
+        worker, thread = self._test_worker, self._test_thread
+        self._test_worker = self._test_thread = None
+        if worker is not None and cancel:
+            try:
+                worker.cancel()
+            except Exception:
+                pass
+        if thread is not None:
+            thread.quit()
+            thread.wait(5000)
+
+    def closeEvent(self, event):
+        """A live QThread whose QObjects are being deleted is the "Signal source
+        has been deleted" class of crash — join it before the window goes."""
+        self._stop_test_thread(cancel=True)
+        super().closeEvent(event)
 
     def _on_add_requested(self, form_id):
         """Selector right-click ("Add New X…") → the agent form for that spec.

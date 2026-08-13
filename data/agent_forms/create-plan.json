@@ -13,6 +13,18 @@
       "placeholder": "AudioPLAN",
       "required": true,
       "type": "string"
+    },
+    {
+      "default": "flat",
+      "description": "flat = one orchestrator drives every phase (the norm). large = phases are grouped into sections, and /execute-plan-phases gives each section its own orchestrator; needs 3+ sections of at most 5 phases each, so only pick it for work one orchestrator's context cannot hold.",
+      "key": "plan_scale",
+      "label": "Plan scale",
+      "options": [
+        "flat",
+        "large"
+      ],
+      "required": false,
+      "type": "enum"
     }
   ],
   "git_default": "current",

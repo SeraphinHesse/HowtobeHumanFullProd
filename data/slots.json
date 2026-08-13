@@ -988,6 +988,12 @@
           ]
         },
         {
+          "label": "Camera Limit Center",
+          "slots": [
+            "camera_limit_centerpoint"
+          ]
+        },
+        {
           "label": "Start Area",
           "slots": [
             "start_area"

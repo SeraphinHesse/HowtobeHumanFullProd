@@ -4,6 +4,11 @@
     "row": 513,
     "slot": "base_hole"
   },
+  "camera_limit_center": {
+    "col": 527,
+    "row": 498,
+    "slot": "camera_limit_centerpoint"
+  },
   "camera_start": {
     "col": 515,
     "row": 510,

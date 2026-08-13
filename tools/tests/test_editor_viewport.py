@@ -1516,8 +1516,11 @@ class TestPurity(unittest.TestCase):
             "editor.font_import, "
             "editor.panels.strings_panel, editor.strings_ops, "
             "editor.panels.vfx_preview, "
+            "editor.panels.test_run_panel, "
             "editor.thats_my_producer, "
             "editor.timeline_curve, editor.timeline_ops, "
+            "editor.test_runner, "
+            "editor.test_report, "
             # ES-1: the editor consumes engine.era_math from ES-5 (D7) — the
             # module must stay pure of game/ for that import to be legal.
             # TimelinePLAN T3: editor.timeline_curve also consumes
