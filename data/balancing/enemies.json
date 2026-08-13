@@ -1153,7 +1153,7 @@
       },
       "eras": [
         {
-          "count_per_round": 2,
+          "count_per_round": 1.5,
           "count_start": 1,
           "footprint": 1,
           "per_round": {
