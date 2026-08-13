@@ -27,6 +27,29 @@ and would make the flip bucket a lie.
     py tools/profile_render.py
     py tools/profile_render.py --enemies 300 --zoom max --pan
     py tools/profile_render.py --map data/maps/holex.json --frames 600
+
+**G4 (§2.9b): the same harness on either backend, plus the overlay pass.**
+`--backend={surface,gpu}` selects the SAME two stacks `game/main.py` builds —
+it calls `game.main._build_render_stack` rather than rebuilding the GPU wiring,
+so the profiled stack cannot drift from the shipped one. A silent D8 fallback
+(GPU asked for, Surface delivered) ABORTS instead of measuring: a row labelled
+`gpu` that is really the CPU blitter would be a lie.
+
+`--overlays N` submits N tile diamonds shaped exactly like `game/ui/widgets.py`'s
+`submit_tile_diamond_fill`, and the harness then runs EVERY case twice — once
+with 0 overlays and once with N over the identical (deterministic) frame
+sequence. **`flush(N) − flush(0)` is the overlay pass**, and it is the number
+the phase is after: `backend.py` draws overlays straight onto the target and
+clips, while `backend_gpu.py` rasterizes each one into an unclipped bounding-box
+SRCALPHA scratch surface and uploads it per call, per frame, uncached
+(`backend_gpu.py:110-156`) — and PR #122's `WorldFill` routes every tile
+highlight and wall segment through that path.
+
+`--far-polyline` adds the pathological case: ONE polyline whose second point is
+far off-screen (world→screen conversion does not clip), which asks `backend_gpu`
+for a scratch surface that wide every frame. Its bounding box is printed.
+
+    py tools/profile_render.py --backend=gpu --overlays 40 --far-polyline
 """
 import argparse
 import gc
@@ -45,11 +68,12 @@ from engine import data_io, tilemap  # noqa: E402
 from engine.assets import load_manifest, load_registry  # noqa: E402
 from engine.assets.store import AssetStore  # noqa: E402
 from engine.coords import load_coordinate_system  # noqa: E402
-from engine.render import Renderer  # noqa: E402
-from engine.render.ground_cache import GroundCache  # noqa: E402
 from engine.render.item import RenderItem  # noqa: E402
 from game.core import load_balance  # noqa: E402
-from game.main import BACKGROUND, _apply_display_mode  # noqa: E402
+# _build_render_stack is THE host's frame-target + Renderer + ground-cache
+# construction (G4 §2.1). Importing it is deliberate: a second GPU construction
+# path here would profile a stack the game does not ship.
+from game.main import BACKGROUND, _build_render_stack  # noqa: E402
 
 # The committed map G0's baseline is taken on. NOT the active map.
 DEFAULT_MAP = "data/maps/first_light.json"
@@ -60,6 +84,17 @@ DEFAULT_MAP = "data/maps/first_light.json"
 ENEMY_SLOTS = ("enemy_stage_1_v1", "enemy_stage_2", "enemy_stage_3", "raider")
 BUILDING_SLOTS = ("flute_player_t1_lvl1", "base_level_1")
 WARMUP_FRAMES = 30  # discarded: first-frame sheet decodes + cache fills
+CAPTION = "G0 render profile"
+# The overlay diamond, in the shape game/ui/widgets.py's
+# submit_tile_diamond_fill produces: a translucent fill plus a border, i.e.
+# ONE OverlayPolys + ONE OverlayLines DrawCall per diamond.
+OVERLAY_FILL = (80, 180, 255, 90)
+OVERLAY_BORDER = (255, 255, 255, 160)
+# --far-polyline: how many TILES past the first visible tile the off-screen
+# point sits. The renderer converts world->screen with no clipping, so
+# backend_gpu's scratch surface is the whole bounding box of that line.
+FAR_POLYLINE_TILES = 50
+FAR_POLYLINE_COLOR = (255, 0, 255)
 
 
 def rss_bytes():
@@ -172,8 +207,21 @@ def warm_store_report(data_dir):
               f"{before / (1024 * 1024):.0f} MB -> {after / (1024 * 1024):.0f} MB")
 
 
-def build_stack(data_dir, map_path, view_w, view_h):
-    """The same construction `game/main.py` performs, on a NAMED map."""
+def build_stack(data_dir, map_path, view_w, view_h, backend="surface"):
+    """The same construction `game/main.py` performs, on a NAMED map.
+
+    The frame target, the `Renderer` (and with it the backend) and the ground
+    cache come from `game.main._build_render_stack` — the host's own G4 seam —
+    so `--backend=gpu` here profiles exactly the stack `py game/main.py
+    --backend=gpu` runs: `_sdl2` Window + `Renderer(window,
+    target_texture=True)` + `GroundCacheGpu` + `Renderer(cs, assets,
+    backend=backend_gpu.draw)`.
+
+    `_build_render_stack` implements D8: a GPU failure falls back to the whole
+    Surface stack rather than raising. That is right for a player and WRONG for
+    a measurement, so a fallback aborts here instead — an unlabelled Surface row
+    in a GPU column would invalidate every comparison in the phase.
+    """
     map_doc = tilemap.load_map(
         map_path, data_dir / "schemas" / "map_file.schema.json")
     core_balance = load_balance(data_dir, "core")
@@ -190,9 +238,16 @@ def build_stack(data_dir, map_path, view_w, view_h):
     manifest = load_manifest(data_dir / "sprites" / "asset_manifest.json")
     assets = AssetStore(manifest=manifest, registry=registry,
                         sprites_dir=data_dir / "sprites")
-    renderer = Renderer(cs, assets)
-    ground_cache = GroundCache(cs, assets, bg_color=BACKGROUND)
-    return map_doc, cs, manifest, assets, renderer, ground_cache
+    presenter, renderer, ground_cache, log_line = _build_render_stack(
+        backend, view_w, view_h, CAPTION, "windowed", cs, assets)
+    if presenter.name != backend:
+        presenter.close()
+        raise SystemExit(
+            f"--backend={backend} requested but the host fell back:\n  "
+            f"{log_line}\nRefusing to profile a fallback stack under the "
+            f"requested backend's label.")
+    return (map_doc, cs, manifest, assets, presenter, renderer, ground_cache,
+            log_line)
 
 
 def sprite_population(map_doc, n_enemies, n_buildings, seed=1234):
@@ -233,102 +288,230 @@ def summarize(samples_ms):
     return statistics.fmean(samples_ms), ordered[max(idx, 0)]
 
 
-def run_case(label, data_dir, map_path, window, view_w, view_h,
-             n_enemies, n_buildings, zoom_mode, frames, pan):
-    map_doc, cs, manifest, assets, renderer, ground_cache = build_stack(
-        data_dir, map_path, view_w, view_h)
-    if zoom_mode == "max":
-        cs.set_zoom(max(cs.geometry.zoom_levels))
-        cs.clamp(view_w, view_h)
-    elif zoom_mode == "min":
-        cs.set_zoom(min(cs.geometry.zoom_levels))
-        cs.clamp(view_w, view_h)
-    items = sprite_population(map_doc, n_enemies, n_buildings)
-    band = (lambda dmn, dmx, smn, smx:
-            tilemap.band_render_items(map_doc, dmn, dmx, smn, smx))
+def _submit_overlays(renderer, count, cmin, cmax, rmin, rmax):
+    """`count` tile diamonds over the first visible tiles, in the exact shape
+    `game/ui/widgets.py::submit_tile_diamond_fill` produces (a `WorldFill` with
+    a fill AND a border → one OverlayPolys + one OverlayLines DrawCall each).
 
-    buckets = {"ground": [], "submit": [], "flush": [], "flip": []}
-    total = []
-    gc.collect()
-    for frame in range(frames + WARMUP_FRAMES):
-        pygame.event.pump()  # keep the OS from marking the window unresponsive
-        if pan:
-            # A fixed serpentine pan: the ground cache's whole point is that
-            # cost tracks pan SPEED, so a static camera would measure its best
-            # case and miss the case the user is complaining about.
-            cs.pan(3 if (frame // 60) % 2 == 0 else -3, 1)
+    On-screen tiles on purpose: `backend.py` clips to the target and
+    `backend_gpu.py` does not, so overlays that are off-screen would compare
+    the two backends on different amounts of work.
+    """
+    left = count
+    for row in range(rmin, rmax + 1):
+        for col in range(cmin, cmax + 1):
+            if left <= 0:
+                return
+            renderer.submit_world_fill(
+                [(col, row), (col + 1, row), (col + 1, row + 1),
+                 (col, row + 1)],
+                world_pos=(col, row), color=OVERLAY_FILL,
+                border=OVERLAY_BORDER, border_width=2)
+            left -= 1
+
+
+def _far_polyline_bbox(cs, cmin, rmin):
+    """The screen-space bounding box `backend_gpu` would allocate a scratch
+    SRCALPHA surface for, for the --far-polyline case."""
+    p0 = cs.world_to_screen(float(cmin), float(rmin))
+    p1 = cs.world_to_screen(float(cmin + FAR_POLYLINE_TILES), float(rmin))
+    w = int(abs(p1[0] - p0[0])) + 3
+    h = int(abs(p1[1] - p0[1])) + 3
+    return w, h
+
+
+def _measure_pass(data_dir, map_path, view_w, view_h, backend, n_enemies,
+                  n_buildings, zoom_mode, frames, pan, overlays,
+                  far_polyline):
+    """One measured run of the fixed frame sequence. Every determinism
+    property of the G0 harness holds: fixed map file, seeded placement, fixed
+    serpentine pan, WARMUP_FRAMES discarded + `frames` measured. Each pass
+    builds its OWN stack, so the 0-overlay and N-overlay passes see the
+    identical camera path from the identical starting state."""
+    (map_doc, cs, manifest, assets, presenter, renderer,
+     ground_cache, log_line) = build_stack(
+        data_dir, map_path, view_w, view_h, backend)
+    try:
+        if zoom_mode == "max":
+            cs.set_zoom(max(cs.geometry.zoom_levels))
             cs.clamp(view_w, view_h)
-        t0 = time.perf_counter()
-        window.fill(BACKGROUND)
-        ground_cache.ensure(view_w, view_h, band)
-        ground_cache.blit(window)
-        t1 = time.perf_counter()
-        cmin, cmax, rmin, rmax = cs.visible_tile_window(view_w, view_h, margin=4)
-        for item in tilemap.visible_render_items(
-                map_doc, cmin, cmax, rmin, rmax, terrain=False):
-            renderer.submit(item)
-        for item in items:
-            renderer.submit(item)
-        t2 = time.perf_counter()
-        renderer.flush(window)
-        t3 = time.perf_counter()
-        pygame.display.flip()
-        t4 = time.perf_counter()
-        if frame >= WARMUP_FRAMES:
-            buckets["ground"].append((t1 - t0) * 1000)
-            buckets["submit"].append((t2 - t1) * 1000)
-            buckets["flush"].append((t3 - t2) * 1000)
-            buckets["flip"].append((t4 - t3) * 1000)
-            total.append((t4 - t0) * 1000)
+        elif zoom_mode == "min":
+            cs.set_zoom(min(cs.geometry.zoom_levels))
+            cs.clamp(view_w, view_h)
+        items = sprite_population(map_doc, n_enemies, n_buildings)
+        band = (lambda dmn, dmx, smn, smx:
+                tilemap.band_render_items(map_doc, dmn, dmx, smn, smx))
 
-    loaded, distinct, wasted = sheet_stats(assets, manifest)
-    return {
-        "label": label,
-        "map": Path(map_path).name,
-        "dims": f"{map_doc.cols}x{map_doc.rows}",
-        "zoom": cs.camera.zoom,
-        "sprites": len(items),
-        "buckets": {k: summarize(v) for k, v in buckets.items()},
-        "total": summarize(total),
-        "fps": (1000.0 / statistics.fmean(total)) if total else 0.0,
-        "sheets_loaded": loaded,
-        "sheets_distinct": distinct,
-        "sheet_waste_mb": wasted / (1024 * 1024),
-        "rss_mb": (rss_bytes() or 0) / (1024 * 1024),
-    }
+        buckets = {"ground": [], "submit": [], "world": [], "hud": [],
+                   "composite": [], "present": [], "backend": []}
+        total = []
+        far_bbox = None
+        gc.collect()
+        for frame in range(frames + WARMUP_FRAMES):
+            pygame.event.pump()  # keep the OS from marking the window dead
+            if pan:
+                # A fixed serpentine pan: the ground cache's whole point is
+                # that cost tracks pan SPEED, so a static camera would measure
+                # its best case and miss the case the user is complaining
+                # about.
+                cs.pan(3 if (frame // 60) % 2 == 0 else -3, 1)
+                cs.clamp(view_w, view_h)
+            t0 = time.perf_counter()
+            presenter.begin_frame()
+            ground_cache.ensure(view_w, view_h, band)
+            # GroundCacheGpu.blit ignores its target by design (it draws
+            # through the SDL Renderer it was built with) — the same call is
+            # correct on both paths, exactly as in game/main.py.
+            ground_cache.blit(presenter.world_target)
+            t1 = time.perf_counter()
+            cmin, cmax, rmin, rmax = cs.visible_tile_window(
+                view_w, view_h, margin=4)
+            for item in tilemap.visible_render_items(
+                    map_doc, cmin, cmax, rmin, rmax, terrain=False):
+                renderer.submit(item)
+            for item in items:
+                renderer.submit(item)
+            if overlays:
+                _submit_overlays(renderer, overlays, cmin, cmax, rmin, rmax)
+            if far_polyline:
+                renderer.submit_overlay_lines(
+                    [(float(cmin), float(rmin)),
+                     (float(cmin + FAR_POLYLINE_TILES), float(rmin))],
+                    FAR_POLYLINE_COLOR, width=2)
+                if far_bbox is None:
+                    far_bbox = _far_polyline_bbox(cs, cmin, rmin)
+            t2 = time.perf_counter()
+            # hud_target is None on the Surface path (the historical single
+            # flat list) and the host's SRCALPHA HUD surface on the GPU path —
+            # the harness submits no HUD items, so `hud` measures 0.0 and
+            # `composite` measures the per-frame texture upload+draw the GPU
+            # host pays whether or not the HUD drew anything.
+            renderer.flush(presenter.world_target,
+                           hud_target=presenter.hud_target)
+            t3 = time.perf_counter()
+            presenter.end_frame()
+            t4 = time.perf_counter()
+            if frame >= WARMUP_FRAMES:
+                split = renderer.last_flush_ms
+                composite = presenter.last_composite_ms
+                buckets["ground"].append((t1 - t0) * 1000)
+                buckets["submit"].append((t2 - t1) * 1000)
+                # `world` = everything in flush except the HUD backend call —
+                # the depth sort + DrawCall build + the world backend, i.e.
+                # exactly what G0's `flush` column contained, so the two are
+                # directly comparable. `backend` is the world backend call
+                # alone (renderer.last_flush_ms["world"]).
+                buckets["world"].append((t3 - t2) * 1000 - split["hud"])
+                buckets["hud"].append(split["hud"])
+                buckets["backend"].append(split["world"])
+                buckets["composite"].append(composite)
+                buckets["present"].append((t4 - t3) * 1000 - composite)
+                total.append((t4 - t0) * 1000)
+
+        loaded, distinct, wasted = sheet_stats(assets, manifest)
+        return {
+            "map": Path(map_path).name,
+            "dims": f"{map_doc.cols}x{map_doc.rows}",
+            "zoom": cs.camera.zoom,
+            "sprites": len(items),
+            "raw": buckets,
+            "buckets": {k: summarize(v) for k, v in buckets.items()},
+            "total": summarize(total),
+            "fps": (1000.0 / statistics.fmean(total)) if total else 0.0,
+            "sheets_loaded": loaded,
+            "sheets_distinct": distinct,
+            "sheet_waste_mb": wasted / (1024 * 1024),
+            "rss_mb": (rss_bytes() or 0) / (1024 * 1024),
+            "far_bbox": far_bbox,
+            "log_line": log_line,
+        }
+    finally:
+        presenter.close()
+
+
+def run_case(label, data_dir, map_path, view_w, view_h, n_enemies,
+             n_buildings, zoom_mode, frames, pan, backend="surface",
+             overlays=0, far_polyline=False):
+    """One table row. With overlays (or the far polyline) asked for, the case
+    runs TWICE over the identical frame sequence — 0 overlays, then N — and
+    the reported `overlay_delta` is `world(N) − world(0)`. That delta IS the
+    overlay pass, and it is the only honest way to get it: an overlay's cost
+    is inside the same backend call as 1016 sprites."""
+    extra = bool(overlays) or far_polyline
+    baseline = None
+    if extra:
+        baseline = _measure_pass(
+            data_dir, map_path, view_w, view_h, backend, n_enemies,
+            n_buildings, zoom_mode, frames, pan, 0, False)
+    result = _measure_pass(
+        data_dir, map_path, view_w, view_h, backend, n_enemies, n_buildings,
+        zoom_mode, frames, pan, overlays, far_polyline)
+    result["label"] = label
+    result["backend"] = backend
+    result["overlays"] = overlays
+    result["far_polyline"] = far_polyline
+    result["overlay_delta"] = (
+        None if baseline is None
+        else result["buckets"]["world"][0] - baseline["buckets"]["world"][0])
+    result["baseline_world"] = (
+        None if baseline is None else baseline["buckets"]["world"][0])
+    return result
+
+
+_COLUMNS = ("ground", "submit", "world", "hud", "composite", "present")
 
 
 def print_table(results):
-    head = (f"{'case':<26}{'map':<16}{'zoom':>5}{'spr':>6}"
-            f"{'ground':>16}{'submit':>16}{'flush':>16}{'flip':>16}"
-            f"{'frame':>16}{'fps':>7}")
+    head = (f"{'case':<26}{'bk':<8}{'map':<16}{'zoom':>5}{'spr':>6}"
+            + "".join(f"{c:>16}" for c in _COLUMNS)
+            + f"{'ovl d':>8}{'frame':>16}{'fps':>7}")
     print()
     print(head)
-    print(f"{'':<26}{'':<16}{'':>5}{'':>6}"
-          + "".join(f"{'mean / p95':>16}" for _ in range(5)) + f"{'':>7}")
+    print(f"{'':<26}{'':<8}{'':<16}{'':>5}{'':>6}"
+          + "".join(f"{'mean / p95':>16}" for _ in _COLUMNS)
+          + f"{'mean':>8}{'mean / p95':>16}{'':>7}")
     print("-" * len(head))
     for r in results:
         cells = ""
-        for key in ("ground", "submit", "flush", "flip"):
+        for key in _COLUMNS:
             mean, p95 = r["buckets"][key]
             cells += f"{mean:>7.2f} /{p95:>7.2f}"
+        delta = r.get("overlay_delta")
+        cells += "       -" if delta is None else f"{delta:>8.2f}"
         mean, p95 = r["total"]
         cells += f"{mean:>7.2f} /{p95:>7.2f}"
-        print(f"{r['label']:<26}{r['map']:<16}{r['zoom']:>5.2f}"
+        print(f"{r['label']:<26}{r.get('backend', 'surface'):<8}"
+              f"{r['map']:<16}{r['zoom']:>5.2f}"
               f"{r['sprites']:>6}{cells}{r['fps']:>7.1f}")
     print()
     for r in results:
-        print(f"{r['label']:<26} sheets: {r['sheets_loaded']:>3} Surfaces "
+        print(f"{r['label']:<26}{r.get('backend', ''):<8} sheets: "
+              f"{r['sheets_loaded']:>3} Surfaces "
               f"over {r['sheets_distinct']:>3} distinct PNGs  "
               f"(duplicate decode waste {r['sheet_waste_mb']:.1f} MB)  "
-              f"RSS {r['rss_mb']:.0f} MB")
+              f"RSS {r['rss_mb']:.0f} MB  "
+              f"backend-only world {r['buckets']['backend'][0]:.2f} ms")
+    for r in results:
+        if r.get("far_bbox") is not None:
+            w, h = r["far_bbox"]
+            print(f"{r['label']:<26}{r.get('backend', ''):<8} far polyline: "
+                  f"{FAR_POLYLINE_TILES} tiles off-screen -> scratch bbox "
+                  f"{w}x{h} px ({w * h * 4 / (1024 * 1024):.1f} MB SRCALPHA), "
+                  f"allocated + uploaded EVERY frame on the gpu backend")
     print()
-    print("ground = GroundCache.ensure + blit | submit = tile emit + "
-          "Renderer.submit | flush = Renderer.flush (the backend blits) | "
-          "flip = display.flip (SCALED upscale)")
+    print("ground = GroundCache(.Gpu).ensure + blit | submit = tile emit + "
+          "Renderer.submit (+ overlay submit) | world = Renderer.flush minus "
+          "the HUD backend call (depth sort + DrawCall build + the world "
+          "backend, i.e. G0's `flush` column) | hud = the Surface HUD backend "
+          "call (0 here: this harness submits no HUD) | composite = the GPU "
+          "HUD texture update+draw | present = display.flip / "
+          "renderer.present | ovl d = world(N overlays) - world(0), the "
+          "overlay pass")
 
 
-def main(argv=None):
+def build_parser():
+    """The CLI, separated from `main` so it can be exercised without booting
+    pygame or profiling anything."""
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--map", default=DEFAULT_MAP,
                     help=f"map file to profile (default {DEFAULT_MAP})")
@@ -347,15 +530,40 @@ def main(argv=None):
                     help="force the static-camera case only")
     ap.add_argument("--warm-store", action="store_true",
                     help="report warm asset-store memory instead of profiling")
+    ap.add_argument("--backend", default="surface", choices=("surface", "gpu"),
+                    help="frame target + render backend (default surface); "
+                         "gpu builds game/main.py's _sdl2 Window + "
+                         "Renderer(target_texture=True) + GroundCacheGpu stack")
+    ap.add_argument("--overlays", type=int, default=0, metavar="N",
+                    help="submit N tile diamonds per frame and report "
+                         "world(N) - world(0) as the overlay pass (runs each "
+                         "case twice)")
+    ap.add_argument("--far-polyline", action="store_true",
+                    help="also submit ONE polyline with a point far "
+                         "off-screen (the unclipped-scratch pathological case)")
+    return ap
+
+
+def parse_args(argv=None):
+    ap = build_parser()
     args = ap.parse_args(argv)
+    if args.overlays < 0:
+        ap.error("--overlays must be >= 0")
+    return args
+
+
+def main(argv=None):
+    args = parse_args(argv)
 
     data_dir = Path(args.data_dir)
     display = data_io.load_validated(
         data_dir / "display.json", data_dir / "schemas" / "display.schema.json")
     view_w, view_h = display["window_w"], display["window_h"]
     pygame.init()
-    window = _apply_display_mode("windowed", view_w, view_h,
-                                 "G0 render profile")
+    # NOTE: no pygame.display.set_mode here. The window belongs to the
+    # presenter now — on the GPU path there is no display surface at all (an
+    # SDL Renderer cannot attach to the display-module window), so creating one
+    # up front would be a second, unused frame target.
 
     if args.warm_store:
         warm_store_report(data_dir)
@@ -378,9 +586,13 @@ def main(argv=None):
         for pan in pans:
             label = f"zoom={zoom_mode} {'panning' if pan else 'static'}"
             results.append(run_case(
-                label, data_dir, args.map, window, view_w, view_h,
-                args.enemies, args.buildings, zoom_mode, args.frames, pan))
-            print(f"  ...{label} done", flush=True)
+                label, data_dir, args.map, view_w, view_h,
+                args.enemies, args.buildings, zoom_mode, args.frames, pan,
+                backend=args.backend, overlays=args.overlays,
+                far_polyline=args.far_polyline))
+            print(f"  ...{label} [{args.backend}] done", flush=True)
+    if results:
+        print(results[0]["log_line"])
     print_table(results)
     pygame.quit()
     return 0

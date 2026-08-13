@@ -777,5 +777,96 @@ class TestBackendResolution(unittest.TestCase):
         self.assertEqual(len(backend.calls), 1)
 
 
+class TestHudTargetSplit(unittest.TestCase):
+    """G4: ``flush(target, hud_target=...)`` splits the frame by PRODUCTION
+    SITE — world+overlay to the world backend, the HUD pass to the Surface
+    backend on its own target. ``hud_target=None`` (the editor / tools / the
+    Surface host) must stay the historical single flat list."""
+
+    def _renderer(self, backend):
+        return Renderer(make_cs(), FakeAssets(slices={"skin": (2, 2, 2, 2)}),
+                        backend=backend)
+
+    def _submit_a_frame(self, r):
+        from engine.render import HudRect, HudText
+        r.submit(RenderItem("tile", (0, 0), layer="ground"))
+        r.submit_overlay_lines([(0, 0), (1, 1)], (255, 0, 0))
+        r.submit_hud(HudRect((0, 0, 10, 10), (1, 2, 3)))
+        r.submit_hud(HudText("hi", (0, 0), "md", (1, 2, 3)))
+        r.submit_hud(HudSprite("skin", (0, 0), (32, 32), crop=(1, 1, 2, 2)))
+        return 5
+
+    def test_without_hud_target_one_flat_list_in_order(self):
+        backend = RecordingBackend()
+        r = self._renderer(backend)
+        self._submit_a_frame(r)
+        r.flush(target=None)
+        kinds = [type(c).__name__ for c in backend.calls]
+        self.assertEqual(
+            kinds, ["DrawCall", "OverlayLines", "HudRect", "HudText",
+                    "DrawCall"])
+        self.assertEqual(r.last_flush_ms["hud"], 0.0)
+
+    def test_with_hud_target_the_hud_pass_goes_to_the_hud_backend(self):
+        world, hud = RecordingBackend(), RecordingBackend()
+        r = self._renderer(world)
+        r._hud_backend = hud
+        self._submit_a_frame(r)
+        r.flush(target=None, hud_target="HUD_SURFACE")
+        self.assertEqual([type(c).__name__ for c in world.calls],
+                         ["DrawCall", "OverlayLines"])
+        self.assertEqual([type(c).__name__ for c in hud.calls],
+                         ["HudRect", "HudText", "DrawCall"])
+        self.assertEqual(hud.calls[-1].crop_rect, (1, 1, 2, 2))
+        self.assertEqual(hud.calls[-1].slice, (2, 2, 2, 2))
+        # THE guarantee (§1.4): backend_gpu raises on either of these, and the
+        # split by production site is what makes them unreachable there.
+        for call in world.calls:
+            self.assertIsNone(getattr(call, "slice", None))
+            self.assertIsNone(getattr(call, "crop_rect", None))
+
+    def test_both_paths_return_the_same_count_and_clear_every_queue(self):
+        counts = []
+        for hud_target in (None, "HUD_SURFACE"):
+            r = self._renderer(RecordingBackend())
+            r._hud_backend = RecordingBackend()
+            self._submit_a_frame(r)
+            counts.append(r.flush(target=None, hud_target=hud_target))
+            self.assertEqual(r.flush(target=None, hud_target=hud_target), 0)
+            self.assertEqual((r._queue, r._overlay, r._hud), ([], [], []))
+        self.assertEqual(counts, [5, 5])
+
+
+class TestProfileRenderCli(unittest.TestCase):
+    """G4 §2.9(b): the render profiler's new `--backend` / `--overlays` flags.
+
+    Parser-level only — the harness itself is a measurement tool, not shipped
+    behaviour, and a real profiling run in the suite would cost minutes. It
+    lives in this module rather than a new one because a new test module needs
+    a `conftest.py` TIERS entry and that file was outside the task's scope.
+    """
+
+    def _parse(self, argv):
+        from tools.profile_render import parse_args
+        return parse_args(argv)
+
+    def test_backend_defaults_to_surface_and_accepts_gpu(self):
+        self.assertEqual(self._parse([]).backend, "surface")
+        self.assertEqual(self._parse(["--backend=gpu"]).backend, "gpu")
+        # A typo must not silently profile the other backend.
+        with self.assertRaises(SystemExit):
+            self._parse(["--backend=opengl"])
+
+    def test_overlays_and_far_polyline(self):
+        args = self._parse([])
+        self.assertEqual(args.overlays, 0)
+        self.assertFalse(args.far_polyline)
+        args = self._parse(["--overlays", "40", "--far-polyline"])
+        self.assertEqual(args.overlays, 40)
+        self.assertTrue(args.far_polyline)
+        with self.assertRaises(SystemExit):
+            self._parse(["--overlays", "-1"])
+
+
 if __name__ == "__main__":
     unittest.main()
