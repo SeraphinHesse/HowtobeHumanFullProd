@@ -1,4 +1,4 @@
-<!-- status: IN PROGRESS — G0, G1, G2, G3, M1 done; G4 and M2–M5 remain -->
+<!-- status: IN PROGRESS — G0-G4 and M1 done; G5, G6 and M2-M5 remain -->
 
 # GpuAndMasterSheetsPLAN.md — GPU render backend, then master spritesheets
 
@@ -206,6 +206,8 @@ store cache contract, E-37 tolerance split), `editor/panels/CLAUDE.md`
 | G2 | `backend_gpu.py` — world sprites, overlays, texture cache | engine | G1 | **DONE** — parity within a pinned tolerance of 1 (§6/G2 RESULTS); nothing selects it yet, G4 wires the host |
 | G3 | Ground cache on the GPU path | engine | G2 | **DONE** — `ground_cache_gpu.py` on render-target textures, pins parameterised over both implementations (§6/G3 RESULTS); still nothing selects it, G4 wires the host |
 | G4 | Host wiring, HUD composite, fallback, re-measure | engine + game | G3 | **DONE** — `--backend={gpu,surface,auto}` wires the host, HUD composites as one streaming upload/frame, D8 fallback tested; `GATE PASS 2334`. **All five §4.3 live checks passed at a display**, closing G2's pixel-art look and G3's large-map pan. Re-measure (SOFTWARE renderer, §6/G4 RESULTS): boss-load `world` 61–69 ms → 9.5–11.5 ms, but GPU **slower on every holex row** and the overlay pass **6× worse** — that regression is a live Part-A decision |
+| G5 | Overlay pass: clip the scratch to the target, reuse the buffer | engine | G4 | not started — **scheduled, not deferred**; brief in §6/G5. Fixes the 6× overlay regression G4 measured |
+| G6 | Retire G0's inferred HUD-cost claim (live frame timings) | — (measurement only) | G4 | not started — **`/execute-phase` with the user at a display**; no agent can run it (§6/G6) |
 | M1 | Data layer: master-sheet registry + schema + `row_start` | data | — | **DONE** — schema + seeded registry + `data/sprites/master/`; existing manifest byte-identical |
 | M2 | Engine: `row_start` slicing + sheet-path-keyed store | engine | M1, G2 | not started |
 | M3 | Editor: pure master-sheet import module + picker dialog | editor | M1 | not started |
@@ -840,6 +842,97 @@ hardware. **The overlay-pass regression measured above stands and needs a plan
 decision** — an overlay clip in `backend_gpu.py` is the obvious fix and is
 deliberately out of G4's scope.
 
+### Phase G5 — Overlay pass: clip the scratch, reuse the buffer
+
+**Goal**: kill the overlay regression G4 measured. This phase is **scheduled,
+not deferred** — G4's own numbers make it a live Part-A decision, and §9 already
+predicted it before it was measured.
+
+**The measured problem** (§6/G4 RESULTS, "Overlay Δ — measured in isolation"):
+`backend_gpu.py:110-156` rasterizes every `OverlayLines` / `OverlayPolys` into a
+fresh bounding-box `SRCALPHA` scratch Surface and uploads it **per call, per
+frame, uncached**. At 40 diamonds (80 overlay calls/frame) the pass costs
+**4.31 ms on GPU vs 0.72 ms on Surface — 6.0× worse**; at 200 diamonds, 17.50
+vs 9.30 ms (1.9×). Worse, the scratch is sized from the **raw point bounding
+box with no clip to the target**, so the pathological far-off-screen polyline
+(one point 50 tiles off-screen) allocates **1603 × 803 px = 4.9 MB** every
+frame: **surface 6.47 ms, gpu 10.66 ms**. Since PR #122 routes every tile
+highlight and wall segment through `WorldFill` → this path, it is a
+live-gameplay cost, not synthetic.
+
+**Files** — modified: `engine/render/backend_gpu.py`,
+`tools/tests/test_render_backend_parity.py`, `engine/render/CLAUDE.md`,
+`tools/profile_render.py` (re-measure only if the harness needs a new case).
+**No other file.** `backend.py`, `backend_api.py`, `renderer.py`,
+`ground_cache*.py`, `game/**`, `editor/**` and `data/**` are out of scope.
+
+**Design notes**
+- **Clip the scratch rect to the target bounds** before allocating. This is the
+  bigger of the two wins and it is what `backend.py:190` already gets for free
+  by drawing straight onto the target. The point coordinates must then be
+  translated by the clipped origin, not the raw bbox origin — that translation
+  is where this regresses into a one-pixel shift, so pin it.
+- **Reuse the scratch Surface across calls** rather than allocating per call:
+  one buffer per backend instance, grown to the high-water mark, `fill(0)`-ed
+  per use — mirroring the `_scale_cache` / texture-cache precedent already in
+  this module. A streaming texture updated in place beats create-and-destroy.
+- **Parity is not negotiable.** `CHANNEL_TOLERANCE = 1` is pinned and §9 forbids
+  nudging it. A clip that changes any on-screen pixel is a defect, not a
+  tolerance question. Add a fixture whose overlay extends past every edge of the
+  target (all four sides, and one wholly off-screen call that must draw nothing)
+  and compare against `backend.py` at the existing tolerance.
+- An overlay fully outside the target must become a **no-op**, not a zero-sized
+  Surface — `pygame.Surface((0, 0))` and a zero-area texture are separate traps.
+
+**Tests**: the existing parity suite green **unchanged** at tolerance 1; new
+clipped-overlay parity cases (each edge, a corner, wholly off-screen); a test
+that N overlay draws allocate ONE scratch Surface, not N (spy on the allocation
+the way G2's texture-cache test counts uploads); a test that the buffer grows
+and is not re-allocated when a smaller overlay follows a larger one.
+
+**Exit gate**: `py tools/smoke.py` + `py -m pytest
+tools/tests/test_render_backend_parity.py tools/tests/test_render.py -q`, plus a
+**re-measure of the overlay Δ table above** through `tools/profile_render.py`
+(40 and 200 diamonds, and the far-off-screen polyline) written into this doc
+beside the originals. The phase succeeds when the GPU column is no longer a
+multiple of the surface column; it does not need to *beat* the Surface path.
+
+### Phase G6 — Retire G0's inferred HUD-cost claim
+
+**Goal**: turn the plan's one surviving **inferred** performance claim into a
+measured one. Nothing is implemented; this phase produces numbers.
+
+**Why it is not an agent dispatch.** The instrument already shipped in G4
+(`renderer.last_flush_ms`, surfaced in the frame-timing line as
+`sim | submit | world | hud | composite | present`). What is missing is a
+**live run at a real display, at a late round** — §4.3 Step 6. `tools/
+profile_render.py` cannot supply it: it is a render harness that submits no HUD
+items, which is exactly why `hud` reads 0.00 in every row of G4's table. No
+headless agent can produce this number. **Run it as `/execute-phase` with the
+user at a display** (§5.1's rule, the same one that scoped G0 and G4).
+
+**The claim under test** (§6/G0, caveat 2): *"The HUD is a few dozen items a
+frame against 1016 world sprites, so it cannot plausibly be the dominant cost —
+but that is inferred, not measured."*
+
+**What to capture**: from one live `py game/main.py` run on each backend,
+carried to a late round (era 4 if reachable), read the frame-timing line and
+record `hud` and `composite` as mean ms/frame beside `world` and `present`.
+Also settles the two smaller unknowns G4 left open: whether
+`target_texture=True` is strictly needed on this driver, and streaming vs
+static texture on real hardware.
+
+**Files** — modified: this plan doc only (the numbers, and the §9 bullet this
+retires). If the run reveals the HUD *is* a significant cost, that is a
+re-scope finding to bring to the user — D7 kept the HUD on the Surface path on
+the strength of the claim this phase tests.
+
+**Tests**: none — no shipped behaviour changes.
+
+**Exit gate**: `hud` and `composite` recorded as measured numbers in §6/G4
+RESULTS, the §9 bullet marked retired or the finding escalated, and an explicit
+statement that it was a live run.
+
 ---
 
 ## 7. Part B — Master spritesheets
@@ -1148,8 +1241,28 @@ and run those once.
 - **Two backends is two implementations to keep in parity**, forever. Mitigated
   by the parity test and by keeping HUD / nine-slice / fonts / crop
   single-implementation on the Surface path (D7).
+- **The overlay-pass regression is MEASURED and SCHEDULED as phase G5** — it is
+  no longer an open risk awaiting a decision. G4 broke the pass out and found
+  **6.0× worse on GPU at 40 diamonds** (4.31 vs 0.72 ms) and **1.65× worse plus
+  4.9 MB of per-frame churn** on the far-off-screen polyline. The decision is
+  taken: clip the scratch to the target and reuse the buffer, in
+  `backend_gpu.py` alone (§6/G5). Until G5 lands, the GPU path carries a real
+  live-gameplay regression on every tile highlight and wall segment PR #122
+  routes through `WorldFill`, and **no phase outside G5 may touch
+  `backend_gpu.py`** — a second editor of that file while G5 is scoped is how
+  the two fixes collide.
+- **G0's HUD-cost claim is still INFERRED and unretired, and is SCHEDULED as
+  phase G6.** D7 kept the HUD single-implementation on the Surface path partly
+  on the strength of "the HUD cannot plausibly be the dominant cost", which has
+  never been measured — `tools/profile_render.py` submits no HUD items, so
+  `hud` reads 0.00 in every row of G4's table. The instrument shipped in G4;
+  retiring the claim needs §4.3 Step 6's live frame timings at a display, which
+  **no headless agent can produce** — G6 is an `/execute-phase` with the user,
+  not an agent dispatch (§6/G6). If the HUD turns out to be significant, D7 is
+  the decision that gets re-opened.
 - **G4 MUST profile the overlay path, not just the sprite path** (raised in G2's
-  review, deferred there deliberately). `backend_gpu.py` rasterizes both
+  review, deferred there deliberately; **discharged — G4 did it, see the G5
+  bullet above**). `backend_gpu.py` rasterizes both
   `OverlayLines` and `OverlayPolys` into a bounding-box `SRCALPHA` scratch
   Surface and uploads it **per call, per frame, uncached** — the only route that
   is parity-exact, since SDL's `draw_line` has no width and no native primitive
