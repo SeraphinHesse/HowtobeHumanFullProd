@@ -88,7 +88,9 @@ REPO = Path(__file__).resolve().parents[2]
 BACKGROUND = (24, 20, 32)
 DEFAULT_SEED = 1234
 DEFAULT_LOOP_INTERVAL = 1.0
-_PRESET_KEYS = ("place", "level1", "level2", "tier")
+# VA-4 appended "respawn": the payday revive is a fourth spark PRESET, not
+# a new family, so it previews through this combo with no new preview path.
+_PRESET_KEYS = ("place", "level1", "level2", "tier", "respawn")
 
 # family -> [(label, staged-path-suffix relative to procedural/<family>/)]
 # for the curated lever strip (phase-esv-4-vfx-preview.md §1.3's table).
@@ -131,11 +133,20 @@ _EMIT_FAMILIES = ("spark", "death_burst", "muzzle", "slash", "gold_highlight",
 _PROJECTILE_FAMILY = "projectile"
 _CRATER_FAMILY = "crater"
 _BEAM_FAMILY = "beam"
+# VA-8: `highlights` is ONE `procedural` key holding SEVEN blocks, so it is
+# one entry in the family combo with its own sub-combo choosing which
+# highlight to preview — the `spark`/`_preset_combo` shape. Like crater/beam
+# it is a continuous object the game draws itself, never a VfxSystem burst.
+_HIGHLIGHT_FAMILY = "highlights"
+#: The tile the highlight preview is drawn on. Middle-ish of the preview grid
+#: so the diamond is fully visible at the default camera.
+_HIGHLIGHT_TILE = (2, 2)
 # vfx-projectile-spritesheets: crater/beam are the SAME shape as projectile —
 # continuous/impact objects the game draws itself, not a VfxSystem burst — so
 # they join it as SUPPORTED, non-degrading previews with their own small
 # `_submit_crater_preview`/`_submit_beam_preview` paths.
-_POINT_FX_FAMILIES = (_PROJECTILE_FAMILY, _CRATER_FAMILY, _BEAM_FAMILY)
+_POINT_FX_FAMILIES = (_PROJECTILE_FAMILY, _CRATER_FAMILY, _BEAM_FAMILY,
+                      _HIGHLIGHT_FAMILY)
 # family -> the ONE fixed vfx_* slot its "Import Spritesheet…" button
 # targets. `projectile` has no entry here — it swaps between two slots via
 # `_shell_check`, resolved by `_current_import_slot()` instead. Every other
@@ -211,6 +222,12 @@ class VfxPreviewPanel(QWidget):
         self._preset_combo = QComboBox()
         self._preset_combo.addItems(_PRESET_KEYS)
         self._preset_combo.currentTextChanged.connect(self._on_preset_changed)
+        # VA-8: which of `highlights`' seven blocks to preview — the
+        # _preset_combo shape, for the one family that is a dict of blocks
+        # rather than a single block.
+        self._highlight_combo = QComboBox()
+        self._highlight_combo.currentTextChanged.connect(
+            self._on_highlight_changed)
         self._strong_check = QCheckBox("strong")
         self._strong_check.toggled.connect(self._on_strong_toggled)
         self._large_check = QCheckBox("large")
@@ -242,6 +259,7 @@ class VfxPreviewPanel(QWidget):
         top_row.addWidget(QLabel("Family"))
         top_row.addWidget(self._family_combo)
         top_row.addWidget(self._preset_combo)
+        top_row.addWidget(self._highlight_combo)
         top_row.addWidget(self._strong_check)
         top_row.addWidget(self._large_check)
         top_row.addWidget(self._shell_check)
@@ -393,6 +411,9 @@ class VfxPreviewPanel(QWidget):
         self._strong_check.setVisible(name == "muzzle")
         self._large_check.setVisible(name == "slash")
         self._shell_check.setVisible(name == _PROJECTILE_FAMILY)
+        self._highlight_combo.setVisible(name == _HIGHLIGHT_FAMILY)
+        if name == _HIGHLIGHT_FAMILY:
+            self._refresh_highlight_combo()
         self._refresh_import_btn()
         self._degrade_label.setText(
             "" if supported else f"no preview for {name!r} yet")
@@ -415,6 +436,12 @@ class VfxPreviewPanel(QWidget):
         `triggers` table's `sprite_slot` field instead)."""
         if self._family == _PROJECTILE_FAMILY:
             return "vfx_shell" if self._shell else "vfx_projectile"
+        if self._family == _HIGHLIGHT_FAMILY:
+            # VA-5 gave each highlight its own vfx_<name> slot, so the family
+            # DOES resolve to one fixed slot — it just depends on the
+            # sub-combo rather than being a constant.
+            name = self._highlight_combo.currentText()
+            return f"vfx_{name}" if name else None
         return _POINT_FX_SLOTS.get(self._family)
 
     def _refresh_import_btn(self):
@@ -951,11 +978,84 @@ class VfxPreviewPanel(QWidget):
             self._submit_crater_preview(dt)
         elif self._family == _BEAM_FAMILY:
             self._submit_beam_preview(dt)
+        elif self._family == _HIGHLIGHT_FAMILY:
+            self._submit_highlight_preview(dt)
         self._renderer.flush(self._surface)
         self._qimage = surface_to_qimage(self._surface)
         self._surface_widget.update()
         self.last_frame_ms = (time.perf_counter() - t0) * 1000.0
 
+
+
+    # -- the `highlights` family (VA-8) ------------------------------------
+
+    def _refresh_highlight_combo(self):
+        """Populate the sub-combo from the staged doc, so a highlight added to
+        `procedural.highlights` shows up without an editor change — the same
+        data-driven rule `refresh_families` follows for the family combo
+        itself."""
+        names = sorted(self._staged_highlights())
+        current = self._highlight_combo.currentText()
+        self._highlight_combo.blockSignals(True)
+        self._highlight_combo.clear()
+        self._highlight_combo.addItems(names)
+        if current in names:
+            self._highlight_combo.setCurrentText(current)
+        self._highlight_combo.blockSignals(False)
+
+    def _staged_highlights(self):
+        if self._balancing is None:
+            return {}
+        proc = self._balancing.staged_value("procedural") or {}
+        return proc.get(_HIGHLIGHT_FAMILY) or {}
+
+    def _on_highlight_changed(self, _name):
+        self._refresh_import_btn()
+        self._rebuild_levers()
+        self._rebuild_colors()
+
+    def current_highlight(self):
+        return self._highlight_combo.currentText() or None
+
+    def _submit_highlight_preview(self, dt):
+        """Draw the selected tile highlight exactly as the game draws it: the
+        bound `vfx_<name>` sheet when it has art, else the world-space diamond
+        in the staged colour/outline/fill.
+
+        The diamond is four world points through `submit_world_fill` — the
+        SAME primitive `game/ui/widgets.py::submit_tile_diamond` uses — rather
+        than a call into that module, because `editor/` may never import
+        `game/`. The polygon is trivial enough that duplicating it costs
+        nothing; what matters is that both go through the one depth-sorted
+        world-fill path, so the preview cannot drift from the game in the way
+        that actually matters (which primitive, at which depth).
+
+        `dt` is accepted for signature parity with the other point-FX preview
+        paths; a highlight is a static outline with no clock of its own.
+        """
+        name = self.current_highlight()
+        if not name:
+            return
+        params = self._staged_highlights().get(name)
+        if not params:
+            return
+        col, row = _HIGHLIGHT_TILE
+        slot = f"vfx_{name}"
+        if self._assets.animation_total_ms(slot, "idle") is not None:
+            self._renderer.submit(
+                RenderItem(slot, (col, row), animation="idle",
+                           anim_time_ms=int(self._loop_clock * 1000)))
+            self._loop_clock += dt
+            return
+        color = tuple(params.get("color") or (255, 255, 255))
+        width = int(params.get("border_width", 2))
+        alpha = int(params.get("fill_alpha", 0))
+        points = [(col, row), (col + 1, row),
+                  (col + 1, row + 1), (col, row + 1)]
+        self._renderer.submit_world_fill(
+            points, world_pos=(col, row),
+            color=(color + (alpha,)) if alpha else None,
+            border=color, border_width=width)
 
     # ======================================================================
     # The roster + binding strip (VfxAuthoringPLAN VA-7)
