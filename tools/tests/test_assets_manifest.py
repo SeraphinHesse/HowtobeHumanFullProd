@@ -405,7 +405,7 @@ class TestMasterSheetSchemas(unittest.TestCase):
     @staticmethod
     def sheet_entry(**over):
         e = {"file": "master/characters.png", "display_name": "Characters",
-             "frame_w": 64, "frame_h": 96}
+             "frame_w": 64, "frame_h": 96, "column_width": 4}
         e.update(over)
         return e
 
@@ -431,10 +431,33 @@ class TestMasterSheetSchemas(unittest.TestCase):
         with self.assertRaises(ValidationError):
             validate(self.registry({"characters": entry}), self.MASTER)
 
+    # --- registry columns (C1) -------------------------------------------
+    def test_column_width_without_names_validates(self):
+        # D1/D4: the width is required, the per-column names are not.
+        validate(self.registry({"characters": self.sheet_entry()}), self.MASTER)
+
+    def test_missing_column_width_rejected(self):
+        entry = self.sheet_entry()
+        del entry["column_width"]
+        with self.assertRaises(ValidationError):
+            validate(self.registry({"characters": entry}), self.MASTER)
+
+    def test_out_of_range_column_width_rejected(self):
+        for bad in (0, 257):
+            with self.subTest(column_width=bad), self.assertRaises(ValidationError):
+                validate(self.registry(
+                    {"characters": self.sheet_entry(column_width=bad)}), self.MASTER)
+
+    def test_bad_column_names_rejected(self):
+        for bad in (["red", "red"], ["Red"]):
+            with self.subTest(columns=bad), self.assertRaises(ValidationError):
+                validate(self.registry(
+                    {"characters": self.sheet_entry(columns=bad)}), self.MASTER)
+
     # --- manifest ---------------------------------------------------------
     def test_entry_without_row_start_and_master_sheet_both_validate(self):
         doc = {"version": 2, "entries": {
-            "legacy": entry_dict([row()]),                        # no row_start
+            "legacy": entry_dict([row()]),          # no row_start, no column keys
             "windowed": dict(entry_dict([row()], sheet="master/characters.png"),
                              row_start=4),
         }}
@@ -445,6 +468,14 @@ class TestMasterSheetSchemas(unittest.TestCase):
                      row_start=-1)
         with self.assertRaises(ValidationError):
             validate({"version": 2, "entries": {"windowed": entry}}, self.MANIFEST)
+
+    def test_bad_column_keys_rejected(self):
+        for bad in ({"column": -1}, {"column_mode": "seasonal"},
+                    {"column_width": 0}):
+            entry = dict(entry_dict([row()], sheet="master/characters.png"), **bad)
+            with self.subTest(**bad), self.assertRaises(ValidationError):
+                validate({"version": 2, "entries": {"windowed": entry}},
+                         self.MANIFEST)
 
 
 if __name__ == "__main__":
