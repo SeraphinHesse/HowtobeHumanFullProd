@@ -116,10 +116,33 @@ crashes boot.** When you change asset conventions, update THIS doc.
   game's tile-condition art (`data/slots.json` `conditions` category): a
   condition slot with **no entry at all** always draws the overlay, because
   there is no sprite to draw instead. See `game/map/CLAUDE.md`.
+- **Optional `row_start` (M2, GpuAndMasterSheetsPLAN)**: the FOURTH optional
+  per-entry key — a 0-based index of the first SHEET row this entry's `rows[]`
+  maps onto, so many slots can each claim their own band of one shared MASTER
+  spritesheet (`master/<sheet_id>.png`, registered in
+  `data/sprites/master_sheets.json`). `entry_from_dict` parses it with the same
+  defensive shape as `slice`/`anchors` — **no `int()` coercion**, so a bool, a
+  float, a numeric string or a negative all RAISE (`load_manifest` is the E-37
+  layer that turns that into warn-and-skip-this-entry); omitted ⇒ `0` ⇒ the
+  entry is byte-identical to a pre-feature one.
+  - **It is a SLICING concern, never a playback one.** `AssetStore.
+    _frame_surface` is the ONE place the window is applied (`sheet_row = row +
+    entry.row_start`); `Track.row`, `playback_order` and `current_frame` keep
+    meaning "row *i* of THIS entry's `rows[]`". Leaking the offset upward would
+    touch the prototype-exact animation semantics for nothing.
+  - A window running past the sheet's real rows degrades to the grey-X
+    placeholder with a warning naming the resolved sheet row — never raises
+    (E-37), the same path an off-sheet column already took.
 - **Store**: `AssetStore(manifest, registry, frame_sizes, default_frame_size,
   sprites_dir)`; frame-size precedence manifest entry > registry (**per-slot
   override, then category**) > frame_sizes > default. Sheets load via `pygame.image.load` with NO
   `convert()`/`convert_alpha()` (they need a display; the editor runs SDL dummy).
+  **`_sheets` is keyed by the entry's `sheet` PATH, not by slot key (M2)** — one
+  PNG decodes exactly once into exactly one Surface however many slots name it
+  (linked sheets and master sheets both). `_frames`/`_hit_masks` stay
+  SLOT-keyed on purpose (a shared sheet's slots resolve different pixels for the
+  same `(row, col)` because each applies its own `row_start`) — there is a
+  comment in `__init__` saying so; do not "fix" it.
   Sliced frames are SUBSURFACES — the parent sheet must stay cached. There is no
   cache invalidation: when the manifest changes, build a new AssetStore (the
   editor's `reload_assets()` does exactly that).
