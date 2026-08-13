@@ -205,7 +205,7 @@ store cache contract, E-37 tolerance split), `editor/panels/CLAUDE.md`
 | G1 | Backend seam + headless-renderer feasibility probe | engine | G0 verdict | **DONE** — `backend_api.py` seam; probe says the dummy driver CAN host a Renderer (§4), so G2's parity test runs in CI |
 | G2 | `backend_gpu.py` — world sprites, overlays, texture cache | engine | G1 | **DONE** — parity within a pinned tolerance of 1 (§6/G2 RESULTS); nothing selects it yet, G4 wires the host |
 | G3 | Ground cache on the GPU path | engine | G2 | **DONE** — `ground_cache_gpu.py` on render-target textures, pins parameterised over both implementations (§6/G3 RESULTS); still nothing selects it, G4 wires the host |
-| G4 | Host wiring, HUD composite, fallback, re-measure | engine + game | G3 | not started |
+| G4 | Host wiring, HUD composite, fallback, re-measure | engine + game | G3 | **CODE DONE, LIVE GATE OWED** — `--backend={gpu,surface,auto}` wires the host, HUD composites as one streaming upload/frame, D8 fallback tested; re-measured on the SOFTWARE renderer only (§6/G4 RESULTS): boss-load `world` 61–69 ms → 9.5–11.5 ms, but GPU **slower on every holex row** and the overlay pass **6× worse**. §4.3's five live checks are NOT run |
 | M1 | Data layer: master-sheet registry + schema + `row_start` | data | — | **DONE** — schema + seeded registry + `data/sprites/master/`; existing manifest byte-identical |
 | M2 | Engine: `row_start` slicing + sheet-path-keyed store | engine | M1, G2 | not started |
 | M3 | Editor: pure master-sheet import module + picker dialog | editor | M1 | not started |
@@ -685,6 +685,141 @@ raise) asserting the game still produces frames; the parity suite still green.
 the log line that the GPU path is in use, then a second live run with the
 fallback forced, confirming identical-looking output; G0's measurements re-taken
 and written into this doc beside the originals. State which checks were live.
+
+#### G4 RESULTS (2026-08-13)
+
+`game/main.py` (the presenter seam), `engine/render/renderer.py`
+(`hud_target` + `last_flush_ms`), `tools/profile_render.py` (both backends +
+the overlay pass), the three doc edits, and pins in `test_render.py` /
+`test_game_boot.py`. Two commits: `9200acd` (host wiring) and `9f2ef19` (the
+harness + re-measure). **`backend_gpu.py`, `ground_cache_gpu.py`, `backend.py`,
+`backend_api.py`, `editor/**`, `tools/smoke.py` and `data/**` are untouched**,
+and `default_backend()` still returns the Surface blitter — the GPU path is
+selected by the host alone.
+
+**The port is now reachable**: `py game/main.py --backend={gpu,surface,auto}`,
+env `HTBH_RENDER_BACKEND` when the flag is absent, `SystemExit` on an
+unrecognised value. Default is `auto` for a windowed run and **forced
+`surface` whenever `max_frames is not None`** — the existing headless seam, so
+`tools/smoke.py` stays on the Surface path **with no edit to it** (confirmed
+from its own boot line: `render backend: Surface (CPU blitter) | window 640x360
+SCALED | ground cache: GroundCache`).
+
+**All numbers below are the SOFTWARE renderer** (`SDL_VIDEODRIVER=dummy`,
+pygame-ce 2.5.7 / SDL 2.32.10, Python 3.13.2, Windows 11). The driver string in
+the boot log reads `direct3d` but is `get_drivers()[0]`, **not** a readback of
+the renderer actually created — `Renderer.get_renderer_info` is gone in 2.5.7.
+**No hardware re-measure has been taken**, and none of §4.3's live checks have
+been run. Treat every GPU number as pending.
+
+`world` = `Renderer.flush` minus the HUD backend call, i.e. exactly G0's
+`flush` column, so the two tables compare directly. `ovlΔ` = `world(40) −
+world(0)` over the identical deterministic frame sequence. 30 warm-up + 300
+measured frames.
+
+| Map | Zoom | Camera | Sprites | Backend | ground | submit | world | ovlΔ | hud | composite | present | frame | fps |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| first_light 20² | 1.0 | static | 1016 | surface | 0.19 | 0.30 | **61.46** | 5.24 | 0.00 | 0.00 | 0.33 | 62.29 | 16.1 |
+| first_light 20² | 1.0 | static | 1016 | **gpu** | 0.04 | 0.25 | **9.53** | 0.96 | 0.00 | 0.11 | 2.22 | **12.16** | **82.3** |
+| first_light 20² | 1.0 | panning | 1016 | surface | 0.68 | 0.29 | **68.78** | 2.14 | 0.00 | 0.00 | 0.34 | 70.09 | 14.3 |
+| first_light 20² | 1.0 | panning | 1016 | **gpu** | 0.86 | 0.29 | **11.47** | 2.61 | 0.00 | 0.13 | 2.63 | **15.37** | **65.1** |
+| first_light 20² | 2.0 | static | 1016 | surface | 0.19 | 0.29 | **53.19** | 2.34 | 0.00 | 0.00 | 0.31 | 53.98 | 18.5 |
+| first_light 20² | 2.0 | static | 1016 | **gpu** | 0.06 | 0.29 | **10.96** | 2.09 | 0.00 | 0.12 | 14.95 | **26.38** | **37.9** |
+| first_light 20² | 2.0 | panning | 1016 | surface | 1.39 | 0.26 | **68.87** | 0.82 | 0.00 | 0.00 | 0.32 | 70.84 | 14.1 |
+| first_light 20² | 2.0 | panning | 1016 | **gpu** | 1.73 | 0.27 | **11.10** | 2.13 | 0.00 | 0.12 | 17.64 | **30.86** | **32.4** |
+| holex 1024² | 1.0 | panning | 1016 | surface | 2.18 | 0.24 | 9.16 | 0.53 | 0.00 | 0.00 | 0.30 | **11.88** | **84.2** |
+| holex 1024² | 1.0 | panning | 1016 | gpu | 2.40 | 0.25 | 10.31 | 1.41 | 0.00 | 0.11 | 0.41 | **13.49** | 74.1 |
+| holex 1024² | 2.0 | panning | 1016 | surface | 1.37 | 0.23 | 9.29 | 0.86 | 0.00 | 0.00 | 0.29 | **11.19** | **89.4** |
+| holex 1024² | 2.0 | panning | 1016 | gpu | 1.88 | 0.25 | 10.70 | 1.54 | 0.00 | 0.11 | 0.41 | **13.35** | 74.9 |
+| first_light 20² | 1.0 | static | 160 | surface | 0.16 | 0.12 | 10.43 | 0.79 | 0.00 | 0.00 | 0.29 | 11.00 | 90.9 |
+| first_light 20² | 1.0 | static | 160 | gpu | 0.04 | 0.10 | 2.44 | 1.16 | 0.00 | 0.11 | 0.74 | 3.43 | 291.3 |
+| first_light 20² | 1.0 | panning | 160 | surface | 0.59 | 0.11 | 10.67 | 0.32 | 0.00 | 0.00 | 0.29 | 11.65 | 85.8 |
+| first_light 20² | 1.0 | panning | 160 | gpu | 0.72 | 0.11 | 2.57 | 1.27 | 0.00 | 0.11 | 0.70 | 4.22 | 237.2 |
+| first_light 20² | 2.0 | static | 160 | surface | 0.15 | 0.11 | 7.56 | 0.73 | 0.00 | 0.00 | 0.28 | 8.11 | 123.4 |
+| first_light 20² | 2.0 | static | 160 | gpu | 0.04 | 0.11 | 2.93 | 1.60 | 0.00 | 0.11 | 2.17 | 5.36 | 186.6 |
+| first_light 20² | 2.0 | panning | 160 | surface | 1.19 | 0.11 | 10.57 | 1.05 | 0.00 | 0.00 | 0.30 | 12.17 | 82.2 |
+| first_light 20² | 2.0 | panning | 160 | gpu | 1.58 | 0.11 | 3.05 | 1.70 | 0.00 | 0.11 | 2.80 | 7.66 | 130.6 |
+| holex 1024² | 1.0 | panning | 160 | surface | 2.14 | 0.10 | 1.97 | 0.64 | 0.00 | 0.00 | 0.29 | **4.51** | **221.7** |
+| holex 1024² | 1.0 | panning | 160 | gpu | 2.25 | 0.11 | 2.44 | 1.09 | 0.00 | 0.11 | 0.38 | **5.28** | 189.3 |
+| holex 1024² | 2.0 | panning | 160 | surface | 1.46 | 0.11 | 2.16 | 0.90 | 0.00 | 0.00 | 0.30 | **4.03** | **248.0** |
+| holex 1024² | 2.0 | panning | 160 | gpu | 1.81 | 0.11 | 2.95 | 1.65 | 0.00 | 0.11 | 0.39 | **5.37** | 186.2 |
+
+**Verdict — the boss-load win is real, and it is not the whole story.** At the
+era-4 boss load on `first_light` the `world` bucket drops **61–69 ms → 9.5–11.5
+ms (5–7×)**, moving the frame from 54–71 ms to 12–31 ms. That is the number G4
+existed to move and it moved. But three findings cut against a clean win:
+
+1. **The GPU path is SLOWER on every `holex` row** — 11.88→13.49, 11.19→13.35,
+   4.51→5.28, 4.03→5.37 ms. On a map where few sprites land on screen the CPU
+   blitter is already cheap and the GPU path pays fixed per-frame costs. The
+   ground bucket is also consistently *worse* on GPU when panning (0.68→0.86,
+   1.39→1.73, 2.18→2.40) — G3's cache is not free on this driver.
+2. **`present` is load-dependent and not free**: 0.41 ms on holex but **14.95 /
+   17.64 ms** on first_light at zoom 2.0. The software renderer defers sprite
+   composition to `present()`, so on THIS driver the honest GPU cost is
+   `world + present`. This is the single number most likely to collapse on real
+   hardware, and it is why no verdict here is final.
+3. **The overlay pass is the predicted regression, and it is worse than
+   predicted** (below).
+
+**Overlay Δ — measured in isolation** (first_light 20², 160 sprites, zoom 1.0,
+static, 300 frames; the `ovlΔ` column in the sweep above is inside run-to-run
+variance at the 60–70 ms boss load — trust these, not that column):
+
+| overlays | surface Δ ms/frame | gpu Δ ms/frame | ratio |
+|---|---|---|---|
+| 40 diamonds | 0.72 | **4.31** | **6.0× worse on gpu** |
+| 200 diamonds | 9.30 | **17.50** | **1.9× worse on gpu** |
+
+Each diamond is one `OverlayPolys` + one `OverlayLines`, so 40 diamonds = 80
+uncached bounding-box SRCALPHA scratch surfaces created, rasterized and
+uploaded **per frame** (`backend_gpu.py:110-156`). Since PR #122 routes every
+tile highlight and wall segment through `WorldFill` → that path, this is a
+live-gameplay cost, not synthetic. §9's prediction was correct.
+
+**The pathological far-off-screen polyline** — ONE `submit_overlay_lines` with
+its second point 50 tiles off-screen. Screen bbox **1603 × 803 px = 4.9 MB
+SRCALPHA**, allocated + rasterized + uploaded fresh every frame on the GPU
+path. Δ per frame: **surface 6.47 ms, gpu 10.66 ms**. Both are bad — the
+Surface backend rasterizes the whole clipped line too — with the GPU path 1.65×
+worse plus 4.9 MB of churn. **Not fine.** A real hazard if any gameplay code
+ever submits a world-space line with an off-screen endpoint.
+
+**The HUD's cost is STILL NOT MEASURED.** `hud` reads 0.00 in every row because
+`tools/profile_render.py` is a render harness and submits no HUD items. G0's
+one *inferred* claim — that the HUD is not the dominant cost — is therefore
+**not retired**. The instrument that retires it exists and shipped
+(`renderer.last_flush_ms`, surfaced in the frame-timing line as `sim | submit |
+world | hud | composite | present`); it needs a live late round to read it.
+That is §4.3 Step 6 and it is owed.
+
+**Tests**: `test_render.py` gains the `hud_target` split pins (single flat list
+when `hud_target is None`; world/HUD separation by production site; no
+`slice`/`crop_rect` reaching the world backend) plus a `--backend`/`--overlays`
+CLI pin; `test_game_boot.py` gains GPU boot, forced fallback, and the
+HUD-freeze pin — which drives 5 frames and asserts `update()` was called 5
+times, not once, and is the only test that would catch the §1.3 snapshot bug.
+
+**Review of `9200acd`** found no severity-1 defects. The three ranked traps all
+PASS: the HUD-freeze pin is per-frame; the world/HUD split is structural
+(`renderer.py:240` aliases the same list when `hud_target is None`, no
+`isinstance` filter); and the coder's one unbriefed change — `blit_fullscreen`
+also clearing the HUD surface — is **correct and necessary**, since the Surface
+path's opaque full-window blit covers world *and* HUD, so without the clear the
+GPU composite would paint the previous frame's stale HUD back over every
+cutscene frame. The brief missed this case. Also corrected: the brief claimed
+nothing reads `event.rel`; `game/main.py:1499` does
+(`cs.pan(-event.rel[0], -event.rel[1])`), and `map_event` maps it by
+differencing two `coordinates_from_window` points — exact under an affine
+remap.
+
+**Still open, all display-only**: whether `target_texture=True` is actually
+needed on a real driver; streaming vs static texture on hardware (the software
+renderer does not settle it); the HUD-pass number; and all five of §4.3's live
+checks — G2's pixel-art crispness, G3's large-map pan, the HUD-alive check,
+fullscreen input mapping, and the boss-load frame-timing read. **G4 is the
+phase that was supposed to stop saying "the live look was NOT run", and it has
+not run it yet.**
 
 ---
 
