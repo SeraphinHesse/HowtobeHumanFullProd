@@ -338,6 +338,42 @@ class TestClassification(unittest.TestCase):
                 self.assertEqual(self.guard.classify(command), expected)
 
 
+class TestLedgerIsOneOwner(GuardCase):
+    """`tools/testguard_ledger.py` owns the key; the hook has no second copy.
+
+    Two copies of the key logic drift and the failure is SILENT — records land
+    under a key nothing looks up and the repeat guard just stops denying
+    (TestRunner plan, D3). So assert the hook and a direct call agree, and that
+    a record written by the module is one the hook reads back.
+    """
+
+    def test_the_hook_and_a_direct_run_key_call_agree(self):
+        from tools.testguard_ledger import run_key
+
+        self.start("S-MAIN", subagent=False)
+        self.assertEqual(self.pre(TARGETED)[0], 0)
+        self.post(TARGETED, "49 passed")
+
+        # Nothing was written to the tree between those two calls, so the
+        # fingerprint — and therefore the key — cannot have moved.
+        record = self.state / f"run-{run_key(TARGETED)}.json"
+        self.assertTrue(record.exists(),
+                        "the hook filed its record under a different key")
+        self.assertIn("49 passed",
+                      json.loads(record.read_text(encoding="utf-8"))["outcome"])
+
+    def test_record_run_writes_what_the_repeat_guard_reads(self):
+        """The round-trip TR-6's editor relies on — no real test run involved."""
+        from tools.testguard_ledger import record_run
+
+        self.start("S-MAIN", subagent=False)
+        record_run(self.state, TARGETED, "GATE PASS (0 failures)")
+
+        code, message = self.pre(TARGETED)
+        self.assertEqual(code, 2)
+        self.assertIn("GATE PASS (0 failures)", message)
+
+
 class TestThePolicyIsStatedOnce(unittest.TestCase):
     """The prose half: no doc may contradict the role table.
 
