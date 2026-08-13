@@ -117,6 +117,27 @@ class TestRoleGuard(GuardCase):
         must not be treated as a subagent — see `_role`'s docstring."""
         self.assertEqual(self.pre(FULL, "S-NEVER-STARTED")[0], 0)
 
+    def test_a_subagent_sharing_the_parents_session_id_cannot_demote_it(self):
+        """The collision `_role` promises is safe, made actually safe.
+
+        When the runtime hands a subagent the SAME session id as its parent,
+        both events write one marker file. `SubagentStart` fires last, so
+        last-write-wins used to demote the main session to `sub` and then deny
+        it the single full run at handoff — which is exactly what happened
+        during the TR-1..TR-6 orchestration.
+        """
+        self.start("S-SHARED", subagent=False)
+        self.start("S-SHARED", subagent=True)
+        self.assertEqual(self.pre(FULL, "S-SHARED")[0], 0)
+
+    def test_a_new_session_still_resets_a_stale_sub_marker(self):
+        """The other direction stays last-write-wins, deliberately: a genuinely
+        new session on a recycled id must come back as `main`."""
+        self.start("S-RECYCLED", subagent=True)
+        self.assertEqual(self.pre(FULL, "S-RECYCLED")[0], 2)
+        self.start("S-RECYCLED", subagent=False)
+        self.assertEqual(self.pre(FULL, "S-RECYCLED")[0], 0)
+
 
 class TestRepeatGuard(GuardCase):
     """The loop-killer: same target + unchanged tree = denied."""

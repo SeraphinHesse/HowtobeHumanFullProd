@@ -138,14 +138,35 @@ def _session_id(payload: dict) -> str:
 
 
 def mark_role(payload: dict) -> int:
-    """Record this session's role at SessionStart / SubagentStart."""
+    """Record this session's role at SessionStart / SubagentStart.
+
+    **A `sub` mark never overwrites an existing `main` mark.** If the runtime
+    hands a subagent the SAME session id as its parent, both events land on one
+    marker file and last-write-wins decides the parent's role. `SubagentStart`
+    fires later than the parent's `SessionStart`, so without this guard the
+    parent is silently demoted to `sub` and guard 1 then denies the MAIN
+    session the single full run the whole policy is built around — the exact
+    outcome `_role`'s fail-open design exists to prevent. `_role` assumed a
+    collision would leave `main` on disk; it does not, unless we make it.
+
+    The other direction stays last-write-wins on purpose: a genuinely new
+    `SessionStart` on a recycled id SHOULD reset a stale `sub` to `main`, which
+    is also the fail-open direction.
+    """
     sid = _session_id(payload)
     if not sid:
         return 0
     event = payload.get("hook_event_name") or payload.get("hookEventName") or ""
     role = "sub" if event == "SubagentStart" else "main"
     _state().mkdir(parents=True, exist_ok=True)
-    (_state() / f"role-{_safe(sid)}").write_text(role, encoding="utf-8")
+    marker = _state() / f"role-{_safe(sid)}"
+    if role == "sub":
+        try:
+            if marker.read_text(encoding="utf-8").strip() == "main":
+                return 0
+        except OSError:
+            pass
+    marker.write_text(role, encoding="utf-8")
     return 0
 
 
@@ -158,9 +179,15 @@ def _role(payload: dict) -> str:
 
     **This FAILS OPEN, on purpose.** A subagent is only ever identified by a
     marker written at `SubagentStart` for THIS session id. If the id is absent,
-    or the runtime turns out to give a subagent the same session id as its
-    parent (in which case the parent's `main` marker is what is on disk), the
-    answer is `main`/`unknown` and the role guard simply does not fire.
+    the answer is `unknown` and the role guard simply does not fire.
+
+    If the runtime gives a subagent the same session id as its parent, the
+    parent's `main` marker is what stays on disk — but only because
+    `mark_role` explicitly refuses to overwrite `main` with `sub`. That refusal
+    is load-bearing, not incidental: this docstring used to claim the collision
+    resolved to `main` on its own, and it did not. `SubagentStart` fires last,
+    so the parent was demoted to `sub` and then denied the single full run at
+    handoff. See `mark_role`.
 
     That is the right way round: guards 2 and 3 already stop the reported
     behaviour without knowing who is asking, so a role guard that occasionally
