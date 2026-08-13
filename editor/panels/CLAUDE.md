@@ -1683,6 +1683,38 @@ calls):
   dropEvent` directly — the standard Qt-test workaround, exercising the
   actual drop-handling code path rather than only the method it delegates to.
 
+## Master-sheet dialog (`panels/master_sheet_dialog.py`, `master_sheet_import.py`; GpuAndMasterSheetsPLAN M3)
+- **What a master sheet is**: ONE committed PNG under `data/sprites/master/`
+  holding many characters' rows stacked in one grid, registered in
+  `data/sprites/master_sheets.json`. It is NOT a `slots.json` slot — never
+  previewed, animated or rendered on its own. A manifest entry links to one by
+  pointing its `sheet` at `master/<id>.png` plus a `row_start` window.
+- **The REGISTRY owns the grid (D3)**, so `MasterSheet.grid()` takes no frame
+  size and there is no `fits()` filter: a linking slot inherits `frame_w`/
+  `frame_h` and may not override them. This is the one real divergence from
+  `asset_import.ImportedSheet`.
+- **Two branches, one dialog**: "Import new master spritesheet…" (file chooser +
+  display name + frame size, all collected BEFORE any write; the spin ranges are
+  READ FROM `master_sheets.schema.json` via `master_sheet_import.frame_bounds`,
+  never retyped — ED-30) and "Use existing…" (the whole registry, filtered, with
+  a read-only `SheetPreview` at each sheet's own declared frame size).
+  `chosen()` is the selected sheet ID, not the dataclass.
+- **Construction is split from display** — the `sheet_picker.py` rule.
+  `__init__` builds and fills; `visible_sheets()`/`chosen()`/`select_sheet()`/
+  `set_import_source()`/`perform_import()` are the model, so no test `exec()`s a
+  modal and `QFileDialog` is confined to `_on_browse_clicked`.
+- **The dialog never writes** — `editor/master_sheet_import.py` owns the one
+  `write_validated` path for this file (ED-31), and its `sheet_users` refcount is
+  `asset_import`'s, not a second one.
+- **Nothing constructs this dialog yet**: DetailsPanel wires it in M4 and
+  VfxPreviewPanel in M5 (D5). The tests are its only caller in M3, by design.
+- **Import is uniquify-never-overwrite**: a colliding display name yields
+  `<slug>_2`, because overwriting `master/characters.png` would silently
+  re-point every slot already cutting it. Re-importing the SAME bytes reuses the
+  id, leaves the PNG untouched and rewrites the entry (so a wrong grid is
+  correctable). Whether M4 must refuse that once a sheet HAS users is M4's
+  question.
+
 ## Verify
 Launch `py editor/main.py` and exercise the changed panel; for data-writing
 features, confirm the JSON on disk validates and a Play subprocess loads it. State
