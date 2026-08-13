@@ -1,4 +1,4 @@
-<!-- status: IN PROGRESS — G0-G4 and M1 done; G5, G6 and M2-M5 remain -->
+<!-- status: IN PROGRESS — G0-G4 and M1-M5 code done (M4/M5 live passes pending); G5 and G6 remain -->
 
 # GpuAndMasterSheetsPLAN.md — GPU render backend, then master spritesheets
 
@@ -212,7 +212,7 @@ store cache contract, E-37 tolerance split), `editor/panels/CLAUDE.md`
 | M2 | Engine: `row_start` slicing + sheet-path-keyed store | engine | M1, G2 | **DONE** — `48de489` + review fixes `81a2aa2`, merged `12ba043`. `row_start` applied in `AssetStore._frame_surface` only; store re-keyed on `entry.sheet`, so one PNG = one decode |
 | M3 | Editor: pure master-sheet import module + picker dialog | editor | M1 | **DONE** — `c8707a4` + review fix `fc7cd62`, merged `ff81203`. `editor/master_sheet_import.py` + `panels/master_sheet_dialog.py`. Left three carry-forwards, all ruled on in M4's brief §2 |
 | M4 | DetailsPanel: button, row window, narrowed preview + rows | editor | M2, M3 | **CODE DONE, LIVE PASS PENDING** — `0c33004` + review fix `056b362` on `phase-M4-details-master-sheet`; brief `docs/briefs/phase-M4-details-panel-master-sheet.md`. `GATE PASS 2467` (2456 at the `367ff9c` base, so +11). Ruled on all three of M3's carry-forwards (brief §2). **The plan's live-editor gate (line 1143) has NOT been run** — it is a human step and M4 is not closed until it passes |
-| M5 | VFX preview panel button | editor | M4 | not started |
+| M5 | VFX preview panel button | editor | M4 | **CODE DONE, LIVE PASS PENDING** — `phase-M5-vfx-master-sheet`. "Use Master Spritesheet…" beside Import on the fixed `vfx_*` slots, **ONE row spin** (a vfx entry is a single `idle` row, so a second spin has no representable state — §6/M5's open call), grid inherited from the registry with `slots.json` untouched, `row_start` omitted at 0, write-through + `reload_assets` because this panel has no Save. No `/add-vfx` work was in flight on the file. **The live-editor gate is a human step and M5 is not closed until it passes** — run it together with M4's still-outstanding live pass |
 
 ### 5.1 This plan is a CHAIN, not a fan-out — read before dispatching
 

@@ -1706,9 +1706,12 @@ calls):
 - **The dialog never writes** — `editor/master_sheet_import.py` owns the one
   `write_validated` path for this file (ED-31), and its `sheet_users` refcount is
   `asset_import`'s, not a second one.
-- **`DetailsPanel` constructs it since M4** (`_on_master_clicked`);
-  VfxPreviewPanel follows in M5 (D5). Construction split from display still
-  holds — tests drive `DetailsPanel.use_master_sheet` directly.
+- **`DetailsPanel` constructs it since M4 and `VfxPreviewPanel` since M5**
+  (both `_on_master_clicked`, D5). Construction split from display still holds
+  — tests drive `DetailsPanel.use_master_sheet` /
+  `VfxPreviewPanel.use_master_sheet` directly. The vfx panel's variant is
+  single-row (one spin, no Save button); its rules live in the VFX-preview
+  section of `editor/CLAUDE.md`.
 - **Import is uniquify-never-overwrite**: a colliding display name yields
   `<slug>_2`, because overwriting `master/characters.png` would silently
   re-point every slot already cutting it. Re-importing the SAME bytes reuses the
