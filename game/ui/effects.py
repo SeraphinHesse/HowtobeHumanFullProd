@@ -588,6 +588,25 @@ class FloaterManager:
                 self.log.post(text)
         state.painter_events.clear()
 
+    def spawn_building_respawn_events(self, state):
+        """Drain ``state.building_respawn_events`` (filled by the payday
+        revive slot, VA-4) — one effect per building that came BACK from
+        dead, at its tile. Called on the INCOME edge beside the income /
+        painter / boost floaters.
+
+        The ledger carries the building's tier, so this is the one event
+        whose ``level`` variant mode works without an object in hand (D4's
+        variant-0 fallback covers the rest). The shipped row plays the
+        ``spark_respawn`` preset — the same burst mechanism
+        ``place``/``level``/``tier`` use — until a designer imports art into
+        ``vfx_respawn``.
+        """
+        for col, row, tier in state.building_respawn_events:
+            self._play("building_respawn", col + 0.5, row + 0.5, level=tier,
+                       preset=self._spark_presets.get(
+                           "respawn", self._spark_presets["place"]))
+        state.building_respawn_events.clear()
+
     def spawn_boost_events(self, state):
         """Drain ``state.boost_events`` (filled by the payday boost slot) into white
         per-turn boost floaters over each buffed defender — prototype white text.
@@ -602,9 +621,10 @@ class FloaterManager:
 
     # -- ESV-5: the trigger-table dispatch seam ------------------------------
 
-    _SPARK_KINDS = ("spark_place", "spark_level", "spark_tier")
+    _SPARK_KINDS = ("spark_place", "spark_level", "spark_tier",
+                    "spark_respawn")
 
-    def _play(self, event, wx, wy, source=None, **kw):
+    def _play(self, event, wx, wy, source=None, level=None, **kw):
         """Consult the trigger table: a bound sprite slot with art spawns a
         PlayOnceVfx; otherwise the named procedural kind runs; an empty row
         (or an event absent from the table) is a silent no-op (E-37). ``**kw``
@@ -631,7 +651,8 @@ class FloaterManager:
             # keeps.
             slot = vfx_variants.resolve(
                 getattr(self.assets, "registry", None), row.sprite_slot,
-                row.variant_mode, row.misc_key, rng=self._rng, source=source)
+                row.variant_mode, row.misc_key, rng=self._rng, source=source,
+                level=level)
             vfx = spawn_play_once(self.scene, self.assets, slot, wx, wy)
             if vfx is not None:
                 return

@@ -196,6 +196,18 @@ validating writer; don't hand-edit the JSON.
   `misc_key: ""` and `draw_in_front: true`, which reproduces today's
   behaviour exactly: nothing has variants yet, and true is the always-on-top
   ordering every procedural effect already had.
+  **VA-4** added the ELEVENTH trigger row, `building_respawn` (the payday
+  revive slot's cosmetic event), a `vfx_respawn` slot, and — instead of the
+  new `procedural.respawn` block the plan first called for — a fourth
+  `procedural.spark.presets` entry, `respawn`, plus the matching
+  `spark_respawn` value in the `procedural` enum. That is the same
+  three-names-one-emitter shape `spark_place`/`spark_level`/`spark_tier`
+  already use, and `_params_from_balance` builds the preset dict generically
+  from `spark["presets"].items()`, so a fourth preset costs a schema entry and
+  ZERO code — where a new block would have cost a dataclass, a `VfxParams`
+  field (breaking every direct construction), an editor mirror and a preview
+  path. Unlike `defender_fire`/`projectile_hit` this row ships DOING
+  something: an inert respawn row would be a feature that is not there.
   Since **Phase 9A** the other
   five hold the prototype's live tuning verbatim, restructured into the
   REPLAN nested feature tree (see planning/MIGRATION_PLAN.md): PascalCase

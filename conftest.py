@@ -177,6 +177,7 @@ TIERS = {
     # in tools/test_domains.py, where this same module is filed under
     # "engine").
     "test_depth_rank": "core",
+    "test_building_respawn": "core",  # VA-4: the building_respawn event
     "test_video_playback": "core",
     "test_video_source": "core",
     "test_migration_timeline": "core",  # TimelinePLAN T6: unlock_min_round -> Timeline migration

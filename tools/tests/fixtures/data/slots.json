@@ -1111,6 +1111,12 @@
               "slots": [
                 "vfx_digger_direction"
               ]
+            },
+            {
+              "label": "Respawn",
+              "slots": [
+                "vfx_respawn"
+              ]
             }
           ],
           "label": "Effects"

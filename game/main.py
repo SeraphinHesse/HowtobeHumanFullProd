@@ -1713,6 +1713,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                     gp["floaters"].spawn_income_events(session.state)
                     gp["floaters"].spawn_painter_events(session.state)
                     gp["floaters"].spawn_boost_events(session.state)
+                    # VA-4: same edge, same drained-by-UI contract — payday's
+                    # revive slot filled it a few steps earlier in the very
+                    # transition this branch is reacting to.
+                    gp["floaters"].spawn_building_respawn_events(session.state)
                 # -- 10J: the previous round's blood clears when the next wave
                 # starts (prototype clear_splatters on End Turn, game.py:815) --
                 if (session.state.phase == GamePhase.ENEMY

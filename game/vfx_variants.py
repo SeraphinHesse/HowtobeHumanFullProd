@@ -67,8 +67,16 @@ def variant_index(mode, *, rng=None, level=None, misc_key="", count=1):
     return 0
 
 
-def resolve(registry, slot_key, mode, misc_key="", *, rng=None, source=None):
+def resolve(registry, slot_key, mode, misc_key="", *, rng=None, source=None,
+            level=None):
     """The slot key to actually play for ``slot_key`` under ``mode``.
+
+    ``level`` is an already-resolved level, for a call site that knows one
+    without holding the object — VA-4's respawn ledger carries the reviving
+    building's tier, since payday held the building even though the drain
+    does not. It WINS over ``source`` when both are given; neither is the
+    common case (five of the ten events have neither, and resolve to variant
+    0 under LEVEL mode by D4).
 
     **A slot with fewer than two variants short-circuits before any mode
     logic runs**, and that is load-bearing, not an optimisation: every vfx
@@ -85,6 +93,8 @@ def resolve(registry, slot_key, mode, misc_key="", *, rng=None, source=None):
     variants = _variants.variant_slots(registry, slot_key)
     if len(variants) < 2:
         return variants[0] if variants else slot_key
-    index = variant_index(mode, rng=rng, level=source_level(source),
-                          misc_key=misc_key, count=len(variants))
+    if level is None:
+        level = source_level(source)
+    index = variant_index(mode, rng=rng, level=level, misc_key=misc_key,
+                          count=len(variants))
     return _variants.slot_at(variants, index)

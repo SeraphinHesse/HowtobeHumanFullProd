@@ -48,7 +48,11 @@ _LIVE_EVENTS = (
 )
 # ESV-6 adds the 10th event, projectile_hit (also shipped inert, like
 # defender_fire) — see docs/briefs/phase-esv-6-converge.md §1.3.
-_ALL_EVENTS = _LIVE_EVENTS + ("defender_fire", "projectile_hit")
+# VfxAuthoringPLAN VA-4 adds the 11th, building_respawn — the payday revive
+# slot's cosmetic event. Unlike the two above it does NOT ship inert: it plays
+# the `spark_respawn` preset until a designer imports art into vfx_respawn.
+_ALL_EVENTS = _LIVE_EVENTS + ("defender_fire", "projectile_hit",
+                              "building_respawn")
 
 
 class _FakeAssets:

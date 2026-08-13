@@ -421,6 +421,7 @@
             "vfx_hit",
             "vfx_muzzle",
             "vfx_projectile",
+            "vfx_respawn",
             "vfx_shell",
             "vfx_slash",
             "wall_builder",

@@ -1,4 +1,4 @@
-<!-- status: IN PROGRESS — 3/8 phases (VA-1–VA-3 done), authored 2026-08-13 -->
+<!-- status: IN PROGRESS — 4/8 phases (VA-1–VA-4 done), authored 2026-08-13 -->
 <!-- plan-scale: medium -->
 
 # VfxAuthoringPLAN.md — Authoring the VFX roster
@@ -143,6 +143,19 @@ ui/palette.json
   would let a designer author a row nothing ever fires — inert data that looks
   live. `/add-vfx`'s `triggers_by_type` proposal is explicitly NOT adopted here.
 
+- **D11 — `building_respawn` is a fourth `spark` PRESET, not a new
+  `procedural.respawn` block** (corrected during VA-4, on reading the data).
+  `spark_place`/`spark_level`/`spark_tier` already prove the shape for
+  "another one-shot burst at a tile, independently tunable": three names, ONE
+  emitter, one shared velocity/ramp/size block, differing only by a `presets`
+  entry — and `_params_from_balance` builds that dict generically from
+  `spark["presets"].items()`. So a fourth preset costs a schema entry and zero
+  code, where a new block costs a dataclass, a required `VfxParams` field
+  (breaking every direct construction), an `editor/vfx_params.py` mirror and a
+  preview path. It also shrinks VA-8 by one family: respawn previews for free
+  as a spark preset. The row ships DOING something rather than inert —
+  a respawn effect that plays nothing is the feature not being there.
+
 - **D10 — Every trigger row ships `draw_in_front: true`.** That reproduces
   today's always-on-top behaviour exactly, so VA-3 is a visual no-op and nothing
   moves until a designer unticks a box. Same doctrine as ESV-1/ESV-3 landing
@@ -167,7 +180,7 @@ executing agent reads both docs.
 | VA-1 | vfx slot restructure + generated schema enums | data + tools | — | **done** |
 | VA-2 | `variant_select`/`draw_in_front` schema; resolver; `vfx_misc` | data + game | VA-1 | **done** |
 | VA-3 | `depth_key` rank; `WorldRect`; `submit_world` | engine | — | **done** (also `WorldLines` — a slash is lines, so the world submit needed both) |
-| VA-4 | `building_respawn` trigger | game + data | VA-2 | todo |
+| VA-4 | `building_respawn` trigger | game + data | VA-2 | **done** (a 4th `spark` PRESET, not a new `procedural.respawn` block — see D11) |
 | VA-5 | seven highlights → trigger-driven; palette move | game + data | VA-2, VA-3 | todo |
 | VA-6 | `registry_ops` add/remove/rename; vfx variants | editor | VA-1 | todo |
 | VA-7 | VFX panel roster/binding/variant/layer UI | editor | VA-6, VA-2 | todo |

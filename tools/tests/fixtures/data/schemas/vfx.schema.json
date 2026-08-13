@@ -75,7 +75,8 @@
             "slash",
             "muzzle",
             "splatter",
-            "crater"
+            "crater",
+            "spark_respawn"
           ],
           "type": "string"
         },
@@ -94,6 +95,7 @@
             "vfx_hit",
             "vfx_muzzle",
             "vfx_projectile",
+            "vfx_respawn",
             "vfx_shell",
             "vfx_slash"
           ],
@@ -782,6 +784,9 @@
                 "place": {
                   "$ref": "#/$defs/spark_preset"
                 },
+                "respawn": {
+                  "$ref": "#/$defs/spark_preset"
+                },
                 "tier": {
                   "$ref": "#/$defs/spark_preset"
                 }
@@ -790,6 +795,7 @@
                 "level1",
                 "level2",
                 "place",
+                "respawn",
                 "tier"
               ],
               "type": "object"
@@ -901,7 +907,7 @@
     },
     "triggers": {
       "additionalProperties": false,
-      "description": "ESV-5: per-event sprite-slot / procedural-fallback binding, a sibling of procedural. Every key names a cosmetic EVENT (never a JSON-key vocabulary the engine sees); game/ui/effects.py's _triggers_from_balance is the ONE place these key names are read.",
+      "description": "ESV-5: per-event sprite-slot / procedural-fallback binding, a sibling of procedural. Every key names a cosmetic EVENT (never a JSON-key vocabulary the engine sees); game/ui/effects.py's _triggers_from_balance is the ONE place these key names are read. VfxAuthoringPLAN VA-4: a non-base building revived by the payday building_revive slot (game/core/payday.py step 9). Fires once per building that was actually DEAD and came back - not for the full-heal every living building also gets in that slot - at its tile, drained on the INCOME phase edge beside the income/painter/boost floaters.",
       "properties": {
         "building_destroyed": {
           "$ref": "#/$defs/trigger_row"
@@ -910,6 +916,9 @@
           "$ref": "#/$defs/trigger_row"
         },
         "building_placed": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "building_respawn": {
           "$ref": "#/$defs/trigger_row"
         },
         "building_tier_up": {
@@ -938,6 +947,7 @@
         "building_destroyed",
         "building_level_up",
         "building_placed",
+        "building_respawn",
         "building_tier_up",
         "defender_fire",
         "enemy_attack_melee",

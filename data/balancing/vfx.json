@@ -252,6 +252,10 @@
           "count": 10,
           "life": 0.75
         },
+        "respawn": {
+          "count": 10,
+          "life": 0.75
+        },
         "tier": {
           "count": 26,
           "life": 1.2
@@ -314,6 +318,15 @@
     "building_placed": {
       "draw_in_front": true,
       "procedural": "spark_place",
+      "sprite_slot": "",
+      "variant_select": {
+        "misc_key": "",
+        "mode": "random"
+      }
+    },
+    "building_respawn": {
+      "draw_in_front": true,
+      "procedural": "spark_respawn",
       "sprite_slot": "",
       "variant_select": {
         "misc_key": "",

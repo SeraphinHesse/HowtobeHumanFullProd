@@ -138,6 +138,7 @@ DOMAINS = {
         "test_vfx.py",
         "test_vfx_play_once.py",
         "test_vfx_variants.py",
+        "test_building_respawn.py",
     ),
     "engine": (
         "test_alpha_render.py",
