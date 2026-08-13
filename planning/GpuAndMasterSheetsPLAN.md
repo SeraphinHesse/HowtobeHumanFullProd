@@ -205,7 +205,7 @@ store cache contract, E-37 tolerance split), `editor/panels/CLAUDE.md`
 | G1 | Backend seam + headless-renderer feasibility probe | engine | G0 verdict | **DONE** — `backend_api.py` seam; probe says the dummy driver CAN host a Renderer (§4), so G2's parity test runs in CI |
 | G2 | `backend_gpu.py` — world sprites, overlays, texture cache | engine | G1 | **DONE** — parity within a pinned tolerance of 1 (§6/G2 RESULTS); nothing selects it yet, G4 wires the host |
 | G3 | Ground cache on the GPU path | engine | G2 | **DONE** — `ground_cache_gpu.py` on render-target textures, pins parameterised over both implementations (§6/G3 RESULTS); still nothing selects it, G4 wires the host |
-| G4 | Host wiring, HUD composite, fallback, re-measure | engine + game | G3 | **CODE DONE, LIVE GATE OWED** — `--backend={gpu,surface,auto}` wires the host, HUD composites as one streaming upload/frame, D8 fallback tested; re-measured on the SOFTWARE renderer only (§6/G4 RESULTS): boss-load `world` 61–69 ms → 9.5–11.5 ms, but GPU **slower on every holex row** and the overlay pass **6× worse**. §4.3's five live checks are NOT run |
+| G4 | Host wiring, HUD composite, fallback, re-measure | engine + game | G3 | **DONE** — `--backend={gpu,surface,auto}` wires the host, HUD composites as one streaming upload/frame, D8 fallback tested; `GATE PASS 2334`. **All five §4.3 live checks passed at a display**, closing G2's pixel-art look and G3's large-map pan. Re-measure (SOFTWARE renderer, §6/G4 RESULTS): boss-load `world` 61–69 ms → 9.5–11.5 ms, but GPU **slower on every holex row** and the overlay pass **6× worse** — that regression is a live Part-A decision |
 | M1 | Data layer: master-sheet registry + schema + `row_start` | data | — | **DONE** — schema + seeded registry + `data/sprites/master/`; existing manifest byte-identical |
 | M2 | Engine: `row_start` slicing + sheet-path-keyed store | engine | M1, G2 | not started |
 | M3 | Editor: pure master-sheet import module + picker dialog | editor | M1 | not started |
@@ -813,13 +813,32 @@ nothing reads `event.rel`; `game/main.py:1499` does
 differencing two `coordinates_from_window` points — exact under an affine
 remap.
 
-**Still open, all display-only**: whether `target_texture=True` is actually
-needed on a real driver; streaming vs static texture on hardware (the software
-renderer does not settle it); the HUD-pass number; and all five of §4.3's live
-checks — G2's pixel-art crispness, G3's large-map pan, the HUD-alive check,
-fullscreen input mapping, and the boss-load frame-timing read. **G4 is the
-phase that was supposed to stop saying "the live look was NOT run", and it has
-not run it yet.**
+**THE LIVE CHECKS RAN, AND THEY PASSED** (user-run at a display, 2026-08-13).
+G4 is the phase that stops saying "the live look was NOT run". All of §4.3
+passed: the GPU path boots and announces itself; pixel-art edges are equally
+hard on both backends at full zoom (**G2's outstanding check, closed**); the
+1024² `holex` pan shows no seam, no leading-edge flash, no grid jitter and no
+drift on stop (**G3's outstanding check, closed**); the HUD updates every frame
+and the building panel changes per tile (**the §1.3 snapshot trap did not
+fire**); and fullscreen clicks land on the tile clicked (**§2.6's remap is
+correct on real hardware**).
+
+**One §4.3 finding worth recording, because it cost the user ten minutes and it
+is not a bug.** The game boots into the intro cutscene (`game/main.py:665`),
+and `:1349` swallows every input while it plays — skipping is a **two-second
+hold**, not a click. On first launch this presents as "the main menu buttons do
+nothing". Pre-existing behaviour on both backends, unrelated to G4, but the
+first thing a live tester hits.
+
+**Still open, and narrower than before**: the frame-timing numbers from §4.3
+Step 6 were not captured, so `hud`/`composite` on real hardware are still
+unknown and **G0's inferred claim that the HUD is not the dominant cost is
+formally unretired** — the instrument ships and reading it is now a one-minute
+job. Also unanswered: whether `target_texture=True` is strictly needed on this
+driver (it was passed, and the path works), and streaming vs static texture on
+hardware. **The overlay-pass regression measured above stands and needs a plan
+decision** — an overlay clip in `backend_gpu.py` is the obvious fix and is
+deliberately out of G4's scope.
 
 ---
 
