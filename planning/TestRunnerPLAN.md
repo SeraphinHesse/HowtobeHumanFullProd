@@ -1,4 +1,4 @@
-<!-- status: NOT STARTED — TR-1–TR-6 -->
+<!-- status: DONE — TR-1–TR-6 all landed on phase-TR-1-TR-6-umbrella -->
 
 # TestRunnerPLAN.md — Run the tests from the editor
 
@@ -104,12 +104,16 @@ guard's ledger → *Copy prompt* / *Open folder* / *Re-run this area*.
 
 | Phase | What | Package | Depends on | Status |
 |---|---|---|---|---|
-| TR-1 | Domain map + exactly-one-domain coverage test | tools | — | not started |
-| TR-2 | Extract the ledger key into `tools/testguard_ledger.py` | tools | — | not started |
-| TR-3 | Qt-free run engine: command build, stream parse, per-domain progress | editor | TR-1 | not started |
-| TR-4 | Report writer + agent prompt | editor | TR-3 | not started |
-| TR-5 | Toolbar button + live panel + per-area re-run | editor | TR-3, TR-4 | not started |
-| TR-6 | Gate credit: record the editor's full run in the ledger | editor | TR-2, TR-5 | not started |
+| TR-1 | Domain map + exactly-one-domain coverage test | tools | — | **done** (`332f3a7`) |
+| TR-2 | Extract the ledger key into `tools/testguard_ledger.py` | tools | — | **done** (`84ddc1d`) |
+| TR-3 | Qt-free run engine: command build, stream parse, per-domain progress | editor | TR-1 | **done** (`a8d4655`) |
+| TR-4 | Report writer + agent prompt | editor | TR-3 | **done** (`9612b04`) |
+| TR-5 | Toolbar button + live **popup** + per-area re-run | editor | TR-3, TR-4 | **done** (`7c1562f`) |
+| TR-6 | Gate credit: record the editor's full run in the ledger | editor | TR-2, TR-5 | **done** (`b175373`) |
+
+All six landed on `phase-TR-1-TR-6-umbrella`. Orchestrator rulings that amended
+this plan during execution are recorded in `docs/briefs/phase-TR-RECONCILE.md`;
+the three that changed the design are summarised in §5 below.
 
 ---
 
@@ -300,3 +304,34 @@ run the gate — it should be handed your result instead of running.
 Test policy for every phase above is root `CLAUDE.md` §"Test Suite Policy" and
 nothing else. The single full `py tools/testgate.py check` happens ONCE, in the
 main session, at handoff — never inside a phase.
+
+---
+
+## 5. What changed during execution
+
+Three design decisions were taken by the user mid-run, plus two corrections.
+Full detail and rationale: `docs/briefs/phase-TR-RECONCILE.md`.
+
+- **`tools/testgate.py` is no longer "unchanged" (R2).** TR-3 measured that D2
+  was mechanically impossible as written: testgate runs pytest under
+  `subprocess.run(capture_output=True)` (`:119-120`) and with `-q` (`:110`), so
+  it emits nothing until the run ends and its live output carries no node-IDs —
+  "shell out to testgate" and "rows fill in live" could not both hold. testgate
+  gained a **strictly additive `--stream` mode**: with the flag it runs pytest
+  `-v`, line-buffered, echoing as it goes; without it, behaviour is byte-
+  identical to before. The verdict logic is shared, not forked, so the streamed
+  run still prints the same authoritative `GATE` line. This is also what makes
+  TR-6 honest — without it there would be no real gate line on an editor run.
+- **There are EIGHT domains, not seven (R1).** ~18 modules test the repo's own
+  scaffolding rather than the game, and D1 forbids a catch-all, so they get an
+  explicit `tooling` domain labelled **"Tooling & Agents"**, last in row order.
+- **The panel is a POPUP WINDOW, not a dock (R3)**, following
+  `editor/thats_my_producer.py`, and its button sits next to *thats my prod* on
+  the Agents toolbar — not next to *Summon a Drunken Robot* as §TR-5 said.
+- **`Failure.kind` has three values, not four (R9)** — `failed | subfailed |
+  unexpected_skip`. An `ERROR` test buckets as `failed`, mirroring testgate.
+- **TR-6 additionally captures the tree fingerprint at run START and FINISH and
+  records nothing if they differ (R5.1).** Not in the original plan; it follows
+  from "a wrong ledger record is worse than none". `GATE ABORT` is likewise not
+  credited — an abort means testgate refused to run, so crediting it would
+  suppress the real gate.
