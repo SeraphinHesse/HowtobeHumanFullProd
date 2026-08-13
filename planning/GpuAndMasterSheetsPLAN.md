@@ -209,9 +209,9 @@ store cache contract, E-37 tolerance split), `editor/panels/CLAUDE.md`
 | G5 | Overlay pass: clip the scratch to the target, reuse the buffer | engine | G4 | not started — **scheduled, not deferred**; brief in §6/G5. Fixes the 6× overlay regression G4 measured |
 | G6 | Retire G0's inferred HUD-cost claim (live frame timings) | — (measurement only) | G4 | not started — **`/execute-phase` with the user at a display**; no agent can run it (§6/G6) |
 | M1 | Data layer: master-sheet registry + schema + `row_start` | data | — | **DONE** — schema + seeded registry + `data/sprites/master/`; existing manifest byte-identical |
-| M2 | Engine: `row_start` slicing + sheet-path-keyed store | engine | M1, G2 | not started |
-| M3 | Editor: pure master-sheet import module + picker dialog | editor | M1 | not started |
-| M4 | DetailsPanel: button, row window, narrowed preview + rows | editor | M2, M3 | not started |
+| M2 | Engine: `row_start` slicing + sheet-path-keyed store | engine | M1, G2 | **DONE** — `48de489` + review fixes `81a2aa2`, merged `12ba043`. `row_start` applied in `AssetStore._frame_surface` only; store re-keyed on `entry.sheet`, so one PNG = one decode |
+| M3 | Editor: pure master-sheet import module + picker dialog | editor | M1 | **DONE** — `c8707a4` + review fix `fc7cd62`, merged `ff81203`. `editor/master_sheet_import.py` + `panels/master_sheet_dialog.py`. Left three carry-forwards, all ruled on in M4's brief §2 |
+| M4 | DetailsPanel: button, row window, narrowed preview + rows | editor | M2, M3 | in progress — brief `docs/briefs/phase-M4-details-panel-master-sheet.md`; branch `phase-M4-details-master-sheet` off `367ff9c` (`GATE PASS 2456` there) |
 | M5 | VFX preview panel button | editor | M4 | not started |
 
 ### 5.1 This plan is a CHAIN, not a fan-out — read before dispatching
