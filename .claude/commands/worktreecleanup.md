@@ -39,6 +39,12 @@ Never delete a branch that trips ANY of these:
    **Dingle04** (Benji), **varjaxxO169**, **HenniBumBenni** (Hendrik),
    **jakobdahlkar**.
 
+   **Exception — machine scratch.** `worktree-agent-*` and `agent-<hex>` are
+   dispatch scaffolding, not anybody's work: the author field just records
+   whoever's machine ran the agent. Delete these regardless of author once they
+   are merged (rule 1 still applies). They are the one thing here that
+   accumulates on its own, locally and on `origin`.
+
 Everything the rules clear is, by definition, fully contained in
 `origin/Development` — so deleting it loses no commit, only a name.
 
