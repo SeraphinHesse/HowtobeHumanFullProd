@@ -149,7 +149,7 @@ prototype-exact animation semantics for nothing.
 |---|---|---|---|---|
 | S1 | Column core — data + engine | C1, C2, C3 | — | **LANDED** (`section-S1`) |
 | S2 | Editor surfaces | E1, E2, E3, E4, E5 | S1 | not started |
-| S3 | Building colour | B1, B2, B3 | S1 | in progress (`section-S3`) — B1+B2 landed |
+| S3 | Building colour | B1, B2, B3 | S1 | **PARTIAL** (`section-S3`) — B1+B2 landed & gated; B3 unstarted, brief ready |
 | S4 | Seasons | N1, N2 | S1 | not started |
 
 **Waves:** wave 1 = S1. Wave 2 = S2 + S3 + S4, concurrently — they share no
@@ -614,7 +614,7 @@ upgrade panel.
 |---|---|---|
 | B1 | game | *(LANDED)* `phase-B1-colour-state` @ `bf53459` |
 | B2 | game | *(LANDED)* `phase-B2-construct-swatches` @ `b99d589` |
-| B3 | game + data | in progress — brief `docs/briefs/phase-B3-upgrade-swatches.md` |
+| B3 | game + data | *(NOT LANDED)* brief `docs/briefs/phase-B3-upgrade-swatches.md`; branch cut, coder never committed |
 
 **Section S3 note.** The reconciled cross-phase interface — `place_building`'s
 final signature (`state=None, colour_columns=None, rng=None, column=None`), the
