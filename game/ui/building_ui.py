@@ -1002,8 +1002,14 @@ class BuildingUI:
                 else:
                     # range diamond only on a single selection (prototype
                     # game.py:552-556); a batch highlights its tiles.
+                    # This IS the upgrade batch — VA-5 first wired it to
+                    # `tile_selected` and gave `upgrade_batch` to the CONSTRUCT
+                    # panel below, i.e. exactly backwards. Invisible while both
+                    # shipped the same colour; the moment a designer bound art
+                    # to `tile_selected`, a buildable tile kept the old diamond
+                    # and a combat tile did not.
                     self._highlight_tiles = [
-                        (t.col, t.row, "tile_selected")
+                        (t.col, t.row, "upgrade_batch")
                         for t in self.selected_tiles]
         # SPAWNING / BACKGROUND / empty BUILT -> stays closed
 
@@ -1255,7 +1261,9 @@ class BuildingUI:
             self.ids[f"{key}_price_icon"] = ("panel", icon)
             self.ids[f"{key}_price_text"] = ("label", price_text)
             y += _CARD_H + _CARD_GAP
-        self._highlight_tiles = [(t.col, t.row, "upgrade_batch")
+        # The construct panel's own selected tile(s) — the SELECTION
+        # highlight, not a batch (see the note at the upgrade-batch site).
+        self._highlight_tiles = [(t.col, t.row, "tile_selected")
                                  for t in self.selected_tiles]
         # Grey out every BUILDABLE tile that already hosted a Painter and
         # paid out (`state.used_painter_tiles`) — visible only while this

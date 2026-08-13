@@ -16,6 +16,7 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
 import copy
+from pathlib import Path
 
 from engine import data_io
 from game.ui import widgets
@@ -240,6 +241,62 @@ class TestThePaletteKeysAreGone(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertFalse(hasattr(widgets, name),
                                  f"{name} came back — it has one home now")
+
+
+class TestEachModeUsesItsOwnEvent(unittest.TestCase):
+    """Regression: VA-5 wired the CONSTRUCT panel's selected tile to
+    `upgrade_batch` and the upgrade BATCH to `tile_selected` — exactly
+    backwards.
+
+    It was invisible for as long as both events shipped the same colour: the
+    procedural diamonds were identical, so nothing looked wrong. It surfaced
+    only when a designer imported art onto `tile_selected` and found a
+    buildable tile still drawing the old diamond while a combat tile drew the
+    new sprite.
+
+    That is the whole point of this test: these events are distinguishable by
+    NAME long before they are distinguishable by pixels, so assert the name at
+    the site. Source-level, because reaching these branches live needs a
+    session, a tilemap and a placed building — a cost out of all proportion to
+    "which string does this line pass".
+    """
+
+    SRC = (Path(__file__).resolve().parents[2]
+           / "game" / "ui" / "building_ui.py").read_text(encoding="utf-8")
+
+    def _function_body(self, name):
+        body = self.SRC.split(f"def {name}(", 1)[1]
+        return body.split("\n    def ", 1)[0]
+
+    def test_the_construct_panel_uses_the_SELECTION_event(self):
+        """A buildable tile with the build cards open is a SELECTED tile."""
+        body = self._function_body("_build_construct")
+        self.assertIn('"tile_selected"', body)
+        self.assertNotIn('"upgrade_batch"', body)
+
+    def test_the_upgrade_BATCH_uses_the_batch_event(self):
+        """A multi-tile upgrade selection is the batch — the one place the
+        name `upgrade_batch` actually describes."""
+        body = self._function_body("open_for_tile")
+        self.assertIn('"upgrade_batch"', body)
+
+    def test_the_unlock_panel_uses_selection_plus_section(self):
+        """A combat tile: the clicked tile plus its three chunk siblings."""
+        body = self._function_body("_build_unlock")
+        self.assertIn('"tile_selected"', body)
+        self.assertIn('"section_2x2"', body)
+
+    def test_every_highlight_event_has_at_least_one_call_site(self):
+        """No dead events: an authored highlight nothing draws is data that
+        silently does nothing, the gap D8 exists to prevent."""
+        from game import main as game_main   # noqa: F401  (source scan only)
+        host = (Path(__file__).resolve().parents[2]
+                / "game" / "main.py").read_text(encoding="utf-8")
+        everywhere = self.SRC + host
+        for name in _STOCK:
+            with self.subTest(name=name):
+                self.assertIn(f'"{name}"', everywhere,
+                              f"{name} is authored but nothing draws it")
 
 
 if __name__ == "__main__":
