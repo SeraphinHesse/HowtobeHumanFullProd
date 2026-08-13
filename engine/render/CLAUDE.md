@@ -227,6 +227,34 @@ fallback). The HUD composites over the GPU frame as ONE streaming-texture
 upload per frame, driven by `Renderer.flush(target, hud_target=…)` (below).
 Parity is pinned in `test_render_backend_parity.py`.
 
+**Overlay pass (`OverlayLines`/`OverlayPolys`) — clipped scratch, reused
+buffer (G5).** `_draw_lines`/`_draw_polys` still rasterize with the SAME
+`pygame.draw.lines`/`pygame.draw.polygon` call `backend.py` uses (the parity
+argument), but the bounding-box scratch is (1) clipped to
+`target.get_viewport()` **before** anything is allocated — an overlay wholly
+outside the target is a no-op, returned before any `Surface`/`Texture`
+construction, since `Texture(renderer, (0, 0))` raises `ValueError` where
+`Surface((0, 0))` would silently succeed — and (2) drawn into ONE
+module-level scratch `Surface` reused across every overlay call, every
+renderer, every frame, instead of a fresh allocation per call. The scratch
+grows to the high-water mark and is never shrunk; growing it invalidates the
+per-renderer streaming `Texture`s that mirror its size (`_overlay_textures`,
+keyed by `id(target)` for the same reason `_texture_cache`'s inner key is —
+`Renderer` is not weak-referenceable). Each draw clears only the sub-rect it
+is about to use (`Surface.fill((0,0,0,0), rect)`, not the whole high-water
+buffer), refreshes the matching Texture in place with `texture.update(scratch,
+area)`, and draws with an explicit `srcrect=area` — the reused Texture is
+usually larger than the current overlay, so an implicit "draw the whole
+Texture" would stretch it over the destination. This Texture is **never**
+routed through `_texture()`/`_texture_cache` above: that cache snapshots at
+first draw and never refreshes, which is wrong for a buffer whose pixels
+differ on every call. The translation that maps world points into the
+scratch's local coordinates uses the **clipped** rect's origin, not the raw
+bbox's — using the raw origin after clipping the size is a one-pixel-shift
+regression. `clear_cache()` drops the scratch buffer and every per-renderer
+overlay Texture along with the sprite texture cache. Tests:
+`TestOverlayClipReuse` in `test_render_backend_parity.py`.
+
 ## Nine-slice (A2) — `DrawCall.slice`, HUD only
 A `DrawCall` may carry `slice = (left, top, right, bottom)` — nine-slice margins
 in FRAME pixels, authored on the manifest entry and carried

@@ -37,6 +37,7 @@ either hand over a fresh surface or call `clear_cache()`.
 import weakref
 
 import pygame
+from pygame import Surface
 from pygame._sdl2.video import SCALEQUALITY_NEAREST, Texture
 
 from .item import OverlayLines, OverlayPolys, round_half_up as _round
@@ -65,11 +66,34 @@ except ImportError:  # pragma: no cover - mirrors backend.py's dormant dispatch
 # `clear_cache()` is what keeps tests honest across renderers.
 _texture_cache = weakref.WeakKeyDictionary()
 
+# Overlay scratch — the "one reused buffer, not one alloc per call" deliverable
+# (G5). `_draw_lines`/`_draw_polys` rasterize into this ONE Surface, clipped to
+# the target's viewport, instead of a fresh bounding-box SRCALPHA Surface per
+# call. It grows to the high-water mark and is NEVER shrunk: a call that needs
+# more room than the current buffer replaces it with one sized to the max of
+# old and new on each axis; a call that fits reuses it as-is. Growing
+# invalidates every per-renderer overlay Texture below (they are sized to
+# match), so growth also clears `_overlay_textures`.
+_overlay_scratch = None
+
+# One STREAMING Texture per renderer (id(target) keyed, same inner-key
+# rationale as `_texture_cache`'s renderer key: pygame-ce's Renderer is not
+# weak-referenceable). This can NOT go through `_texture()`/`_texture_cache`
+# above — that cache snapshots a Texture at first draw and never refreshes it
+# (module docstring, "Precondition a caller must respect"), while the overlay
+# scratch's pixels are different on every call. Sized to match
+# `_overlay_scratch`; recreated whenever the scratch grows.
+_overlay_textures = {}
+
 
 def clear_cache():
     """Drop every cached Texture (and the strong Renderer references they
-    carry). Mirrors how tests clear `backend._scale_cache`."""
+    carry), including the reused overlay scratch buffer and its per-renderer
+    textures. Mirrors how tests clear `backend._scale_cache`."""
+    global _overlay_scratch
     _texture_cache.clear()
+    _overlay_scratch = None
+    _overlay_textures.clear()
 
 
 def _texture(target, surface):
@@ -107,17 +131,79 @@ def _upload(target, surface):
     return texture
 
 
+def _clip_to_target(target, x, y, w, h):
+    """Intersect a raw overlay bbox (already padded, for lines) with the
+    target's on-screen bounds. Returns a `pygame.Rect` (clipped, `.x`/`.y`
+    the CLIPPED origin the caller must translate points by — TRAP 1), or
+    `None` if the overlay is wholly outside the target: a no-op, before any
+    allocation, so a zero-size `Surface`/`Texture` never gets built (TRAP 2 —
+    `Texture(renderer, (0, 0))` raises `ValueError`, unlike `Surface((0, 0))`
+    which constructs silently).
+
+    `target.get_viewport()` is the bound, not `logical_size` — measured
+    (docs/briefs/phase-G5-overlay-clip-reuse.md §2a) to return the real
+    on-screen Rect while `logical_size` is `(0, 0)` on an unconfigured
+    renderer.
+    """
+    clipped = pygame.Rect(x, y, w, h).clip(target.get_viewport())
+    if clipped.w <= 0 or clipped.h <= 0:
+        return None
+    return clipped
+
+
+def _overlay_buffer(w, h):
+    """Return the module-level reused overlay scratch `Surface`, grown (never
+    shrunk) so it is at least `w` x `h`. A grow replaces the buffer with one
+    sized to the max of old and new on each axis and invalidates every
+    per-renderer overlay Texture in `_overlay_textures` (they are sized to
+    match the old buffer)."""
+    global _overlay_scratch
+    cur_w = _overlay_scratch.get_width() if _overlay_scratch is not None else 0
+    cur_h = _overlay_scratch.get_height() if _overlay_scratch is not None else 0
+    if w > cur_w or h > cur_h:
+        _overlay_scratch = Surface((max(w, cur_w), max(h, cur_h)),
+                                   pygame.SRCALPHA)
+        _overlay_textures.clear()
+    return _overlay_scratch
+
+
+def _overlay_texture(target):
+    """One STREAMING Texture per renderer, sized to match the current
+    `_overlay_scratch` and refreshed in place with `update()` per draw —
+    never through `_texture()` (see module docstring precondition)."""
+    texture = _overlay_textures.get(id(target))
+    if texture is None:
+        texture = Texture(target, _overlay_scratch.get_size(),
+                          scale_quality=SCALEQUALITY_NEAREST, streaming=True)
+        texture.blend_mode = pygame.BLENDMODE_BLEND
+        _overlay_textures[id(target)] = texture
+    return texture
+
+
+def _draw_overlay_scratch(target, w, h, dst_x, dst_y):
+    """Upload the buffer's used (0, 0, w, h) sub-rect — the part `_draw_lines`
+    / `_draw_polys` just rasterized into — and draw only that sub-rect at
+    (dst_x, dst_y). `srcrect` is required: without it, a small overlay drawn
+    from the (larger, high-water-mark) reused buffer would stretch the whole
+    buffer over the destination instead of drawing just the used corner."""
+    area = pygame.Rect(0, 0, w, h)
+    texture = _overlay_texture(target)
+    texture.update(_overlay_scratch, area)
+    texture.draw(srcrect=area, dstrect=pygame.Rect(dst_x, dst_y, w, h))
+
+
 def _draw_lines(target, call):
-    """OverlayLines via a CPU-drawn scratch texture.
+    """OverlayLines via the reused CPU-drawn scratch texture, clipped to the
+    target's bounds.
 
     SDL's own `Renderer.draw_line` is 1px and has no width parameter, while
     `OverlayLines.width` is an arbitrary int (item.py:57). Reproducing
     `pygame.draw.lines`' joins/caps out of SDL primitives would be a second
     implementation of a rasterizer that has to stay pixel-identical to the
-    Surface backend forever. Drawing with the SAME `pygame.draw.lines` call into
-    a bounding-box SRCALPHA scratch and uploading it is parity-exact by
-    construction. Overlays are a handful of calls per frame; the sprites are
-    where the port's win lives.
+    Surface backend forever. Drawing with the SAME `pygame.draw.lines` call
+    into an SRCALPHA scratch is parity-exact by construction; only the
+    scratch's origin/size (clipped to the target) and its lifetime (reused,
+    not per-call) changed from the naive version.
     """
     points = [(_round(x), _round(y)) for x, y in call.points]
     pad = max(1, int(call.width))
@@ -126,22 +212,31 @@ def _draw_lines(target, call):
     min_x, min_y = min(xs) - pad, min(ys) - pad
     w = max(1, max(xs) - min(xs) + 1 + 2 * pad)
     h = max(1, max(ys) - min(ys) + 1 + 2 * pad)
-    scratch = pygame.Surface((w, h), pygame.SRCALPHA)
+    clip = _clip_to_target(target, min_x, min_y, w, h)
+    if clip is None:
+        return
+    scratch = _overlay_buffer(clip.w, clip.h)
+    scratch.fill((0, 0, 0, 0), pygame.Rect(0, 0, clip.w, clip.h))
+    # TRAP 1: translate by the CLIPPED origin (clip.x/clip.y), not the raw
+    # bbox origin (min_x/min_y) — the raw origin only matches the clipped one
+    # when nothing was clipped.
     pygame.draw.lines(scratch, call.color, call.closed,
-                      [(x - min_x, y - min_y) for x, y in points], call.width)
-    # Not cached: the scratch pixels are unique to this one overlay call.
-    _upload(target, scratch).draw(dstrect=pygame.Rect(min_x, min_y, w, h))
+                      [(x - clip.x, y - clip.y) for x, y in points],
+                      call.width)
+    _draw_overlay_scratch(target, clip.w, clip.h, clip.x, clip.y)
 
 
 def _draw_polys(target, call):
-    """OverlayPolys via a CPU-drawn scratch texture — same bounding box as
-    `backend._draw_polys` (backend.py:158-171).
+    """OverlayPolys via the reused CPU-drawn scratch texture, clipped to the
+    target's bounds — same bounding box as `backend._draw_polys`
+    (backend.py:158-171), just intersected with the target first.
 
     SDL2's renderer primitives are points / lines / rects / triangles / quads;
     `OverlayPolys` is an ARBITRARY-length polygon (ellipses are caller-side
     polygon approximations, i.e. many points) with optional alpha, which no
-    quad or triangle primitive covers in general. A scratch texture is the only
-    strategy that is parity-exact for both the opaque and the alpha case.
+    quad or triangle primitive covers in general. A scratch texture is the
+    only strategy that is parity-exact for both the opaque and the alpha
+    case.
     """
     points = [(_round(x), _round(y)) for x, y in call.points]
     xs = [p[0] for p in points]
@@ -149,11 +244,15 @@ def _draw_polys(target, call):
     min_x, min_y = min(xs), min(ys)
     w = max(1, max(xs) - min_x + 1)
     h = max(1, max(ys) - min_y + 1)
-    scratch = pygame.Surface((w, h), pygame.SRCALPHA)
+    clip = _clip_to_target(target, min_x, min_y, w, h)
+    if clip is None:
+        return
+    scratch = _overlay_buffer(clip.w, clip.h)
+    scratch.fill((0, 0, 0, 0), pygame.Rect(0, 0, clip.w, clip.h))
+    # TRAP 1: translate by the CLIPPED origin, not the raw bbox origin.
     pygame.draw.polygon(scratch, call.color,
-                        [(x - min_x, y - min_y) for x, y in points])
-    # Not cached: the scratch pixels are unique to this one overlay call.
-    _upload(target, scratch).draw(dstrect=pygame.Rect(min_x, min_y, w, h))
+                        [(x - clip.x, y - clip.y) for x, y in points])
+    _draw_overlay_scratch(target, clip.w, clip.h, clip.x, clip.y)
 
 
 _HUD_MSG = (
