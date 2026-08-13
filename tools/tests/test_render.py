@@ -777,5 +777,65 @@ class TestBackendResolution(unittest.TestCase):
         self.assertEqual(len(backend.calls), 1)
 
 
+class TestHudTargetSplit(unittest.TestCase):
+    """G4: ``flush(target, hud_target=...)`` splits the frame by PRODUCTION
+    SITE — world+overlay to the world backend, the HUD pass to the Surface
+    backend on its own target. ``hud_target=None`` (the editor / tools / the
+    Surface host) must stay the historical single flat list."""
+
+    def _renderer(self, backend):
+        return Renderer(make_cs(), FakeAssets(slices={"skin": (2, 2, 2, 2)}),
+                        backend=backend)
+
+    def _submit_a_frame(self, r):
+        from engine.render import HudRect, HudText
+        r.submit(RenderItem("tile", (0, 0), layer="ground"))
+        r.submit_overlay_lines([(0, 0), (1, 1)], (255, 0, 0))
+        r.submit_hud(HudRect((0, 0, 10, 10), (1, 2, 3)))
+        r.submit_hud(HudText("hi", (0, 0), "md", (1, 2, 3)))
+        r.submit_hud(HudSprite("skin", (0, 0), (32, 32), crop=(1, 1, 2, 2)))
+        return 5
+
+    def test_without_hud_target_one_flat_list_in_order(self):
+        backend = RecordingBackend()
+        r = self._renderer(backend)
+        self._submit_a_frame(r)
+        r.flush(target=None)
+        kinds = [type(c).__name__ for c in backend.calls]
+        self.assertEqual(
+            kinds, ["DrawCall", "OverlayLines", "HudRect", "HudText",
+                    "DrawCall"])
+        self.assertEqual(r.last_flush_ms["hud"], 0.0)
+
+    def test_with_hud_target_the_hud_pass_goes_to_the_hud_backend(self):
+        world, hud = RecordingBackend(), RecordingBackend()
+        r = self._renderer(world)
+        r._hud_backend = hud
+        self._submit_a_frame(r)
+        r.flush(target=None, hud_target="HUD_SURFACE")
+        self.assertEqual([type(c).__name__ for c in world.calls],
+                         ["DrawCall", "OverlayLines"])
+        self.assertEqual([type(c).__name__ for c in hud.calls],
+                         ["HudRect", "HudText", "DrawCall"])
+        self.assertEqual(hud.calls[-1].crop_rect, (1, 1, 2, 2))
+        self.assertEqual(hud.calls[-1].slice, (2, 2, 2, 2))
+        # THE guarantee (§1.4): backend_gpu raises on either of these, and the
+        # split by production site is what makes them unreachable there.
+        for call in world.calls:
+            self.assertIsNone(getattr(call, "slice", None))
+            self.assertIsNone(getattr(call, "crop_rect", None))
+
+    def test_both_paths_return_the_same_count_and_clear_every_queue(self):
+        counts = []
+        for hud_target in (None, "HUD_SURFACE"):
+            r = self._renderer(RecordingBackend())
+            r._hud_backend = RecordingBackend()
+            self._submit_a_frame(r)
+            counts.append(r.flush(target=None, hud_target=hud_target))
+            self.assertEqual(r.flush(target=None, hud_target=hud_target), 0)
+            self.assertEqual((r._queue, r._overlay, r._hud), ([], [], []))
+        self.assertEqual(counts, [5, 5])
+
+
 if __name__ == "__main__":
     unittest.main()

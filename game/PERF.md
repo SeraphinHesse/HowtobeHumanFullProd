@@ -152,6 +152,32 @@ panning (every margin-cross triggered a ~70 ms full recomposite) now stays smoot
 (headless: ~6–14 ms/frame at 1024² zoom 1, independent of map size).
 
 ## Frame-timing HUD
-Windowed runs print `sim/submit/flush/flip` avg ms beside the fps line (gated on
-`tune_gc`, so headless stays silent) — the on-hardware measure of where a frame
-goes.
+Windowed runs print `sim/submit/world/hud/composite/present` avg ms beside the
+fps line (gated on `tune_gc`, so headless stays silent) — the on-hardware
+measure of where a frame goes. G4 split the old single `flush` bucket, which
+hid the HUD's share inside the world's:
+- `world` / `hud` come from `renderer.last_flush_ms`, i.e. the two backend
+  calls `Renderer.flush(target, hud_target=…)` makes. On the Surface path the
+  HUD rides the single call and `hud` reads 0.0.
+- `composite` is the GPU path's HUD-texture upload + draw (0.0 on Surface).
+- `present` replaces `flip`: `pygame.display.flip()` or `Renderer.present()`.
+
+## Two render backends (`--backend`, G4)
+`game/main.py` routes every frame-target touch point through one host-side
+"presenter": `_SurfacePresenter` is the historical `pygame.SCALED` display
+Surface verbatim, `_GpuPresenter` is a standalone `pygame._sdl2` Window +
+`Renderer(window, target_texture=True)` drawing through
+`engine.render.backend_gpu` with `GroundCacheGpu`, and the Surface-drawn HUD
+composited over it as ONE streaming-`Texture` upload per frame.
+- `py game/main.py --backend={auto,gpu,surface}`; default `auto` (try GPU, fall
+  back). `HTBH_RENDER_BACKEND` is consulted only when there is no flag (the
+  frozen exe gets no argv). An unrecognised value exits loud.
+- **A headless run (`max_frames is not None`) forces the Surface path** unless
+  `gpu` was asked for explicitly — that one condition is why `tools/smoke.py`
+  and the boot tests need no flag of their own.
+- Any failure building the window/renderer/HUD texture/ground-cache targets
+  logs one line and falls back to the WHOLE Surface stack (D8) — never a hard
+  failure, never a hybrid.
+- **F12** saves the live frame to `build/capture_<backend>_<stamp>.png` (after
+  the HUD composite, before present), so a GPU/Surface pair of PNGs can be
+  compared pixel for pixel.

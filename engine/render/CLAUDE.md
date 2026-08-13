@@ -18,6 +18,18 @@ itself is pure orchestration. See the engine router's pygame-import allow-list.
   (no pygame at module level), so the pygame allow-list below is unchanged.
   Resolution is still lazy — `Renderer.flush()` calls `default_backend()` on
   first flush and memoises the result — and still injectable for tests.
+- **`flush(target, hud_target=None)` (G4, D7)** — with a `hud_target`, world
+  sprites + overlays go to `target` through `self._backend` (the host's GPU
+  backend) and the HUD pass goes to `hud_target` through the SURFACE backend,
+  resolved and memoised separately in `self._hud_backend`. **The split is by
+  PRODUCTION SITE, never a post-hoc isinstance filter**: `slice`/`crop_rect`
+  are set only in the HUD loop and `backend_gpu.draw` raises on either, so
+  building the HUD calls into their own list is the structural guarantee that
+  such a call cannot reach the world backend. `hud_target=None` (the editor,
+  the tools, the Surface host, every existing test) keeps the historical
+  single flat list and single backend call, byte-identical. `flush` also
+  records `renderer.last_flush_ms = {"world": ms, "hud": ms}` for the host's
+  frame-timing line (`hud` is 0.0 on the single-call path).
 - Draw layers fixed: `LAYERS = ("ground", "terrain", "entities", "deco",
   "overlay")` (E-26); HUD is drawn by the host after flush. **`terrain` sits
   between `ground` and `entities`** for content that overlays the ground tiles
@@ -207,8 +219,13 @@ above (weak eviction is what stops the grey-X placeholder leaking a texture per
 call), with an inner `id(renderer)` key because pygame-ce's `Renderer` is not
 weak-referenceable; `clear_cache()` clears it. Dests, sizes and overlay points
 still go through `round_half_up` and reach SDL as integer `Rect`s, never floats.
-**Nothing selects it yet** — `default_backend()` is still the Surface backend and
-G4 wires the host. Parity is pinned in `test_render_backend_parity.py`.
+**The game host selects it (G4)** via `--backend={auto,gpu,surface}` (default
+`auto`; `HTBH_RENDER_BACKEND` when there is no argv), constructing
+`Renderer(cs, assets, backend=backend_gpu.draw)` — `default_backend()` is still
+the Surface blitter for everyone else (editor, tools, tests, and the D8
+fallback). The HUD composites over the GPU frame as ONE streaming-texture
+upload per frame, driven by `Renderer.flush(target, hud_target=…)` (below).
+Parity is pinned in `test_render_backend_parity.py`.
 
 ## Nine-slice (A2) — `DrawCall.slice`, HUD only
 A `DrawCall` may carry `slice = (left, top, right, bottom)` — nine-slice margins
@@ -414,9 +431,11 @@ off the cached surface.
   approximate. The background fill is `fill_rect`, never `clear()`, because
   `clear()` measures as ignoring the viewport and wiping the whole target. The
   diagonal-band derivation is shared through `ground_cache.band_for_rect`, not
-  copied. Nothing selects this class yet — `default_backend()` still returns
-  the Surface blitter and `game/main.py` still constructs `GroundCache`; G4
-  wires the host.
+  copied. **The game host selects it (G4)**: `game/main.py` builds
+  `GroundCacheGpu(sdl_renderer, cs, assets, bg_color=BACKGROUND)` on the GPU
+  path and today's `GroundCache` otherwise, then calls `ensure`/`blit` with no
+  branch — `blit`'s `target` argument is ignored on the GPU path by design.
+  `default_backend()` still returns the Surface blitter for everyone else.
 
 ## Verify
 Render/asset-facing changes: headless smoke test (`tools/smoke.py`) and, if

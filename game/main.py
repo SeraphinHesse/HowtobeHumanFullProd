@@ -30,10 +30,19 @@ cutscene into a registry-driven ``game.ui.cutscene_player.CutscenePlayer``
 overlays the matching cutscene the first time a round ends.
 
 main(max_frames=N) lets tools/smoke.py drive the same code headlessly (G-8).
+
+Phase G4 put the frame target behind ONE host-side seam, the "presenter":
+`_SurfacePresenter` is today's SCALED display Surface verbatim, `_GpuPresenter`
+is a standalone `_sdl2` Window + Renderer with the Surface-drawn HUD
+composited over it as one streaming-texture upload per frame. Pick with
+`--backend={auto,gpu,surface}` (default auto; `HTBH_RENDER_BACKEND` when there
+is no argv); any GPU failure logs one line and falls back to the whole Surface
+stack (D8). F12 saves the live frame to `build/`.
 """
 import gc
 import logging
 import math
+import os
 import random
 import sys
 import time
@@ -146,6 +155,295 @@ def _apply_display_mode(mode, view_w, view_h, caption):
     return window
 
 
+_BACKEND_CHOICES = ("auto", "gpu", "surface")
+_ENV_BACKEND = "HTBH_RENDER_BACKEND"
+
+
+def backend_choice_from_argv(argv, env=None):
+    """Parse ``--backend={auto,gpu,surface}`` (G4, plan D6).
+
+    Hand-rolled in the same shape as ``debug_level_from_argv`` below and for
+    the same reason: this and ``--debug`` are the entry point's only flags,
+    and ``main``'s ``max_frames``/``autostart`` test seams must stay off the
+    command line. The CLI flag WINS; ``HTBH_RENDER_BACKEND`` is consulted only
+    when no flag is present (a double-clicked frozen build gets no argv).
+    An unrecognised value exits LOUD — a silently ignored ``--backend=gpu``
+    would make every A/B measurement a lie."""
+    for arg in argv:
+        if arg == "--backend":
+            raise SystemExit(
+                f"--backend needs a value, one of {list(_BACKEND_CHOICES)} "
+                f"(e.g. --backend=gpu)")
+        if arg.startswith("--backend="):
+            value = arg.split("=", 1)[1].strip().lower()
+            if value not in _BACKEND_CHOICES:
+                raise SystemExit(
+                    f"--backend must be one of {list(_BACKEND_CHOICES)}: "
+                    f"{value!r}")
+            return value
+    value = (os.environ if env is None else env).get(_ENV_BACKEND, "")
+    value = value.strip().lower()
+    if not value:
+        return "auto"
+    if value not in _BACKEND_CHOICES:
+        raise SystemExit(
+            f"{_ENV_BACKEND} must be one of {list(_BACKEND_CHOICES)}: "
+            f"{value!r}")
+    return value
+
+
+class _SurfacePresenter:
+    """Today's frame target, verbatim (G4 §2.1): ONE ``pygame.SCALED`` display
+    Surface that the world, the overlays and the HUD all draw into, presented
+    with ``pygame.display.flip()``.
+
+    ``hud_target`` is ``None``, so ``Renderer.flush`` keeps its historical
+    single-call path — that is the whole no-regression argument for the D8
+    fallback, the editor, ``tools/smoke.py`` and every existing render test."""
+
+    name = "surface"
+    hud_target = None
+
+    def __init__(self, view_w, view_h, caption, display_mode):
+        self._view_w, self._view_h = view_w, view_h
+        self._caption = caption
+        self._window = _apply_display_mode(display_mode, view_w, view_h,
+                                           caption)
+        self.last_composite_ms = 0.0   # no composite on this path, ever
+
+    @property
+    def world_target(self):
+        return self._window
+
+    def begin_frame(self):
+        self._window.fill(BACKGROUND)
+
+    def blit_fullscreen(self, surface):
+        self._window.blit(surface, (0, 0))
+
+    def set_display_mode(self, mode):
+        self._window = _apply_display_mode(mode, self._view_w, self._view_h,
+                                           self._caption)
+
+    def map_event(self, event):
+        return event          # SCALED already remaps mouse coords for free
+
+    def mouse_pos(self):
+        return pygame.mouse.get_pos()
+
+    def end_frame(self, capture_path=None):
+        if capture_path is not None:
+            pygame.image.save(self._window, str(capture_path))
+        pygame.display.flip()
+
+    def describe(self):
+        return (f"render backend: Surface (CPU blitter) | window "
+                f"{self._view_w}x{self._view_h} SCALED | "
+                f"ground cache: GroundCache")
+
+    def close(self):
+        pass
+
+
+class _GpuPresenter:
+    """The GPU frame target (G4 §2.1/§2.4): a standalone ``_sdl2`` Window +
+    Renderer, with the Surface-drawn HUD composited over it as ONE streaming-
+    texture upload per frame.
+
+    Two measured mechanics decide this shape and must not be "simplified":
+    - ``pygame.display.set_mode`` is NOT used at all. An SDL ``Renderer``
+      cannot attach to the display-module window (``Surface already associated
+      with window``), and ``Renderer.from_window`` "works" only by handing back
+      SCALED's own internal renderer, whose frame ``display.flip()`` then
+      overwrites. Hence a standalone window and ``renderer.present()``.
+    - The HUD is NEVER a ``DrawCall`` handed to ``backend_gpu``: that backend's
+      texture cache SNAPSHOTS a source surface at first upload and never
+      refreshes it, and the HUD surface is mutated every frame. It would freeze
+      at frame 1 with no exception and no log line. So the host owns an
+      explicit streaming ``Texture`` and calls ``update()`` every frame."""
+
+    name = "gpu"
+    _MOUSE_EVENTS = (pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN,
+                     pygame.MOUSEBUTTONUP)
+
+    def __init__(self, view_w, view_h, caption, display_mode):
+        from pygame._sdl2 import video as sdl2
+        self._sdl2 = sdl2
+        self._view_w, self._view_h = view_w, view_h
+        self._window = sdl2.Window(caption, size=(view_w, view_h))
+        # target_texture=True because GroundCacheGpu is built entirely on
+        # render-target Textures. The software/dummy renderer happens to allow
+        # targets without the flag (which is why G3's suite is green without
+        # it); a real D3D/OpenGL driver may not.
+        self._renderer = sdl2.Renderer(self._window, target_texture=True)
+        # The SCALED equivalent: the game keeps drawing at 640x360 whatever the
+        # window is, and coordinates_from_window maps clicks back (§2.6).
+        self._renderer.logical_size = (view_w, view_h)
+        # The HUD's own frame target: a screen-sized SRCALPHA Surface the
+        # Surface backend draws into (fonts, nine-slice, crop — D7 keeps them
+        # single-implementation), uploaded once per frame in end_frame().
+        self.hud_target = pygame.Surface((view_w, view_h), pygame.SRCALPHA)
+        self._hud_texture = self._new_streaming_texture()
+        self._fullscreen_texture = None   # cutscene only, built on first use
+        self._fullscreen_scratch = None
+        self.last_composite_ms = 0.0
+        self.set_display_mode(display_mode)
+
+    def _new_streaming_texture(self):
+        tex = self._sdl2.Texture(
+            self._renderer, (self._view_w, self._view_h), streaming=True,
+            scale_quality=self._sdl2.SCALEQUALITY_NEAREST)
+        # MEASURED: the constructor leaves blend_mode at BLENDMODE_NONE (0),
+        # the same trap G2 hit. Unset, the HUD's transparent pixels paint an
+        # opaque black sheet over the whole world.
+        tex.blend_mode = pygame.BLENDMODE_BLEND
+        return tex
+
+    @property
+    def sdl_renderer(self):
+        return self._renderer
+
+    @property
+    def world_target(self):
+        return self._renderer
+
+    def begin_frame(self):
+        self._renderer.draw_color = tuple(BACKGROUND) + (255,)
+        self._renderer.clear()
+        self.hud_target.fill((0, 0, 0, 0))
+
+    def blit_fullscreen(self, surface):
+        """A full-screen opaque paint (a cutscene video frame). On the Surface
+        path this COVERS everything drawn so far, HUD included — so the HUD
+        surface is cleared here too, or the composite at end_frame would put
+        the game's HUD back on top of the video."""
+        if self._fullscreen_texture is None:
+            self._fullscreen_texture = self._new_streaming_texture()
+        if surface.get_size() != (self._view_w, self._view_h):
+            if self._fullscreen_scratch is None:
+                self._fullscreen_scratch = pygame.Surface(
+                    (self._view_w, self._view_h), pygame.SRCALPHA)
+            self._fullscreen_scratch.fill((0, 0, 0, 0))
+            self._fullscreen_scratch.blit(surface, (0, 0))
+            surface = self._fullscreen_scratch
+        self._fullscreen_texture.update(surface)
+        self._fullscreen_texture.draw(
+            dstrect=pygame.Rect(0, 0, self._view_w, self._view_h))
+        self.hud_target.fill((0, 0, 0, 0))
+
+    def set_display_mode(self, mode):
+        window = self._window
+        if mode == "fullscreen":
+            window.borderless = False
+            window.set_fullscreen(desktop=True)
+        elif mode == "borderless":
+            window.set_windowed()
+            window.borderless = True
+        else:
+            window.set_windowed()
+            window.borderless = False
+
+    def _to_logical(self, point):
+        x, y = self._renderer.coordinates_from_window(point)  # floats
+        return int(x), int(y)
+
+    def map_event(self, event):
+        """Window pixels -> logical 640x360, for the three mouse events. On a
+        standalone SDL window pygame does NOT do SCALED's free remap, and the
+        shipped default display mode is fullscreen — without this every click
+        lands somewhere else while every headless test still passes."""
+        if event.type not in self._MOUSE_EVENTS or not hasattr(event, "pos"):
+            return event
+        fields = {"pos": self._to_logical(event.pos)}
+        rel = event.__dict__.get("rel")
+        if rel is not None:
+            # Camera panning reads event.rel (the drag-pan branch), so it has
+            # to ride the same mapping. Differencing two mapped points is exact
+            # whatever the letterboxing.
+            x0, y0 = fields["pos"]
+            x1, y1 = self._to_logical((event.pos[0] - rel[0],
+                                       event.pos[1] - rel[1]))
+            fields["rel"] = (x0 - x1, y0 - y1)
+        return pygame.event.Event(event.type, event.__dict__ | fields)
+
+    def mouse_pos(self):
+        return self._to_logical(pygame.mouse.get_pos())
+
+    def end_frame(self, capture_path=None):
+        t0 = time.perf_counter()
+        self._hud_texture.update(self.hud_target)   # ONE upload per frame
+        self._hud_texture.draw(
+            dstrect=pygame.Rect(0, 0, self._view_w, self._view_h))
+        self.last_composite_ms = (time.perf_counter() - t0) * 1000.0
+        # After the composite, before present: the PNG is the whole frame.
+        if capture_path is not None:
+            pygame.image.save(self._renderer.to_surface(), str(capture_path))
+        self._renderer.present()
+
+    def describe(self):
+        # pygame-ce 2.5.7 exposes no per-renderer driver query (no
+        # get_renderer_info), so this names the FIRST driver SDL offers —
+        # which is the one SDL_CreateRenderer(index=-1) takes when it
+        # succeeds. Approximate by construction; say so rather than imply a
+        # readback.
+        try:
+            driver = next(iter(self._sdl2.get_drivers())).name
+        except Exception:                                     # noqa: BLE001
+            driver = "unknown"
+        w, h = self._window.size
+        return (f"render backend: GPU (SDL2 texture, {driver}) | window "
+                f"{self._view_w}x{self._view_h} logical, {w}x{h} actual | "
+                f"ground cache: GroundCacheGpu")
+
+    def close(self):
+        try:
+            self._window.destroy()
+        except Exception:                                     # noqa: BLE001
+            pass
+
+
+def _build_render_stack(choice, view_w, view_h, caption, display_mode, cs,
+                        assets):
+    """Build the frame target + Renderer + ground cache as ONE unit, and
+    return ``(presenter, renderer, ground_cache, log_line)``.
+
+    D8: any failure creating the window, the renderer, the HUD texture or the
+    ground-cache render targets logs one line and falls back to the WHOLE
+    Surface stack — never a hard failure, and never a GPU/Surface hybrid (a
+    half-migrated host has no defined draw order)."""
+    if choice in ("auto", "gpu"):
+        presenter = None
+        try:
+            from engine.render import backend_gpu
+            from engine.render.ground_cache_gpu import GroundCacheGpu
+            presenter = _GpuPresenter(view_w, view_h, caption, display_mode)
+            renderer = Renderer(cs, assets, backend=backend_gpu.draw)
+            ground_cache = GroundCacheGpu(presenter.sdl_renderer, cs, assets,
+                                          bg_color=BACKGROUND)
+            return presenter, renderer, ground_cache, presenter.describe()
+        except Exception as exc:                              # noqa: BLE001
+            if presenter is not None:
+                presenter.close()
+            surface = _SurfacePresenter(view_w, view_h, caption, display_mode)
+            return (surface, Renderer(cs, assets),
+                    GroundCache(cs, assets, bg_color=BACKGROUND),
+                    f"render backend: Surface (CPU blitter) — GPU requested "
+                    f"but unavailable: {type(exc).__name__}: {exc}")
+    presenter = _SurfacePresenter(view_w, view_h, caption, display_mode)
+    return (presenter, Renderer(cs, assets),
+            GroundCache(cs, assets, bg_color=BACKGROUND), presenter.describe())
+
+
+def _capture_path(backend_name):
+    """``build/capture_<backend>_<stamp>.png`` — build/ is gitignored, so a
+    capture can never dirty the tree, and the filename carries the backend so
+    a PAIR of PNGs is self-identifying without the terminal."""
+    out = REPO / "build"
+    out.mkdir(parents=True, exist_ok=True)
+    return out / (f"capture_{backend_name}_"
+                  f"{time.strftime('%Y%m%d-%H%M%S')}.png")
+
+
 class _World:
     """The rebuildable run state: tile grid, occupancy, scene, session. A fresh
     ``_World`` is a fresh game (the base is re-attached to its pre-seeded tile)."""
@@ -191,7 +489,8 @@ def step_zoom(cs, direction, view_w, view_h):
     cs.clamp(view_w, view_h)
 
 
-def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
+def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
+         backend=None):
     """``autostart=True`` skips the shell (cutscene/menu) and boots straight into
     a fresh GAMEPLAY run — the headless test seam so tools/smoke.py and the boot
     tests still exercise the full _World/Session construction + sim frames the
@@ -208,7 +507,14 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
     ``session.debug`` inside ``build_gameplay()`` below, and closed at the
     game-over transition and again (idempotent) just before ``pygame.quit()``.
     Phase 5 (CLI flag + menu buttons) builds on top of this — see the
-    docstring note beside ``recorder`` below for exactly how."""
+    docstring note beside ``recorder`` below for exactly how.
+
+    ``backend`` (G4) is one of ``"auto"`` / ``"gpu"`` / ``"surface"``;
+    ``None`` (the default) means ``"auto"``. ``__main__`` passes what
+    ``backend_choice_from_argv`` parsed. **``max_frames is not None`` forces
+    the Surface path** unless the caller asked for ``"gpu"`` explicitly —
+    that single condition is how ``tools/smoke.py`` and every headless boot
+    test stay on today's stack without any change of their own."""
     data_dir = Path(data_dir) if data_dir is not None else REPO / "data"
     # debug-mode-telemetry: `recorder` is a plain local, deliberately NOT
     # nested inside an `if` — so a later dispatch (Phase 5's "PLAY DEBUG"
@@ -332,11 +638,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
     configure_fonts(fonts_doc, font_path=font_path)
     widgets.configure_palette(palette_doc)
     configure_strings(strings_doc)
-    renderer = Renderer(cs, assets)
-    # The static ground layer is composited once into an oversized surface and
-    # blitted at a pan offset (perf: a 1024² map is one blit/frame while panning
-    # instead of thousands of tile blits). Shares the AssetStore with `renderer`.
-    ground_cache = GroundCache(cs, assets, bg_color=BACKGROUND)
+    # G4: the Renderer and the ground cache are built AFTER the presenter (the
+    # GPU variants need its SDL Renderer, which needs the window, which needs
+    # the shell's display mode) — see _build_render_stack below. Nothing
+    # between here and there used either object before the move.
     map_bal = load_balance(data_dir, "map")
     buildings_balance = load_balance(data_dir, "buildings")
     enemies_balance = load_balance(data_dir, "enemies")
@@ -378,8 +683,21 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
     shell.set_highscores(hs_doc)
     shell.prefill_identity(*highscores.last_player(hs_doc))
 
-    window = _apply_display_mode(shell.settings.display_mode, view_w, view_h,
-                                 caption)
+    # G4 (D6/D8): pick the frame target, and with it the render backend and the
+    # ground cache — one stack, chosen once, falling back whole. `auto` tries
+    # the GPU path; a headless run (`max_frames is not None`, the same seam
+    # `tune_gc` uses) stays on the Surface path unless GPU was asked for
+    # explicitly, which is how tools/smoke.py needs no flag of its own.
+    choice = backend if backend is not None else "auto"
+    if choice == "auto" and max_frames is not None:
+        choice = "surface"
+    presenter, renderer, ground_cache, backend_log = _build_render_stack(
+        choice, view_w, view_h, caption, shell.settings.display_mode, cs,
+        assets)
+    # print(), NOT _log.info: this module's logger has no basicConfig, so an
+    # info record is silently dropped — and this line's whole purpose is
+    # screenshot self-identification (which backend am I looking at?).
+    print(backend_log)
     clock = pygame.time.Clock()
 
     if max_frames is None:  # windowed run only — headless tests stay silent/fast
@@ -555,7 +873,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                              player_name=name, player_skill=skill)
 
     def execute(intent):
-        nonlocal running, window, recorder
+        nonlocal running, recorder
         if intent == "new_game":
             build_gameplay()
         elif intent == "new_game_debug":
@@ -569,8 +887,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
         elif intent == "quit_app":
             running = False
         elif intent == "set_display_mode":
-            window = _apply_display_mode(shell.settings.display_mode, view_w,
-                                         view_h, caption)
+            # G4: through the presenter — the Surface path re-creates the
+            # SCALED window exactly as before, the GPU path moves its own
+            # standalone window (set_fullscreen/set_windowed/borderless).
+            presenter.set_display_mode(shell.settings.display_mode)
         elif intent == "add_name_commit":
             name = shell.pending_name
             added = append_random_name(data_dir, name)
@@ -969,12 +1289,29 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
 
     frames = 0
     fps_log_ms = 0
-    # Per-section frame-time accumulators (windowed runs only — the print is
-    # gated on tune_gc). sim = update; submit = fill + RenderItem generation;
-    # flush = renderer.flush (the tile blits); flip = display.flip (SCALED
-    # upscale). Lets us see on real hardware where a slow frame actually goes.
-    perf = {"sim": 0.0, "submit": 0.0, "flush": 0.0, "flip": 0.0}
+    # Per-section frame-time accumulators in SECONDS (windowed runs only — the
+    # print is gated on tune_gc). sim = update; submit = the fill + RenderItem
+    # generation; world = the world/overlay backend call inside renderer.flush;
+    # hud = the HUD backend call (always the Surface blitter, 0.0 when the HUD
+    # rides the same single call on the Surface path); composite = the HUD
+    # texture upload + draw (GPU only); present = display.flip / SDL present.
+    # G4 split `flush` into world/hud/composite — that is what answers G0's one
+    # INFERRED claim (that the HUD is not the dominant cost) with a number.
+    perf = {"sim": 0.0, "submit": 0.0, "world": 0.0, "hud": 0.0,
+            "composite": 0.0, "present": 0.0}
     perf_frames = 0
+    flush_acc = {"world": 0.0, "hud": 0.0}   # seconds, reset each frame
+
+    def flush_frame():
+        """THE frame's flush seam: one call shape for all four sites, so the
+        world/HUD split and its timing can never be wired at three of them and
+        forgotten at the fourth."""
+        n = renderer.flush(presenter.world_target,
+                           hud_target=presenter.hud_target)
+        split = renderer.last_flush_ms
+        flush_acc["world"] += split["world"] / 1000.0
+        flush_acc["hud"] += split["hud"] / 1000.0
+        return n
     mouse_down = None
     rmouse_down = None  # right-press origin: a short press dismisses, a drag pans
     pan_from = None  # set on a left-press that began over the world (not UI)
@@ -990,11 +1327,23 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
         deco_clock_ms += dt * 1000.0  # wall-clock: deco keeps animating while paused
         _t_frame = time.perf_counter()
         _t_flush_start = _t_frame  # each render branch resets this before flush
+        flush_acc["world"] = flush_acc["hud"] = 0.0
+        capture_path = None
 
         # 1. input (E-14) — routed per top-level shell state
         for event in pygame.event.get():
+            # G4 §2.6: the ONE input-mapping seam. Identity on the Surface
+            # path; on the GPU path it rewrites a mouse event's pos/rel from
+            # window pixels into the logical 640x360 space every handler below
+            # already assumes.
+            event = presenter.map_event(event)
             if event.type == pygame.QUIT:
                 running = False
+                continue
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_F12:
+                # G4 §2.7: capture the live frame (after the HUD composite,
+                # before present — end_frame owns that ordering).
+                capture_path = _capture_path(presenter.name)
                 continue
             st = shell.state
             if st == GameState.CUTSCENE:
@@ -1168,12 +1517,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                 # scrolling UP, while handle_scroll(+dy) moves DOWN the list.
                 if (panel.mode == "construct" and panel.preview is None
                         and widgets.contains(panel.panel_rect,
-                                             *pygame.mouse.get_pos())):
+                                             *presenter.mouse_pos())):
                     panel.handle_scroll(-event.y)
                     continue
                 step_zoom(cs, 1 if event.y > 0 else -1, view_w, view_h)
 
-        mx, my = pygame.mouse.get_pos()
+        mx, my = presenter.mouse_pos()
         held = pygame.mouse.get_pressed()[0]   # 10L-A: skinned pressed state
         keys = pygame.key.get_pressed()
         # cutscene hold-to-skip: left click, space, or esc held continuously
@@ -1452,12 +1801,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
 
         # 3. render submit — per state
         _t_render0 = time.perf_counter()
-        window.fill(BACKGROUND)
+        presenter.begin_frame()
         st = shell.state
         if st == GameState.CUTSCENE:
             surf = intro_player.frame_surface()
             if surf is not None:
-                window.blit(surf, (0, 0))
+                presenter.blit_fullscreen(surf)
             widgets.submit_progress_ring(
                 renderer, view_w // 2, view_h - 60, 10,
                 intro_player.skip_progress)
@@ -1465,7 +1814,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                 "hold to skip", (view_w // 2, view_h - 40),
                 "md", (210, 210, 210), align="center"))
             _t_flush_start = time.perf_counter()
-            renderer.flush(window)
+            flush_frame()
         elif st in _WORLD_STATES or st == GameState.PAUSED:
             world = gp["world"]
             session = world.session
@@ -1505,7 +1854,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                 lambda dmn, dmx, smn, smx: tilemap.band_render_items(
                     map_doc, dmn, dmx, smn, smx,
                     code_overrides=world.tile_map.terrain_overrides))
-            ground_cache.blit(window)
+            # The GPU cache IGNORES this argument by design (it always draws
+            # through the SDL Renderer it was built with — see
+            # ground_cache_gpu.blit's docstring), so both classes take the same
+            # call and the host needs no branch here. Do not "fix" it away.
+            ground_cache.blit(presenter.world_target)
             # Base + deco stay dynamic (their own layers, above ground); windowed.
             cmin, cmax, rmin, rmax = cs.visible_tile_window(view_w, view_h, margin=4)
             for item in tilemap.visible_render_items(
@@ -1701,20 +2054,20 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                 gp["cheat"].submit(renderer, view_w, view_h)
             # -- /10H --
             _t_flush_start = time.perf_counter()
-            renderer.flush(window)
+            flush_frame()
             # -- TU-5: an in-gameplay cutscene overlay paints AFTER the
             # (frozen, but still-submitted) world frame, full-screen --
             if gp["cutscene"] is not None:
                 surf = gp["cutscene"].frame_surface()
                 if surf is not None:
-                    window.blit(surf, (0, 0))
+                    presenter.blit_fullscreen(surf)
                 widgets.submit_progress_ring(
                     renderer, view_w // 2, view_h - 60, 10,
                     gp["cutscene"].skip_progress)
                 renderer.submit_hud(HudText(
                     "hold to skip", (view_w // 2, view_h - 40),
                     "md", (210, 210, 210), align="center"))
-                renderer.flush(window)
+                flush_frame()
             # -- 10G boss: undo the shake pan exactly (no clamp in between) --
             if shake_ox or shake_oy:
                 cs.pan(-shake_ox, -shake_oy)
@@ -1722,15 +2075,23 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
         else:  # menu states — full-screen shell screen, no world
             shell.submit(renderer, view_w, view_h)
             _t_flush_start = time.perf_counter()
-            renderer.flush(window)
+            flush_frame()
         _t_flush_end = time.perf_counter()
-        pygame.display.flip()
-        _t_flip_end = time.perf_counter()
+        presenter.end_frame(capture_path)
+        _t_present_end = time.perf_counter()
+        if capture_path is not None:
+            print(f"capture saved: {capture_path}")
 
         perf["sim"] += _t_render0 - _t_sim0
         perf["submit"] += _t_flush_start - _t_render0
-        perf["flush"] += _t_flush_end - _t_flush_start
-        perf["flip"] += _t_flip_end - _t_flush_end
+        perf["world"] += flush_acc["world"]
+        perf["hud"] += flush_acc["hud"]
+        _composite = presenter.last_composite_ms / 1000.0
+        perf["composite"] += _composite
+        # end_frame is composite + present; the presenter times its own
+        # composite, so present is what is left of the call.
+        perf["present"] += max(0.0,
+                               (_t_present_end - _t_flush_end) - _composite)
         perf_frames += 1
 
         fps_log_ms += dt * 1000
@@ -1740,8 +2101,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                 print(f"fps: {clock.get_fps():.1f}  "
                       f"sim={perf['sim'] / n * 1000:.1f}ms  "
                       f"submit={perf['submit'] / n * 1000:.1f}ms  "
-                      f"flush={perf['flush'] / n * 1000:.1f}ms  "
-                      f"flip={perf['flip'] / n * 1000:.1f}ms")
+                      f"world={perf['world'] / n * 1000:.1f}ms  "
+                      f"hud={perf['hud'] / n * 1000:.1f}ms  "
+                      f"composite={perf['composite'] / n * 1000:.1f}ms  "
+                      f"present={perf['present'] / n * 1000:.1f}ms")
             else:
                 print(f"fps: {clock.get_fps():.1f}")
             for k in perf:
@@ -1757,6 +2120,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
     # run that ends by window-close rather than reaching GAME_OVER.
     if recorder is not None:
         recorder.close(outcome="quit")
+    presenter.close()   # GPU path: destroy the standalone SDL window
     pygame.quit()
     return frames
 
@@ -1792,4 +2156,5 @@ def debug_level_from_argv(argv):
 
 
 if __name__ == "__main__":
-    main(debug_log=debug_level_from_argv(sys.argv[1:]))
+    main(debug_log=debug_level_from_argv(sys.argv[1:]),
+         backend=backend_choice_from_argv(sys.argv[1:]))
