@@ -192,13 +192,28 @@ class TestOverlayClipReuse(GpuBackendCase):
     docs/briefs/phase-G5-overlay-clip-reuse.md."""
 
     def _cluster(self, cx, cy):
-        """A mix of OverlayLines/OverlayPolys (one alpha < 255 poly), a fixed
-        ~80x70 local footprint (roughly x in [-40, 40], y in [-30, 40])
-        recentred on (cx, cy). Callers pick (cx, cy) so the cluster straddles
-        one edge, or a corner, of the 200x160 target — verified by
-        `pygame.Rect.clip` (not just eyeballed): a bbox landing exactly ON a
-        boundary clips to a zero-size Rect (half-open interval), so every
-        centre below is chosen with margin on both sides of its boundary."""
+        """A mix of OverlayLines/OverlayPolys, a fixed ~80x70 local footprint
+        (roughly x in [-40, 40], y in [-30, 40]) recentred on (cx, cy).
+        Callers pick (cx, cy) so the cluster straddles one edge, or a corner,
+        of the 200x160 target — verified by `pygame.Rect.clip` (not just
+        eyeballed): a bbox landing exactly ON a boundary clips to a zero-size
+        Rect (half-open interval), so every centre below is chosen with margin
+        on both sides of its boundary.
+
+        **Every colour here is OPAQUE, deliberately.** These cases assert one
+        thing: that clipping the scratch to the target does not move a single
+        on-screen pixel. An earlier version layered an `alpha=100` poly over
+        the yellow line, which ALSO asserted that the two backends round a
+        *layered* alpha blend identically — and they do not. The GPU path
+        blends through SDL's `BLENDMODE_BLEND`, the CPU path through a pygame
+        SRCALPHA blit; over a flat background the two agree (which is why
+        `TestParity`'s own `alpha=100` poly is green everywhere, including
+        CI), but over an already-drawn destination they diverge by up to 2/255
+        on SDL's Linux software renderer. That failed CI while passing on
+        Windows/Direct3D. `CHANNEL_TOLERANCE` is pinned at 1 by plan §9 and is
+        NOT the thing to relax; the fix is to stop asserting a property the
+        platforms do not guarantee. Layered-alpha divergence is recorded as a
+        finding in `engine/render/CLAUDE.md` instead of being hidden here."""
         def shift(points):
             return tuple((x + cx, y + cy) for x, y in points)
 
@@ -211,7 +226,7 @@ class TestOverlayClipReuse(GpuBackendCase):
                          color=(255, 0, 255)),
             OverlayPolys(points=shift(((-30, -20), (20, -15), (10, 12),
                                        (-25, 8))),
-                         color=(0, 255, 128, 100)),
+                         color=(0, 255, 128)),
         ]
 
     def _assert_parity(self, calls):

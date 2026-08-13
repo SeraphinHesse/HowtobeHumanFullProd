@@ -255,6 +255,32 @@ regression. `clear_cache()` drops the scratch buffer and every per-renderer
 overlay Texture along with the sprite texture cache. Tests:
 `TestOverlayClipReuse` in `test_render_backend_parity.py`.
 
+**KNOWN PARITY GAP — LAYERED translucent overlays differ by up to 2/255, and
+it is platform-dependent.** The two backends do not blend alpha through the
+same code: the GPU path uploads the scratch and lets SDL composite it with
+`BLENDMODE_BLEND`, while `backend.py` blits an SRCALPHA scratch with pygame.
+Over a **flat background** the two round identically on every platform tested
+(hence `TestParity`'s `alpha=100` poly is green everywhere, CI included). Over
+an **already-drawn destination** — a translucent overlay laid on top of an
+earlier overlay — they diverge: measured **2/255 per channel** on SDL's Linux
+software renderer in CI, and **0** on Windows/Direct3D. Found 2026-08-13 when
+G5's new clipped-overlay cases layered a translucent poly over a line and went
+red on CI while passing locally.
+
+Consequences, in order of importance:
+- **`CHANNEL_TOLERANCE = 1` stays pinned.** Plan §9 forbids relaxing it, and
+  widening a global tolerance to accommodate one blend path would blind every
+  other parity assertion. `TestOverlayClipReuse` uses opaque colours instead,
+  so it asserts the clip and nothing else.
+- **No parity test currently asserts layered-alpha equality**, deliberately —
+  the platforms do not guarantee it, so asserting it makes CI a coin toss.
+- **In game this is not visible**: 2/255 on one channel where two translucent
+  overlays cross. It is recorded because a future reader comparing the two
+  backends pixel-by-pixel will otherwise re-discover it as a "bug".
+- If bit-identical layered alpha is ever actually required, the fix is to make
+  both paths composite the same way (e.g. pre-composite all overlays into one
+  scratch before upload), not to move the tolerance.
+
 ## Nine-slice (A2) — `DrawCall.slice`, HUD only
 A `DrawCall` may carry `slice = (left, top, right, bottom)` — nine-slice margins
 in FRAME pixels, authored on the manifest entry and carried
