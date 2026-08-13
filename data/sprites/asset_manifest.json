@@ -793,16 +793,16 @@
     "boss_era_0": {
       "anchors": {
         "beam_endpoint": [
-          15,
-          9
+          4,
+          8
         ],
         "hp_bar": [
           18,
           -18
         ],
         "impact": [
-          15,
-          9
+          3,
+          8
         ]
       },
       "frame_h": 96,

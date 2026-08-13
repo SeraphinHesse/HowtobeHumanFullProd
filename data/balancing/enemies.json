@@ -36,8 +36,8 @@
     "Boss": {
       "condition_path_weights": {
         "forest": 1,
-        "mountain": 2,
-        "pond": 9
+        "mountain": 1,
+        "pond": 1
       },
       "endgame_boss_scaling": {
         "attack_range_tiles": 1.0,
@@ -128,7 +128,7 @@
           {
             "at_hp_fraction": 0.5,
             "delayed_spawns": true,
-            "spawn_delay": 0.5,
+            "spawn_delay": 0.7,
             "spawn_hp_fraction": 0.5
           },
           {
@@ -292,9 +292,9 @@
           "stats": {
             "attack_range_tiles": 1,
             "attack_speed": 1.2,
-            "dmg": 100,
-            "hp": 2000,
-            "move_speed": 2.7
+            "dmg": 85,
+            "hp": 650,
+            "move_speed": 2.1
           }
         },
         {
@@ -620,7 +620,7 @@
       "death_spawn": {
         "at_hp_fraction": 0.5,
         "enabled": true,
-        "spawn_hp_fraction": 0.8,
+        "spawn_hp_fraction": 0.67,
         "spawns": [
           {
             "commander": 0,
@@ -691,9 +691,9 @@
           "sprite_scale": 1.0,
           "stats": {
             "attack_range_tiles": 1,
-            "attack_speed": 1.4,
+            "attack_speed": 1.2,
             "dmg": 36,
-            "hp": 475,
+            "hp": 435,
             "move_speed": 0.96
           }
         },
