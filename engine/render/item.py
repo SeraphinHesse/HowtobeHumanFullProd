@@ -33,8 +33,13 @@ class RenderItem:
     flip: bool = False
     fit_tiles: float = 0.0   # 0 = no fit: draw at the raw frame size
     scale: float = 1.0       # extra multiplier applied after the fit
-    column: int = 0          # master-sheet column block to cut from; 0 = the
-                             # entry's own stored column
+    # The LIVE master column this item is driven at (a season index, a
+    # building's colour), or None for "no driver — use the entry's own stored
+    # `column`". **None, not 0**: D3 promises a non-manual entry falls back to
+    # its stored column when the caller supplies none, and 0 is a legitimate
+    # live value (D7 clamps TO it), so 0 cannot double as "unset" without
+    # making the first season/first colour unaddressable.
+    column: int | None = None
 
 
 @dataclass(frozen=True)

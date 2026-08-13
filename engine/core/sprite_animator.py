@@ -19,7 +19,13 @@ class SpriteAnimator(Component):
     fit_tiles: float = 0.0
     scale: float = 1.0
     visible: bool = True
-    column: int = 0
+    # The LIVE master column this sprite is driven at, or **-1 for "no driver"**
+    # (emitted as RenderItem.column=None, so the entry's own stored `column`
+    # wins per D3). A Component field must be JSON-safe — `_JSON_FIELD_TYPES`
+    # in component.py rejects `int | None` outright — so the sentinel is a
+    # negative int rather than None. It cannot be 0: season 0 and colour index
+    # 0 are legitimate live values.
+    column: int = -1
 
     def update(self, dt):
         self.anim_time_ms += dt * 1000.0
@@ -40,5 +46,5 @@ class SpriteAnimator(Component):
             anim_time_ms=self.anim_time_ms + self.phase_ms,
             fit_tiles=self.fit_tiles,
             scale=self.scale,
-            column=self.column,
+            column=self.column if self.column >= 0 else None,
         )

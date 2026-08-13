@@ -21,7 +21,7 @@ def make_cs():
 
 class FakeAssets:
     def frame(self, slot_key, animation="idle", anim_time_ms=0, extra_hidden=None,
-              column=0):
+              column=None):
         return Frame(surface=f"SURF:{slot_key}", frame_w=64, frame_h=96)
 
 
@@ -61,6 +61,19 @@ class TestSpriteAnimator(unittest.TestCase):
         self.assertEqual(list(anim.render_items(Transform())), [])
         anim.visible = True
         self.assertEqual(len(list(anim.render_items(Transform()))), 1)
+
+    def test_undriven_column_emits_none_so_the_stored_column_wins(self):
+        """MasterSheetColumnsPLAN D3: a sprite nobody drives must emit
+        `column=None` ("no driver"), NOT 0 — or a `season`/`building_color`
+        entry silently resolves block 0 instead of its stored `column`. The
+        sentinel is -1 rather than None because a Component field must be
+        JSON-safe, and it cannot be 0 because season/colour 0 are real."""
+        undriven = SpriteAnimator(slot_key="slot_a")
+        self.assertEqual(undriven.column, -1)
+        self.assertIsNone(next(undriven.render_items(Transform())).column)
+
+        driven = SpriteAnimator(slot_key="slot_a", column=0)
+        self.assertEqual(next(driven.render_items(Transform())).column, 0)
 
     def test_update_advances_time_and_phase_offsets(self):
         anim = SpriteAnimator(slot_key="s", phase_ms=250)

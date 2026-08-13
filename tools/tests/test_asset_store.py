@@ -488,6 +488,16 @@ class TestColumnBlock(SheetCase):
         self.assertEqual(self.frame_colour(store.frame("tower", "idle", 0)),
                          grid_colour(0, 8))   # clamped to block 2
 
+    def test_negative_caller_column_clamps_to_the_first_column(self):
+        # D7 clamps on BOTH sides: a negative block would build a negative
+        # rect x and degrade to the grey-X placeholder instead of column 0.
+        make_grid_sheet(self.sprites_dir / "imported" / "tower.png",
+                        cols=12, rows=2)
+        store = self.store(entry(column_width=4, column=1, column_mode="season"))
+        self.assertEqual(
+            self.frame_colour(store.frame("tower", "idle", 0, column=-3)),
+            grid_colour(0, 0))
+
     def test_two_columns_of_one_slot_return_different_surfaces(self):
         # PIN 2: the cache key must carry the resolved block, or a second
         # column silently gets the first column's pixels forever.

@@ -7,7 +7,8 @@ crashes boot.** When you change asset conventions, update THIS doc.
 
 ## Import boundary
 `engine.assets` package `__init__` + `types` + `manifest` + `registry` +
-`nine_slice` are **pure**; pygame lives only in `engine.assets.placeholder` and
+`master_registry` + `nine_slice` are **pure**; pygame lives only in
+`engine.assets.placeholder` and
 `engine.assets.store` (import those by full path).
 
 ## Phase 5 conventions

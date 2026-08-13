@@ -230,7 +230,10 @@ class AssetStore:
             sheet_cols = 1
         else:
             sheet_cols = sheet.get_width() // (entry.column_width * entry.frame_w)
-        return min(block, max(0, sheet_cols - 1))     # D7: clamp, never wrap
+        # D7: clamp, never wrap. Clamped on BOTH sides — a negative caller
+        # column would otherwise build a negative rect x and degrade the frame
+        # to the grey-X placeholder instead of resolving column 0.
+        return max(0, min(block, sheet_cols - 1))
 
     def _frame_surface(self, entry, ref, column=None):
         row, col = ref

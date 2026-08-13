@@ -42,6 +42,23 @@ itself is pure orchestration. See the engine router's pygame-import allow-list.
   `overlay`. This is a **LOAD-BEARING invariant** — if `depth_key` ever
   interleaves layers, the ground cache breaks.
 
+## `RenderItem.column` — the LIVE master-sheet column (MasterSheetColumnsPLAN C3)
+`RenderItem` carries `column: int | None = None`, appended last, and
+`Renderer.flush` passes it into `assets.frame(..., column=item.column)`. It is
+the seam a caller drives a master-sheet COLUMN through (a season index, a
+building's colour); the slicing itself happens in exactly one place,
+`AssetStore._frame_surface` — see `engine/assets/CLAUDE.md`.
+
+- **The default is `None`, not `0`, and that is load-bearing.** `None` means
+  "no driver — use the manifest entry's own stored `column`", which is what D3
+  promises a non-manual entry. `0` is a legitimate LIVE value (D7 clamps *to*
+  it), so it cannot double as "unset" without making the first season and the
+  first colour unaddressable. Any new emitter that grows a `column=` keyword
+  must default it to `None` for the same reason — including
+  `engine/tilemap.py`'s.
+- **The HUD pass gets no column.** `HudSprite` carries no such field, the same
+  scope decision `slice`, `crop_rect` and `hidden_frames` already made.
+
 ## Pixel quantizer (`item.round_half_up`, JitteryMapFix)
 `engine/render/item.py` exports `round_half_up(v)` = `floor(v + 0.5)` — THE
 quantizer for screen coordinates: the backend's dests/sizes/points and the

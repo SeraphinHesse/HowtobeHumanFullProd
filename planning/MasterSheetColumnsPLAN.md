@@ -1,5 +1,5 @@
 <!-- plan-scale: large -->
-<!-- status: 0/4 sections, 0/13 phases — not started -->
+<!-- status: 1/4 sections, 3/13 phases — S1 landed, wave 2 (S2+S3+S4) next -->
 
 # MasterSheetColumnsPLAN.md — master spritesheet COLUMNS, and the two systems that spend them
 
@@ -189,6 +189,42 @@ same pixels.
 **Section gate (measured, on the merged `section-S1`):** `py tools/smoke.py` → OK;
 `py -m pytest` over the 7 touched test files → **204 passed, 49 subtests, 0
 failed, 0 skipped**. Handoff: `docs/handoffs/section-S1.md`.
+
+**Post-integration fixes (main session, on the umbrella — READ THIS BEFORE S2/S3/S4).**
+The umbrella reviewer confirmed two defects in what S1 shipped; both are fixed
+on the umbrella, so the surface below is what wave 2 actually codes against:
+
+- **`RenderItem.column` is `int | None = None`, and `SpriteAnimator.column` is
+  `int = -1`** — not `0`/`0` as C3 first shipped. With both defaulting to `0`
+  the renderer always passed a real int, so `_column_block`'s `column is None`
+  branch was unreachable on the world path and a `season`/`building_color`
+  entry resolved block 0 instead of its stored `column` — a direct D3
+  violation. `-1` is a sentinel (a Component field must be JSON-safe, so
+  `int | None` is rejected outright) and `render_items` maps it to `None`; it
+  cannot be `0`, because season 0 and colour 0 are real. **N2 consequence:**
+  `band_render_items`/`visible_render_items` must take `column=None`, not
+  `column=0`.
+- **`import_master_sheet` now refuses an existing-but-unreadable registry**
+  (`RegistryUnreadableError`, raised before the PNG copy). `load_registry_doc`
+  degrades a schema-invalid registry to an EMPTY doc, which is right for
+  reading and catastrophic for writing: the import merged its one entry into
+  that empty doc and wrote it, deleting every other sheet. C1 making
+  `column_width` required means every pre-C1 registry is schema-invalid by
+  construction, so this was reachable, not theoretical.
+- Minor, same commit: the D7 clamp is two-sided (`max(0, min(...))`); the
+  stopgap `column_width` is clamped to the schema's own bounds via a new
+  `column_width_bounds()` sibling of `frame_bounds()` (**E1 should reuse it**),
+  so a >256-frame sheet can no longer fail the write *after* the PNG copy and
+  strand an orphan PNG.
+
+Gate after the fixes (measured): `py tools/smoke.py` OK; the same 7 test files →
+**208 passed, 49 subtests, 0 failed, 0 skipped**.
+
+**Still open, owned by wave 2:** `GridInUseError` compares only
+`(frame_w, frame_h)` while `column_width` is written outside that tuple — once
+E1 gives the designer a real field, a re-import can silently re-cut an in-use
+sheet's column windows. E1 must extend the guard tuple (it is already D10's
+stated intent).
 
 #### Phase C1 — Data layer *(LANDED)*
 
@@ -389,6 +425,15 @@ top-level selector item backed by `editor/panels/master_sheets.py`.
   thread through `perform_import()`.
 - `pad_to_frame` remains deliberately absent. Centring would mis-cut every column
   window exactly as it would mis-cut every row window.
+- **E1 MUST SUPERSEDE S1's STOPGAP.** Making `column_width` required on the
+  registry broke every editor import, and no S1 phase owned the fix, so C3
+  shipped `import_master_sheet` writing `column_width: max(1, sheet_w //
+  frame_w)` (`editor/master_sheet_import.py:303`) — one column spanning the
+  whole sheet, behaviour-preserving, no art moves. Replace that derivation with
+  the real designer-supplied argument above; do not leave both. Its 256-frame
+  schema cap also means a sheet wider than 256 frames is currently refused —
+  the designer field inherits the same bound, which is correct, but say so in
+  the spinbox tooltip.
 
 **Tests.** Import writes `column_width` and `columns` into a schema-valid entry;
 an empty colour list omits the key; slugification and rejection cases for colour

@@ -44,7 +44,7 @@ class FakeAssets:
         self.slices = slices or {}
 
     def frame(self, slot_key, animation="idle", anim_time_ms=0, extra_hidden=None,
-              column=0):
+              column=None):
         w, h = self.sizes.get(slot_key, self.default)
         offset_x, offset_y = self.offsets.get(slot_key, (0, 0))
         return Frame(surface=f"SURF:{slot_key}", frame_w=w, frame_h=h,
@@ -554,7 +554,7 @@ class RecordingAssetsWithHidden(FakeAssets):
         self.last_extra_hidden = None
 
     def frame(self, slot_key, animation="idle", anim_time_ms=0, extra_hidden=None,
-              column=0):
+              column=None):
         self.last_extra_hidden = set(extra_hidden) if extra_hidden else extra_hidden
         return super().frame(slot_key, animation, anim_time_ms)
 
@@ -878,14 +878,14 @@ class RecordingAssetsWithColumn(FakeAssets):
         self.last_column = "unasked"
 
     def frame(self, slot_key, animation="idle", anim_time_ms=0, extra_hidden=None,
-              column=0):
+              column=None):
         self.last_column = column
         return super().frame(slot_key, animation, anim_time_ms)
 
 
 class TestRenderItemColumn(unittest.TestCase):
     """MasterSheetColumnsPLAN C3: a world RenderItem's master-sheet column
-    block reaches the asset store, and the default 0 changes no pixels."""
+    block reaches the asset store, and the default None changes no pixels."""
 
     def test_non_zero_column_reaches_the_store(self):
         assets = RecordingAssetsWithColumn()
@@ -899,7 +899,8 @@ class TestRenderItemColumn(unittest.TestCase):
         r = Renderer(make_cs(), FakeAssets(), backend=backend)
         item = RenderItem("ent", (2, 3), fit_tiles=1.0, tint=(1, 2, 3), flip=True)
         call = only_call(r, backend, item)
-        self.assertEqual(item.column, 0)
+        # None, not 0: "no driver — the entry's stored `column` wins" (D3).
+        self.assertIsNone(item.column)
         # The pre-change DrawCall, recomputed from the same inputs.
         px, py = make_cs().world_to_screen(2 + block_center_offset(1.0),
                                            3 + block_center_offset(1.0))
