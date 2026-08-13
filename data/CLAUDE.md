@@ -128,7 +128,23 @@ validating writer; don't hand-edit the JSON.
   `vfx_buff_arrow` — the little golden arrow shown above any enemy with an
   active buff; unlike the ring, the arrow IS swappable art (E-37: with no
   art imported it falls back to a small procedural golden triangle, drawn
-  by `submit_buff_arrows`). Since **Phase 9A** the other
+  by `submit_buff_arrows`). **The digger-hop-rework feature** (player
+  feedback for the Digger's stand-and-erupt-in-place + knight-hop search,
+  `game/enemies/CLAUDE.md`'s Digger section) added two MORE `vfx` category
+  slots, `vfx_digger_marker`/`vfx_digger_direction` — the entry-tile marker
+  and heading arrow `game/ui/effects.py`'s `submit_digger_telegraphs` draws
+  over a submerged Digger, the `vfx_buff_arrow` swappable-art pattern applied
+  to a raw world point instead of a live enemy's screen anchor
+  (`game/ui/CLAUDE.md`'s Digger telegraph section). It added no new
+  `procedural` block — both fallback triangles' colour/size are code chrome,
+  the same "not a designer lever, only the swappable ART is" rule
+  `vfx_buff_arrow`'s own fallback follows. It also added two flat
+  `EnemyTypes.Digger` leaves, `dig_hop_long_tiles`/`dig_hop_short_tiles`
+  (int, default 3/1) — the knight-hop's two legs, alongside the pre-existing
+  `dig_range_tiles`/`dig_speed`/`emerge_cooldown`/`min_target_distance_tiles`
+  (see the "Enemy sizing leaves" pattern below for how a per-type flat leaf
+  is shaped; these are `EnemyTypes.Digger`-only, not shared across types).
+  Since **Phase 9A** the other
   five hold the prototype's live tuning verbatim, restructured into the
   REPLAN nested feature tree (see planning/MIGRATION_PLAN.md): PascalCase
   group objects

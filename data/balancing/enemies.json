@@ -370,6 +370,8 @@
           }
         ]
       },
+      "dig_hop_long_tiles": 3,
+      "dig_hop_short_tiles": 1,
       "dig_range_tiles": 6,
       "dig_speed": 0.8,
       "emerge_cooldown": 2.4,
@@ -475,7 +477,7 @@
       "kidnapping": false,
       "min_target_distance_tiles": 3,
       "registry_group": "Digger",
-      "start_round": 32
+      "start_round": 1
     },
     "Drummer": {
       "attack_speed_increase": 0.1,

@@ -370,6 +370,8 @@
           }
         ]
       },
+      "dig_hop_long_tiles": 3,
+      "dig_hop_short_tiles": 1,
       "dig_range_tiles": 6,
       "dig_speed": 0.8,
       "emerge_cooldown": 2.4,
