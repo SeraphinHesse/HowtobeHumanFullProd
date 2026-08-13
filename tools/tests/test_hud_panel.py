@@ -20,14 +20,14 @@ from engine.core import Scene, SpriteAnimator
 from engine.physics import TileOccupancy
 from engine.render import HudRect, HudText
 from game.buildings import BaseBuilding, attach_base
-from game.buildings.registry import build_cost, create
+from game.buildings.registry import build_cost, create, place_building
 from game.core import Session, load_balance
 from game.core.phases import GamePhase, GameState
 from game.enemies import Spawner
 from game.map.tile_map import TileMap
 from game.map.tiles import TileState
 from game.ui import widgets
-from game.ui.building_ui import BuildingUI, ConstructPreview
+from game.ui.building_ui import BuildingUI, ConstructPreview, _swatch_rgb
 from game.ui.hud import Hud
 
 MAPBAL = load_balance(FIXTURE_DATA, "map")
@@ -270,6 +270,73 @@ class TestConstructPreviewSwatches(unittest.TestCase):
         placed = tile.occupant
         self.assertIsNotNone(placed, "the batch must actually have placed")
         self.assertEqual(3, placed.get_component(SpriteAnimator).column)
+
+
+class TestUpgradePanelSwatches(unittest.TestCase):
+    """B3: the same swatch row on the upgrade panel, recolouring the LIVE
+    building, plus the `ui.json` palette lookup behind both screens."""
+
+    def _upgrade(self, colours=None):
+        """A panel open in upgrade mode on ONE placed defence building."""
+        session, panel, _hud, scene, occ = build_world()
+        tile = session.tilemap.get(2, 2)
+        session.tilemap.set_tile_state(tile, TileState.BUILDABLE)
+        place_building(session.tilemap, tile, "defence", 9999, BUILD,
+                       scene, occ)
+        panel.colour_columns = colours or {}
+        panel.open_for_tile(tile, session, BUILD)
+        self.assertEqual("upgrade", panel.mode)
+        return session, panel, tile.occupant
+
+    def _centre(self, panel, i):
+        x, y, w, h = panel.colour_row.buttons[i].rect
+        return x + w // 2, y + h // 2
+
+    # 1 -- the D6 gate ---------------------------------------------------
+    def test_row_exists_only_for_a_colour_capable_slot(self):
+        _s, panel, _b = self._upgrade({COLOUR_SLOT: COLOUR_NAMES})
+        self.assertEqual(len(COLOUR_NAMES), len(panel.colour_row.buttons))
+        ids = [k for k in panel.ids if k.startswith("upgrade_swatch")]
+        self.assertEqual(len(COLOUR_NAMES), len(ids))
+
+        _s, bare, _b = self._upgrade()          # no capability map at all
+        self.assertFalse(bare.colour_row)
+        self.assertEqual([], [k for k in bare.ids
+                              if k.startswith("upgrade_swatch")])
+
+    # 2 -- the click -----------------------------------------------------
+    def test_clicking_a_swatch_recolours_the_live_building(self):
+        session, panel, b = self._upgrade({COLOUR_SLOT: COLOUR_NAMES})
+        for i in (2, 0):        # a NON-zero index first: 0 is a REAL colour
+            with self.subTest(i=i):
+                mx, my = self._centre(panel, i)
+                self.assertTrue(panel.handle_click(mx, my, session, BUILD,
+                                                   None, None))
+                self.assertEqual(
+                    i, b.get_component(SpriteAnimator).column)
+
+    # 3 -- the palette ---------------------------------------------------
+    def test_swatch_rgb_reads_building_colors_and_degrades(self):
+        bal = {"BuildingColors": {"pink": [1, 2, 3]}}
+        self.assertEqual((1, 2, 3), _swatch_rgb("pink", bal))
+        # A `columns` name with no entry, an absent group and no balance at
+        # all all degrade to the neutral swatch rather than raising.
+        self.assertEqual(widgets.C_PANEL_INSET, _swatch_rgb("chartreuse", bal))
+        self.assertEqual(widgets.C_PANEL_INSET, _swatch_rgb("pink", {}))
+        self.assertEqual(widgets.C_PANEL_INSET, _swatch_rgb("pink"))
+
+    # 4 -- the band ------------------------------------------------------
+    def test_the_row_moves_nothing_and_clears_the_action_button(self):
+        _s, bare, _b = self._upgrade()
+        _s, panel, _b = self._upgrade({COLOUR_SLOT: COLOUR_NAMES})
+        self.assertEqual(bare.action_btn.rect, panel.action_btn.rect)
+        self.assertEqual(bare.move_btn.rect, panel.move_btn.rect)
+        top = panel.action_btn.rect[1]
+        for i, btn in enumerate(panel.colour_row.buttons):
+            with self.subTest(i=i):
+                x, y, w, h = btn.rect
+                self.assertLessEqual(y + h, top)      # above the button
+                self.assertGreaterEqual(min(w, h), 12)   # UR-5 floor
 
 
 if __name__ == "__main__":
