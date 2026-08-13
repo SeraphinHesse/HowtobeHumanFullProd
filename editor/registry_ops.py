@@ -320,3 +320,274 @@ def add_button_family(data_dir, name):
 
     _append_child_group(data_dir, "ui", ("Buttons",), label, slot)
     return label, slot
+
+
+# ===========================================================================
+# VFX roster: add / remove / rename (VfxAuthoringPLAN VA-6)
+# ===========================================================================
+# Until this phase this module could only APPEND. A designer could not delete
+# an effect they added by mistake and could not rename one, so a roster grew
+# monotonically and its keys were whatever they were first typed as.
+#
+# Remove and rename are the first DESTRUCTIVE registry ops in the repo, so both
+# validate everything before touching disk (add_button_family's shape) and both
+# refuse rather than guess. Rename in particular is a FOUR-FILE migration —
+# slots.json, the manifest entry, the PNG on disk, and every triggers row
+# naming the old key — and one that updated three of the four would leave
+# either a dangling binding or art nobody can reach.
+
+
+def _resync_vfx_slot_enum(data_dir):
+    """Regenerate ``vfx.schema.json``'s ``trigger_row.sprite_slot`` enum from
+    the registry the caller just changed.
+
+    Load-bearing, not housekeeping. That enum is GENERATED (VA-1/D2), so a
+    freshly added slot is not a legal ``sprite_slot`` value until it is
+    regenerated — which would mean "Add effect" handing the designer an effect
+    they cannot BIND, and "Rename" writing a trigger row that fails its own
+    schema on the way out. Found by ``test_vfx_roster_ops``, which could not
+    bind a slot it had just created.
+
+    It CALLS the generator rather than reimplementing it:
+    ``test_schema_slot_sync`` pins that one function's output, and a second
+    copy here would be precisely the drift a generated enum exists to prevent.
+    ``editor -> tools`` is the established direction (``editor/main.py``
+    imports ``tools.smoke``; ``editor/test_runner.py`` imports
+    ``tools.test_domains``), and the generator is pure ``engine`` underneath so
+    ``TestPurity`` is unaffected. Imported locally to keep this module's
+    top-level import surface engine-only."""
+    from tools.gen_sprite_slot_enum import apply_vfx
+
+    data_dir = Path(data_dir)
+    schema = data_dir / "schemas" / "vfx.schema.json"
+    if schema.exists():
+        apply_vfx(schema, data_dir)
+
+
+def vfx_effect_slot(name):
+    """The slot key for a new VFX effect, from a human name.
+
+    ``button_family_slot``'s rule with the ``vfx_`` prefix: lowercase, every
+    non-``[a-z0-9]`` run collapsed to one underscore, trimmed, and the prefix
+    added unless the slug already carries it (typing the key itself must not
+    double-prefix). ``ValueError`` when nothing slug-like survives."""
+    slug = _SLUG_COLLAPSE.sub("_", (name or "").strip().lower()).strip("_")
+    if not slug:
+        raise ValueError(f"no valid slot key derivable from {name!r}")
+    if slug.startswith("vfx"):
+        return slug
+    return f"vfx_{slug}"
+
+
+def _vfx_effects_group(doc):
+    """The vfx category's 'Effects' group node (raw dict), which must hold
+    ``children``.
+
+    VA-1 restructured this group from a flat ``slots`` list into one leaf CHILD
+    group per effect precisely so it could host variants; every op below
+    depends on that shape, so this raises loudly rather than degrading if it is
+    ever flattened again."""
+    category = next(
+        (c for c in doc["categories"] if c["key"] == "vfx"), None)
+    if category is None:
+        raise KeyError("no category 'vfx'")
+    group = _find_group(category["groups"], ("Effects",))
+    if "children" not in group:
+        raise KeyError(
+            "vfx -> Effects is a flat slots group; VA-1's per-effect child "
+            "groups are what make variants and this roster editable")
+    return group
+
+
+def add_vfx_effect(data_dir, name):
+    """Add a VFX effect: a new leaf child group ``{label, slots: [key]}`` under
+    vfx -> Effects, ready for its own ``_v<k>`` variants.
+
+    ``add_button_family``'s exact stack, one category over. Returns
+    ``(label, slot_key)``; art is imported onto the slot afterwards (grey-X
+    until then), and the GENERATED ``sprite_slot`` enum (VA-1/D2) picks the key
+    up on the next ``py tools/gen_sprite_slot_enum.py`` run, which is what
+    makes it bindable to a trigger.
+
+    Raises ``ValueError`` BEFORE any write on a duplicate label or on a key
+    that collides anywhere in the registry."""
+    data_dir = Path(data_dir)
+    doc = data_io.load_json(data_dir / "slots.json")
+    slot = vfx_effect_slot(name)
+    label = name.strip()
+
+    group = _vfx_effects_group(doc)
+    if label in {child["label"] for child in group["children"]}:
+        raise ValueError(f"a VFX effect named {label!r} already exists")
+    if slot in _all_slots(doc):
+        raise ValueError(f"slot {slot!r} already exists in the registry")
+
+    _append_child_group(data_dir, "vfx", ("Effects",), label, slot)
+    _resync_vfx_slot_enum(data_dir)
+    return label, slot
+
+
+def trigger_bindings(data_dir, slot_key):
+    """Every ``triggers`` event whose ``sprite_slot`` names ``slot_key``.
+
+    Read tolerantly: a missing or unreadable balancing file means "no
+    bindings", never a crash — an editor op must not die because a data file
+    happens to be mid-edit (E-37). Public because the panel wants the same
+    answer to explain a refused delete."""
+    path = Path(data_dir) / "balancing" / "vfx.json"
+    try:
+        doc = data_io.load_json(path)
+    except (OSError, ValueError):
+        return ()
+    triggers = (doc or {}).get("triggers") or {}
+    return tuple(sorted(
+        event for event, row in triggers.items()
+        if isinstance(row, dict) and row.get("sprite_slot") == slot_key))
+
+
+def remove_slot(data_dir, slot_key):
+    """Remove ``slot_key`` from the vfx category, with its manifest entry and
+    — only when nothing else needs it — its PNG.
+
+    **Refuses while the slot is BOUND** to any trigger row rather than silently
+    leaving a row pointing at a key that no longer exists. Unbinding first is
+    one editor click, and it is a decision the designer should make
+    consciously; ``ValueError`` names the events.
+
+    The PNG is unlinked ONLY when ``asset_import.unreferenced_sheets`` says no
+    remaining entry references it — a slot that LINKED to another slot's art
+    must never delete art the owner still needs.
+
+    A leaf group left with no slots is dropped along with it: a child group
+    with an empty ``slots`` list fails the schema, and an effect with no slots
+    is not an effect. Removing the LAST effect is refused for the same
+    schema reason.
+
+    Returns ``(removed_group, removed_png)`` so the caller can report what
+    actually happened."""
+    from editor import asset_import   # local: keeps this module's import
+    # surface engine-only for every caller that never removes anything.
+
+    data_dir = Path(data_dir)
+    slots_path = data_dir / "slots.json"
+    doc = data_io.load_json(slots_path)
+
+    bound = trigger_bindings(data_dir, slot_key)
+    if bound:
+        raise ValueError(
+            f"slot {slot_key!r} is still bound to {', '.join(bound)} - "
+            f"unbind it before removing it")
+
+    group = _vfx_effects_group(doc)
+    owner = next(
+        (child for child in group["children"]
+         if slot_key in [_slot_key(s) for s in child.get("slots", ())]), None)
+    if owner is None:
+        raise KeyError(f"no vfx slot {slot_key!r}")
+
+    remaining = [s for s in owner["slots"] if _slot_key(s) != slot_key]
+    removed_group = not remaining
+    if removed_group and len(group["children"]) == 1:
+        raise ValueError(
+            "refusing to remove the last VFX effect - the Effects group needs "
+            "at least one child to stay schema-valid")
+    if removed_group:
+        group["children"].remove(owner)
+    else:
+        owner["slots"] = remaining
+    data_io.write_validated(doc, slots_path,
+                            data_dir / "schemas" / "slots.schema.json")
+    _resync_vfx_slot_enum(data_dir)
+
+    manifest = asset_import.load_manifest_doc(data_dir)
+    entry = manifest["entries"].pop(slot_key, None)
+    removed_png = None
+    if entry is not None:
+        asset_import.write_manifest_doc(data_dir, manifest)
+        ref = entry.get("sheet") or asset_import.sheet_ref(slot_key)
+        for orphan in asset_import.unreferenced_sheets(manifest, (ref,)):
+            png = data_dir / "sprites" / orphan
+            if png.exists():
+                png.unlink()
+                removed_png = orphan
+    return removed_group, removed_png
+
+
+def rename_slot(data_dir, old_key, new_key):
+    """Rename a vfx slot everywhere it is referenced.
+
+    FOUR files move together, and that is the entire point of the op:
+
+    1. ``slots.json`` — the key itself, in either the bare or the
+       frame-size-override form.
+    2. ``asset_manifest.json`` — the entry is re-keyed.
+    3. ``data/sprites/imported/<old>.png`` — renamed, and the entry's ``sheet``
+       rewritten, but ONLY when this slot OWNS that art. A slot linked to
+       another slot's sheet keeps pointing at it.
+    4. ``balancing/vfx.json`` — every ``triggers`` row naming the old key.
+
+    Everything is validated first: an unknown ``old_key``, a malformed
+    ``new_key``, or a ``new_key`` already anywhere in the registry raises
+    before a single file is touched. Renaming a slot to itself is a no-op.
+
+    The caller should re-run ``py tools/gen_sprite_slot_enum.py`` afterwards so
+    the generated ``sprite_slot`` enum follows (VA-1/D2); until then the schema
+    still lists the old key.
+
+    Returns ``(events_rebound, png_renamed)``."""
+    from editor import asset_import
+
+    data_dir = Path(data_dir)
+    slots_path = data_dir / "slots.json"
+    doc = data_io.load_json(slots_path)
+
+    if new_key == old_key:
+        return (), False
+    if not re.fullmatch(r"[a-z][a-z0-9_]*", new_key or ""):
+        raise ValueError(f"{new_key!r} is not a valid slot key")
+    existing = _all_slots(doc)
+    if old_key not in existing:
+        raise KeyError(f"no slot {old_key!r}")
+    if new_key in existing:
+        raise ValueError(f"slot {new_key!r} already exists in the registry")
+
+    group = _vfx_effects_group(doc)
+    found = False
+    for child in group["children"]:
+        for i, entry in enumerate(child.get("slots", ())):
+            if _slot_key(entry) != old_key:
+                continue
+            child["slots"][i] = (new_key if isinstance(entry, str)
+                                 else {**entry, "key": new_key})
+            found = True
+    if not found:
+        raise KeyError(f"{old_key!r} is not a vfx slot")
+    data_io.write_validated(doc, slots_path,
+                            data_dir / "schemas" / "slots.schema.json")
+    # BEFORE the trigger rewrite below: those rows validate against this enum.
+    _resync_vfx_slot_enum(data_dir)
+
+    png_renamed = False
+    manifest = asset_import.load_manifest_doc(data_dir)
+    entry = manifest["entries"].pop(old_key, None)
+    if entry is not None:
+        if entry.get("sheet") == asset_import.sheet_ref(old_key):
+            src = data_dir / "sprites" / entry["sheet"]
+            entry = {**entry, "sheet": asset_import.sheet_ref(new_key)}
+            dst = data_dir / "sprites" / entry["sheet"]
+            if src.exists():
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                src.rename(dst)
+                png_renamed = True
+        manifest["entries"][new_key] = entry
+        asset_import.write_manifest_doc(data_dir, manifest)
+
+    rebound = trigger_bindings(data_dir, old_key)
+    if rebound:
+        vfx_path = data_dir / "balancing" / "vfx.json"
+        vfx_doc = data_io.load_json(vfx_path)
+        for event in rebound:
+            vfx_doc["triggers"][event]["sprite_slot"] = new_key
+        data_io.write_validated(
+            vfx_doc, vfx_path, data_dir / "schemas" / "vfx.schema.json")
+    return rebound, png_renamed

@@ -870,8 +870,14 @@ class MainWindow(QMainWindow):
     # family (Buttons/Button, Panels/Panel, …) — a variant is another skin.
     # "conditions" is the deco case exactly: each condition's leaf group holds
     # interchangeable art the game rolls between per tile.
+    # "vfx" joined in VfxAuthoringPLAN VA-6, and it is the deco/conditions case
+    # exactly: each effect's leaf group holds interchangeable art the game
+    # rolls between per spawn (random) or indexes by the source's tier/era.
+    # It could not be listed before VA-1 restructured that category — the vfx
+    # Effects group was FLAT, so `selection.variant_target()` returned None and
+    # "+ Variant" would have been a dead button.
     _VARIANT_TARGETS = {"enemies": None, "deco": None, "map": {"Background"},
-                        "ui": None, "conditions": None}
+                        "ui": None, "conditions": None, "vfx": None}
     _DECO_CATEGORY = "deco"
     # ui -> Buttons is the second "+ Type" target: a brand-new button FAMILY
     # (its own variant family), not another skin of an existing one.

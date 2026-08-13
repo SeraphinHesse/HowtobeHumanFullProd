@@ -66,6 +66,7 @@ TIERS = {
     "test_editor_tutorial_paint": "editor",
     "test_editor_viewport": "editor",
     "test_registry_ops": "editor",
+    "test_vfx_roster_ops": "editor",  # VA-6: add/remove/rename a VFX effect
     "test_run_controls": "editor",
     "test_screen_honest_controls": "editor",
     "test_vfx_preview": "editor",

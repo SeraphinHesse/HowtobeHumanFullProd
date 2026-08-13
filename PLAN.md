@@ -5,7 +5,7 @@
 > plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
 > screen).
 
-<!-- status: IN PROGRESS — 5/8 phases (VA-1–VA-5 done), authored 2026-08-13 -->
+<!-- status: IN PROGRESS — 6/8 phases (VA-1–VA-6 done), authored 2026-08-13 -->
 <!-- plan-scale: medium -->
 
 # VfxAuthoringPLAN.md — Authoring the VFX roster
@@ -189,7 +189,7 @@ executing agent reads both docs.
 | VA-3 | `depth_key` rank; `WorldRect`; `submit_world` | engine | — | **done** (also `WorldLines` — a slash is lines, so the world submit needed both) |
 | VA-4 | `building_respawn` trigger | game + data | VA-2 | **done** (a 4th `spark` PRESET, not a new `procedural.respawn` block — see D11) |
 | VA-5 | seven highlights → trigger-driven; palette move | game + data | VA-2, VA-3 | **done** |
-| VA-6 | `registry_ops` add/remove/rename; vfx variants | editor | VA-1 | todo |
+| VA-6 | `registry_ops` add/remove/rename; vfx variants | editor | VA-1 | **done** (+ the ops resync the generated enum) |
 | VA-7 | VFX panel roster/binding/variant/layer UI | editor | VA-6, VA-2 | todo |
 | VA-8 | preview paths for the eight new families | editor | VA-4, VA-5, VA-7 | todo |
 

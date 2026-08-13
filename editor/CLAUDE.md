@@ -344,6 +344,41 @@ preview LEVER of its own — `vfx_preview.py`'s `_EMIT_FAMILIES`/graceful-
 degrade placeholder for it is unchanged — this is purely what keeps the
 dataclass constructible for every OTHER family's preview.
 
+## The VFX roster is editable (VfxAuthoringPLAN VA-6)
+`editor/registry_ops.py` could only APPEND until this phase. For the `vfx`
+category it now also removes and renames:
+- **`add_vfx_effect(data_dir, name)`** — `add_button_family`'s stack one
+  category over (slug via `vfx_effect_slot`, validate-before-any-write, a new
+  leaf child group under vfx ▸ Effects, ready for its own `_v<k>` variants).
+- **`remove_slot(data_dir, slot_key)`** — **refuses while the slot is BOUND**
+  to a trigger row rather than orphaning that row; drops the manifest entry;
+  drops the leaf group when its last slot goes; unlinks the PNG **only** when
+  `asset_import.unreferenced_sheets` clears it, so a slot that LINKED to
+  another's art can never delete art the owner still needs. Refuses to remove
+  the last effect (an empty `children` list fails the schema).
+- **`rename_slot(data_dir, old, new)`** — a FOUR-FILE migration, which is the
+  whole point of it existing: `slots.json`, the manifest entry, the owned PNG
+  (a LINKED sheet is left pointing where it pointed) and every `triggers` row
+  naming the old key. One that moved three of the four would leave either a
+  dangling binding or art nobody can reach.
+
+**All three resync the generated `sprite_slot` enum** through
+`_resync_vfx_slot_enum` → `tools.gen_sprite_slot_enum.apply_vfx`. Load-bearing,
+not housekeeping: that enum is GENERATED (VA-1/D2), so without the resync "Add
+effect" hands the designer an effect they cannot BIND, and "Rename" writes a
+trigger row that fails its own schema on the way out. Found by
+`test_vfx_roster_ops`, which could not bind a slot it had just created. It
+CALLS the generator rather than reimplementing it — `test_schema_slot_sync`
+pins that one function, and a second copy here would be exactly the drift a
+generated enum exists to prevent. `editor -> tools` is the established
+direction (`main.py` → `tools.smoke`, `test_runner.py` → `tools.test_domains`)
+and the generator is pure `engine` underneath, so `TestPurity` is unaffected.
+
+`"vfx"` also joined `main.py`'s `_VARIANT_TARGETS`, which is what lights up the
+existing "+ Variant" button. It could not be listed before VA-1 restructured
+that category: a flat `slots` group makes `selection.variant_target()` return
+`None`, so the button would have been dead.
+
 ## Running the tests FROM the editor (TestRunnerPLAN TR-5) — the first QThread
 
 The **"Run tests"** button on the Agents toolbar, immediately after "thats my
