@@ -61,6 +61,15 @@ umbrella branch.
    shared-file contract — exact insertion points in files multiple phases touch;
    (4) Exit gate + Quick Test. Orchestrator reconciles §3 across briefs into
    non-overlapping insertion blocks, then commits all briefs to the umbrella.
+
+   **Reconcile §4 too, and downgrade it where needed.** A brief's exit gate is
+   executed by a SUBAGENT, so it may contain only `py tools/smoke.py` + named
+   `pytest` files. If a brief — or the phase bullet in the plan doc it came
+   from — asks for the full suite, `testgate check`, `--affected`, or a tier
+   sweep, **the Test Suite Policy wins over the plan doc**: rewrite that §4 to
+   the targeted gate before dispatching Wave 2, and note the rewrite in the
+   final report. Shipping a brief with a wider gate hands the coder a command
+   the hook will deny.
 3. **Wave 2 — CODERS** (one **`coder` agent** per phase — **`engine-coder`**
    when the brief's §3 file scope is `engine/**` — parallel,
    `isolation: "worktree"`, branch
@@ -112,6 +121,8 @@ umbrella branch.
 - Editing the spec/prototype repo — read-only, always.
 - Granting a coder scope outside its brief's §3 file boundary.
 - Running the full suite anywhere except the single Wave-4 umbrella gate.
+- Passing a brief's or plan doc's wider exit gate through to a coder unchanged —
+  downgrade it in Wave 1 instead.
 - Letting any agent's exploration run past ~10 minutes before it produces its
   deliverable.
 - **Re-issuing any test command that was denied, or that you already ran with

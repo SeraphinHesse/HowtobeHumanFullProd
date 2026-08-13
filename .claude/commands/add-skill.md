@@ -22,16 +22,25 @@ re-explaining architecture. (Scaffolding an AGENT definition in
    - `argument-hint:` `<what the user passes>`.
    - `allowed-tools:` the MINIMAL set. Read/Edit/Write/Grep/Glob for edit workflows;
      add narrowly-scoped `Bash(...)` entries only for the exact commands the skill
-     runs (e.g. `Bash(py tools/smoke.py*)`, `Bash(py -m unittest*)`, or specific
-     `Bash(git ...)` verbs). Do NOT grant a blanket `Bash`.
+     runs (e.g. `Bash(py tools/smoke.py*)`, `Bash(py -m pytest*)`, or specific
+     `Bash(git ...)` verbs). Do NOT grant a blanket `Bash`, and never
+     `Bash(py -m unittest*)` — the pre-pytest incantation runs everything, is
+     not the gate, and the `test_guard.py` hook denies it.
 3. Write the **body** in the house shape:
    - a one-line restatement using `**$ARGUMENTS**` + any lock/scope caveat;
    - **Read first (token-light)** — name the ONE subsystem doc to load
      (`engine|game|editor/<sub>/CLAUDE.md`) instead of pasting architecture;
    - **Steps** — numbered, smallest-change-first;
    - **Avoid** — the repo-specific foot-guns for this task;
-   - **Verify** — the narrowest check (unit test / `py tools/smoke.py` / live run),
-     and "state what you verified";
+   - **Verify** — the narrowest check (`py tools/smoke.py` / the specific
+     `py -m pytest tools/tests/test_<area>.py -q` files / live run), and "state
+     what you verified". **Route to §"Test Suite Policy" in the root
+     `CLAUDE.md`; never state a different rule in the new skill.** That section
+     is the ONLY authority on when tests run — a skill that says "run the full
+     suite", writes a per-step `testgate check`, or tells a subagent to use
+     `--affected` is a bug, and the mechanical parts are hook-denied anyway. If
+     the skill is a closing/handoff move, say the single full `check` belongs to
+     the MAIN SESSION, once;
    - **Final report** — changed files + verification + whether a subsystem doc needed
      a durable update.
 4. Keep it short. If it's growing past ~60 lines, the detail probably belongs in a

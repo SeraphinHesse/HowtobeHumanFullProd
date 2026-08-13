@@ -304,10 +304,18 @@ class TestThePolicyIsStatedOnce(unittest.TestCase):
     def test_no_live_doc_teaches_the_pre_pytest_incantation(self):
         """`unittest discover` runs everything and is not the gate. Historical
         records under `docs/briefs/` and `planning/` are exempt: they are what
-        was true then, and each carries a SUPERSEDED banner."""
+        was true then, and each carries a SUPERSEDED banner.
+
+        `.claude/worktrees/` is exempt too — a worktree is a full checkout of
+        ANOTHER branch, so this sweep would otherwise assert that every branch
+        anyone has open already carries this branch's doc fixes. It cannot:
+        the offending briefs there are history on branches that predate the
+        fix. Scoping to the current checkout is the whole point of the test."""
         offenders = []
         for root in ("engine", "game", "editor", "data", "tools", ".claude"):
             for path in (REPO / root).rglob("*.md"):
+                if "worktrees" in path.relative_to(REPO).parts:
+                    continue
                 if "unittest discover" in path.read_text(encoding="utf-8"):
                     offenders.append(path.relative_to(REPO).as_posix())
         self.assertEqual(offenders, [], "live docs still teach `unittest discover`")

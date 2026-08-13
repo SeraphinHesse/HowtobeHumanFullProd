@@ -18,8 +18,12 @@ measure it before asserting it.
 1. Outcome first — what happened, one paragraph a human can act on.
 2. Results/findings ranked by importance, `file:line` where relevant,
    provenance tag on each.
-3. Verification: exactly what was run (smoke / suite vs baseline / live run /
-   Quick Test) and what it showed. Summarize — never paste raw gate output.
+3. Verification: exactly what was run — smoke / targeted `pytest` files /
+   `--affected` / the single full `check` / live run / Quick Test — and what it
+   showed. The gate is ZERO, so report the `GATE PASS` line, not a comparison
+   against a baseline. Name the run you were entitled to under your row of
+   §"Test Suite Policy"; if a run was denied by `test_guard.py`, report the deny
+   rather than a retry. Summarize — never paste raw gate output.
 4. Open items and who decides each.
 
 ## Artifact publish rule
