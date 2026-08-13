@@ -18,6 +18,7 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
 import pygame
+from pygame import Surface
 from pygame._sdl2.video import Renderer, Texture, Window
 
 from engine.render import backend, backend_gpu
@@ -183,6 +184,136 @@ class TestTextureCache(GpuBackendCase):
         del src
         gc.collect()
         self.assertEqual(len(backend_gpu._texture_cache), 0)
+
+
+class TestOverlayClipReuse(GpuBackendCase):
+    """G5 — the scratch rect is clipped to the target BEFORE allocating, and
+    ONE reused buffer replaces the per-call allocate/upload/destroy. See
+    docs/briefs/phase-G5-overlay-clip-reuse.md."""
+
+    def _cluster(self, cx, cy):
+        """A mix of OverlayLines/OverlayPolys (one alpha < 255 poly), a fixed
+        ~80x70 local footprint (roughly x in [-40, 40], y in [-30, 40])
+        recentred on (cx, cy). Callers pick (cx, cy) so the cluster straddles
+        one edge, or a corner, of the 200x160 target — verified by
+        `pygame.Rect.clip` (not just eyeballed): a bbox landing exactly ON a
+        boundary clips to a zero-size Rect (half-open interval), so every
+        centre below is chosen with margin on both sides of its boundary."""
+        def shift(points):
+            return tuple((x + cx, y + cy) for x, y in points)
+
+        return [
+            OverlayLines(points=shift(((-30, -10), (10, 20), (40, -5))),
+                         color=(255, 255, 0), width=3),
+            OverlayLines(points=shift(((-20, 10), (20, 10), (0, 40))),
+                         color=(0, 200, 255), width=2, closed=True),
+            OverlayPolys(points=shift(((-40, -30), (0, -30), (-10, 0))),
+                         color=(255, 0, 255)),
+            OverlayPolys(points=shift(((-30, -20), (20, -15), (10, 12),
+                                       (-25, 8))),
+                         color=(0, 255, 128, 100)),
+        ]
+
+    def _assert_parity(self, calls):
+        cpu = self.render_cpu(calls)
+        gpu = self.render_gpu(calls)
+        worst, where = 0, None
+        for y in range(H):
+            for x in range(W):
+                a, b = cpu.get_at((x, y)), gpu.get_at((x, y))
+                delta = max(abs(a[i] - b[i]) for i in range(3))
+                if delta > worst:
+                    worst, where = delta, (x, y, tuple(a)[:3], tuple(b)[:3])
+        self.assertLessEqual(
+            worst, CHANNEL_TOLERANCE,
+            f"GPU/CPU per-channel delta {worst} > {CHANNEL_TOLERANCE} at {where}")
+
+    def test_clipped_past_left_edge(self):
+        self._assert_parity(self._cluster(cx=-10, cy=80))
+
+    def test_clipped_past_right_edge(self):
+        self._assert_parity(self._cluster(cx=210, cy=80))
+
+    def test_clipped_past_top_edge(self):
+        self._assert_parity(self._cluster(cx=100, cy=-5))
+
+    def test_clipped_past_bottom_edge(self):
+        self._assert_parity(self._cluster(cx=100, cy=165))
+
+    def test_clipped_past_corner(self):
+        self._assert_parity(self._cluster(cx=210, cy=165))
+
+    def test_wholly_off_screen_overlay_is_a_no_op(self):
+        """The plan's pathological case: an overlay whose points are all far
+        off-screen must not raise and must leave the frame identical to the
+        same frame without it — no ValueError from a zero-area Texture, and
+        no stray pixel."""
+        base = [
+            DrawCall(surface=checker_surface(), dest=(20.0, 20.0),
+                     size=(16, 16)),
+        ]
+        off_screen = OverlayLines(
+            points=((5000, 5000), (5100, 5050)),
+            color=(255, 0, 0), width=3)
+
+        without = self.render_gpu(base)
+        with_offscreen = self.render_gpu(base + [off_screen])  # must not raise
+
+        for y in range(H):
+            for x in range(W):
+                self.assertEqual(without.get_at((x, y)),
+                                 with_offscreen.get_at((x, y)), (x, y))
+
+    def test_n_overlay_draws_allocate_one_scratch_surface(self):
+        # Every shape below has an IDENTICAL clipped bbox footprint (21x21,
+        # for the poly; the line's width=1 pad(1) + an 18px span works out to
+        # the same 21x21) so the first call sets the high-water mark and no
+        # later call ever needs to grow the buffer — the point of this test.
+        calls = []
+        for i in range(10):
+            calls.append(OverlayPolys(
+                points=((10 + i, 10 + i), (30 + i, 10 + i), (20 + i, 30 + i)),
+                color=(255, 0, 0, 128)))
+            calls.append(OverlayLines(
+                points=((40 + i, 40 + i), (58 + i, 58 + i)),
+                color=(0, 255, 0), width=1))
+
+        allocs = []
+
+        def spy(size, flags=0):
+            allocs.append(size)
+            return Surface(size, flags)
+
+        backend_gpu.Surface = spy
+        try:
+            self.render_gpu(calls)
+        finally:
+            backend_gpu.Surface = Surface
+        self.assertEqual(len(allocs), 1)
+
+    def test_buffer_grows_and_is_not_reallocated_for_a_smaller_overlay(self):
+        large = [OverlayPolys(
+            points=((5, 5), (150, 10), (140, 130), (10, 120)),
+            color=(0, 0, 255, 128))]
+        small = [OverlayLines(
+            points=((10, 10), (20, 20)), color=(255, 0, 0), width=1)]
+
+        allocs = []
+
+        def spy(size, flags=0):
+            allocs.append(size)
+            return Surface(size, flags)
+
+        backend_gpu.Surface = spy
+        try:
+            self.render_gpu(large)
+            self.assertEqual(len(allocs), 1)
+            high_water = backend_gpu._overlay_scratch.get_size()
+            self.render_gpu(small)
+        finally:
+            backend_gpu.Surface = Surface
+        self.assertEqual(len(allocs), 1)
+        self.assertEqual(backend_gpu._overlay_scratch.get_size(), high_water)
 
 
 class TestHudOnlyFieldsRejected(GpuBackendCase):
