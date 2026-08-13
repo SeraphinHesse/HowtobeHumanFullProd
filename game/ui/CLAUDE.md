@@ -706,6 +706,54 @@ The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
   `submit_lightning`, world-overlay pass (before the panel), not the later
   HP-bar section.
 
+## Building-colour swatches (MasterSheetColumnsPLAN B2)
+
+The build-confirm modal picks the master-sheet COLOUR COLUMN a building is
+placed in. Two new module-level members in `building_ui.py`, both deliberately
+reusable — the upgrade panel gets the same row in B3 and **must not
+re-implement either**:
+- **`ColorSwatchRow(colors, left, right, top, id_prefix, ui_balance=None)`** —
+  layout + hit-test + draw over `widgets.Button`, right-aligned to `right` and
+  clamped to the first `(avail + GAP) // (SIZE + GAP)` colours (the registry
+  schema allows 16 names; only ~8 12px swatches fit the modal's band, and
+  shipped sheets declare 4). It owns **no state**: `hit(mx, my)` returns an
+  INDEX or `None` and `submit(renderer, selected, anim_ms=0)` takes the
+  caller's selection as an argument, which is what lets one screen point it at
+  a pending int and another at a live `SpriteAnimator.column`. `ids` merges
+  into the owning screen's dict BEFORE `skinning.apply`; `__bool__` is False
+  when inert. `SIZE = 12` is the UR-5 click-target floor exactly.
+- **`_swatch_rgb(name, ui_balance=None)`** — the ONE colour lookup, a hardcoded
+  map over the shared palette read as `widgets.<NAME>` attribute access (never
+  import-bound). `pink` reuses `C_PURPLE`, the same documented stand-in
+  `overlays.py` makes; an unknown name degrades to the neutral
+  `C_PANEL_INSET` rather than raising (E-37). `ui_balance` is threaded in
+  unused so B3's `data/balancing/ui.json` `BuildingColors` read stays one
+  function body.
+
+Rules this section fixes:
+- **`0` is a real colour index; `-1` is the "no driver" sentinel.** Nothing
+  here may truth-test a column — `is not None`, always. A slot with fewer than
+  2 colours builds no widgets at all, registers no ids, draws nothing, and
+  leaves `chosen_column = None` so `place_building` keeps the sentinel.
+- **The preview may not lie.** `ConstructPreview.__init__` ROLLS the initial
+  index (`random.randrange`, the same stdlib module the name dice already
+  uses — no rng seam threaded through the UI) and `_do_place` always passes it
+  as `place_building(..., column=)`, so confirming without touching a swatch
+  places exactly the colour shown.
+- **The capability map is the HOST's.** `game/main.py`'s
+  `_derive_colour_columns` builds `{slot_key: (colour_name, …)}` once at boot
+  and assigns `panel.colour_columns` — the `panel.assets` /
+  `overlays.condition_art` precedent. `BuildingUI.__init__` defaults it to
+  `{}`, so a bare panel in a test or tool has no colours and is unchanged.
+  `game/ui` never reaches into the asset layer (D6/E-37).
+- **Nothing already on the modal moved.** The row is `y+36..y+47`: 1px under
+  the cost line, exactly abutting the `y+48` name box, entirely above the
+  `y+69` stat list — so `data/ui/screen_defaults.json` needs no regeneration
+  and the stat list's 2px slack is untouched. It is hit-tested BEFORE
+  `handle_click`'s `name_rect` branch (a plain containment test, the broadest
+  one) and drawn inside `submit`'s BUTTON block, its selection ring right
+  after its own swatch (the sanctioned "ring after its own button" exception).
+
 ## Move Building (Building Movement)
 The upgrade panel's fifth mode + a second preview modal. Rules live in
 `game/buildings/movement.py` (`game/buildings/CLAUDE.md`); this module is the
