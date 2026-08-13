@@ -43,6 +43,13 @@ engine task; if an engine change forces a caller change, tell the user
   (the 2×2 starting area's min corner; bounds cross-checked in `validate_doc`);
   **the emitters deliberately never render `start_area`** — the game doesn't
   draw it and the editor draws a pure 2×2 outline via `submit_overlay_lines`.
+  `camera_limit_center` is `camera_start`'s single-tile TWIN in every respect
+  but two: it sits on the never-emitted side of that line (the editor draws a
+  blue outline, the game draws nothing), and the camera never STARTS on it —
+  callers anchor a camera travel LIMIT there instead (`game/main.py`'s
+  `CameraLimit`, `engine/coords/CLAUDE.md`). `tilemap.py` knows none of that:
+  to it this is one more nullable `{col,row,slot}` object with a bounds check
+  and a const-pinned slot accessor.
   `tutorial_flute`/`tutorial_stone` (D1, planning/TutorialPLAN.md) are two
   more designer-painted single-tile markers of the same never-rendered shape
   — the tutorial's forced first-placement tiles, read by the game-side

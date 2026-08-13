@@ -548,10 +548,10 @@ _REQUIRED_ZONE_SLOTS = (
 def map_requirement_warnings(doc):
     """What the map is missing to be playable — the editor's non-blocking yellow
     Set-Active warning. A playable map needs at least one buildable, combat and
-    spawning tile painted, plus a hole (base), a camera startpoint and a 2×2
-    starting area — and the starting area's four cells must be painted
-    buildable (the marker anchors the game's unlock grid but never forces tile
-    states: painted terrain wins).
+    spawning tile painted, plus a hole (base), a camera startpoint, a camera
+    limit center and a 2×2 starting area — and the starting area's four cells
+    must be painted buildable (the marker anchors the game's unlock grid but
+    never forces tile states: painted terrain wins).
 
     Two further NON-BLOCKING labels cover the spawnable-background reserve:
     the map carrying no marks at all, and a mark sitting on a ZONE code
@@ -585,6 +585,8 @@ def map_requirement_warnings(doc):
         warnings.append("hole")
     if doc.camera_start is None:
         warnings.append("camera startpoint")
+    if doc.camera_limit_center is None:
+        warnings.append("camera limit center")
     if doc.start_area is None:
         warnings.append("starting area")
     else:

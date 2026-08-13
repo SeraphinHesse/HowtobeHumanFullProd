@@ -137,6 +137,26 @@ class _CameraSetCommand(QUndoCommand):
         self._doc.camera_start = dict(self._old) if self._old is not None else None
 
 
+class _CameraLimitCenterSetCommand(QUndoCommand):
+    """Place / move / remove the single camera play-area centre marker. ``old``
+    and ``new`` are full dicts (``{'col','row','slot'}``) or ``None`` — mirrors
+    _CameraSetCommand."""
+
+    def __init__(self, doc, old, new, text):
+        super().__init__(text)
+        self._doc = doc
+        self._old = dict(old) if old is not None else None
+        self._new = dict(new) if new is not None else None
+
+    def redo(self):
+        self._doc.camera_limit_center = (
+            dict(self._new) if self._new is not None else None)
+
+    def undo(self):
+        self._doc.camera_limit_center = (
+            dict(self._old) if self._old is not None else None)
+
+
 class _StartAreaSetCommand(QUndoCommand):
     """Place / move / remove the single 2×2 starting area. ``old`` and ``new``
     are full dicts (``{'col','row','slot'}`` — the block's MIN corner) or
@@ -419,6 +439,38 @@ class MapSession(QObject):
         command as click-placement."""
         if old is not None and new is not None:
             self.push_camera_place(new[0], new[1])
+
+    def _camera_limit_center_slot(self):
+        schema = data_io.load_json(tilemap.map_schema_path(self._data_dir))
+        return tilemap.camera_limit_center_slot_from_schema(schema)
+
+    def push_camera_limit_center_place(self, col, row):
+        """Place the camera play-area centre marker (if the map has none) or
+        move the single marker to a new cell — ONE undoable command either way.
+        Single-tile, no clamp (unlike push_start_area_place). Mirrors
+        push_camera_place."""
+        old = self.doc.camera_limit_center
+        slot = (old["slot"] if old is not None
+                else self._camera_limit_center_slot())
+        new = {"col": col, "row": row, "slot": slot}
+        if old == new:
+            return
+        text = ("move camera limit center" if old is not None
+                else "place camera limit center")
+        self.undo_stack.push(
+            _CameraLimitCenterSetCommand(self.doc, old, new, text))
+
+    def push_camera_limit_center_remove(self):
+        if self.doc.camera_limit_center is not None:
+            self.undo_stack.push(_CameraLimitCenterSetCommand(
+                self.doc, self.doc.camera_limit_center, None,
+                "remove camera limit center"))
+
+    def push_camera_limit_center_move(self, old, new):
+        """Drag path (mirrors push_camera_move): routes through the same set
+        command as click-placement."""
+        if old is not None and new is not None:
+            self.push_camera_limit_center_place(new[0], new[1])
 
     def _start_area_slot(self):
         schema = data_io.load_json(tilemap.map_schema_path(self._data_dir))

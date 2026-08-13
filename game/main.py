@@ -240,13 +240,15 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
         default_zoom=core_balance["Camera"]["default_zoom"])
 
     # The camera leash: how far the player may drag the view from the map's
-    # camera start point (map centre when it paints none). Installed on `cs`
-    # rather than passed per call, so every clamp site — drag-pan, step_zoom,
+    # camera_limit_center marker — the designer-painted CENTRE of the play
+    # area, which the camera never starts on. A map that paints none falls
+    # back to camera_start, then to the map centre. Installed on `cs` rather
+    # than passed per call, so every clamp site — drag-pan, step_zoom,
     # frame_camera's center_on — honours it with no extra wiring; the editor
     # never installs one, so its viewport stays free-roam. 0 = unlimited.
     _cam = core_balance["Camera"]
-    _anchor = ((map_doc.camera_start["col"], map_doc.camera_start["row"])
-               if map_doc.camera_start is not None
+    _marker = map_doc.camera_limit_center or map_doc.camera_start
+    _anchor = ((_marker["col"], _marker["row"]) if _marker is not None
                else (map_doc.cols / 2, map_doc.rows / 2))
     cs.set_camera_limit(CameraLimit(
         _anchor[0], _anchor[1],

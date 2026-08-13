@@ -605,6 +605,27 @@ import list.**
   under starting area"` when any covered cell isn't a `tile_buildable`-slot
   code (the marker anchors the game's unlock grid but never forces tile
   states — painted terrain wins).
+- **Camera Limit Center (a single-tile brush)**: the Camera Start brush's
+  TWIN, sitting immediately after it in `_gametiles_brush_order()` — the same
+  gametiles page, the same exclusive `_brush_group`, the same
+  `palette.arm_camera_limit_center`/`camera_limit_center_armed` →
+  `viewport.arm_camera_limit_center` wiring, the same paint = place/move,
+  erase = remove, press-on-the-marker = drag semantics (single tile, NO clamp
+  — the tutorial-marker shape, not Start Area's 2×2). It marks the CENTRE of
+  the camera's play area: `core` balancing's `Camera.max_offset_tiles_x/_y`
+  travel limit is measured from it and the camera never starts on it, which is
+  why it is a second marker rather than a reuse of `camera_start`.
+  **It renders as a single-tile closed BLUE outline through
+  `submit_overlay_lines` (E-24) plus a `HudText` caption — never a sprite**
+  (`_submit_camera_limit_center_outline`; `engine/tilemap.py`'s emitters
+  deliberately never touch the field, unlike `camera_start`, which IS emitted).
+  `LIMIT_CENTER_COLOR` `(60,90,255)` is a deeper, less cyan blue than the
+  `pond` tile condition's `(80,140,255)` so a cell carrying both stays
+  readable. **It has NO eye of its own — it shares the `camera` eye with
+  Camera Start** (a designer hiding "the camera markers" wants both gone,
+  the same call the two tutorial markers' shared eye makes).
+  `map_requirement_warnings` gains a `"camera limit center"` label when the
+  marker is absent.
 - **Tutorial markers (2 single-tile brushes)**: a FOURTH mode page
   (`palette.MODES` gains `"tutorial"`, registry `core`/`Tutorial Flute`
   and `core`/`Tutorial Stone`, slots `tutorial_flute`/`tutorial_stone`) with

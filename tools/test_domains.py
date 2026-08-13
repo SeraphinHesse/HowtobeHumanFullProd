@@ -172,6 +172,7 @@ DOMAINS = {
         "test_editor_preview_footprint.py",
         "test_editor_run_controls.py",
         "test_editor_selection.py",
+        "test_editor_camera_limit_center.py",
         "test_editor_tutorial_paint.py",
         "test_editor_viewport.py",
         "test_registry_ops.py",
