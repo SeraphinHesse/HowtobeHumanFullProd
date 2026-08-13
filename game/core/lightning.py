@@ -178,7 +178,18 @@ def strike(state, core, vfx, scene, cs, wx, wy, on_hit=None):
             if (not getattr(enemy, "alive", False)
                     or not getattr(enemy, "targetable", True)):
                 continue
-            ex, ey = cs.world_to_screen(*enemy.transform.world_pos)
+            # ER-2/AoE parity: hit-test against the true rendered BLOCK
+            # CENTRE (footprint-aware), not the raw anchor tile — the same
+            # point every other AoE-circle damage check (e.g. the mortar's
+            # splash radius) already measures from. `world_pos` and
+            # `center_world` coincide at footprint 1, so this is a no-op for
+            # every enemy but the boss. NOT named `wx`/`wy` — those are the
+            # STRIKE's own click-point parameters; shadowing them here once
+            # corrupted the `LightningFX` marker built after this loop into
+            # spawning at the last enemy iterated instead of the click.
+            ewx, ewy = (getattr(enemy, "center_world", None)
+                       or enemy.transform.world_pos)
+            ex, ey = cs.world_to_screen(ewx, ewy)
             if (ex - sx) ** 2 + (ey - sy) ** 2 <= radius_px ** 2:
                 enemy.get_component(Health).damage(dmg)
                 if on_hit is not None:

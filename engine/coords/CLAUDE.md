@@ -9,6 +9,25 @@ conventions, update THIS doc.
   state. Geometry constants come from `data/`, never hardcoded.
 - `clamp` keeps the viewport on the map, *centring* an axis only when the map is
   smaller than the viewport there.
+- **The optional camera LEASH**: `set_camera_limit(CameraLimit(anchor_wx,
+  anchor_wy, max_tiles_x, max_tiles_y))` narrows `clamp` to `map bounds ∩ a box
+  around the anchor`, and `limit_center_bounds()` exposes that box. Sizes are in
+  TILES (grid steps) — converted through the tile half-pitch × zoom, so the leash
+  allows the same travel at every zoom level; `0` (or negative) on an axis is
+  unlimited and comes back as `±inf`, so a per-axis disable needs no branch at
+  the call site. It bounds the viewport **CENTRE**, not the visible edge: the box
+  is widened by half a viewport inside `clamp` to become a region box like
+  `map_pixel_bounds`', and `_clamp_axis` then does the rest — including the
+  existing "centre it instead" branch when the intersection is narrower than the
+  viewport. `CameraLimit` is vocabulary-free (an anchor and a tile count, never a
+  "spawn point"): **the HOST installs it, never a data loader.** `game/main.py`
+  builds one at boot from `core` balancing's `Camera.max_offset_tiles_x/_y`,
+  anchored at the map's `camera_start` (map centre as fallback); the editor
+  deliberately never installs one, so its viewport stays free-roam. Storing it on
+  the `CoordinateSystem` rather than passing it per call is what makes every
+  clamp site — drag-pan, the hosts' `step_zoom`, `center_on`'s trailing clamp —
+  honour it with no extra wiring, and is why the editor gets free roam by
+  construction rather than by remembering not to pass something.
 - `center_on(wx, wy, w, h)` instead parks a chosen world point at the viewport
   centre (then clamps) — use it to frame a target that overflows the viewport,
   where `clamp` would anchor to an edge (the editor's entity preview).

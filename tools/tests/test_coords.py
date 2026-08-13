@@ -11,7 +11,8 @@ import unittest
 import jsonschema
 
 from engine import data_io
-from engine.coords import Camera, CoordinateSystem, Geometry, load_coordinate_system
+from engine.coords import (
+    Camera, CameraLimit, CoordinateSystem, Geometry, load_coordinate_system)
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 from tools.tests.fixture_data import FIXTURE_DATA
@@ -178,6 +179,66 @@ class TestCamera(unittest.TestCase):
         self.assertGreaterEqual(cs.camera.pan_x, min_x)
         self.assertLessEqual(cs.camera.pan_x, max_x - 800)
         self.assertGreaterEqual(cs.camera.pan_y, min_y)
+
+
+class TestCameraLimit(unittest.TestCase):
+    """E-5: the optional camera leash — clamp narrows to (map bounds ∩ a box
+    around a world anchor). Sizes are in TILES, so the leash means the same
+    thing at every zoom; 0 = unlimited on that axis. It bounds the viewport
+    CENTRE, so the anchor sits exactly `max_tiles * half_pitch * zoom` pixels
+    off the viewport centre at the limit.
+
+    All numbers below are for make_cs's 20x20 map at 64x32 pitch, zoom 1:
+    iso bounds x:[-640, 640] y:[0, 640], anchor (10, 10) -> iso (0, 320),
+    and a 400x300 viewport (small enough that neither axis hits clamp's
+    "centre it instead" branch)."""
+
+    def test_no_limit_leaves_clamp_untouched(self):
+        # Regression guard for every existing caller (the editor never sets
+        # one): the map-bounds numbers are test_clamp_to_map_bounds' verbatim.
+        cs = make_cs()
+        self.assertIsNone(cs.camera_limit)
+        self.assertIsNone(cs.limit_center_bounds())
+        cs.pan(-100000, -100000)
+        cs.clamp(800, 600)
+        self.assertEqual((cs.camera.pan_x, cs.camera.pan_y), (-640.0, 0.0))
+
+    def test_anchor_sits_max_tiles_off_centre_at_the_limit(self):
+        for dx, dy, sign in ((100000, 100000, -1), (-100000, -100000, 1)):
+            with self.subTest(sign=sign):
+                cs = make_cs()
+                cs.set_camera_limit(CameraLimit(10, 10, 4, 4))
+                cs.pan(dx, dy)
+                cs.clamp(400, 300)
+                sx, sy = cs.world_to_screen(10, 10)
+                self.assertAlmostEqual(sx, 200 + sign * 4 * 32)
+                self.assertAlmostEqual(sy, 150 + sign * 4 * 16)
+
+    def test_zero_disables_that_axis_only(self):
+        cs = make_cs()
+        cs.set_camera_limit(CameraLimit(10, 10, 0, 4))
+        cs.pan(-100000, -100000)
+        cs.clamp(400, 300)
+        self.assertEqual(cs.camera.pan_x, -640.0)   # map bound, unleashed
+        self.assertEqual(cs.camera.pan_y, 106.0)    # 320 - 64 - 150
+
+    def test_leash_is_zoom_independent(self):
+        # The point of measuring in tiles: the same TILE travel at every zoom.
+        # A 200x200 map keeps the map bounds well clear of the leash at 0.5x,
+        # where make_cs's 20x20 map would be the tighter of the two.
+        def far_edge_world(zoom):
+            geo = Geometry(tile_w=64, tile_h=32, map_cols=200, map_rows=200,
+                           zoom_levels=(0.5, 1.0, 2.0))
+            cs = CoordinateSystem(geo, Camera(zoom=zoom))
+            cs.set_camera_limit(CameraLimit(100, 100, 6, 6))
+            cs.pan(1000000, 1000000)
+            cs.clamp(400, 300)
+            return cs.screen_to_world(200, 150)
+
+        wx_a, wy_a = far_edge_world(0.5)
+        wx_b, wy_b = far_edge_world(2.0)
+        self.assertAlmostEqual(wx_a, wx_b, delta=0.1)
+        self.assertAlmostEqual(wy_a, wy_b, delta=0.1)
 
 
 class TestVisibleTileWindow(unittest.TestCase):

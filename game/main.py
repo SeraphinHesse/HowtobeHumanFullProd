@@ -63,7 +63,7 @@ from engine import data_io, tilemap
 from engine.assets import load_manifest, load_registry
 from engine.assets.store import AssetStore
 from engine.audio import play_music
-from engine.coords import load_coordinate_system
+from engine.coords import CameraLimit, load_coordinate_system
 from engine.core import Scene, SpriteAnimator
 from engine.physics import TileOccupancy
 from engine.render import HudSprite, HudText, Renderer
@@ -552,6 +552,20 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         data_dir, map_cols=map_doc.cols, map_rows=map_doc.rows,
         zoom_levels=core_balance["Camera"]["zoom_levels"],
         default_zoom=core_balance["Camera"]["default_zoom"])
+
+    # The camera leash: how far the player may drag the view from the map's
+    # camera start point (map centre when it paints none). Installed on `cs`
+    # rather than passed per call, so every clamp site — drag-pan, step_zoom,
+    # frame_camera's center_on — honours it with no extra wiring; the editor
+    # never installs one, so its viewport stays free-roam. 0 = unlimited.
+    _cam = core_balance["Camera"]
+    _anchor = ((map_doc.camera_start["col"], map_doc.camera_start["row"])
+               if map_doc.camera_start is not None
+               else (map_doc.cols / 2, map_doc.rows / 2))
+    cs.set_camera_limit(CameraLimit(
+        _anchor[0], _anchor[1],
+        max_tiles_x=_cam["max_offset_tiles_x"],
+        max_tiles_y=_cam["max_offset_tiles_y"]))
 
     def frame_camera():
         """Open the camera centred on the map's camera-startpoint object if it

@@ -593,12 +593,24 @@
     },
     "Camera": {
       "additionalProperties": false,
-      "description": "Camera zoom (E-5). Overrides geometry.json's zoom_levels/default fallback at load time (engine/coords/__init__.py::load_coordinate_system) so zoom is a designer-editable balancing tunable, not baked into geometry.json.",
+      "description": "Camera zoom and travel limits (E-5). Overrides geometry.json's zoom_levels/default fallback at load time (engine/coords/__init__.py::load_coordinate_system) so zoom is a designer-editable balancing tunable, not baked into geometry.json.",
       "properties": {
         "default_zoom": {
           "description": "Zoom factor the camera opens at. Must be a member of zoom_levels (cross-field check enforced at load time via CoordinateSystem.set_zoom, not expressible in schema).",
           "maximum": 100,
           "minimum": 0.1,
+          "type": "number"
+        },
+        "max_offset_tiles_x": {
+          "description": "How far the camera may travel horizontally from the map's camera start point, in TILES (grid steps; zoom-independent, so the same distance at every zoom level). Bounds the viewport CENTRE, so roughly half a screen beyond the limit is still visible. The map bounds still apply on top of it, whichever is tighter. 0 = unlimited (the shipped default: free roam within the map).",
+          "maximum": 1024,
+          "minimum": 0,
+          "type": "number"
+        },
+        "max_offset_tiles_y": {
+          "description": "How far the camera may travel vertically from the map's camera start point, in TILES (grid steps; zoom-independent, so the same distance at every zoom level). Bounds the viewport CENTRE, so roughly half a screen beyond the limit is still visible. The map bounds still apply on top of it, whichever is tighter. 0 = unlimited (the shipped default: free roam within the map).",
+          "maximum": 1024,
+          "minimum": 0,
           "type": "number"
         },
         "zoom_levels": {
@@ -617,6 +629,8 @@
       },
       "required": [
         "default_zoom",
+        "max_offset_tiles_x",
+        "max_offset_tiles_y",
         "zoom_levels"
       ],
       "type": "object"

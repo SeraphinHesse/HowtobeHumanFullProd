@@ -1,11 +1,12 @@
 """engine.coords — the coordinate authority (E-1..E-5). Pure Python."""
 from pathlib import Path
 
-from .camera import Camera
+from .camera import Camera, CameraLimit
 from .geometry import Geometry
 from .system import CoordinateSystem
 
-__all__ = ["Camera", "CoordinateSystem", "Geometry", "load_coordinate_system"]
+__all__ = ["Camera", "CameraLimit", "CoordinateSystem", "Geometry",
+           "load_coordinate_system"]
 
 
 def load_coordinate_system(data_dir, map_cols=None, map_rows=None,
