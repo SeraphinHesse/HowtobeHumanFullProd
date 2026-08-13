@@ -1,10 +1,20 @@
 """GpuAndMasterSheetsPLAN M3 — editor/master_sheet_import.py + the picker.
 
-The registry ships EMPTY (`data/sprites/master_sheets.json`), so every test
-here writes its OWN entries and never asserts a count against live `data/`.
+Every test here writes its OWN entries and asserts against those alone.
 Writes land in a temp `data/` copy (`DataDirCase`/`TempDataCase`) — the whole
 tree copy already carries `sprites/master_sheets.json` and `sprites/master/`,
 so the helper needed no extension.
+
+**Any test that asserts the FULL contents of the registry must call
+`pin_empty_registry(self.data_dir)` first.** This file originally said "the
+registry ships EMPTY, so every test here … never asserts a count against live
+`data/`" — but shipping empty is a fact about today's `data/`, not a property
+of the fixture, and three tests quietly depended on it. The first real master
+sheet landed on 2026-08-13 and turned all three red at once: they were asserting
+against live `data/` content while believing they were not. That is the exact
+breakage the root `CLAUDE.md` names ("Tests that assumed 'this slot has no art'
+… is what put 18 tests permanently in the red"). Pin the fixture; never assume
+the project owns no art.
 """
 import unittest
 
@@ -21,11 +31,25 @@ def make_png(path, width, height, colour=(30, 90, 200, 255)):
     return path
 
 
+def pin_empty_registry(data_dir):
+    """Empty this test's copy of the master-sheet registry, so a whole-registry
+    assertion sees only what the test itself imports.
+
+    `fresh_data_dir` copies the LIVE tree, real art included. Going through
+    `write_registry_doc` keeps the file schema-valid (it is the one write path,
+    ED-31). Leaving stray PNGs in `sprites/master/` is harmless: `master_sheets`
+    treats the REGISTRY as authoritative, so a PNG with no entry is not a sheet.
+    """
+    master_sheet_import.write_registry_doc(
+        data_dir, {"version": 1, "entries": {}})
+
+
 class MasterSheetImportTest(DataDirCase):
     """The pure module: no Qt."""
 
     def setUp(self):
         super().setUp()
+        pin_empty_registry(self.data_dir)
         self.source = make_png(self.data_dir / "incoming" / "raw.png", 128, 192)
 
     def registry(self):
@@ -115,6 +139,7 @@ class GridInUseTest(DataDirCase):
 
     def setUp(self):
         super().setUp()
+        pin_empty_registry(self.data_dir)
         self.source = make_png(self.data_dir / "incoming" / "raw.png", 128, 192)
         self.sheet_id = master_sheet_import.import_master_sheet(
             self.data_dir, self.source, "Village Folk", 32, 48)
@@ -179,6 +204,10 @@ class GridInUseTest(DataDirCase):
 
 class MasterSheetDialogTest(TempDataCase):
     """The Qt half: constructs, lists, selects — never exec()s a modal."""
+
+    def setUp(self):
+        super().setUp()
+        pin_empty_registry(self.data_dir)
 
     def test_dialog_lists_registry_and_returns_the_selected_id(self):
         from editor.panels.master_sheet_dialog import MasterSheetDialog
