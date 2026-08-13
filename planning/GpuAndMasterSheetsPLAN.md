@@ -1,4 +1,4 @@
-<!-- status: IN PROGRESS — all 12 phases G0-G6 + M1-M5 done; GPU confirmed on real hardware (world 17.54 -> 4.72 ms). Only M4/M5 live editor passes remain -->
+<!-- status: IN PROGRESS — all 12 phases G0-G6 + M1-M5 code done; G5/G6 measured, M4 live pass PASSED (first real master sheet imported). ONLY M5's live editor pass remains -->
 
 # GpuAndMasterSheetsPLAN.md — GPU render backend, then master spritesheets
 
@@ -211,7 +211,7 @@ store cache contract, E-37 tolerance split), `editor/panels/CLAUDE.md`
 | M1 | Data layer: master-sheet registry + schema + `row_start` | data | — | **DONE** — schema + seeded registry + `data/sprites/master/`; existing manifest byte-identical |
 | M2 | Engine: `row_start` slicing + sheet-path-keyed store | engine | M1, G2 | **DONE** — `48de489` + review fixes `81a2aa2`, merged `12ba043`. `row_start` applied in `AssetStore._frame_surface` only; store re-keyed on `entry.sheet`, so one PNG = one decode |
 | M3 | Editor: pure master-sheet import module + picker dialog | editor | M1 | **DONE** — `c8707a4` + review fix `fc7cd62`, merged `ff81203`. `editor/master_sheet_import.py` + `panels/master_sheet_dialog.py`. Left three carry-forwards, all ruled on in M4's brief §2 |
-| M4 | DetailsPanel: button, row window, narrowed preview + rows | editor | M2, M3 | **CODE DONE, LIVE PASS PENDING** — `0c33004` + review fix `056b362` on `phase-M4-details-master-sheet`; brief `docs/briefs/phase-M4-details-panel-master-sheet.md`. `GATE PASS 2467` (2456 at the `367ff9c` base, so +11). Ruled on all three of M3's carry-forwards (brief §2). **The plan's live-editor gate (line 1143) has NOT been run** — it is a human step and M4 is not closed until it passes |
+| M4 | DetailsPanel: button, row window, narrowed preview + rows | editor | M2, M3 | **CODE DONE, LIVE PASS PENDING** — `0c33004` + review fix `056b362` on `phase-M4-details-master-sheet`; brief `docs/briefs/phase-M4-details-panel-master-sheet.md`. `GATE PASS 2467` (2456 at the `367ff9c` base, so +11). Ruled on all three of M3's carry-forwards (brief §2). **LIVE PASS PASSED 2026-08-13** — the user ran the live-editor walkthrough and reported it clean. The project's FIRST real master sheet landed with it: `slinger_t2_lvl3` (960×576 PNG, 64×96 frames = 15 cols × 6 rows), committed at `7acc59d` with its registry entry written by the validating writer. **M4 is CLOSED.** Note the import immediately turned 3 tests red — they compared the whole registry against only what they imported, which held only while the registry shipped empty; fixed at `1adae9b` (§below) |
 | M5 | VFX preview panel button | editor | M4 | **CODE DONE, LIVE PASS PENDING** — `phase-M5-vfx-master-sheet`. "Use Master Spritesheet…" beside Import on the fixed `vfx_*` slots, **ONE row spin** (a vfx entry is a single `idle` row, so a second spin has no representable state — §6/M5's open call), grid inherited from the registry with `slots.json` untouched, `row_start` omitted at 0, write-through + `reload_assets` because this panel has no Save. No `/add-vfx` work was in flight on the file. **The live-editor gate is a human step and M5 is not closed until it passes** — run it together with M4's still-outstanding live pass |
 
 ### 5.1 This plan is a CHAIN, not a fan-out — read before dispatching
@@ -1336,6 +1336,39 @@ first.
 
 **Exit gate**: `py -m pytest -m editor`; a live editor run selecting a vfx slot
 and importing from a master sheet.
+
+**The live walkthrough, precisely — written down 2026-08-13 because the vague
+version above sent the user looking in the wrong place.** "Select a vfx slot" is
+not enough: the M5 button is **not** on every vfx slot, and it is **not** in the
+DetailsPanel where M4's twin lives.
+
+1. `py editor/main.py`, select a **vfx** tree node. The VFX preview panel appears
+   BELOW the details pane (`editor/main.py:762-764`, `:501`) — it is hidden
+   outside vfx mode, so it is easy to miss.
+2. Set the **Family** combo to **`crater`** or **`beam`**. Only now does "Use
+   Master Spritesheet…" appear. `_refresh_import_btn` shows the button only when
+   `_current_import_slot()` is non-`None` (`vfx_preview.py:390-394`), and that is
+   true for **`projectile` / `crater` / `beam` ONLY** (`:381-388`):
+   `crater`→`vfx_crater`, `beam`→`vfx_beam`, and `projectile` swaps between
+   `vfx_projectile` and `vfx_shell` via the shell checkbox. Every other family
+   (spark, muzzle, slash, death_burst, gold_highlight, splatter, floaters) binds
+   art per-EVENT through the `triggers` table's `sprite_slot`, so it has no fixed
+   slot and correctly shows **no button at all**. Seeing nothing on `spark` is
+   the design working, not a defect.
+3. Click it, pick a master sheet. The **"Master sheet row"** spin appears only
+   once the slot actually cuts a master sheet, and its ceiling is the sheet's
+   real last row — a window off the bottom of the PNG is unrepresentable.
+4. Change the row: the preview follows **immediately, no restart and no Save**
+   (this panel writes through, like its Import button).
+
+**Pass**: button on those three families only; row spin appears only after
+linking; ceiling = last row; row change is live. **Defects**: a ceiling past the
+last row, or writable frame_w/frame_h (the SHEET owns the grid; `slots.json`
+must stay untouched).
+
+**Expect the art to look wrong** if the sheet is a character sheet — cutting a
+crater out of a 64×96 humanoid row is absurd on screen and is NOT a failure.
+This gate proves the link/row-window/live-refresh mechanism, not art fit.
 
 ---
 
