@@ -47,6 +47,14 @@ else.
   (TimelinePLAN T5 — `progression.json` load/assign/clear/add/remove/save,
   enforcing the two uniqueness invariants JSON Schema can't express) — all
   Qt-free/pygame-free, in `TestPurity`.
+  `master_sheet_import.py` (GpuAndMasterSheetsPLAN M3 — the MASTER-spritesheet
+  registry: copy one big multi-character PNG into `data/sprites/master/`, write
+  `data/sprites/master_sheets.json` through the validating writer, list it back
+  for `panels/master_sheet_dialog.py`) is Pillow-only, Qt-free/pygame-free and
+  in `TestPurity`. It mirrors `asset_import.py` function-for-function **except
+  `pad_to_frame`, which is deliberately absent**: centring a master sheet on a
+  padded canvas would shift every row and silently mis-cut every `row_start`
+  window taken from it.
   `font_import.py` (UH-Font-A: custom .ttf/.otf import, mirrors
   `asset_import.py`'s shape) is Qt-free and in `TestPurity` too, but — like
   `asset_import.py` uses Pillow — it uses pygame for a format-validation

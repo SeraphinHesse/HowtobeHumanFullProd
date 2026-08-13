@@ -7,6 +7,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
@@ -60,7 +61,31 @@ def make_solid_sheet(path, cols=1, rows=1):
     pygame.image.save(sheet, str(path))
 
 
-def entry(slot="tower", frames=(3, 2), offset=(0, 0), slice_=None):
+def make_grid_sheet(path, cols=3, rows=6):
+    """A taller sheet whose every frame carries a colour encoding its (row,
+    col) — for the `row_start` window tests, where the point is WHICH sheet
+    row got cut."""
+    sheet = pygame.Surface((cols * FRAME_W, rows * FRAME_H), pygame.SRCALPHA)
+    for r in range(rows):
+        for c in range(cols):
+            sheet.fill(grid_colour(r, c),
+                       pygame.Rect(c * FRAME_W, r * FRAME_H, FRAME_W, FRAME_H))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pygame.image.save(sheet, str(path))
+
+
+def surface_bytes(surface):
+    """Raw RGBA pixels — `tostring` is deprecated since pygame 2.3."""
+    to_bytes = getattr(pygame.image, "tobytes", None) or pygame.image.tostring
+    return to_bytes(surface, "RGBA")
+
+
+def grid_colour(row, col):
+    return (10 + 10 * row, 100 + 10 * col, 200, 255)
+
+
+def entry(slot="tower", frames=(3, 2), offset=(0, 0), slice_=None,
+          row_start=None, sheet=None):
     rows = [{"animation": "idle", "frames": frames[0], "fps": 8,
              "hidden": [], "loop_start": 0, "loop_end": 0, "loop_count": 1}]
     if len(frames) > 1:
@@ -68,13 +93,15 @@ def entry(slot="tower", frames=(3, 2), offset=(0, 0), slice_=None):
                      "hidden": [], "loop_start": 0, "loop_end": 0,
                      "loop_count": 1})
     raw = {
-        "sheet": f"imported/{slot}.png",
+        "sheet": sheet if sheet is not None else f"imported/{slot}.png",
         "frame_w": FRAME_W, "frame_h": FRAME_H,
         "offset_x": offset[0], "offset_y": offset[1],
         "rows": rows,
     }
     if slice_ is not None:
         raw["slice"] = slice_
+    if row_start is not None:
+        raw["row_start"] = row_start
     return entry_from_dict(slot, raw)
 
 
@@ -358,6 +385,65 @@ class TestTolerance(SheetCase):
         with self.assertLogs("engine.assets.store", level="WARNING"):
             frame = store.frame("tower", "idle", 0)
         self.assertEqual(frame.surface.get_size(), (FRAME_W, FRAME_H))
+
+
+class TestRowStartWindow(SheetCase):
+    """M2: `row_start` windows an entry onto a band of its sheet. Row indices
+    above the store keep meaning 'row i of this entry's rows[]'."""
+
+    def test_row_start_offsets_the_sheet_row(self):
+        make_grid_sheet(self.sprites_dir / "imported" / "tower.png", rows=6)
+        store = self.store(entry(row_start=3))
+        # entry row 0 (idle) -> sheet row 3
+        self.assertEqual(self.frame_colour(store.frame("tower", "idle", 0)),
+                         grid_colour(3, 0))
+        self.assertEqual(self.frame_colour(store.frame("tower", "idle", 130)),
+                         grid_colour(3, 1))
+        # entry row 1 (attack) -> sheet row 4
+        self.assertEqual(self.frame_colour(store.frame("tower", "attack", 0)),
+                         grid_colour(4, 0))
+
+    def test_no_row_start_cuts_exactly_where_it_always_did(self):
+        png = self.sprites_dir / "imported" / "tower.png"
+        make_grid_sheet(png, rows=6)
+        e = entry()
+        self.assertEqual(e.row_start, 0)   # omitted => 0 => unchanged entry
+        store = self.store(e)
+        raw = pygame.image.load(str(png))
+        for row, animation in ((0, "idle"), (1, "attack")):
+            expected = raw.subsurface(
+                pygame.Rect(0, row * FRAME_H, FRAME_W, FRAME_H))
+            got = store.frame("tower", animation, 0).surface
+            self.assertEqual(surface_bytes(got), surface_bytes(expected))
+
+    def test_window_past_the_sheet_yields_placeholder(self):
+        make_grid_sheet(self.sprites_dir / "imported" / "tower.png", rows=2)
+        store = self.store(entry(row_start=5))
+        with self.assertLogs("engine.assets.store", level="WARNING"):
+            frame = store.frame("tower", "idle", 0)
+        self.assertEqual(frame.surface.get_size(), (FRAME_W, FRAME_H))
+
+
+class TestSheetDedup(SheetCase):
+    """M2: `_sheets` is keyed by source path — one PNG decodes once, however
+    many slots window it."""
+
+    def test_two_slots_on_one_sheet_share_one_decoded_surface(self):
+        make_grid_sheet(self.sprites_dir / "master" / "pack.png", rows=6)
+        a = entry(slot="a", sheet="master/pack.png", row_start=0)
+        b = entry(slot="b", sheet="master/pack.png", row_start=2)
+        store = AssetStore(manifest=Manifest({"a": a, "b": b}),
+                           sprites_dir=self.sprites_dir)
+        with mock.patch.object(pygame.image, "load",
+                               wraps=pygame.image.load) as spy:
+            frame_a = store.frame("a", "idle", 0)
+            frame_b = store.frame("b", "idle", 0)
+            self.assertEqual(spy.call_count, 1)   # one file, one decode
+        self.assertIs(frame_a.surface.get_parent(),
+                      frame_b.surface.get_parent())
+        # frames stay slot-keyed: each slot still gets its own window
+        self.assertEqual(self.frame_colour(frame_a), grid_colour(0, 0))
+        self.assertEqual(self.frame_colour(frame_b), grid_colour(2, 0))
 
 
 if __name__ == "__main__":

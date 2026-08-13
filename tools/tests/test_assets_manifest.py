@@ -198,6 +198,26 @@ class TestEntryFromDict(unittest.TestCase):
             m = load_manifest(path)
         self.assertEqual(m.slots(), ())
 
+    def test_row_start_absent_is_zero(self):
+        self.assertEqual(entry_from_dict("s", entry_dict([row()])).row_start, 0)
+
+    def test_row_start_parsed(self):
+        raw = entry_dict([row()])
+        raw["row_start"] = 3
+        e = entry_from_dict("s", raw)
+        self.assertEqual(e.row_start, 3)
+        # the window is a SLICING concern: row indices above it are unchanged
+        self.assertEqual(e.animations["idle"].row, 0)
+
+    def test_bad_row_start_raises(self):
+        # bool (an int subclass), float, numeric string, and negative — none
+        # may be coerced into a row the designer never authored
+        for bad in (True, 3.7, "3", -1, None, [3]):
+            raw = entry_dict([row()])
+            raw["row_start"] = bad
+            with self.subTest(row_start=bad), self.assertRaises(ValueError):
+                entry_from_dict("s", raw)
+
 
 class TestCurrentFrame(unittest.TestCase):
     def manifest(self):
@@ -351,6 +371,18 @@ class TestLoadManifestTolerance(unittest.TestCase):
     def test_valid_manifest_loads_silently(self):
         doc = {"version": 2, "entries": {"good": entry_dict([row()])}}
         m = load_manifest(self.write(json.dumps(doc)))
+        self.assertEqual(m.slots(), ("good",))
+
+    def test_corrupt_row_start_warns_and_skips_that_entry(self):
+        bad = entry_dict([row()])
+        bad["row_start"] = "3"
+        doc = {"version": 2, "entries": {
+            "good": entry_dict([row()]),
+            "bad": bad,
+        }}
+        path = self.write(json.dumps(doc))
+        with self.assertLogs("engine.assets.manifest", level="WARNING"):
+            m = load_manifest(path)   # warn + skip, never raise (E-37)
         self.assertEqual(m.slots(), ("good",))
 
 
