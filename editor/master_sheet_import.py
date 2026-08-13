@@ -157,8 +157,14 @@ def resolve_sheet_id(data_dir, png_path, name):
     slug = _slugify(name)
     if slug not in entries:
         return slug
-    existing = _data_dir(data_dir) / "sprites" / entries[slug].get("file", "")
-    if _same_bytes(existing, png_path):
+    # A hand-corrupted registry may hold a non-dict entry value. Degrade to
+    # "not a re-import" rather than raising: this module's whole load path is
+    # E-37 tolerant (see `load_registry_doc`), and the import path must not be
+    # the one place a bad JSON value crashes the editor.
+    entry = entries[slug]
+    existing_file = entry.get("file", "") if isinstance(entry, dict) else ""
+    existing = _data_dir(data_dir) / "sprites" / existing_file
+    if existing_file and _same_bytes(existing, png_path):
         return slug
     return _unique_id(slug, entries)
 
