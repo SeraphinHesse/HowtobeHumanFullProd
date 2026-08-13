@@ -16,15 +16,16 @@ REPO = Path(__file__).resolve().parents[2]
 from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine import tilemap
-from engine.core import Scene
+from engine.core import Scene, SpriteAnimator
 from engine.physics import TileOccupancy
 from engine.render import HudRect, HudText
 from game.buildings import BaseBuilding, attach_base
-from game.buildings.registry import build_cost
+from game.buildings.registry import build_cost, create
 from game.core import Session, load_balance
 from game.core.phases import GamePhase, GameState
 from game.enemies import Spawner
 from game.map.tile_map import TileMap
+from game.map.tiles import TileState
 from game.ui import widgets
 from game.ui.building_ui import BuildingUI, ConstructPreview
 from game.ui.hud import Hud
@@ -53,7 +54,8 @@ class RecordingRenderer:
         return [getattr(i, "rect", None) for i in self.items]
 
 
-def build():
+def build_world():
+    """``build()`` plus the scene/occupancy handles ``_do_place`` needs."""
     doc = tilemap.TileMapDoc(
         map_id="synth", display_name="Synth",
         cols=len(FIELD[0]), rows=len(FIELD),
@@ -65,7 +67,13 @@ def build():
     session = Session.create(Spawner(), tm, ENEM, CORE, BUILD, occupancy=occ)
     session.state.state = GameState.GAMEPLAY
     session.state.phase = GamePhase.BUILDING
-    return session, BuildingUI(VIEW_W, VIEW_H, UI), Hud(VIEW_W, VIEW_H)
+    return (session, BuildingUI(VIEW_W, VIEW_H, UI), Hud(VIEW_W, VIEW_H),
+            scene, occ)
+
+
+def build():
+    session, panel, hud, _scene, _occ = build_world()
+    return session, panel, hud
 
 
 def centre(btn):
@@ -195,6 +203,73 @@ class TestConstructPreviewZOrder(unittest.TestCase):
         self.assertTrue(all(i > last_button_idx for i in text_indices),
                         "every standalone text submission must follow every "
                         "button submission")
+
+
+#: MasterSheetColumnsPLAN B2 — a LITERAL capability map, never live `data/`
+#: (the root CLAUDE.md "never assert against live data" rule). Keyed on the
+#: temp building `ConstructPreview` builds for its own stats, so it matches
+#: whatever tier-0 slot key `defence` resolves to.
+COLOUR_SLOT = create("defence", 0, 0, BUILD, 0).slot_key()
+COLOUR_NAMES = ("pink", "red", "purple", "yellow")
+
+
+class TestConstructPreviewSwatches(unittest.TestCase):
+    """B2: the build-confirm modal's colour swatches — present only for a
+    colour-capable slot, and the pick is what gets placed."""
+
+    def _preview(self, colours=None):
+        cost = build_cost("defence", BUILD, 0)
+        return ConstructPreview("defence", cost, BUILD, UI, VIEW_W, VIEW_H,
+                                building_colors=colours)
+
+    def _swatch_centre(self, i):
+        """The centre of swatch ``i``, taken from a colour-capable preview so
+        a colourLESS one can be probed at the exact same point."""
+        x, y, w, h = self._preview(
+            {COLOUR_SLOT: COLOUR_NAMES}).swatches.buttons[i].rect
+        return x + w // 2, y + h // 2
+
+    def test_no_capability_map_means_no_swatches_at_all(self):
+        preview = self._preview()
+        self.assertFalse(preview.swatches)
+        self.assertEqual([], [k for k in preview.ids
+                              if k.startswith("preview_color")])
+        self.assertIsNone(preview.chosen_column)
+        # Nothing new occupies the band, and the name box still answers.
+        self.assertIsNone(preview.handle_click(*self._swatch_centre(0)))
+        nx, ny, nw, nh = preview.name_rect
+        self.assertEqual("name",
+                         preview.handle_click(nx + nw // 2, ny + nh // 2))
+
+    def test_colour_capable_slot_gets_one_id_per_colour(self):
+        preview = self._preview({COLOUR_SLOT: COLOUR_NAMES})
+        ids = {k: v for k, v in preview.ids.items()
+               if k.startswith("preview_color")}
+        self.assertEqual(len(COLOUR_NAMES), len(ids))
+        self.assertTrue(all(kind == "button" for kind, _w in ids.values()))
+        self.assertIsNotNone(preview.chosen_column)
+
+    def test_clicking_a_swatch_selects_that_column(self):
+        preview = self._preview({COLOUR_SLOT: COLOUR_NAMES})
+        for i in (2, 0):          # a NON-zero index first — 0 must not pass
+            with self.subTest(i=i):  # by accident
+                self.assertEqual("color",
+                                 preview.handle_click(*self._swatch_centre(i)))
+                self.assertEqual(i, preview.chosen_column)
+
+    def test_placed_building_carries_the_picked_column(self):
+        session, panel, _hud, scene, occ = build_world()
+        tile = session.tilemap.get(2, 2)
+        session.tilemap.set_tile_state(tile, TileState.BUILDABLE)
+        session.state.love = 9999
+        panel.colour_columns = {COLOUR_SLOT: COLOUR_NAMES}
+        panel.tile, panel.selected_tiles = tile, [tile]
+        panel.preview = self._preview(panel.colour_columns)
+        panel.preview.chosen_column = 3
+        panel._do_place(session, BUILD, scene, occ)
+        placed = tile.occupant
+        self.assertIsNotNone(placed, "the batch must actually have placed")
+        self.assertEqual(3, placed.get_component(SpriteAnimator).column)
 
 
 if __name__ == "__main__":
