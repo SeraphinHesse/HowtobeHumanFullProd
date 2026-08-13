@@ -630,9 +630,9 @@ validating writer; don't hand-edit the JSON.
       `editor/`, and the schema's `enum`
       (`manual` / `season` / `building_color`) is the only place their names
       are written down.
-    **Nothing reads any of the three yet** — C1 ships schema + registry
-    migration only; C2 applies the column in exactly one place in
-    `engine/assets`.
+    **Read end-to-end as of S1** — `AssetStore._frame_surface`
+    (`engine/assets/store.py`) is the ONE place the column window is applied,
+    exactly as it is for `row_start`.
 - **`sprites/master_sheets.json` ↔ `schemas/master_sheets.schema.json`
   (M1, D1/D3; columns C1)** — the registry of MASTER spritesheets:
   `{version: 1, entries: {<sheet_id>: {file: "master/<sheet_id>.png",
@@ -668,8 +668,9 @@ validating writer; don't hand-edit the JSON.
     sheet's columns are unnamed and referred to by INDEX, and the index is the
     identity a building stores (D5), so two sheets in one upgrade chain must
     author their colours in the same order and nothing enforces that.
-    **Nothing reads either key yet** — C1 ships schema + migration only; C2
-    applies the column in exactly one place in `engine/assets`.
+    **Both keys are read as of S1** — via `engine/assets/master_registry.py`
+    (`columns_for` / `column_width_for`), the reader `game/` and `editor/`
+    share because they may not import each other.
   - The `file` pattern does not cross-check that the id inside the path equals
     the entry key; JSON Schema cannot say that. If it is ever wanted it belongs
     in a loader cross-check (the `engine.tilemap` precedent), not the schema.
