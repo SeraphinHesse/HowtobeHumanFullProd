@@ -150,21 +150,41 @@
         ]
       },
       "frame_h": 96,
-      "frame_w": 64,
+      "frame_w": 192,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 18,
+          "hidden": [
+            10
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/boost_damage_t1_lvl1.png"
+      "sheet": "imported/boost_speed_t1_lvl1.png"
     },
     "boost_damage_t1_lvl2": {
       "anchors": {
@@ -366,21 +386,39 @@
         ]
       },
       "frame_h": 96,
-      "frame_w": 64,
+      "frame_w": 192,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/boost_hp_t1_lvl1.png"
+      "sheet": "imported/boost_speed_t1_lvl1.png"
     },
     "boost_hp_t1_lvl2": {
       "anchors": {
@@ -582,14 +620,32 @@
         ]
       },
       "frame_h": 96,
-      "frame_w": 64,
+      "frame_w": 192,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
