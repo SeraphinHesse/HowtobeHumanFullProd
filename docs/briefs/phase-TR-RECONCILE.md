@@ -129,6 +129,24 @@ way, since it must surface rather than vanish.
    plan says. One line, prose, after the "runs exactly ONCE" bullet
    (`CLAUDE.md:49-51`).
 
+## R9 — `Failure.kind` has THREE values, not four (post-TR-3 correction)
+
+`docs/briefs/phase-TR-3-run-engine.md:369` documents
+`kind ∈ failed | error | subfailed | unexpected_skip`. **That line is stale.**
+As implemented and reviewed, `_KIND_FOR_BUCKET` (`editor/test_runner.py:133`)
+makes `"error"` unreachable: an `ERROR`-outcome test buckets to `"failed"`,
+mirroring what `tools/testgate.py` itself does.
+
+**The code is correct and stays as-is**; the brief line is what is wrong. The
+real contract is:
+
+    kind ∈ "failed" | "subfailed" | "unexpected_skip"
+
+TR-4 already built against the code rather than the brief and is consistent.
+TR-5 and TR-6 must do the same. Consequence to accept knowingly: a collection or
+fixture ERROR is reported as FAILED. The failure message is preserved either
+way, so nothing is lost but the label.
+
 ## R6 — Execution is SEQUENTIAL, in dependency order
 
 Coders run one at a time in this order — **not** concurrently:
