@@ -64,7 +64,8 @@ class SheetPreview(QWidget):
         self._frame_w = 1
         self._frame_h = 1
         self._cols = 0
-        self._rows = 0
+        self._rows = 0          # rows IN THE WINDOW (the whole sheet by default)
+        self._row_start = 0     # the SHEET row the window starts at
         self._row_state = []     # [{"hidden": set[int], "static_frame": int|None}]
         self._hover = None       # (row, col) under the cursor
 
@@ -78,9 +79,25 @@ class SheetPreview(QWidget):
 
     # -- content -------------------------------------------------------------
 
-    def set_sheet(self, png_path, frame_w, frame_h):
+    def set_sheet(self, png_path, frame_w, frame_h, row_start=0,
+                  row_count=None):
         """Show a sheet sliced at frame_w x frame_h. None clears the view. An
-        unreadable PNG clears it too — art problems never raise here (E-37)."""
+        unreadable PNG clears it too — art problems never raise here (E-37).
+
+        THE ROW WINDOW IS OPT-IN AND DEFAULTS TO THE WHOLE SHEET (M4 §2.3):
+        `row_start`/`row_count` narrow the view to sheet rows
+        ``row_start .. row_start + row_count - 1`` (`row_count=None` = to the
+        bottom), so every three-argument caller — the sheet picker, the
+        master-sheet dialog's read-only previews, every non-master slot —
+        paints exactly as before, and a three-argument call always RESETS a
+        previously set window.
+
+        Everything this widget emits and paints is ENTRY-RELATIVE: the first
+        VISIBLE row is row 0 for `frame_clicked`, `set_rows` and the grid. The
+        window is applied in exactly ONE place — the source rectangle in
+        `paintEvent` — mirroring the engine's own rule that
+        ``AssetStore._frame_surface`` is the only place `row_start` is applied.
+        """
         pixmap = None
         if png_path is not None:
             candidate = QPixmap(str(png_path))
@@ -91,12 +108,21 @@ class SheetPreview(QWidget):
         self._frame_h = max(1, int(frame_h))
         if pixmap is None:
             self._cols = self._rows = 0
+            self._row_start = 0
         else:
             self._cols = pixmap.width() // self._frame_w
-            self._rows = pixmap.height() // self._frame_h
+            sheet_rows = pixmap.height() // self._frame_h
+            self._row_start = min(max(0, int(row_start)), max(0, sheet_rows))
+            available = sheet_rows - self._row_start
+            self._rows = (available if row_count is None
+                          else max(0, min(int(row_count), available)))
         self._hover = None
         self.updateGeometry()
         self.update()
+
+    def row_window(self):
+        """``(row_start, row_count)`` — the sheet rows currently drawn."""
+        return (self._row_start, self._rows)
 
     def set_rows(self, row_state):
         """Per sheet row: {"hidden": iterable[int], "static_frame": int|None}.
@@ -182,7 +208,11 @@ class SheetPreview(QWidget):
         # Nearest-neighbour: this is pixel art, and a smoothed upscale would lie
         # about what the frame actually contains.
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
-        source = QRect(0, 0, self._cols * self._frame_w,
+        # THE ONE PLACE THE ROW WINDOW IS APPLIED. Every other coordinate in
+        # this widget — cells, captions, hit-tests, frame_clicked — is
+        # window-relative, so nothing below needs an offset (M4 §2.3).
+        source = QRect(0, self._row_start * self._frame_h,
+                       self._cols * self._frame_w,
                        self._rows * self._frame_h)
         painter.drawPixmap(rect, self._pixmap, source)
         self._paint_cells(painter)

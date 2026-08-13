@@ -46,6 +46,26 @@ SCHEMA_SUBPATH = ("schemas", "master_sheets.schema.json")
 MASTER_SUBDIR = ("sprites", "master")
 
 
+class GridInUseError(ValueError):
+    """Refusal: a re-import would change ``frame_w``/``frame_h`` on a master
+    sheet that manifest entries already cut windows out of (M4 §2.1).
+
+    IT SUBCLASSES ``ValueError`` ON PURPOSE, AND THAT IS LOAD-BEARING.
+    ``panels/master_sheet_dialog._on_import_clicked`` already catches
+    ``(OSError, ValueError)`` and shows the message in a ``QMessageBox``, so
+    this refusal reaches the designer with no dialog edit at all. "Cleaning
+    up" the base class to ``Exception`` turns a readable refusal into an
+    unhandled crash inside a Qt slot.
+
+    WHY REFUSE. A linking entry stores ``row_start`` — a row index in THIS
+    grid. Re-cutting the same PNG at a different frame size silently re-points
+    every window at different pixels: wrong art, no error. That is the same
+    hazard ``resolve_sheet_id``'s never-overwrite rule exists for, one axis
+    over. With ZERO users nothing can be mis-cut, so the rewrite is still
+    allowed — that is the "correct a wrong frame_w" flow M3 documented.
+    """
+
+
 def _data_dir(data_dir=None):
     return Path(data_dir) if data_dir is not None else DEFAULT_DATA
 
@@ -126,6 +146,21 @@ def _unique_id(base_slug, existing):
     return f"{base_slug}_{n}"
 
 
+def _slug_family(base_slug, existing):
+    """``slug``, ``slug_2``, ``slug_3`` … as far as the registry actually goes.
+
+    Stops at the first id NOT in `existing`, which is exactly where
+    ``_unique_id`` would mint the next one — so the family scanned and the
+    family numbered are the same set."""
+    if base_slug not in existing:
+        return
+    yield base_slug
+    n = 2
+    while f"{base_slug}_{n}" in existing:
+        yield f"{base_slug}_{n}"
+        n += 1
+
+
 def _same_bytes(a, b):
     """True when both paths exist and hold identical bytes (or ARE the same
     file). Master sheets are small enough to compare whole."""
@@ -141,31 +176,42 @@ def _same_bytes(a, b):
 def resolve_sheet_id(data_dir, png_path, name):
     """The id ``import_master_sheet`` would use, without writing anything.
 
-    Three cases, in order:
+    Four cases, in order:
 
     * the slug is unused              -> the slug;
     * the slug is used and that entry's PNG is BYTE-IDENTICAL to `png_path`
                                       -> reuse it (the re-import case);
+    * some LATER member of the slug FAMILY (``<slug>_2``, ``<slug>_3``…) is
+      byte-identical                  -> reuse that one, lowest id first;
     * otherwise                       -> uniquify, ``<slug>_2``, ``<slug>_3``…
 
-    The third case is a RULE, not a convenience: a master sheet is linked BY
+    The last case is a RULE, not a convenience: a master sheet is linked BY
     PATH from manifest entries, so overwriting ``master/characters.png`` with
     different art would silently re-point every slot already cutting it —
-    wrong pixels, no error."""
+    wrong pixels, no error.
+
+    THE FAMILY SCAN (third case) is what keeps that rule from breeding copies:
+    once ``characters_2`` exists, re-importing ITS exact bytes used to compare
+    them against ``characters`` only, mismatch, and mint a third identical
+    ``characters_3``. The scan is deliberately scoped to the family and NOT to
+    every id in the registry: a whole-registry scan would also collapse the
+    same PNG imported deliberately under an unrelated display name into one
+    entry, which is a different behaviour change and not this phase's call."""
     doc = load_registry_doc(data_dir)
     entries = doc.get("entries") or {}
     slug = _slugify(name)
     if slug not in entries:
         return slug
-    # A hand-corrupted registry may hold a non-dict entry value. Degrade to
-    # "not a re-import" rather than raising: this module's whole load path is
-    # E-37 tolerant (see `load_registry_doc`), and the import path must not be
-    # the one place a bad JSON value crashes the editor.
-    entry = entries[slug]
-    existing_file = entry.get("file", "") if isinstance(entry, dict) else ""
-    existing = _data_dir(data_dir) / "sprites" / existing_file
-    if existing_file and _same_bytes(existing, png_path):
-        return slug
+    sprites = _data_dir(data_dir) / "sprites"
+    for sheet_id in _slug_family(slug, entries):
+        # A hand-corrupted registry may hold a non-dict entry value. Degrade to
+        # "not a re-import" rather than raising: this module's whole load path
+        # is E-37 tolerant (see `load_registry_doc`), and the import path must
+        # not be the one place a bad JSON value crashes the editor.
+        entry = entries[sheet_id]
+        existing_file = entry.get("file", "") if isinstance(entry, dict) else ""
+        if existing_file and _same_bytes(sprites / existing_file, png_path):
+            return sheet_id
     return _unique_id(slug, entries)
 
 
@@ -179,26 +225,47 @@ def import_master_sheet(data_dir, png_path, display_name, frame_w, frame_h):
     RE-IMPORTING THE SAME PNG reuses the id, leaves the file byte-untouched
     (so ``git status`` stays clean) and REWRITES the entry — that is how a
     designer corrects a wrong ``display_name`` or ``frame_w`` without breeding
-    a duplicate file. M3 deliberately has no refusal path for a changed grid:
-    nothing links a slot to a master sheet until M4."""
+    a duplicate file. **While the sheet has ZERO users that still holds
+    exactly** (nothing links to it, so nothing can be mis-cut); once manifest
+    entries DO link to it, a re-import that changes ``frame_w``/``frame_h``
+    raises ``GridInUseError`` instead, naming the slots to fix first (M4
+    §2.1). The refusal happens BEFORE the PNG copy and before the registry
+    write, so a refused import leaves disk byte-identical."""
     data_dir = _data_dir(data_dir)
     png_path = Path(png_path)
     name = (str(display_name or "").strip() or png_path.stem)
     sheet_id = resolve_sheet_id(data_dir, png_path, name)
+    frame_w, frame_h = int(frame_w), int(frame_h)
+
+    doc = load_registry_doc(data_dir)
+    doc.setdefault("version", 1)
+    doc.setdefault("entries", {})
+    existing = doc["entries"].get(sheet_id)
+    stored_grid = ((existing.get("frame_w"), existing.get("frame_h"))
+                   if isinstance(existing, dict) else None)
+    if stored_grid is not None and stored_grid != (frame_w, frame_h):
+        # ONE refcount in the editor (`asset_import.sheet_users`), never a
+        # second. A non-int stored value compares unequal and lands here too,
+        # which is the safe direction: refuse rather than silently re-cut.
+        users = sheet_users(load_manifest_doc(data_dir), master_ref(sheet_id))
+        if users:
+            raise GridInUseError(
+                f"'{sheet_id}' is cut at {stored_grid[0]}×{stored_grid[1]} by "
+                f"{len(users)} slot(s): {', '.join(users)}. Re-importing it at "
+                f"{frame_w}×{frame_h} would re-cut every row window into "
+                f"different pixels. Clear or re-point those slots first, then "
+                f"import again.")
 
     destination = data_dir.joinpath(*MASTER_SUBDIR) / f"{sheet_id}.png"
     destination.parent.mkdir(parents=True, exist_ok=True)
     if not _same_bytes(png_path, destination):
         destination.write_bytes(png_path.read_bytes())
 
-    doc = load_registry_doc(data_dir)
-    doc.setdefault("version", 1)
-    doc.setdefault("entries", {})
     doc["entries"][sheet_id] = {
         "file": master_ref(sheet_id),
         "display_name": name,
-        "frame_w": int(frame_w),
-        "frame_h": int(frame_h),
+        "frame_w": frame_w,
+        "frame_h": frame_h,
     }
     write_registry_doc(data_dir, doc)
     return sheet_id
