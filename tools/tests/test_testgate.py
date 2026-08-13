@@ -201,6 +201,117 @@ class TestStaleBaseline(GateCase):
         self.assertIn("may be stale", out)
 
 
+class _Capture:
+    """A stand-in for sys.stdout that records writes in order."""
+
+    def __init__(self, events=None):
+        self.chunks = []
+        self.events = events if events is not None else []
+
+    def write(self, text):
+        self.chunks.append(text)
+        self.events.append("write")
+        return len(text)
+
+    def flush(self):
+        pass
+
+    @property
+    def text(self):
+        return "".join(self.chunks)
+
+
+class TestStreamMode(GateCase):
+    """`--stream` is strictly additive: live output, IDENTICAL verdict.
+
+    The editor's test panel (TestRunnerPLAN TR-3, reconciliation R2) needs
+    per-file progress WHILE the gate runs and the gate's own authoritative
+    verdict at the end. Capturing everything and printing nothing until exit
+    cannot give the first; a second pytest run cannot give the second without
+    forking the verdict logic. So the child is streamed and NOTHING downstream
+    of the parse loop changes. Canned output only — no run is ever launched.
+    """
+
+    OUTPUT = ("tools/tests/test_a.py::T::test_x PASSED [ 50%]\n"
+              "FAILED tools/tests/test_b.py::T::test_y - boom\n"
+              "1 failed, 1 passed in 1.00s\n")
+
+    def fake_popen(self, output, events=None):
+        """A Popen stand-in whose stdout yields one line at a time, recording
+        when each line LEAVES the child."""
+        pending = output.splitlines(keepends=True)
+        events = events if events is not None else []
+
+        class _Stdout:
+            def __iter__(inner):
+                return inner
+
+            def __next__(inner):
+                if not pending:
+                    raise StopIteration
+                events.append("yield")
+                return pending.pop(0)
+
+        proc = mock.Mock(stdout=_Stdout())
+        proc.wait.return_value = 1
+        return mock.Mock(return_value=proc)
+
+    def test_lines_are_echoed_as_they_arrive_not_at_the_end(self):
+        events = []
+        out = _Capture(events)
+        popen = self.fake_popen(self.OUTPUT, events)
+        with mock.patch.object(testgate.subprocess, "Popen", popen):
+            with mock.patch("sys.stdout", out):
+                testgate.run_suite([], stream=True)
+        self.assertEqual(events, ["yield", "write"] * 3)
+        self.assertEqual(out.text, self.OUTPUT)
+
+    def test_stream_asks_pytest_for_node_ids(self):
+        popen = self.fake_popen(self.OUTPUT)
+        with mock.patch.object(testgate.subprocess, "Popen", popen):
+            with mock.patch("sys.stdout", _Capture()):
+                testgate.run_suite([], stream=True)
+        cmd = popen.call_args.args[0]
+        self.assertIn("-v", cmd)
+        self.assertNotIn("-q", cmd)
+        self.assertEqual(popen.call_args.kwargs["bufsize"], 1)
+        self.assertEqual(popen.call_args.kwargs["env"]["PYTHONUNBUFFERED"], "1")
+
+    def test_the_default_path_is_untouched_by_the_new_flag(self):
+        proc = mock.Mock(stdout=self.OUTPUT, stderr="")
+        with mock.patch.object(testgate.subprocess, "run", return_value=proc) as run:
+            with mock.patch.object(testgate.subprocess, "Popen") as popen:
+                testgate.run_suite([])
+        popen.assert_not_called()
+        cmd = run.call_args.args[0]
+        self.assertIn("-q", cmd)
+        self.assertNotIn("-v", cmd)
+        self.assertTrue(run.call_args.kwargs["capture_output"])
+
+    def _check_over(self, stream):
+        """cmd_check over the SAME canned pytest output, streamed or not."""
+        self.write_baseline()
+        args = mock.Mock(pytest_args=[], affected=False,
+                         base_ref="Development", stream=stream)
+        out = _Capture()
+        with mock.patch.object(testgate.subprocess, "Popen",
+                               self.fake_popen(self.OUTPUT)):
+            with mock.patch.object(testgate.subprocess, "run",
+                                   return_value=mock.Mock(stdout=self.OUTPUT,
+                                                          stderr="")):
+                with mock.patch("sys.stdout", out):
+                    code = testgate.cmd_check(args)
+        gate = [ln for ln in out.text.splitlines() if ln.startswith("GATE")]
+        return code, gate
+
+    def test_the_verdict_and_exit_code_are_identical_either_way(self):
+        plain = self._check_over(stream=False)
+        streamed = self._check_over(stream=True)
+        self.assertEqual(streamed, plain)
+        self.assertEqual(plain[0], 1)
+        self.assertEqual(plain[1], ["GATE FAIL  1 problem(s)"])
+
+
 class TestSnapshot(GateCase):
     def test_snapshot_records_failures_skips_and_the_sha(self):
         args = mock.Mock(pytest_args=[])

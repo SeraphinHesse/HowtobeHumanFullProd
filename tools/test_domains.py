@@ -199,6 +199,7 @@ DOMAINS = {
         "test_ci_shards.py",
         "test_data_guard.py",
         "test_debug_log.py",
+        "test_editor_test_runner.py",
         "test_fixture_guard.py",
         "test_migration_timeline.py",
         "test_orient_hook.py",

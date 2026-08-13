@@ -100,6 +100,7 @@ TIERS = {
     "test_death_spawn": "core",
     "test_debug_log": "core",  # debug mode: recorder + metrics + reports
     "test_defence_aoe_beam": "core",
+    "test_editor_test_runner": "core",  # TR-3: the run engine is Qt-free (D6)
     "test_enemies": "core",
     "test_enemy_hp_bars": "core",
     "test_enemy_intro": "core",  # feature-enemy-intro-dialogue: ENEMY_INTRO phase machine
