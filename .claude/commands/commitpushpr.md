@@ -1,7 +1,7 @@
 ---
 description: Commit the current work, push the branch, and open a PR into Development in one step.
 argument-hint: [optional commit/PR subject — inferred from the diff if omitted]
-allowed-tools: Bash(git rev-parse*), Bash(git status*), Bash(git diff*), Bash(git log*), Bash(git add*), Bash(git commit*), Bash(git push*), Bash(gh pr create*), Bash(gh pr view*), Read
+allowed-tools: Bash(git rev-parse*), Bash(git status*), Bash(git diff*), Bash(git log*), Bash(git add*), Bash(git commit*), Bash(git push*), Bash(gh pr create*), Bash(gh pr view*), Bash(py tools/smoke.py*), Bash(py tools/testgate.py*), Read
 disable-model-invocation: true
 ---
 
@@ -10,10 +10,17 @@ a PR in one step** — subject: **$ARGUMENTS** (infer from the diff if empty).
 This is the closing move of a session, not a work skill: it makes NO code
 edits.
 
-It does **not** run the exit gate — it assumes the session already verified its
-own work. Report whatever was actually verified this session (smoke test, suite
-vs baseline, live run, or "static read only"); never imply a check you did not
-run.
+It does **not** run the exit gate itself. Per §"Test Suite Policy" in the root
+`CLAUDE.md`, the main session runs exactly ONE `py tools/testgate.py check`, at
+handoff — and this skill IS the handoff, so that run belongs to the session
+*before* invoking it. Report whatever was actually verified (smoke, the single
+full `GATE PASS` line, targeted files, live run, or "static read only"); never
+imply a check you did not run. **There is no baseline and no tolerated failure**
+— the gate is ZERO, so "green vs baseline" is not a thing to report.
+
+If the session has NOT run the gate yet, say so in step 1 and let the user
+decide: run it once now, or ship the PR stating exactly what was verified. Never
+run it twice, and never run it from inside a dispatched agent.
 
 ## Preconditions (abort with a clear report on any failure)
 
@@ -44,6 +51,9 @@ run.
 - Committing `build/`, `dist/`, any `*.exe`, or editor prefs.
 - Claiming verification that did not happen — if nothing was run, say so in the
   PR body.
+- A second full `testgate check` when the session already ran one; and any full
+  run at all if this skill was invoked from inside a dispatched agent (the
+  `test_guard.py` hook denies it).
 
 ## Verify
 

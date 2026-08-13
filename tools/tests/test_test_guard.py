@@ -171,18 +171,134 @@ class TestRepeatGuard(GuardCase):
 
 
 class TestConcurrencyGuard(GuardCase):
+    """`TESTGUARD_PROBE` pins the liveness answer.
+
+    Without it these tests are undecidable: they run *under pytest*, so the
+    real probe correctly reports a live test process no matter which scenario
+    is being set up.
+    """
+
+    ALIVE = {"TESTGUARD_PROBE": "alive"}
+    DEAD = {"TESTGUARD_PROBE": "dead"}
+    UNKNOWN = {"TESTGUARD_PROBE": "unknown"}
+
     def test_a_second_run_while_one_is_in_flight_is_denied(self):
         self.start("S-MAIN", subagent=False)
-        self.assertEqual(self.pre(TARGETED)[0], 0)          # takes the lock
-        code, message = self.pre(OTHER_TARGET)
+        self.assertEqual(self.pre(TARGETED, extra_env=self.ALIVE)[0], 0)
+        code, message = self.pre(OTHER_TARGET, extra_env=self.ALIVE)
         self.assertEqual(code, 2)
         self.assertIn("in flight", message)
 
     def test_the_lock_releases_when_the_run_finishes(self):
         self.start("S-MAIN", subagent=False)
-        self.pre(TARGETED)
+        self.pre(TARGETED, extra_env=self.ALIVE)
         self.post(TARGETED, "49 passed")
-        self.assertEqual(self.pre(OTHER_TARGET)[0], 0)
+        self.assertEqual(self.pre(OTHER_TARGET, extra_env=self.ALIVE)[0], 0)
+
+    def test_a_lock_left_by_a_CRASHED_run_does_not_block(self):
+        """The 2026-08-13 incident: a tool call died inside the harness, so
+        PostToolUse never fired and its lock blocked the gate for 20 minutes
+        while nothing at all was running."""
+        self.start("S-MAIN", subagent=False)
+        self.pre(TARGETED, extra_env=self.ALIVE)            # takes the lock
+        # ...that run dies. No PostToolUse. Lock still on disk:
+        self.assertTrue((self.state / "inflight.json").exists())
+
+        self.assertEqual(self.pre(OTHER_TARGET, extra_env=self.DEAD)[0], 0)
+
+    def test_an_inconclusive_probe_still_blocks(self):
+        """Unknown must mean 'assume it is running'. A probe that fails open
+        would dissolve the concurrency guard on every machine it cannot read."""
+        self.start("S-MAIN", subagent=False)
+        self.pre(TARGETED, extra_env=self.ALIVE)
+        code, message = self.pre(OTHER_TARGET, extra_env=self.UNKNOWN)
+        self.assertEqual(code, 2)
+        # ...but THEN it must name the override, because the timer is now the
+        # only thing that will clear it.
+        self.assertIn("TESTGUARD_OFF=1", message)
+
+    def test_the_denial_says_wait_and_not_delete_the_lock(self):
+        """The message is half the mechanism. The old one ended with 'delete
+        <path> or re-run with TESTGUARD_OFF=1' and gave no expiry time, so an
+        agent 2.5 minutes from the timer reached for `rm` instead of waiting."""
+        self.start("S-MAIN", subagent=False)
+        self.pre(TARGETED, extra_env=self.ALIVE)
+        code, message = self.pre(OTHER_TARGET, extra_env=self.ALIVE)
+        self.assertEqual(code, 2)
+        self.assertIn("WAIT", message)
+        self.assertNotIn("inflight.json", message)
+        self.assertNotIn("TESTGUARD_OFF", message)
+
+
+class TestLivenessProbe(unittest.TestCase):
+    """The probe reads process command lines — pin what counts as a test run."""
+
+    def setUp(self):
+        sys.path.insert(0, str(REPO / ".claude" / "hooks"))
+        self.addCleanup(lambda: sys.path.remove(str(REPO / ".claude" / "hooks")))
+        import importlib
+        self.guard = importlib.import_module("test_guard")
+
+    def test_what_counts_as_a_live_test_run(self):
+        cases = {
+            "py -m pytest tools/tests/test_boss.py -q": True,
+            "C:\\Python311\\python.exe tools/testgate.py check": True,
+            "bash -c cd /repo && py tools/testgate.py check | tail -15": True,
+            # A run of the guard's OWN tests is still a run. The first version
+            # excluded any line containing "test_guard" and so made this one
+            # invisible.
+            "py -m pytest tools/tests/test_test_guard.py -q": True,
+            # The guard fires on every Bash call, so it is always running
+            # alongside itself and must never count as the run it is judging.
+            "py C:/repo/.claude/hooks/test_guard.py": False,
+            "py editor/main.py": False,
+            "py game/main.py --backend=gpu": False,
+            "py tools/smoke.py": False,
+        }
+        for line, expected in cases.items():
+            with self.subTest(line=line):
+                self.assertEqual(
+                    self.guard._looks_like_a_test_process(line), expected)
+
+    def test_the_probe_actually_works_on_this_machine(self):
+        """The probe is platform code; a silently broken one degrades the guard
+        back to the 20-minute timer without anyone noticing.
+
+        This test IS a live test process, so the probe must both return lines
+        and recognise one of them."""
+        lines = self.guard._probe_command_lines()
+        self.assertIsNotNone(lines, "the process probe returned nothing here")
+        self.assertTrue(
+            any(self.guard._looks_like_a_test_process(line) for line in lines),
+            "the probe cannot see the pytest process running this very test")
+
+    def test_an_empty_process_list_is_inconclusive_not_idle(self):
+        """A working probe always sees at least this guard's own python, so
+        zero lines means the probe broke — never 'the machine is idle'."""
+        original = self.guard.subprocess
+        self.addCleanup(lambda: setattr(self.guard, "subprocess", original))
+
+        class _Empty:
+            returncode = 0
+            stdout = b"   \n\n"
+
+        class _FakeModule:
+            run = staticmethod(lambda *a, **k: _Empty())
+
+        # Rebind the NAME in the guard's namespace — never patch `run` on the
+        # stdlib module, which the rest of this suite is also using.
+        self.guard.subprocess = _FakeModule()
+        self.assertIsNone(self.guard._probe_command_lines())
+        self.assertIsNone(self.guard._lock_is_dead({}))
+
+    def test_the_env_override_pins_all_three_answers(self):
+        import os
+        for value, expected in (("dead", True), ("alive", False),
+                                ("unknown", None)):
+            with self.subTest(value=value):
+                os.environ["TESTGUARD_PROBE"] = value
+                self.addCleanup(os.environ.pop, "TESTGUARD_PROBE", None)
+                self.assertIs(self.guard._lock_is_dead({}), expected)
 
 
 class TestNeverWedgesTheSession(GuardCase):
@@ -314,10 +430,18 @@ class TestThePolicyIsStatedOnce(unittest.TestCase):
     def test_no_live_doc_teaches_the_pre_pytest_incantation(self):
         """`unittest discover` runs everything and is not the gate. Historical
         records under `docs/briefs/` and `planning/` are exempt: they are what
-        was true then, and each carries a SUPERSEDED banner."""
+        was true then, and each carries a SUPERSEDED banner.
+
+        `.claude/worktrees/` is exempt too — a worktree is a full checkout of
+        ANOTHER branch, so this sweep would otherwise assert that every branch
+        anyone has open already carries this branch's doc fixes. It cannot:
+        the offending briefs there are history on branches that predate the
+        fix. Scoping to the current checkout is the whole point of the test."""
         offenders = []
         for root in ("engine", "game", "editor", "data", "tools", ".claude"):
             for path in (REPO / root).rglob("*.md"):
+                if "worktrees" in path.relative_to(REPO).parts:
+                    continue
                 if "unittest discover" in path.read_text(encoding="utf-8"):
                     offenders.append(path.relative_to(REPO).as_posix())
         self.assertEqual(offenders, [], "live docs still teach `unittest discover`")

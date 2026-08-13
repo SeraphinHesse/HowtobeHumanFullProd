@@ -13,6 +13,11 @@ ways this hook closes:
   3. **Overlap.** Two runs in flight at once, which exhausts memory and makes
                  both slower, so the agent concludes the suite is flaky.
 
+Guard 3 has a failure mode of its own, and it has bitten: a tool call that dies
+inside the harness never reaches PostToolUse, so its lock outlives it and
+blocks everyone for twenty minutes over nothing. `_lock_is_dead` closes that by
+checking whether a test process actually exists before blocking anyone.
+
 Guards 2 and 3 need no notion of who is asking and are therefore always on.
 Guard 1 needs to tell a subagent from the main session; see `_role()` for how
 that is established and why it FAILS OPEN.
@@ -96,6 +101,10 @@ def _state() -> Path:
 #: A run older than this is assumed dead (the process was killed, the machine
 #: slept, a hook was missed) and its lock is ignored rather than wedging every
 #: later run. Deliberately longer than the slowest observed full suite (~6 min).
+#:
+#: This is the BACKSTOP, not the primary release. `_lock_is_dead` looks at
+#: whether a test process is actually running and releases the lock the moment
+#: one is not, so a crashed run costs nobody twenty minutes. See its docstring.
 LOCK_STALE_SECONDS = 20 * 60
 
 #: How long a recorded run keeps suppressing an identical repeat. Long enough
@@ -299,6 +308,94 @@ def _read_json(path: Path) -> dict:
         return {}
 
 
+# --------------------------------------------------------------------------
+# liveness — is the run named by the lock actually still running?
+# --------------------------------------------------------------------------
+
+#: The two words that can only mean "a test run" in this repo. Matched against
+#: process command lines, so the wrapping shell of a piped run counts too.
+_TEST_PROCESS = re.compile(r"\b(pytest|testgate)\b")
+
+#: The hook's OWN invocation, matched by its path. Deliberately not a bare
+#: `"test_guard" in line`: that also matched `pytest tools/tests/
+#: test_test_guard.py`, i.e. it made a real run of these very tests invisible
+#: to the probe — caught by `test_the_probe_actually_works_on_this_machine`.
+_GUARD_ITSELF = re.compile(r"hooks[/\\]test_guard\.py")
+
+
+def _looks_like_a_test_process(line: str) -> bool:
+    """Does this process command line belong to a test run?
+
+    Excludes the guard's own invocation: the hook fires on every Bash call and
+    must never mistake itself for the run it is deciding about.
+    """
+    if _GUARD_ITSELF.search(line):
+        return False
+    return bool(_TEST_PROCESS.search(line))
+
+
+def _probe_command_lines():
+    """Command lines of the processes that could be a test run, or None.
+
+    None means "could not tell" and is treated as "still running" by every
+    caller — an inconclusive probe must never dissolve the concurrency guard.
+
+    Bytes, never `text=True`: the cp1252 lesson from `_git_bytes` applies to
+    any output that might carry a path this locale cannot represent.
+
+    An EMPTY result is inconclusive, not "nothing is running". On Windows the
+    filter matches `py`/`python`, and this guard is itself running under one,
+    so a working probe always returns at least its own line. Zero lines means
+    the probe broke, not that the machine is idle.
+    """
+    try:
+        if os.name == "nt":
+            script = ("Get-CimInstance Win32_Process -Filter \"Name LIKE 'py%'\""
+                      " | ForEach-Object { $_.CommandLine }")
+            out = subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                 script], capture_output=True, timeout=20)
+        else:
+            out = subprocess.run(["ps", "-eo", "args="],
+                                 capture_output=True, timeout=20)
+        if out.returncode != 0:
+            return None
+        text = (out.stdout or b"").decode("utf-8", "replace")
+        lines = [line for line in text.splitlines() if line.strip()]
+        return lines or None
+    except Exception:
+        return None
+
+
+def _lock_is_dead(lock: dict):
+    """True (release it), False (a run really is going), or None (unknown).
+
+    The lock is hung at PreToolUse and taken down at PostToolUse. When a tool
+    call dies inside the harness, PostToolUse never fires and the lock outlives
+    its run — which happened twice in one hour on 2026-08-13 and cost an agent
+    a proposed `rm` of the lock file the first time and an escalation to the
+    user the second. The 20-minute timer did its job both times; nobody was
+    willing to wait for it, because the deny message offered two faster exits
+    and no expiry time.
+
+    So the block is now conditional on evidence rather than on the clock: if no
+    process on this machine looks like a test run, the lock is released here
+    and the run proceeds. The timer stays as the backstop for the case this
+    cannot decide.
+
+    `TESTGUARD_PROBE=dead|alive|unknown` overrides the probe. It exists for the
+    guard's own tests, which necessarily run *under pytest* and would otherwise
+    always observe a live test process.
+    """
+    override = os.environ.get("TESTGUARD_PROBE")
+    if override:
+        return {"dead": True, "alive": False}.get(override.strip().lower())
+    lines = _probe_command_lines()
+    if lines is None:
+        return None
+    return not any(_looks_like_a_test_process(line) for line in lines)
+
+
 def pre(payload: dict) -> int:
     command = (payload.get("tool_input") or {}).get("command") or ""
     kind = classify(command)
@@ -324,17 +421,40 @@ def pre(payload: dict) -> int:
     # -- guard 3: concurrency (checked before we record anything) ----------
     lock = _read_json(_lock_path())
     if lock:
-        age = time.time() - float(lock.get("started", 0))
+        started = float(lock.get("started", 0))
+        age = time.time() - started
         if 0 <= age < LOCK_STALE_SECONDS:
-            return _deny(
-                "DENIED by test_guard: another test run is already in flight "
-                f"({int(age)}s ago):\n    {lock.get('target', '?')}\n"
-                "Two concurrent runs exhaust memory and make both slower — "
-                "which then reads as a flaky suite.\n"
-                "Wait for it to finish and use its result. If you are certain "
-                "it died, delete\n"
-                f"    {_lock_path()}\n"
-                "or re-run with TESTGUARD_OFF=1.")
+            dead = _lock_is_dead(lock)
+            if dead:
+                # Its run is gone; the lock is a leftover, not a conflict.
+                try:
+                    _lock_path().unlink()
+                except OSError:
+                    pass
+                lock = {}
+            else:
+                expires = time.strftime(
+                    "%H:%M:%S", time.localtime(started + LOCK_STALE_SECONDS))
+                unknown = (
+                    "\nThe liveness check could not run this time, so this "
+                    "block is on the timer alone.\nIf you have independently "
+                    "confirmed no test process exists, re-run with "
+                    "TESTGUARD_OFF=1."
+                ) if dead is None else ""
+                return _deny(
+                    "DENIED by test_guard: a test run is already in flight "
+                    f"({int(age)}s ago):\n    {lock.get('target', '?')}\n"
+                    "Two concurrent runs exhaust memory and make both slower — "
+                    "which then reads as a flaky suite.\n"
+                    f"\nWAIT. This clears itself at {expires} "
+                    f"({int(LOCK_STALE_SECONDS - age)}s from now) with no "
+                    "action from you, and the\nguard releases a CRASHED run "
+                    "automatically — so if you are reading this, a run really "
+                    "is\nalive. Do other work and come back to it.\n"
+                    "Do not delete the lock file. Do not raise this with the "
+                    "user as a test-policy question:\nit is not one. The full "
+                    "gate is not being refused, only queued."
+                    + unknown)
 
     # -- guard 2: repeat --------------------------------------------------
     target = normalised_target(command)

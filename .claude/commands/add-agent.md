@@ -28,6 +28,14 @@ re-explanation of the repo.
    moves → hard rules → exit gate (only if it edits) → report format.
    Do NOT paste root `CLAUDE.md` or graphify orientation — the SubagentStart
    hook injects both into every agent already.
+   **The exit gate is the SUBAGENT row of §"Test Suite Policy", always** — every
+   agent in `.claude/agents/` is a subagent, whoever dispatches it. So:
+   `py tools/smoke.py` + `py -m pytest tools/tests/test_<file>.py -q` over the
+   files it touched, zero failures. Never write the full suite, `testgate
+   check`, `--affected`, or a tier sweep into an agent body; `test_guard.py`
+   denies all four from a subagent, and a denied command must be reported, not
+   retried. Read-only agents (`scout`, `reviewer`) get **no** gate at all — say
+   "do not run tests" explicitly.
 4. End the body with the two standing rules every agent carries:
    never publish artifacts (report upward; the orchestrator publishes), and
    provenance-tag every claim (**measured** / **verified** / **inferred** —
