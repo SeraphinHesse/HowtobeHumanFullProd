@@ -1,6 +1,43 @@
-<!-- status: IN PROGRESS — all 12 phases G0-G6 + M1-M5 code done; G5/G6 measured, M4 live pass PASSED (first real master sheet imported). ONLY M5's live editor pass remains -->
+<!-- status: COMPLETE — 2026-08-13. All 12 phases (G0-G6, M1-M5) done, gated and live-passed. GATE PASS 2488, zero failures. Two non-blocking unknowns remain, listed under "Completion". -->
 
 # GpuAndMasterSheetsPLAN.md — GPU render backend, then master spritesheets
+
+## Completion (2026-08-13)
+
+**This plan is DONE.** All twelve phases are implemented, reviewed, gated and —
+where the gate was a human step — live-passed by the user. Final state:
+`GATE PASS 2488 ran | 0 known | 0 new | 0 fixed | 0 unexpected skips` on
+`MasterSpritesheet_Implementation`.
+
+**What it set out to do, and what it actually delivered:**
+
+| Claim | Status |
+|---|---|
+| Drawing was the bottleneck (84–97% of frame) | **Measured** in G0 |
+| Moving drawing to the GPU makes it dramatically cheaper | **Measured on real hardware** in G6: `world` **17.54 ms → 4.72 ms (3.7×)**, 27.1 → 33.4 fps |
+| The overlay regression the rewrite introduced | **Fixed** in G5: gpu overlay Δ 1.92→0.77 / 8.76→2.73 / 3.51→0.13 ms |
+| "The HUD cannot plausibly be the dominant cost" (G0, *inferred*) | **RETIRED** in G6 — 0.90 ms of a ~29.9 ms frame, 3%. D7 stands |
+| One PNG can hold many characters, loaded once | **Delivered** M1–M5, and **used**: `slinger_t2_lvl3` (15×6 at 64×96) is the first real master sheet |
+
+**This plan carries no inferred performance claim.** Every number in it is
+measured, and where a measurement could not be reproduced (G4's Surface
+far-polyline row) it is flagged rather than quietly overwritten.
+
+**Two non-blocking unknowns survive, deliberately unanswered** (§9): whether
+`target_texture=True` is strictly needed on this driver, and streaming vs static
+texture on real hardware. Neither blocks anything — the path works as passed.
+
+**One finding is handed forward, NOT acted on**: on the GPU path drawing is no
+longer the largest cost while panning (21% vs `sim+submit`'s 50%), and ~5–9 ms
+of a frame is unaccounted by any bucket. Read §9's qualification before quoting
+it — both G6 runs were taken mid-camera-shake, and `submit` is
+backend-independent, so it is a worst-case number, not a steady-state one. **A
+Part-C plan measures a quiet frame first.**
+
+**One lesson worth carrying**: importing the first real master sheet instantly
+turned 3 tests red (`1adae9b`). They compared the whole registry against only
+what they imported — true only while `data/sprites/master_sheets.json` shipped
+empty. Never assert against live `data/`; pin the fixture.
 
 Phased, agent-executable plan (same family as `AgentDispatchPLAN.md` /
 `TimelinePLAN.md`). Base branch: `Development`.
@@ -211,8 +248,8 @@ store cache contract, E-37 tolerance split), `editor/panels/CLAUDE.md`
 | M1 | Data layer: master-sheet registry + schema + `row_start` | data | — | **DONE** — schema + seeded registry + `data/sprites/master/`; existing manifest byte-identical |
 | M2 | Engine: `row_start` slicing + sheet-path-keyed store | engine | M1, G2 | **DONE** — `48de489` + review fixes `81a2aa2`, merged `12ba043`. `row_start` applied in `AssetStore._frame_surface` only; store re-keyed on `entry.sheet`, so one PNG = one decode |
 | M3 | Editor: pure master-sheet import module + picker dialog | editor | M1 | **DONE** — `c8707a4` + review fix `fc7cd62`, merged `ff81203`. `editor/master_sheet_import.py` + `panels/master_sheet_dialog.py`. Left three carry-forwards, all ruled on in M4's brief §2 |
-| M4 | DetailsPanel: button, row window, narrowed preview + rows | editor | M2, M3 | **CODE DONE, LIVE PASS PENDING** — `0c33004` + review fix `056b362` on `phase-M4-details-master-sheet`; brief `docs/briefs/phase-M4-details-panel-master-sheet.md`. `GATE PASS 2467` (2456 at the `367ff9c` base, so +11). Ruled on all three of M3's carry-forwards (brief §2). **LIVE PASS PASSED 2026-08-13** — the user ran the live-editor walkthrough and reported it clean. The project's FIRST real master sheet landed with it: `slinger_t2_lvl3` (960×576 PNG, 64×96 frames = 15 cols × 6 rows), committed at `7acc59d` with its registry entry written by the validating writer. **M4 is CLOSED.** Note the import immediately turned 3 tests red — they compared the whole registry against only what they imported, which held only while the registry shipped empty; fixed at `1adae9b` (§below) |
-| M5 | VFX preview panel button | editor | M4 | **CODE DONE, LIVE PASS PENDING** — `phase-M5-vfx-master-sheet`. "Use Master Spritesheet…" beside Import on the fixed `vfx_*` slots, **ONE row spin** (a vfx entry is a single `idle` row, so a second spin has no representable state — §6/M5's open call), grid inherited from the registry with `slots.json` untouched, `row_start` omitted at 0, write-through + `reload_assets` because this panel has no Save. No `/add-vfx` work was in flight on the file. **The live-editor gate is a human step and M5 is not closed until it passes** — run it together with M4's still-outstanding live pass |
+| M4 | DetailsPanel: button, row window, narrowed preview + rows | editor | M2, M3 | **DONE (code + live pass)** — `0c33004` + review fix `056b362` on `phase-M4-details-master-sheet`; brief `docs/briefs/phase-M4-details-panel-master-sheet.md`. `GATE PASS 2467` (2456 at the `367ff9c` base, so +11). Ruled on all three of M3's carry-forwards (brief §2). **LIVE PASS PASSED 2026-08-13** — the user ran the live-editor walkthrough and reported it clean. The project's FIRST real master sheet landed with it: `slinger_t2_lvl3` (960×576 PNG, 64×96 frames = 15 cols × 6 rows), committed at `7acc59d` with its registry entry written by the validating writer. **M4 is CLOSED.** Note the import immediately turned 3 tests red — they compared the whole registry against only what they imported, which held only while the registry shipped empty; fixed at `1adae9b` (§below) |
+| M5 | VFX preview panel button | editor | M4 | **DONE (code + live pass)** — `phase-M5-vfx-master-sheet`. "Use Master Spritesheet…" beside Import on the fixed `vfx_*` slots, **ONE row spin** (a vfx entry is a single `idle` row, so a second spin has no representable state — §6/M5's open call), grid inherited from the registry with `slots.json` untouched, `row_start` omitted at 0, write-through + `reload_assets` because this panel has no Save. No `/add-vfx` work was in flight on the file. **LIVE PASS PASSED 2026-08-13** — run together with M4's; the user reported both clean. **M5 is CLOSED**, and with it the whole plan. Its exit gate (§7/M5) was rewritten during the pass: the old wording ("a live editor run selecting a vfx slot") was too vague to follow, because the button is in the VFX PREVIEW panel rather than DetailsPanel and appears on `projectile`/`crater`/`beam` ONLY |
 
 ### 5.1 This plan is a CHAIN, not a fan-out — read before dispatching
 
