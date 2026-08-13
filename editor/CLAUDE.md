@@ -309,6 +309,28 @@ the same reason. Do not resolve the duplication by importing `game.ui.effects`
 or by moving the mapping into `engine/vfx` (that would give the engine
 package JSON vocabulary, which D5 exists to prevent).
 
+**M5 — "Use Master Spritesheet…" beside "Import Spritesheet…"** (GpuAndMasterSheetsPLAN
+§6/M5, D5). Same visibility rule as the Import button: a family that
+resolves to ONE fixed `vfx_*` slot (projectile/shell, crater, beam), via
+`_current_import_slot()`. It opens `panels/master_sheet_dialog.MasterSheetDialog`
+(construction split from display — `use_master_sheet(sheet, row=None)` is the
+model half every test drives, so no test `exec()`s the modal) and links the slot
+to the registry entry's **STORED** `file`, copying no bytes. **The sheet owns
+the grid (D3)**: `frame_w`/`frame_h` come off the master registry, never
+`registry.frame_size(slot)`, and **`slots.json` is not written** — a master
+sheet's grid is not a per-slot override.
+
+**ONE row spin, not M4's two** (`Master sheet row`): a `vfx_*` entry is a single
+`idle` row — `asset_import.import_idle_sheet`'s shape, which
+`use_master_sheet` reproduces exactly — so the window is always one row long
+and a second spin could only hold the value the first already implies. The
+spin's ceiling is the sheet's real last row, `row_start` is OMITTED at 0 (the
+`slice`/`tint_overlay` convention), and moving the spin rewrites **only**
+`row_start` on the existing entry, so a row edit made in DetailsPanel survives.
+Unlike DetailsPanel this panel has **no Save button**, so both paths write
+straight through `asset_import.write_manifest_doc` and then `reload_assets()`
+(ED-42) — matching what the Import button beside it already did.
+
 **ESV-6 forced a real (not cosmetic) edit here**, despite that phase's brief
 expecting none: `engine.vfx.VfxParams` gained a new REQUIRED field
 (`floaters`, no defaults anywhere in that module, G-7), so every direct

@@ -53,6 +53,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QColorDialog,
     QComboBox,
+    QDialog,
     QFileDialog,
     QFormLayout,
     QHBoxLayout,
@@ -62,9 +63,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from editor import domains, vfx_params
+from editor import asset_import, domains, master_sheet_import, vfx_params
 from editor.asset_import import import_idle_sheet
 from editor.panels.balancing import _NoWheelDoubleSpinBox, _NoWheelSpinBox
+from editor.panels.master_sheet_dialog import MasterSheetDialog
 from editor.panels.viewport import surface_to_qimage
 from engine import data_io
 from engine.assets import load_manifest, load_registry
@@ -132,6 +134,10 @@ _POINT_FX_FAMILIES = (_PROJECTILE_FAMILY, _CRATER_FAMILY, _BEAM_FAMILY)
 # through the `triggers` table's `sprite_slot` field, not a fixed family
 # slot, so it has no button here — out of scope.
 _POINT_FX_SLOTS = {_CRATER_FAMILY: "vfx_crater", _BEAM_FAMILY: "vfx_beam"}
+#: A manifest `sheet` under this prefix is a MASTER spritesheet (D1) — one PNG
+#: many slots cut their own row window out of. Tested against the entry's
+#: STORED ref, never re-derived from the slot key (`details.py`'s M4 rule).
+MASTER_PREFIX = "master/"
 
 
 class VfxPreviewPanel(QWidget):
@@ -197,6 +203,17 @@ class VfxPreviewPanel(QWidget):
         # (`_current_import_slot()`), which is projectile/crater/beam only.
         self._import_btn = QPushButton("Import Spritesheet…")
         self._import_btn.clicked.connect(self._on_import_clicked)
+        # M5: the master-sheet twin of the button above — same visibility rule
+        # (a family with a fixed vfx_* slot), one PNG shared by many slots.
+        self._master_btn = QPushButton("Use Master Spritesheet…")
+        self._master_btn.setToolTip(
+            "Cut this effect's art out of a MASTER spritesheet — one big PNG\n"
+            "many characters and effects share. The sheet owns the frame size;\n"
+            "this slot claims ONE row in it. Nothing is copied.")
+        # Wrapped in a lambda like details.py's Use/Clear buttons: a bare
+        # connect would put Qt's clicked(bool checked) into the first argument
+        # (the panels-doc footgun that bit map_details' Delete).
+        self._master_btn.clicked.connect(lambda: self._on_master_clicked())
 
         top_row = QHBoxLayout()
         top_row.addWidget(QLabel("Family"))
@@ -206,7 +223,26 @@ class VfxPreviewPanel(QWidget):
         top_row.addWidget(self._large_check)
         top_row.addWidget(self._shell_check)
         top_row.addWidget(self._import_btn)
+        top_row.addWidget(self._master_btn)
         top_row.addStretch(1)
+
+        # The row window (M5/D2). ONE spin, not M4's two: a vfx_* slot's entry
+        # is a single `idle` row (`asset_import.import_idle_sheet`), so the
+        # window is always exactly one row and a second spin could only ever
+        # hold the value the first one already implies. ED-30 the other way
+        # round — the unrepresentable state here is a window LONGER than one
+        # row, and the way to make it unrepresentable is not to offer it.
+        self._master_row = QWidget()
+        master_layout = QHBoxLayout(self._master_row)
+        master_layout.setContentsMargins(0, 0, 0, 0)
+        master_layout.addWidget(QLabel("Master sheet row"))
+        self._row_spin = _NoWheelSpinBox()
+        self._row_spin.setRange(0, 255)   # asset_manifest.schema.json row_start
+        self._row_spin.editingFinished.connect(self._on_master_row_changed)
+        master_layout.addWidget(self._row_spin)
+        self._master_label = QLabel("")
+        master_layout.addWidget(self._master_label)
+        master_layout.addStretch(1)
 
         self._loop_check = QCheckBox("Loop")
         self._loop_check.setChecked(True)
@@ -238,6 +274,7 @@ class VfxPreviewPanel(QWidget):
 
         controls = QVBoxLayout()
         controls.addLayout(top_row)
+        controls.addWidget(self._master_row)
         controls.addLayout(loop_row)
         controls.addWidget(self._degrade_label)
         controls.addWidget(lever_box)
@@ -253,6 +290,9 @@ class VfxPreviewPanel(QWidget):
         outer = QVBoxLayout(self)
         outer.addWidget(self._surface_widget, 1)
         outer.addWidget(controls_widget)
+        # No family is selected until `refresh_families` runs, so both
+        # slot-scoped affordances start hidden rather than flashing.
+        self._refresh_import_btn()
 
     # -- balancing-panel plumbing (§2.3): one staging store, no second writer
 
@@ -348,7 +388,162 @@ class VfxPreviewPanel(QWidget):
         return _POINT_FX_SLOTS.get(self._family)
 
     def _refresh_import_btn(self):
-        self._import_btn.setVisible(self._current_import_slot() is not None)
+        has_slot = self._current_import_slot() is not None
+        self._import_btn.setVisible(has_slot)
+        self._master_btn.setVisible(has_slot)
+        self._refresh_master_row()
+
+    # -- master spritesheets (M5, D1/D2/D3) ---------------------------------
+
+    def _slot_entry(self, slot=None):
+        """The current fixed slot's manifest entry, or None. Read fresh from
+        disk on every call: this panel holds NO staged copy of the manifest
+        (the one-staging-store rule applies to `vfx.json`; the manifest has no
+        staging layer here at all — `import_idle_sheet` writes straight
+        through, and so does everything below)."""
+        slot = slot or self._current_import_slot()
+        if slot is None:
+            return None
+        entry = asset_import.load_manifest_doc(self._data_dir)["entries"].get(slot)
+        return entry if isinstance(entry, dict) else None
+
+    def _slot_master_ref(self):
+        """The MASTER sheet ref the current slot cuts, or None. Tests the
+        entry's STORED `sheet`, never a ref re-derived from the slot key
+        (`master_sheet_import.master_ref`'s docstring)."""
+        ref = (self._slot_entry() or {}).get("sheet")
+        return ref if isinstance(ref, str) and ref.startswith(MASTER_PREFIX) \
+            else None
+
+    def _resolve_master_sheet(self, sheet):
+        """A `MasterSheet` from the dataclass, its id, or its stored ref —
+        `details.py::_resolve_master_sheet`, unchanged."""
+        if hasattr(sheet, "ref"):
+            return sheet
+        key = str(sheet)
+        for candidate in master_sheet_import.master_sheets(self._data_dir):
+            if key in (candidate.sheet_id, candidate.ref):
+                return candidate
+        return None
+
+    def _refresh_master_row(self):
+        """Show and fill the row spin while the current slot cuts a master
+        sheet; hide it otherwise. The spin's ceiling is the sheet's real last
+        row, so a window off the bottom of the PNG is unrepresentable."""
+        ref = self._slot_master_ref()
+        self._master_row.setVisible(ref is not None)
+        if ref is None:
+            return
+        sheet = self._resolve_master_sheet(ref)
+        entry = self._slot_entry() or {}
+        _cols, rows = sheet.grid() if sheet is not None else (0, 0)
+        self._row_spin.blockSignals(True)
+        self._row_spin.setRange(0, max(0, rows - 1))
+        self._row_spin.setValue(int(entry.get("row_start", 0)))
+        self._row_spin.blockSignals(False)
+        name = sheet.display_name if sheet is not None else ref
+        self._master_label.setText(f"of “{name}” ({ref})")
+
+    def use_master_sheet(self, sheet, row=None):
+        """LINK the current family's fixed `vfx_*` slot to a MASTER
+        spritesheet, cutting ONE row out of it (M5, D2/D3) — the model half of
+        "Use Master Spritesheet…", so no test ever has to `exec()` the modal.
+
+        Takes a `master_sheet_import.MasterSheet`, its id, or its stored ref.
+        Copies NO bytes: the entry's `sheet` is the registry entry's STORED
+        `file`, verbatim.
+
+        The SHEET owns the grid (D3) — `frame_w`/`frame_h` come off the
+        registry entry, NOT `registry.frame_size(slot)`, and **`slots.json` is
+        not touched**: a master sheet's grid is not a per-slot override. The
+        row shape is `import_idle_sheet`'s exactly (one `idle` row, frames =
+        the sheet's columns), because these slots only ever animate `idle`.
+
+        `row` defaults to whatever this slot already claims on this same sheet,
+        else 0; `row_start` is OMITTED at 0, so a top-of-sheet link stays
+        byte-identical to a pre-window entry (the `slice`/`tint_overlay`
+        convention). Returns (cols, sheet_rows), or None when there is no fixed
+        slot or the sheet is unknown/missing. Writes immediately — this panel
+        has no Save button, exactly like its Import button."""
+        slot = self._current_import_slot()
+        if slot is None:
+            return None
+        sheet = self._resolve_master_sheet(sheet)
+        if sheet is None or not sheet.path.exists():
+            return None
+        cols, sheet_rows = sheet.grid()
+        if cols < 1 or sheet_rows < 1:
+            return None
+        if row is None:
+            previous = self._slot_entry(slot) or {}
+            row = (int(previous.get("row_start", 0))
+                   if previous.get("sheet") == sheet.ref else 0)
+        row = max(0, min(int(row), sheet_rows - 1))
+
+        entry = {
+            "sheet": sheet.ref,
+            "frame_w": sheet.frame_w,
+            "frame_h": sheet.frame_h,
+            "offset_x": 0,
+            "offset_y": 0,
+            "rows": [{
+                "animation": "idle",
+                "frames": cols,
+                "fps": 8,
+                "hidden": [],
+                "loop_start": 0,
+                "loop_end": 0,
+                "loop_count": 1,
+            }],
+        }
+        if row:
+            entry["row_start"] = row
+        doc = asset_import.load_manifest_doc(self._data_dir)
+        doc["entries"][slot] = entry
+        asset_import.write_manifest_doc(self._data_dir, doc)
+        self.reload_assets()          # ED-42 — no editor restart
+        self._refresh_master_row()
+        return cols, sheet_rows
+
+    def _on_master_row_changed(self):
+        """Re-point the window at another row of the SAME sheet. Rewrites only
+        `row_start` on the existing entry — never the whole entry — so any row
+        edit made elsewhere (DetailsPanel) survives moving the window."""
+        ref = self._slot_master_ref()
+        if ref is None:
+            return
+        slot = self._current_import_slot()
+        doc = asset_import.load_manifest_doc(self._data_dir)
+        entry = doc["entries"][slot]
+        row = self._row_spin.value()
+        if int(entry.get("row_start", 0)) == row:
+            return
+        if row:
+            entry["row_start"] = row
+        else:
+            entry.pop("row_start", None)   # omitted at 0, like every other path
+        asset_import.write_manifest_doc(self._data_dir, doc)
+        self.reload_assets()
+
+    def _on_master_clicked(self):
+        """Open the master-sheet library for this family's fixed slot.
+        Construction is split from display (the sheet-picker rule): tests drive
+        `use_master_sheet` directly and never `exec()` a modal."""
+        if self._current_import_slot() is None:
+            return
+        dialog = MasterSheetDialog(self._data_dir, parent=self)
+        ref = self._slot_master_ref()
+        if ref is not None:
+            # Open on the sheet this slot already cuts — matched on the STORED
+            # ref, never on an id re-derived from it.
+            for sheet in dialog.visible_sheets():
+                if sheet.ref == ref:
+                    dialog.select_sheet(sheet.sheet_id)
+                    break
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            sheet = dialog.chosen_sheet()
+            if sheet is not None:
+                self.use_master_sheet(sheet)
 
     def _on_import_clicked(self):
         """Import a PNG into the current family's fixed slot via the SAME
@@ -365,6 +560,9 @@ class VfxPreviewPanel(QWidget):
             return
         import_idle_sheet(self._data_dir, self._registry, slot, Path(path))
         self.reload_assets()
+        # The slot now owns its own `imported/` PNG, so any master link (and
+        # its row window) is gone — `import_idle_sheet` writes a fresh entry.
+        self._refresh_master_row()
 
     def reload_assets(self):
         """Re-read the manifest from disk after an import (ED-42, the
@@ -394,6 +592,9 @@ class VfxPreviewPanel(QWidget):
 
     def _on_shell_toggled(self, checked):
         self._shell = bool(checked)
+        # stone <-> shell swaps which fixed slot the two buttons target, so the
+        # row window has to follow: the two slots may cut different sheets.
+        self._refresh_master_row()
 
     def _on_interval_changed(self, value):
         self._loop_interval = float(value)
