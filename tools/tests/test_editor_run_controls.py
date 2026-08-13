@@ -41,10 +41,21 @@ class RunControlsWiringCase(TempDataCase):
             self.window.run_controls.can_playbuild())
 
     def test_playbuild_disabled_has_hint_tooltip(self):
-        if self.window.run_controls.can_playbuild():
-            self.skipTest("a build already exists in this repo")
-        self.assertFalse(self.window.playbuild_action.isEnabled())
-        self.assertIn("Build first", self.window.playbuild_action.toolTip())
+        """CONSTRUCT the no-build condition instead of skipping when reality
+        does not happen to match it.
+
+        This used to `self.skipTest("a build already exists in this repo")`
+        whenever `dist/HowToBeHuman/HowToBeHuman.exe` was present — so it went
+        silently missing on exactly the machines that build the game, while
+        passing in CI, which never has one. An unexpected skip is a gate
+        failure (root `CLAUDE.md`, Step 2: "a test that quietly stops running
+        is indistinguishable from one that passes"), so the skip turned a
+        developer's own build into a red gate on an unrelated branch.
+        """
+        with patch.object(RunControls, "can_playbuild", return_value=False):
+            window = self.track(MainWindow(data_dir=self.data_dir))
+            self.assertFalse(window.playbuild_action.isEnabled())
+            self.assertIn("Build first", window.playbuild_action.toolTip())
 
     def test_play_saves_dirty_map_before_launching(self):
         self.window.selector.select_map(STARTER)
