@@ -1,4 +1,4 @@
-<!-- status: IN PROGRESS — G0-G4 and M1-M5 code done (M4/M5 live passes pending); G5 and G6 remain -->
+<!-- status: IN PROGRESS — G0-G5 and M1-M5 code done (M4/M5 live passes pending); G6 remains — a live run at a display, no agent can produce it -->
 
 # GpuAndMasterSheetsPLAN.md — GPU render backend, then master spritesheets
 
@@ -206,7 +206,7 @@ store cache contract, E-37 tolerance split), `editor/panels/CLAUDE.md`
 | G2 | `backend_gpu.py` — world sprites, overlays, texture cache | engine | G1 | **DONE** — parity within a pinned tolerance of 1 (§6/G2 RESULTS); nothing selects it yet, G4 wires the host |
 | G3 | Ground cache on the GPU path | engine | G2 | **DONE** — `ground_cache_gpu.py` on render-target textures, pins parameterised over both implementations (§6/G3 RESULTS); still nothing selects it, G4 wires the host |
 | G4 | Host wiring, HUD composite, fallback, re-measure | engine + game | G3 | **DONE** — `--backend={gpu,surface,auto}` wires the host, HUD composites as one streaming upload/frame, D8 fallback tested; `GATE PASS 2334`. **All five §4.3 live checks passed at a display**, closing G2's pixel-art look and G3's large-map pan. Re-measure (SOFTWARE renderer, §6/G4 RESULTS): boss-load `world` 61–69 ms → 9.5–11.5 ms, but GPU **slower on every holex row** and the overlay pass **6× worse** — that regression is a live Part-A decision |
-| G5 | Overlay pass: clip the scratch to the target, reuse the buffer | engine | G4 | not started — **scheduled, not deferred**; brief in §6/G5. Fixes the 6× overlay regression G4 measured |
+| G5 | Overlay pass: clip the scratch to the target, reuse the buffer | engine | G4 | **DONE** — `9de2018`, merged `a180001` on `phase-G5-G6-umbrella`; brief `docs/briefs/phase-G5-overlay-clip-reuse.md`. Clip-before-allocate + one scratch buffer grown to the high-water mark, in `backend_gpu.py` alone. Re-measure (§6/G5 RE-MEASURE, same-session pre/post): gpu overlay Δ **1.92→0.77** (40), **8.76→2.73** (200, now faster than Surface), **3.51→0.13** (far polyline). `CHANNEL_TOLERANCE` untouched; parity green at tolerance 1 |
 | G6 | Retire G0's inferred HUD-cost claim (live frame timings) | — (measurement only) | G4 | not started — **`/execute-phase` with the user at a display**; no agent can run it (§6/G6) |
 | M1 | Data layer: master-sheet registry + schema + `row_start` | data | — | **DONE** — schema + seeded registry + `data/sprites/master/`; existing manifest byte-identical |
 | M2 | Engine: `row_start` slicing + sheet-path-keyed store | engine | M1, G2 | **DONE** — `48de489` + review fixes `81a2aa2`, merged `12ba043`. `row_start` applied in `AssetStore._frame_surface` only; store re-keyed on `entry.sheet`, so one PNG = one decode |
@@ -787,6 +787,42 @@ Surface backend rasterizes the whole clipped line too — with the GPU path 1.65
 worse plus 4.9 MB of churn. **Not fine.** A real hazard if any gameplay code
 ever submits a world-space line with an off-screen endpoint.
 
+#### G5 RE-MEASURE (2026-08-13) — the overlay Δ after the clip + buffer reuse
+
+Same harness and case as the table above (`first_light` 20², 160 sprites,
+`--zoom default --static`, 300 frames). **Measured as a same-session
+before/after**: the "pre" column is the umbrella's parent commit `75695c8`
+checked out into a throwaway worktree and profiled minutes before the "post"
+column, on this machine, under the same load. That pairing is the measurement —
+see the caveat below for why the G4 absolutes above are *not* a usable baseline.
+
+| case | gpu Δ **pre-G5** | gpu Δ **post-G5** | surface Δ (same session) | gpu ÷ surface, post |
+|---|---|---|---|---|
+| 40 diamonds | 1.92 | **0.77** | 0.38 (−0.26 / 0.81 / 0.59, n=3) | ~2×, both sub-ms |
+| 200 diamonds | 8.76 | **2.73** | 3.31 | **0.83× — gpu now FASTER** |
+| far-off-screen polyline | 3.51 | **0.13** | 0.05 (0.10 / −0.06 / 0.10, n=3) | both at the noise floor |
+
+**The phase's success criterion is met.** §6/G5 asks that the GPU column no
+longer be a multiple of the Surface column, explicitly not that it beat it. At
+200 diamonds the GPU path is now *faster* than Surface (2.73 vs 3.31); the
+far-off-screen polyline — the 4.9 MB-per-frame case — collapses to the noise
+floor, 27× down on the same tree; and 40 diamonds drops 2.5×, landing both
+backends under a millisecond where the ratio stops being meaningful.
+
+**Caveat, and it is the reason this table has its own pre column: G4's absolute
+numbers above do not reproduce on this machine today.** Pre-G5 GPU here is
+uniformly ~2.2–3× *lower* than G4 recorded (1.92 vs 4.31; 8.76 vs 17.50; 3.51
+vs 10.66) — a consistent factor that reads as machine/load state, since the code
+at `75695c8` is G4's code. The Surface far-polyline row does **not** fit even
+that: G4 recorded 6.47 ms, this session measures **0.05 ms** stably across three
+runs, on a code path G5 never touched (`backend.py` is byte-identical between
+the two commits). Zoom was ruled out as the explanation (`--zoom max` gives 0.27,
+not 6.47). **That row of G4's table should be treated as unreliable until
+someone reproduces it**; it is left standing above rather than edited, because
+overwriting another phase's recorded measurement with a different session's is
+how a plan doc stops being a record. Nothing in G5's verdict rests on it — the
+verdict rests on the pre/post pair, which is same-machine and same-session.
+
 **The HUD's cost is STILL NOT MEASURED.** `hud` reads 0.00 in every row because
 `tools/profile_render.py` is a render harness and submits no HUD items. G0's
 one *inferred* claim — that the HUD is not the dominant cost — is therefore
@@ -1241,8 +1277,16 @@ and run those once.
 - **Two backends is two implementations to keep in parity**, forever. Mitigated
   by the parity test and by keeping HUD / nine-slice / fonts / crop
   single-implementation on the Surface path (D7).
-- **The overlay-pass regression is MEASURED and SCHEDULED as phase G5** — it is
-  no longer an open risk awaiting a decision. G4 broke the pass out and found
+- ~~**The overlay-pass regression is MEASURED and SCHEDULED as phase G5**~~ —
+  **RETIRED by G5 (merged `a180001`, re-measured 2026-08-13).** The clip +
+  buffer reuse landed in `backend_gpu.py` alone; the same-session pre/post
+  re-measure (§6/G5 RE-MEASURE) puts the gpu overlay Δ at 0.77 ms at 40
+  diamonds (was 1.92 on the same tree), 2.73 at 200 diamonds — **faster than
+  the Surface path's 3.31** — and 0.13 on the far-off-screen polyline, whose
+  4.9 MB/frame allocation is gone. The scoping fence below (**no phase outside
+  G5 may touch `backend_gpu.py`**) is therefore lifted. Original text kept for
+  the record:
+  G4 broke the pass out and found
   **6.0× worse on GPU at 40 diamonds** (4.31 vs 0.72 ms) and **1.65× worse plus
   4.9 MB of per-frame churn** on the far-off-screen polyline. The decision is
   taken: clip the scratch to the target and reuse the buffer, in
