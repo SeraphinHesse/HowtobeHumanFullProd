@@ -1,10 +1,3 @@
-<!-- active-plan: TestRunnerPLAN.md | set: 2026-08-13 -->
-> **Active plan:** TestRunnerPLAN.md (mirror). Source of truth:
-> `planning/TestRunnerPLAN.md`. Do **not** edit this file directly — edit the
-> source in `planning/` and re-run `/setcurrentplan`, or pick a different
-> plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
-> screen).
-
 <!-- status: NOT STARTED — TR-1–TR-6 -->
 
 # TestRunnerPLAN.md — Run the tests from the editor
