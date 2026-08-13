@@ -14,6 +14,17 @@ phase briefs. You never implement.
   **Goal / Files (new + modified) / Tests / Exit gate** → closing Risks/open
   items. Mirror an existing sibling (`planning/completed plans/AgentDispatchPLAN.md`); never
   invent a new format.
+- **Large plan doc** — the same shape, except `## 3. Build order` becomes
+  `## 3. Section map`: a `| Section | Title | Phases | Depends on | Status |`
+  table (ids `S1`/`S2`/…) plus one line naming the waves, then one
+  `### Section S<n> — <title>` block per section carrying **Purpose** (2–3
+  lines), **Publishes** (the interface later sections consume — new schema keys,
+  entry points, changed signatures), **Depends on**, and its own per-phase
+  table; the `#### Phase` blocks nest underneath, shape unchanged. Line 1 is
+  `<!-- plan-scale: large -->`. Caps: **≥3 sections, ≤5 phases each** — a
+  section must fit ONE `section-orchestrator`'s context. The top orchestrator
+  reads only the section map and Purpose/Publishes, so anything a later section
+  needs goes in **Publishes**, never only inside a phase block.
 - **Phase brief** `docs/briefs/phase-<id>-<slug>.md`, exactly four sections:
   (1) Behavioral spec with `file:line` citations; (2) Architecture plan;
   (3) File scope + shared-file contract — exact insertion points in files

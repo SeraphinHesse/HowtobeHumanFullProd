@@ -106,6 +106,15 @@ Delegation is a **tool, not a ritual**. It was mandatory from 2026-07-15 until
 - **The main session writes the plan itself** — never delegate planning to a
   `Plan` agent. Planning against another agent's summary is how plans end up
   subtly wrong, and the rework costs more than the plan saved.
+- **Nested orchestration is legal, and capped at two.** A subagent can spawn
+  subagents, and a worktree-isolated agent's children get their own sibling
+  worktrees (both verified 2026-08-13). That is what `section-orchestrator`
+  uses to run a LARGE plan: `/execute-plan-phases` → **at most 2 concurrent**
+  `section-orchestrator`s → their own coder/reviewer waves. The worktree rule
+  above still binds at **every** tier — concurrent implementation agents are
+  worktree-isolated no matter who dispatched them. Reach for this tier only for
+  a plan doc marked `<!-- plan-scale: large -->`; on anything smaller it costs
+  more context than it saves.
 
 ### Judgement (the default, not a rule)
 
@@ -235,6 +244,7 @@ artifacts. Scaffold a new one with `/add-agent`.
 | `coder` | Generic implementer for game/editor/data tasks; opens with the matching skill above |
 | `engine-coder` | Engine specialist, scoped to `engine/**` + engine tests; layering invariants baked in |
 | `planner` | Phased plan docs + phase briefs in the house shape; never implements |
+| `section-orchestrator` | Mid-tier: drives ONE section of a LARGE plan (its own planner/coder/reviewer waves) and returns a ≤40-line handoff; dispatched only by `/execute-plan-phases` in section mode |
 | `reviewer` | Read-only diff review against brief + design pillars; ranked findings |
 | `phase-executor` | Unattended single-phase execution from a brief; never re-plans |
 
