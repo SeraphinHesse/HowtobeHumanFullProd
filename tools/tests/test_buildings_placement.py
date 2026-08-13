@@ -6,6 +6,7 @@ It rejects non-buildable tiles and insufficient love. A placed building then
 satisfies the pathfinder's duck-typed occupant contract (replacing the
 SimpleNamespace stubs test_pathfinder uses).
 """
+import random
 import unittest
 from pathlib import Path
 
@@ -13,7 +14,7 @@ REPO = Path(__file__).resolve().parents[2]
 from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine import tilemap
-from engine.core import Scene
+from engine.core import Scene, SpriteAnimator
 from engine.physics import TileOccupancy
 from game.buildings import PlacementError, place_building
 from game.buildings.components import TierState
@@ -121,6 +122,72 @@ class TestPlacement(unittest.TestCase):
         self.assertEqual(
             cost, BAL["DefenceBuildings"]["BasicDefence"]["tiers"][0]["build_cost"])
         self.assertEqual(building.get_component(TierState).current_tier, 0)
+
+
+class TestColourColumn(unittest.TestCase):
+    """MasterSheetColumnsPLAN B1: a placement stamps the master-sheet colour
+    column onto the building's animator, and it is COLOUR that survives every
+    later upgrade. The capability map is built in-test — live `data/` declares
+    no `columns` yet, and a test must never assert against live art anyway.
+    """
+    # A Stone Thrower places at tier 0 / level 1 (defender.TIER_SPRITES[0]).
+    SLOT = "stone_thrower_t1_lvl1"
+    COLOURS = {SLOT: ("red", "green", "blue")}
+
+    def _place(self, **kwargs):
+        tm = synth(["bbb", "bbb", "bbb"])
+        scene, occ = Scene(), TileOccupancy()
+        building, _cost = place_building(
+            tm, tm.get(1, 1), "defence", 9999, BAL, scene, occ, **kwargs)
+        return building, scene
+
+    def test_roll_lands_inside_the_slots_colour_count(self):
+        # Seeded (game/CLAUDE.md): the outcome depends on the draw.
+        building, _ = self._place(colour_columns=self.COLOURS,
+                                  rng=random.Random(1234))
+        anim = building.get_component(SpriteAnimator)
+        self.assertEqual(anim.slot_key, self.SLOT)
+        self.assertIn(anim.column, range(len(self.COLOURS[self.SLOT])))
+
+    def test_slot_without_colours_keeps_the_minus_one_sentinel(self):
+        # Both the "no map at all" default (which is what keeps every caller
+        # that predates B1 byte-identical) and a map that simply does not name
+        # this slot. -1 means "no driver"; 0 would be a REAL colour.
+        for kwargs in ({}, {"colour_columns": {"some_other_slot": ("red",)}}):
+            with self.subTest(kwargs=kwargs):
+                building, _ = self._place(**kwargs)
+                self.assertEqual(
+                    building.get_component(SpriteAnimator).column, -1)
+
+    def test_explicit_column_wins_over_the_roll_and_zero_is_honoured(self):
+        # B2's swatch pick: the chosen colour is placed verbatim, no draw. 0 is
+        # a real colour index, so it must survive the `is not None` test.
+        for chosen in (0, 2):
+            with self.subTest(column=chosen):
+                building, _ = self._place(colour_columns=self.COLOURS,
+                                          rng=random.Random(1234),
+                                          column=chosen)
+                self.assertEqual(
+                    building.get_component(SpriteAnimator).column, chosen)
+
+    def test_colour_survives_a_level_up_and_a_tier_advance(self):
+        building, _ = self._place(colour_columns=self.COLOURS, column=2)
+        anim = building.get_component(SpriteAnimator)
+
+        self.assertTrue(building.upgrade())          # level change
+        self.assertEqual(anim.slot_key, "stone_thrower_t1_lvl2")
+        self.assertEqual(anim.column, 2)
+
+        self.assertTrue(building.advance_tier())     # tier change
+        self.assertEqual(anim.slot_key, "slinger_t2_lvl1")
+        self.assertEqual(anim.column, 2)
+
+    def test_submitted_render_item_carries_the_column(self):
+        building, scene = self._place(colour_columns=self.COLOURS, column=1)
+        scene.update(0.0)  # queued -> live
+        items = [i for i in scene.render_items() if i.slot_key == self.SLOT]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].column, 1)
 
 
 if __name__ == "__main__":
