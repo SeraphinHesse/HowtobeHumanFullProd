@@ -145,7 +145,12 @@ crashes boot.** When you change asset conventions, update THIS doc.
   **and** may declare its own `frame_w`/`frame_h`. Only the raw Surface is safe
   to share; deduping frames too would mean folding the grid and the window into
   the key, which is a noted follow-up and deliberately not done. There is a
-  comment in `__init__` saying so; do not "fix" it. A failing shared sheet is
+  comment in `__init__` saying so; do not "fix" it. **The key is now a 4-tuple
+  carrying the RESOLVED column block** (MasterSheetColumnsPLAN): the slot stays
+  in it for the reason above, and the block joins it because a live column can
+  make ONE slot resolve different pixels for the same `(row, col)` — two
+  columns of the same slot are two different surfaces, so the block has to be
+  part of what identifies a cached frame. A failing shared sheet is
   also logged once, naming only the first slot that asked for it — accepted, the
   resolved path is the actionable half.
   Sliced frames are SUBSURFACES — the parent sheet must stay cached. There is no
@@ -176,7 +181,8 @@ crashes boot.** When you change asset conventions, update THIS doc.
   the frame exactly like `frame()`, then maps `rel_xy` through
   `dest_to_source` and reads a `pygame.mask.from_surface(surface,
   threshold=0)` (alpha > 0 counts as opaque) cached in `self._hit_masks`,
-  keyed `(slot_key, row, col)` — the SAME key space as `_frames`. Tolerance
+  keyed `(slot_key, row, col, column_block)` — the SAME key space as
+  `_frames`, resolved column block and all (see **Store** above). Tolerance
   (E-37): a placeholder or a corrupt/missing sheet degrades to `True` (opaque
   everywhere — a partially-imported build stays fully clickable); a `rel_xy`
   that maps outside the source frame bounds degrades to `False` rather than
@@ -195,6 +201,18 @@ crashes boot.** When you change asset conventions, update THIS doc.
   the procedural `enemy`/`enemy_t*` entries are unreferenced strays in the
   manifest (the enemies registry points at the real `enemy_stage_N`/
   `raider_stage_N` sheets).
+- **`master_registry.py` (MasterSheetColumnsPLAN C3)** — the pure reader of
+  `data/sprites/master_sheets.json`, sibling of `registry.py`: fail-loud via
+  `data_io.load_validated` (the registry is infrastructure, the E-37 split
+  above). `columns_for(doc, ref)` / `column_width_for(doc, ref)` resolve a
+  `master/<id>.png` ref **against each entry's STORED `file`, never a
+  re-derived path**, and are total — an `imported/` ref, an unknown sheet or a
+  malformed entry returns `()` / `0` rather than raising. It lives in `engine/`
+  because `game/` and `editor/` both need it and may not import each other
+  (the `era_math.py` argument). The editor's
+  `master_sheet_import.load_registry_doc` delegates its READ here and keeps its
+  own E-37 degrade-to-empty-doc wrapper; `write_registry_doc` is still the ONE
+  write path.
 
 ## Verify
 `playback_order` + tolerance unit tests; the headless smoke test fails loud on an
