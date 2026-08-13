@@ -236,7 +236,74 @@ class TestBinding(_PanelCase):
         self.panel._on_bind()
         self.assertIn("vfx_hit", self.panel._bound_label.text())
         self.panel._on_unbind()
-        self.assertIn("procedural", self.panel._bound_label.text())
+        # The label names the FALLBACK now, not a generic word "procedural" —
+        # and defender_fire's procedural is "", so the honest answer is that
+        # nothing draws. TestBindingSummary covers the named-kind case.
+        self.assertEqual(self.panel._bound_label.text(),
+                         self.panel.binding_summary("defender_fire"))
+        self.assertIn("nothing", self.panel._bound_label.text())
+
+
+class TestBindingSummary(_PanelCase):
+    """The readout names what the event will ACTUALLY draw.
+
+    The trigger table resolves "sprite slot IF it has art, otherwise the
+    procedural kind", so "bound" and "what plays" are different questions —
+    and answering only the first is what made a bound-but-artless row read as
+    "binding the sprite did nothing".
+    """
+
+    class _Assets:
+        def __init__(self, with_art=()):
+            self.with_art = set(with_art)
+
+        def animation_total_ms(self, slot, animation):
+            return 250 if slot in self.with_art else None
+
+    def summary(self, event):
+        return self.panel.binding_summary(event)
+
+    def test_an_unbound_row_names_its_procedural_kind(self):
+        self.balancing._doc["triggers"]["building_placed"] = {
+            "sprite_slot": "", "procedural": "spark_place",
+            "variant_select": {"mode": "random", "misc_key": ""},
+            "draw_in_front": True}
+        self.assertEqual(self.summary("building_placed"),
+                         "→ procedural: spark_place")
+
+    def test_a_highlight_names_the_highlight_kind(self):
+        self.assertIn("highlight", self.summary("tile_selected"))
+
+    def test_a_row_with_neither_says_nothing_draws(self):
+        self.balancing._doc["triggers"]["enemy_attack_ranged"] = {
+            "sprite_slot": "", "procedural": "",
+            "variant_select": {"mode": "random", "misc_key": ""},
+            "draw_in_front": True}
+        self.assertEqual(self.summary("enemy_attack_ranged"),
+                         "→ nothing")
+
+    def test_a_bound_slot_WITH_art_names_the_slot(self):
+        self.panel._assets = self._Assets({"vfx_hit"})
+        self.balancing._doc["triggers"]["defender_fire"]["sprite_slot"] = "vfx_hit"
+        self.assertEqual(self.summary("defender_fire"), "→ vfx_hit")
+
+    def test_a_bound_slot_WITHOUT_art_says_so_and_names_the_fallback(self):
+        """The state that reads as "binding did nothing"."""
+        self.panel._assets = self._Assets()          # nothing imported
+        self.balancing._doc["triggers"]["defender_fire"]["sprite_slot"] = "vfx_hit"
+        self.balancing._doc["triggers"]["defender_fire"]["procedural"] = "muzzle"
+        summary = self.summary("defender_fire")
+        self.assertIn("vfx_hit", summary)
+        self.assertIn("no art", summary)
+        self.assertIn("procedural: muzzle", summary)
+
+    def test_the_label_follows_the_selected_event(self):
+        self.select_event("tile_selected")
+        self.assertEqual(self.panel._bound_label.text(),
+                         self.summary("tile_selected"))
+        self.select_event("building_placed")
+        self.assertEqual(self.panel._bound_label.text(),
+                         self.summary("building_placed"))
 
 
 class TestVariantSelectControls(_PanelCase):

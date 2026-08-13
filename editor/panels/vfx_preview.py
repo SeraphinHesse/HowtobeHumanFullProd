@@ -1467,7 +1467,7 @@ class VfxPreviewPanel(QWidget):
             return
 
         bound = self._trigger_value(event, "sprite_slot") or ""
-        self._bound_label.setText(f"→ {bound}" if bound else "→ procedural")
+        self._bound_label.setText(self.binding_summary(event))
         self._bind_btn.setEnabled(bool(self.current_slot()))
         self._unbind_btn.setEnabled(bool(bound))
 
@@ -1485,6 +1485,27 @@ class VfxPreviewPanel(QWidget):
         for widget in (self._mode_combo, self._misc_key_edit,
                        self._front_check):
             widget.blockSignals(False)
+
+    def binding_summary(self, event):
+        """What this event will ACTUALLY draw, in one line.
+
+        Not just "bound or not": the trigger table's resolution order is
+        "the sprite slot IF it has imported art, OTHERWISE the procedural
+        kind", so a row can be bound and still draw procedurally. Naming the
+        procedural kind is what the designer asked for, and spelling out the
+        bound-but-no-art case is the state that reads as "binding the sprite
+        did nothing" — the exact confusion this panel has already caused once.
+        """
+        procedural = self._trigger_value(event, "procedural") or ""
+        fallback = f"procedural: {procedural}" if procedural else "nothing"
+        slot = self._trigger_value(event, "sprite_slot") or ""
+        if not slot:
+            return f"→ {fallback}"
+        has_art = (self._assets is not None
+                   and self._assets.animation_total_ms(slot, "idle") is not None)
+        if has_art:
+            return f"→ {slot}"
+        return f"→ {slot} (no art yet) → {fallback}"
 
     def _on_bind(self):
         event, slot = self.current_event(), self.current_slot()
