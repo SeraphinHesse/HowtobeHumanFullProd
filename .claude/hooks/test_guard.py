@@ -353,14 +353,39 @@ def pre(payload: dict) -> int:
         age = time.time() - float(record.get("finished", 0))
         if 0 <= age < REPEAT_TTL_SECONDS:
             outcome = record.get("outcome") or "(outcome not captured)"
+            # `.get`, never `[...]`: records written before TR-6 carry no
+            # source field at all, and they must keep today's wording exactly.
+            editor = record.get("source") == "editor"
+            if editor:
+                # The agent did NOT run this — the user did, from the editor —
+                # so a message that says "you already ran this" is simply
+                # false, and an agent that knows it never ran anything reads a
+                # false denial as a broken guard and reaches for the override.
+                # ASCII only: this text is read through a pipe whose codec is
+                # the machine locale, and a mangled character in the one line
+                # that has to be believed is not worth the typography.
+                head = (
+                    "DENIED by test_guard: this tree's full gate ALREADY RAN "
+                    "-- from the editor -- and nothing has changed since.\n"
+                    f"    target: {target}\n"
+                    f"    ran:    {int(age)}s ago, from the editor\n"
+                    f"    result: {outcome}\n"
+                    "The user started it with the editor's \"Run tests\" "
+                    "button. It is the same command on the same tree, so it IS "
+                    "the handoff\ngate (root CLAUDE.md, the \"Test Suite "
+                    "Policy\" section) - you are being handed its result, not "
+                    "refused a run.\n")
+            else:
+                head = (
+                    "DENIED by test_guard: you already ran this exact target "
+                    "and NOTHING has changed since.\n"
+                    f"    target: {target}\n"
+                    f"    ran:    {int(age)}s ago\n"
+                    f"    result: {outcome}\n")
             return _deny(
-                "DENIED by test_guard: you already ran this exact target and "
-                "NOTHING has changed since.\n"
-                f"    target: {target}\n"
-                f"    ran:    {int(age)}s ago\n"
-                f"    result: {outcome}\n"
-                "The working tree is byte-identical to that run, so the result "
-                "cannot be different.\n"
+                head
+                + "The working tree is byte-identical to that run, so the "
+                "result cannot be different.\n"
                 "Re-running to 'make sure' is the loop this guard exists to "
                 "stop. Act on the result above:\n"
                 "  * it passed  -> move on, or run a DIFFERENT target\n"

@@ -331,11 +331,16 @@ def _dumps(report):
     return json.dumps(report, indent=2, sort_keys=True) + "\n"
 
 
-def write_report(result, repo=None):
+def write_report(result, repo=None, started_fingerprint=None):
     """Write ``<stamp>.json`` + ``<stamp>.md`` under ``.claude/testruns/``.
 
     Returns the ``.json`` path. A name collision suffixes ``-2``, ``-3``, … on
     BOTH files, so the pair always shares a stem.
+
+    ``started_fingerprint`` is the working-tree fingerprint captured BEFORE the
+    run started (:func:`run_start_fingerprint`). It is what lets TR-6's ledger
+    credit prove the tree did not move under the run; omit it and this run is
+    simply not credited — never credited on a guess.
     """
     report = build_report(result)
     directory = testruns_dir(repo)
@@ -354,7 +359,10 @@ def write_report(result, repo=None):
 
     # TR-6 inserts the ledger record here: a COMPLETED full run only —
     # report["kind"] == "gate" and report["completed"] and not
-    # report["cancelled"] and report["gate_line"] is not None.
+    # report["cancelled"] and report["gate_line"] is not None (plus an
+    # unchanged tree). Every refusal reason lives in `credit_refusal`, and a
+    # refusal is silent by design: a wrong ledger record is worse than none.
+    record_gate_credit(report, started_fingerprint)
     return path
 
 
@@ -443,3 +451,113 @@ def agent_prompt(path, repo=None):
                    + ", ".join(report["unknown_modules"]) + ".")
 
     return "\n".join(out).rstrip("\n") + "\n"
+
+
+# --------------------------------------------------------------------------
+# Ledger credit (TR-6) — the editor's full run IS the handoff gate
+# --------------------------------------------------------------------------
+#
+# A ledger record asserts three things at once: *the full gate ran*, *on THIS
+# working tree*, and *it said THIS*. A record that is untrue in any one of them
+# hides a red suite from the very run that would have caught it — so every
+# doubtful case records NOTHING. That is the whole design rule here.
+
+#: The canonical spelling of the handoff gate, from the role table in root
+#: `CLAUDE.md` §"Test Suite Policy". The record is filed under the ledger's
+#: `normalised_target` of THIS string, because that is what a main session's own
+#: command normalises to. A non-canonical spelling (`python tools/…`, a
+#: backslash path) keys differently and gets no credit — it honestly runs the
+#: gate. That is the safe direction of failure and is deliberate: never paper
+#: over it by recording under several speculative spellings.
+GATE_COMMAND = "py tools/testgate.py check"
+
+#: `GATE ABORT` is a refusal to run, not a verdict — crediting one would
+#: suppress the real gate. Only these two count.
+CREDITED_VERDICTS = ("GATE PASS", "GATE FAIL")
+
+
+def _ledger():
+    """`tools.testguard_ledger` — the ONE owner of the ledger key (D3).
+
+    Imported lazily and never re-implemented here: two copies of the key logic
+    drift silently, records land under a key nothing looks up, and the repeat
+    guard just stops denying.
+    """
+    from tools import testguard_ledger
+    return testguard_ledger
+
+
+def run_start_fingerprint():
+    """The working-tree fingerprint to capture BEFORE a run starts, or ``None``.
+
+    ``None`` (git unavailable, anything at all) simply means this run cannot be
+    credited — it is never an error, and never blocks a run.
+    """
+    try:
+        return _ledger().tree_fingerprint()
+    except Exception:       # pragma: no cover - defensive; git is normally there
+        return None
+
+
+def credit_refusal(report, started_fingerprint, finished_fingerprint):
+    """``None`` if this run may be credited, else the short reason it may not.
+
+    Split out from :func:`record_gate_credit` so the whole decision table is
+    testable without a filesystem, and so a refusal can be *named* rather than
+    inferred from a bare ``False``.
+    """
+    kind = _get_maybe_none(report, "kind")
+    is_gate_run = (kind == "gate") if kind is not None \
+        else _get_maybe_none(report, "domain") is None
+    if not is_gate_run:
+        return "a per-area re-run is not a gate"
+    if not _get(report, "completed", False):
+        return "the run did not complete"
+    if _get(report, "cancelled", False):
+        return "the run was cancelled"
+    gate_line = _get_maybe_none(report, "gate_line")
+    if not gate_line:
+        return "no testgate verdict line was parsed"
+    if not str(gate_line).startswith(CREDITED_VERDICTS):
+        return "GATE ABORT is a refusal to run, not a verdict"
+    if not started_fingerprint or not finished_fingerprint:
+        return "the working tree was not fingerprinted"
+    if started_fingerprint != finished_fingerprint:
+        return "the working tree changed during the run"
+    return None
+
+
+def record_gate_credit(report, started_fingerprint, state=None,
+                       finished_fingerprint=None):
+    """File a COMPLETED FULL editor run as this tree's gate run. ``True`` if filed.
+
+    ``report`` is :func:`build_report`'s dict (a ``RunResult`` also works — every
+    read goes through :func:`_get`). ``started_fingerprint`` comes from
+    :func:`run_start_fingerprint`, captured before the run launched; the finish
+    fingerprint is taken here. They must MATCH: a tree edited mid-run makes the
+    start key credit a stale tree and the end key credit a tree that was never
+    tested, so both candidate records are wrong.
+
+    ``state`` and ``finished_fingerprint`` exist for tests, which must point at
+    a tempdir — a test that wrote into the live guard state dir would suppress a
+    real session's gate.
+
+    Never raises and never re-computes a key of its own.
+    """
+    try:
+        ledger = _ledger()
+        if finished_fingerprint is None:
+            finished_fingerprint = ledger.tree_fingerprint()
+        if credit_refusal(report, started_fingerprint,
+                          finished_fingerprint) is not None:
+            return False
+        target = ledger.normalised_target(GATE_COMMAND)
+        ledger.record_run(
+            state if state is not None else ledger.state_dir(),
+            target,
+            str(_get_maybe_none(report, "gate_line")),
+            source="editor",
+            key=ledger.run_key(target, started_fingerprint))
+        return True
+    except Exception:       # pragma: no cover - a report must still be written
+        return False

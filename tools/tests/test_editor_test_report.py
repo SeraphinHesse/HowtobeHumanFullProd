@@ -252,13 +252,114 @@ class TestUnknownModules(_TmpRepoCase):
 
 
 class TestTr6Seam(unittest.TestCase):
-    """TR-6 inserts its ledger call at ONE marked point; pin the marker."""
+    """TR-6 inserts its ledger call at ONE marked point; pin the marker.
+
+    TR-4 also asserted `testguard_ledger` appeared NOWHERE in the module — that
+    was the pin for "the seam is still empty" and TR-6 is precisely the change
+    that fills it, so the assertion is gone rather than worked around. What it
+    was really protecting (one insertion point, one return) is still pinned
+    here, and `TestGateCredit` below pins that the ledger is only ever reached
+    through `tools.testguard_ledger`.
+    """
 
     def test_marker_comment_precedes_the_single_return(self):
         source = Path(test_report.__file__).read_text(encoding="utf-8")
         self.assertIn("TR-6 inserts the ledger record here", source)
         self.assertEqual(len(re.findall(r"^    return path$", source, re.M)), 1)
-        self.assertNotIn("testguard_ledger", source)
+
+
+class TestGateCredit(_TmpRepoCase):
+    """TR-6: which runs are credited in the guard's ledger, and which are not.
+
+    NOTHING here launches a test run, and nothing here writes into the LIVE
+    guard state dir: every call passes `state=` a tempdir. A test that wrote a
+    real record would suppress a real session's handoff gate — the exact
+    wrong-record failure this phase exists to prevent.
+    """
+
+    FP = "a" * 64          # the tree as it was when the run started
+    OTHER_FP = "b" * 64    # ...and after somebody edited it mid-run
+
+    def setUp(self):
+        super().setUp()
+        self.state = self.repo / "testguard"
+
+    def credit(self, report, started=None, finished=None):
+        return test_report.record_gate_credit(
+            report, self.FP if started is None else started,
+            state=self.state,
+            finished_fingerprint=self.FP if finished is None else finished)
+
+    def records(self):
+        return sorted(self.state.glob("run-*.json")) if self.state.exists() else []
+
+    def test_a_completed_full_run_with_a_verdict_is_credited(self):
+        from tools.testguard_ledger import normalised_target, run_key
+
+        report = test_report.build_report(
+            _canned(verdict="pass", gate_line="GATE PASS  2251 passed",
+                    failures=(), returncode=0))
+        self.assertTrue(self.credit(report))
+
+        target = normalised_target(test_report.GATE_COMMAND)
+        path = self.state / f"run-{run_key(target, self.FP)}.json"
+        self.assertTrue(path.exists(), "credited under a key nothing looks up")
+        record = json.loads(path.read_text("utf-8"))
+        self.assertEqual(record["source"], "editor")
+        self.assertEqual(record["target"], target)
+        self.assertEqual(record["outcome"], "GATE PASS  2251 passed")
+
+    def test_a_failing_gate_is_credited_too(self):
+        """A FAIL record is useful: the guard hands the failure back and says
+        fix the code. Only *pass* is not a precondition."""
+        self.assertTrue(self.credit(test_report.build_report(_canned())))
+        self.assertEqual(len(self.records()), 1)
+
+    def test_nothing_is_credited_when_it_must_not_be(self):
+        cases = {
+            "per-area re-run": _canned(domain="enemies", gate_line=None),
+            "cancelled": _canned(cancelled=True, completed=False,
+                                 gate_line=None),
+            "did not complete": _canned(completed=False, gate_line=None),
+            "no verdict line": _canned(gate_line=None),
+            "GATE ABORT": _canned(gate_line="GATE ABORT  cannot narrow"),
+        }
+        for name, result in cases.items():
+            with self.subTest(case=name):
+                report = test_report.build_report(result)
+                self.assertFalse(self.credit(report))
+                self.assertIsNotNone(
+                    test_report.credit_refusal(report, self.FP, self.FP))
+        self.assertEqual(self.records(), [])
+
+    def test_a_tree_edited_mid_run_is_not_credited(self):
+        """Both candidate keys would be wrong: the start key credits a tree
+        that is gone, the end key credits a tree that was never tested."""
+        report = test_report.build_report(_canned())
+        self.assertFalse(self.credit(report, finished=self.OTHER_FP))
+        self.assertEqual(self.records(), [])
+
+    def test_an_unfingerprinted_run_is_not_credited(self):
+        """No start fingerprint (git unavailable, or a caller that never
+        captured one) means the tree cannot be proven unchanged -> no credit."""
+        report = test_report.build_report(_canned())
+        self.assertFalse(test_report.record_gate_credit(
+            report, None, state=self.state, finished_fingerprint=self.FP))
+        self.assertEqual(self.records(), [])
+
+    def test_write_report_forwards_the_start_fingerprint_and_nothing_else(self):
+        """The seam, driven end to end with the ledger stubbed out — so this
+        test proves the wiring without going anywhere near real guard state."""
+        seen = []
+        original = test_report.record_gate_credit
+        self.addCleanup(setattr, test_report, "record_gate_credit", original)
+        test_report.record_gate_credit = lambda report, fp: seen.append(
+            (report["kind"], fp)) or True
+
+        test_report.write_report(_canned(), repo=self.repo,
+                                 started_fingerprint=self.FP)
+        test_report.write_report(_canned(), repo=self.repo)
+        self.assertEqual(seen, [("gate", self.FP), ("gate", None)])
 
 
 if __name__ == "__main__":

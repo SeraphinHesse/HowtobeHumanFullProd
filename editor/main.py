@@ -1172,6 +1172,10 @@ class MainWindow(QMainWindow):
             return
         try:
             self._test_domain = domain
+            # TR-6: the tree as it is BEFORE the run. `test_report` compares it
+            # against the tree at finish and credits the run in the guard's
+            # ledger only if they match; None just means "not credited".
+            self._test_fingerprint = test_report.run_start_fingerprint()
             self.test_run_panel.begin_run(domain)
             worker = _TestRunWorker(domain)
             thread = QThread(self)
@@ -1194,13 +1198,16 @@ class MainWindow(QMainWindow):
         self._stop_test_thread()
         report_path = None
         try:
-            report_path = test_report.write_report(result)
+            report_path = test_report.write_report(
+                result,
+                started_fingerprint=getattr(self, "_test_fingerprint", None))
         except Exception as exc:
             self.statusBar().showMessage(f"Report not written: {exc}", 8000)
         # Ledger credit for this run is TR-6's, and it hooks into
         # editor/test_report.py (reconciliation R5.2) — NOT here. It gates on a
         # COMPLETED full run with a parsed verdict; a cancelled run and a
-        # per-area re-run (`self._test_domain is not None`) record nothing.
+        # per-area re-run (`self._test_domain is not None`) record nothing. The
+        # only thing the shell contributes is the start fingerprint above.
         self.test_run_panel.apply_finished(result, report_path)
 
     def _on_test_failed(self, message):

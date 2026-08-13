@@ -473,5 +473,70 @@ class TestThePolicyIsStatedOnce(unittest.TestCase):
         self.assertEqual(offenders, [], "live docs still teach `unittest discover`")
 
 
+class TestEditorSourcedCredit(GuardCase):
+    """TR-6: a full run started from the EDITOR is this tree's gate.
+
+    No test here launches anything: the ledger state is written directly by
+    `tools.testguard_ledger.record_run` — the same call the editor makes — and
+    the hook is driven as a subprocess, exactly as every other case above.
+
+    The thing being protected is the WORDING. An agent told "you already ran
+    this exact target" about a run it has no memory of concludes the guard is
+    broken and reaches for the override, which is the one outcome the credit
+    mechanism cannot survive.
+    """
+
+    OUTCOME = "GATE PASS  2251 passed, 0 failed"
+
+    def record_editor_run(self, outcome=None):
+        from tools.testguard_ledger import record_run
+        return record_run(self.state, FULL, outcome or self.OUTCOME,
+                          source="editor")
+
+    def test_an_editor_run_denies_the_main_sessions_gate(self):
+        self.start("S-MAIN", subagent=False)
+        self.record_editor_run()
+
+        code, message = self.pre(FULL)
+        self.assertEqual(code, 2)
+        self.assertIn(self.OUTCOME, message)
+
+    def test_the_denial_names_the_editor_and_never_claims_the_agent_ran_it(self):
+        self.start("S-MAIN", subagent=False)
+        self.record_editor_run()
+
+        code, message = self.pre(FULL)
+        self.assertEqual(code, 2)
+        self.assertIn("from the editor", message)
+        self.assertNotIn("you already ran this exact target", message)
+
+    def test_editing_the_tree_clears_editor_credit_too(self):
+        """Credit is keyed on the tree, not on who ran it."""
+        self.start("S-MAIN", subagent=False)
+        self.record_editor_run()
+
+        scratch = REPO / "tools" / "tests" / "_tr6_credit_scratch.py"
+        scratch.write_text("# transient probe file\n", encoding="utf-8")
+        self.addCleanup(lambda: scratch.exists() and scratch.unlink())
+        self.assertEqual(self.pre(FULL)[0], 0)
+
+    def test_a_record_with_no_source_keeps_todays_wording(self):
+        """The regression pin: pre-TR-6 records carry no `source` key, and an
+        agent's OWN repeat must still be told it ran the thing itself."""
+        from tools.testguard_ledger import run_key
+        import time as _time
+
+        self.start("S-MAIN", subagent=False)
+        self.state.mkdir(parents=True, exist_ok=True)
+        (self.state / f"run-{run_key(FULL)}.json").write_text(json.dumps({
+            "finished": _time.time(), "target": FULL, "outcome": "49 passed",
+        }), encoding="utf-8")
+
+        code, message = self.pre(FULL)
+        self.assertEqual(code, 2)
+        self.assertIn("you already ran this exact target", message)
+        self.assertNotIn("from the editor", message)
+
+
 if __name__ == "__main__":
     unittest.main()

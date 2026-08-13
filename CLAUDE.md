@@ -49,6 +49,10 @@ that breaks this table is *denied*, not merely discouraged.
 - **The full `py tools/testgate.py check` runs exactly ONCE**, by the MAIN
   SESSION, as the last step before handing work back or opening a PR — or when
   the user explicitly asks. Never mid-task, never twice.
+- **A completed full run started from the editor's *Run tests* button IS that
+  once, for that working tree** — it is recorded in the guard's ledger, so the
+  main session is handed its verdict instead of running again; any edit to the
+  tree clears it.
 - **Never launch a second test run while another is in flight.** Duplicate runs
   exhaust memory; the hook denies this outright. A run that *crashed* does not
   count: the hook checks whether a test process is actually alive and releases
