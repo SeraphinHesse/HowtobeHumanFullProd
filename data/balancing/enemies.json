@@ -376,11 +376,9 @@
           }
         ]
       },
-      "dig_hop_long_tiles": 3,
-      "dig_hop_short_tiles": 1,
-      "dig_range_tiles": 6,
+      "dig_range_tiles": 3,
       "dig_speed": 0.8,
-      "emerge_cooldown": 2.4,
+      "emerge_cooldown": 2.5,
       "endgame_scaling": {
         "count": 1.0,
         "dmg": 0.0,
@@ -419,9 +417,9 @@
           "stats": {
             "attack_range_tiles": 1,
             "attack_speed": 1.0,
-            "dmg": 1400,
-            "hp": 1300,
-            "move_speed": 1.0
+            "dmg": 9400,
+            "hp": 200,
+            "move_speed": 1.5
           }
         },
         {
@@ -437,7 +435,7 @@
           "stats": {
             "attack_range_tiles": 1,
             "attack_speed": 1.0,
-            "dmg": 2000,
+            "dmg": 9000,
             "hp": 300,
             "move_speed": 1.0
           }
@@ -455,8 +453,8 @@
           "stats": {
             "attack_range_tiles": 1,
             "attack_speed": 1.0,
-            "dmg": 2700,
-            "hp": 2400,
+            "dmg": 9700,
+            "hp": 400,
             "move_speed": 1.0
           }
         },
@@ -473,8 +471,8 @@
           "stats": {
             "attack_range_tiles": 1,
             "attack_speed": 1.0,
-            "dmg": 3500,
-            "hp": 3100,
+            "dmg": 9500,
+            "hp": 550,
             "move_speed": 1.0
           }
         }

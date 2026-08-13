@@ -679,11 +679,13 @@ class Digger(Enemy):
     """The Digger (NE-2) — the burrower that erupts under a claimed structure.
 
     The one type that is a genuine new state machine rather than data over the
-    existing one. It walks visibly at a structure it has EXCLUSIVELY claimed
-    (``hunts: "structure"``), submerges untargetable at ``dig_range_tiles``,
-    travels underground, erupts for one large ``dmg`` hit, then re-claims. The
-    machine itself is ``BurrowAgent``; this class is the four class attrs, the
-    three seams it needs, and nothing else.
+    existing one. It walks visibly toward a claimed target, submerges once
+    something is within Manhattan ``dig_range_tiles``, and erupts exactly on
+    it for one large ``dmg`` hit before re-targeting (digger-hop-rework Pass
+    5 — see ``BurrowAgent``'s own docstring for the full targeting flow: no
+    hop shape, no lattice, just submerge-and-emerge). The machine itself is
+    ``BurrowAgent``; this class is the four class attrs, the three seams it
+    needs, and nothing else.
 
     * **``NO_MELEE = True``** — it has no attack outside digging, so a halt on
       an incidental blocker would be a 0-damage soft-lock (``PathAgent.
@@ -692,7 +694,7 @@ class Digger(Enemy):
       does NOT call the generic non-base branch): the agent's generic re-path
       would re-run the hunt with no claim exclusion, and would silently accept
       the empty-goal-set fallback to the hole. ``BurrowAgent.retarget`` is the
-      only re-targeting path, at spawn and after every eruption alike.
+      ONE re-targeting path — every decision, not just spawn's.
     * **``targetable``** is overridden off the SUBMERGED state — the exact
       duck-typed contract the boss's second phase already uses, so combat
       targeting, in-flight projectiles, the lightning storm and both HP bars
@@ -711,8 +713,6 @@ class Digger(Enemy):
         return (BurrowAgent(
             dig_range_tiles=int(block["dig_range_tiles"]),
             dig_speed=float(block["dig_speed"]),
-            dig_hop_long_tiles=int(block["dig_hop_long_tiles"]),
-            dig_hop_short_tiles=int(block["dig_hop_short_tiles"]),
             emerge_cooldown=float(block["emerge_cooldown"]),
             min_target_distance_tiles=int(block["min_target_distance_tiles"])),)
 

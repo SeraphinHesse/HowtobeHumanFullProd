@@ -21,8 +21,10 @@ from engine.core import Component, Health, Movement, SpriteAnimator
 from engine.render.item import RenderItem
 from game.buildings.components import RoundStats
 from game.map.pathfinder import (
-    _goal_tiles, _nearest_goal_tile, _STRUCTURE_BUILDING_TYPES, _wall_blocks,
+    _BOOST_ECONOMY_BUILDING_TYPES, _goal_tiles, _nearest_goal_tile,
+    _STRUCTURE_BUILDING_TYPES, _wall_blocks,
     block_covers, block_tiles, face_edges,
+    find_path_to_nearest_boost_or_economic_building,
     find_path_to_nearest_defence, find_path_to_nearest_economic,
     find_path_to_nearest_non_base_building, find_path_to_nearest_structure,
     internal_edges,
@@ -768,9 +770,10 @@ EMERGE_ANIM = "emerge"
 
 
 class BurrowAgent(Component):
-    """The Digger's ``WALKING -> SUBMERGED -> EMERGE -> SUBMERGED -> ...``
-    machine (NE-2, reworked for player-feedback: stand-and-erupt-in-place +
-    the knight-hop search).
+    """The Digger's ``WALKING -> SUBMERGED -> EMERGE -> WALKING -> ...``
+    machine (NE-2). **Ground-up rewrite (digger-hop-rework Pass 5)** — the
+    user scrapped every earlier hop/lattice/readjustment design in favour of
+    this one; nothing below carries over any assumption from passes 1-4.
 
     Only the Digger carries one, and carrying one IS what makes a unit a
     burrower — the exclusive-claim scan below identifies its rivals by
@@ -783,87 +786,94 @@ class BurrowAgent(Component):
     takes effect the same frame, exactly the reason ``PathAgent`` itself sits
     ahead of ``Movement``.
 
-    * **WALKING** — the Digger's ONLY overground travel, spawn's initial
-      approach to its first claimed target (``hunts: "structure"``, via
-      ``retarget``, real pathfinding). Each frame it measures Chebyshev
-      distance from the unit's tile to the target's BLOCK; at
-      ``<= dig_range_tiles`` it submerges (a strike-flavored dig — see
-      ``dest_col``/``dest_row`` below). It also watches the target's liveness
-      itself, because the Digger deliberately runs with ``PathAgent.
-      repath_on_kill`` OFF: the agent's generic re-path would re-run the hunt
-      with no claim exclusion and would happily accept the empty-goal-set
-      fallback to the base.
+    **The whole underground mechanic is just two verbs (user decision — "the
+    digger can only submerge and emerge").** There is no hop shape, no
+    lattice, no readjustment fallback, no multi-leg travel animation: a
+    submerge dives straight from the current tile to a chosen destination
+    tile, and the Digger simply reappears there — invisible and untargetable
+    the whole time — when the dig timer runs out. Whatever alive, non-base
+    building (if any) occupies that destination tile gets struck; a
+    destination chosen BECAUSE it was empty (the blocked-path fallback,
+    below) never has anything to strike.
+
+    * **WALKING** — overground movement, on foot, visible. Spawn's initial
+      approach AND every later "walk to a distant target" leg alike —
+      **unlike every earlier pass this is NOT spawn-only**: whenever nothing
+      is close enough to dig at, the Digger walks again (``retarget``,
+      below). Each tick it re-checks whether its currently-claimed far
+      target has come within Manhattan ``dig_range_tiles`` yet
+      (``distance_to_target``); once it has, it re-scans the local
+      neighbourhood rather than blindly diving on that one target
+      (``_arrived_in_range``) — something else may now be the preferred,
+      FARTHER pick from this exact spot.
     * **SUBMERGED** — ``PathAgent.frozen`` (the BR-3/`carrying` precedent:
       inert agent, inert ``EnemyCombat``) with the waypoints dropped, so
-      ``Movement`` cannot advance an index or fire a phantom arrival. Progress
-      is a pure internal lerp from the entry point (``start_wx``/``start_wy``)
-      to ``dest_col``/``dest_row`` — the CURRENT segment's destination, a
-      claimed building's tile for a strike or a blind knight-hop landing spot
-      for a search — over ``dig_duration`` seconds, so the unit is exactly ON
-      its destination when the clock runs out. ``Digger.targetable`` reads
-      this state, so combat, projectiles, the storm and both HP bars drop it
-      at once (the duck-typed contract BR-3 built for the boss). **The
-      Digger's own ``SpriteAnimator`` is also hidden entirely** (``visible =
-      False``, ``engine.core.SpriteAnimator``) rather than merely held on its
+      ``Movement`` cannot advance an index or fire a phantom arrival. The
+      body does not move at all while submerged — it is invisible for the
+      whole duration, so there is nothing to animate — it simply reappears
+      at ``dest_col``/``dest_row`` when ``dig_timer`` reaches zero.
+      ``Digger.targetable`` reads this state, so combat, projectiles, the
+      storm and both HP bars drop it at once (the duck-typed contract BR-3
+      built for the boss). **The Digger's own ``SpriteAnimator`` is also
+      hidden entirely** (``visible = False``) rather than merely held on its
       dig pose — the dirt-pile decal and the two telegraph arrows
       (``game/ui/effects.py submit_digger_telegraphs``) are the only things
-      that mark the spot. Blanking ``slot_key`` instead would be WRONG (it
-      resolves to the grey-X placeholder); the generic ``visible`` flag is
-      the seam this needed.
-    * **EMERGE** — a genuine STANDING state (the player-feedback fix), not a
-      one-frame pass-through. Entered by the dig clock expiring — snap onto
-      ``dest_col``/``dest_row``, become visible, and (only when
-      ``PathAgent.target_col >= 0``, i.e. this segment had an actual claimed
-      building) strike it — OR, per D5, the instant the target dies to
-      anything else (surface exactly where the lerp left it, deal NOTHING,
-      do not wait out the timer). Either way ``cooldown_remaining`` is armed
-      to ``emerge_cooldown`` and the Digger does nothing else — no walking,
-      no re-targeting — until it drains: **this is the "stand there for a
-      duration" beat**, and it happens after EVERY underground segment, a
-      kill or a blind search-hop alike, so the player always gets a visible
-      surfacing between hops, never a silent multi-hop disappearance. Once
-      the stand drains, ``_decide_next_action`` runs (never ``retarget`` —
-      that stays the spawn-only entry point) and the Digger either dives back
-      down on the SAME tile it is standing on (a structure is already within
-      ``dig_range_tiles``), knight-hops toward the nearest remaining one (out
-      of range), or stands down for good (nothing left / every hop lands off
-      the map).
+      that mark the spot.
+    * **EMERGE** — a genuine STANDING state, not a one-frame pass-through.
+      Entered by the dig clock expiring: snap onto ``dest_col``/``dest_row``,
+      become visible, strike whatever alive non-base building (if any)
+      occupies that EXACT tile (``_occupant_at`` + ``_strike``). Either way
+      ``cooldown_remaining`` is armed to ``emerge_cooldown`` and the Digger
+      does nothing else — no walking, no re-targeting — until it drains:
+      this is the "stand there for a duration" beat, so every single dig,
+      whether or not it lands a kill, surfaces the Digger for a visible
+      moment. Once the stand drains, ``retarget`` decides the next move.
 
-    **``emerge_cooldown`` (config) / ``cooldown_remaining`` (runtime)** is
-    reused, unchanged in meaning, as this stand duration. ``0.0`` (the
-    default) is a no-op, so a hand-built headless Digger with no balancing
-    behind it stays byte-identical to before this existed.
+    **Targeting (``retarget``) is the ONE decision point** — spawn's first
+    move and every later one alike:
+    1. Look around: the FARTHEST unclaimed structure within
+       ``dig_range_tiles`` Manhattan tiles of the current tile
+       (``_commit_local``/``_farthest_in_range`` — "high range beats close
+       range", user decision: a Digger always prefers a target at the edge
+       of its reach over one right next to it, falling back to a closer one
+       only when nothing farther qualifies). Found -> commit and submerge
+       straight onto it.
+    2. Nothing in range, but an unclaimed structure exists somewhere on the
+       map -> walk toward the nearest one (real pathfinding,
+       ``find_path_to_nearest_structure``, ``_start_walk``). No route to it
+       at all (or only the base fallback) -> submerge and resurface on the
+       nearest free tile instead (``_reposition``), to reset pathfinding
+       from a new position (user decision: "if the digger cannot walk into
+       range... because [other] buildings block the path, the digger
+       submerges and emerges on a free tile to restart the pathfinding").
+    3. No unclaimed structure anywhere at all -> the same two steps, widened
+       to boost and economy buildings (user decision: "if there are 0
+       structure buildings on the map left... he focuses boost and economy
+       buildings instead").
+    4. Nothing at all, anywhere, in either category -> stand down
+       (``_stand_down``, which arms a periodic re-check rather than giving
+       up forever).
 
-    **The knight hop** (``_decide_next_action``/``_pick_hop``): once a strike
-    has landed and nothing is within ``dig_range_tiles`` of where the Digger
-    is standing, it evaluates the (up to) 8 offsets
-    ``(±dig_hop_long_tiles, ±dig_hop_short_tiles)`` /
-    ``(±dig_hop_short_tiles, ±dig_hop_long_tiles)`` — a chess knight's L-shape
-    scaled 3+1 instead of 2+1 by default — discards any landing outside the
-    map, and dives toward whichever remaining candidate is geometrically
-    closest to the nearest unclaimed structure. It surfaces there (no strike:
-    nothing was claimed), stands for ``emerge_cooldown``, and repeats the
-    search from the new tile. Nothing unclaimed left anywhere, or the current
-    tile has no in-bounds knight-move at all ⇒ **stand down**: visible, idle,
-    harmless, no waypoints, no claim (the exact ``retarget`` failure branch,
-    reused verbatim). Diggers only build towards buildings; they never fall
-    back to attacking the hole.
+    **The exclusive claim is unchanged from every earlier pass**: a claim is
+    nothing but another live Digger's ``PathAgent.target_col/_row``
+    (``claimed_tiles``), so no two Diggers ever commit to the same building,
+    in range or out.
     """
 
     state: str = BURROW_WALKING
-    dig_range_tiles: int = 6      # submerge trigger + in-range detection radius
+    dig_range_tiles: int = 3      # Manhattan radius: the overground trigger
+                                   # distance AND the underground targeting
+                                   # scan radius, both (user decision)
     dig_speed: float = 1.0        # tiles/sec while burrowed (== move_speed)
-    dig_hop_long_tiles: int = 3   # knight-hop long leg (Chebyshev tiles)
-    dig_hop_short_tiles: int = 1  # knight-hop short leg (Chebyshev tiles)
     dig_timer: float = 0.0        # seconds left underground
-    dig_duration: float = 0.0     # what dig_timer started at (the lerp base)
-    start_wx: float = 0.0         # where we went under (the lerp origin)
+    dig_duration: float = 0.0     # what dig_timer started at
+    start_wx: float = 0.0         # entry tile of the CURRENT dig (VFX anchor)
     start_wy: float = 0.0
-    dest_col: int = -1             # the CURRENT segment's destination tile
-    dest_row: int = -1             # (a claimed target, or a blind hop landing)
+    dest_col: int = -1            # this dig's destination tile
+    dest_row: int = -1
     emerge_cooldown: float = 0.0     # min seconds standing before diving again
     cooldown_remaining: float = 0.0  # counts down from emerge_cooldown on emerge
-    min_target_distance_tiles: int = 0  # prefer a target this far away (Chebyshev)
+    min_target_distance_tiles: int = 0  # prefer a walk-target this far away
 
     def on_added(self, owner):
         self._owner = owner
@@ -889,16 +899,21 @@ class BurrowAgent(Component):
             self._tick_walking(dt, owner, pa, mv, tm)
 
     def _tick_walking(self, dt, owner, pa, mv, tm):
-        # Spawn's initial overground approach only — nothing after the first
-        # strike ever re-enters this state (see _decide_next_action).
+        """Overground movement — spawn's approach and every later "walk to
+        a far target" leg alike. A committed far target that dies to
+        something else drops the claim and re-decides on the spot; a
+        stood-down Digger (``target_col < 0``) periodically re-decides
+        instead of giving up forever."""
+        if pa.target_col >= 0 and not pa._target_alive(tm):
+            pa.target_col = pa.target_row = -1
         if pa.target_col < 0:
-            return                       # stood down: nothing left to claim
-        if not pa._target_alive(tm):
+            if self.cooldown_remaining > 0:
+                self.cooldown_remaining = max(0.0, self.cooldown_remaining - dt)
+                return
             self.retarget(owner, pa, mv, tm)
             return
         if self.distance_to_target(owner, pa) <= self.dig_range_tiles:
-            self._submerge(owner, pa, mv, tm, pa.target_col, pa.target_row,
-                           self.dig_range_tiles)
+            self._arrived_in_range(owner, pa, mv, tm)
 
     def _tick_submerged(self, dt, owner, pa, mv, tm):
         # Pin the sprite clock so the dig pose holds: SpriteAnimator.update
@@ -907,72 +922,68 @@ class BurrowAgent(Component):
         anim = owner.get_component(SpriteAnimator)
         if anim is not None:
             anim.anim_time_ms = 0.0
-        # D5 — the target died to someone else while we were under it. Surface
-        # NOW, where we are, dealing nothing. Mirrors PathAgent's own
-        # block-scanning liveness test rather than re-deriving one. A no-op
-        # while `pa.target_col < 0` (a blind search-hop, nothing claimed) —
-        # `_target_alive` reads "no target" as alive by design.
-        if not pa._target_alive(tm):
-            self._emerge(owner, pa, tm, strike=False)
-            return
         self.dig_timer -= dt
-        self._advance_underground(owner, pa)
         if self.dig_timer <= 0:
-            self._emerge(owner, pa, tm, strike=True)
+            self._emerge(owner, pa, tm)
 
     def _tick_emerge(self, dt, owner, pa, mv, tm):
-        """Standing on the surface after an eruption or a blind search-hop —
+        """Standing on the surface after a strike or a blind reposition —
         the "stand there for a duration" player-feedback beat. The Digger
         does nothing else here — no walking, no re-targeting — until
-        ``cooldown_remaining`` drains, then ``_decide_next_action`` picks the
-        next underground segment. This is what makes EVERY hop, not just a
-        killing one, surface the Digger for a visible moment."""
+        ``cooldown_remaining`` drains, then ``retarget`` picks the next
+        move. This is what makes EVERY dig, not just a killing one, surface
+        the Digger for a visible moment."""
         if self.cooldown_remaining > 0:
             self.cooldown_remaining = max(0.0, self.cooldown_remaining - dt)
             return
-        self._decide_next_action(owner, pa, mv, tm)
+        self.retarget(owner, pa, mv, tm)
 
     # -- transitions -------------------------------------------------------
 
-    def _submerge(self, owner, pa, mv, tm, dest_col, dest_row, duration_tiles):
-        """Dive from the current tile toward ``(dest_col, dest_row)``, the
-        CURRENT segment's destination — a claimed building's tile
-        (``pa.target_col/target_row`` already set) for a strike, or a blind
-        knight-hop landing spot (nothing claimed) for a search. ``
-        duration_tiles`` sizes the dig clock (Chebyshev tiles / dig_speed) —
-        ``dig_range_tiles`` for any strike dive (matching the type's own
-        documented "the dig lasts dig_range_tiles / dig_speed seconds
-        regardless of how far the target actually is" rule, unchanged by this
-        rework) or the hop's own Chebyshev length for a search."""
+    def _submerge(self, owner, pa, mv, tm, dest_col, dest_row):
+        """Dive straight from the current tile to ``(dest_col, dest_row)``
+        and hold there, hidden and untargetable, for ``dig_duration``
+        seconds — the Manhattan tile distance over ``dig_speed``. No
+        underground travel is simulated (user decision — "the digger can
+        only submerge and emerge"): the body vanishes from here and
+        reappears exactly at the destination when the timer ends
+        (``_emerge``)."""
         self.state = BURROW_SUBMERGED
         self.dest_col = dest_col
         self.dest_row = dest_row
-        speed = self.dig_speed if self.dig_speed > 0 else 1.0
-        self.dig_duration = max(1e-6, float(duration_tiles) / speed)
-        self.dig_timer = self.dig_duration
-        # It only digs into TILES and emerges under buildings — never dig
-        # starting on a tile a (possibly unrelated) building already occupies.
-        # The route to the real target is a traversable weight, not
-        # impassable, and `no_melee` never halts for a blocker, so the walk
-        # can legitimately cross another building's tile first. Relocating
-        # here is invisible either way: `visible` flips False in this same
-        # call, below.
+        # Never dig in from a tile a (possibly unrelated) LIVE building
+        # already occupies — the route to the real target is a traversable
+        # weight, not impassable, and `no_melee` never halts for a blocker,
+        # so the walk can legitimately cross another building's tile first.
+        # Relocating here is invisible either way: `visible` flips False in
+        # this same call, below.
+        #
+        # Gated on `alive`, not merely "an occupant exists": after a strike
+        # the Digger is standing exactly on the building it just killed, and
+        # a dead building's corpse stays on its tile as `tile.occupant`
+        # until payday revives it (`game/buildings/CLAUDE.md`'s kidnapping
+        # section) — an un-gated check would relocate the Digger off its own
+        # kill site on every subsequent dive.
         col = round(owner.transform.wx)
         row = round(owner.transform.wy)
         tile = tm.get(col, row)
-        if tile is not None and tile.occupant is not None:
+        if (tile is not None and tile.occupant is not None
+                and getattr(tile.occupant, "alive", True)):
             col, row = self._nearest_clear_tile(tm, col, row)
             owner.transform.wx = float(col)
             owner.transform.wy = float(row)
         self.start_wx = float(owner.transform.wx)
         self.start_wy = float(owner.transform.wy)
+        manhattan_tiles = abs(dest_col - col) + abs(dest_row - row)
+        speed = self.dig_speed if self.dig_speed > 0 else 1.0
+        self.dig_duration = max(1e-6, float(manhattan_tiles) / speed)
+        self.dig_timer = self.dig_duration
         pa.frozen = True
         pa.blocked = False
         mv.speed = 0.0
-        # Drop the route rather than merely zeroing the speed: the underground
-        # lerp writes the transform directly, and a still-loaded waypoint list
-        # could otherwise let `Movement.advance` cross an arrival threshold and
-        # latch `arrived` on a path we are no longer walking.
+        # Drop the route rather than merely zeroing the speed: a still-loaded
+        # waypoint list could let `Movement.advance` cross an arrival
+        # threshold and latch `arrived` on a path we are no longer walking.
         mv.waypoints = []
         mv.index = 0
         mv.arrived = False
@@ -987,104 +998,31 @@ class BurrowAgent(Component):
                         round(self.start_wx), round(self.start_wy),
                         self.dig_duration * 1000.0)
 
-    def _advance_underground(self, owner, pa):
-        """Lerp the transform from the entry point to ``dest_col``/
-        ``dest_row``. The unit is invisible-to-gameplay here (untargetable, no
-        waypoints), so this is the whole of "movement continues internally" —
-        and it lands the body exactly on the destination when the clock
-        reaches zero."""
-        if self.dig_duration <= 0:
-            t = 1.0
-        else:
-            t = min(1.0, max(0.0, 1.0 - self.dig_timer / self.dig_duration))
-        owner.transform.wx = self.start_wx + (self.dest_col - self.start_wx) * t
-        owner.transform.wy = self.start_wy + (self.dest_row - self.start_wy) * t
-
-    def _emerge(self, owner, pa, tm, strike):
+    def _emerge(self, owner, pa, tm):
+        """Surface exactly at ``dest_col``/``dest_row`` — the tile the dig
+        was always headed to, whether that is a claimed target's own tile
+        or an empty repositioning tile — and strike whatever alive,
+        non-base building (if any) occupies it (``_occupant_at``). A
+        repositioning dig always picked a tile that was empty when chosen,
+        so this never strikes anything on that path; if the Digger's
+        committed target died to something else while it was underground,
+        the tile it dug FOR is simply empty by the time it arrives, so this
+        naturally deals no damage with no separate mid-dig interrupt
+        needed."""
         self.state = BURROW_EMERGE
         self.dig_timer = 0.0
-        # The cooldown counts from the moment it comes up (both a strike and
-        # a D5 no-damage interrupt count as "coming up") to the moment it is
-        # allowed to dig back in — enforced by `_tick_emerge`'s stand above.
         self.cooldown_remaining = self.emerge_cooldown
         pa.frozen = False
         anim = owner.get_component(SpriteAnimator)
         if anim is not None:
             anim.visible = True
         self._set_anim(owner, EMERGE_ANIM)
-        if not strike:
-            return                       # D5: surfaced where we are, no damage
         owner.transform.wx = float(self.dest_col)
         owner.transform.wy = float(self.dest_row)
-        if pa.target_col < 0:
-            return                       # a blind search-hop -- nothing claimed
-        target = self._target_building(tm, pa)
+        target = self._occupant_at(tm, self.dest_col, self.dest_row)
         if target is not None:
             self._strike(owner, pa, target)
-
-    def _decide_next_action(self, owner, pa, mv, tm):
-        """The post-stand decision — every dive AFTER the first (spawn's own
-        approach is `retarget`, never this). Finds the nearest UNCLAIMED
-        structure by straight-line Chebyshev distance (no pathfinding: the
-        Digger is underground from here on, terrain is irrelevant) and either
-        commits-and-dives (already in range of where it's standing),
-        knight-hops toward it (out of range), or stands down (nothing left,
-        or every hop lands off the map)."""
-        col = round(owner.transform.wx)
-        row = round(owner.transform.wy)
-        goals = _goal_tiles(
-            tm,
-            lambda b: getattr(b, "building_type", None)
-            in _STRUCTURE_BUILDING_TYPES,
-            exclude=self.claimed_tiles(owner))
-        nearest = _nearest_goal_tile(goals, col, row)
-        if nearest is not None:
-            dist = max(abs(nearest[0] - col), abs(nearest[1] - row))
-            if dist <= self.dig_range_tiles:
-                pa.target_col, pa.target_row = nearest
-                self._submerge(owner, pa, mv, tm, nearest[0], nearest[1],
-                               self.dig_range_tiles)
-                return
-            hop = self._pick_hop(col, row, tm, nearest)
-            if hop is not None:
-                # A hop is not a commitment -- clear any stale claim from a
-                # previous strike so `claimed_tiles` never reports one and
-                # `pa._target_alive` reads "no target" (true) while blind.
-                pa.target_col = pa.target_row = -1
-                hop_tiles = max(abs(hop[0] - col), abs(hop[1] - row))
-                self._submerge(owner, pa, mv, tm, hop[0], hop[1], hop_tiles)
-                return
-        # Nothing unclaimed left to hunt, or every knight-hop from here falls
-        # off the map — stand down, the exact `retarget` failure branch
-        # (visible, idle, no claim, no waypoints). Diggers never fall back to
-        # attacking the hole.
-        pa.goal_is_base = False
         pa.target_col = pa.target_row = -1
-        mv.waypoints = []
-        mv.index = 0
-        mv.arrived = False
-        mv.speed = 0.0
-        self.state = BURROW_WALKING
-        self._set_anim(owner, "idle")
-
-    def _pick_hop(self, col, row, tm, target):
-        """The knight-move offset (``dig_hop_long_tiles``/``_short_tiles``,
-        all 8 sign/axis combinations) landing closest to ``target``, or
-        ``None`` when every one of them falls outside the map."""
-        long_t, short_t = self.dig_hop_long_tiles, self.dig_hop_short_tiles
-        offsets = {(sa * a, sb * b)
-                   for a, b in ((long_t, short_t), (short_t, long_t))
-                   for sa in (1, -1) for sb in (1, -1)}
-        best = None
-        best_dist = None
-        for dc, dr in offsets:
-            c, r = col + dc, row + dr
-            if not (0 <= c < tm.cols and 0 <= r < tm.rows):
-                continue
-            dist = (c - target[0]) ** 2 + (r - target[1]) ** 2
-            if best_dist is None or dist < best_dist:
-                best, best_dist = (c, r), dist
-        return best
 
     def _strike(self, owner, pa, target):
         """The eruption hit — ``EnemyCombat.update()``'s single-target damage
@@ -1108,47 +1046,115 @@ class BurrowAgent(Component):
                          getattr(target, "building_type", None),
                          dmg, health.hp)
 
-    # -- re-targeting + the exclusive claim --------------------------------
+    # -- targeting -----------------------------------------------------------
 
     def retarget(self, owner, pa, mv, tm):
-        """Claim the nearest unclaimed structure and walk at it; return whether
-        one was found.
+        """The Digger's ONE decision point — spawn's first move and every
+        later one alike (see the class docstring's numbered flow: local
+        scan -> walk-or-reposition -> widen -> stand down)."""
+        claimed = self.claimed_tiles(owner)
+        structure_goals = _goal_tiles(
+            tm,
+            lambda b: getattr(b, "building_type", None)
+            in _STRUCTURE_BUILDING_TYPES,
+            exclude=claimed)
+        if self._commit_local(owner, pa, mv, tm, structure_goals):
+            return
+        if structure_goals:
+            self._start_walk(owner, pa, mv, tm, find_path_to_nearest_structure,
+                             claimed)
+            return
+        widened_goals = _goal_tiles(
+            tm,
+            lambda b: getattr(b, "building_type", None)
+            in _BOOST_ECONOMY_BUILDING_TYPES,
+            exclude=claimed)
+        if self._commit_local(owner, pa, mv, tm, widened_goals):
+            return
+        if widened_goals:
+            self._start_walk(
+                owner, pa, mv, tm,
+                find_path_to_nearest_boost_or_economic_building, claimed)
+            return
+        self._stand_down(owner, pa, mv)
 
-        The ONE site that re-runs the hunt for a burrower, so the claim
-        exclusion can never be bypassed. ``PathAgent.adopt_goal`` still owns
-        deriving ``goal_is_base``/``target_col``/``target_row`` from the fresh
-        path — and ``goal_is_base`` True is precisely how the base fallback
-        inside ``find_path_to_nearest_structure`` announces "nothing left to
-        hunt", which is what makes the stand-down branch below correct rather
-        than a guess.
+    def _arrived_in_range(self, owner, pa, mv, tm):
+        """The committed far target has come within ``dig_range_tiles`` —
+        re-run the LOCAL scan (current hunt category first, then the
+        widened one) rather than blindly diving onto the one target it was
+        walking toward: something else may now be the FARTHER, preferred
+        pick from this exact spot. The rare case where nothing qualifies
+        after all (the sole candidate died or got claimed by a rival the
+        instant this Digger arrived) falls through to a fresh decision."""
+        claimed = self.claimed_tiles(owner)
+        structure_goals = _goal_tiles(
+            tm,
+            lambda b: getattr(b, "building_type", None)
+            in _STRUCTURE_BUILDING_TYPES,
+            exclude=claimed)
+        if self._commit_local(owner, pa, mv, tm, structure_goals):
+            return
+        widened_goals = _goal_tiles(
+            tm,
+            lambda b: getattr(b, "building_type", None)
+            in _BOOST_ECONOMY_BUILDING_TYPES,
+            exclude=claimed)
+        if self._commit_local(owner, pa, mv, tm, widened_goals):
+            return
+        pa.target_col = pa.target_row = -1
+        self.retarget(owner, pa, mv, tm)
 
-        ``min_target_distance_tiles`` prefers a claim at least that far
-        (Chebyshev) from the Digger's own tile, falling back to the plain
-        nearest unclaimed structure when nothing clears it — see
-        ``find_path_to_nearest_structure``'s ``min_distance``."""
+    def _commit_local(self, owner, pa, mv, tm, goals):
+        """Commit to and submerge onto the FARTHEST tile in ``goals`` within
+        Manhattan ``dig_range_tiles`` of the current tile — "high range
+        beats close range" (user decision). Returns whether one was found."""
+        target = self._farthest_in_range(owner, goals)
+        if target is None:
+            return False
+        pa.target_col, pa.target_row = target
+        self._submerge(owner, pa, mv, tm, target[0], target[1])
+        return True
+
+    def _farthest_in_range(self, owner, goals):
+        """The tile in ``goals`` at the GREATEST Manhattan distance from the
+        current tile, among those within ``dig_range_tiles`` — ``None`` if
+        none qualify. Ties break lexicographically, the
+        ``_nearest_goal_tile`` convention (`game/map/pathfinder.py`), just
+        maximizing instead of minimizing."""
         col = round(owner.transform.wx)
         row = round(owner.transform.wy)
-        path = find_path_to_nearest_structure(
-            tm, col, row, footprint=pa.footprint,
-            cond_weights=pa._cond_weights, exclude=self.claimed_tiles(owner),
-            min_distance=self.min_target_distance_tiles)
+        best = None
+        best_dist = -1
+        for g in goals:
+            dist = abs(g[0] - col) + abs(g[1] - row)
+            if dist > self.dig_range_tiles:
+                continue
+            if dist > best_dist or (dist == best_dist and g < best):
+                best, best_dist = g, dist
+        return best
+
+    def _start_walk(self, owner, pa, mv, tm, pathfinder, claimed):
+        """Walk toward the nearest unclaimed candidate ``pathfinder`` can
+        find (real pathfinding, claim-exclusion threaded through). No route
+        at all (or only the base fallback) -> submerge onto the nearest
+        free tile instead, to reset from a new position next decision (user
+        decision: "if the digger cannot walk into range... because
+        [economy/boost] buildings block the path, the digger submerges and
+        emerges on a free tile to restart the pathfinding")."""
+        col = round(owner.transform.wx)
+        row = round(owner.transform.wy)
+        path = pathfinder(tm, col, row, footprint=pa.footprint,
+                          cond_weights=pa._cond_weights, exclude=claimed,
+                          min_distance=self.min_target_distance_tiles)
         pa.adopt_goal(path, tm)
-        self.state = BURROW_WALKING
         if not path or pa.goal_is_base:
-            # Stand down (NE-2): every structure is gone or already claimed.
-            # goal_is_base is forced back off — a stale True would fire a
-            # phantom base breach the moment Movement reported an arrival.
             pa.goal_is_base = False
             pa.target_col = pa.target_row = -1
-            mv.waypoints = []
-            mv.index = 0
-            mv.arrived = False
-            mv.speed = 0.0
-            self._set_anim(owner, "idle")
-            return False
+            self._reposition(owner, pa, mv, tm)
+            return
         mv.waypoints = [[float(c), float(r)] for c, r in path]
-        # BP-4's no-rewind rule: we are already inside path[0], and path[1] is
-        # 4-adjacent, so heading straight there is always a legal step.
+        # BP-4's no-rewind rule: we are already inside path[0], and path[1]
+        # is 4-adjacent, so heading straight there is always a legal step.
         mv.index = 1 if len(path) >= 2 else 0
         mv.arrived = False
         pa._last_index = mv.index
@@ -1156,8 +1162,36 @@ class BurrowAgent(Component):
         if tile is not None:
             pa._current_condition = tile.condition
         mv.speed = pa._condition_speed()
+        self.state = BURROW_WALKING
         self._set_anim(owner, "walk")
-        return True
+
+    def _reposition(self, owner, pa, mv, tm):
+        """Submerge and resurface on the nearest tile with no building
+        occupant, skipping the current tile itself — a genuine relocation,
+        not a same-spot no-op — purely to reset pathfinding from a new
+        vantage point. Carries no claim and never strikes anything (its
+        destination was chosen BECAUSE it is empty)."""
+        col = round(owner.transform.wx)
+        row = round(owner.transform.wy)
+        free_col, free_row = self._nearest_clear_tile(tm, col, row,
+                                                       skip_self=True)
+        self._submerge(owner, pa, mv, tm, free_col, free_row)
+
+    def _stand_down(self, owner, pa, mv):
+        """Idle, harmless, no claim, no waypoints — Diggers never fall back
+        to attacking the hole. Arms `cooldown_remaining` so `_tick_walking`
+        periodically re-runs `retarget` instead of giving up forever: a
+        rival's claim can free up, or the player can place a new building,
+        at any point after this."""
+        pa.goal_is_base = False
+        pa.target_col = pa.target_row = -1
+        mv.waypoints = []
+        mv.index = 0
+        mv.arrived = False
+        mv.speed = 0.0
+        self.state = BURROW_WALKING
+        self.cooldown_remaining = self.emerge_cooldown
+        self._set_anim(owner, "idle")
 
     def claimed_tiles(self, owner):
         """``{(col, row)}`` every OTHER live burrower has committed to.
@@ -1186,36 +1220,47 @@ class BurrowAgent(Component):
     # -- helpers -----------------------------------------------------------
 
     def distance_to_target(self, owner, pa):
-        """Chebyshev tiles from the unit's tile to the NEAREST tile of the
-        target's block (``PathAgent.target_col/_row`` is the goal ANCHOR, which
-        for a footprint-N target can sit up to N-1 tiles off the body — the
-        same reason ``_target_alive`` scans the block instead of the anchor)."""
+        """Manhattan tiles from the unit's tile to the NEAREST tile of the
+        target's block (``PathAgent.target_col/_row`` is the goal ANCHOR,
+        which for a footprint-N target can sit up to N-1 tiles off the body
+        — the same reason ``_target_alive`` scans the block instead of the
+        anchor). Manhattan, not Chebyshev (user decision) — matching the
+        targeting rule's own distance metric everywhere else in this
+        class."""
         col = round(owner.transform.wx)
         row = round(owner.transform.wy)
-        return min(max(abs(c - col), abs(r - row))
+        return min(abs(c - col) + abs(r - row)
                    for c, r in block_tiles(pa.target_col, pa.target_row,
                                            pa.footprint))
 
     @staticmethod
-    def _target_building(tm, pa):
-        for c, r in block_tiles(pa.target_col, pa.target_row, pa.footprint):
-            tile = tm.get(c, r)
-            occ = tile.occupant if tile is not None else None
-            if occ is not None and getattr(occ, "alive", False):
-                return occ
+    def _occupant_at(tm, col, row):
+        """The alive, non-base occupant of exactly ``(col, row)``, or
+        ``None``. The Digger's own footprint is always 1, so there is only
+        ever one tile to check; never the base (Diggers never strike the
+        hole, even by accident on a reposition landing)."""
+        tile = tm.get(col, row)
+        occ = tile.occupant if tile is not None else None
+        if (occ is not None and getattr(occ, "alive", False)
+                and getattr(occ, "building_type", None) != "base"):
+            return occ
         return None
 
     @staticmethod
-    def _nearest_clear_tile(tm, col, row):
+    def _nearest_clear_tile(tm, col, row, skip_self=False):
         """The nearest ``(c, r)`` with no building occupant, by an expanding
         Chebyshev ring search from ``(col, row)`` — the ``_find_2x2``
         expanding-window precedent (``game/map/CLAUDE.md``) applied to a
-        single tile instead of a 2x2 block. Falls back to ``(col, row)``
-        itself if literally nothing on the board qualifies (never expected on
-        a real map — the whole spawn/combat zone can't be built solid — but a
-        graceful no-op beats a crash)."""
+        single tile instead of a 2x2 block. ``skip_self`` (default False)
+        starts the search at radius 1, so a call that wants an ACTUAL move
+        (``_reposition``) never trivially returns the tile it is already
+        standing on. Falls back to ``(col, row)`` itself if literally
+        nothing on the board qualifies (never expected on a real map — the
+        whole spawn/combat zone can't be built solid — but a graceful no-op
+        beats a crash)."""
         limit = max(tm.cols, tm.rows)
-        for radius in range(limit):
+        start = 1 if skip_self else 0
+        for radius in range(start, limit):
             if radius == 0:
                 ring = [(col, row)]
             else:

@@ -482,19 +482,36 @@ existing one. `ETYPE "digger"`, `REGISTRY_GROUP "Digger"`, `STAT_SUBTREE
 ("Digger",)`, `hunts: "structure"` (NE-0's category, whose first consumer this
 is), `kidnapping: false`, footprint 1, `start_round: 35` (data-authoritative —
 `data/balancing/enemies.json` currently ships 15; retune freely),
-`spawner.ENABLE_DIGGER = True`. **Reworked (digger-hop-rework, player-feedback
-fix) so it walks visibly at most ONCE — its spawn approach to the first
-structure it claims.** From its first eruption on, it never walks overground
-again: it stands still after every underground segment, then either dives
-straight back down on the SAME tile (a structure is already within
-`dig_range_tiles`) or knight-hops toward the nearest remaining one, always
-surfacing to stand between hops. The old behaviour — emerge, strike,
-immediately re-path, walk visibly to the next building — was the whole bug
-this rework fixes: the player never saw it coming and the walk-away beat read
-as broken rather than menacing.
+`spawner.ENABLE_DIGGER = True`. **Five times reworked for player feedback
+(digger-hop-rework)** — Passes 1–4's summary is kept below for the historical
+record, but **Pass 5 (the most recent) is a GROUND-UP REWRITE of the entire
+underground movement mechanic, done at the user's explicit request** ("scrap
+everything we know about the movement... redo it all") — nothing in Passes
+1–4's knight hop, parity lattice, or readjustment fallback survives it. Read
+the machine description below for what actually ships today; the history is
+context for why it looks the way it does, not a description of current
+behavior.
+
+**Pass 1** made it walk visibly at most ONCE (spawn's approach to its first
+claimed structure) — the old behaviour (emerge, strike, immediately re-path,
+walk visibly to the next building) was the original bug: the player never saw
+it coming and the walk-away beat read as broken, not menacing. **Pass 2**
+replaced every underground relocation with a fixed-shape knight hop and
+closed three gaps (never giving up permanently, hunting only "structure"
+buildings, a WallBuilder perimeter sealing off the one overground walk).
+**Pass 3** made a strike require landing EXACTLY on the target's tile (no
+more "within some radius" snap) and added a short readjustment-dig fallback
+for offsets the fixed hop shape's parity could never reach. **Pass 4** made
+target *selection* prefer a hop-reachable building over the merely-nearest
+one, so the Pass 3 readjustment stayed a rare fallback instead of the
+routine first move. **Pass 5** throws all of that out: there is no more hop
+shape, no more parity lattice, no more readjustment fallback, no more
+multi-leg travel animation. A submerge now dives straight from the current
+tile to a chosen destination tile, and the Digger simply reappears there —
+invisible and untargetable the whole time — when the dig timer runs out.
 
 - **`PathAgent.no_melee` (default OFF — every existing type byte-identical) is
-  a DURABLE RULE, not a Digger detail, and unaffected by this rework.** When
+  a DURABLE RULE, not a Digger detail, and unaffected by any of this.** When
   set, `update()` skips the halt-and-attack scan WHOLESALE: no
   `_wall_edge_ahead`, no `_blocker_ahead`, `blocked` never latches,
   `_target`/`_wall_target` stay `None`, and `EnemyCombat` (which ticks only
@@ -504,108 +521,142 @@ as broken rather than menacing.
   Digger has no attack outside digging: a halt on an incidental blocker would
   be a **permanent 0-damage soft-lock**, not a slow fight, because the thing it
   stopped for can never die. Any future type with no melee attack wants this
-  flag, and any type WITH one must not have it. It matters only for the ONE
-  overground walk this type ever takes now — spawn's approach.
+  flag, and any type WITH one must not have it.
 - **`BurrowAgent` (`components.py`, beside `PathAgent`/`EnemyCombat`) is the
   machine**, and carrying one is what MAKES a unit a burrower — the claim scan
   identifies rivals by "has a `BurrowAgent`", never by class or `ETYPE`, so a
   second burrower would share the claim pool for free. Declared JSON-safe state
   only (E-11): `state` (plain strings `BURROW_WALKING`/`_SUBMERGED`/`_EMERGE`),
-  `dig_range_tiles`, `dig_speed`, `dig_hop_long_tiles`/`dig_hop_short_tiles`,
-  `dig_timer`, `dig_duration`, `start_wx`/`start_wy`, `dest_col`/`dest_row`
-  (the CURRENT segment's destination — see below),
-  `emerge_cooldown`/`cooldown_remaining`.
-  - **WALKING — spawn's approach ONLY, never re-entered.** Ordinary
-    `PathAgent` movement toward the first claimed target (`retarget`, real
-    pathfinding + `min_target_distance_tiles`). Each frame it measures
-    Chebyshev distance from its tile to the target's BLOCK (`block_tiles`, the
-    same reason `_target_alive` scans the block: `target_col/_row` is the goal
-    ANCHOR, not necessarily the body). At `<= dig_range_tiles` it submerges
-    (`dest_col`/`dest_row` set to the claimed target, a strike dive). It ALSO
-    watches the target's liveness itself — see the `repath_on_kill` bullet.
-    **The only other way this state is ever entered again is standing down**
-    (below) — nothing else routes back into it.
-  - **SUBMERGED** — `PathAgent.frozen = True` (the BR-3/`carrying` precedent:
-    inert agent, inert `EnemyCombat`) **and the waypoints are DROPPED**, not
-    merely `speed = 0`. Load-bearing: the underground lerp writes the transform
-    directly, and a still-loaded waypoint list could let `Movement.advance`
-    cross an arrival threshold and latch `arrived` on a path the unit is no
-    longer walking. Progress is a pure internal lerp from the entry point
-    (`start_wx`/`start_wy`) to **`dest_col`/`dest_row`** — the current
-    segment's destination, decoupled from `PathAgent.target_col`/`target_row`
-    (which now means "a building this Digger has actually CLAIMED", set only
-    for a strike dive, `-1` for a blind search-hop) — over `dig_duration`
-    seconds, so the body is exactly ON the destination when the clock runs
-    out. A strike dive's `dig_duration` is always `dig_range_tiles /
-    dig_speed` (unchanged rule: it lasts that long regardless of the actual
-    distance, which can be shorter once the Digger is already standing near
-    its next victim); a search-hop's is the hop's own Chebyshev length over
-    `dig_speed`. The sprite holds the `dig` frame (`anim_time_ms` re-pinned
-    every frame — the `Kidnap.frozen` finding) AND is fully **hidden**
-    (`SpriteAnimator.visible = False`) — only the dirt pile (below) and the
-    two telegraph arrows (`game/ui/CLAUDE.md`'s Digger telegraph section) mark
-    the spot while burrowed.
-  - **EMERGE — now a genuine STANDING state, not a one-frame pass-through
-    (the player-feedback fix's core mechanism).** Entered by the dig clock
-    expiring: snap onto `dest_col`/`dest_row`, become visible, and — ONLY when
-    `PathAgent.target_col >= 0`, i.e. this was a strike dive with a real
-    claimed building — strike it (`_target_building` + `_strike`, unchanged).
-    OR, per D5, the instant the target dies to anything else mid-dig (surface
-    exactly where the lerp left it, deal NOTHING, never snap to the
-    destination). Either way `cooldown_remaining` is armed to
-    `emerge_cooldown` and the Digger does **nothing else — no walking, no
-    re-targeting** — until it drains: this is the "stand there for a
-    duration" beat, and it fires after EVERY underground segment, a kill or a
-    blind search-hop alike, so the player always gets a visible surfacing
-    between hops, never a silent multi-hop disappearance. Once the stand
-    drains, `_decide_next_action` runs (never `retarget` — that is spawn-only
-    now) and either commits-and-dives on the spot, knight-hops, or stands
-    down — see below.
+  `dig_range_tiles` (now BOTH the overground trigger distance and the
+  underground targeting scan radius, both MANHATTAN — see below), `dig_speed`,
+  `dig_timer`, `dig_duration`, `start_wx`/`start_wy` (this dig's entry tile —
+  also the VFX telegraph anchor, `game/ui/CLAUDE.md`'s Digger telegraph
+  section), `dest_col`/`dest_row` (this dig's destination tile),
+  `emerge_cooldown`/`cooldown_remaining`, `min_target_distance_tiles`.
+  - **WALKING — overground movement, on foot, visible. Spawn's initial
+    approach AND every later "walk to a distant target" leg alike — unlike
+    every earlier pass this is NOT spawn-only any more.** Whenever nothing is
+    close enough to dig at, the Digger walks again (`retarget`, below). Each
+    tick it measures MANHATTAN distance (not Chebyshev — user decision,
+    "following the manhattan pattern") from its tile to the currently-claimed
+    far target's BLOCK (`distance_to_target`/`block_tiles`, the same reason
+    `_target_alive` scans the block: `target_col/_row` is the goal ANCHOR, not
+    necessarily the body); once that's `<= dig_range_tiles`, it re-scans the
+    local neighbourhood rather than blindly diving on that one target
+    (`_arrived_in_range`, below) — something else may now be the preferred,
+    FARTHER pick from this exact spot.
+  - **SUBMERGED — a straight dive to `dest_col`/`dest_row`, nothing else (user
+    decision: "the digger can only submerge and emerge").** No travel
+    animation of any kind: the body simply vanishes from the tile it dove
+    from and reappears exactly at the destination when `dig_timer` runs out
+    (`_emerge`, below) — there is no intermediate lerp, no hop shape, no
+    parity constraint to satisfy. `dig_duration` is the actual Manhattan tile
+    distance between entry and destination over `dig_speed` — a real
+    duration proportional to how far this specific dig actually goes, unlike
+    every earlier pass's fixed hop-shape length.
+    `Digger.targetable` reads this state, so combat, projectiles, the storm
+    and both HP bars drop it at once (the duck-typed contract BR-3 built for
+    the boss). **The Digger's own `SpriteAnimator` is also hidden entirely**
+    (`visible = False`) rather than merely held on its dig pose — the
+    dirt-pile decal and the two telegraph arrows are the only things that
+    mark the spot.
+    - **`_submerge` never dives from a tile a (possibly unrelated) LIVE
+      building already occupies** — the route to the real target is a
+      traversable weight, not impassable, and `no_melee` never halts for a
+      blocker, so the walk can legitimately cross another building's tile
+      first. Gated on the occupant being **ALIVE**, not merely "an occupant
+      exists" (a live-playtest fix carried over from Pass 3): a just-struck
+      building's CORPSE stays on its own tile as `tile.occupant` until
+      payday revives it (`game/buildings/CLAUDE.md`'s kidnapping section),
+      and an un-gated check would relocate the Digger off its own kill site
+      on every subsequent dive, which used to read as "the hole keeps
+      moving" even though the Digger was always diving from wherever it
+      actually stood.
+  - **EMERGE — a genuine STANDING state, not a one-frame pass-through.**
+    Entered by the dig clock expiring: snap onto `dest_col`/`dest_row`,
+    become visible, and strike whatever alive, non-base building (if any)
+    occupies that EXACT tile (`_occupant_at` + `_strike`, the unchanged
+    eruption mechanic). **This single occupancy check does the job three
+    separate mechanisms (D5's mid-dig interrupt, the exact-tile-match rule,
+    the readjustment strike) used to split across in earlier passes**: a
+    real committed target that's still alive when the dig completes gets
+    struck; a target that died to something else while the Digger was
+    underground simply has no occupant left on its tile by the time the
+    Digger arrives, so nothing happens — no separate mid-dig interrupt logic
+    is needed at all. A repositioning dig (below) always picked a tile that
+    was verified empty when chosen, so it never strikes anything either. The
+    Digger's commitment (`PathAgent.target_col/_row`) is always cleared here,
+    win or lose — the NEXT decision starts with a completely fresh scan.
+    Either way `cooldown_remaining` is armed to `emerge_cooldown` and the
+    Digger does **nothing else — no walking, no re-targeting** — until it
+    drains: this is the "stand there for a duration" beat, and it fires
+    after EVERY dig, strike or not, so the player always gets a visible
+    surfacing, never a silent disappear-and-reappear. Once the stand drains,
+    `retarget` runs.
   - **The eruption hit is `EnemyCombat.update()`'s single-target damage
     application verbatim** — `_effective_dmg(pa)` (so the 10I terrain bonus
     still applies) → `Health.damage` → the `RoundStats.dmg_taken_this_round`
     credit → `_damage_hook` at exactly that credit line. No kidnap arming
     (Diggers ship `kidnapping: false`).
-- **The knight-hop search (`_decide_next_action`/`_pick_hop`, `components.py`)
-  — everything after the first strike.** Once `cooldown_remaining` drains in
-  EMERGE: scan for the nearest **unclaimed** structure by straight-line
-  Chebyshev distance from the Digger's current tile
-  (`game/map/pathfinder.py`'s `_goal_tiles`/`_nearest_goal_tile` — the SAME
-  predicate/exclusion primitives `find_path_to_nearest_structure` builds on,
-  used directly here because **no pathfinding runs for this decision at
-  all**: the Digger is underground from here on, and terrain is irrelevant to
-  a straight-line tunnel).
-  - **Found, within `dig_range_tiles` of the current tile** → commit: claim it
-    (`PathAgent.target_col`/`target_row` = its tile), set `dest_col`/`dest_row`
-    to it, dive right back down on the SAME tile it is standing on (a strike
-    dive, `dig_range_tiles`-based duration as always).
-  - **Found, farther than `dig_range_tiles`** → the knight hop: among the (up
-    to) 8 offsets `(±dig_hop_long_tiles, ±dig_hop_short_tiles)` and
-    `(±dig_hop_short_tiles, ±dig_hop_long_tiles)` — a chess knight's L-shape
-    scaled 3+1 instead of 2+1 by default — discard any landing outside the
-    map, dive toward whichever remaining candidate is geometrically closest
-    to the target (`_pick_hop`). `PathAgent.target_col`/`target_row` are
-    explicitly cleared to `-1` first (a hop is NOT a commitment — a stale
-    claim from the just-finished strike must not linger and falsely exclude a
-    now-dead tile from a rival's `claimed_tiles` scan). No strike on arrival
-    (nothing was claimed); it surfaces, stands, and the search repeats from
-    the new tile.
-  - **Neither** (nothing unclaimed left anywhere, or every knight-hop from the
-    current tile falls off the map — the one-row-board edge case, pinned by
-    `test_enemies.TestDigger.test_stands_down_when_every_knight_hop_falls_
-    off_a_one_row_board`) → **stand down**, the exact terminal branch
-    `retarget`'s own failure case uses (see below) — reused verbatim, not
-    reimplemented: visible, idle, `PathAgent.target_col = target_row = -1`, no
-    waypoints, state forced back to `BURROW_WALKING` (with an empty route, so
-    `_tick_walking` no-ops forever from there — the ONE way `BURROW_WALKING`
-    is ever re-entered post-spawn).
+- **`retarget` (`components.py`) is the ONE decision point — spawn's first
+  move and every later one alike.** No more "spawn-only" special case: this
+  single method covers the whole cycle.
+  1. **Look around.** `_commit_local` (via `_farthest_in_range`) scans for
+     the FARTHEST unclaimed structure within `dig_range_tiles` Manhattan
+     tiles of the current tile — **"high range beats close range" (user
+     decision: "Diggers always focus buildings that are in high range rather
+     than close range... they should fall back to close range... if no
+     building is in high range")** — and, if found, commits
+     (`PathAgent.target_col/_row` = it) and submerges straight onto it.
+  2. **Nothing in local range, but an unclaimed structure exists somewhere
+     on the map** → `_start_walk` runs real pathfinding
+     (`find_path_to_nearest_structure`, claim-exclusion + the
+     `min_target_distance_tiles` walk-preference threaded through) to the
+     nearest one and starts walking. **No route to it at all (or only the
+     base fallback)** → `_reposition` instead: submerge onto the nearest
+     tile with no building occupant (skipping the current tile — a genuine
+     move, not a no-op) and resurface there, no strike, purely to reset
+     pathfinding from a new position (user decision: "if the digger cannot
+     walk into range of his target building, because [other] buildings
+     block the path, the digger submerges and emerges on a free tile to
+     restart the pathfinding"). This REPLACES Pass 2's walls-ignoring
+     fallback outright — a blocked walk of ANY kind (not just a wall) now
+     triggers a reposition, never a second wall-tunneling pathfind attempt.
+  3. **No unclaimed structure anywhere at all** → the same two steps
+     (1)/(2), widened to boost and economy buildings
+     (`find_path_to_nearest_boost_or_economic_building`, over
+     `_BOOST_ECONOMY_BUILDING_TYPES` — the three `boost_*` types unioned with
+     the pre-existing `_ECONOMY_BUILDING_TYPES`) — user decision: "if there
+     are 0 structure buildings on the map left for the Digger to focus he
+     focuses boost and economy buildings instead".
+  4. **Nothing at all, anywhere, in either category** → `_stand_down`.
+  - **`_arrived_in_range`** is what fires once a walked-toward far target
+    finally comes within Manhattan `dig_range_tiles` — it does NOT blindly
+    commit to that one target; it re-runs the SAME local scan (current
+    category, then widened) from the arrival tile, so a different, farther
+    building discovered only on arrival can win instead, per the same
+    "high range beats close range" rule. Nothing qualifying after all (rare
+    — the sole candidate died or got claimed by a rival the instant this
+    Digger arrived) falls through to a fresh `retarget` call.
+  - **`_stand_down`**: visible, idle, harmless, no waypoints,
+    `PathAgent.target_col = target_row = -1`, `goal_is_base` forced back OFF
+    (a stale `True` would fire a phantom base breach on the next reported
+    arrival — the `begin_kidnap` finding), state forced to `BURROW_WALKING`.
+    **Not a terminal state**: it arms `cooldown_remaining = emerge_cooldown`,
+    and `_tick_walking`'s own `target_col < 0` branch ticks that timer down
+    and re-runs `retarget` once it drains — reusing the exact same
+    stand-duration cadence as the post-dig stand. A rival's claim freeing
+    up, or the player placing a new building, is noticed on the Digger's
+    very next re-check rather than never. Diggers still never fall back to
+    attacking the hole.
 - **`emerge_cooldown` (balancing) / `cooldown_remaining` (runtime) — the
-  stand duration, reused unchanged from its original meaning.** Counted from
-  the moment the Digger comes up (a strike OR a D5 no-damage interrupt both
-  arm it) to the moment `_decide_next_action` is allowed to run. `0.0` is a
-  no-op (a hand-built headless Digger with no balancing behind it stays
-  byte-identical); the shipped `EnemyTypes.Digger.emerge_cooldown` is `2.4`
-  seconds, a flat type-root leaf (D10 — a starting value, tune in the editor).
+  stand duration, doing double duty as the periodic-recheck cadence while
+  stood down too.** Counted from the moment the Digger comes up (a strike, a
+  no-strike dig, or a reposition all arm it) to the moment `retarget` is
+  allowed to run again. `0.0` is a no-op (a hand-built headless Digger with
+  no balancing behind it stays byte-identical); the shipped
+  `EnemyTypes.Digger.emerge_cooldown` is `2.5` seconds, a flat type-root leaf
+  (D10 — a starting value, tune in the editor).
 - **`Digger.targetable` is overridden off the SUBMERGED state** — the exact
   duck-typed contract BR-3 built for the boss's second phase, so combat
   targeting, in-flight projectiles, the lightning storm and BOTH HP bars drop a
@@ -614,15 +665,16 @@ as broken rather than menacing.
   `Digger.on_spawn` overrides the generic one.** `PathAgent._repath` would
   re-run `_HUNT_QUERIES["structure"]` with no claim exclusion, and would
   silently accept the query's empty-goal-set fallback to the hole.
-  `BurrowAgent.retarget` is the ONE pathfinding-based re-targeting path, and it
-  now runs EXACTLY ONCE per Digger's life — at spawn. Every later decision is
-  `_decide_next_action` (above), which never touches the pathfinder.
+  `BurrowAgent.retarget` is the ONE pathfinding-based re-targeting path — and,
+  since Pass 5, it runs on EVERY decision, not just at spawn.
 - **`Enemy.nav_components(block)` is the seam** placing `BurrowAgent` between
   `PathAgent` and `Movement`: after the agent's walk/halt decision for the
   frame, before the locomotion that would act on it. `()` for every other type.
   Same shape as `resolve_fit`/`resolve_phase_row` — the component ORDER is the
-  invariant, so it stays at ONE construction site. Threads the two new hop
-  leaves alongside the pre-existing four.
+  invariant, so it stays at ONE construction site. Threads `dig_range_tiles`,
+  `dig_speed`, `emerge_cooldown`, `min_target_distance_tiles` — Pass 5 dropped
+  the two knight-hop leaves (`dig_hop_long_tiles`/`_short_tiles`) from both
+  this call site and the schema; they no longer exist anywhere.
 - **`Digger._resolve_stats` substitutes the flat `dig_speed` for the era row's
   `move_speed`** — the brief's "one speed value for both phases", made provable
   in code rather than trusted to two authored numbers staying equal. The era
@@ -634,26 +686,34 @@ as broken rather than menacing.
 **A claim is nothing but another Digger's `PathAgent.target_col/_row`** — there
 is no registry, and nothing to leak. `BurrowAgent.claimed_tiles` scans
 `scene.by_tag("enemy")` for other live burrowers and passes their committed
-tiles as `exclude` into whichever query is asking — `find_path_to_nearest_
-structure` at spawn (real pathfinding), or the SAME `_goal_tiles` predicate
-called directly by `_decide_next_action` for every later decision (no
-pathfinding). A claim releases itself when its owner re-targets/re-commits (its
-own `target_col` moves, or is explicitly cleared to `-1` the instant a
-search-hop begins — see above) or dies (it drops off `by_tag("enemy")`, which
-also excludes retagged kidnappers and corpses).
-- **No target after exclusion ⇒ STAND DOWN**: visible, idle, harmless, no
-  waypoints, `target_col = -1`, and `goal_is_base` forced back OFF (a stale
-  `True` would fire a phantom base breach on the next reported arrival — the
-  `begin_kidnap` finding). Diggers only build towards buildings; they do NOT
-  fall back to attacking the hole. **This branch is detected via
-  `goal_is_base`** inside `retarget` (spawn's failure case), because `_hunt`
-  falls back to the base path for an empty goal set — that fallback is the
-  query's way of saying "nothing left to hunt", and `adopt_goal` is what turns
-  it into a readable flag. `_decide_next_action`'s own stand-down (no
-  pathfinding involved) reuses the exact same terminal assignment block
-  directly, not `goal_is_base` detection, since there is no path result to
-  read it off.
-- **`Enemy._scene` — the new transient seam** (parallel to `_tilemap`,
+tiles as `exclude` into whichever query is asking — `_start_walk`'s real
+pathfinding, or the SAME `_goal_tiles` predicate `_commit_local`/
+`_arrived_in_range` scan directly (no pathfinding, straight-line only). A
+claim lasts from the moment the Digger commits to a building until it
+EMERGES (whether or not the dig struck anything) — `_emerge` unconditionally
+clears `PathAgent.target_col/_row`, so every decision after a dig starts with
+a completely fresh scan. This is a real behavior change from every earlier
+pass's "stay committed across multiple hops toward the same target" rule:
+since a single dig now always resolves (strike or miss) in one step, there is
+no longer a multi-step chase to stay committed through.
+- **No target after exclusion, anywhere, in either category ⇒ STAND DOWN** —
+  see `_stand_down` above; it periodically re-checks rather than parking
+  forever.
+- **Blocked paths reposition instead of tunneling through walls (Pass 5 — a
+  deliberate behavior change from Pass 2).** Pass 2 gave the Digger's ONE
+  overground walk an `ignore_walls=True` fallback pathfind attempt, tried
+  only once the normal wall-respecting route came back empty/base-only.
+  Pass 5 removes that fallback entirely: `_start_walk`'s single pathfind
+  attempt stays wall-respecting, and ANY failure (a wall, a fully-enclosed
+  area, anything) triggers `_reposition` instead — submerge onto the nearest
+  free tile and resurface there to try again from a new position (see
+  `retarget` step 2 above). `find_path_to_nearest_structure`/`find_path_to_
+  nearest_non_base_building` (`game/map/pathfinder.py`) still carry their
+  `ignore_walls` parameter (harmless, unused by the Digger now — see that
+  doc's pathfinder section) since other callers may still want it; the new
+  `find_path_to_nearest_boost_or_economic_building` was added WITHOUT one,
+  since nothing calls it with walls ignored either.
+- **`Enemy._scene` — the transient seam** (parallel to `_tilemap`,
   underscore-prefixed and non-authoritative per E-11). A `GameObject` is never
   handed the scene (`Scene.update` calls `on_spawn()` with no arguments) and a
   `Component` cannot reach it either, which is why `CorpseFade._scene` and
@@ -694,26 +754,31 @@ only how it was seeded.
 A NORMAL era-shaped type — its own `eras[]` rows through the base
 `STAT_SUBTREE` resolver, `footprint`/`sprite_scale` among them (1 and 1.0 in
 every row; they were flat at the root until the per-era-footprint change).
-Six things are specific to it, all flagged as STARTING VALUES in their schema
+Five things are specific to it, all flagged as STARTING VALUES in their schema
 descriptions:
 - **`dig_speed`** (flat, tiles/sec) — burrowed AND overground speed.
-- **`dig_range_tiles`** (flat, default 6) — the submerge trigger distance
-  (spawn's one overground approach), and now ALSO the reused in-range
-  detection radius `_decide_next_action` checks after every stand — raising it
-  makes the Digger both harder to stop AND quicker to find its next victim
-  without a hop.
-- **`dig_hop_long_tiles`** / **`dig_hop_short_tiles`** (flat, default 3 / 1) —
-  the knight-hop's two legs (digger-hop-rework). The search hop is `(±long,
-  ±short)`/`(±short, ±long)` tiles, the chess-knight shape scaled by these two
-  numbers instead of the fixed 2+1 a real knight uses — a designer lever, not
-  a hardcoded constant.
-- **`emerge_cooldown`** (flat, seconds, default 2.4) — the minimum time it
-  must stand on the surface after ANY underground segment (strike or blind
-  hop alike) before its next move — see the `BurrowAgent` bullet above. `0`
-  restores the pre-cooldown behaviour exactly (the very next tick decides
-  immediately).
+- **`dig_range_tiles`** (flat, default 3, MANHATTAN not Chebyshev) — double
+  duty since Pass 5: the overground submerge-trigger distance to a
+  currently-claimed far target, AND the underground local-scan radius every
+  decision re-runs (`retarget`/`_arrived_in_range`) — the Digger always
+  prefers the FARTHEST unclaimed candidate within this radius over a closer
+  one. Raising it makes the Digger both harder to stop (untargetable for
+  longer, since duration scales with actual dig distance) and able to reach
+  farther without walking.
+- **`min_target_distance_tiles`** (flat, default 3, Chebyshev) — unrelated to
+  `dig_range_tiles`'s Manhattan scan: this is `_start_walk`'s own preference
+  for which distant structure/boost/economy building to WALK toward, once
+  nothing is in local range at all. Falls back to the plain nearest when
+  nothing on the board clears it.
+- **`emerge_cooldown`** (flat, seconds, default 2.5) — the minimum time it
+  stands on the surface after ANY dig (a strike, a no-strike dig, or a
+  reposition alike) before its next move — see the `BurrowAgent` bullet
+  above. It ALSO paces the periodic re-check while stood down with nothing
+  claimed. `0` restores the pre-cooldown behaviour exactly (the very next
+  tick decides immediately).
 - **`stats.dmg` per era IS the eruption hit**, not a per-swing melee value —
-  seeded 900/1400/2000/2700/3500 against `hp` 900/1300/1800/2400/3100.
+  `data/balancing/enemies.json` currently ships 900/9400/9000/9700/9500
+  against `hp` 900/200/300/400/550; retune freely.
   `attack_speed`/`attack_range_tiles` are decorative for this type (it never
   uses the cooldown-gated melee path at all), and `stats.move_speed` is inert.
 - Counts start at `start_round: 35` (era 3) and trickle: 1 at round 35, +1 per

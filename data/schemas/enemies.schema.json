@@ -761,7 +761,7 @@
         },
         "Digger": {
           "additionalProperties": false,
-          "description": "The Digger (NE-2). A burrower that walks visibly at a structure it has EXCLUSIVELY claimed (hunts: \"structure\" - no two live Diggers ever commit to the same building), submerges untargetable once within dig_range_tiles of it, travels underground, and erupts for one large hit before claiming the next one. It has NO attack outside digging and never halts to melee an incidental blocker en route (PathAgent.no_melee) - a 0-damage halt would soft-lock it forever. It does not kidnap. A NORMAL era-shaped type otherwise: hp and the eruption dmg come from its own eras rows through the same base resolver Standard/SiegeCannon use, and footprint/sprite_scale stay FLAT here (only the Boss carries them per-era, BR-1/D10).",
+          "description": "The Digger (NE-2). A burrower that walks visibly toward a structure it has EXCLUSIVELY claimed (hunts: \"structure\" - no two live Diggers ever commit to the same building), submerges untargetable once something is within Manhattan dig_range_tiles, and erupts EXACTLY on that tile for one large hit before re-targeting (digger-hop-rework Pass 5: submerge-and-emerge only, no hop shape). It has NO attack outside digging and never halts to melee an incidental blocker en route (PathAgent.no_melee) - a 0-damage halt would soft-lock it forever. It does not kidnap. A NORMAL era-shaped type otherwise: hp and the eruption dmg come from its own eras rows through the same base resolver Standard/SiegeCannon use, and footprint/sprite_scale stay FLAT here (only the Boss carries them per-era, BR-1/D10).",
           "properties": {
             "condition_path_weights": {
               "$ref": "#/$defs/condition_path_weights"
@@ -769,20 +769,8 @@
             "death_spawn": {
               "$ref": "#/$defs/death_spawn"
             },
-            "dig_hop_long_tiles": {
-              "description": "The long leg (Chebyshev tiles) of the Digger's underground search hop, once it has struck its first target and has nothing else in range: it hops a knight's-move of (dig_hop_long_tiles, dig_hop_short_tiles) tiles toward the nearest unclaimed structure, surfaces, and checks dig_range_tiles again. STARTING VALUE, tune in the editor.",
-              "maximum": 64,
-              "minimum": 1,
-              "type": "integer"
-            },
-            "dig_hop_short_tiles": {
-              "description": "The short leg (Chebyshev tiles) of the Digger's underground search hop - paired with dig_hop_long_tiles into a chess-knight-shaped offset. STARTING VALUE, tune in the editor.",
-              "maximum": 64,
-              "minimum": 1,
-              "type": "integer"
-            },
             "dig_range_tiles": {
-              "description": "How close (Chebyshev tiles, measured to the nearest tile of the target's block) the Digger gets before it submerges. It is untargetable from that moment until it erupts, so this is ALSO the size of the window defenders get to kill it: raising it makes the Digger much harder to stop. It doubles as the underground travel distance - the dig lasts dig_range_tiles / dig_speed seconds regardless of how far the target actually is. Reused after the first strike as the search-hop's in-range detection radius. STARTING VALUE, tune in the editor.",
+              "description": "How close (MANHATTAN tiles - |dcol| + |drow|, not Chebyshev) a structure must be before the Digger submerges to strike it; also the radius of the ongoing local scan every later decision re-runs, and the underground travel distance (the dig lasts the actual Manhattan tile distance to the destination / dig_speed seconds). Among several qualifying candidates the Digger always prefers the FARTHEST one within this radius, falling back to a closer one only when nothing farther qualifies. It is untargetable from the moment it submerges until it erupts, so this is ALSO the size of the window defenders get to kill it: raising it makes the Digger much harder to stop. STARTING VALUE, tune in the editor.",
               "maximum": 64,
               "minimum": 0,
               "type": "integer"
@@ -826,7 +814,7 @@
               "type": "boolean"
             },
             "min_target_distance_tiles": {
-              "description": "The minimum Chebyshev-tile distance the Digger prefers when choosing which structure to hunt (BurrowAgent.retarget). It falls back to the plain nearest unclaimed structure when nothing on the board clears this minimum. STARTING VALUE, tune in the editor.",
+              "description": "The minimum Chebyshev-tile distance the Digger prefers when picking which distant structure/boost/economy building to WALK toward (BurrowAgent._start_walk's pathfinding preference; unrelated to the Manhattan local-range scan dig_range_tiles drives). Falls back to the plain nearest unclaimed candidate when nothing on the board clears this minimum. STARTING VALUE, tune in the editor.",
               "maximum": 64,
               "minimum": 0,
               "type": "integer"
@@ -846,8 +834,6 @@
           "required": [
             "condition_path_weights",
             "death_spawn",
-            "dig_hop_long_tiles",
-            "dig_hop_short_tiles",
             "dig_range_tiles",
             "dig_speed",
             "endgame_scaling",

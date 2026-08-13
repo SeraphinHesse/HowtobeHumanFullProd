@@ -44,7 +44,7 @@ from game.enemies.components import (
 )
 from game.enemies.dirt_pile import DirtPileFade
 from game.enemies.enemy import ENEMY_CLASSES
-from game.map.tile_map import TileMap
+from game.map.tile_map import TileMap, WallEdge, _wall_key
 from game.map.tiles import TileState
 
 MAPBAL = load_balance(FIXTURE_DATA, "map")
@@ -1114,16 +1114,26 @@ DIG0 = era_stats("Digger")
 
 
 class TestDigger(unittest.TestCase):
-    """NE-2 — the burrow / claim / emerge machine.
+    """NE-2 — the burrow / claim / emerge machine (digger-hop-rework
+    Pass 5, the ground-up rewrite: no hop shape, no lattice, no
+    readjustment — just submerge straight to a destination tile and
+    emerge exactly there).
 
-    A ONE-ROW board throughout, deliberately: it makes "the route runs THROUGH
-    that tile" a fact of the board rather than a hope about the cost field,
-    which is exactly what the `no_melee` regression needs to mean anything.
+    Two board shapes, both usable for any test now (Manhattan targeting has
+    no "needs row room" constraint the old knight hop had):
+    * ``_board()`` — the original ONE-ROW board (cols 0..14 buildable, base
+      at 0, col 15 the spawn band).
+    * ``_board2d()`` — a wide 7-row board (rows 0..6, base at row 3), used
+      wherever a test wants an off-row placement.
+
     Every expectation is hand-computed from the pinned fixture's own JSON.
     """
 
     #: cols 0..14 buildable (base at 0), col 15 the spawn band.
     ROW = "b" * 15 + "s"
+    COLS2D = 40
+    ROWS2D = 7
+    BASE2D = (0, 3)
 
     def _board(self):
         tm = synth([self.ROW])
@@ -1132,8 +1142,16 @@ class TestDigger(unittest.TestCase):
                     scene, occ)
         return tm, scene, occ
 
-    def _digger(self, scene, tm, col):
-        dig = create_enemy("digger", col, 0, ENEM, tm, 0)
+    def _board2d(self):
+        rows = ["b" * self.COLS2D for _ in range(self.ROWS2D)]
+        tm = synth(rows, base=self.BASE2D)
+        scene, occ = Scene(), TileOccupancy()
+        attach_base(tm, BaseBuilding(tm.base_col, tm.base_row, CORE),
+                    scene, occ)
+        return tm, scene, occ
+
+    def _digger(self, scene, tm, col, row=0):
+        dig = create_enemy("digger", col, row, ENEM, tm, 0)
         dig._scene = scene          # what Spawner does at both spawn sites
         scene.spawn(dig)
         return dig
@@ -1143,7 +1161,7 @@ class TestDigger(unittest.TestCase):
         return (dig.get_component(BurrowAgent), dig.get_component(PathAgent),
                 dig.get_component(Movement))
 
-    def _run_until(self, scene, dig, predicate, dt=0.05, limit=2000):
+    def _run_until(self, scene, dig, predicate, dt=0.05, limit=4000):
         for _ in range(limit):
             scene.update(dt)
             if predicate():
@@ -1187,58 +1205,60 @@ class TestDigger(unittest.TestCase):
                 self.assertFalse(e.get_component(PathAgent).no_melee)
                 self.assertIsNone(e.get_component(BurrowAgent))
 
-    # -- the min-target-distance preference -----------------------------------
+    # -- the min-target-distance WALK preference ------------------------------
+    # (only applies to `_start_walk`'s pathfinding pick, never the local
+    # in-range scan -- both candidates below are placed OUTSIDE
+    # dig_range_tiles so the local scan cannot pre-empt the walk decision.)
 
-    def test_prefers_a_target_at_least_min_distance_away(self):
-        """Two claimable structures: one closer than
-        `min_target_distance_tiles`, one clearing it. The Digger must claim
-        the FARTHER one despite it not being the literal nearest."""
-        tm, scene, occ = self._board()
-        min_dist = DIGGER["min_target_distance_tiles"]
-        self.assertGreater(min_dist, 1)     # the fixture must exercise this
-        spawn_col = 12
-        near_col = spawn_col - (min_dist - 1)   # too close: excluded
-        far_col = spawn_col - (min_dist + 2)    # clears the minimum
-        place_building(tm, tm.get(near_col, 0), "blocker", 9999, BUILD, scene, occ)
-        place_building(tm, tm.get(far_col, 0), "blocker", 9999, BUILD, scene, occ)
-        dig = self._digger(scene, tm, spawn_col)
+    def test_prefers_a_walk_target_at_least_min_distance_away(self):
+        """Two claimable structures, both outside `dig_range_tiles`: one
+        closer than `min_target_distance_tiles`, one clearing it. The Digger
+        must WALK toward the FARTHER one despite it not being the literal
+        nearest."""
+        tm, scene, occ = self._board2d()
+        dig = self._digger(scene, tm, 30, 3)
         burrow, pa, _mv = self._parts(dig)
+        burrow.min_target_distance_tiles = 8
+        near_col, far_col, row = 26, 20, 3   # Manhattan distances 4 and 10
+        self.assertGreater(4, DIGGER["dig_range_tiles"])
+        place_building(tm, tm.get(near_col, row), "blocker", 9999, BUILD,
+                       scene, occ)
+        place_building(tm, tm.get(far_col, row), "blocker", 9999, BUILD,
+                       scene, occ)
         scene.update(0.0)
-        self.assertEqual(burrow.min_target_distance_tiles, min_dist)
-        self.assertEqual((pa.target_col, pa.target_row), (far_col, 0))
+        self.assertEqual((pa.target_col, pa.target_row), (far_col, row))
 
-    def test_falls_back_to_the_near_target_when_nothing_clears_the_minimum(self):
-        """No candidate clears `min_target_distance_tiles` -> claim the only
-        (near) one rather than standing down. The near column is also inside
-        `dig_range_tiles` at this fixture, so it may submerge on the very
-        first tick — that's correct, not a bug this test is checking; the
-        thing under test is the CLAIM, and that the Digger goes on to erupt
-        normally rather than getting stuck."""
-        tm, scene, occ = self._board()
-        min_dist = DIGGER["min_target_distance_tiles"]
-        spawn_col = 12
-        near_col = spawn_col - (min_dist - 1)
-        place_building(tm, tm.get(near_col, 0), "blocker", 9999, BUILD, scene, occ)
-        dig = self._digger(scene, tm, spawn_col)
+    def test_falls_back_to_the_near_walk_target_when_nothing_clears_the_minimum(self):
+        """No candidate clears `min_target_distance_tiles` -> walk toward the
+        only (near) one rather than standing down, and go on to erupt
+        normally once in range."""
+        tm, scene, occ = self._board2d()
+        dig = self._digger(scene, tm, 30, 3)
         burrow, pa, _mv = self._parts(dig)
+        burrow.min_target_distance_tiles = 8
+        near_col, row = 26, 3
+        near, _c = place_building(tm, tm.get(near_col, row), "blocker", 9999,
+                                  BUILD, scene, occ)
         scene.update(0.0)
-        self.assertEqual((pa.target_col, pa.target_row), (near_col, 0))
+        self.assertEqual((pa.target_col, pa.target_row), (near_col, row))
+        rs = near.get_component(RoundStats)
         self.assertTrue(self._run_until(
-            scene, dig, lambda: burrow.state == BURROW_EMERGE))
+            scene, dig, lambda: rs.dmg_taken_this_round > 0, limit=4000))
 
     # -- the state machine -------------------------------------------------
 
     def test_submerges_at_exactly_dig_range_tiles(self):
-        tm, scene, occ = self._board()
-        place_building(tm, tm.get(2, 0), "blocker", 9999, BUILD, scene, occ)
-        dig = self._digger(scene, tm, 12)
+        tm, scene, occ = self._board2d()
+        row = 3
+        place_building(tm, tm.get(2, row), "blocker", 9999, BUILD, scene, occ)
+        dig = self._digger(scene, tm, 20, row)
         burrow, pa, _mv = self._parts(dig)
         scene.update(0.0)                       # on_spawn takes the claim
-        self.assertEqual((pa.target_col, pa.target_row), (2, 0))
+        self.assertEqual((pa.target_col, pa.target_row), (2, row))
         self.assertEqual(burrow.state, BURROW_WALKING)
 
         dist_before = None
-        for _ in range(2000):
+        for _ in range(4000):
             dist_before = burrow.distance_to_target(dig, pa)
             scene.update(0.05)
             if burrow.state != BURROW_WALKING:
@@ -1247,23 +1267,29 @@ class TestDigger(unittest.TestCase):
         self.assertEqual(dist_before, DIGGER["dig_range_tiles"])
 
     def test_never_submerges_on_a_tile_a_building_occupies(self):
-        """A single-row board so the walk physically crosses the obstacle's
-        tile (the `no_melee` regression's own technique). An UNRELATED
-        `economic` building (not a "structure" hunt candidate) sits exactly
-        `dig_range_tiles` from the real target — the first column the submerge
-        trigger goes true. Absent the fix the Digger would submerge standing
-        on it; the fix must relocate it to the nearest CLEAR tile first (col 7,
-        the next tile toward the target — the ring search's first valid hit)."""
-        tm, scene, occ = self._board()
+        """The walk physically crosses the obstacle's tile (both spawn and
+        target sit on the same row, so the route runs straight through it —
+        the `no_melee` regression's own technique). An UNRELATED `economic`
+        building (not a "structure" hunt candidate) sits exactly
+        `dig_range_tiles` from the real target — the first column the
+        submerge trigger goes true. Absent the fix the Digger would submerge
+        standing on it; the fix must relocate it to the nearest CLEAR tile
+        first — some tile Chebyshev-adjacent to the obstacle (the ring
+        search's first valid hit; on a 2D board that need not be the
+        same-row neighbour any more, since the ring checks the other rows
+        first — `_nearest_clear_tile`'s own iteration order, not this test's
+        subject)."""
+        tm, scene, occ = self._board2d()
+        row = 3
         target_col = 2
-        place_building(tm, tm.get(target_col, 0), "blocker", 9999, BUILD,
+        place_building(tm, tm.get(target_col, row), "blocker", 9999, BUILD,
                        scene, occ)
-        dig = self._digger(scene, tm, 12)
+        dig = self._digger(scene, tm, 20, row)
         burrow, pa, _mv = self._parts(dig)
         scene.update(0.0)
-        self.assertEqual((pa.target_col, pa.target_row), (target_col, 0))
+        self.assertEqual((pa.target_col, pa.target_row), (target_col, row))
         obstacle_col = target_col + DIGGER["dig_range_tiles"]
-        place_building(tm, tm.get(obstacle_col, 0), "economic", 9999, BUILD,
+        place_building(tm, tm.get(obstacle_col, row), "economic", 9999, BUILD,
                        scene, occ)
 
         self.assertTrue(self._run_until(
@@ -1271,21 +1297,59 @@ class TestDigger(unittest.TestCase):
 
         sub_col = round(dig.transform.wx)
         sub_row = round(dig.transform.wy)
-        self.assertNotEqual(sub_col, obstacle_col)
+        self.assertNotEqual((sub_col, sub_row), (obstacle_col, row))
         self.assertIsNone(tm.get(sub_col, sub_row).occupant)
-        self.assertEqual((sub_col, sub_row), (obstacle_col - 1, 0))
-        self.assertAlmostEqual(burrow.start_wx, obstacle_col - 1)
-        self.assertAlmostEqual(burrow.start_wy, 0.0)
+        self.assertLessEqual(
+            max(abs(sub_col - obstacle_col), abs(sub_row - row)), 1)
+        self.assertAlmostEqual(burrow.start_wx, sub_col)
+        self.assertAlmostEqual(burrow.start_wy, sub_row)
+
+    def test_always_dives_back_in_from_where_it_just_emerged(self):
+        """Regression (live-playtest follow-up, "the hole sometimes gets
+        moved somewhere else"): a just-struck building's CORPSE stays on its
+        own tile as `tile.occupant` until payday revives it
+        (`game/buildings/CLAUDE.md`) — the Digger is standing exactly on
+        that tile after its strike-snap, so the relocate-off-an-occupied-
+        tile check must gate on the occupant being ALIVE, or the Digger
+        relocates off its own kill site on every subsequent dive instead of
+        digging back in exactly where it surfaced."""
+        tm, scene, occ = self._board2d()
+        t1, _c1 = place_building(tm, tm.get(10, 3), "blocker", 9999, BUILD,
+                                 scene, occ)
+        t2, _c2 = place_building(tm, tm.get(12, 3), "blocker", 9999, BUILD,
+                                 scene, occ)
+        dig = self._digger(scene, tm, 20, 3)
+        burrow, pa, _mv = self._parts(dig)
+        scene.update(0.0)
+
+        self.assertTrue(self._run_until(
+            scene, dig,
+            lambda: t1.get_component(RoundStats).dmg_taken_this_round > 0
+            or t2.get_component(RoundStats).dmg_taken_this_round > 0))
+        # Struck one of them and is standing exactly on its (now dead, but
+        # still-occupied) tile.
+        emerge_tile = (round(dig.transform.wx), round(dig.transform.wy))
+        occupant = tm.get(*emerge_tile).occupant
+        self.assertIsNotNone(occupant)
+        self.assertFalse(occupant.alive)
+
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_SUBMERGED))
+        # The NEXT dive starts from that exact tile -- no relocation just
+        # because a corpse still occupies it.
+        self.assertEqual((round(burrow.start_wx), round(burrow.start_wy)),
+                         emerge_tile)
 
     def test_untargetable_and_undamageable_while_submerged(self):
-        tm, scene, occ = self._board()
-        place_building(tm, tm.get(2, 0), "blocker", 9999, BUILD, scene, occ)
-        dig = self._digger(scene, tm, 12)
+        tm, scene, occ = self._board2d()
+        row = 3
+        place_building(tm, tm.get(2, row), "blocker", 9999, BUILD, scene, occ)
+        dig = self._digger(scene, tm, 20, row)
         burrow, _pa, _mv = self._parts(dig)
         scene.update(0.0)
         # Placed AFTER the claim so it cannot steal the target; it sits inside
         # the stretch the Digger travels, so a targetable Digger WOULD be shot.
-        place_building(tm, tm.get(6, 0), "defence", 9999, BUILD, scene, occ)
+        place_building(tm, tm.get(10, row), "defence", 9999, BUILD, scene, occ)
         self.assertTrue(self._run_until(
             scene, dig, lambda: burrow.state == BURROW_SUBMERGED))
 
@@ -1303,80 +1367,72 @@ class TestDigger(unittest.TestCase):
         self.assertEqual(dig.get_component(Health).hp, hp0)
 
     def test_emerges_on_the_target_and_deals_one_dmg_hit(self):
-        tm, scene, occ = self._board()
-        blocker, _c = place_building(tm, tm.get(2, 0), "blocker", 9999,
+        tm, scene, occ = self._board2d()
+        row = 3
+        blocker, _c = place_building(tm, tm.get(2, row), "blocker", 9999,
                                      BUILD, scene, occ)
-        dig = self._digger(scene, tm, 12)
-        burrow, _pa, _mv = self._parts(dig)
+        dig = self._digger(scene, tm, 20, row)
+        burrow, pa, _mv = self._parts(dig)
         scene.update(0.0)
-        self.assertTrue(self._run_until(
-            scene, dig, lambda: burrow.state == BURROW_EMERGE))
-
         rs = blocker.get_component(RoundStats)
+        self.assertTrue(self._run_until(scene, dig, lambda: rs.dmg_taken_this_round > 0))
+
         self.assertEqual(rs.dmg_taken_this_round, DIG0["dmg"])
         self.assertEqual(blocker.get_component(Health).hp,
                          max(0, blocker.get_component(Health).max_hp
                              - DIG0["dmg"]))
         # Snapped onto the target's tile, visible and targetable again.
         self.assertAlmostEqual(dig.transform.wx, 2.0)
-        self.assertAlmostEqual(dig.transform.wy, 0.0)
+        self.assertAlmostEqual(dig.transform.wy, float(row))
         self.assertTrue(dig.targetable)
         self.assertFalse(dig.get_component(PathAgent).frozen)
         # Exactly ONE hit — the eruption, not a melee clock.
+        taken = rs.dmg_taken_this_round
         scene.update(0.05)
-        self.assertEqual(rs.dmg_taken_this_round, DIG0["dmg"])
+        self.assertEqual(rs.dmg_taken_this_round, taken)
 
-    def test_interrupted_dig_emerges_at_once_deals_nothing_and_retargets(self):
-        """D5 — the target dies to something else mid-dig. The Digger's NEXT
-        move (after standing for `emerge_cooldown`, per the player-feedback
-        rework) commits to the only survivor and dives straight back down —
-        it never walks overground again; `BURROW_WALKING` is spawn-only from
-        here on."""
-        tm, scene, occ = self._board()
-        blocker, _c = place_building(tm, tm.get(2, 0), "blocker", 9999,
+    def test_target_dying_mid_dig_still_completes_the_dig_but_deals_nothing(self):
+        """No mid-dig interrupt any more (Pass 5 simplification): the Digger
+        runs the FULL `dig_duration` regardless of what happens to its
+        target meanwhile, and simply finds no occupant on its destination
+        tile when it gets there — dealing no damage, but still surfacing
+        exactly on schedule and re-targeting normally afterward (the "stay
+        committed... but reapproach if the building got destroyed" rule)."""
+        tm, scene, occ = self._board2d()
+        row = 3
+        blocker, _c = place_building(tm, tm.get(18, row), "blocker", 9999,
                                      BUILD, scene, occ)
-        dig = self._digger(scene, tm, 12)
+        other, _c2 = place_building(tm, tm.get(30, row), "blocker", 9999,
+                                    BUILD, scene, occ)
+        dig = self._digger(scene, tm, 20, row)
         burrow, pa, mv = self._parts(dig)
         scene.update(0.0)
-        self.assertEqual((pa.target_col, pa.target_row), (2, 0))
-        # Placed AFTER the claim: it is the ONLY thing left to re-target to
-        # once the committed victim dies (col 14 is nearer to the spawn than
-        # col 2, so placing it first would simply have been claimed instead).
-        other, _c2 = place_building(tm, tm.get(14, 0), "blocker", 9999,
-                                    BUILD, scene, occ)
-        self.assertTrue(self._run_until(
-            scene, dig, lambda: burrow.state == BURROW_SUBMERGED))
+        self.assertEqual((pa.target_col, pa.target_row), (18, row))
+        self.assertEqual(burrow.state, BURROW_SUBMERGED)   # in range at spawn
 
-        timer_left = burrow.dig_timer
-        self.assertGreater(timer_left, 0.0)     # genuinely mid-dig
-        where = (dig.transform.wx, dig.transform.wy)
         blocker.get_component(Health).hp = 0    # killed by "something else"
         taken = blocker.get_component(RoundStats).dmg_taken_this_round
 
-        scene.update(0.05)
-        self.assertEqual(burrow.state, BURROW_EMERGE)          # immediately
-        self.assertLess(burrow.dig_timer, timer_left)
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_EMERGE))
         self.assertEqual(blocker.get_component(RoundStats).dmg_taken_this_round,
                          taken)                                # NO damage
-        self.assertNotAlmostEqual(dig.transform.wx, 2.0)       # where it was
-        self.assertAlmostEqual(dig.transform.wx, where[0])
+        self.assertAlmostEqual(dig.transform.wx, 18.0)         # still lands there
+        self.assertAlmostEqual(dig.transform.wy, float(row))
         self.assertTrue(dig.targetable)
         self.assertGreater(burrow.cooldown_remaining, 0.0)
+        self.assertEqual((pa.target_col, pa.target_row), (-1, -1))  # cleared
 
-        # It stands — no instant, silent re-path (the whole bug this fixes).
+        # It stands the full cooldown, then re-targets the only survivor.
         for _ in range(int(burrow.emerge_cooldown / 0.05) - 1):
             scene.update(0.05)
             self.assertEqual(burrow.state, BURROW_EMERGE)
-        # Once the stand drains it commits and dives — never BURROW_WALKING.
         self.assertTrue(self._run_until(
-            scene, dig, lambda: pa.target_col == 14, limit=200))
-        self.assertNotEqual(burrow.state, BURROW_WALKING)
-        self.assertEqual(mv.waypoints, [])
+            scene, dig, lambda: pa.target_col == 30, limit=400))
 
+        rs2 = other.get_component(RoundStats)
         self.assertTrue(self._run_until(
-            scene, dig,
-            lambda: other.get_component(RoundStats).dmg_taken_this_round > 0,
-            limit=200))
+            scene, dig, lambda: rs2.dmg_taken_this_round > 0, limit=4000))
         self.assertEqual(blocker.get_component(RoundStats).dmg_taken_this_round,
                          taken)                                 # still untouched
 
@@ -1385,29 +1441,32 @@ class TestDigger(unittest.TestCase):
         the hole (the base fallback inside the hunt query must not leak).
         Standing down still goes through the post-stand decision, same as
         any other re-target — it just finds nothing."""
-        tm, scene, occ = self._board()
-        blocker, _c = place_building(tm, tm.get(2, 0), "blocker", 9999,
+        tm, scene, occ = self._board2d()
+        row = 3
+        blocker, _c = place_building(tm, tm.get(2, row), "blocker", 9999,
                                      BUILD, scene, occ)
-        dig = self._digger(scene, tm, 10)
+        dig = self._digger(scene, tm, 12, row)
         burrow, pa, mv = self._parts(dig)
         scene.update(0.0)
         self.assertTrue(self._run_until(
             scene, dig, lambda: burrow.state == BURROW_SUBMERGED))
         blocker.get_component(Health).hp = 0
-        scene.update(0.05)                      # EMERGE
         self.assertTrue(self._run_until(
-            scene, dig, lambda: burrow.state == BURROW_WALKING, limit=200))
+            scene, dig, lambda: burrow.state == BURROW_WALKING and pa.target_col < 0,
+            limit=400))
 
         self.assertEqual((pa.target_col, pa.target_row), (-1, -1))
         self.assertEqual(mv.waypoints, [])
         self.assertFalse(pa.goal_is_base)
-        base_hp = tm.get(0, 0).occupant.get_component(Health).hp
+        base_hp = tm.get(tm.base_col, tm.base_row).occupant.get_component(
+            Health).hp
         for _ in range(200):
             scene.update(0.05)
             resolve_combat(scene, tm, 0.05, BUILD, VFX)
         self.assertFalse(pa.reached_base)
-        self.assertEqual(tm.get(0, 0).occupant.get_component(Health).hp,
-                         base_hp)
+        self.assertEqual(
+            tm.get(tm.base_col, tm.base_row).occupant.get_component(Health).hp,
+            base_hp)
 
     # -- the exclusive claim ------------------------------------------------
 
@@ -1424,10 +1483,15 @@ class TestDigger(unittest.TestCase):
         self.assertEqual(sorted(claims), [(2, 0), (4, 0)])
 
     def test_a_third_digger_with_only_two_buildings_stands_down(self):
+        # Spawned well outside dig_range_tiles of either blocker (unlike the
+        # two claim-only tests above) so `scene.update(0.0)` — which runs
+        # on_spawn AND this frame's BurrowAgent tick — cannot ALSO trigger a
+        # first knight hop; that needs 2D room this one-row board has none
+        # of, and this test's subject is the CLAIM, not the hop.
         tm, scene, occ = self._board()
         place_building(tm, tm.get(2, 0), "blocker", 9999, BUILD, scene, occ)
         place_building(tm, tm.get(4, 0), "blocker", 9999, BUILD, scene, occ)
-        diggers = [self._digger(scene, tm, 10 + i) for i in range(3)]
+        diggers = [self._digger(scene, tm, 13 + i) for i in range(3)]
         scene.update(0.0)
 
         claims = [(d.get_component(PathAgent).target_col,
@@ -1470,19 +1534,21 @@ class TestDigger(unittest.TestCase):
     def test_never_halts_on_an_unrelated_building_en_route(self):
         """The soft-lock regression: a Digger routed straight THROUGH a
         non-structure building must walk on past it, dealing it nothing."""
-        tm, scene, occ = self._board()
-        place_building(tm, tm.get(2, 0), "blocker", 9999, BUILD, scene, occ)
-        bystander, _c = place_building(tm, tm.get(10, 0), "economic", 9999,
+        tm, scene, occ = self._board2d()
+        row = 3
+        place_building(tm, tm.get(2, row), "blocker", 9999, BUILD, scene, occ)
+        bystander, _c = place_building(tm, tm.get(10, row), "economic", 9999,
                                        BUILD, scene, occ)
-        dig = self._digger(scene, tm, 14)
+        dig = self._digger(scene, tm, 14, row)
         burrow, pa, _mv = self._parts(dig)
         scene.update(0.0)
-        self.assertEqual((pa.target_col, pa.target_row), (2, 0))
-        # One row: the route physically runs over the bystander's tile.
-        self.assertIn([10.0, 0.0], dig.get_component(Movement).waypoints)
+        self.assertEqual((pa.target_col, pa.target_row), (2, row))
+        # Same row throughout: the route physically runs over the
+        # bystander's tile.
+        self.assertIn([10.0, float(row)], dig.get_component(Movement).waypoints)
 
         ever_blocked = False
-        for _ in range(2000):
+        for _ in range(4000):
             scene.update(0.05)
             ever_blocked = ever_blocked or pa.blocked
             if burrow.state == BURROW_SUBMERGED:
@@ -1510,9 +1576,10 @@ class TestDigger(unittest.TestCase):
     # -- the dirt pile -------------------------------------------------------
 
     def test_submerging_drops_a_dirt_pile_decal_no_gameplay_query_can_see(self):
-        tm, scene, occ = self._board()
-        place_building(tm, tm.get(2, 0), "blocker", 9999, BUILD, scene, occ)
-        dig = self._digger(scene, tm, 12)
+        tm, scene, occ = self._board2d()
+        row = 3
+        place_building(tm, tm.get(2, row), "blocker", 9999, BUILD, scene, occ)
+        dig = self._digger(scene, tm, 20, row)
         burrow, _pa, _mv = self._parts(dig)
         scene.update(0.0)
         self.assertTrue(self._run_until(
@@ -1539,9 +1606,10 @@ class TestDigger(unittest.TestCase):
     # -- visibility while submerged ------------------------------------------
 
     def test_hidden_while_submerged_visible_otherwise(self):
-        tm, scene, occ = self._board()
-        place_building(tm, tm.get(2, 0), "blocker", 9999, BUILD, scene, occ)
-        dig = self._digger(scene, tm, 12)
+        tm, scene, occ = self._board2d()
+        row = 3
+        place_building(tm, tm.get(2, row), "blocker", 9999, BUILD, scene, occ)
+        dig = self._digger(scene, tm, 20, row)
         burrow, _pa, _mv = self._parts(dig)
         anim = dig.get_component(SpriteAnimator)
         scene.update(0.0)
@@ -1561,42 +1629,32 @@ class TestDigger(unittest.TestCase):
 
     # -- the emerge cooldown --------------------------------------------------
 
-    def test_emerge_cooldown_delays_resubmerging_at_a_new_in_range_target(self):
-        """The Digger (spawned at col 12) claims the NEARER building first -
-        col 6, not col 2 - which dies to the eruption (500 hp vs 900 dmg at
-        this fixture). The survivor at col 2 is already within
-        `dig_range_tiles` of where it now stands (|6-2|=4 <= 6) — it must
-        NOT dive back down the instant it strikes; `emerge_cooldown` holds
-        the stand for real time first (the player-feedback fix: it always
-        stands before its next move, never an instant silent re-dive), and
-        when it does dive it commits and goes straight back down — it never
-        walks there overground."""
-        tm, scene, occ = self._board()
-        far_building, _c = place_building(tm, tm.get(2, 0), "blocker", 9999,
-                                          BUILD, scene, occ)
-        near_building, _c2 = place_building(tm, tm.get(6, 0), "blocker", 9999,
-                                            BUILD, scene, occ)
-        dig = self._digger(scene, tm, 12)
+    def test_emerge_cooldown_delays_resubmerging_after_a_strike(self):
+        """The Digger stands for the FULL `emerge_cooldown` after a strike —
+        it never instantly re-acts the moment it could."""
+        tm, scene, occ = self._board2d()
+        row = 3
+        target, _c = place_building(tm, tm.get(18, row), "blocker", 9999,
+                                    BUILD, scene, occ)
+        dig = self._digger(scene, tm, 20, row)
         burrow, pa, mv = self._parts(dig)
         self.assertEqual(burrow.emerge_cooldown, DIGGER["emerge_cooldown"])
         self.assertGreater(burrow.emerge_cooldown, 0.0)
         scene.update(0.0)
-        self.assertEqual((pa.target_col, pa.target_row), (6, 0))   # nearer
+        self.assertEqual((pa.target_col, pa.target_row), (18, row))
+        rs = target.get_component(RoundStats)
         self.assertTrue(self._run_until(
-            scene, dig, lambda: burrow.state == BURROW_EMERGE))
-        self.assertLessEqual(near_building.get_component(Health).hp, 0)
+            scene, dig, lambda: rs.dmg_taken_this_round > 0, limit=1000))
+        self.assertEqual(burrow.state, BURROW_EMERGE)
         self.assertGreater(burrow.cooldown_remaining, 0.0)
 
-        # It stands — never dives while cooldown_remaining is still
-        # draining, even though the survivor is already within range.
+        # It stands — never acts while cooldown_remaining is still draining.
         for _ in range(int(burrow.emerge_cooldown / 0.05) - 1):
             scene.update(0.05)
             self.assertEqual(burrow.state, BURROW_EMERGE)
         self.assertTrue(self._run_until(
-            scene, dig, lambda: burrow.state == BURROW_SUBMERGED, limit=5))
-        self.assertEqual((pa.target_col, pa.target_row), (2, 0))
-        self.assertGreater(far_building.get_component(Health).hp, 0)
-        self.assertEqual(mv.waypoints, [])   # never walked — dove straight down
+            scene, dig, lambda: burrow.state != BURROW_EMERGE, limit=5))
+        self.assertEqual(mv.waypoints, [])
 
     def test_emerge_cooldown_zero_is_a_noop(self):
         """Every OTHER type's BurrowAgent-less path is untouched, and a
@@ -1606,84 +1664,192 @@ class TestDigger(unittest.TestCase):
         self.assertEqual(burrow.emerge_cooldown, 0.0)
         self.assertEqual(burrow.cooldown_remaining, 0.0)
 
-    # -- the knight-hop search -------------------------------------------------
+    # -- range targeting: farthest-in-range wins, Manhattan metric -----------
 
-    def test_search_hop_lands_on_the_knight_offset_closest_to_the_target(self):
-        """After its first strike, with nothing left within `dig_range_tiles`,
-        the Digger dives a knight's-move (`dig_hop_long_tiles`/
-        `_short_tiles`) toward the nearest remaining unclaimed structure —
-        whichever of the (up to) 8 sign/axis offsets lands closest to it —
-        deals NO damage on that hop, and surfaces to stand again before its
-        next move. A 7-row board (needed for a row-offset hop; this class's
-        usual one-row board can never fit one — see the stand-down test
-        below for that edge)."""
-        rows = ["b" * 40 for _ in range(7)]
-        tm = synth(rows, base=(0, 3))
-        scene, occ = Scene(), TileOccupancy()
-        attach_base(tm, BaseBuilding(tm.base_col, tm.base_row, CORE),
-                    scene, occ)
-        near, _c = place_building(tm, tm.get(10, 3), "blocker", 9999,
+    def test_farthest_in_range_prefers_a_farther_candidate_over_a_closer_one(self):
+        """`_farthest_in_range` in isolation: "Diggers always focus buildings
+        that are in high range rather than close range" (user decision) —
+        among several candidates within `dig_range_tiles`, the one at the
+        GREATEST Manhattan distance wins."""
+        tm, scene, occ = self._board2d()
+        dig = self._digger(scene, tm, 20, 3)
+        burrow, _pa, _mv = self._parts(dig)
+        scene.update(0.0)
+        near, far = (19, 3), (17, 3)     # Manhattan distances 1 and 3
+        self.assertEqual(
+            burrow._farthest_in_range(dig, {near, far}), far)
+        self.assertEqual(
+            burrow._farthest_in_range(dig, {near}), near)   # falls back
+
+    def test_farthest_in_range_uses_manhattan_not_chebyshev_distance(self):
+        """An offset of (3, 3) is Manhattan distance 6 (out of the default
+        3-tile range) but Chebyshev distance 3 (which WOULD be in range
+        under that metric) — proving the check is really Manhattan, not
+        Chebyshev, per the user's own "following the manhattan pattern"
+        spec. (2, 1), Manhattan 3, is correctly in range either way."""
+        tm, scene, occ = self._board2d()
+        dig = self._digger(scene, tm, 10, 3)
+        burrow, _pa, _mv = self._parts(dig)
+        scene.update(0.0)
+        self.assertIsNone(burrow._farthest_in_range(dig, {(13, 6)}))
+        self.assertEqual(burrow._farthest_in_range(dig, {(12, 4)}), (12, 4))
+
+    def test_prefers_the_farthest_structure_within_range_end_to_end(self):
+        tm, scene, occ = self._board2d()
+        row = 3
+        near, _c1 = place_building(tm, tm.get(19, row), "blocker", 9999,
+                                   BUILD, scene, occ)
+        far, _c2 = place_building(tm, tm.get(17, row), "blocker", 9999,
                                   BUILD, scene, occ)
-        dig = create_enemy("digger", 20, 3, ENEM, tm, 0)
-        dig._scene = scene
-        scene.spawn(dig)
+        dig = self._digger(scene, tm, 20, row)
+        burrow, pa, _mv = self._parts(dig)
+        scene.update(0.0)
+        self.assertEqual((pa.target_col, pa.target_row), (17, row))
+        rs = far.get_component(RoundStats)
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: rs.dmg_taken_this_round > 0))
+        self.assertEqual(near.get_component(RoundStats).dmg_taken_this_round, 0)
+
+    def test_arrived_in_range_prefers_a_farther_building_over_the_walk_target(self):
+        """`_arrived_in_range` re-scans locally rather than blindly
+        committing to the target it was walking toward — a farther in-range
+        building wins instead, discovered only once arrival brought it into
+        range too."""
+        tm, scene, occ = self._board2d()
+        row = 3
+        walk_target, _c = place_building(tm, tm.get(15, row), "blocker",
+                                         9999, BUILD, scene, occ)
+        farther, _c2 = place_building(tm, tm.get(12, row), "blocker", 9999,
+                                      BUILD, scene, occ)
+        dig = self._digger(scene, tm, 30, row)
         burrow, pa, mv = self._parts(dig)
         scene.update(0.0)
-        self.assertEqual((pa.target_col, pa.target_row), (10, 3))
+        pa.target_col, pa.target_row = 15, row     # pretend it was walking here
+        dig.transform.wx, dig.transform.wy = 15.0, float(row)
+        burrow._arrived_in_range(dig, pa, mv, tm)
+        self.assertEqual((pa.target_col, pa.target_row), (12, row))
+        self.assertEqual((burrow.dest_col, burrow.dest_row), (12, row))
+
+    # -- submerge/emerge mechanics (no hop shape, no travel animation) -------
+
+    def test_dig_duration_is_manhattan_distance_over_dig_speed(self):
+        tm, scene, occ = self._board2d()
+        dig = self._digger(scene, tm, 10, 3)
+        burrow, pa, mv = self._parts(dig)
+        scene.update(0.0)
+        burrow._submerge(dig, pa, mv, tm, 13, 5)   # manhattan = 3 + 2 = 5
+        self.assertAlmostEqual(burrow.dig_duration, 5.0 / burrow.dig_speed)
+        self.assertAlmostEqual(burrow.dig_timer, burrow.dig_duration)
+
+    def test_position_does_not_move_while_submerged_only_snaps_on_emerge(self):
+        """"The digger can only submerge and emerge" (user decision) — no
+        underground travel animation at all; the body stays put until the
+        dig completes, then snaps straight to the destination."""
+        tm, scene, occ = self._board2d()
+        dig = self._digger(scene, tm, 10, 3)
+        burrow, pa, mv = self._parts(dig)
+        scene.update(0.0)
+        burrow._submerge(dig, pa, mv, tm, 13, 5)
+        start = (dig.transform.wx, dig.transform.wy)
+        scene.update(burrow.dig_duration / 2)
+        self.assertAlmostEqual(dig.transform.wx, start[0])
+        self.assertAlmostEqual(dig.transform.wy, start[1])
         self.assertTrue(self._run_until(
             scene, dig, lambda: burrow.state == BURROW_EMERGE))
-        self.assertLessEqual(near.get_component(Health).hp, 0)
-        self.assertAlmostEqual(dig.transform.wx, 10.0)
-        self.assertAlmostEqual(dig.transform.wy, 3.0)
-
-        # Placed only NOW — it cannot have influenced the first claim — well
-        # outside dig_range_tiles(6) of (10, 3): Chebyshev distance 20.
-        far, _c2 = place_building(tm, tm.get(30, 5), "blocker", 9999,
-                                  BUILD, scene, occ)
-        far_taken = far.get_component(RoundStats).dmg_taken_this_round
-
-        self.assertTrue(self._run_until(
-            scene, dig, lambda: burrow.state == BURROW_SUBMERGED, limit=200))
-        self.assertEqual((pa.target_col, pa.target_row), (-1, -1))  # blind hop
-        # Exactly the knight offset closest to (30, 5) from (10, 3): (+3, +1)
-        # — hand-computed, the unique minimum among all 8 candidates.
-        self.assertEqual((burrow.dest_col, burrow.dest_row), (13, 4))
-        self.assertAlmostEqual(burrow.dig_duration,
-                               burrow.dig_hop_long_tiles / burrow.dig_speed)
-        self.assertEqual(mv.waypoints, [])
-
-        self.assertTrue(self._run_until(
-            scene, dig, lambda: burrow.state == BURROW_EMERGE, limit=200))
         self.assertAlmostEqual(dig.transform.wx, 13.0)
-        self.assertAlmostEqual(dig.transform.wy, 4.0)
-        self.assertEqual(far.get_component(RoundStats).dmg_taken_this_round,
-                         far_taken)                       # the hop dealt nothing
-        self.assertTrue(dig.get_component(SpriteAnimator).visible)  # standing
+        self.assertAlmostEqual(dig.transform.wy, 5.0)
 
-    def test_stands_down_when_every_knight_hop_falls_off_a_one_row_board(self):
-        """On this class's usual ONE-ROW board every knight offset needs a
-        row shift that does not exist — so once the only claimed target is
-        struck and a second, out-of-range structure is the sole survivor,
-        the Digger cannot hop toward it at all and stands down exactly like
-        the no-candidates-left case."""
-        tm, scene, occ = self._board()
-        near, _c = place_building(tm, tm.get(10, 0), "blocker", 9999,
-                                  BUILD, scene, occ)
-        dig = self._digger(scene, tm, 12)
+    def test_reposition_never_returns_the_same_tile(self):
+        tm, scene, occ = self._board2d()
+        dig = self._digger(scene, tm, 10, 3)
+        burrow, _pa, _mv = self._parts(dig)
+        scene.update(0.0)
+        c, r = burrow._nearest_clear_tile(tm, 10, 3, skip_self=True)
+        self.assertNotEqual((c, r), (10, 3))
+        self.assertLessEqual(max(abs(c - 10), abs(r - 3)), 1)
+
+    # -- the blocked-path reposition fallback ---------------------------------
+
+    def test_reposition_when_no_route_exists_to_any_candidate(self):
+        """User decision: "if the digger cannot walk into range... because
+        buildings block the path, the digger submerges and emerges on a
+        free tile to restart the pathfinding." A full-height wall sealing
+        the ONLY structure off (no route around it anywhere on the board)
+        triggers a submerge-and-resurface reposition instead of walking
+        through or around it."""
+        tm, scene, occ = self._board2d()
+        row = 3
+        target, _c = place_building(tm, tm.get(5, row), "blocker", 9999,
+                                    BUILD, scene, occ)
+        for r in range(self.ROWS2D):
+            tm.wall_edges[_wall_key(10, r, 11, r)] = WallEdge(
+                10, r, 11, r, 999999, 999999, object())
+        dig = self._digger(scene, tm, 20, row)
         burrow, pa, mv = self._parts(dig)
         scene.update(0.0)
-        self.assertEqual((pa.target_col, pa.target_row), (10, 0))
+        self.assertEqual((pa.target_col, pa.target_row), (-1, -1))
+        self.assertEqual(burrow.state, BURROW_SUBMERGED)
+        self.assertEqual(mv.waypoints, [])
         self.assertTrue(self._run_until(
             scene, dig, lambda: burrow.state == BURROW_EMERGE))
-        # Placed only NOW, at Chebyshev distance 9 (> dig_range_tiles 6).
-        far, _c2 = place_building(tm, tm.get(1, 0), "blocker", 9999,
-                                  BUILD, scene, occ)
+        self.assertLessEqual(
+            max(abs(dig.transform.wx - 20), abs(dig.transform.wy - row)), 1)
+        self.assertGreater(target.get_component(Health).hp, 0)   # never reached
+        self.assertEqual(mv.waypoints, [])   # never actually walked
 
-        self.assertTrue(self._run_until(
-            scene, dig, lambda: burrow.state == BURROW_WALKING, limit=200))
+    # -- standing down re-checks instead of giving up forever -----------------
+
+    def test_stood_down_digger_claims_a_building_placed_later(self):
+        """digger-hop-rework: a Digger that stood down with nothing to claim
+        keeps periodically re-checking (`_tick_walking`'s stood-down branch,
+        reusing `emerge_cooldown` as the recheck cadence) rather than giving
+        up forever — placing a structure AFTER it has already stood down
+        must still eventually get claimed and struck."""
+        tm, scene, occ = self._board2d()
+        row = 3
+        dig = self._digger(scene, tm, 20, row)
+        burrow, pa, mv = self._parts(dig)
+        scene.update(0.0)
         self.assertEqual((pa.target_col, pa.target_row), (-1, -1))
-        self.assertEqual(mv.waypoints, [])
-        self.assertGreater(far.get_component(Health).hp, 0)   # never reached
+        self.assertEqual(burrow.state, BURROW_WALKING)
+
+        late, _c = place_building(tm, tm.get(2, row), "blocker", 9999,
+                                  BUILD, scene, occ)
+        rs = late.get_component(RoundStats)
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: rs.dmg_taken_this_round > 0, limit=4000))
+
+    def test_widens_to_economy_buildings_when_no_structure_exists(self):
+        """user decision: "if there are 0 structure buildings on the map
+        left for the Digger to focus he focuses boost and economy buildings
+        instead" — with no Blocker/Wall Builder/Defender/etc. anywhere, it
+        must not stand idle while an economy building stands unclaimed."""
+        tm, scene, occ = self._board2d()
+        row = 3
+        economic, _c = place_building(tm, tm.get(2, row), "economic", 9999,
+                                      BUILD, scene, occ)
+        dig = self._digger(scene, tm, 20, row)
+        burrow, pa, _mv = self._parts(dig)
+        scene.update(0.0)
+        self.assertEqual((pa.target_col, pa.target_row), (2, row))
+        rs = economic.get_component(RoundStats)
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: rs.dmg_taken_this_round > 0, limit=4000))
+
+    def test_widens_to_boost_buildings_too_when_no_structure_or_economy_exists(self):
+        """Same widened hunt, exercised with a BOOST building (not just
+        economy) to pin the full `_BOOST_ECONOMY_BUILDING_TYPES` union."""
+        tm, scene, occ = self._board2d()
+        row = 3
+        boost, _c = place_building(tm, tm.get(2, row), "boost_damage", 9999,
+                                   BUILD, scene, occ)
+        dig = self._digger(scene, tm, 20, row)
+        burrow, pa, _mv = self._parts(dig)
+        scene.update(0.0)
+        self.assertEqual((pa.target_col, pa.target_row), (2, row))
+        rs = boost.get_component(RoundStats)
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: rs.dmg_taken_this_round > 0, limit=4000))
 
     # -- composition ---------------------------------------------------------
 
