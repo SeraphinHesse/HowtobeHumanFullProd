@@ -149,7 +149,7 @@ prototype-exact animation semantics for nothing.
 |---|---|---|---|---|
 | S1 | Column core — data + engine | C1, C2, C3 | — | **LANDED** (`section-S1`) |
 | S2 | Editor surfaces | E1, E2, E3, E4, E5 | S1 | not started |
-| S3 | Building colour | B1, B2, B3 | S1 | **BLOCKED** — briefs only (`section-S3`), no phase code; see `docs/handoffs/section-S3.md` |
+| S3 | Building colour | B1, B2, B3 | S1 | in progress (`section-S3`) — B1 landed |
 | S4 | Seasons | N1, N2 | S1 | not started |
 
 **Waves:** wave 1 = S1. Wave 2 = S2 + S3 + S4, concurrently — they share no
@@ -612,15 +612,14 @@ upgrade panel.
 
 | Phase | Scope (package) | Status |
 |---|---|---|
-| B1 | game | *(NOT STARTED — blocked)* brief `docs/briefs/phase-B1-colour-state.md`; branch `phase-B1-colour-state` cut, no coder commit |
-| B2 | game | *(NOT STARTED — blocked on B1)* brief `docs/briefs/phase-B2-construct-swatches.md` |
-| B3 | game + data | *(NOT STARTED — blocked on B2)* brief `docs/briefs/phase-B3-upgrade-swatches.md` |
+| B1 | game | *(LANDED)* `phase-B1-colour-state` @ `bf53459` |
+| B2 | game | in progress — brief `docs/briefs/phase-B2-construct-swatches.md` |
+| B3 | game + data | not started — brief `docs/briefs/phase-B3-upgrade-swatches.md` |
 
-**Section S3 status.** Wave 1 (briefs) is COMPLETE and committed; no phase code
-landed. The reconciled cross-phase interface — `place_building`'s final
-signature, the `colour_columns` capability map, B2's `ColorSwatchRow` helper and
-B3's `BuildingColors` schema shape — is recorded in `docs/handoffs/section-S3.md`
-and should be treated as settled input by whoever re-runs this section.
+**Section S3 note.** The reconciled cross-phase interface — `place_building`'s
+final signature (`state=None, colour_columns=None, rng=None, column=None`), the
+host-derived `colour_columns` capability map, B2's `ColorSwatchRow` helper and
+B3's `BuildingColors` schema shape — is recorded in `docs/handoffs/section-S3.md`.
 
 #### Phase B1 — Colour state, the roll, and the render
 
