@@ -344,7 +344,7 @@ def resolve_sheet_id(data_dir, png_path, name):
 
 
 def import_master_sheet(data_dir, png_path, display_name, frame_w, frame_h,
-                        column_width, columns=()):
+                        column_width, columns=(), sheet_id=None):
     """Copy `png_path` -> ``<data_dir>/sprites/master/<sheet_id>.png`` and
     write its registry entry. Returns the new/reused sheet id.
 
@@ -376,14 +376,35 @@ def import_master_sheet(data_dir, png_path, display_name, frame_w, frame_h,
     ``frame_w``/``frame_h``/``column_width`` raises ``GridInUseError`` instead,
     naming the slots to fix first (M4 §2.1, D10). The refusal happens BEFORE
     the PNG copy and before the registry write, so a refused import leaves disk
-    byte-identical."""
+    byte-identical.
+
+    `sheet_id` IS THE "REPLACE **THIS** SHEET'S ART" PATH (MasterSheetColumnsPLAN
+    E5), and it is the ONE thing that changes which entry gets written. Left
+    `None` — every caller before E5, and the picker dialog still — behaviour is
+    byte-for-byte what it always was: the id comes from ``resolve_sheet_id``,
+    whose never-overwrite rule mints ``<slug>_2`` the moment genuinely different
+    art arrives under a taken slug, because an anonymous "import a PNG" flow
+    must never silently re-point slots that already cut ``master/<slug>.png``.
+
+    GIVEN, the id is used VERBATIM and ``resolve_sheet_id`` is skipped entirely.
+    That is safe HERE and only here because the caller is not guessing: the
+    designer picked that exact registered sheet in the Master Sheets panel and
+    asked to replace its art, so re-pointing its linking slots at the new PNG is
+    the REQUEST, not an accident. The slicing hazard the never-overwrite rule
+    also guards is still guarded, by the untouched ``GridInUseError`` check
+    below — D10 refuses any ``(frame_w, frame_h, column_width)`` change while
+    slots link, before the PNG copy and before the registry write. Same art
+    dimensions, same windows: the links keep resolving, which is exactly what
+    going through ``resolve_sheet_id`` here would have BROKEN by forking a
+    second id and leaving every manifest entry on the stale one."""
     data_dir = _data_dir(data_dir)
     # BEFORE anything reads or copies: a registry that exists but will not load
     # must refuse the import, never be silently replaced by this one entry.
     _assert_registry_readable(data_dir)
     png_path = Path(png_path)
     name = (str(display_name or "").strip() or png_path.stem)
-    sheet_id = resolve_sheet_id(data_dir, png_path, name)
+    sheet_id = (resolve_sheet_id(data_dir, png_path, name) if sheet_id is None
+                else str(sheet_id))
     frame_w, frame_h = int(frame_w), int(frame_h)
     column_width = int(column_width)
     columns = tuple(columns)

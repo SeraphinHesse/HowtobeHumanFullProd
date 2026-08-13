@@ -370,6 +370,42 @@ stored `column` when `column_mode == "manual"`, D3) — it only visibly drives
 `season` / `building_color` entries. That is intended, not a bug: if you pick a
 colour on a manual-mode slot and nothing moves, the combo is working.
 
+## Master Sheets panel (`panels/master_sheets.py`, MasterSheetColumnsPLAN E5)
+
+**A TOP-LEVEL selector item, not a leaf under a category (D9).** Timeline hangs
+off `buildings` and Theme/Strings off `ui`, and both gate a `domain_selected`
+emission on that category. A master sheet is not a `slots.json` slot and there
+is no `master_sheets` balancing domain, so this item emits
+`master_sheets_selected` **alone** — never `domain_selected` (nothing to gate
+on) and never `node_selected` (the single-document-leaf rule: the
+entity-preview machinery must not react to a selection naming no slot). Its
+payload `category_key` is the placeholder `"master_sheets"`, which matches no
+registry category and is in no domain, so `domains()` and `refresh_markers()`
+already skip it with no special case. It is the LAST top-level item, added
+outside the category loop; `right_stack` index 8.
+
+**One panel, three verbs.** `reload_sheets()` re-reads
+`master_sheet_import.master_sheets(data_dir)` — REGISTRY-driven, never a folder
+glob — on entry (`_on_master_sheets_selected`, the reload-on-entry convention).
+`save_selected()` writes only the slicing values, through `write_registry_doc`.
+`reimport_selected()` replaces the PNG through `import_master_sheet`. Those two
+are the only write paths (ED-31); the panel never calls `write_validated`
+itself and never computes a refcount — **the ONE refcount is
+`asset_import.sheet_users`, reached via `MasterSheet.users`.**
+
+**Re-import keeps the id, via `import_master_sheet(..., sheet_id=…)`.** Left
+`None` that parameter changes nothing: the id comes from `resolve_sheet_id`,
+whose never-overwrite rule mints `<slug>_2` as soon as genuinely different art
+arrives under a taken slug — right for the picker's anonymous "import a PNG"
+flow, and exactly wrong here, where forking a second id would strand every
+linking manifest entry on the stale sheet. The panel passes the SELECTED
+sheet's id verbatim because the designer named that sheet and asked to replace
+its art. D10's `GridInUseError` guard is untouched and still refuses a
+`(frame_w, frame_h, column_width)` change while slots link, before the PNG copy
+— which is why the Re-import box stays enabled even on a locked sheet (the
+refusal names the slots), while the *slicing* form is disabled with a label
+naming them.
+
 ## Running the tests FROM the editor (TestRunnerPLAN TR-5) — the first QThread
 
 The **"Run tests"** button on the Agents toolbar, immediately after "thats my

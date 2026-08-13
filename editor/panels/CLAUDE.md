@@ -1883,6 +1883,42 @@ calls):
   `width // (column_width * frame_w)`, matching `engine/assets/store.py`'s own
   column arithmetic.
 
+## Master Sheets panel (`panels/master_sheets.py`, MasterSheetColumnsPLAN E5)
+
+- **Shape**: a `right_stack` PAGE (index 8), not a `QDialog` — the
+  Timeline/Theme family's shape with the master-sheet dialog's layout: a
+  `QListWidget` of every registry entry, an embedded read-only
+  `SheetPreview(interactive=False)` showing the WHOLE sheet (the raw registry
+  entry, so the three-argument `set_sheet` that resets any row/column window,
+  never one slot's window), and a word-wrapped detail label reporting the
+  real pixel size, the grid, `column_width`, the column count, the colour names
+  and the users by key.
+- **Construction is split from display**, the `sheet_picker`/
+  `master_sheet_dialog` rule: the model is `sheets`/`selected_sheet`/
+  `select_sheet`/`reload_sheets`/`save_selected`/`reimport_selected`, so no
+  test `exec()`s anything. `QFileDialog` is confined to
+  `_on_reimport_browse_clicked`; `set_reimport_source()` is the same seam
+  without the modal.
+- **D10 locks the SLICING FORM, not Re-import.** With users, the
+  frame_w/frame_h/column_width/colours editors and Save are disabled and a
+  label names the linking slots ("Clear them first"); `save_selected()` refuses
+  as well, defense in depth. Re-import stays enabled at all times on purpose:
+  the ENFORCEMENT is `GridInUseError` inside `import_master_sheet`, which
+  refuses a grid change on a linked sheet with a message naming the slots
+  before touching the PNG or the registry — a UI lock there would hide the
+  reason instead of stating it. `GridInUseError` subclasses `ValueError`, so
+  `_on_reimport_clicked`'s `except (OSError, ValueError)` → `QMessageBox`
+  shows it (the `master_sheet_dialog._on_import_clicked` precedent).
+- **Re-import passes `sheet_id=` and that is deliberate.** Going through
+  `resolve_sheet_id` — as the picker's import branch does, correctly — would
+  mint `<slug>_2` the moment the new art's bytes differ, leaving every manifest
+  entry pointed at the stale sheet: the exact opposite of this panel's promise
+  ("keeps the id and every link"). The explicit id is safe because the designer
+  selected that sheet and asked for the replacement, and the slicing hazard is
+  still covered by the untouched D10 guard.
+- **One refcount.** `MasterSheet.users` (`asset_import.sheet_users`) is it —
+  the panel never counts users a second way.
+
 ## TestRunnerPLAN TR-5 — `panels/test_run_panel.py` (the test-run window)
 
 - **A POPUP WINDOW, not a dock** (reconciliation R3): `TestRunPanel` copies

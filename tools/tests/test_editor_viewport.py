@@ -1338,9 +1338,10 @@ class TestMainWindowVfxMode(TempDataCase):
         # game_theme (3, UH-6 — it took the index ESV-5 freed when the vfx
         # preview moved INTO details_pane) + cutscenes (4, TU-3) +
         # tutorial_panel (5, TU-4) + strings_panel (6, Phase C) +
-        # timeline (7, TimelinePLAN T5). The point of the pin is that the
+        # timeline (7, TimelinePLAN T5) + master_sheets (8,
+        # MasterSheetColumnsPLAN E5). The point of the pin is that the
         # vfx preview is NOT a stack page of its own.
-        self.assertEqual(window.right_stack.count(), 8)
+        self.assertEqual(window.right_stack.count(), 9)
         self.assertIs(window.vfx_preview.parent().parent(), window.details_pane)
 
         window.selector.select_domain("vfx")
@@ -1508,6 +1509,7 @@ class TestPurity(unittest.TestCase):
             "editor.panels.level_bar, editor.panels.palette, "
             "editor.panels.map_details, editor.panels.sheet_preview, "
             "editor.panels.sheet_picker, editor.panels.master_sheet_dialog, "
+            "editor.panels.master_sheets, "
             "editor.panels.screen_details, "
             "editor.panels.anchors_panel, "
             "editor.panels._screen_primitives, editor.panels._screen_rules, "

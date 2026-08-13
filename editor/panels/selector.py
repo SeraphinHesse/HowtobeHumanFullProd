@@ -112,6 +112,7 @@ _CUTSCENES_ROLE = Qt.ItemDataRole.UserRole + 6   # True on the single Cutscenes 
 _TUTORIAL_ROLE = Qt.ItemDataRole.UserRole + 7    # True on the single Tutorial leaf (TU-4)
 _STRINGS_ROLE = Qt.ItemDataRole.UserRole + 8    # True on the single Strings leaf (Phase C)
 _TIMELINE_ROLE = Qt.ItemDataRole.UserRole + 9   # True on the single Timeline leaf (TimelinePLAN T5)
+_MASTER_SHEETS_ROLE = Qt.ItemDataRole.UserRole + 10  # True on the single Master Sheets top-level item (MasterSheetColumnsPLAN E5, D9)
 
 _MAPS_BRANCH_LABEL = "Maps"
 _SCREENS_BRANCH_LABEL = "Screens"
@@ -120,6 +121,7 @@ _CUTSCENES_LABEL = "Cutscenes"
 _TUTORIAL_LABEL = "Tutorial"
 _STRINGS_LABEL = "Strings"
 _TIMELINE_LABEL = "Timeline"
+_MASTER_SHEETS_LABEL = "Master Sheets"
 
 # Registry categories shown as CHILDREN of the "map" node instead of their own
 # top-level node — a tree-shape choice only (see the branch in __init__).
@@ -141,6 +143,7 @@ class SelectorPanel(QTreeWidget):
     tutorial_selected = Signal()     # TU-4: the single Tutorial leaf
     strings_selected = Signal()      # Phase C: the single Strings leaf was selected
     timeline_selected = Signal()     # TimelinePLAN T5: the single Timeline leaf
+    master_sheets_selected = Signal()  # E5: the Master Sheets top-level item
     add_requested = Signal(str)      # form spec id (AD-6 context menu)
 
     def __init__(self, data_dir=None, parent=None):
@@ -159,6 +162,7 @@ class SelectorPanel(QTreeWidget):
         self._tutorial_item = None
         self._strings_item = None
         self._timeline_item = None
+        self._master_sheets_item = None
         map_root = None
         for category in self.registry.categories():
             if domains.is_domain_category(category.key, self._data_dir) and \
@@ -245,6 +249,19 @@ class SelectorPanel(QTreeWidget):
                 timeline_item.setData(0, _TIMELINE_ROLE, True)
                 root.insertChild(0, timeline_item)
                 self._timeline_item = timeline_item
+        # MasterSheetColumnsPLAN D9: a NEW TOP-LEVEL item, not hung off any
+        # registry category (a master sheet is not a slots.json category) —
+        # added OUTSIDE the category loop above, LAST among the top-level
+        # items. "master_sheets" as the payload's category_key matches no real
+        # registry category and is never in `self._domains`, which is what
+        # keeps `domains()` and `refresh_markers()` (both already tolerant —
+        # the latter of the KeyError out of `group_slots`) from needing any
+        # special case for it.
+        master_sheets_item = self._make_item(
+            _MASTER_SHEETS_LABEL, "master_sheets", (_MASTER_SHEETS_LABEL,))
+        master_sheets_item.setData(0, _MASTER_SHEETS_ROLE, True)
+        self.addTopLevelItem(master_sheets_item)
+        self._master_sheets_item = master_sheets_item
         self.refresh_maps()
         self.refresh_screens()
         self.refresh_markers()
@@ -502,6 +519,16 @@ class SelectorPanel(QTreeWidget):
         self._tutorial_item.parent().setExpanded(True)
         self.setCurrentItem(self._tutorial_item)
 
+    # -- Master Sheets item (MasterSheetColumnsPLAN E5, D9) --------------------
+
+    def select_master_sheets(self):
+        """Programmatic selection of the Master Sheets item (tests, initial
+        selection) — mirrors select_theme/select_tutorial. No parent to expand:
+        it is TOP-LEVEL (D9), not a leaf under a category."""
+        if self._master_sheets_item is None:
+            raise KeyError("no Master Sheets item")
+        self.setCurrentItem(self._master_sheets_item)
+
     # -- ● markers (ED-11) -----------------------------------------------------
 
     def refresh_markers(self):
@@ -581,6 +608,15 @@ class SelectorPanel(QTreeWidget):
             self.timeline_selected.emit()
             if "buildings" in self._domains:
                 self.domain_selected.emit("buildings")
+            return
+        if items[0].data(0, _MASTER_SHEETS_ROLE):
+            # Master Sheets item (MasterSheetColumnsPLAN E5, D9): a TOP-LEVEL
+            # item, not hung off any category — there is no "master_sheets"
+            # balancing domain to gate a domain_selected emission on (unlike
+            # Theme/Timeline, nested under "ui"/"buildings"). Own signal only,
+            # and never node_selected (the same rule every single-document leaf
+            # follows: the entity-preview machinery must not react).
+            self.master_sheets_selected.emit()
             return
         screen_id = items[0].data(0, _SCREEN_ROLE)
         if screen_id is not None:

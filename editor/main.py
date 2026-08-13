@@ -70,6 +70,7 @@ from editor.panels.details import DetailsPanel
 from editor.panels.game_theme import GameThemePanel
 from editor.panels.level_bar import LevelBar
 from editor.panels.map_details import MapDetailsPanel
+from editor.panels.master_sheets import MasterSheetsPanel
 from editor.panels.palette import PalettePanel
 from editor.panels.screen_details import ScreenDetailsPanel
 from editor.panels.selector import SelectorPanel
@@ -183,6 +184,7 @@ class MainWindow(QMainWindow):
         self.tutorial_panel = TutorialPanel(data_dir=data_dir)  # TU-4: Tutorial leaf
         self.strings_panel = StringsPanel(data_dir=data_dir)  # Phase C: Strings leaf
         self.timeline = TimelinePanel(data_dir=data_dir)  # TimelinePLAN T5: Timeline leaf
+        self.master_sheets = MasterSheetsPanel(data_dir=data_dir)  # MasterSheetColumnsPLAN E5
         self._screen_defaults = {}   # cached data/ui/screen_defaults.json (B3)
         self._screen_previews = {}   # cached data/ui/screen_previews.json (UT-2)
         self._preview_dir = None     # UT-2 scratch dir, created on first render
@@ -330,6 +332,11 @@ class MainWindow(QMainWindow):
         # reload on entry, the same convention as every other selection-driven
         # panel.
         self.selector.timeline_selected.connect(self._on_timeline_selected)
+        # Master Sheets wiring (MasterSheetColumnsPLAN E5): the top-level
+        # "Master Sheets" item -> right_stack; reload on entry, the same
+        # convention as every other selection-driven panel.
+        self.selector.master_sheets_selected.connect(
+            self._on_master_sheets_selected)
 
         # ED-24: THE global undo stack, Ctrl+Z / Ctrl+Y everywhere (order
         # swappable from Settings — _apply_undo_redo_shortcuts sets the
@@ -514,6 +521,7 @@ class MainWindow(QMainWindow):
         self.right_stack.addWidget(self.tutorial_panel)  # index 5: Tutorial (TU-4)
         self.right_stack.addWidget(self.strings_panel)   # index 6: Strings (Phase C)
         self.right_stack.addWidget(self.timeline)        # index 7: Timeline (TimelinePLAN T5)
+        self.right_stack.addWidget(self.master_sheets)   # index 8: Master Sheets (MasterSheetColumnsPLAN E5)
 
         split = QSplitter(Qt.Orientation.Horizontal)
         split.addWidget(self.selector)
@@ -1388,6 +1396,15 @@ class MainWindow(QMainWindow):
         the game re-reads it at its own next boot."""
         self.timeline.set_timeline()
         self.right_stack.setCurrentWidget(self.timeline)
+
+    # -- Master Sheets panel (MasterSheetColumnsPLAN E5) -----------------------
+
+    def _on_master_sheets_selected(self):
+        """The selector's Master Sheets item (a TOP-LEVEL item, D9): reload the
+        registry fresh from disk — the "reload on entry" convention every other
+        selection-driven panel follows — and show the panel."""
+        self.master_sheets.reload_sheets()
+        self.right_stack.setCurrentWidget(self.master_sheets)
 
     # -- frame drive ---------------------------------------------------------
 
