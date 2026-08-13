@@ -247,7 +247,19 @@ def import_master_sheet(data_dir, png_path, display_name, frame_w, frame_h):
         # ONE refcount in the editor (`asset_import.sheet_users`), never a
         # second. A non-int stored value compares unequal and lands here too,
         # which is the safe direction: refuse rather than silently re-cut.
-        users = sheet_users(load_manifest_doc(data_dir), master_ref(sheet_id))
+        #
+        # Count against the entry's STORED `file`, not `master_ref(sheet_id)` —
+        # the stored ref is what manifest entries literally hold, and
+        # `master_ref`'s own docstring tells consumers never to re-derive it.
+        # The two agree for every entry this module wrote; they part company
+        # exactly when a hand-edited registry points somewhere else, which is
+        # the case where a re-derived ref would count ZERO users and let the
+        # refusal through. Fall back to the canonical name only when a corrupt
+        # entry has no readable `file` at all.
+        ref = existing.get("file")
+        if not isinstance(ref, str):
+            ref = master_ref(sheet_id)
+        users = sheet_users(load_manifest_doc(data_dir), ref)
         if users:
             raise GridInUseError(
                 f"'{sheet_id}' is cut at {stored_grid[0]}×{stored_grid[1]} by "
