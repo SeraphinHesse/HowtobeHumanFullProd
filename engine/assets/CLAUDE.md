@@ -140,9 +140,14 @@ crashes boot.** When you change asset conventions, update THIS doc.
   **`_sheets` is keyed by the entry's `sheet` PATH, not by slot key (M2)** — one
   PNG decodes exactly once into exactly one Surface however many slots name it
   (linked sheets and master sheets both). `_frames`/`_hit_masks` stay
-  SLOT-keyed on purpose (a shared sheet's slots resolve different pixels for the
-  same `(row, col)` because each applies its own `row_start`) — there is a
-  comment in `__init__` saying so; do not "fix" it.
+  SLOT-keyed on purpose (**D10**): a shared sheet's slots resolve different
+  pixels for the same `(row, col)`, because each applies its own `row_start`
+  **and** may declare its own `frame_w`/`frame_h`. Only the raw Surface is safe
+  to share; deduping frames too would mean folding the grid and the window into
+  the key, which is a noted follow-up and deliberately not done. There is a
+  comment in `__init__` saying so; do not "fix" it. A failing shared sheet is
+  also logged once, naming only the first slot that asked for it — accepted, the
+  resolved path is the actionable half.
   Sliced frames are SUBSURFACES — the parent sheet must stay cached. There is no
   cache invalidation: when the manifest changes, build a new AssetStore (the
   editor's `reload_assets()` does exactly that).

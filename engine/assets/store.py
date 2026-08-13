@@ -46,9 +46,16 @@ class AssetStore:
         # and one file must decode exactly once into exactly one Surface.
         self._sheets = {}   # entry.sheet -> Surface | _LOAD_FAILED
         # Frames and hit masks stay SLOT-keyed even though the sheet no longer
-        # is: two slots sharing one PNG resolve different pixels for the same
-        # (row, col) because each applies its own `row_start` window, so a
-        # sheet-keyed frame cache would hand slot B slot A's art.
+        # is — this is decision D10, and it is deliberate, not an oversight.
+        # Only the raw Surface is safe to share. Two slots naming one PNG cut
+        # it DIFFERENTLY: each applies its own `row_start` window, and each may
+        # declare its own frame_w/frame_h, so the same (row, col) means
+        # different pixels per slot. A sheet-keyed frame cache would hand slot
+        # B slot A's art — a silent wrong-pixels bug, not a crash. Note the
+        # frame-size half stands on its own: two `row_start: 0` slots on one
+        # shared PNG at different frame sizes are already unsafe to merge.
+        # Folding frame_w/frame_h/row_start into the key to dedup frames too is
+        # a NOTED FOLLOW-UP, deliberately not done here.
         self._frames = {}   # (slot_key, row, col) -> Surface | _LOAD_FAILED
         self._hit_masks = {}   # (slot_key, row, col) -> pygame.Mask
 
@@ -167,6 +174,10 @@ class AssetStore:
 
     def _sheet(self, entry):
         # Cache key is the sheet PATH, not the slot key — see __init__.
+        # Consequence, accepted deliberately: a failing sheet is logged ONCE,
+        # naming only the FIRST slot that asked for it, not every slot sharing
+        # it. That is fine — the resolved path is printed and it is the
+        # actionable half. Do not "fix" this by enumerating slots.
         sheet_key = entry.sheet
         if sheet_key in self._sheets:
             return self._sheets[sheet_key]
