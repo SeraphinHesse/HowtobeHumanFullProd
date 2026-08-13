@@ -1117,6 +1117,48 @@
               "slots": [
                 "vfx_respawn"
               ]
+            },
+            {
+              "label": "Selected tile",
+              "slots": [
+                "vfx_tile_selected"
+              ]
+            },
+            {
+              "label": "2x2 section",
+              "slots": [
+                "vfx_section_2x2"
+              ]
+            },
+            {
+              "label": "Attack range",
+              "slots": [
+                "vfx_attack_range"
+              ]
+            },
+            {
+              "label": "Move destination",
+              "slots": [
+                "vfx_move_target"
+              ]
+            },
+            {
+              "label": "Wall edge",
+              "slots": [
+                "vfx_wall_edge"
+              ]
+            },
+            {
+              "label": "Upgrade batch",
+              "slots": [
+                "vfx_upgrade_batch"
+              ]
+            },
+            {
+              "label": "Tutorial tile",
+              "slots": [
+                "vfx_tutorial_highlight"
+              ]
             }
           ],
           "label": "Effects"

@@ -51,8 +51,16 @@ _LIVE_EVENTS = (
 # VfxAuthoringPLAN VA-4 adds the 11th, building_respawn — the payday revive
 # slot's cosmetic event. Unlike the two above it does NOT ship inert: it plays
 # the `spark_respawn` preset until a designer imports art into vfx_respawn.
-_ALL_EVENTS = _LIVE_EVENTS + ("defender_fire", "projectile_hit",
-                              "building_respawn")
+# VA-5 adds seven more — the tile highlights. They are CONTINUOUS, not
+# one-shots, so they never reach `_play`/PlayOnceVfx (game/ui/widgets.py's
+# submit_highlight draws them every frame instead); they are listed here
+# because this pin is over the trigger TABLE's key set, which they do join.
+_HIGHLIGHT_EVENTS = (
+    "tile_selected", "section_2x2", "attack_range", "move_target",
+    "wall_edge", "upgrade_batch", "tutorial_highlight",
+)
+_ALL_EVENTS = (_LIVE_EVENTS + ("defender_fire", "projectile_hit",
+                               "building_respawn") + _HIGHLIGHT_EVENTS)
 
 
 class _FakeAssets:

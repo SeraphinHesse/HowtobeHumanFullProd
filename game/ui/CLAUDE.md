@@ -1322,6 +1322,52 @@ starts pinning them). Pinned by `tools/tests/test_layout_h_invariant.py`
 (monkeypatches the measurement +1px and asserts both artifacts are
 unaffected).
 
+## The seven tile highlights are EFFECTS now (VfxAuthoringPLAN VA-5)
+`tile_selected`, `section_2x2`, `attack_range`, `move_target`, `wall_edge`,
+`upgrade_batch` and `tutorial_highlight` are `data/balancing/vfx.json` entries:
+a `procedural.highlights.<name>` param block (colour / outline width / fill
+alpha) plus a `triggers.<name>` row, so each can be retuned, replaced by an
+imported `vfx_<name>` spritesheet, and put in front of or behind a same-tile
+building — like every other effect.
+- **`widgets.submit_highlight(renderer, event, col, row, assets=…)` is the ONE
+  draw path**, and `_highlight_tiles` carries the EVENT NAME where it used to
+  carry a colour. Resolution mirrors `FloaterManager._play`: a bound
+  `sprite_slot` with imported art wins (the same
+  `animation_total_ms(slot, "idle") is not None` signal every art-tolerant
+  site uses), else the procedural diamond; `draw_in_front` becomes the VA-3
+  depth rank.
+- **They are CONTINUOUS, so they do NOT go through `_play`** (D7). A selection
+  outline is drawn every frame for as long as the tile stays selected;
+  `PlayOnceVfx`'s despawn clock would respawn the object every frame. That is
+  also why the resolver lives in `widgets.py` rather than behind
+  `FloaterManager`: `BuildingUI.submit` and the host both draw highlights and
+  neither holds the FX manager, while this module already owned
+  `submit_tile_diamond` — the one place a tile highlight has ever been drawn.
+- **`configure_highlights(vfx_doc)` is `configure_palette`'s twin**, called at
+  the same boot slot, with the same loaded-doc contract, the same
+  UNCONFIGURED-FALLBACK literals and the same fail-loud-on-key-mismatch rule.
+  Deliberately so: three of these five values WERE palette keys until this
+  phase. Read colours through `highlight_color(event)` at CALL time — the
+  early-binding trap the `C_*` block already warns about.
+- **Five constants are DELETED**: `C_HIGHLIGHT`, `C_HIGHLIGHT2`,
+  `C_RANGE_HIGHLIGHT` (palette keys, also removed from `palette.json` and
+  `_PALETTE_KEYS`) plus `C_MOVE_HIGHLIGHT` and `C_TUTORIAL_HIGHLIGHT` (bare
+  code constants). One home per value (G-7/D8) — leaving them in the palette
+  as well would be the dead-data gap `procedural.floaters` opened and ESV-6
+  had to close.
+- **Their non-tile consumers re-point at the same params rather than keeping a
+  second copy**: the RANGE overlay pill (`overlays.py`) and a wall builder's
+  walled TILES read `attack_range`; the move instruction text and the L-shaped
+  path line read `move_target`; the drag-select rectangle's fill and the two
+  name-field focus rings read `tile_selected`. Each of those IS the highlight's
+  colour seen somewhere else, which is why sharing is correct here and a
+  second key would not be.
+- `wall_edge` draws a LINE, not a diamond, so its `border_width` is the line
+  width and its `fill_alpha` is unused — the one non-uniform member of an
+  otherwise uniform block, documented in the schema.
+- Pinned by `tools/tests/test_highlight_data.py`, in `test_theme_data.py`'s
+  shape (stock table, fallback-equals-data, rebind-reaches-consumers).
+
 ## Fonts + palette are DATA now (UH-6, D5) + optional per-widget tint (D6)
 `data/ui/fonts.json` / `data/ui/palette.json` ship the exact 7 font presets /
 19 `C_*` colors this file used to hardcode alone (the 19th, `purple` /

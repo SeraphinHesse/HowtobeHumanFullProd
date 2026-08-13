@@ -126,6 +126,71 @@
       "hold": 0.35,
       "life": 1.2
     },
+    "highlights": {
+      "attack_range": {
+        "border_width": 2,
+        "color": [
+          180,
+          40,
+          40
+        ],
+        "fill_alpha": 0
+      },
+      "move_target": {
+        "border_width": 2,
+        "color": [
+          80,
+          200,
+          255
+        ],
+        "fill_alpha": 0
+      },
+      "section_2x2": {
+        "border_width": 2,
+        "color": [
+          255,
+          180,
+          60
+        ],
+        "fill_alpha": 0
+      },
+      "tile_selected": {
+        "border_width": 2,
+        "color": [
+          255,
+          230,
+          60
+        ],
+        "fill_alpha": 0
+      },
+      "tutorial_highlight": {
+        "border_width": 2,
+        "color": [
+          255,
+          255,
+          255
+        ],
+        "fill_alpha": 0
+      },
+      "upgrade_batch": {
+        "border_width": 2,
+        "color": [
+          255,
+          230,
+          60
+        ],
+        "fill_alpha": 0
+      },
+      "wall_edge": {
+        "border_width": 4,
+        "color": [
+          255,
+          230,
+          60
+        ],
+        "fill_alpha": 0
+      }
+    },
     "lightning": {
       "bolt_color_end": [
         255,
@@ -297,6 +362,15 @@
     }
   },
   "triggers": {
+    "attack_range": {
+      "draw_in_front": true,
+      "procedural": "highlight",
+      "sprite_slot": "",
+      "variant_select": {
+        "misc_key": "",
+        "mode": "random"
+      }
+    },
     "building_destroyed": {
       "draw_in_front": true,
       "procedural": "death_burst",
@@ -378,6 +452,15 @@
         "mode": "random"
       }
     },
+    "move_target": {
+      "draw_in_front": true,
+      "procedural": "highlight",
+      "sprite_slot": "",
+      "variant_select": {
+        "misc_key": "",
+        "mode": "random"
+      }
+    },
     "projectile_hit": {
       "draw_in_front": true,
       "procedural": "",
@@ -387,10 +470,55 @@
         "mode": "random"
       }
     },
+    "section_2x2": {
+      "draw_in_front": true,
+      "procedural": "highlight",
+      "sprite_slot": "",
+      "variant_select": {
+        "misc_key": "",
+        "mode": "random"
+      }
+    },
     "splash_impact": {
       "draw_in_front": true,
       "procedural": "crater",
       "sprite_slot": "vfx_crater",
+      "variant_select": {
+        "misc_key": "",
+        "mode": "random"
+      }
+    },
+    "tile_selected": {
+      "draw_in_front": true,
+      "procedural": "highlight",
+      "sprite_slot": "",
+      "variant_select": {
+        "misc_key": "",
+        "mode": "random"
+      }
+    },
+    "tutorial_highlight": {
+      "draw_in_front": true,
+      "procedural": "highlight",
+      "sprite_slot": "",
+      "variant_select": {
+        "misc_key": "",
+        "mode": "random"
+      }
+    },
+    "upgrade_batch": {
+      "draw_in_front": true,
+      "procedural": "highlight",
+      "sprite_slot": "",
+      "variant_select": {
+        "misc_key": "",
+        "mode": "random"
+      }
+    },
+    "wall_edge": {
+      "draw_in_front": true,
+      "procedural": "highlight",
+      "sprite_slot": "",
       "variant_select": {
         "misc_key": "",
         "mode": "random"
