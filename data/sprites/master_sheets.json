@@ -1,4 +1,11 @@
 {
-  "entries": {},
+  "entries": {
+    "slinger_t2_lvl3": {
+      "display_name": "slinger_t2_lvl3",
+      "file": "master/slinger_t2_lvl3.png",
+      "frame_h": 96,
+      "frame_w": 64
+    }
+  },
   "version": 1
 }
