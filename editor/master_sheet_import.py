@@ -71,8 +71,9 @@ class RegistryUnreadableError(ValueError):
 
 
 class GridInUseError(ValueError):
-    """Refusal: a re-import would change ``frame_w``/``frame_h`` on a master
-    sheet that manifest entries already cut windows out of (M4 §2.1).
+    """Refusal: a re-import would change ``frame_w``/``frame_h``/``column_width``
+    on a master sheet that manifest entries already cut windows out of
+    (M4 §2.1, extended by MasterSheetColumnsPLAN D10).
 
     IT SUBCLASSES ``ValueError`` ON PURPOSE, AND THAT IS LOAD-BEARING.
     ``panels/master_sheet_dialog._on_import_clicked`` already catches
@@ -87,6 +88,13 @@ class GridInUseError(ValueError):
     hazard ``resolve_sheet_id``'s never-overwrite rule exists for, one axis
     over. With ZERO users nothing can be mis-cut, so the rewrite is still
     allowed — that is the "correct a wrong frame_w" flow M3 documented.
+
+    ``column_width`` IS PART OF THE SAME GUARD (D10), on the other axis. A slot
+    claiming master column ``c`` cuts ``x = (c * column_width + frame_col) *
+    frame_w``, so changing ``column_width`` alone re-points every column window
+    at different pixels just as silently as a frame-size change re-points every
+    row window. The comparison tuple is therefore ``(frame_w, frame_h,
+    column_width)``, not the pair it was in M4.
     """
 
 
@@ -173,6 +181,59 @@ def column_width_bounds(data_dir=None):
         return int(prop["minimum"]), int(prop["maximum"])
     except (OSError, ValueError, KeyError, TypeError):
         return 1, 256
+
+
+def columns_bounds(data_dir=None):
+    """``(max_items, max_length)`` for the registry's optional ``columns``
+    array, READ FROM THE SCHEMA — sibling of ``frame_bounds``/
+    ``column_width_bounds`` for the same ED-30 reason: the numbers have exactly
+    one home. Falls back to the schema's own (16, 32) if unreadable (E-37)."""
+    try:
+        schema = data_io.load_json(schema_path(data_dir))
+        prop = (schema["properties"]["entries"]["patternProperties"]
+                ["^[a-z][a-z0-9_]*$"]["properties"]["columns"])
+        return int(prop["maxItems"]), int(prop["items"]["maxLength"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return 16, 32
+
+
+def parse_columns(text, data_dir=None):
+    """Comma-separated colour/season names (the dialog's Colours field) into a
+    tuple ready for ``import_master_sheet``'s ``columns=`` argument.
+
+    Each non-blank entry is slugified with the SAME ``_slugify`` sheet ids use —
+    guaranteeing the schema's ``^[a-z][a-z0-9_]*$`` item pattern is met BY
+    CONSTRUCTION, never re-checked against a retyped regex (ED-30). A blank
+    entry (a stray or trailing comma, whitespace) is dropped silently, never
+    padded into a fake colour.
+
+    What DOES raise ``ValueError``, before any write: a duplicate slug (the
+    schema's ``uniqueItems``), a slug over the schema's ``maxLength``, or more
+    entries than its ``maxItems``. All three would otherwise surface as an
+    opaque ``jsonschema.ValidationError`` out of ``write_registry_doc`` — which
+    the dialog's ``except (OSError, ValueError)`` cannot catch, and which lands
+    AFTER the PNG copy."""
+    max_items, max_length = columns_bounds(data_dir)
+    slugs = []
+    for part in str(text or "").split(","):
+        part = part.strip()
+        if not part:
+            continue
+        slug = _slugify(part)
+        if len(slug) > max_length:
+            raise ValueError(
+                f"Colour/season name '{part}' is too long after slugifying "
+                f"(max {max_length} characters).")
+        if slug in slugs:
+            raise ValueError(
+                f"Colour/season name '{part}' repeats (as '{slug}') — each "
+                f"entry must be unique.")
+        slugs.append(slug)
+    if len(slugs) > max_items:
+        raise ValueError(
+            f"{len(slugs)} colour/season names given; the schema allows at "
+            f"most {max_items}.")
+    return tuple(slugs)
 
 
 def _assert_registry_readable(data_dir):
@@ -282,22 +343,40 @@ def resolve_sheet_id(data_dir, png_path, name):
     return _unique_id(slug, entries)
 
 
-def import_master_sheet(data_dir, png_path, display_name, frame_w, frame_h):
+def import_master_sheet(data_dir, png_path, display_name, frame_w, frame_h,
+                        column_width, columns=()):
     """Copy `png_path` -> ``<data_dir>/sprites/master/<sheet_id>.png`` and
     write its registry entry. Returns the new/reused sheet id.
 
     `display_name` names the sheet and seeds the id; it falls back to the PNG's
     own stem when blank (``editor/font_import.py:59`` precedent).
 
+    `column_width` is the DESIGNER'S OWN value, in frames (D1), written
+    verbatim — it has no default for the same reason `frame_w`/`frame_h` have
+    none. It superseded S1/C3's stopgap, which derived "one column spanning the
+    whole sheet" from the PNG's pixel width; the form collects it now
+    (``panels/master_sheet_dialog``), and nothing here reads the PNG's size.
+    Out-of-range values are the schema's job at ``write_registry_doc``: the
+    dialog is what makes them unrepresentable, via ``column_width_bounds``
+    (ED-30).
+
+    `columns` is the optional per-column NAME list (D4), already slugified —
+    see ``parse_columns``, which the dialog runs its field through. It is
+    written ONLY when non-empty (omit-at-default, the
+    ``slice``/``tint_overlay``/``row_start`` convention). An EMPTY `columns`
+    means "this call names no colours", NOT "keep whatever the existing entry
+    had": like `frame_w`/`frame_h`, nothing is seeded from the old entry.
+
     RE-IMPORTING THE SAME PNG reuses the id, leaves the file byte-untouched
     (so ``git status`` stays clean) and REWRITES the entry — that is how a
     designer corrects a wrong ``display_name`` or ``frame_w`` without breeding
     a duplicate file. **While the sheet has ZERO users that still holds
     exactly** (nothing links to it, so nothing can be mis-cut); once manifest
-    entries DO link to it, a re-import that changes ``frame_w``/``frame_h``
-    raises ``GridInUseError`` instead, naming the slots to fix first (M4
-    §2.1). The refusal happens BEFORE the PNG copy and before the registry
-    write, so a refused import leaves disk byte-identical."""
+    entries DO link to it, a re-import that changes
+    ``frame_w``/``frame_h``/``column_width`` raises ``GridInUseError`` instead,
+    naming the slots to fix first (M4 §2.1, D10). The refusal happens BEFORE
+    the PNG copy and before the registry write, so a refused import leaves disk
+    byte-identical."""
     data_dir = _data_dir(data_dir)
     # BEFORE anything reads or copies: a registry that exists but will not load
     # must refuse the import, never be silently replaced by this one entry.
@@ -306,14 +385,20 @@ def import_master_sheet(data_dir, png_path, display_name, frame_w, frame_h):
     name = (str(display_name or "").strip() or png_path.stem)
     sheet_id = resolve_sheet_id(data_dir, png_path, name)
     frame_w, frame_h = int(frame_w), int(frame_h)
+    column_width = int(column_width)
+    columns = tuple(columns)
 
     doc = load_registry_doc(data_dir)
     doc.setdefault("version", 1)
     doc.setdefault("entries", {})
     existing = doc["entries"].get(sheet_id)
-    stored_grid = ((existing.get("frame_w"), existing.get("frame_h"))
+    # D10: the guard covers the COLUMN axis too, not just the frame grid — a
+    # re-import that changes only `column_width` re-points every column window.
+    stored_grid = ((existing.get("frame_w"), existing.get("frame_h"),
+                    existing.get("column_width"))
                    if isinstance(existing, dict) else None)
-    if stored_grid is not None and stored_grid != (frame_w, frame_h):
+    if stored_grid is not None and stored_grid != (frame_w, frame_h,
+                                                   column_width):
         # ONE refcount in the editor (`asset_import.sheet_users`), never a
         # second. A non-int stored value compares unequal and lands here too,
         # which is the safe direction: refuse rather than silently re-cut.
@@ -332,39 +417,30 @@ def import_master_sheet(data_dir, png_path, display_name, frame_w, frame_h):
         users = sheet_users(load_manifest_doc(data_dir), ref)
         if users:
             raise GridInUseError(
-                f"'{sheet_id}' is cut at {stored_grid[0]}×{stored_grid[1]} by "
-                f"{len(users)} slot(s): {', '.join(users)}. Re-importing it at "
-                f"{frame_w}×{frame_h} would re-cut every row window into "
-                f"different pixels. Clear or re-point those slots first, then "
-                f"import again.")
+                f"'{sheet_id}' is cut at {stored_grid[0]}×{stored_grid[1]} "
+                f"(column width {stored_grid[2]}) by {len(users)} slot(s): "
+                f"{', '.join(users)}. Re-importing it at {frame_w}×{frame_h} "
+                f"(column width {column_width}) would re-cut every row and "
+                f"column window into different pixels. Clear or re-point those "
+                f"slots first, then import again.")
 
     destination = data_dir.joinpath(*MASTER_SUBDIR) / f"{sheet_id}.png"
     destination.parent.mkdir(parents=True, exist_ok=True)
     if not _same_bytes(png_path, destination):
         destination.write_bytes(png_path.read_bytes())
 
-    # STOPGAP (MasterSheetColumnsPLAN C3, superseded by S2's import form, which
-    # gives the designer a real `column_width` field). C1 made `column_width` a
-    # REQUIRED key, so this write must supply one. ONE COLUMN SPANNING THE WHOLE
-    # SHEET is the behaviour-preserving default: every existing sheet becomes a
-    # 1-column sheet, D7's per-sheet clamp holds every slot at column 0, and no
-    # art moves. A literal `1` would claim a 6-frame-wide sheet has six colour
-    # columns and send a column-driven slot into garbage.
-    # CLAMPED TO THE SCHEMA'S OWN BOUNDS, not left unbounded: a sheet wider
-    # than `cw_max` frames would otherwise derive a width the writer rejects,
-    # and that ValidationError lands AFTER the PNG copy above — leaving an
-    # orphan PNG with no registry entry, which is exactly the disk-untouched
-    # promise GridInUseError's ordering makes.
-    cw_min, cw_max = column_width_bounds(data_dir)
-    with Image.open(destination) as image:
-        sheet_w, _ = image.size
-    doc["entries"][sheet_id] = {
+    entry = {
         "file": master_ref(sheet_id),
         "display_name": name,
         "frame_w": frame_w,
         "frame_h": frame_h,
-        "column_width": max(cw_min, min(cw_max, sheet_w // frame_w)),
+        "column_width": column_width,
     }
+    # Omit-at-default: an unnamed sheet carries no `columns` key at all, rather
+    # than an empty array the schema's `minItems: 1` would reject anyway.
+    if columns:
+        entry["columns"] = list(columns)
+    doc["entries"][sheet_id] = entry
     write_registry_doc(data_dir, doc)
     return sheet_id
 
@@ -373,16 +449,18 @@ def import_master_sheet(data_dir, png_path, display_name, frame_w, frame_h):
 class MasterSheet:
     """One registered master spritesheet, as offered by the picker.
 
-    `frame_w`/`frame_h` are the DECLARED grid the registry owns (D3);
-    `width`/`height` are the PNG's real pixel size. `users` is empty for an
-    ORPHAN — a registered sheet no manifest entry points at. Orphans are listed
-    on purpose (§9): it is how you get that art back."""
+    `frame_w`/`frame_h`/`column_width` are the DECLARED grid the registry owns
+    (D3/D1); `width`/`height` are the PNG's real pixel size. `users` is empty
+    for an ORPHAN — a registered sheet no manifest entry points at. Orphans are
+    listed on purpose (§9): it is how you get that art back."""
     sheet_id: str
     ref: str            # "master/<id>.png" — the entry's STORED file, verbatim
     path: Path
     display_name: str
     frame_w: int
     frame_h: int
+    column_width: int   # frames per MASTER column (D1)
+    columns: tuple      # declared colour/season names, () when unnamed (D4)
     width: int
     height: int
     users: tuple        # slot keys pointing at it, sorted
@@ -391,8 +469,21 @@ class MasterSheet:
         """(cols, rows) at the sheet's OWN declared frame size. No caller may
         supply a frame size — D3 says the master sheet owns the grid and a
         linking slot inherits it, so there is no target size to slice at (and
-        hence no ``fits()`` analogue either)."""
+        hence no ``fits()`` analogue either).
+
+        STAYS A 2-TUPLE. ``editor/panels/vfx_preview.py`` and
+        ``panels/master_sheet_dialog.py`` unpack it as exactly two values;
+        the master-column count is ``column_count()`` below, a separate method
+        on purpose."""
         return (self.width // self.frame_w, self.height // self.frame_h)
+
+    def column_count(self):
+        """How many MASTER columns (colour/season blocks) fit across this
+        sheet, at its own `column_width` in frames and `frame_w` in pixels
+        (D1): ``width // (column_width * frame_w)``. Distinct from `grid()`'s
+        FRAME-column count — a 1-column sheet whose art is 4 frames wide has
+        `grid()[0] == 4` and `column_count() == 1`."""
+        return self.width // (self.column_width * self.frame_w)
 
 
 def master_sheets(data_dir=None):
@@ -434,6 +525,8 @@ def master_sheets(data_dir=None):
             display_name=entry.get("display_name", sheet_id),
             frame_w=int(entry.get("frame_w", 1)),
             frame_h=int(entry.get("frame_h", 1)),
+            column_width=int(entry.get("column_width", 1)),
+            columns=tuple(entry.get("columns") or ()),
             width=width,
             height=height,
             users=sheet_users(manifest, ref)))

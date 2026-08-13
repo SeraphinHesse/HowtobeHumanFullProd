@@ -1848,6 +1848,33 @@ calls):
   engine's rule that `AssetStore._frame_surface` is the only place `row_start`
   is applied. That is why `DetailsPanel._on_frame_clicked` needs no offset.
 
+### E1 — import path: column width + column names (MasterSheetColumnsPLAN)
+- **The import form collects the real designer-supplied `column_width`** plus an
+  optional comma-separated **Colours** field, replacing S1/C3's stopgap
+  derivation from the PNG's pixel width (deleted, not left as a second path):
+  `import_master_sheet(data_dir, png_path, display_name, frame_w, frame_h,
+  column_width, columns=())`. `columns` is OMITTED from the entry when empty
+  (the `slice`/`tint_overlay`/`row_start` convention) and is NOT preserved
+  across a re-import that omits it — the same way `frame_w`/`frame_h` are never
+  seeded from the existing entry either.
+- **`GridInUseError`'s comparison tuple is `(frame_w, frame_h, column_width)`**
+  (D10): a re-import changing only `column_width` on a sheet with users is
+  refused exactly like a frame-size change, with the same ordering (before the
+  PNG copy, before the registry write), and it still subclasses `ValueError` so
+  the dialog's existing `except (OSError, ValueError)` shows it.
+- **`master_sheet_import.parse_columns(text, data_dir)`** is the pure
+  slugify+validate step the Colours field runs through BEFORE any write: each
+  entry is slugified with the same `_slugify` sheet ids use (so the schema's
+  `^[a-z][a-z0-9_]*$` item pattern holds by construction, ED-30), blanks are
+  dropped, and a duplicate slug / over-length slug / over-cap count raises
+  `ValueError` there rather than as an opaque `ValidationError` after the copy.
+  Its bounds come from `columns_bounds()`, read off the schema.
+- **`MasterSheet.column_count()` is a NEW method, not a third `grid()` return
+  value** — `grid()` stays a 2-tuple because `panels/vfx_preview.py` and this
+  dialog already unpack it as exactly two. `column_count()` is
+  `width // (column_width * frame_w)`, matching `engine/assets/store.py`'s own
+  column arithmetic.
+
 ## TestRunnerPLAN TR-5 — `panels/test_run_panel.py` (the test-run window)
 
 - **A POPUP WINDOW, not a dock** (reconciliation R3): `TestRunPanel` copies

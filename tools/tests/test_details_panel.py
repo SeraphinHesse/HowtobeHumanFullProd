@@ -526,7 +526,7 @@ class TestMasterSheetWindow(DetailsCase):
         src = make_png(self.png_dir / "master.png",
                        self.COLS * self.FRAME[0], self.ROWS * self.FRAME[1])
         self.sheet_id = master_sheet_import.import_master_sheet(
-            self.data_dir, src, "Village Folk", *self.FRAME)
+            self.data_dir, src, "Village Folk", *self.FRAME, self.COLS)
         self.ref = f"master/{self.sheet_id}.png"
         self.master_png = self.data_dir / "sprites" / self.ref
         self.slots_json = self.data_dir / "slots.json"
