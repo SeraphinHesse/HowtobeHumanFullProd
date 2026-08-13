@@ -313,11 +313,62 @@ class TestTrioUnlock(unittest.TestCase):
 
     def test_not_offered_before_its_timeline_level(self):
         st = RunState.from_balance(CORE, BUILD)
-        st.village_level = self.GATE_LEVEL - 1
+        # The roll gates on the level being REACHED (village_level + 1), so
+        # the last level-up that must NOT show the card is the one reaching
+        # GATE_LEVEL - 1.
+        st.village_level = self.GATE_LEVEL - 2
         self._silence_non_boost(st)
         opts = roll_levelup_options(st, BUILD, CORE, random.Random(0),
                                     PROGRESSION)
         self.assertFalse([o for o in opts if o.get("kind") == "unlock_building"])
+
+
+# ---------------------------------------------------------------------------
+class TestTrioTierResearch(unittest.TestCase):
+    """The trio's LATER tiers work like its unlock: ONE card researches tier N
+    for all three lines, titled from ``BoostBuildings.globals.tier_card_titles``
+    (no single line's tier name can title a card granting all three), gated by
+    the lead's own Timeline placement."""
+
+    T2_LEVEL = timeline_level_for("boost_speed", 1, PROGRESSION)
+
+    def _boost_only(self, st):
+        for bt in RESEARCH:
+            if bt.startswith("boost_"):
+                st.unlocked_buildings[bt] = True
+            else:
+                st.unlocked_buildings[bt] = True
+                st.tiers_unlocked[bt] = len(tiers_for(bt, BUILD))
+
+    def test_one_card_researches_tier_2_for_all_three(self):
+        st = RunState.from_balance(CORE, BUILD)
+        st.village_level = self.T2_LEVEL
+        self._boost_only(st)
+        opts = roll_levelup_options(st, BUILD, CORE, random.Random(0),
+                                    PROGRESSION)
+        cards = [o for o in opts if o.get("kind") == "tier"]
+        self.assertEqual(len(cards), 1)
+        self.assertEqual(tuple(cards[0]["building_types"]),
+                         ("boost_speed", "boost_damage", "boost_hp"))
+        self.assertEqual(cards[0]["title"],
+                         BUILD["BoostBuildings"]["globals"]["tier_card_titles"][1])
+        apply_levelup_option(st, cards[0], CORE)
+        for bt in ("boost_speed", "boost_damage", "boost_hp"):
+            self.assertEqual(st.tiers_unlocked[bt], 2)
+
+    def test_tier_cards_are_free_and_only_preview_the_price(self):
+        st = RunState.from_balance(CORE, BUILD)
+        st.village_level = self.T2_LEVEL
+        self._boost_only(st)
+        card = [o for o in roll_levelup_options(st, BUILD, CORE,
+                                                random.Random(0), PROGRESSION)
+                if o.get("kind") == "tier"][0]
+        self.assertEqual(card["cost"], 0)
+        self.assertEqual(card["display_cost"],
+                         tiers_for("boost_speed", BUILD)[1]["build_cost"])
+        st.love = 3
+        apply_levelup_option(st, card, CORE)
+        self.assertEqual(st.love, 3)
 
 
 # ---------------------------------------------------------------------------

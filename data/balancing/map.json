@@ -65,10 +65,10 @@
       "pond": 9
     },
     "spawn_chances": {
-      "forest": 0.1,
-      "grass": 0.7,
-      "mountain": 0.1,
-      "pond": 0.1
+      "forest": 0.06,
+      "grass": 0.8,
+      "mountain": 0.07,
+      "pond": 0.07
     }
   },
   "TileUnlocking": {

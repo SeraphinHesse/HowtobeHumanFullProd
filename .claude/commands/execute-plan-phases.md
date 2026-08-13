@@ -1,13 +1,22 @@
 ---
-description: Execute a range of phases from an implementation-plan document by orchestrating parallel planner/coder/reviewer subagent waves under an umbrella branch.
-argument-hint: <plan-file> <phase-range e.g. 10G-10I> [spec-repo-path]
-allowed-tools: Agent, SendMessage, Skill, Artifact, Read, Write, Edit, Glob, Grep, Bash(git *), Bash(gh *), Bash(py tools/smoke.py*), Bash(py tools/testgate.py*), Bash(py -m pytest*)
+description: Execute a range of phases from an implementation-plan document by orchestrating parallel planner/coder/reviewer subagent waves under an umbrella branch. Large plans switch to section mode, adding a tier of section-orchestrators.
+argument-hint: <plan-file> <phase-range e.g. 10G-10I> [spec-repo-path] [--large|--flat]
+allowed-tools: Agent, SendMessage, Skill, Artifact, Read, Write, Edit, Glob, Grep, AskUserQuestion, Bash(git *), Bash(gh *), Bash(py tools/smoke.py*), Bash(py tools/testgate.py*), Bash(py -m pytest*)
 disable-model-invocation: true
 ---
 
-Execute plan phases: **$ARGUMENTS** — `<plan-file> <phase-range> [spec-repo-path]`.
-This is an **orchestrator**; isolation comes from git worktrees under one
-umbrella branch.
+Execute plan phases: **$ARGUMENTS** — `<plan-file> <phase-range> [spec-repo-path]
+[--large|--flat]`. This is an **orchestrator**; isolation comes from git
+worktrees under one umbrella branch.
+
+## Step 0a — Scale detection (before anything else)
+
+Read **line 1** of the plan file. `<!-- plan-scale: large -->` (or an explicit
+`--large`) selects **section mode** — jump to §"Section mode" below and run it
+INSTEAD of Steps 1-6. Anything else, or `--flat`, runs the flat path exactly as
+written below. An explicit flag beats the marker. State the mode you detected in
+one line and confirm it before branching; a large plan run flat will overwhelm
+this session's context, which is the failure mode section mode exists to fix.
 
 ## Step 0 — Preconditions gate (abort with a clear report on any failure)
 - The plan file exists and contains every phase in the range (list them).
@@ -61,6 +70,15 @@ umbrella branch.
    shared-file contract — exact insertion points in files multiple phases touch;
    (4) Exit gate + Quick Test. Orchestrator reconciles §3 across briefs into
    non-overlapping insertion blocks, then commits all briefs to the umbrella.
+
+   **Reconcile §4 too, and downgrade it where needed.** A brief's exit gate is
+   executed by a SUBAGENT, so it may contain only `py tools/smoke.py` + named
+   `pytest` files. If a brief — or the phase bullet in the plan doc it came
+   from — asks for the full suite, `testgate check`, `--affected`, or a tier
+   sweep, **the Test Suite Policy wins over the plan doc**: rewrite that §4 to
+   the targeted gate before dispatching Wave 2, and note the rewrite in the
+   final report. Shipping a brief with a wider gate hands the coder a command
+   the hook will deny.
 3. **Wave 2 — CODERS** (one **`coder` agent** per phase — **`engine-coder`**
    when the brief's §3 file scope is `engine/**` — parallel,
    `isolation: "worktree"`, branch
@@ -106,12 +124,68 @@ umbrella branch.
    (the phase table just changed). Workers never publish — only this
    orchestrator does.
 
+## Section mode (large plans only — replaces Steps 1-6)
+
+A large plan groups its phases into **sections** (`## 3. Section map`). Each
+section gets its own `section-orchestrator` agent, which runs Waves 1-3 over
+that section's phases and hands back a capped file. **The point is what YOU
+don't read**: this session's context is the bottleneck a large plan overflows.
+
+**The hard context rule.** You read the section map, each section's
+**Purpose** / **Publishes** lines, and `docs/handoffs/section-<id>.md`. You do
+**NOT** read a `#### Phase` block, a `docs/briefs/*.md`, a phase diff, or a
+coder's report — ever. If you need a fact from inside a section, that is a
+defect in its handoff: ask the section-orchestrator for it via `SendMessage`,
+or record it as an open finding. Reading it yourself refills the context this
+mode exists to protect.
+
+Step 0's preconditions gate still applies (plan exists, tree clean, base pulled,
+spec repo read-only), as does the whole test-budget rule in Step 1 — a
+section-orchestrator is a SUBAGENT and its row of §"Test Suite Policy" is
+unchanged by the fact that it orchestrates.
+
+- **L1 — Umbrella.** Branch `plan-<name>-umbrella` off the base branch. Read
+  §3's section table and each section's Purpose/Publishes/Depends-on. Stop
+  reading there. Group the sections into **waves**: a wave is the set of
+  sections whose dependencies have all landed.
+- **L2 — Dispatch a wave.** Cut each section's `section-<id>` branch off the
+  umbrella, then dispatch one `section-orchestrator` per section with
+  `isolation: "worktree"` — **at most TWO concurrently**; queue the rest of the
+  wave behind that cap. Each dispatch carries: section id, plan path, its
+  section branch, the umbrella branch, and the **paths of its dependencies'
+  handoff files** (never their briefs or diffs). Nested worktrees are verified
+  to work, so each section-orchestrator's own phase coders stay parallel and
+  isolated beneath it.
+- **L3 — Close the wave.** When every section in the wave has returned: merge
+  the section branches into the umbrella **in plan order**, resolving conflicts,
+  running `py tools/testgate.py check --affected` after each merge (legal here —
+  MAIN session, mid-task; a `GATE ABORT` means name the affected test files
+  yourself and run those once, it is not a failure and not a retry). Then show
+  the user a **digest** of the wave — per section: Landed, Interface deltas,
+  Open findings — and **wait for their go** before dispatching wave N+1. This is
+  the handoff prompt; it is the point at which a wrong architectural call is
+  still cheap to fix.
+- **L4 — A section that fails** (aborted, or unresolved findings after its two
+  fix rounds) does **not** stop its in-flight siblings: let them finish, merge
+  the green ones into the umbrella, then **stop before the next wave** and
+  report — the failed section's handoff, what landed, and what the user must
+  decide. **No PR.** Killing live siblings only discards tokens already spent.
+- **L5 — Close the run.** One `reviewer` over the umbrella's full diff. Update
+  any package `CLAUDE.md` that changed architecturally and the plan doc's
+  section-map statuses. Then the **one and only full gate**:
+  `py tools/testgate.py check` — zero failures. Push the umbrella; open **ONE**
+  PR to the base branch quoting each section's Quick Tests. Merge only on the
+  user's explicit confirmation. Close via `/report` + the `PLAN.md` artifact
+  republish, exactly as Step 6.
+
 ## Avoid
 - Destructive git on uncommitted work (`reset --hard`, `clean`, force-push).
 - Committing `build/`, `dist/`, or any `*.exe`.
 - Editing the spec/prototype repo — read-only, always.
 - Granting a coder scope outside its brief's §3 file boundary.
 - Running the full suite anywhere except the single Wave-4 umbrella gate.
+- Passing a brief's or plan doc's wider exit gate through to a coder unchanged —
+  downgrade it in Wave 1 instead.
 - Letting any agent's exploration run past ~10 minutes before it produces its
   deliverable.
 - **Re-issuing any test command that was denied, or that you already ran with
@@ -119,6 +193,15 @@ umbrella branch.
 - Instructing a subagent to run `--affected` — the hook denies it; the deny then
   invites exactly the retry loop above.
 - Unbounded reviewer↔coder fix rounds (cap: two).
+
+Section mode adds:
+- **Reading a phase brief, a phase block, or a phase diff from THIS session.**
+  It is the one rule the whole mode rests on.
+- More than **two** concurrent `section-orchestrator` agents.
+- Letting a section-orchestrator push, open a PR, publish an artifact, or run
+  the full suite / a tier sweep / `--affected` — it is a subagent.
+- Running a large plan flat because the range "looks small". The marker decides.
+- Skipping the wave-boundary digest and go-ahead — the user asked to sit there.
 
 ## Verify
 - After each wave: every phase branch's **named-file** gate green (0 failures) —
@@ -132,7 +215,9 @@ umbrella branch.
   it blind.
 
 ## Final report
-- Per-phase: branch name, brief path, review outcome.
+- Per-phase: branch name, brief path, review outcome. **In section mode this is
+  per-SECTION instead** — section branch, handoff path, phases landed — sourced
+  from the handoff files, not from anything you read yourself.
 - Test counts, and the failure count — which must be **zero**.
 - Umbrella branch + the single PR URL.
 - Tag every claim **measured** / **verified** / **inferred** (see `/report`).

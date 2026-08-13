@@ -59,6 +59,12 @@ class Session:
         # debug pattern: a bare Session a logic test builds is untouched (its
         # level-up roll simply offers nothing beyond the love fallback).
         self.progression_balance = progression_balance
+        # Designer-scripted leveling rides on RunState so the HUD can see it
+        # too (game/core/game_state.py). None-safe the same way every other
+        # host-set optional is: no progression doc -> XP leveling, unchanged.
+        state.scripted_leveling = bool(
+            progression_balance is not None
+            and progression_balance["Timeline"]["scripted_leveling"])
         self.registry = registry
         self.rng = rng if rng is not None else random
         # Occupancy handle so the payday Painter slot can free a completed
@@ -395,7 +401,10 @@ class Session:
                 # (prototype game.py:1215-1226 — 10G added the first arm).
                 if st.pending_boss_cutscene:  # -- 10G boss --
                     self._begin_boss_cutscene()
-                elif st.levelup_pending:
+                # The priority chain (boss cutscene -> level-up -> payday) is
+                # unchanged; a cutscene defers the level-up to
+                # resolve_boss_cutscene, which asks the SAME question.
+                elif self._levelup_due():
                     self._begin_levelup()
                 else:
                     run_payday(st, self.tilemap, self.core_balance,
@@ -445,6 +454,27 @@ class Session:
             self._begin_round_end()
 
     # -- LEVELUP (10A) ----------------------------------------------------
+
+    def _levelup_due(self):
+        """Is a level-up owed right now? The ONE place the two leveling modes
+        branch, so every caller asks the same question.
+
+        Under designer-scripted leveling the XP trigger is replaced by the
+        Timeline's authored round; ``round_num`` is still PRE-increment at
+        every call site (payday ``++``s it — see ``_begin_round_end``), so it
+        IS the round that just finished. Both call sites — the ROUND_END arm
+        and ``resolve_boss_cutscene``'s chain — sit before that payday.
+
+        The boss chain used to read ``levelup_pending`` directly, which is
+        never set under scripting: a boss round that also carried a scripted
+        level-up silently skipped it, and since every later row is keyed on
+        ``village_level + 1``, the run was locked out of EVERY subsequent
+        level-up too."""
+        st = self.state
+        if st.scripted_leveling:
+            return lv.scripted_level_due(st.village_level, st.round_num,
+                                         self.progression_balance)
+        return st.levelup_pending
 
     def _begin_levelup(self, run_income=True, return_phase=None):
         """Open the modal window on the rolled options (prototype
@@ -530,8 +560,9 @@ class Session:
         st.pending_boss_cutscene = None
         if self.debug is not None:
             self.debug.emit(dbg.BOSS_CHOICE, boss_num=boss_num, option=option,
-                            outcome=outcome)
-        if st.levelup_pending:
+                            outcome=outcome,
+                            love_reward=pending.get("love_reward", 0))
+        if self._levelup_due():
             self._begin_levelup()
         else:
             run_payday(st, self.tilemap, self.core_balance,
@@ -680,6 +711,18 @@ class Session:
 
     # -- helpers ----------------------------------------------------------
 
+    def _boss_loss_reward(self, era):
+        """This era's consolation love for a LOST boss round (0 = none).
+
+        Resolved through ``era_math.resolve_era_row`` with the boss's own
+        ``endgame_boss_scaling``, i.e. the exact path ``Boss._stat_row`` takes
+        — game/core cannot import game.enemies (it would close an import
+        cycle), so it calls the shared engine helper instead of the class."""
+        block = self.enemies_balance["EnemyTypes"]["Boss"]
+        row = era_math.resolve_era_row(block["stats"], max(0, int(era)),
+                                       block["endgame_boss_scaling"])
+        return int(row.get("loss_love_reward", 0))
+
     def _begin_round_end(self):
         st = self.state
         # -- 10G boss: queue the cutscene at a boss round's end (round_num is
@@ -691,11 +734,22 @@ class Session:
         rounds_per_era = scaling["rounds_per_era"]
         if era_math.is_boss_round(st.round_num, rounds_per_era,
                                   scaling["boss_round_in_era"]):
+            era = era_math.era_of_round(st.round_num, rounds_per_era)
+            outcome = ("win" if st.base_lives >= st.boss_lives_snapshot
+                       else "loss")
+            # A LOST boss round pays consolation love, straight off THIS era's
+            # boss stat row (`loss_love_reward`) — the same clamped/endgame-
+            # scaled resolve the Boss itself uses for hp/dmg, so era 6+ keeps
+            # paying whatever `endgame_boss_scaling` says. Paid here, once,
+            # the moment the outcome is known: the cutscene shows the number
+            # and the payday that follows it already sees the love.
+            reward = self._boss_loss_reward(era) if outcome == "loss" else 0
+            if reward:
+                st.add_love(reward)
             st.pending_boss_cutscene = {
-                "boss_num": era_math.era_of_round(
-                    st.round_num, rounds_per_era) + 1,
-                "outcome": ("win" if st.base_lives >= st.boss_lives_snapshot
-                            else "loss"),
+                "boss_num": era + 1,
+                "outcome": outcome,
+                "love_reward": reward,
             }
         # -- /10G --
         st.phase = GamePhase.ROUND_END

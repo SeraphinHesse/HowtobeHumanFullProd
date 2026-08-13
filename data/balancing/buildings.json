@@ -166,7 +166,17 @@
       "flat_mode": false,
       "range_shape": "plus",
       "range_tiles": 1,
-      "starts_unlocked": false
+      "starts_unlocked": false,
+      "tier_card_explanations": [
+        "",
+        "Upgrades all three booster lines to their second tier.",
+        "Upgrades all three booster lines to their final tier."
+      ],
+      "tier_card_titles": [
+        "Boost Buildings",
+        "Motivators",
+        "Professionals"
+      ]
     }
   },
   "BuildingsGlobal": {
@@ -412,7 +422,7 @@
         "storm_priest_ii_t2_lvl1",
         "storm_priest_iii_t3_lvl1"
       ],
-      "repeat_cost_multiplier": 1.8,
+      "repeat_cost_multiplier": 1.2,
       "starts_unlocked": false,
       "tiers": [
         {
@@ -678,46 +688,46 @@
       "starts_unlocked": false,
       "tiers": [
         {
-          "base_hp": 300,
+          "base_hp": 180,
           "base_upkeep": 3,
-          "build_cost": 12,
+          "build_cost": 15,
           "explanation": "Grows a hedge wall around every unlocked tile.",
-          "hp_per_level": 0,
+          "hp_per_level": 20,
           "levels": 3,
           "name": "Bush Wall Builder",
-          "upgrade_cost_base": 12,
+          "upgrade_cost_base": 15,
           "upgrade_cost_increment": 5,
           "upkeep_per_level": 3,
-          "wall_hp": 50,
-          "wall_hp_per_level": 100
+          "wall_hp": 75,
+          "wall_hp_per_level": 25
         },
         {
-          "base_hp": 500,
+          "base_hp": 280,
           "base_upkeep": 3,
           "build_cost": 25,
           "explanation": "Raises wooden walls — tougher than hedges.",
-          "hp_per_level": 0,
+          "hp_per_level": 40,
           "levels": 3,
           "name": "Wooden Wall Builder",
           "upgrade_cost_base": 20,
-          "upgrade_cost_increment": 8,
+          "upgrade_cost_increment": 10,
           "upkeep_per_level": 3,
-          "wall_hp": 120,
-          "wall_hp_per_level": 100
+          "wall_hp": 200,
+          "wall_hp_per_level": 50
         },
         {
-          "base_hp": 700,
+          "base_hp": 450,
           "base_upkeep": 3,
           "build_cost": 35,
           "explanation": "Erects stone ramparts. The toughest perimeter of all.",
-          "hp_per_level": 0,
+          "hp_per_level": 50,
           "levels": 3,
           "name": "Stone Wall Builder",
           "upgrade_cost_base": 30,
-          "upgrade_cost_increment": 12,
+          "upgrade_cost_increment": 30,
           "upkeep_per_level": 3,
-          "wall_hp": 250,
-          "wall_hp_per_level": 150
+          "wall_hp": 400,
+          "wall_hp_per_level": 100
         }
       ]
     }

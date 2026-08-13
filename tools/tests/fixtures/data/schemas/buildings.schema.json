@@ -1201,13 +1201,36 @@
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
+            },
+            "tier_card_explanations": {
+              "description": "Body copy for the three boost lines' SHARED level-up research cards, one per tier in advance order (exactly 3). All three lines research a tier together from ONE card, so the card cannot use any single line's own tier explanation. Index 0 is unused (the tier-1 card is the unlock card, whose copy lives in game/buildings/research.py's ResearchSpec).",
+              "items": {
+                "description": "One merged boost research card's body copy.",
+                "type": "string"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
+            "tier_card_titles": {
+              "description": "Titles for the three boost lines' SHARED level-up research cards, one per tier in advance order (exactly 3). All three lines research a tier together from ONE card, so the card cannot use any single line's own tier name. Index 0 titles nothing directly - it is the previous-tier name the tier-2 card shows above its own title.",
+              "items": {
+                "description": "One merged boost research card's title.",
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
             }
           },
           "required": [
             "flat_mode",
             "range_shape",
             "range_tiles",
-            "starts_unlocked"
+            "starts_unlocked",
+            "tier_card_explanations",
+            "tier_card_titles"
           ],
           "type": "object"
         }

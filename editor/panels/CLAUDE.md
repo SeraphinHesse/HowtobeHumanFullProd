@@ -605,6 +605,27 @@ import list.**
   under starting area"` when any covered cell isn't a `tile_buildable`-slot
   code (the marker anchors the game's unlock grid but never forces tile
   states — painted terrain wins).
+- **Camera Limit Center (a single-tile brush)**: the Camera Start brush's
+  TWIN, sitting immediately after it in `_gametiles_brush_order()` — the same
+  gametiles page, the same exclusive `_brush_group`, the same
+  `palette.arm_camera_limit_center`/`camera_limit_center_armed` →
+  `viewport.arm_camera_limit_center` wiring, the same paint = place/move,
+  erase = remove, press-on-the-marker = drag semantics (single tile, NO clamp
+  — the tutorial-marker shape, not Start Area's 2×2). It marks the CENTRE of
+  the camera's play area: `core` balancing's `Camera.max_offset_tiles_x/_y`
+  travel limit is measured from it and the camera never starts on it, which is
+  why it is a second marker rather than a reuse of `camera_start`.
+  **It renders as a single-tile closed BLUE outline through
+  `submit_overlay_lines` (E-24) plus a `HudText` caption — never a sprite**
+  (`_submit_camera_limit_center_outline`; `engine/tilemap.py`'s emitters
+  deliberately never touch the field, unlike `camera_start`, which IS emitted).
+  `LIMIT_CENTER_COLOR` `(60,90,255)` is a deeper, less cyan blue than the
+  `pond` tile condition's `(80,140,255)` so a cell carrying both stays
+  readable. **It has NO eye of its own — it shares the `camera` eye with
+  Camera Start** (a designer hiding "the camera markers" wants both gone,
+  the same call the two tutorial markers' shared eye makes).
+  `map_requirement_warnings` gains a `"camera limit center"` label when the
+  marker is absent.
 - **Tutorial markers (2 single-tile brushes)**: a FOURTH mode page
   (`palette.MODES` gains `"tutorial"`, registry `core`/`Tutorial Flute`
   and `core`/`Tutorial Stone`, slots `tutorial_flute`/`tutorial_stone`) with
@@ -1676,12 +1697,104 @@ calls):
   groups carry a `building_type` key rather than a hardcoded family list, so
   a new `/add-building` type needs no editor change here. Tier index 0 is
   always the `"unlock"` card; indices 1/2 are `"tier"` cards.
+- **Two toolbar checkboxes flip what the whole panel MEANS** (designer-scripted
+  leveling), each with an `_InfoButton` in the house style, both staged like
+  every other edit and both defaulting OFF — with both off the panel looks and
+  behaves exactly as the bullets above describe. They are seeded from the
+  loaded doc with `blockSignals(True)` around `setChecked`, the
+  `balancing.py` "populate, then connect" rule: filling the form must never
+  dirty it. The tutorial panel's root-level `skippable`/
+  `first_loss_costs_life` booleans are the shape being copied.
+  - **Scripted leveling** (`Timeline.scripted_leveling`) — the designer
+    authors WHEN each level is reached. `_LevelRow.set_level` swaps its
+    read-only `"Level N — best-case round ~R"` header for an editable
+    `_NoWheelSpinBox` (0–1000) bound to that row's `round`, **hidden for level
+    1** (the run starts there, so its round is never read); `_TimelineGraph`
+    ticks the AUTHORED schedule instead of the computed crossings (a new
+    `set_ticks`, separate from `set_curve` — the curve depends only on
+    core/enemies balancing and still never recomputes on a Timeline edit,
+    but the ticks move on every round edit); and the caption swaps to
+    "authored schedule" wording. The spinbox is built ONCE in
+    `_LevelRow.__init__` and only shown/hidden, and `set_level_round`
+    deliberately does NOT rebuild the row — rebuilding would destroy the
+    widget the designer is typing into, which is why this one staged edit
+    breaks the panel's otherwise-universal "the row rebuilds" convention.
+  - **Exact offer slots** (`Timeline.exact_offer_slots`) — a row becomes the
+    literal card set, so duplicate placements are intended and
+    `_refresh_placed_state` **stops greying placed browse cards**. That
+    greying only ever existed to prevent a duplicate that
+    `validate_uniqueness` would reject at Save, and that check is off in this
+    mode — the two must be turned off together or the panel would forbid
+    through the UI what the writer happily accepts.
+- **Round-schedule problems WARN, they never block** (user decision).
+  `timeline_ops.round_warnings(doc)` returns human-readable strings for
+  duplicate rounds, a level not scheduled after the one before it, and rows
+  wider than `MAX_SLOTS_PER_LEVEL` (4 — above that the game's level-up window
+  overflows its 640px view); `village_level` 1 is skipped in the round checks
+  since its round is unused. They surface in a non-blocking label under the
+  toolbar, refreshed by `_refresh_mode_labels` after every mutation, and
+  `save_progression` deliberately does NOT consult them — Save stays enabled.
+  This is the opposite stance from `validate_uniqueness`, which still RAISES:
+  a duplicate `village_level` is ambiguous, a clumsy schedule is just clumsy.
 - **Testing note**: a real OS-level drag gesture cannot be reliably
   synthesized under an offscreen `QApplication`. `test_timeline_panel.py`
   drives the panel's own mutation methods directly for most coverage, plus
   ONE test constructing a real `QMimeData` and calling `_SlotWidget.
   dropEvent` directly — the standard Qt-test workaround, exercising the
   actual drop-handling code path rather than only the method it delegates to.
+  Its cases **pin the fixture by emptying `_doc["Timeline"]["levels"]`**
+  before authoring: they count rows and slots, and reading whatever schedule
+  ships today is the exact "never assert against live `data/` content" trap
+  the Testing section above describes (two of them had already gone red that
+  way).
+
+## TestRunnerPLAN TR-5 — `panels/test_run_panel.py` (the test-run window)
+
+- **A POPUP WINDOW, not a dock** (reconciliation R3): `TestRunPanel` copies
+  `editor/thats_my_producer.py`'s shape — parented to the `MainWindow` (so it
+  dies with it), given `Qt.WindowType.Window` so it floats as its own non-modal
+  top-level window, with the shell holding the one reference
+  (`MainWindow.test_run_panel`). The editor stays usable while a run goes. Its
+  launch control is the "Run tests" toolbar button right after "thats my prod".
+- **A PURE VIEW. All threading lives in `main.py`** (see `editor/CLAUDE.md` —
+  this is the package's first `QThread`). The panel has no subprocess, no
+  stream parsing, no pytest vocabulary: it renders the `(domain, done, total,
+  state)` tuples TR-3 hands it and emits `run_requested(domain|None)`. That is
+  what lets its tests drive it synchronously from canned tuples — **no test in
+  the suite may launch a real test run.**
+- **The row list is DERIVED, never hardcoded**: `tools.test_domains.
+  DOMAIN_LABELS` in insertion order IS the row order (eight rows, "Tooling &
+  Agents" last). Same doctrine that killed the editor's `DOMAINS` constant. A
+  domain key with no row is **appended**, never dropped — a stray test module
+  that vanishes from the panel looks exactly like success.
+- **`total` may be `None`** (a full run has no up-front count), so the count
+  label counts UP — `"N run"`, not a fraction. It says "run", not "passed",
+  because TR-3's `done` is passed+failed+subfailed+skipped.
+- **Row buttons carry `objectName` `rerun:<domain>`**, the panel's existing
+  row-button convention, so a test asserts *which* rows are re-runnable without
+  walking the layout by index. Disabled while a run is in flight.
+- **A per-area re-run NEVER prints a gate line** (plan D2). `RunResult.
+  gate_line` is already `None` for one; the panel shows the neutral
+  `"<label>: n passed, m failed (re-run, not a gate)"` and never writes the
+  token `GATE` itself.
+- **Injection seams, each so a test touches nothing real**: `repo` (where
+  `.claude/testruns/` is), `state_dir` (the guard's directory — a test writes a
+  FAKE `inflight.json` into a tempdir), `detach` (so *Open report folder* is
+  captured as argv and no explorer opens; `plans.reveal_command` stays the ONE
+  folder-open path), `copy_fn` (so *Copy agent prompt* needs no clipboard),
+  `confirm` (so the in-flight warning never `exec()`s a modal).
+- **D5 — the in-flight warning WARNS AND ALLOWS.** `inflight_lock()` reads
+  `testguard_ledger.state_dir()/"inflight.json"` (resolved lazily, never
+  re-derived, and the hook is never imported — `.claude/hooks/` is not a
+  package). Missing, corrupt or past `LOCK_STALE_SECONDS` → "nothing running".
+  The dialog names what is running, when the guard's block clears and the
+  memory contention; Yes still starts the run. **The panel takes no lock and
+  deletes nothing under that directory.** One test asserts the lock file is
+  byte-identical afterwards, another that the filename constant still appears
+  in the hook's text.
+- ED-22: stock widgets only — no `paintEvent`, no `QPainter`, no
+  `pygame.Surface`, no `Renderer`. It draws no game content, so it needs
+  neither the `sheet_preview`/`vfx_preview` exception nor its argument.
 
 ## Verify
 Launch `py editor/main.py` and exercise the changed panel; for data-writing

@@ -29,7 +29,7 @@ from game.enemies import Spawner, create_enemy, resolve_combat
 from game.enemies.combat import _chebyshev, _fp_offset
 from game.enemies.components import DeathSpawn, EnemyCombat, PathAgent
 from game.enemies.enemy import era_stats
-from game.map.tile_map import TileMap
+from game.map.tile_map import TileMap, WallEdge, _wall_key
 from game.map.tiles import TileCondition
 
 MAPBAL = load_balance(FIXTURE_DATA, "map")
@@ -614,6 +614,89 @@ class TestBossPathing(unittest.TestCase):
                 break
         self.assertTrue(pa.reached_base)
 
+    def test_wall_seal_forces_a_repath_that_attacks_the_wall(self):
+        """Fix: a MID-GAME re-path (its committed target dies, not the
+        spawn-time path) whose hunt query comes back with NOTHING reachable
+        — not even the base, because a live wall (a WallBuilder perimeter
+        wall next to a pond, in the reported scenario) seals the only legal
+        2-wide gap for the boss's 2x2 body — must retry ignoring walls, the
+        same fallback ``Enemy.on_spawn`` has always used, and start
+        attacking the wall. Before the fix, ``PathAgent._repath`` just
+        ``return``ed on that empty path, leaving ``Movement.waypoints``
+        untouched while the "walk" animation (set unconditionally at the
+        top of ``_repath``) kept playing forever — the reported "plays walk
+        animation but never moves" bug.
+
+        Note: the hunt query's own OWN existing fallback ladder (nearest
+        building -> any reachable building -> the base, walls respected)
+        means a wall that seals off only ONE building never actually
+        produces an empty path — the boss is silently rerouted to the base
+        instead. A genuinely empty path — the case this fix targets — only
+        happens when the wall ALSO blocks the route to the base, which is
+        exactly what a WallBuilder's perimeter wall does when it's the
+        only way in or out."""
+        tm = synth(["b" * 6] * 3, base=(0, 1))
+        scene, occ = Scene(), TileOccupancy()
+        attach_base(tm, BaseBuilding(tm.base_col, tm.base_row, CORE), scene, occ)
+        near, _ = place_building(tm, tm.get(3, 1), "defence", 9999,
+                                 BUILD, scene, occ)
+        enem = boss_footprint(copy.deepcopy(ENEM), 2)
+        boss = create_enemy("boss", 4, 1, enem, tm, 0)
+        scene.spawn(boss)
+        scene.update(0.0)
+        pa = boss.get_component(PathAgent)
+        mv = boss.get_component(Movement)
+        self.assertFalse(pa.goal_is_base)      # goal = `near`, no wall yet
+        self.assertTrue(pa.repath_on_kill)
+
+        # A live wall now seals the ONLY route back to the base, spanning
+        # the whole grid height so no footprint-2 anchor row admits a step
+        # across it — once `near` (the boss's only known prey) dies, even
+        # the hunt query's own base fallback comes back empty.
+        for r in range(3):
+            tm.wall_edges[_wall_key(1, r, 2, r)] = WallEdge(
+                1, r, 2, r, 10_000, 10_000, object())
+        tm.get(1, 1).condition = TileCondition.POND
+        tm._bump_path_version()
+
+        # `near` dies while the boss is still walking toward it (BP-3's
+        # dead-target watch) — the same trigger
+        # ``test_dead_goal_repaths_instead_of_phantom_breach`` uses above.
+        near.get_component(Health).damage(10 ** 9)
+        for _ in range(20):
+            scene.update(0.05)      # let the dead-target repath fire
+
+        self.assertTrue(mv.waypoints, "the boss must not be left with no "
+                        "path after its committed target dies with the "
+                        "route home sealed")
+        self.assertTrue(pa.goal_is_base)       # only the base path is left
+
+        pos0 = boss.transform.world_pos
+        moved = False
+        for _ in range(400):
+            scene.update(0.05)
+            if boss.transform.world_pos != pos0:
+                moved = True
+            if pa._wall_target is not None:
+                break
+        self.assertTrue(moved, "the boss must actually walk toward the "
+                        "wall, not stand still while playing its walk "
+                        "animation")
+        self.assertIsNotNone(pa._wall_target, "the boss must engage the "
+                             "wall it can't route around, not idle forever")
+
+        def _wall_hp_total():
+            return sum(w.hp for w in
+                      (tm.get_wall_between(1, r, 2, r) for r in range(3))
+                      if w is not None)
+
+        hp_before = _wall_hp_total()
+        for _ in range(200):
+            scene.update(0.05)
+        self.assertLess(_wall_hp_total(), hp_before,
+                        "the boss must actually damage the wall it's "
+                        "stuck against")
+
 
 # ---------------------------------------------------------------------------
 # 5. Bonus payout math — pure helpers, dmg_bonus threading, payday slot 3
@@ -809,7 +892,7 @@ class TestBossCutsceneFlow(unittest.TestCase):
         self.assertEqual(st.boss_lives_snapshot, st.base_lives)
         session.quick_skip_combat(scene)          # wave over -> ROUND_END
         self.assertEqual(st.pending_boss_cutscene,
-                         {"boss_num": 1, "outcome": "win"})
+                         {"boss_num": 1, "outcome": "win", "love_reward": 0})
         phase = self._ride_to_cutscene(session, scene, tm)
         self.assertEqual(phase, GamePhase.BOSS_CUTSCENE)  # NOT LEVELUP
         self.assertTrue(session.frozen)
@@ -849,6 +932,46 @@ class TestBossCutsceneFlow(unittest.TestCase):
         session.on_base_hit(_Dummy())             # lose a life -> wipe pends
         session.post_sim(scene)                   # wipe -> ROUND_END
         self.assertEqual(st.pending_boss_cutscene["outcome"], "loss")
+
+    def test_loss_pays_this_eras_consolation_love(self):
+        """A LOST boss round pays `stats[era].loss_love_reward` once; a WIN
+        pays nothing. The fixture authors no reward, so the value is written
+        onto a deep copy here (the fixture stays pinned)."""
+        enem = copy.deepcopy(ENEM)
+        for i, row in enumerate(enem["EnemyTypes"]["Boss"]["stats"]):
+            row["loss_love_reward"] = 30 * (i + 1)
+        tm, scene, occ = build_board(["bs"])
+        session = Session.create(Spawner(), tm, enem, CORE, BUILD,
+                                 rng=random.Random(3), occupancy=occ)
+        st = session.state
+        st.round_num = INTERVAL
+        self._end_turn_past_any_intro(session)
+        love_before = st.love
+
+        class _Dummy:
+            ETYPE = "standard"
+            dmg = 5
+        session.on_base_hit(_Dummy())             # lose a life -> loss
+        session.post_sim(scene)                   # -> ROUND_END
+        self.assertEqual(st.pending_boss_cutscene["outcome"], "loss")
+        self.assertEqual(st.pending_boss_cutscene["love_reward"], 30)  # era 0
+        self.assertEqual(st.love, love_before + 30)
+
+    def test_win_pays_no_consolation_love(self):
+        enem = copy.deepcopy(ENEM)
+        for row in enem["EnemyTypes"]["Boss"]["stats"]:
+            row["loss_love_reward"] = 30
+        tm, scene, occ = build_board(["bs"])
+        session = Session.create(Spawner(), tm, enem, CORE, BUILD,
+                                 rng=random.Random(3), occupancy=occ)
+        st = session.state
+        st.round_num = INTERVAL
+        self._end_turn_past_any_intro(session)
+        love_before = st.love
+        session.quick_skip_combat(scene)          # wave over, no life lost
+        self.assertEqual(st.pending_boss_cutscene["outcome"], "win")
+        self.assertEqual(st.pending_boss_cutscene["love_reward"], 0)
+        self.assertEqual(st.love, love_before)
 
     def test_no_cutscene_on_a_non_boss_round(self):
         session, scene, tm = self._session(INTERVAL + 1)
@@ -1193,6 +1316,46 @@ class TestChebyshevRangeGateNearestBlockTile(unittest.TestCase):
         self.assertEqual(off, 0.0)
         self.assertLessEqual(_chebyshev((9, 10), walker, off), 1)
         self.assertGreater(_chebyshev((12, 10), walker, off), 1)
+
+
+# ---------------------------------------------------------------------------
+# 11. Stone-thrower auto-fire vs. the boss — real building, real combat sweep
+# ---------------------------------------------------------------------------
+class TestStoneThrowerAutoFireVsBoss(unittest.TestCase):
+    """Section 10's ``_chebyshev``/``_fp_offset`` tests prove the range-gate
+    MATH is footprint-aware in isolation, but never run it end-to-end: a
+    real ``DefenceBuilding`` (Stone Thrower, real ``range_tiles: 1``) and a
+    real footprint-2 boss, through the actual ``resolve_combat`` sweep
+    (target acquisition, cooldown, projectile delivery) — the layer an
+    integration-level regression (cooldown timing, acquisition picking a
+    different target, delivery never landing) could hide behind, even with
+    the pure math proven correct."""
+
+    def test_a_range_1_stone_thrower_diagonally_touching_a_boss_corner_hits_it(self):
+        tm, scene, occ = build_board(["b" * 15] * 15)
+        enem = boss_footprint(copy.deepcopy(ENEM), 2)
+        boss = create_enemy("boss", 10, 10, enem, tm, 0)
+        scene.spawn(boss)
+        # Diagonally touching the block's (10,10) corner — Chebyshev 1 from
+        # the NEAREST block tile, not the centre — exactly the user's ask:
+        # "any tile of the defender adjacent to any tile of the boss's 2x2
+        # footprint should be in range," tested at the corner most likely to
+        # expose an off-by-one, not the nearest face.
+        defender, _ = place_building(tm, tm.get(9, 9), "defence", 9999,
+                                     BUILD, scene, occ)
+        stone_thrower = BUILD["DefenceBuildings"]["BasicDefence"]["tiers"][0]
+        self.assertEqual(stone_thrower["range_tiles"], 1)   # fixture sanity
+        scene.update(0.0)
+
+        hp0 = boss.get_component(Health).hp
+        for _ in range(150):
+            scene.update(0.1)
+            resolve_combat(scene, tm, 0.1, BUILD, VFX)
+            if boss.get_component(Health).hp < hp0:
+                break
+        self.assertLess(boss.get_component(Health).hp, hp0,
+                        "a range-1 defender touching the boss's 2x2 block "
+                        "must be able to auto-fire on it")
 
 
 if __name__ == "__main__":

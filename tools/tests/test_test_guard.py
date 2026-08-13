@@ -117,6 +117,27 @@ class TestRoleGuard(GuardCase):
         must not be treated as a subagent — see `_role`'s docstring."""
         self.assertEqual(self.pre(FULL, "S-NEVER-STARTED")[0], 0)
 
+    def test_a_subagent_sharing_the_parents_session_id_cannot_demote_it(self):
+        """The collision `_role` promises is safe, made actually safe.
+
+        When the runtime hands a subagent the SAME session id as its parent,
+        both events write one marker file. `SubagentStart` fires last, so
+        last-write-wins used to demote the main session to `sub` and then deny
+        it the single full run at handoff — which is exactly what happened
+        during the TR-1..TR-6 orchestration.
+        """
+        self.start("S-SHARED", subagent=False)
+        self.start("S-SHARED", subagent=True)
+        self.assertEqual(self.pre(FULL, "S-SHARED")[0], 0)
+
+    def test_a_new_session_still_resets_a_stale_sub_marker(self):
+        """The other direction stays last-write-wins, deliberately: a genuinely
+        new session on a recycled id must come back as `main`."""
+        self.start("S-RECYCLED", subagent=True)
+        self.assertEqual(self.pre(FULL, "S-RECYCLED")[0], 2)
+        self.start("S-RECYCLED", subagent=False)
+        self.assertEqual(self.pre(FULL, "S-RECYCLED")[0], 0)
+
 
 class TestRepeatGuard(GuardCase):
     """The loop-killer: same target + unchanged tree = denied."""
@@ -161,18 +182,134 @@ class TestRepeatGuard(GuardCase):
 
 
 class TestConcurrencyGuard(GuardCase):
+    """`TESTGUARD_PROBE` pins the liveness answer.
+
+    Without it these tests are undecidable: they run *under pytest*, so the
+    real probe correctly reports a live test process no matter which scenario
+    is being set up.
+    """
+
+    ALIVE = {"TESTGUARD_PROBE": "alive"}
+    DEAD = {"TESTGUARD_PROBE": "dead"}
+    UNKNOWN = {"TESTGUARD_PROBE": "unknown"}
+
     def test_a_second_run_while_one_is_in_flight_is_denied(self):
         self.start("S-MAIN", subagent=False)
-        self.assertEqual(self.pre(TARGETED)[0], 0)          # takes the lock
-        code, message = self.pre(OTHER_TARGET)
+        self.assertEqual(self.pre(TARGETED, extra_env=self.ALIVE)[0], 0)
+        code, message = self.pre(OTHER_TARGET, extra_env=self.ALIVE)
         self.assertEqual(code, 2)
         self.assertIn("in flight", message)
 
     def test_the_lock_releases_when_the_run_finishes(self):
         self.start("S-MAIN", subagent=False)
-        self.pre(TARGETED)
+        self.pre(TARGETED, extra_env=self.ALIVE)
         self.post(TARGETED, "49 passed")
-        self.assertEqual(self.pre(OTHER_TARGET)[0], 0)
+        self.assertEqual(self.pre(OTHER_TARGET, extra_env=self.ALIVE)[0], 0)
+
+    def test_a_lock_left_by_a_CRASHED_run_does_not_block(self):
+        """The 2026-08-13 incident: a tool call died inside the harness, so
+        PostToolUse never fired and its lock blocked the gate for 20 minutes
+        while nothing at all was running."""
+        self.start("S-MAIN", subagent=False)
+        self.pre(TARGETED, extra_env=self.ALIVE)            # takes the lock
+        # ...that run dies. No PostToolUse. Lock still on disk:
+        self.assertTrue((self.state / "inflight.json").exists())
+
+        self.assertEqual(self.pre(OTHER_TARGET, extra_env=self.DEAD)[0], 0)
+
+    def test_an_inconclusive_probe_still_blocks(self):
+        """Unknown must mean 'assume it is running'. A probe that fails open
+        would dissolve the concurrency guard on every machine it cannot read."""
+        self.start("S-MAIN", subagent=False)
+        self.pre(TARGETED, extra_env=self.ALIVE)
+        code, message = self.pre(OTHER_TARGET, extra_env=self.UNKNOWN)
+        self.assertEqual(code, 2)
+        # ...but THEN it must name the override, because the timer is now the
+        # only thing that will clear it.
+        self.assertIn("TESTGUARD_OFF=1", message)
+
+    def test_the_denial_says_wait_and_not_delete_the_lock(self):
+        """The message is half the mechanism. The old one ended with 'delete
+        <path> or re-run with TESTGUARD_OFF=1' and gave no expiry time, so an
+        agent 2.5 minutes from the timer reached for `rm` instead of waiting."""
+        self.start("S-MAIN", subagent=False)
+        self.pre(TARGETED, extra_env=self.ALIVE)
+        code, message = self.pre(OTHER_TARGET, extra_env=self.ALIVE)
+        self.assertEqual(code, 2)
+        self.assertIn("WAIT", message)
+        self.assertNotIn("inflight.json", message)
+        self.assertNotIn("TESTGUARD_OFF", message)
+
+
+class TestLivenessProbe(unittest.TestCase):
+    """The probe reads process command lines — pin what counts as a test run."""
+
+    def setUp(self):
+        sys.path.insert(0, str(REPO / ".claude" / "hooks"))
+        self.addCleanup(lambda: sys.path.remove(str(REPO / ".claude" / "hooks")))
+        import importlib
+        self.guard = importlib.import_module("test_guard")
+
+    def test_what_counts_as_a_live_test_run(self):
+        cases = {
+            "py -m pytest tools/tests/test_boss.py -q": True,
+            "C:\\Python311\\python.exe tools/testgate.py check": True,
+            "bash -c cd /repo && py tools/testgate.py check | tail -15": True,
+            # A run of the guard's OWN tests is still a run. The first version
+            # excluded any line containing "test_guard" and so made this one
+            # invisible.
+            "py -m pytest tools/tests/test_test_guard.py -q": True,
+            # The guard fires on every Bash call, so it is always running
+            # alongside itself and must never count as the run it is judging.
+            "py C:/repo/.claude/hooks/test_guard.py": False,
+            "py editor/main.py": False,
+            "py game/main.py --backend=gpu": False,
+            "py tools/smoke.py": False,
+        }
+        for line, expected in cases.items():
+            with self.subTest(line=line):
+                self.assertEqual(
+                    self.guard._looks_like_a_test_process(line), expected)
+
+    def test_the_probe_actually_works_on_this_machine(self):
+        """The probe is platform code; a silently broken one degrades the guard
+        back to the 20-minute timer without anyone noticing.
+
+        This test IS a live test process, so the probe must both return lines
+        and recognise one of them."""
+        lines = self.guard._probe_command_lines()
+        self.assertIsNotNone(lines, "the process probe returned nothing here")
+        self.assertTrue(
+            any(self.guard._looks_like_a_test_process(line) for line in lines),
+            "the probe cannot see the pytest process running this very test")
+
+    def test_an_empty_process_list_is_inconclusive_not_idle(self):
+        """A working probe always sees at least this guard's own python, so
+        zero lines means the probe broke — never 'the machine is idle'."""
+        original = self.guard.subprocess
+        self.addCleanup(lambda: setattr(self.guard, "subprocess", original))
+
+        class _Empty:
+            returncode = 0
+            stdout = b"   \n\n"
+
+        class _FakeModule:
+            run = staticmethod(lambda *a, **k: _Empty())
+
+        # Rebind the NAME in the guard's namespace — never patch `run` on the
+        # stdlib module, which the rest of this suite is also using.
+        self.guard.subprocess = _FakeModule()
+        self.assertIsNone(self.guard._probe_command_lines())
+        self.assertIsNone(self.guard._lock_is_dead({}))
+
+    def test_the_env_override_pins_all_three_answers(self):
+        import os
+        for value, expected in (("dead", True), ("alive", False),
+                                ("unknown", None)):
+            with self.subTest(value=value):
+                os.environ["TESTGUARD_PROBE"] = value
+                self.addCleanup(os.environ.pop, "TESTGUARD_PROBE", None)
+                self.assertIs(self.guard._lock_is_dead({}), expected)
 
 
 class TestNeverWedgesTheSession(GuardCase):
@@ -220,6 +357,42 @@ class TestClassification(unittest.TestCase):
         for command, expected in cases.items():
             with self.subTest(command=command):
                 self.assertEqual(self.guard.classify(command), expected)
+
+
+class TestLedgerIsOneOwner(GuardCase):
+    """`tools/testguard_ledger.py` owns the key; the hook has no second copy.
+
+    Two copies of the key logic drift and the failure is SILENT — records land
+    under a key nothing looks up and the repeat guard just stops denying
+    (TestRunner plan, D3). So assert the hook and a direct call agree, and that
+    a record written by the module is one the hook reads back.
+    """
+
+    def test_the_hook_and_a_direct_run_key_call_agree(self):
+        from tools.testguard_ledger import run_key
+
+        self.start("S-MAIN", subagent=False)
+        self.assertEqual(self.pre(TARGETED)[0], 0)
+        self.post(TARGETED, "49 passed")
+
+        # Nothing was written to the tree between those two calls, so the
+        # fingerprint — and therefore the key — cannot have moved.
+        record = self.state / f"run-{run_key(TARGETED)}.json"
+        self.assertTrue(record.exists(),
+                        "the hook filed its record under a different key")
+        self.assertIn("49 passed",
+                      json.loads(record.read_text(encoding="utf-8"))["outcome"])
+
+    def test_record_run_writes_what_the_repeat_guard_reads(self):
+        """The round-trip TR-6's editor relies on — no real test run involved."""
+        from tools.testguard_ledger import record_run
+
+        self.start("S-MAIN", subagent=False)
+        record_run(self.state, TARGETED, "GATE PASS (0 failures)")
+
+        code, message = self.pre(TARGETED)
+        self.assertEqual(code, 2)
+        self.assertIn("GATE PASS (0 failures)", message)
 
 
 class TestThePolicyIsStatedOnce(unittest.TestCase):
@@ -304,13 +477,86 @@ class TestThePolicyIsStatedOnce(unittest.TestCase):
     def test_no_live_doc_teaches_the_pre_pytest_incantation(self):
         """`unittest discover` runs everything and is not the gate. Historical
         records under `docs/briefs/` and `planning/` are exempt: they are what
-        was true then, and each carries a SUPERSEDED banner."""
+        was true then, and each carries a SUPERSEDED banner.
+
+        `.claude/worktrees/` is exempt too — a worktree is a full checkout of
+        ANOTHER branch, so this sweep would otherwise assert that every branch
+        anyone has open already carries this branch's doc fixes. It cannot:
+        the offending briefs there are history on branches that predate the
+        fix. Scoping to the current checkout is the whole point of the test."""
         offenders = []
         for root in ("engine", "game", "editor", "data", "tools", ".claude"):
             for path in (REPO / root).rglob("*.md"):
+                if "worktrees" in path.relative_to(REPO).parts:
+                    continue
                 if "unittest discover" in path.read_text(encoding="utf-8"):
                     offenders.append(path.relative_to(REPO).as_posix())
         self.assertEqual(offenders, [], "live docs still teach `unittest discover`")
+
+
+class TestEditorSourcedCredit(GuardCase):
+    """TR-6: a full run started from the EDITOR is this tree's gate.
+
+    No test here launches anything: the ledger state is written directly by
+    `tools.testguard_ledger.record_run` — the same call the editor makes — and
+    the hook is driven as a subprocess, exactly as every other case above.
+
+    The thing being protected is the WORDING. An agent told "you already ran
+    this exact target" about a run it has no memory of concludes the guard is
+    broken and reaches for the override, which is the one outcome the credit
+    mechanism cannot survive.
+    """
+
+    OUTCOME = "GATE PASS  2251 passed, 0 failed"
+
+    def record_editor_run(self, outcome=None):
+        from tools.testguard_ledger import record_run
+        return record_run(self.state, FULL, outcome or self.OUTCOME,
+                          source="editor")
+
+    def test_an_editor_run_denies_the_main_sessions_gate(self):
+        self.start("S-MAIN", subagent=False)
+        self.record_editor_run()
+
+        code, message = self.pre(FULL)
+        self.assertEqual(code, 2)
+        self.assertIn(self.OUTCOME, message)
+
+    def test_the_denial_names_the_editor_and_never_claims_the_agent_ran_it(self):
+        self.start("S-MAIN", subagent=False)
+        self.record_editor_run()
+
+        code, message = self.pre(FULL)
+        self.assertEqual(code, 2)
+        self.assertIn("from the editor", message)
+        self.assertNotIn("you already ran this exact target", message)
+
+    def test_editing_the_tree_clears_editor_credit_too(self):
+        """Credit is keyed on the tree, not on who ran it."""
+        self.start("S-MAIN", subagent=False)
+        self.record_editor_run()
+
+        scratch = REPO / "tools" / "tests" / "_tr6_credit_scratch.py"
+        scratch.write_text("# transient probe file\n", encoding="utf-8")
+        self.addCleanup(lambda: scratch.exists() and scratch.unlink())
+        self.assertEqual(self.pre(FULL)[0], 0)
+
+    def test_a_record_with_no_source_keeps_todays_wording(self):
+        """The regression pin: pre-TR-6 records carry no `source` key, and an
+        agent's OWN repeat must still be told it ran the thing itself."""
+        from tools.testguard_ledger import run_key
+        import time as _time
+
+        self.start("S-MAIN", subagent=False)
+        self.state.mkdir(parents=True, exist_ok=True)
+        (self.state / f"run-{run_key(FULL)}.json").write_text(json.dumps({
+            "finished": _time.time(), "target": FULL, "outcome": "49 passed",
+        }), encoding="utf-8")
+
+        code, message = self.pre(FULL)
+        self.assertEqual(code, 2)
+        self.assertIn("you already ran this exact target", message)
+        self.assertNotIn("from the editor", message)
 
 
 if __name__ == "__main__":

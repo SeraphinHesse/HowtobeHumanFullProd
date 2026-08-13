@@ -45,6 +45,12 @@
           },
           "type": "array"
         },
+        "round": {
+          "description": "The round at the END of which this village_level is reached, when Timeline.scripted_leveling is true. Ignored for village_level 1 (the run starts there) and ignored entirely while scripted_leveling is false.",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        },
         "village_level": {
           "description": "The RunState.village_level this level-up fires at (1-based, incremented once per level-up).",
           "maximum": 1000,
@@ -54,6 +60,7 @@
       },
       "required": [
         "village_level",
+        "round",
         "offer_slots"
       ],
       "type": "object"
@@ -76,22 +83,32 @@
   "$id": "progression.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Progression balancing domain (TimelinePLAN D1): the Timeline editor authors which building unlock/tier-upgrade cards are eligible offer-slot choices at each player village_level level-up. This is the sole source of unlock-timing eligibility (replaces buildings.json unlock_min_round, TimelinePLAN D4/T4). Bounds policy: village_level 1-1000 (matches the repo rounds/levels bounds policy), tier_index 0-2 (one of a building type's 3 tiers).",
+  "description": "Progression balancing domain (TimelinePLAN D1): the Timeline editor authors which building unlock/tier-upgrade cards are eligible offer-slot choices at each player village_level level-up. This is the sole source of unlock-timing eligibility (replaces buildings.json unlock_min_round, TimelinePLAN D4/T4). Two independent designer switches sit on Timeline itself: scripted_leveling (WHEN each level is reached — authored rounds instead of XP) and exact_offer_slots (WHAT a level-up shows — the row's exact card set instead of an eligibility floor). Both default false; with both false the runtime behaves exactly as it did before they existed. Bounds policy: village_level 1-1000 and round 0-1000 (matches the repo rounds/levels bounds policy), tier_index 0-2 (one of a building type's 3 tiers).",
   "properties": {
     "Timeline": {
       "additionalProperties": false,
       "description": "The whole authored unlock schedule.",
       "properties": {
+        "exact_offer_slots": {
+          "description": "When true a level's offer_slots are the EXACT card set that level-up shows: an empty (null) slot becomes a +Love card, an already-claimed card is dropped, and duplicate placements across levels are allowed. False = the shipped behaviour, where a row only marks which cards become ELIGIBLE from that village_level on.",
+          "type": "boolean"
+        },
         "levels": {
           "description": "Sparse, one entry per player village_level that has at least one authored offer slot. A village_level with no entry has no manually curated slots.",
           "items": {
             "$ref": "#/$defs/level"
           },
           "type": "array"
+        },
+        "scripted_leveling": {
+          "description": "When true the player's village level follows the authored per-level round schedule instead of XP: the level-up fires at ROUND_END of each level's round, XP is never awarded (no XP bar, no XP floaters), and a level with no authored row never fires. False = the shipped XP-threshold behaviour, unchanged.",
+          "type": "boolean"
         }
       },
       "required": [
-        "levels"
+        "levels",
+        "scripted_leveling",
+        "exact_offer_slots"
       ],
       "type": "object"
     }

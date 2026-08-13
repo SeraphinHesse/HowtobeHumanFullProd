@@ -47,10 +47,24 @@ that breaks this table is *denied*, not merely discouraged.
   promise was "only the blast radius", which is how "don't re-run the suite"
   kept getting broken by agents who thought they had asked for a narrow run.)
 - **The full `py tools/testgate.py check` runs exactly ONCE**, by the MAIN
-  SESSION, as the last step before handing work back or opening a PR — or when
-  the user explicitly asks. Never mid-task, never twice.
+  SESSION, at handoff — or when the user explicitly asks. Never mid-task, never
+  twice. **"At handoff" means `/commitpushpr` stage 4, which is AFTER the PR is
+  up and AFTER `Development` has been merged down** — not before either. (This
+  bullet used to read "before handing work back or opening a PR", which is now
+  wrong in both halves: the PR goes up first, marked UNTESTED, and gating a tree
+  that `Development` has not landed in yet spends the one allowed run measuring
+  a tree that stops existing minutes later.)
+- **A completed full run started from the editor's *Run tests* button IS that
+  once, for that working tree** — it is recorded in the guard's ledger, so the
+  main session is handed its verdict instead of running again; any edit to the
+  tree clears it.
 - **Never launch a second test run while another is in flight.** Duplicate runs
-  exhaust memory; the hook denies this outright.
+  exhaust memory; the hook denies this outright. A run that *crashed* does not
+  count: the hook checks whether a test process is actually alive and releases
+  the lock when none is. So a denial here means a run really is going — wait
+  for it (the message names the clock time it clears), never delete the lock
+  file, and never escalate it to the user as a test-policy question. It is a
+  queue, not a refusal.
 - **Re-running an unchanged target is the exact loop this policy exists to
   stop.** If you ran a target and edited nothing since, the result has not
   changed — do not run it again to "make sure". The hook denies this too, and
@@ -101,6 +115,15 @@ Delegation is a **tool, not a ritual**. It was mandatory from 2026-07-15 until
 - **The main session writes the plan itself** — never delegate planning to a
   `Plan` agent. Planning against another agent's summary is how plans end up
   subtly wrong, and the rework costs more than the plan saved.
+- **Nested orchestration is legal, and capped at two.** A subagent can spawn
+  subagents, and a worktree-isolated agent's children get their own sibling
+  worktrees (both verified 2026-08-13). That is what `section-orchestrator`
+  uses to run a LARGE plan: `/execute-plan-phases` → **at most 2 concurrent**
+  `section-orchestrator`s → their own coder/reviewer waves. The worktree rule
+  above still binds at **every** tier — concurrent implementation agents are
+  worktree-isolated no matter who dispatched them. Reach for this tier only for
+  a plan doc marked `<!-- plan-scale: large -->`; on anything smaller it costs
+  more context than it saves.
 
 ### Judgement (the default, not a rule)
 
@@ -230,6 +253,7 @@ artifacts. Scaffold a new one with `/add-agent`.
 | `coder` | Generic implementer for game/editor/data tasks; opens with the matching skill above |
 | `engine-coder` | Engine specialist, scoped to `engine/**` + engine tests; layering invariants baked in |
 | `planner` | Phased plan docs + phase briefs in the house shape; never implements |
+| `section-orchestrator` | Mid-tier: drives ONE section of a LARGE plan (its own planner/coder/reviewer waves) and returns a ≤40-line handoff; dispatched only by `/execute-plan-phases` in section mode |
 | `reviewer` | Read-only diff review against brief + design pillars; ranked findings |
 | `phase-executor` | Unattended single-phase execution from a brief; never re-plans |
 
@@ -290,9 +314,14 @@ Then:
 2. If data changed: confirm schema validation passes.
 3. If anything architectural changed: update **the package CLAUDE.md** — not
    this router, not another package's doc.
-4. PRs state a concrete in-game Quick Test scenario. On the user's
-   confirmation: commit (brief msg) → push → PR. CI (`.github/workflows/
-   tests.yml`) gates every PR into `Development`.
+4. **Finishing a session ALWAYS goes through `/commitpushpr`** — it is the one
+   closing workflow, not one option among several. Report → **UNTESTED PR** →
+   merge `Development` down → *then* the single gate (skippable — CI may
+   already be green, or the user may have run it in the editor) → fix, push,
+   rewrite the PR body to what actually happened. Do not hand-roll
+   commit → push → PR, and do not run the gate before the merge-down. PRs state
+   a concrete in-game Quick Test scenario. CI (`.github/workflows/tests.yml`)
+   gates every PR into `Development`.
 
 **Tests must never write into `data/`.** Copy it to a tempdir (`TempDataCase`).
 A session fixture hashes `data/` before and after the suite and fails the run if

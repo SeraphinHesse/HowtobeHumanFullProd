@@ -2,6 +2,7 @@
 
     py tools/testgate.py check                 # the gate. This is the one you want.
     py tools/testgate.py check --affected      # only the blast radius of your diff
+    py tools/testgate.py check --stream        # same gate, output echoed LIVE
     py tools/testgate.py snapshot              # record today's failures as tolerated
 
 Output is the whole point:
@@ -104,11 +105,45 @@ def in_worktree() -> bool:
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
 
-def run_suite(extra: list[str] | None = None) -> tuple[dict[str, str], int]:
+def _stream_child(cmd: list[str], env: dict[str, str]) -> str:
+    """Run the child line-buffered, ECHOING each line as it arrives, and return
+    the whole output anyway.
+
+    This exists for exactly one caller: the editor's test panel (TestRunnerPLAN
+    TR-3/TR-5), which needs per-file progress WHILE the gate runs and the gate's
+    own authoritative verdict at the end. Capturing everything and printing
+    nothing until exit (the default path below) cannot give it the first; a
+    second, separate pytest run cannot give it the second without forking the
+    verdict logic, which is the one thing D2 forbids. So the stream is a
+    passthrough and NOTHING about parsing or the verdict changes — see
+    run_suite: both paths hand the same text to the same loop.
+    """
+    proc = subprocess.Popen(cmd, cwd=REPO, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT, text=True, bufsize=1,
+                            env=env)
+    chunks: list[str] = []
+    if proc.stdout is not None:
+        for line in proc.stdout:
+            chunks.append(line)
+            sys.stdout.write(line)
+            sys.stdout.flush()
+    proc.wait()
+    return "".join(chunks)
+
+
+def run_suite(extra: list[str] | None = None,
+              stream: bool = False) -> tuple[dict[str, str], int]:
     """Run pytest; return ({node-id: outcome} for everything that did not pass,
-    total tests that ran)."""
-    cmd = [sys.executable, "-m", "pytest", "-q", "--no-header", "-rfEsX",
-           *(extra or [])]
+    total tests that ran).
+
+    `stream=True` is strictly additive: the child is run line-buffered through
+    _stream_child and its output is echoed live, with `-v` instead of `-q` so
+    each finished test emits a node-id the reader can attribute. Everything
+    after that — the parse loop, the caller's baseline diff, the GATE line, the
+    exit code — is byte-identical to the default path.
+    """
+    cmd = [sys.executable, "-m", "pytest", "-v" if stream else "-q",
+           "--no-header", "-rfEsX", *(extra or [])]
     # Color OFF in the child, whatever this shell exports (FORCE_COLOR wins
     # over piped output in pytest) — and strip escapes anyway below, because
     # the next color-forcing knob will not be one we have heard of.
@@ -116,11 +151,18 @@ def run_suite(extra: list[str] | None = None) -> tuple[dict[str, str], int]:
            if k not in ("FORCE_COLOR", "CLICOLOR_FORCE")}
     env["NO_COLOR"] = "1"
     env["PY_COLORS"] = "0"
-    proc = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True,
-                          env=env)
+    if stream:
+        # Python block-buffers stdout off a tty; without this the "live" mode
+        # would deliver the whole run in one lump at the end.
+        env["PYTHONUNBUFFERED"] = "1"
+        output = _stream_child(cmd, env)
+    else:
+        proc = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True,
+                              env=env)
+        output = proc.stdout + proc.stderr
     results: dict[str, str] = {}
     total = 0
-    for line in (proc.stdout + proc.stderr).splitlines():
+    for line in output.splitlines():
         line = _ANSI.sub("", line).strip()
         if m := _SKIPPED.match(line):
             results[f'{posix(m["file"])}: {m["reason"].strip()}'] = "SKIPPED"
@@ -168,6 +210,7 @@ def cmd_snapshot(args) -> int:
 def cmd_check(args) -> int:
     base = load_baseline()
     extra = list(args.pytest_args)
+    stream = bool(getattr(args, "stream", False))
 
     if args.affected:
         selected, safety, note = affected_modules(args.base_ref)
@@ -188,21 +231,21 @@ def cmd_check(args) -> int:
             return 2
         if not selected:
             # "no .py changed" — safety is the core tier, which IS a narrowing.
-            results, total = run_suite(extra + safety)
+            results, total = run_suite(extra + safety, stream=stream)
         else:
             # Pass 1: the affected modules IN FULL — no marker filter, so an
             # `editor`-marked test in an affected file is not silently dropped.
-            results, total = run_suite(extra + selected)
+            results, total = run_suite(extra + selected, stream=stream)
             # Pass 2: the core tier, as the insurance the docstring always
             # promised and the single-invocation form could never deliver.
-            core_results, core_total = run_suite(extra + safety)
+            core_results, core_total = run_suite(extra + safety, stream=stream)
             results.update(core_results)
             # Tests in BOTH passes are counted twice here. The number is a
             # progress read-out, never a gate input — the verdict below keys on
             # node-ids (design rule 1), which de-duplicate correctly.
             total += core_total
     else:
-        results, total = run_suite(extra)
+        results, total = run_suite(extra, stream=stream)
 
     known = set(base["failures"])
     expected_skips = set(base["skips"])
@@ -333,6 +376,10 @@ def main(argv: list[str]) -> int:
     chk.add_argument("--affected", action="store_true",
                      help="only the blast radius of the diff (+ the core tier)")
     chk.add_argument("--base-ref", default="Development")
+    chk.add_argument("--stream", action="store_true",
+                     help="echo pytest's output live (-v) while still printing "
+                          "the same GATE verdict at the end; for the editor's "
+                          "test panel")
     chk.add_argument("pytest_args", nargs="*", default=[])
     chk.set_defaults(func=cmd_check)
 

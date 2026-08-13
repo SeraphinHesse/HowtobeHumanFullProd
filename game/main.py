@@ -54,7 +54,7 @@ from engine import data_io, tilemap
 from engine.assets import load_manifest, load_registry
 from engine.assets.store import AssetStore
 from engine.audio import play_music
-from engine.coords import load_coordinate_system
+from engine.coords import CameraLimit, load_coordinate_system
 from engine.core import Scene, SpriteAnimator
 from engine.physics import TileOccupancy
 from engine.render import HudSprite, HudText, Renderer
@@ -238,6 +238,22 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
         data_dir, map_cols=map_doc.cols, map_rows=map_doc.rows,
         zoom_levels=core_balance["Camera"]["zoom_levels"],
         default_zoom=core_balance["Camera"]["default_zoom"])
+
+    # The camera leash: how far the player may drag the view from the map's
+    # camera_limit_center marker — the designer-painted CENTRE of the play
+    # area, which the camera never starts on. A map that paints none falls
+    # back to camera_start, then to the map centre. Installed on `cs` rather
+    # than passed per call, so every clamp site — drag-pan, step_zoom,
+    # frame_camera's center_on — honours it with no extra wiring; the editor
+    # never installs one, so its viewport stays free-roam. 0 = unlimited.
+    _cam = core_balance["Camera"]
+    _marker = map_doc.camera_limit_center or map_doc.camera_start
+    _anchor = ((_marker["col"], _marker["row"]) if _marker is not None
+               else (map_doc.cols / 2, map_doc.rows / 2))
+    cs.set_camera_limit(CameraLimit(
+        _anchor[0], _anchor[1],
+        max_tiles_x=_cam["max_offset_tiles_x"],
+        max_tiles_y=_cam["max_offset_tiles_y"]))
 
     def frame_camera():
         """Open the camera centred on the map's camera-startpoint object if it
@@ -1357,7 +1373,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                     pending = session.state.pending_boss_cutscene or {}
                     gp["panel"].close()  # the modal owns the screen
                     gp["boss_cutscene"].open(pending.get("boss_num", 1),
-                                             pending.get("outcome", "win"))
+                                             pending.get("outcome", "win"),
+                                             pending.get("love_reward", 0))
                 # -- /10G --
                 # -- feature-enemy-intro-dialogue: open the first queued entry
                 # on ITS phase edge (same pattern). Subsequent queued entries
@@ -1658,6 +1675,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
             gp["floaters"].submit_enemy_hp_bars(renderer, cs, world.scene)
             # Golden arrow above any enemy carrying an active buff.
             gp["floaters"].submit_buff_arrows(renderer, cs, world.scene)
+            # Digger underground telegraph: entry-tile marker + heading arrow.
+            gp["floaters"].submit_digger_telegraphs(renderer, cs, world.scene)
             gp["floaters"].submit(renderer, cs)
             gp["floaters"].submit_projectiles(renderer, cs, world.scene)  # 10J
             gp["floaters"].submit_fx(renderer, cs)  # 10J sparks/shards/slashes

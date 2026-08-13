@@ -18,14 +18,24 @@ TWO gates stack:
    can't be researched, previewed or named until the player's
    ``village_level`` reaches its placed ``village_level`` —
    ``timeline_level_for`` is the ONE place this is resolved, and it is the
-   SOLE source of unlock timing (``unlock_min_round`` no longer exists —
+   SOLE source of unlock timing. **Row N is what the level-up REACHING level
+   N offers** — the roll runs before ``advance_village_level``, so it gates on
+   ``state.village_level + 1``, the same lookup ``scripted_level_due`` and
+   ``exact_levelup_options`` use; row 1 is the starting loadout and never
+   funds a level-up. (``upgrade_gate``'s panel readout still measures against
+   the level the player HOLDS.) (``unlock_min_round`` no longer exists —
    deleted from ``buildings.json`` schema+content in this same change,
    TimelinePLAN D4/D6). A tier never placed on the Timeline is never
    offerable at all.
 
 Only the SINGLE next locked tier of a type is ever offerable
 (``idx == tiers_unlocked``), so Pistoleer stays hidden until Slinger is bought.
-Tier research is GLOBAL per type: every building of that type shares the count.
+Tier research is GLOBAL per type: every building of that type shares the count —
+and for a ``tier_group``'d family (the boost trio) one card researches the tier
+for every member at once, the exact mirror of their shared unlock card.
+**Researching a tier is FREE for every type**; the tier's ``build_cost`` rides
+along as ``display_cost`` (preview only), and is still what a fresh placement or
+the upgrade panel's advance button actually charges.
 Unlocking a type makes its tier 1 immediately placeable (no more "starts at
 tier 0" case — see ``game/buildings/research.py``).
 """
@@ -53,6 +63,30 @@ def tiers_for(btype, buildings_balance):
     return _group(btype, buildings_balance)["tiers"]
 
 
+def _timeline_row(progression_balance, village_level):
+    """The Timeline's authored row for ``village_level``, or ``None`` when it
+    has none (including when ``progression_balance`` is ``None`` itself — the
+    same bare-``Session`` tolerance ``timeline_level_for`` carries)."""
+    if progression_balance is None:
+        return None
+    for level in progression_balance["Timeline"]["levels"]:
+        if level["village_level"] == village_level:
+            return level
+    return None
+
+
+def scripted_level_due(village_level, round_num, progression_balance):
+    """Designer-scripted leveling: does the NEXT village level fall due at the
+    end of ``round_num``? True iff the Timeline holds a row for
+    ``village_level + 1`` whose authored ``round`` is ``round_num``.
+
+    A level the designer left off the Timeline simply never fires — the same
+    warn-don't-block stance the editor's round validation takes; past the last
+    authored level the player stops levelling, and there is no XP fallback."""
+    row = _timeline_row(progression_balance, village_level + 1)
+    return row is not None and row["round"] == round_num
+
+
 def timeline_level_for(btype, idx, progression_balance):
     """The ``village_level`` at which ``(btype, idx)`` first becomes
     offerable, per the Timeline's authored schedule — the SOLE source of
@@ -73,9 +107,32 @@ def timeline_level_for(btype, idx, progression_balance):
     return None
 
 
-def tier_offerable(state, btype, idx, progression_balance):
-    level = timeline_level_for(btype, idx, progression_balance)
-    return level is not None and state.village_level >= level
+def tier_lead(btype):
+    """The type whose Timeline placements govern ``btype``'s tiers. A
+    ``tier_group``'d family (the boost trio) researches every tier from ONE
+    card, so only the LEAD's placement is ever consulted — the other members'
+    rows are inert, exactly as their tier-0 rows already are for the shared
+    unlock card (TimelinePLAN D8). Every ungrouped type leads itself."""
+    spec = RESEARCH.get(btype)
+    if spec is not None and spec.tier_group:
+        return spec.tier_group[0]
+    return btype
+
+
+def tier_offerable(state, btype, idx, progression_balance, village_level=None):
+    """Is ``(btype, idx)`` past its Timeline gate?
+
+    ``village_level`` overrides which level the gate is measured against.
+    Default (``None``) = the level the player HOLDS, which is what the upgrade
+    panel's ``upgrade_gate`` wants. The level-up ROLL passes the level being
+    REACHED (``state.village_level + 1``) instead: a level-up window opens
+    BEFORE ``advance_village_level`` runs, so measuring against the held level
+    would offer the previous row's cards on this row's round — the same
+    ``village_level + 1`` lookup ``scripted_level_due`` and
+    ``exact_levelup_options`` already use."""
+    level = timeline_level_for(tier_lead(btype), idx, progression_balance)
+    have = state.village_level if village_level is None else village_level
+    return level is not None and have >= level
 
 
 # -- run-state gates --------------------------------------------------------
@@ -84,7 +141,7 @@ def tier_offerable(state, btype, idx, progression_balance):
 # import game/core).
 
 
-def _gate_met(state, spec, buildings_balance):
+def _gate_met(state, spec, buildings_balance, village_level=None):
     """The per-type unlock-reward gate (village level / none). The round axis
     is no longer a spec-level gate_kind — it is the type's own
     ``tiers[0].unlock_min_round``, checked separately via ``tier_offerable``
@@ -93,13 +150,28 @@ def _gate_met(state, spec, buildings_balance):
         return True
     value = reduce(lambda d, k: d[k], spec.gate_path, buildings_balance)
     if spec.gate_kind == "min_village_level":
-        return state.village_level >= value
+        have = state.village_level if village_level is None else village_level
+        return have >= value
     raise ValueError(f"unknown gate_kind {spec.gate_kind!r}")
 
 
 # -- option builders (prototype dict shape) ---------------------------------
 
-def _tier_option(btype, idx, buildings_balance):
+def _group_tier_copy(spec, idx, buildings_balance):
+    """``(title, prev_name, explanation)`` for a ``tier_group``'d family's ONE
+    shared research card, read live off ``spec.tier_copy_path`` (a designer
+    edits it in the editor's balancing panel). ``None`` when this member is not
+    the copy-owning lead, so the caller falls back to the tier's own name."""
+    if not spec.tier_copy_path:
+        return None
+    node = reduce(lambda d, k: d[k], spec.tier_copy_path, buildings_balance)
+    titles = node["tier_card_titles"]
+    return (titles[idx],
+            titles[idx - 1] if idx > 0 else None,
+            node["tier_card_explanations"][idx])
+
+
+def _tier_option(btype, idx, buildings_balance, spec=None):
     tiers = tiers_for(btype, buildings_balance)
     tier = tiers[idx]
     leaf = LEAF_CLASSES[btype]
@@ -108,19 +180,32 @@ def _tier_option(btype, idx, buildings_balance):
     # art on TIER_SPRITES[idx] with the tier/level suffix.
     flat_slot = getattr(leaf, "SLOT", "")
     sprite_key = flat_slot or f"{leaf.TIER_SPRITES[idx]}_t{idx + 1}_lvl1"
+    spec = spec if spec is not None else RESEARCH.get(btype)
+    types = tuple(spec.tier_group) if spec is not None and spec.tier_group else (btype,)
+    # A grouped card researches this tier for the WHOLE family, so no single
+    # line's tier name can title it -- the copy is data (see _group_tier_copy).
+    copy = _group_tier_copy(spec, idx, buildings_balance) if spec is not None else None
+    title, prev_name, explanation = copy or (
+        tier["name"],
+        tiers[idx - 1]["name"] if idx > 0 else None,
+        tier.get("explanation", ""),
+    )
     return {
         "kind": "tier",
         "building_type": btype,
+        "building_types": types,
         "tier_index": idx,
         "tier_no": idx + 1,
         "tier_max": len(tiers),
-        "title": tier["name"],
-        "prev_name": tiers[idx - 1]["name"] if idx > 0 else None,
-        "explanation": tier.get("explanation", ""),
-        # build_cost is the ONE price for this tier -- placement, this
-        # research card, and the upgrade panel's advance button all charge
-        # the same number (no separate tier_unlock_cost anymore).
-        "cost": tier.get("build_cost", 0),
+        "title": title,
+        "prev_name": prev_name,
+        "explanation": explanation,
+        # Researching a tier is FREE (user decision) -- the card only lifts the
+        # gate. build_cost is still the ONE price to actually GET this tier on a
+        # building (a fresh placement, or the upgrade panel's advance button), so
+        # it rides along as display_cost, the unlock card's preview-only shape.
+        "cost": 0,
+        "display_cost": tier.get("build_cost", 0),
         "cost_label": "Upgrade Cost",
         "sprite_key": sprite_key,
     }
@@ -170,6 +255,56 @@ def _love_fallback(core_balance):
 
 # -- the roll ---------------------------------------------------------------
 
+def _reward_claimed(state, kind, btype, idx):
+    """Has the player already been granted what this authored card offers?
+    An unlock card is spent once the TYPE is unlocked; a tier card once that
+    tier is researched (``apply_levelup_option`` stores ``tier_no == idx + 1``,
+    so researched means ``tiers_unlocked_for(...) > idx``)."""
+    if kind == "unlock":
+        return type_unlocked(state, btype)
+    return tiers_unlocked_for(state, btype) > idx
+
+
+def exact_levelup_options(state, buildings_balance, core_balance,
+                          progression_balance):
+    """``Timeline.exact_offer_slots``: the level being reached shows EXACTLY
+    the cards its row authors, in row order — no shuffle, no eligibility pool.
+
+    A null slot pays the repeatable love fallback; a card whose reward is
+    already claimed is DROPPED (not padded over, so the row shrinks); a row
+    that ends up empty shows ONE love card. A village_level with no row at all
+    falls back to today's ``OPTION_COUNT`` love cards, exactly like an
+    under-populated level in the random path.
+
+    Duplicate placements are legal in this mode (the editor stops enforcing
+    ``(building_type, tier_index)`` uniqueness), so nothing here de-duplicates:
+    what the designer authored is what the player sees."""
+    row = _timeline_row(progression_balance, state.village_level + 1)
+    if row is None:
+        return [_love_fallback(core_balance) for _ in range(OPTION_COUNT)]
+    options = []
+    for slot in row["offer_slots"]:
+        assignment = slot["assignment"]
+        if assignment is None:
+            options.append(_love_fallback(core_balance))
+            continue
+        btype = assignment["building_type"]
+        idx = assignment["tier_index"]
+        spec = RESEARCH.get(btype)
+        # A card naming a type this build has no leaf/research row for is
+        # skipped rather than crashed on, the same guard the random roll's
+        # own loop opens with.
+        if btype not in LEAF_CLASSES or spec is None:
+            continue
+        if _reward_claimed(state, assignment["kind"], btype, idx):
+            continue
+        if assignment["kind"] == "unlock":
+            options.append(_unlock_option(btype, spec, buildings_balance))
+        else:
+            options.append(_tier_option(btype, idx, buildings_balance, spec))
+    return options or [_love_fallback(core_balance)]
+
+
 def roll_levelup_options(state, buildings_balance, core_balance, rng,
                           progression_balance):
     """Three option dicts: a unique shuffled draw from the eligible pool, padded
@@ -177,20 +312,41 @@ def roll_levelup_options(state, buildings_balance, core_balance, rng,
     ``progression_balance`` (TimelinePLAN) is the sole source of WHICH
     tiers/unlocks are eligible; the shuffle/take-3/fallback-pad logic below
     is otherwise byte-identical to before that change — only pool
-    membership was repointed."""
+    membership was repointed.
+
+    ``Timeline.exact_offer_slots`` swaps the whole roll out for
+    ``exact_levelup_options`` above: the row stops being an eligibility floor
+    and becomes the literal card set."""
+    if (progression_balance is not None
+            and progression_balance["Timeline"]["exact_offer_slots"]):
+        return exact_levelup_options(
+            state, buildings_balance, core_balance, progression_balance)
+    # The level this window is REACHING — the roll runs before
+    # advance_village_level, so every gate below is measured against it, not
+    # against the level being left (see tier_offerable's docstring). Row N of
+    # the Timeline is what the level-up TO level N offers; row 1 is the
+    # starting loadout and never funds a level-up.
+    target_level = state.village_level + 1
     pool = []
     for btype, spec in RESEARCH.items():
         if btype not in LEAF_CLASSES:
             continue
         if type_unlocked(state, btype):
+            # Grouped tiers (the boost trio): one card researches this tier for
+            # all three, so only the LEAD offers it -- the same skip the grouped
+            # unlock below does, for the same reason.
+            if spec.tier_group and btype != spec.tier_group[0]:
+                continue
             # Only the single next locked tier can be offered.
             idx = tiers_unlocked_for(state, btype)
             tiers = tiers_for(btype, buildings_balance)
             if idx < len(tiers) and tier_offerable(state, btype, idx,
-                                                   progression_balance):
-                pool.append(_tier_option(btype, idx, buildings_balance))
-        elif (_gate_met(state, spec, buildings_balance)
-              and tier_offerable(state, btype, 0, progression_balance)):
+                                                   progression_balance,
+                                                   target_level):
+                pool.append(_tier_option(btype, idx, buildings_balance, spec))
+        elif (_gate_met(state, spec, buildings_balance, target_level)
+              and tier_offerable(state, btype, 0, progression_balance,
+                                 target_level)):
             # Grouped unlock (the boost trio): all members are seeded locked so
             # each offers its own tier cards after unlocking, but only the LEAD
             # type offers the shared "unlock all three" card — skip the rest so
@@ -210,9 +366,11 @@ def apply_levelup_option(state, option, core_balance):
     """Grant the chosen reward. Costs are spent clamped at >= 0 (RunState)."""
     kind = option["kind"]
     if kind == "tier":
-        btype = option["building_type"]
-        state.tiers_unlocked[btype] = max(
-            tiers_unlocked_for(state, btype), option["tier_no"])
+        # A grouped card carries every member of its family (the boost trio);
+        # an ordinary one carries just its own type.
+        for btype in option.get("building_types", (option["building_type"],)):
+            state.tiers_unlocked[btype] = max(
+                tiers_unlocked_for(state, btype), option["tier_no"])
         state.spend_love(option["cost"])
     elif kind == "unlock_building":
         for btype in option["building_types"]:
@@ -245,7 +403,8 @@ def _next_tier_gate(state, building, buildings_balance, progression_balance):
     next_idx = building.get_component(TierState).current_tier + 1
     if not tier_offerable(state, btype, next_idx, progression_balance):
         return ("tier_hidden", None,
-                timeline_level_for(btype, next_idx, progression_balance))
+                timeline_level_for(tier_lead(btype), next_idx,
+                                   progression_balance))
     tier = tiers_for(btype, buildings_balance)[next_idx]
     cost = tier.get("build_cost", 0)
     if tiers_unlocked_for(state, btype) > next_idx:

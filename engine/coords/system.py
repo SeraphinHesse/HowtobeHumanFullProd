@@ -21,6 +21,10 @@ class CoordinateSystem:
         self.camera = camera if camera is not None else Camera()
         self._half_w = geometry.tile_w / 2
         self._half_h = geometry.tile_h / 2
+        # Optional CameraLimit narrowing clamp() beyond the map bounds. Set by
+        # the HOST, never by data loading — the editor deliberately never sets
+        # one, so its viewport stays free-roam.
+        self.camera_limit = None
 
     # -- projection (E-2 / E-3) ------------------------------------------
 
@@ -80,10 +84,52 @@ class CoordinateSystem:
             (g.map_cols + g.map_rows) * self._half_h * z,
         )
 
+    def set_camera_limit(self, limit):
+        """Install (or clear, with None) the CameraLimit clamp() honours."""
+        self.camera_limit = limit
+
+    def limit_center_bounds(self):
+        """(min_x, min_y, max_x, max_y) of where the viewport CENTRE may sit,
+        in the same pre-pan iso pixels as map_pixel_bounds and at the current
+        zoom; None when no limit is installed. An axis whose max_tiles is
+        non-positive is unlimited and comes back as (-inf, +inf), so a
+        per-axis disable needs no branch at the call site."""
+        lim = self.camera_limit
+        if lim is None:
+            return None
+        z = self.camera.zoom
+        a_ix = (lim.anchor_wx - lim.anchor_wy) * self._half_w * z
+        a_iy = (lim.anchor_wx + lim.anchor_wy) * self._half_h * z
+        rx = lim.max_tiles_x * self._half_w * z
+        ry = lim.max_tiles_y * self._half_h * z
+        inf = float("inf")
+        return (
+            a_ix - rx if rx > 0 else -inf,
+            a_iy - ry if ry > 0 else -inf,
+            a_ix + rx if rx > 0 else inf,
+            a_iy + ry if ry > 0 else inf,
+        )
+
     def clamp(self, viewport_w, viewport_h):
         """Clamp pan so the viewport stays on the map; if the map is smaller
-        than the viewport on an axis, centre it instead."""
+        than the viewport on an axis, centre it instead.
+
+        With a CameraLimit installed the allowed region is additionally
+        narrowed to the leash box (map bounds ∩ leash) — the tighter of the
+        two always wins, and an intersection narrower than the viewport falls
+        into the same centring branch as a too-small map. The leash bounds the
+        viewport CENTRE, so its centre box is widened by half a viewport to
+        become a region box like map_pixel_bounds': _clamp_axis then puts pan
+        (the region's left/top edge) in [a - r - view/2, a + r - view/2],
+        i.e. the centre within r of the anchor."""
         min_x, min_y, max_x, max_y = self.map_pixel_bounds()
+        centre = self.limit_center_bounds()
+        if centre is not None:
+            hw, hh = viewport_w / 2, viewport_h / 2
+            min_x = max(min_x, centre[0] - hw)
+            min_y = max(min_y, centre[1] - hh)
+            max_x = min(max_x, centre[2] + hw)
+            max_y = min(max_y, centre[3] + hh)
         self.camera.pan_x = round(_clamp_axis(self.camera.pan_x, min_x, max_x, viewport_w))
         self.camera.pan_y = round(_clamp_axis(self.camera.pan_y, min_y, max_y, viewport_h))
 

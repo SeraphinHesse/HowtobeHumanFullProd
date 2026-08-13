@@ -450,6 +450,23 @@ class Enemy(GameObject):
         branch of the combat sweep, its telemetry) is byte-identical."""
         return self.get_component(EnemyCombat).buffed_dmg
 
+    @property
+    def center_world(self):
+        """The true footprint-aware block CENTRE in world coords — what the
+        renderer actually draws the sprite centred on (``block_center_offset``),
+        as opposed to ``transform.world_pos``, which is the block's anchor
+        (MIN corner) and only coincides with the centre at footprint 1.
+
+        Delegates to ``combat._enemy_center_world`` (the one implementation
+        every AoE-circle damage check in the combat sweep already uses, e.g.
+        the mortar's splash-radius test) rather than re-deriving the offset
+        here. Duck-typed like ``alive``/``targetable``: a caller outside this
+        package reads it via ``getattr(obj, "center_world", None)`` and falls
+        back to ``transform.world_pos`` for a bare test-stub enemy with no
+        such property."""
+        from .combat import _enemy_center_world
+        return _enemy_center_world(self)
+
     # -- the delayed second phase (BR-3) -----------------------------------
 
     def advance_second_phase(self, dt):
@@ -711,6 +728,8 @@ class Digger(Enemy):
         return (BurrowAgent(
             dig_range_tiles=int(block["dig_range_tiles"]),
             dig_speed=float(block["dig_speed"]),
+            dig_hop_long_tiles=int(block["dig_hop_long_tiles"]),
+            dig_hop_short_tiles=int(block["dig_hop_short_tiles"]),
             emerge_cooldown=float(block["emerge_cooldown"]),
             min_target_distance_tiles=int(block["min_target_distance_tiles"])),)
 

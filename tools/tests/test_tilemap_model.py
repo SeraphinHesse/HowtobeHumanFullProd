@@ -370,6 +370,62 @@ class TestStartArea(unittest.TestCase):
         self.assertNotIn("start_area", [i.slot_key for i in windowed])
 
 
+class TestCameraLimitCenter(unittest.TestCase):
+    """The camera play-area CENTRE marker: a single-tile nullable movable map
+    object shaped exactly like camera_start, but — like start_area and the
+    tutorial markers, and UNLIKE camera_start — deliberately NOT emitted by the
+    render emitters (the editor draws its own blue outline)."""
+
+    SLOT = "camera_limit_centerpoint"
+
+    def test_defaults_to_none_and_round_trips(self):
+        doc = make_doc()
+        self.assertIsNone(doc.camera_limit_center)  # absent by default
+        doc.camera_limit_center = {"col": 2, "row": 3, "slot": self.SLOT}
+        again = tilemap.from_dict(tilemap.to_dict(doc))
+        self.assertEqual(again.camera_limit_center,
+                         {"col": 2, "row": 3, "slot": self.SLOT})
+        self.assertEqual(again, doc)
+
+    def test_disk_round_trip(self):
+        doc = make_doc()
+        doc.camera_limit_center = {"col": 3, "row": 2, "slot": self.SLOT}
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = Path(tmp.name) / "testmap.json"
+        tilemap.save_map(doc, path, SCHEMA)
+        self.assertEqual(tilemap.load_map(path, SCHEMA), doc)
+
+    def test_slot_const_from_schema(self):
+        schema = data_io.load_json(SCHEMA)
+        self.assertEqual(
+            tilemap.camera_limit_center_slot_from_schema(schema), self.SLOT)
+
+    def test_new_doc_has_none(self):
+        doc = tilemap.new_doc("newmap", "New Map", 8, 8, SCHEMA)
+        self.assertIsNone(doc.camera_limit_center)
+
+    def test_out_of_bounds_fails_loud(self):
+        doc = make_doc()
+        doc.camera_limit_center = {"col": doc.cols, "row": 0, "slot": self.SLOT}
+        with self.assertRaises(ValueError):
+            tilemap.validate_doc(doc)
+        doc.camera_limit_center = {"col": 0, "row": doc.rows, "slot": self.SLOT}
+        with self.assertRaises(ValueError):
+            tilemap.validate_doc(doc)
+        doc.camera_limit_center = {"col": doc.cols - 1, "row": doc.rows - 1,
+                                   "slot": self.SLOT}
+        tilemap.validate_doc(doc)  # last legal cell passes
+
+    def test_never_emitted_by_render_emitters(self):
+        doc = make_doc()
+        doc.camera_limit_center = {"col": 1, "row": 1, "slot": self.SLOT}
+        full = tilemap.render_items(doc, camera=True)
+        self.assertNotIn(self.SLOT, [i.slot_key for i in full])
+        windowed = tilemap.visible_render_items(doc, 0, 5, 0, 4, camera=True)
+        self.assertNotIn(self.SLOT, [i.slot_key for i in windowed])
+
+
 class TestTutorialMarkers(unittest.TestCase):
     """The tutorial-flute / tutorial-stone markers (D1, planning/
     TutorialPLAN.md): two single-tile nullable movable map objects mirroring

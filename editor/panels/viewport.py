@@ -80,6 +80,11 @@ START_AREA_COLOR = (255, 190, 60)        # the placed 2×2 starting-area outline
 START_AREA_GHOST_COLOR = (255, 255, 140)  # its armed/drag ghost outline
 TUTORIAL_COLOR = (255, 255, 255)          # the placed tutorial marker outline
 TUTORIAL_GHOST_COLOR = (200, 200, 200)    # its armed/drag ghost outline
+# camera play-area CENTRE marker outline — a strong pure BLUE, deliberately
+# deeper/less cyan than the "pond" tile condition's (80,140,255) and clear of
+# the reserve's turquoise, so a cell carrying several marks stays readable
+LIMIT_CENTER_COLOR = (60, 90, 255)
+LIMIT_CENTER_GHOST_COLOR = (150, 180, 255)  # its armed/drag ghost outline
 RESERVE_COLOR = (120, 235, 220)           # spawnable-background mark outline
 # despawnable-spawn mark outline — deliberately MAGENTA against the reserve's
 # cyan so the two invisible overlays are tellable apart at a glance
@@ -213,6 +218,9 @@ class ViewportPanel(QWidget):
         self._deco_flip_armed = False  # mirror-flip toggle for the deco brush
         self._armed_base = None     # the Hole slot when the Hole brush is armed
         self._armed_camera = None   # the Camera Start slot when that brush is armed
+        # the Camera Limit Center slot when that brush is armed — the Camera
+        # Start brush's twin, drawn as a blue outline instead of a sprite
+        self._armed_camera_limit_center = None
         self._armed_start_area = None  # the Start Area slot when armed
         self._armed_tutorial_flute = None  # the First Flute slot when armed
         self._armed_tutorial_stone = None  # the First Stone slot when armed
@@ -256,6 +264,7 @@ class ViewportPanel(QWidget):
         self._anchor = None           # line/rect anchor cell
         self._base_drag = False
         self._camera_drag = False
+        self._camera_limit_center_drag = False
         self._start_area_drag = False
         self._tutorial_flute_drag = False
         self._tutorial_stone_drag = False
@@ -458,6 +467,7 @@ class ViewportPanel(QWidget):
         self._condition_stroke = None
         self._anchor = None
         self._base_drag = False
+        self._camera_limit_center_drag = False
         self._start_area_drag = False
         self._tutorial_flute_drag = False
         self._tutorial_stone_drag = False
@@ -1002,6 +1012,7 @@ class ViewportPanel(QWidget):
         self._armed_deco = None
         self._armed_base = None
         self._armed_camera = None
+        self._armed_camera_limit_center = None
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
@@ -1015,6 +1026,7 @@ class ViewportPanel(QWidget):
         self._armed_code = None
         self._armed_base = None
         self._armed_camera = None
+        self._armed_camera_limit_center = None
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
@@ -1030,6 +1042,7 @@ class ViewportPanel(QWidget):
         self._armed_code = None
         self._armed_deco = None
         self._armed_camera = None
+        self._armed_camera_limit_center = None
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
@@ -1042,9 +1055,28 @@ class ViewportPanel(QWidget):
         """Arm the Camera Start brush (paint = place/move the single startpoint,
         erase = remove it). Mirrors arm_base; clears any other armed brush."""
         self._armed_camera = slot
+        self._armed_camera_limit_center = None
         self._armed_code = None
         self._armed_deco = None
         self._armed_base = None
+        self._armed_start_area = None
+        self._armed_tutorial_flute = None
+        self._armed_tutorial_stone = None
+        self._armed_spawn_reserve = None
+        self._armed_despawn = None
+        self._armed_stage = None
+        self._armed_condition = None
+
+    def arm_camera_limit_center(self, slot):
+        """Arm the Camera Limit Center brush (paint = place/move the single
+        marker, erase = remove it). The Camera Start brush's twin — same
+        single-tile placement, but drawn as a blue outline and never a
+        sprite. Clears any other armed brush."""
+        self._armed_camera_limit_center = slot
+        self._armed_code = None
+        self._armed_deco = None
+        self._armed_base = None
+        self._armed_camera = None
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
@@ -1061,6 +1093,7 @@ class ViewportPanel(QWidget):
         self._armed_deco = None
         self._armed_base = None
         self._armed_camera = None
+        self._armed_camera_limit_center = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
         self._armed_spawn_reserve = None
@@ -1077,6 +1110,7 @@ class ViewportPanel(QWidget):
         self._armed_deco = None
         self._armed_base = None
         self._armed_camera = None
+        self._armed_camera_limit_center = None
         self._armed_start_area = None
         self._armed_tutorial_stone = None
         self._armed_spawn_reserve = None
@@ -1093,6 +1127,7 @@ class ViewportPanel(QWidget):
         self._armed_deco = None
         self._armed_base = None
         self._armed_camera = None
+        self._armed_camera_limit_center = None
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_spawn_reserve = None
@@ -1110,6 +1145,7 @@ class ViewportPanel(QWidget):
         self._armed_deco = None
         self._armed_base = None
         self._armed_camera = None
+        self._armed_camera_limit_center = None
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
@@ -1130,6 +1166,7 @@ class ViewportPanel(QWidget):
         self._armed_deco = None
         self._armed_base = None
         self._armed_camera = None
+        self._armed_camera_limit_center = None
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
@@ -1151,6 +1188,7 @@ class ViewportPanel(QWidget):
         self._armed_deco = None
         self._armed_base = None
         self._armed_camera = None
+        self._armed_camera_limit_center = None
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
@@ -1174,6 +1212,7 @@ class ViewportPanel(QWidget):
         self._armed_deco = None
         self._armed_base = None
         self._armed_camera = None
+        self._armed_camera_limit_center = None
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
@@ -1229,6 +1268,15 @@ class ViewportPanel(QWidget):
             elif self._tool == "erase":
                 self._map_session.push_camera_remove()
             return
+        if self._armed_camera_limit_center is not None:
+            # the camera play-area centre is placed like the Hole (single
+            # object, single tile, no clamp)
+            if self._tool == "paint":
+                self._map_session.push_camera_limit_center_place(
+                    cell[0], cell[1])
+            elif self._tool == "erase":
+                self._map_session.push_camera_limit_center_remove()
+            return
         if self._armed_start_area is not None:
             # the 2×2 starting area is placed like the Hole (single object);
             # the clicked cell becomes its MIN corner (session clamps to fit)
@@ -1261,6 +1309,11 @@ class ViewportPanel(QWidget):
                 and cell == (doc.camera_start["col"], doc.camera_start["row"]):
             self._camera_drag = True   # draggable like the base;
             return                     # hide the camera eye to paint under it
+        if self._eyes["camera"] and doc.camera_limit_center is not None \
+                and cell == (doc.camera_limit_center["col"],
+                             doc.camera_limit_center["row"]):
+            self._camera_limit_center_drag = True  # single tile, no brush armed;
+            return                                 # shares the camera eye
         if self._eyes["start_area"] and doc.start_area is not None \
                 and doc.start_area["col"] <= cell[0] <= doc.start_area["col"] + 1 \
                 and doc.start_area["row"] <= cell[1] <= doc.start_area["row"] + 1:
@@ -1440,6 +1493,11 @@ class ViewportPanel(QWidget):
             if cell is not None:
                 self._map_session.push_camera_place(cell[0], cell[1])
             self._camera_drag = False
+        elif self._camera_limit_center_drag:
+            if cell is not None:
+                self._map_session.push_camera_limit_center_place(
+                    cell[0], cell[1])
+            self._camera_limit_center_drag = False
         elif self._start_area_drag:
             if cell is not None:
                 # release cell becomes the new MIN corner (session clamps)
@@ -1525,6 +1583,9 @@ class ViewportPanel(QWidget):
             yield RenderItem(doc.camera_start["slot"], cell, layer="overlay",
                              tint=GHOST_TINT)
             return
+        if (self._camera_limit_center_drag
+                or self._armed_camera_limit_center is not None):
+            return   # its ghost is an OUTLINE, drawn by _submit_map_items
         if self._start_area_drag or self._armed_start_area is not None:
             return   # its ghost is an OUTLINE, drawn by _submit_map_items
         if (self._tutorial_flute_drag or self._tutorial_stone_drag
@@ -1855,6 +1916,7 @@ class ViewportPanel(QWidget):
             self._renderer.submit(item)
         for item in self._ghost_items(doc):
             self._renderer.submit(item)
+        self._submit_camera_limit_center_outline(doc)
         self._submit_start_area_outline(doc)
         self._submit_tutorial_outline(doc)
         self._submit_spawn_reserve(doc, cmin, cmax, rmin, rmax)
@@ -1895,6 +1957,39 @@ class ViewportPanel(QWidget):
             col = max(0, min(self._hover_cell[0], doc.cols - 2))
             row = max(0, min(self._hover_cell[1], doc.rows - 2))
             outline(col, row, START_AREA_GHOST_COLOR)
+
+    def _submit_camera_limit_center_outline(self, doc):
+        """The camera play-area CENTRE marker draws as a single-tile closed
+        BLUE outline through the E-24 overlay primitive (never a sprite —
+        mirrors _submit_tutorial_outline), with a labeled HudText caption
+        above it: the placed marker when the camera eye is on (it shares that
+        eye with Camera Start), plus a ghost outline+caption at the clamped
+        hover cell while its brush is armed with the paint tool or during a
+        drag."""
+        def outline(col, row, color):
+            self._renderer.submit_overlay_lines(
+                ((col, row), (col + 1, row), (col + 1, row + 1), (col, row + 1)),
+                color, width=2, closed=True)
+
+        def caption(col, row, color):
+            sx, sy = self._coords.world_to_screen(col + 0.5, row + 0.5)
+            self._renderer.submit_hud(
+                HudText("Camera Limit Center", (sx, sy - 14), "sm", color,
+                        align="center"))
+
+        marker = doc.camera_limit_center
+        if self._eyes["camera"] and marker is not None \
+                and not self._camera_limit_center_drag:
+            outline(marker["col"], marker["row"], LIMIT_CENTER_COLOR)
+            caption(marker["col"], marker["row"], LIMIT_CENTER_COLOR)
+        ghosting = (self._camera_limit_center_drag
+                    or (self._armed_camera_limit_center is not None
+                        and self._tool == "paint"))
+        if ghosting and self._hover_cell is not None:
+            col = max(0, min(self._hover_cell[0], doc.cols - 1))
+            row = max(0, min(self._hover_cell[1], doc.rows - 1))
+            outline(col, row, LIMIT_CENTER_GHOST_COLOR)
+            caption(col, row, LIMIT_CENTER_GHOST_COLOR)
 
     def _submit_tutorial_outline(self, doc):
         """The tutorial markers ("first flute" / "first stone") each draw as a

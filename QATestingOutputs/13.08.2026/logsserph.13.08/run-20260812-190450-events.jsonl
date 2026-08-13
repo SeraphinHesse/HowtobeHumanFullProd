@@ -1,0 +1,33 @@
+{"t": "run_start", "round": 0, "phase": "BUILDING", "frame": 0, "wall_ms": 2506, "level": 1, "run_id": "run-20260812-190450", "map_id": "autumn", "seed": null, "love": 25, "lives": 3, "player_name": null, "player_skill": null}
+{"t": "place", "round": 1, "phase": "BUILDING", "frame": 667, "wall_ms": 9851, "building_type": "defence", "col": 513, "row": 512, "cost": 10, "tier": 0}
+{"t": "cheat", "round": 1, "phase": "BUILDING", "frame": 1389, "wall_ms": 22246, "action": "add_love", "amount": 999999}
+{"t": "cheat", "round": 1, "phase": "BUILDING", "frame": 1412, "wall_ms": 22678, "action": "unlock_all"}
+{"t": "cheat", "round": 9, "phase": "BUILDING", "frame": 1554, "wall_ms": 25402, "action": "goto_round"}
+{"t": "place", "round": 9, "phase": "BUILDING", "frame": 1725, "wall_ms": 28633, "building_type": "blocker", "col": 512, "row": 512, "cost": 35, "tier": 2}
+{"t": "place", "round": 9, "phase": "BUILDING", "frame": 1725, "wall_ms": 28633, "building_type": "blocker", "col": 513, "row": 513, "cost": 35, "tier": 2}
+{"t": "wave_start", "round": 9, "phase": "BUILDING", "frame": 1813, "wall_ms": 30200, "wave_size": 22, "enemy_tier": 0, "composition": {"standard": 17, "raider": 5}, "love": 999944, "lives": 3}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 2587, "wall_ms": 44112, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 513.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 2705, "wall_ms": 46231, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 513.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 2815, "wall_ms": 48243, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 2922, "wall_ms": 50271, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 3026, "wall_ms": 52283, "etype": "raider", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 3129, "wall_ms": 54293, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 3230, "wall_ms": 56313, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 3336, "wall_ms": 58347, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 3442, "wall_ms": 60368, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 3549, "wall_ms": 62369, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 3657, "wall_ms": 64379, "etype": "raider", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 3764, "wall_ms": 66401, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 3875, "wall_ms": 68431, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "kidnap", "round": 9, "phase": "ENEMY", "frame": 3938, "wall_ms": 69610, "etype": "standard", "building_type": "blocker", "col": 512, "row": 512}
+{"t": "base_hit", "round": 9, "phase": "ENEMY", "frame": 3980, "wall_ms": 70371, "etype": "raider", "waived": false, "lives_after": 2}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 3980, "wall_ms": 70371, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.91319999999956}
+{"t": "round_summary", "round": 9, "phase": "ROUND_END", "frame": 4015, "wall_ms": 70973, "love_start": 999944, "love_end": 999949, "income_actual": 5, "income_potential": 5, "income_lost_to_damage": 0, "base_income": 5, "building_income_actual": 0, "building_income_potential": 0, "painter_income": 0, "story_income": 0, "upkeep_actual": 0, "upkeep_potential": 0, "upkeep_unpaid_from_deaths": 0, "net_actual": 5, "net_potential": 5, "dmg_dealt": 784, "dmg_dealt_lightning": 0, "lightning_hits": 0, "dmg_taken_buildings": 2270, "lives_lost": 1, "lives_end": 2, "enemies_spawned": 22, "kills": 14, "leaks": 1, "kidnaps": 1, "buildings_built": 3, "buildings_dead_at_payday": 1, "buildings_placed": 3, "love_spent_buildings": 80, "village_level": 1, "player_xp": 0, "wave_size": 22, "enemy_tier": 0, "cheated": 1}
+{"t": "payday", "round": 9, "phase": "ROUND_END", "frame": 4015, "wall_ms": 70973, "income_actual": 5, "income_potential": 5, "income_lost_to_damage": 0, "upkeep_actual": 0, "upkeep_potential": 0, "upkeep_unpaid_from_deaths": 0, "story_income": 0, "painter_income": 0, "love_end": 999949, "income_by_type": {"base": 5}, "upkeep_by_type": {}, "dmg_dealt_by_type": {"defence": 784}, "dmg_taken_by_type": {"blocker": 2270}}
+{"t": "wave_start", "round": 10, "phase": "BUILDING", "frame": 4613, "wall_ms": 81149, "wave_size": 26, "enemy_tier": 0, "composition": {"boss": 1, "raider": 6, "standard": 19}, "love": 999949, "lives": 2}
+{"t": "enemy_death", "round": 10, "phase": "ENEMY", "frame": 5518, "wall_ms": 97225, "etype": "raider", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "base_hit", "round": 10, "phase": "ENEMY", "frame": 6352, "wall_ms": 113420, "etype": "raider", "waived": false, "lives_after": 1}
+{"t": "boss_choice", "round": 10, "phase": "BOSS_CUTSCENE", "frame": 8420, "wall_ms": 149125, "boss_num": 1, "option": "A", "outcome": "loss"}
+{"t": "round_summary", "round": 10, "phase": "BOSS_CUTSCENE", "frame": 8420, "wall_ms": 149125, "love_start": 999949, "love_end": 999954, "income_actual": 5, "income_potential": 5, "income_lost_to_damage": 0, "base_income": 5, "building_income_actual": 0, "building_income_potential": 0, "painter_income": 0, "story_income": 0, "upkeep_actual": 0, "upkeep_potential": 0, "upkeep_unpaid_from_deaths": 0, "net_actual": 5, "net_potential": 5, "dmg_dealt": 84, "dmg_dealt_lightning": 0, "lightning_hits": 0, "dmg_taken_buildings": 2380, "lives_lost": 1, "lives_end": 1, "enemies_spawned": 26, "kills": 1, "leaks": 1, "kidnaps": 0, "buildings_built": 3, "buildings_dead_at_payday": 2, "buildings_placed": 0, "love_spent_buildings": 0, "village_level": 1, "player_xp": 0, "wave_size": 26, "enemy_tier": 0, "cheated": 1}
+{"t": "payday", "round": 10, "phase": "BOSS_CUTSCENE", "frame": 8420, "wall_ms": 149125, "income_actual": 5, "income_potential": 5, "income_lost_to_damage": 0, "upkeep_actual": 0, "upkeep_potential": 0, "upkeep_unpaid_from_deaths": 0, "story_income": 0, "painter_income": 0, "love_end": 999954, "income_by_type": {"base": 5}, "upkeep_by_type": {}, "dmg_dealt_by_type": {"defence": 84}, "dmg_taken_by_type": {"defence": 160, "blocker": 2220}}
+{"t": "run_end", "round": 11, "phase": "INCOME", "frame": 8504, "wall_ms": 152095, "outcome": "quit", "rounds": 2}
