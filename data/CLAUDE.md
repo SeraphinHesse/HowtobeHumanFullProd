@@ -168,7 +168,12 @@ validating writer; don't hand-edit the JSON.
   `vfx_buff_arrow`'s own fallback follows. It also added two flat
   `EnemyTypes.Digger` leaves, `dig_hop_long_tiles`/`dig_hop_short_tiles`
   (int, default 3/1) — the knight-hop's two legs, alongside the pre-existing
-  `dig_range_tiles`/`dig_speed`/`emerge_cooldown`/`min_target_distance_tiles`
+  `dig_range_tiles`/`dig_speed`/`emerge_cooldown`/`min_target_distance_tiles`.
+  **Both hop leaves were REMOVED again by digger-hop-rework Pass 5** (a
+  ground-up rewrite of the underground movement at the user's request — no
+  more hop shape at all, see `game/enemies/CLAUDE.md`'s Digger section) —
+  they no longer exist in the schema or content; only `dig_range_tiles`/
+  `dig_speed`/`emerge_cooldown`/`min_target_distance_tiles` remain
   (see the "Enemy sizing leaves" pattern below for how a per-type flat leaf
   is shaped; these are `EnemyTypes.Digger`-only, not shared across types).
   Since **Phase 9A** the other

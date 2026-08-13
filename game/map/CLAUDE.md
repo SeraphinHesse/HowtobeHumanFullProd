@@ -301,6 +301,27 @@ Conventions that differ from the prototype (deliberate, clean-arch):
     directly). `find_path_to_nearest_non_base_building` is byte-identical
     through this refactor; `find_path_to_nearest_economic`/`_defence` (below)
     are its two new callers.
+  - **digger-hop-rework added `exclude=None` and `ignore_walls=False` to
+    `find_path_to_nearest_non_base_building`, and `ignore_walls=False` to
+    `find_path_to_nearest_structure`** — both default-off, every existing
+    caller (Boss/Commander via the generic `_HUNT_QUERIES` dispatch included)
+    byte-identical. `exclude` is the claim-exclusion tile set the Digger's
+    own queries pass. `ignore_walls` threads through `_hunt`/
+    `_find_path_to_goals` into both the goal-set `_dijkstra` call AND the
+    empty/unreachable-goal base fallback (`find_path_ignoring_walls` instead
+    of `find_path`) — still a real, generic parameter on both functions, but
+    **no longer exercised by the Digger since Pass 5's ground-up rewrite**
+    (`game/enemies/CLAUDE.md`'s Digger section): a walk that finds no route
+    at all now triggers a submerge-and-resurface reposition instead of a
+    second, wall-ignoring pathfind attempt.
+  - **digger-hop-rework Pass 5 added `find_path_to_nearest_boost_or_economic_
+    building`** (`exclude`/`min_distance`, the same shape as
+    `find_path_to_nearest_structure`'s) — the Digger's widened hunt once no
+    structure is left anywhere on the map at all, over
+    `_BOOST_ECONOMY_BUILDING_TYPES` (`_BOOST_BUILDING_TYPES` — the three
+    `boost_*` types — unioned with the pre-existing `_ECONOMY_BUILDING_
+    TYPES`). It carries no `ignore_walls` parameter: nothing calls it with
+    one, for the same reason above.
 - **`_dijkstra` keeps a SEPARATE tentative-`best` map, and that is load-bearing**
   (same reason `_build_flow_field` does — its docstring has the long version).
   It used to guard the relax on `dist`, the **settled** map: `dist.get(node)` is
