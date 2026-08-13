@@ -4,6 +4,7 @@
     "row": 513,
     "slot": "base_hole"
   },
+  "camera_limit_center": null,
   "camera_start": {
     "col": 515,
     "row": 510,

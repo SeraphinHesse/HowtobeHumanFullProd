@@ -145,10 +145,10 @@ def build_board(rows):
     return tm, scene, occ
 
 
-def make_session(rows=("bs",), core=CORE, rng=None):
+def make_session(rows=("bs",), core=CORE, rng=None, progression=PROGRESSION):
     tm, scene, occ = build_board(rows)
     session = Session.create(Spawner(), tm, ENEM, core, BUILD, rng=rng,
-                             progression_balance=PROGRESSION)
+                             progression_balance=progression)
     return session, tm, scene, occ
 
 
@@ -273,23 +273,18 @@ class TestOptionRoll(unittest.TestCase):
                                        PROGRESSION)
 
     def test_early_pool_offers_unlocks_then_pads(self):
-        # Village level 1: every locked type's unlock card is gated by whether
-        # its tier 0 is placed on the Timeline at a village_level the player
-        # has reached. Sun Scorcher, Meditator, the boost trio and Wall
-        # Builder are all placed at level 2, so at level 1 the candidates are
-        # Maw Mortar (min_village_level 1), Storm Priest, Painter
-        # (min_village_level 0) and Blocker — more than three, so the pool
-        # needs no fallback pad and NoShuffle takes the first three in
-        # RESEARCH-table order.
+        # The FIRST level-up (village level 1) is the one that reaches level 2,
+        # so its pool is everything placed at level 1 or 2 and not already
+        # owned: defence's and economic's tier 1s plus the level-2 unlock
+        # cards (Sun Scorcher, Meditator, the boost trio, Wall Builder) and the
+        # level-1 ones still unclaimed (Maw Mortar, Storm Priest, Painter,
+        # Blocker). Far more than three, so the pool needs no fallback pad and
+        # NoShuffle takes the first three in RESEARCH-table order.
         st = RunState.from_balance(CORE, BUILD)
         options = self.roll(st)
-        self.assertEqual(len(options), 3)
-        unlocks = [o for o in options if o["kind"] == "unlock_building"]
-        fallbacks = [o for o in options if o["kind"] == "fallback"]
-        self.assertEqual([o["title"] for o in unlocks],
-                         ["Unlock Maw Mortar", "Unlock Storm Priest",
-                          "Unlock Painter"])
-        self.assertEqual(len(fallbacks), 0)
+        self.assertEqual([o["title"] for o in options],
+                         ["Slinger", "Harp Player", "Unlock Maw Mortar"])
+        self.assertFalse([o for o in options if o["kind"] == "fallback"])
 
     def test_fully_researched_pool_pads_with_fallbacks(self):
         """With every type unlocked and every tier maxed, nothing real is left
@@ -305,13 +300,17 @@ class TestOptionRoll(unittest.TestCase):
 
     def test_tier_two_enters_the_pool_at_its_timeline_level(self):
         st = RunState.from_balance(CORE, BUILD)
-        # No TIER card yet at village level 1: the defence/economic tier-2s are
-        # both placed on the Timeline at level 2, so the only cards here are
-        # locked types' unlock cards — not tier options.
-        self.assertFalse(any(o["kind"] == "tier" for o in self.roll(st)))
-        st.village_level = DEF_T2_LEVEL
+        # The roll gates on the level being REACHED, so a tier placed at
+        # DEF_T2_LEVEL is offered by the level-up FROM DEF_T2_LEVEL - 1.
+        st.village_level = DEF_T2_LEVEL - 1
         titles = {o["title"] for o in self.roll(st) if o["kind"] == "tier"}
         self.assertEqual(titles, {"Slinger", "Harp Player"})
+        # ...and it is THAT row's level that gates it: push defence's tier 1
+        # out of reach and the same roll offers only economic's.
+        moved = moved_placement("defence", 1, 9999)
+        titles = {o["title"] for o in lv.roll_levelup_options(
+            st, BUILD, CORE, NoShuffle, moved) if o["kind"] == "tier"}
+        self.assertEqual(titles, {"Harp Player"})
 
     def test_only_the_single_next_locked_tier_is_offered(self):
         """With Slinger researched, Pistoleer (Timeline level 12) is the only
@@ -337,7 +336,10 @@ class TestOptionRoll(unittest.TestCase):
         self.assertEqual(option["tier_no"], 2)
         self.assertEqual(option["tier_max"], 3)
         self.assertEqual(option["prev_name"], "Stone Thrower")
-        self.assertEqual(option["cost"], DEF_T2["build_cost"])
+        # Researching a tier is FREE; build_cost only PREVIEWS what actually
+        # getting the tier onto a building costs.
+        self.assertEqual(option["cost"], 0)
+        self.assertEqual(option["display_cost"], DEF_T2["build_cost"])
         self.assertEqual(option["sprite_key"], "slinger_t2_lvl1")
 
     def test_tier_zero_timeline_level_gates_a_locked_types_unlock_card(self):
@@ -354,10 +356,12 @@ class TestOptionRoll(unittest.TestCase):
             st.unlocked_buildings[bt] = True
             st.tiers_unlocked[bt] = 3
         gate_level = lv.timeline_level_for("meditator", 0, PROGRESSION)
-        st.village_level = gate_level - 1
+        # Gated on the level being REACHED (village_level + 1), so the level-up
+        # that first shows it is the one from gate_level - 1.
+        st.village_level = gate_level - 2
         self.assertFalse(any(o.get("building_type") == "meditator"
                              for o in self.roll(st)))
-        st.village_level = gate_level
+        st.village_level = gate_level - 1
         card = next(o for o in self.roll(st)
                     if o.get("building_type") == "meditator")
         self.assertEqual(card["kind"], "unlock_building")
@@ -474,7 +478,10 @@ class TestUnlockOptions(unittest.TestCase):
 
 # ---------------------------------------------------------------------------
 class TestApplyOption(unittest.TestCase):
-    def test_tier_option_researches_and_charges(self):
+    def test_tier_option_researches_for_free(self):
+        """Researching a tier costs nothing (the card only lifts the gate);
+        ``build_cost`` rides along as ``display_cost``, previewing what actually
+        getting the tier onto a building still costs."""
         st = RunState.from_balance(CORE, BUILD)
         st.village_level = DEF_T2_LEVEL
         st.love = 100
@@ -483,17 +490,8 @@ class TestApplyOption(unittest.TestCase):
                       if o.get("building_type") == "defence")
         lv.apply_levelup_option(st, option, CORE)
         self.assertEqual(st.tiers_unlocked["defence"], 2)
-        self.assertEqual(st.love, 100 - DEF_T2["build_cost"])
-
-    def test_tier_cost_clamps_love_at_zero(self):
-        st = RunState.from_balance(CORE, BUILD)
-        st.village_level = DEF_T2_LEVEL
-        st.love = 5
-        option = next(o for o in lv.roll_levelup_options(st, BUILD, CORE,
-                                                         NoShuffle, PROGRESSION)
-                      if o.get("building_type") == "defence")
-        lv.apply_levelup_option(st, option, CORE)
-        self.assertEqual(st.love, 0)
+        self.assertEqual(st.love, 100)
+        self.assertEqual(option["display_cost"], DEF_T2["build_cost"])
 
     def test_fallback_pays_love(self):
         st = RunState.from_balance(CORE, BUILD)
@@ -747,10 +745,12 @@ class TestDefence10BGates(unittest.TestCase):
         st.tiers_unlocked["defence"] = 3
         st.tiers_unlocked["economic"] = 3
         gate_level = lv.timeline_level_for("sun_scorcher", 0, PROGRESSION)
-        st.village_level = gate_level - 1
+        # The roll gates on the level being REACHED, so village_level N shows
+        # what row N+1 opened: gate_level - 2 is the last level-up before it.
+        st.village_level = gate_level - 2
         self.assertFalse(any(o.get("building_type") == "sun_scorcher"
                              for o in self.roll(st)))
-        st.village_level = gate_level
+        st.village_level = gate_level - 1
         card = next(o for o in self.roll(st)
                     if o.get("building_type") == "sun_scorcher")
         self.assertEqual(card["kind"], "unlock_building")
@@ -993,6 +993,200 @@ class TestXpAwardSites(unittest.TestCase):
         base.get_component(Health).damage(10 ** 6)
         session.pre_sim(0.1, scene)
         self.assertEqual(st.player_xp, 0)
+
+
+# ---------------------------------------------------------------------------
+def scripted_progression(schedule, exact=False, rows=None):
+    """A deep copy of the pinned Timeline with a fresh schedule staged in.
+
+    ``schedule`` is ``{village_level: round}``; ``rows`` optionally replaces
+    a level's ``offer_slots`` with a list of ``(kind, building_type,
+    tier_index)`` tuples (``None`` for an empty slot). Built through
+    ``editor.timeline_ops`` — the sanctioned pure helper — never by hand."""
+    doc = copy.deepcopy(PROGRESSION)
+    doc["Timeline"]["levels"] = []
+    timeline_ops.set_scripted_leveling(doc, True)
+    timeline_ops.set_exact_offer_slots(doc, exact)
+    for village_level, round_num in schedule.items():
+        timeline_ops.add_level(doc, village_level, round_num)
+    for village_level, slots in (rows or {}).items():
+        timeline_ops.add_level(doc, village_level, schedule.get(village_level, 0))
+        for index, card in enumerate(slots):
+            if card is None:
+                timeline_ops.add_slot(doc, village_level)
+            else:
+                timeline_ops.assign_slot(doc, village_level, index, *card)
+    return doc
+
+
+class TestScriptedLeveling(unittest.TestCase):
+    """Timeline.scripted_leveling: XP off, level-ups on authored rounds."""
+
+    def test_award_xp_is_a_no_op_and_leaves_the_floater_ledger_empty(self):
+        state = RunState()
+        state.xp_threshold = 50
+        state.scripted_leveling = True
+        xpmod.award_xp(state, 999, world_pos=(3.0, 4.0))
+        self.assertEqual(state.player_xp, 0)
+        self.assertEqual(state.xp_events, [])
+        self.assertFalse(state.levelup_pending)
+
+    def test_award_xp_still_works_with_the_flag_off(self):
+        state = RunState()
+        state.xp_threshold = 50
+        xpmod.award_xp(state, 999, world_pos=(3.0, 4.0))
+        self.assertEqual(state.player_xp, 999)
+        self.assertEqual(state.xp_events, [(3.0, 4.0, 999)])
+        self.assertTrue(state.levelup_pending)
+
+    def test_session_reads_the_flag_off_the_progression_doc(self):
+        session, _tm, _scene, _occ = make_session()
+        self.assertFalse(session.state.scripted_leveling)
+
+        session, _tm, _scene, _occ = make_session(
+            progression=scripted_progression({2: 3}))
+        self.assertTrue(session.state.scripted_leveling)
+
+    def test_no_progression_doc_at_all_leaves_the_flag_off(self):
+        session, _tm, _scene, _occ = make_session(progression=None)
+        self.assertFalse(session.state.scripted_leveling)
+
+    def test_scripted_level_due_only_on_the_authored_round(self):
+        doc = scripted_progression({1: 0, 2: 3, 3: 8})
+        # At level 1 the NEXT level is 2, authored for round 3.
+        self.assertFalse(lv.scripted_level_due(1, 2, doc))
+        self.assertTrue(lv.scripted_level_due(1, 3, doc))
+        self.assertFalse(lv.scripted_level_due(1, 4, doc))
+        # ...and at level 2 it is level 3's round that matters, not level 2's.
+        self.assertFalse(lv.scripted_level_due(2, 3, doc))
+        self.assertTrue(lv.scripted_level_due(2, 8, doc))
+
+    def test_a_level_with_no_authored_row_never_fires(self):
+        doc = scripted_progression({1: 0, 2: 3})
+        self.assertFalse(any(lv.scripted_level_due(2, r, doc) for r in range(60)))
+
+    def test_scripted_level_due_is_none_safe(self):
+        self.assertFalse(lv.scripted_level_due(1, 1, None))
+
+    def test_round_end_opens_the_window_on_the_authored_round_only(self):
+        session, _tm, scene, _occ = make_session(
+            rng=NoShuffle, progression=scripted_progression({1: 0, 2: 2}))
+        st = session.state
+
+        # Round 1 is not level 2's authored round -> straight to payday.
+        st.phase, st.phase_timer, st.round_num = GamePhase.ROUND_END, 0.0, 1
+        session.pre_sim(0.1, scene)
+        self.assertEqual(st.phase, GamePhase.INCOME)
+        self.assertEqual(st.village_level, 1)
+
+        # Round 2 is -> the modal opens, payday is deferred.
+        st.phase, st.phase_timer, st.round_num = GamePhase.ROUND_END, 0.0, 2
+        session.pre_sim(0.1, scene)
+        self.assertEqual(st.phase, GamePhase.LEVELUP)
+
+    def test_a_pending_xp_levelup_is_ignored_while_scripted(self):
+        """The authored round is the ONLY trigger under scripted leveling.
+
+        Note the one live consequence: `cheat_trigger_levelup` fired MID-ENEMY
+        only arms `levelup_pending` and relies on ROUND_END to open the window,
+        so that one cheat path is inert in this mode. Every other cheat path
+        (outside ENEMY/LEVELUP) calls `_begin_levelup` directly and is
+        unaffected."""
+        session, _tm, scene, _occ = make_session(
+            rng=NoShuffle, progression=scripted_progression({1: 0, 2: 9}))
+        st = session.state
+        st.levelup_pending = True          # stale/irrelevant under scripting
+        st.phase, st.phase_timer, st.round_num = GamePhase.ROUND_END, 0.0, 1
+        session.pre_sim(0.1, scene)
+        self.assertEqual(st.phase, GamePhase.INCOME)
+
+    def test_a_boss_round_still_pays_its_scripted_levelup(self):
+        """A boss cutscene DEFERS the level-up, it must not eat it.
+
+        The chain used to read `levelup_pending`, which is never set under
+        scripting — so a scripted level authored for a boss round was skipped,
+        and with village_level stuck every LATER row (keyed on
+        `village_level + 1`) was skipped too. Win or loss, both outcomes take
+        this same path."""
+        for outcome in ("win", "loss"):
+            with self.subTest(outcome=outcome):
+                session, _tm, scene, _occ = make_session(
+                    rng=NoShuffle, progression=scripted_progression({1: 0, 2: 5}))
+                st = session.state
+                st.phase, st.phase_timer, st.round_num = (
+                    GamePhase.ROUND_END, 0.0, 5)
+                st.pending_boss_cutscene = {"boss_num": 1, "outcome": outcome}
+                session.pre_sim(0.1, scene)
+                self.assertEqual(st.phase, GamePhase.BOSS_CUTSCENE)
+                session.resolve_boss_cutscene("A", scene)
+                self.assertEqual(st.phase, GamePhase.LEVELUP)
+
+
+class TestExactOfferSlots(unittest.TestCase):
+    """Timeline.exact_offer_slots: the row IS the card set."""
+
+    def roll(self, doc, state):
+        return lv.roll_levelup_options(state, BUILD, CORE, NoShuffle, doc)
+
+    def fresh_state(self):
+        return RunState.from_balance(CORE, BUILD)
+
+    def test_a_null_slot_becomes_a_love_card(self):
+        doc = scripted_progression({2: 1}, exact=True, rows={2: [None, None]})
+        options = self.roll(doc, self.fresh_state())
+        self.assertEqual([o["kind"] for o in options], ["fallback", "fallback"])
+        self.assertEqual(options[0]["amount"], XP["levelup_love_reward"])
+
+    def test_the_row_is_shown_verbatim_in_order(self):
+        doc = scripted_progression(
+            {2: 1}, exact=True,
+            rows={2: [("tier", "defence", 1), None]})
+        state = self.fresh_state()
+        options = self.roll(doc, state)
+        self.assertEqual([o["kind"] for o in options], ["tier", "fallback"])
+        self.assertEqual(options[0]["building_type"], "defence")
+        self.assertEqual(options[0]["tier_index"], 1)
+
+    def test_an_already_claimed_card_is_dropped_not_padded(self):
+        doc = scripted_progression(
+            {2: 1}, exact=True,
+            rows={2: [("tier", "defence", 1), ("tier", "defence", 2)]})
+        state = self.fresh_state()
+        state.tiers_unlocked["defence"] = 2     # tier_index 1 researched
+        options = self.roll(doc, state)
+        self.assertEqual([o["tier_index"] for o in options], [2])
+
+    def test_every_card_claimed_shows_exactly_one_love_card(self):
+        doc = scripted_progression(
+            {2: 1}, exact=True,
+            rows={2: [("tier", "defence", 1), ("tier", "defence", 2)]})
+        state = self.fresh_state()
+        state.tiers_unlocked["defence"] = 3     # both researched
+        options = self.roll(doc, state)
+        self.assertEqual([o["kind"] for o in options], ["fallback"])
+
+    def test_a_claimed_unlock_card_is_dropped_too(self):
+        doc = scripted_progression(
+            {2: 1}, exact=True, rows={2: [("unlock", "blocker", 0), None]})
+        state = self.fresh_state()
+        state.unlocked_buildings["blocker"] = True
+        options = self.roll(doc, state)
+        self.assertEqual([o["kind"] for o in options], ["fallback"])
+
+    def test_a_level_with_no_row_falls_back_to_three_love_cards(self):
+        doc = scripted_progression({2: 1}, exact=True)   # level 2 has no slots
+        state = self.fresh_state()
+        state.village_level = 5                          # level 6 has no row
+        options = self.roll(doc, state)
+        self.assertEqual(len(options), lv.OPTION_COUNT)
+        self.assertTrue(all(o["kind"] == "fallback" for o in options))
+
+    def test_the_flag_off_keeps_the_random_pool_roll(self):
+        doc = scripted_progression({2: 1}, exact=False, rows={2: [None]})
+        options = self.roll(doc, self.fresh_state())
+        # The random path always pads to OPTION_COUNT; the exact path would
+        # have returned the single authored (null -> love) slot.
+        self.assertEqual(len(options), lv.OPTION_COUNT)
 
 
 # ---------------------------------------------------------------------------

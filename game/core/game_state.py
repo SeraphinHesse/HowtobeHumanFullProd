@@ -52,6 +52,15 @@ class RunState:
     xp_threshold: int = 0       # seeded from core.XP.village_xp_base_threshold
     xp_threshold_inc: int = 0   # seeded from core.XP.village_xp_threshold_inc
     levelup_pending: bool = False
+    # Designer-scripted leveling: XP is not a mechanic at all and the village
+    # level advances on the rounds authored on the Timeline
+    # (``progression.json`` ``Timeline.scripted_leveling``). Host-set by
+    # ``Session.__init__`` off ``progression_balance``; ``False`` (the default,
+    # and what a bare RunState a logic test builds always carries) is the
+    # shipped XP-threshold behaviour, unchanged. RunState owns it because BOTH
+    # the round machine (``Session.pre_sim``) and the HUD (``game/ui/hud.py``'s
+    # XP readout) have to see it, and RunState is already what both read.
+    scripted_leveling: bool = False
     # Research progress, GLOBAL per building type (every building of a type
     # shares its researched-tier count). Every type starts at its first tier
     # (1) — unlocking a type is the only gate; there is no longer a

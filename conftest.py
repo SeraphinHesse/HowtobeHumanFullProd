@@ -62,6 +62,7 @@ TIERS = {
     "test_editor_run_controls": "editor",
     "test_editor_selection": "editor",
     "test_editor_test_run_panel": "editor",  # TR-5: the Qt run window
+    "test_editor_camera_limit_center": "editor",
     "test_editor_tutorial_paint": "editor",
     "test_editor_viewport": "editor",
     "test_registry_ops": "editor",
@@ -101,6 +102,7 @@ TIERS = {
     "test_death_spawn": "core",
     "test_debug_log": "core",  # debug mode: recorder + metrics + reports
     "test_defence_aoe_beam": "core",
+    "test_digger_telegraphs": "core",  # digger-hop-rework: entry-tile + direction arrows
     "test_editor_test_report": "core",  # TR-4: the report writer is Qt-free (D6)
     "test_editor_test_runner": "core",  # TR-3: the run engine is Qt-free (D6)
     "test_enemies": "core",

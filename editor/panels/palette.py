@@ -91,6 +91,9 @@ class PalettePanel(QWidget):
     deco_armed = Signal(str)     # a deco slot key
     base_armed = Signal(str)     # the base/hole slot (now a paintable brush)
     camera_armed = Signal(str)   # the camera-startpoint slot (paintable brush)
+    # the camera play-area CENTRE slot (paintable brush) — the Camera Start
+    # brush's twin, anchoring the camera travel limit rather than the opening view
+    camera_limit_center_armed = Signal(str)
     start_area_armed = Signal(str)  # the 2×2 starting-area slot (paintable brush)
     tutorial_flute_armed = Signal(str)  # the "first flute" marker slot
     tutorial_stone_armed = Signal(str)  # the "first stone" marker slot
@@ -373,6 +376,13 @@ class PalettePanel(QWidget):
         except (KeyError, ValueError):
             return []
 
+    def _camera_limit_center_slots(self):
+        try:
+            return list(
+                self._registry.group_slots("core", ("Camera Limit Center",)))
+        except (KeyError, ValueError):
+            return []
+
     def _start_area_slots(self):
         try:
             return list(self._registry.group_slots("core", ("Start Area",)))
@@ -504,6 +514,9 @@ class PalettePanel(QWidget):
             btn.clicked.connect(lambda _=False, v=value: self.arm_deco(v))
         elif kind == "camera":
             btn.clicked.connect(lambda _=False, v=value: self.arm_camera(v))
+        elif kind == "camera_limit_center":
+            btn.clicked.connect(
+                lambda _=False, v=value: self.arm_camera_limit_center(v))
         elif kind == "start_area":
             btn.clicked.connect(lambda _=False, v=value: self.arm_start_area(v))
         elif kind == "tutorial_flute":
@@ -539,6 +552,8 @@ class PalettePanel(QWidget):
         order += [(("base", slot), "Hole") for slot in self._base_slots()]
         order += [(("camera", slot), "Camera Start")
                   for slot in self._camera_slots()]
+        order += [(("camera_limit_center", slot), "Camera Limit Center")
+                  for slot in self._camera_limit_center_slots()]
         order += [(("start_area", slot), "Starting Area")
                   for slot in self._start_area_slots()]
         return order
@@ -546,9 +561,11 @@ class PalettePanel(QWidget):
     def _rebuild_gametiles(self):
         _title_w, _page, page_layout = self._pages["gametiles"]
         self._clear_page_brushes("code", page_layout)
-        # base + camera + start-area buttons also live here; clear + rebuild too
+        # base + camera + limit-centre + start-area buttons also live here;
+        # clear + rebuild too
         for key in [k for k in self._brush_buttons
-                    if k[0] in ("base", "camera", "start_area")]:
+                    if k[0] in ("base", "camera", "camera_limit_center",
+                                "start_area")]:
             btn = self._brush_buttons.pop(key)
             self._brush_group.removeButton(btn)
             page_layout.removeWidget(btn)
@@ -809,6 +826,12 @@ class PalettePanel(QWidget):
                 return value
         return None
 
+    def armed_camera_limit_center(self):
+        for (kind, value), btn in self._brush_buttons.items():
+            if kind == "camera_limit_center" and btn.isChecked():
+                return value
+        return None
+
     def armed_start_area(self):
         for (kind, value), btn in self._brush_buttons.items():
             if kind == "start_area" and btn.isChecked():
@@ -921,6 +944,17 @@ class PalettePanel(QWidget):
         btn.setChecked(True)
         self.camera_armed.emit(slot)
 
+    def arm_camera_limit_center(self, slot):
+        """Arm the Camera Limit Center brush (paint = place/move the single
+        marker, erase = remove it — viewport._tool_press). Structurally the
+        Camera Start brush's twin; the camera never STARTS here, the marker only
+        anchors the core-balancing camera travel limit."""
+        btn = self._brush_buttons.get(("camera_limit_center", slot))
+        if btn is None:
+            return
+        btn.setChecked(True)
+        self.camera_limit_center_armed.emit(slot)
+
     def arm_start_area(self, slot):
         """Arm the Starting Area brush (paint = place/move the single 2×2 area,
         erase = remove it — viewport._tool_press). start_area_armed tells the
@@ -1014,6 +1048,9 @@ class PalettePanel(QWidget):
         camera = self.armed_camera()
         if camera is not None:
             return camera
+        camera_limit_center = self.armed_camera_limit_center()
+        if camera_limit_center is not None:
+            return camera_limit_center
         start_area = self.armed_start_area()
         if start_area is not None:
             return start_area

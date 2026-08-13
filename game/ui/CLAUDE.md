@@ -330,6 +330,40 @@ Two new `FloaterManager` methods (`game/ui/effects.py`), both wired in
   constant beside `HP_BAR_W`/`HP_BAR_H`, not balancing — only the swappable
   ART is a designer lever here, not the placeholder's own shape/colour).
 
+## Digger underground telegraph (digger-hop-rework)
+The player-feedback fix that came with the Digger's stand-and-erupt-in-place +
+knight-hop rework (`game/enemies/CLAUDE.md`'s Digger section): while the
+Digger is submerged its sprite is fully hidden, so the existing dirt-pile
+decal (`game/enemies/dirt_pile.py`) is joined by two placeholder arrows —
+**both**, never a replacement for the pile. One new `FloaterManager` method,
+`submit_digger_telegraphs` (`game/ui/effects.py`), wired in `game/main.py`
+right after `submit_buff_arrows`, the SAME `vfx_buff_arrow`
+swappable-sprite-with-procedural-fallback pattern applied to a raw WORLD
+point instead of a live enemy's own screen anchor (a submerged Digger has no
+sprite silhouette to anchor against, unlike a buffed enemy):
+- **The entry-tile marker** (`vfx_digger_marker`) hovers over
+  `BurrowAgent.start_wx`/`start_wy` — the CURRENT dig's entry point, which
+  `_submerge` re-sets on every new hop, so the marker moves with the Digger
+  and never stays pinned to the original spawn dig. No art imported → a small
+  downward-pointing triangle (`_DIGGER_MARKER_COLOR`, a code-chrome constant
+  like `_BUFF_ARROW_GOLD` — not balancing; only the swappable ART is a
+  designer lever here).
+- **The direction arrow** (`vfx_digger_direction`) sits just above the
+  marker, rotated toward `BurrowAgent.dest_col`/`dest_row` — the segment
+  currently being dug — so the player reads WHICH WAY the hidden Digger is
+  heading, not just where it went under. No art imported → a triangle
+  rotated via `atan2` on the projected screen-space delta between the two
+  points (world → `cs.world_to_screen`, angled there — never in world space,
+  since the iso projection is not angle-preserving). WITH art imported it
+  draws unrotated at the anchor point — the `submit_beams` sprite-toggle's
+  own accepted limitation (`HudSprite` carries no rotation support).
+- Both draw ONLY while `BurrowAgent.state == BURROW_SUBMERGED` and the owner
+  is alive — gone the instant it emerges, exactly like the dirt pile's own
+  lifetime. Tests: `tools/tests/test_digger_telegraphs.py` (a `Digger` built
+  directly with its `BurrowAgent` hand-set to the scenario under test, the
+  `test_enemy_hp_bars.py`/`test_projectile_sprites.py` headless pattern — no
+  Scene/TileMap simulation needed).
+
 ## Level-up UI (10A)
 `game/ui/levelup.py` (`LevelupWindow`, the `game_over.py` template; it lays out on
 `open` because hover/hit run before the first `submit`), an XP bar + `LVL N` in
@@ -338,6 +372,18 @@ Two new `FloaterManager` methods (`game/ui/effects.py`), both wired in
 the gated construct list + five-mode upgrade button in `building_ui.py`. The modal
 sits at the TOP of `main.py`'s click ladder and swallows keys. (The pure roll/gate
 logic is `game/core` — see that doc.)
+- **Designer-scripted leveling suppresses the XP readout, not the level one.**
+  `Hud._submit_xp` submits `lvl_label` first, then returns early when
+  `RunState.scripted_leveling` — before the `icon_xp` / `xp_bar` / `xp_text`
+  submits, mirroring the `is_visible(...)` / `.visible` guards already on those
+  three holders. `LVL N` stays (the village level is still a real thing); the
+  bar, its icon and the `40/60` text go, because XP is not a mechanic in that
+  mode. **The floaters need no change here at all** — `award_xp` no-ops
+  upstream, so `xp_events` never fills and `FloaterManager.spawn_xp_events`
+  drains an empty ledger. The window itself is untouched: it lays out any card
+  count, which is what makes `exact_offer_slots` work — but only 4 boxes fit
+  the 640px view at `_BOX_W = 130`, so the editor warns above 4 slots per row
+  rather than the game clamping. Mode detail → `game/core/CLAUDE.md`.
 
 ## Boss UI (10G)
 - **`boss_cutscene.py`** (`BossCutscene`) — the `levelup.py` modal template

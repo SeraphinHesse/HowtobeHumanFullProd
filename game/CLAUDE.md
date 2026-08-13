@@ -168,8 +168,11 @@ for the full event-kind contract (what an LLM or a human reads) and
   left- and right-click-drag pan** (`cs.pan` + `cs.clamp`, which bounds the view
   to **map bounds ∩ the camera leash**). The leash is `core` balancing's
   `Camera.max_offset_tiles_x`/`max_offset_tiles_y` — how many TILES the viewport
-  centre may stray from the map's `camera_start` marker (map centre when the map
-  paints none), `0` = unlimited, which is what ships. `main()` builds the
+  centre may stray from the map's **`camera_limit_center`** marker, `0` =
+  unlimited. That marker is a separate paintable map object from
+  `camera_start` precisely so the opening view and the play-area centre are
+  independently placeable; a map that paints none falls back to `camera_start`,
+  then to the map centre. `main()` builds the
   `engine.coords.CameraLimit` once at boot, right after `load_coordinate_system`
   and BEFORE the first `frame_camera()`, and installs it on `cs` via
   `set_camera_limit` — so drag-pan, `step_zoom` and `center_on` all honour it

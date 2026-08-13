@@ -327,7 +327,7 @@
     },
     "projectile_hit": {
       "procedural": "",
-      "sprite_slot": ""
+      "sprite_slot": "vfx_crater"
     },
     "splash_impact": {
       "procedural": "crater",

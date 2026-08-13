@@ -755,8 +755,20 @@
             "death_spawn": {
               "$ref": "#/$defs/death_spawn"
             },
+            "dig_hop_long_tiles": {
+              "description": "The long leg (Chebyshev tiles) of the Digger's underground search hop, once it has struck its first target and has nothing else in range: it hops a knight's-move of (dig_hop_long_tiles, dig_hop_short_tiles) tiles toward the nearest unclaimed structure, surfaces, and checks dig_range_tiles again. STARTING VALUE, tune in the editor.",
+              "maximum": 64,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "dig_hop_short_tiles": {
+              "description": "The short leg (Chebyshev tiles) of the Digger's underground search hop - paired with dig_hop_long_tiles into a chess-knight-shaped offset. STARTING VALUE, tune in the editor.",
+              "maximum": 64,
+              "minimum": 1,
+              "type": "integer"
+            },
             "dig_range_tiles": {
-              "description": "How close (Chebyshev tiles, measured to the nearest tile of the target's block) the Digger gets before it submerges. It is untargetable from that moment until it erupts, so this is ALSO the size of the window defenders get to kill it: raising it makes the Digger much harder to stop. It doubles as the underground travel distance - the dig lasts dig_range_tiles / dig_speed seconds regardless of how far the target actually is. STARTING VALUE, tune in the editor.",
+              "description": "How close (Chebyshev tiles, measured to the nearest tile of the target's block) the Digger gets before it submerges. It is untargetable from that moment until it erupts, so this is ALSO the size of the window defenders get to kill it: raising it makes the Digger much harder to stop. It doubles as the underground travel distance - the dig lasts dig_range_tiles / dig_speed seconds regardless of how far the target actually is. Reused after the first strike as the search-hop's in-range detection radius. STARTING VALUE, tune in the editor.",
               "maximum": 64,
               "minimum": 0,
               "type": "integer"
@@ -820,6 +832,8 @@
           "required": [
             "condition_path_weights",
             "death_spawn",
+            "dig_hop_long_tiles",
+            "dig_hop_short_tiles",
             "dig_range_tiles",
             "dig_speed",
             "endgame_scaling",

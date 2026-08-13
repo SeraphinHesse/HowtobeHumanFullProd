@@ -140,6 +140,11 @@ class TestRequirementWarnings(unittest.TestCase):
         ops.paint(doc, 4, 1, "c")
         ops.paint(doc, 5, 1, "s")
         doc.camera_start = {"col": 3, "row": 3, "slot": "camera_startpoint"}
+        # the camera play-area centre is a playability requirement too, so a
+        # doc missing it carries its own warning (test_missing_camera_limit_
+        # center_warns owns that case)
+        doc.camera_limit_center = {"col": 3, "row": 3,
+                                   "slot": "camera_limit_centerpoint"}
         # one spawnable-background mark on a BACKGROUND ("f") cell — a doc with
         # no marks now carries the (non-blocking) empty-reserve warning, which
         # test_empty_spawn_reserve_warns owns.
@@ -157,6 +162,13 @@ class TestRequirementWarnings(unittest.TestCase):
     def test_missing_start_area_warns(self):
         doc = self._playable_doc()
         self.assertIn("starting area", ops.map_requirement_warnings(doc))
+
+    def test_missing_camera_limit_center_warns(self):
+        doc = self._playable_doc()
+        doc.start_area = {"col": 1, "row": 1, "slot": "start_area"}
+        doc.camera_limit_center = None
+        self.assertIn("camera limit center",
+                      ops.map_requirement_warnings(doc))
 
     def test_start_area_on_non_buildable_warns(self):
         doc = self._playable_doc()

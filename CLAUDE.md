@@ -47,8 +47,13 @@ that breaks this table is *denied*, not merely discouraged.
   promise was "only the blast radius", which is how "don't re-run the suite"
   kept getting broken by agents who thought they had asked for a narrow run.)
 - **The full `py tools/testgate.py check` runs exactly ONCE**, by the MAIN
-  SESSION, as the last step before handing work back or opening a PR — or when
-  the user explicitly asks. Never mid-task, never twice.
+  SESSION, at handoff — or when the user explicitly asks. Never mid-task, never
+  twice. **"At handoff" means `/commitpushpr` stage 5, which is AFTER the PR is
+  up and AFTER `Development` has been merged down** — not before either. (This
+  bullet used to read "before handing work back or opening a PR", which is now
+  wrong in both halves: the PR goes up first, marked UNTESTED, and gating a tree
+  that `Development` has not landed in yet spends the one allowed run measuring
+  a tree that stops existing minutes later.)
 - **A completed full run started from the editor's *Run tests* button IS that
   once, for that working tree** — it is recorded in the guard's ledger, so the
   main session is handed its verdict instead of running again; any edit to the
@@ -309,9 +314,15 @@ Then:
 2. If data changed: confirm schema validation passes.
 3. If anything architectural changed: update **the package CLAUDE.md** — not
    this router, not another package's doc.
-4. PRs state a concrete in-game Quick Test scenario. On the user's
-   confirmation: commit (brief msg) → push → PR. CI (`.github/workflows/
-   tests.yml`) gates every PR into `Development`.
+4. **Finishing a session ALWAYS goes through `/commitpushpr`** — it is the one
+   closing workflow, not one option among several. Report (every plan phase by
+   its ID) → offer a summary **artifact** → **UNTESTED PR** →
+   merge `Development` down → *then* the single gate (skippable — CI may
+   already be green, or the user may have run it in the editor) → fix, push,
+   rewrite the PR body to what actually happened. Do not hand-roll
+   commit → push → PR, and do not run the gate before the merge-down. PRs state
+   a concrete in-game Quick Test scenario. CI (`.github/workflows/tests.yml`)
+   gates every PR into `Development`.
 
 **Tests must never write into `data/`.** Copy it to a tempdir (`TempDataCase`).
 A session fixture hashes `data/` before and after the suite and fails the run if

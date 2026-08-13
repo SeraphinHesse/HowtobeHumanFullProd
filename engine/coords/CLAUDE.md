@@ -22,7 +22,10 @@ conventions, update THIS doc.
   viewport. `CameraLimit` is vocabulary-free (an anchor and a tile count, never a
   "spawn point"): **the HOST installs it, never a data loader.** `game/main.py`
   builds one at boot from `core` balancing's `Camera.max_offset_tiles_x/_y`,
-  anchored at the map's `camera_start` (map centre as fallback); the editor
+  anchored at the map's `camera_limit_center` marker — painted for exactly this
+  and nothing else, so "where the camera opens" and "what the play area is
+  centred on" stay separately tunable — falling back to `camera_start`, then
+  the map centre; the editor
   deliberately never installs one, so its viewport stays free-roam. Storing it on
   the `CoordinateSystem` rather than passing it per call is what makes every
   clamp site — drag-pan, the hosts' `step_zoom`, `center_on`'s trailing clamp —

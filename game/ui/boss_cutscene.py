@@ -59,6 +59,10 @@ class BossCutscene:
         self.view_h = view_h
         self.boss_num = 0
         self.outcome = "win"
+        # Consolation love the LOST boss round already paid (session
+        # `_begin_round_end`). 0 on a win, and on a loss whose era authored
+        # `loss_love_reward: 0` — both keep the plain headline.
+        self.love_reward = 0
         self.hovered = -1
         self.visible = False
         self._clock = 0.0  # 10L-B: only the skinned box_a/box_b path uses this
@@ -91,9 +95,10 @@ class BossCutscene:
                                      font_key="lg", text_color=None)
         self.ids = {}
 
-    def open(self, boss_num, outcome):
+    def open(self, boss_num, outcome, love_reward=0):
         self.boss_num = boss_num
         self.outcome = outcome
+        self.love_reward = int(love_reward or 0)
         self.visible = True
         self.hovered = -1
         # Lay out NOW: hover/hit run before the first submit (levelup pattern).
@@ -161,8 +166,16 @@ class BossCutscene:
         # headline_win/headline_loss) — the win/loss PICK stays logic-owned
         # (a 2-variant runtime string, same as the colour below), just like
         # the module docstring's "dynamic content" exclusion always meant.
-        headline = T("boss_cutscene.headline_win" if won
-                     else "boss_cutscene.headline_loss")
+        # A loss that paid consolation love says so in the headline — the
+        # same 2-variant runtime pick, with a third id for the templated case
+        # (the plain loss id stays for a 0 reward).
+        if won:
+            headline = T("boss_cutscene.headline_win")
+        elif self.love_reward > 0:
+            headline = T("boss_cutscene.headline_loss_reward",
+                         love=self.love_reward)
+        else:
+            headline = T("boss_cutscene.headline_loss")
         color = _WIN_GREEN if won else _LOSS_RED
         submit_label(renderer, self._headline, text=headline, color=color)
         submit_label(renderer, self._subtitle)

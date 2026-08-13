@@ -892,7 +892,7 @@ class TestBossCutsceneFlow(unittest.TestCase):
         self.assertEqual(st.boss_lives_snapshot, st.base_lives)
         session.quick_skip_combat(scene)          # wave over -> ROUND_END
         self.assertEqual(st.pending_boss_cutscene,
-                         {"boss_num": 1, "outcome": "win"})
+                         {"boss_num": 1, "outcome": "win", "love_reward": 0})
         phase = self._ride_to_cutscene(session, scene, tm)
         self.assertEqual(phase, GamePhase.BOSS_CUTSCENE)  # NOT LEVELUP
         self.assertTrue(session.frozen)
@@ -932,6 +932,46 @@ class TestBossCutsceneFlow(unittest.TestCase):
         session.on_base_hit(_Dummy())             # lose a life -> wipe pends
         session.post_sim(scene)                   # wipe -> ROUND_END
         self.assertEqual(st.pending_boss_cutscene["outcome"], "loss")
+
+    def test_loss_pays_this_eras_consolation_love(self):
+        """A LOST boss round pays `stats[era].loss_love_reward` once; a WIN
+        pays nothing. The fixture authors no reward, so the value is written
+        onto a deep copy here (the fixture stays pinned)."""
+        enem = copy.deepcopy(ENEM)
+        for i, row in enumerate(enem["EnemyTypes"]["Boss"]["stats"]):
+            row["loss_love_reward"] = 30 * (i + 1)
+        tm, scene, occ = build_board(["bs"])
+        session = Session.create(Spawner(), tm, enem, CORE, BUILD,
+                                 rng=random.Random(3), occupancy=occ)
+        st = session.state
+        st.round_num = INTERVAL
+        self._end_turn_past_any_intro(session)
+        love_before = st.love
+
+        class _Dummy:
+            ETYPE = "standard"
+            dmg = 5
+        session.on_base_hit(_Dummy())             # lose a life -> loss
+        session.post_sim(scene)                   # -> ROUND_END
+        self.assertEqual(st.pending_boss_cutscene["outcome"], "loss")
+        self.assertEqual(st.pending_boss_cutscene["love_reward"], 30)  # era 0
+        self.assertEqual(st.love, love_before + 30)
+
+    def test_win_pays_no_consolation_love(self):
+        enem = copy.deepcopy(ENEM)
+        for row in enem["EnemyTypes"]["Boss"]["stats"]:
+            row["loss_love_reward"] = 30
+        tm, scene, occ = build_board(["bs"])
+        session = Session.create(Spawner(), tm, enem, CORE, BUILD,
+                                 rng=random.Random(3), occupancy=occ)
+        st = session.state
+        st.round_num = INTERVAL
+        self._end_turn_past_any_intro(session)
+        love_before = st.love
+        session.quick_skip_combat(scene)          # wave over, no life lost
+        self.assertEqual(st.pending_boss_cutscene["outcome"], "win")
+        self.assertEqual(st.pending_boss_cutscene["love_reward"], 0)
+        self.assertEqual(st.love, love_before)
 
     def test_no_cutscene_on_a_non_boss_round(self):
         session, scene, tm = self._session(INTERVAL + 1)

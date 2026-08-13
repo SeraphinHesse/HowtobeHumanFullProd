@@ -232,6 +232,16 @@ modal LEVELUP window whose reward researches the next building tier (or pays lov
   `tier_index=0` — the single eligibility gate per type (no separate era
   key); unlocking a type makes tier 1 immediately placeable. The gate table +
   stacking rules live in `game/buildings/research.py` (see that doc).
+- **Row N of the Timeline is what the level-up REACHING level N offers**, in
+  BOTH leveling modes. The roll runs before `advance_village_level`, so
+  `roll_levelup_options` gates its pool on `village_level + 1` (passed down as
+  an explicit override to `tier_offerable`/`_gate_met`), matching
+  `scripted_level_due`'s and `exact_levelup_options`' own `+ 1` lookups. Row 1
+  is the STARTING loadout and never funds a level-up. `upgrade_gate`'s panel
+  readout deliberately keeps measuring against the level the player HOLDS —
+  that is `tier_offerable`'s default when no override is passed. (Before this
+  fix only the random path lagged: it gated on the level being LEFT, so the
+  level-up that fired on row N's authored round offered row N-1's cards.)
 - **Phase machine**: at ROUND_END's expiry a pending level-up enters
   `GamePhase.LEVELUP` **instead of** running payday; `Session.resolve_levelup`
   applies the reward, advances the level, then runs payday (the prototype's
@@ -264,8 +274,30 @@ modal LEVELUP window whose reward researches the next building tier (or pays lov
   the lead's own Timeline placement at `tier_index=0` (TimelinePLAN — each boost
   line still carries its own `RESEARCH` row, no shared `gate_kind`/globals key
   needed, only the LEAD's placement is ever consulted by the roll, D8). All
-  three still carry a `RESEARCH` row so each researches its own tiers after
-  unlocking.
+  three still carry a `RESEARCH` row so `tiers_unlocked`/`unlocked_buildings`
+  stay per-type.
+- **Grouped TIERS (the same trio)**: `ResearchSpec.tier_group` is
+  `unlock_group`'s exact mirror one level up — tier 2 and tier 3 are ONE card
+  each, researching that tier for all three lines at once
+  (`apply_levelup_option`'s `"tier"` branch loops `option["building_types"]`,
+  which every tier card now carries — a 1-tuple for an ungrouped type). The
+  roll skips non-lead members the same way, and `tier_lead(btype)` routes
+  `tier_offerable`/`_next_tier_gate`'s timeline readout through the lead, so
+  the non-lead lines' Timeline rows at tiers 1/2 are as inert as their tier-0
+  rows already were (D8). A card granting three lines cannot be titled from any
+  one line's tier name, so the copy is DATA:
+  `BoostBuildings.globals.tier_card_titles` / `.tier_card_explanations`
+  (3 entries each, indexed by tier; index 0 is only the tier-2 card's
+  `prev_name`), reached via `ResearchSpec.tier_copy_path`. Each placed booster
+  still advances individually, paying its own `build_cost` in the upgrade panel
+  — the card only lifts the research gate.
+- **Researching a tier is FREE, for EVERY building type** (user decision, not
+  boost-specific): `_tier_option` emits `cost: 0` and carries the tier's
+  `build_cost` as `display_cost`, the unlock card's preview-only shape
+  (`game/ui/levelup.py` already prefers `display_cost`). `build_cost` is still
+  the ONE price to actually GET the tier onto a building — a fresh placement or
+  the upgrade panel's advance button — so the card's "Upgrade Cost" readout
+  stays true; only the research card stopped charging it.
 - **Empty pool is possible whenever a village_level has no Timeline
   placements** (TimelinePLAN — was "before round 10" when eligibility was
   round-gated; now purely a function of what a designer has placed on the
@@ -274,6 +306,53 @@ modal LEVELUP window whose reward researches the next building tier (or pays lov
   village_level's level-up shows one or more `+N Love` fallback cards
   padding the pool to 3 (the prototype's pad-to-3, `game/core/levelup.py`'s
   `_love_fallback`).
+
+### The TWO leveling modes, and where they branch (designer-scripted leveling)
+`data/balancing/progression.json`'s `Timeline` carries two independent
+booleans (see `data/CLAUDE.md` for their data shape). Both ship `false`, and
+with both off every path below is byte-identical to what it always did.
+- **`scripted_leveling` — WHEN a level is reached.** `Session.__init__` reads
+  it once off `progression_balance` (`None`-safe → `False`, the same
+  host-set-optional shape as `progression_balance` itself) onto
+  **`RunState.scripted_leveling`**, and RunState is where it lives because
+  BOTH the round machine and the HUD have to see it and RunState is already
+  what both read — no new plumbing. Two branch points, and only two:
+  - **`game/core/xp.py::award_xp` early-returns.** That ONE guard covers every
+    award site (`_award_building_deaths`, `on_base_hit`, `_award_enemy_xp`,
+    `on_kidnap`, `_wipe_round`) and keeps `xp_events` empty, which is what
+    `FloaterManager.spawn_xp_events` drains — so the `+1` floaters vanish with
+    no change in `game/ui/effects.py`. `advance_village_level` is UNCHANGED:
+    it still runs on resolve, it just never has meaningful XP to subtract.
+  - **`Session.pre_sim`'s ROUND_END arm** swaps `st.levelup_pending` for
+    `levelup.scripted_level_due(village_level, round_num, progression_balance)`
+    — true iff the Timeline holds a row for `village_level + 1` whose authored
+    `round` is this one. `round_num` is still PRE-increment at ROUND_END
+    (payday `++`s it), so it is the round that just finished. The priority
+    chain (boss cutscene → level-up → payday) is untouched and
+    `resolve_levelup` needed no change (it already clears the now-vestigial
+    `levelup_pending`). **One live consequence**: `levelup_pending` is not
+    consulted at all in this mode, so `cheat_trigger_levelup` fired MID-ENEMY
+    — the one cheat path that merely arms the flag and leaves ROUND_END to
+    open the window — is inert under scripting. Every other cheat path (any
+    phase outside ENEMY/LEVELUP) calls `_begin_levelup` directly and works
+    unchanged.
+  A designer-skipped level simply never fires — consistent with the editor's
+  warn-don't-block round validation. The HUD half (bar/icon/`40/60`
+  suppressed, `LVL N` kept) is `game/ui/CLAUDE.md`.
+- **`exact_offer_slots` — WHAT a level-up shows.** Read straight off
+  `progression_balance` (not RunState — nothing outside the roll needs it) at
+  the top of `roll_levelup_options`, which hands the whole roll to
+  `levelup.exact_levelup_options`: the row for `village_level + 1` walked in
+  order, `null` → `_love_fallback`, an already-claimed reward DROPPED
+  (`_reward_claimed`: `type_unlocked` for an unlock card, `tiers_unlocked_for
+  (...) > idx` for a tier card), everything dropped → ONE love card, no row at
+  all → `OPTION_COUNT` love cards. `OPTION_COUNT` still governs the random
+  path only. Nothing de-duplicates: duplicates are legal in this mode by
+  design, so what the designer authored is what the player sees.
+  **The window's geometry is the real cap** — `game/ui/levelup.py::layout`
+  lays out any `n`, but at `_BOX_W = 130` more than 4 boxes overflow the 640px
+  view, so the EDITOR warns above 4 slots per row rather than the game
+  clamping (`editor/timeline_ops.py::round_warnings`).
 
 The UI half of level-up (`game/ui/levelup.py`, XP bar, gated construct list) lives
 in `game/ui/CLAUDE.md`.
@@ -352,12 +431,20 @@ in `game/ui/CLAUDE.md`.
   is DELETED — there is one clock, in `EnemyScaling`, and no round arithmetic is
   written out here. `_begin_round_end` queues
   `pending_boss_cutscene = {boss_num, outcome}` (outcome = lives vs snapshot).
-  At ROUND_END expiry the pending cutscene **beats** `levelup_pending`;
+  At ROUND_END expiry the pending cutscene **beats** a due level-up;
   `Session.frozen` covers `BOSS_CUTSCENE` exactly like LEVELUP.
   `resolve_boss_cutscene(option, scene)` applies the stack, appends
   `(boss_num, option, outcome)` to `boss_choices` (the per-run history the
   base-info popup reads; no disk persistence), then chains → LEVELUP (if
-  pending) → payday, exactly once.
+  due) → payday, exactly once.
+  - **"Due" is `Session._levelup_due()`, the ONE place the two leveling modes
+    branch** — `levelup_pending` under XP leveling, `scripted_level_due(...)`
+    under scripted leveling — and BOTH the ROUND_END arm and the boss chain
+    call it. The chain used to read `levelup_pending` directly, which is
+    never set under scripting: a scripted level authored for a boss round
+    was silently skipped, and since every later row is keyed on
+    `village_level + 1`, the run was locked out of every subsequent level-up
+    too (win or loss alike — both outcomes take the cutscene path).
 - **Death spawn handshake (layering) — GENERALISED in ER-3**: `game/core` still
   imports NO `game/enemies`. The gate is **no longer `ETYPE == "boss"`** (that
   was a G-3 violation): `on_enemy_death` duck-types `death_spawn_plan` off ANY
