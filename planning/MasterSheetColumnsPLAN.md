@@ -1,10 +1,3 @@
-<!-- active-plan: MasterSheetColumnsPLAN.md | set: 2026-08-13 -->
-> **Active plan:** MasterSheetColumnsPLAN.md (mirror). Source of truth:
-> `planning/MasterSheetColumnsPLAN.md`. Do **not** edit this file directly — edit the
-> source in `planning/` and re-run `/setcurrentplan`, or pick a different
-> plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
-> screen).
-
 <!-- plan-scale: large -->
 <!-- status: 1/4 sections, 3/13 phases — S1 landed, wave 2 (S2+S3+S4) next -->
 

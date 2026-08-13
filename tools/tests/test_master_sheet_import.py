@@ -16,6 +16,7 @@ breakage the root `CLAUDE.md` names ("Tests that assumed 'this slot has no art'
 … is what put 18 tests permanently in the red"). Pin the fixture; never assume
 the project owns no art.
 """
+import json
 import unittest
 
 from PIL import Image
@@ -63,11 +64,13 @@ class MasterSheetImportTest(DataDirCase):
         png = self.data_dir / "sprites" / "master" / "village_folk.png"
         self.assertTrue(png.is_file())
         # write_registry_doc goes through write_validated, so a re-load that
-        # carries exactly the four required keys is the validity assertion.
+        # carries exactly the five required keys is the validity assertion.
+        # `column_width` is the C3 stopgap default: the 128px-wide source is
+        # ONE column of 128 // 32 = 4 frames, so no slot's art can move.
         self.assertEqual(
             self.registry()["entries"]["village_folk"],
             {"file": "master/village_folk.png", "display_name": "Village Folk",
-             "frame_w": 32, "frame_h": 48})
+             "frame_w": 32, "frame_h": 48, "column_width": 4})
 
     def test_reimport_same_bytes_leaves_the_file_untouched(self):
         sheet_id = master_sheet_import.import_master_sheet(
@@ -132,6 +135,64 @@ class MasterSheetImportTest(DataDirCase):
         # "Alpha spare" before "zebra crowd" — display_name, case-insensitive.
         self.assertEqual([sheet.sheet_id for sheet in sheets],
                          [orphan, shared])
+
+
+class LoadRegistryDocDegradesTest(DataDirCase):
+    """MasterSheetColumnsPLAN C3 — the READ now delegates to
+    `engine.assets.master_registry.load_registry` (which fails loud), so the
+    E-37 degrade-to-empty-doc wrapper is the thing that must still hold."""
+
+    EMPTY = {"version": 1, "entries": {}}
+
+    def test_missing_registry_reads_as_an_empty_doc(self):
+        master_sheet_import.registry_path(self.data_dir).unlink()
+        self.assertEqual(
+            master_sheet_import.load_registry_doc(self.data_dir), self.EMPTY)
+
+    def test_corrupt_registry_reads_as_an_empty_doc(self):
+        master_sheet_import.registry_path(self.data_dir).write_text(
+            "{not json at all", encoding="utf-8")
+        self.assertEqual(
+            master_sheet_import.load_registry_doc(self.data_dir), self.EMPTY)
+
+
+class RegistryUnreadableTest(DataDirCase):
+    """An import must REFUSE an existing-but-unreadable registry, never merge
+    into the degraded empty doc and write every other sheet out of existence.
+    C1 made `column_width` required, so every pre-C1 registry is schema-invalid
+    by construction and would otherwise hit exactly this."""
+
+    def test_schema_invalid_registry_refuses_the_import_and_touches_nothing(self):
+        pin_empty_registry(self.data_dir)
+        source = make_png(self.data_dir / "incoming" / "raw.png", 128, 192)
+        master_sheet_import.import_master_sheet(
+            self.data_dir, source, "Village Folk", 32, 48)
+
+        registry = master_sheet_import.registry_path(self.data_dir)
+        doc = data_io.load_json(registry)
+        # Strip the required key: schema-invalid, exactly like a pre-C1 file.
+        for entry in doc["entries"].values():
+            entry.pop("column_width", None)
+        registry.write_text(json.dumps(doc), encoding="utf-8")
+        before = registry.read_bytes()
+
+        other = make_png(self.data_dir / "incoming" / "other.png", 64, 64)
+        with self.assertRaises(master_sheet_import.RegistryUnreadableError):
+            master_sheet_import.import_master_sheet(
+                self.data_dir, other, "Other Sheet", 32, 32)
+
+        self.assertEqual(registry.read_bytes(), before)   # nothing overwritten
+        self.assertFalse(                                 # no orphan PNG either
+            (self.data_dir / "sprites" / "master" / "other_sheet.png").exists())
+
+    def test_a_missing_registry_is_still_a_normal_import(self):
+        master_sheet_import.registry_path(self.data_dir).unlink()
+        source = make_png(self.data_dir / "incoming" / "raw.png", 128, 192)
+        sheet_id = master_sheet_import.import_master_sheet(
+            self.data_dir, source, "Village Folk", 32, 48)
+        self.assertIn(
+            sheet_id,
+            master_sheet_import.load_registry_doc(self.data_dir)["entries"])
 
 
 class GridInUseTest(DataDirCase):

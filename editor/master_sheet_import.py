@@ -33,10 +33,12 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from jsonschema import ValidationError
 from PIL import Image
 
 from editor.asset_import import load_manifest_doc, sheet_users
 from engine import data_io
+from engine.assets import master_registry
 
 REPO = Path(__file__).resolve().parents[1]
 DEFAULT_DATA = REPO / "data"
@@ -44,6 +46,28 @@ DEFAULT_DATA = REPO / "data"
 REGISTRY_SUBPATH = ("sprites", "master_sheets.json")
 SCHEMA_SUBPATH = ("schemas", "master_sheets.schema.json")
 MASTER_SUBDIR = ("sprites", "master")
+
+
+class RegistryUnreadableError(ValueError):
+    """Refusal: ``master_sheets.json`` EXISTS but does not load, so an import
+    cannot safely merge into it.
+
+    Subclasses ``ValueError`` for exactly the reason ``GridInUseError`` below
+    does — the dialog's existing ``except (OSError, ValueError)`` turns it into
+    a readable message with no dialog edit.
+
+    WHY REFUSE RATHER THAN DEGRADE. ``load_registry_doc`` answers a bad file
+    with an EMPTY doc, which is right for READING (listing a registry nobody
+    can parse should show nothing, not crash). It is catastrophic for WRITING:
+    ``import_master_sheet`` would merge its one new entry into that empty doc
+    and write it, silently deleting every OTHER sheet's entry while manifest
+    entries still point at their ``master/<id>.png`` — the picker and
+    ``sheet_users`` lose them, and D10's in-use guard can never fire for them
+    again. C1 made ``column_width`` required, so every registry written before
+    that change is schema-invalid BY CONSTRUCTION and would hit exactly this.
+    Raised BEFORE the PNG copy, so a refused import leaves disk byte-identical
+    (the ordering ``GridInUseError`` already establishes).
+    """
 
 
 class GridInUseError(ValueError):
@@ -94,10 +118,21 @@ def master_ref(sheet_id):
 def load_registry_doc(data_dir=None):
     """The raw master-sheet registry doc, tolerant of a missing/corrupt file
     (E-37 — the pre-import state is normal; the file ships seeded EMPTY). Twin
-    of ``asset_import.load_manifest_doc``."""
+    of ``asset_import.load_manifest_doc``.
+
+    The READ delegates to ``engine.assets.master_registry.load_registry``
+    (C3) — ``game/`` and ``editor/`` both need to read this registry and may
+    not import each other, so the reader lives in ``engine/``. The E-37
+    tolerance stays HERE: the engine reader fails loud on purpose, and this
+    wrapper is the editor's own degrade-to-empty-doc policy. One deliberate
+    delta from the old ``load_json`` read: a registry that parses as JSON but
+    FAILS the schema now reads as ABSENT rather than being returned raw —
+    the same "corrupt file -> empty" branch this docstring already promised,
+    and only a hand-edit can produce one (``write_registry_doc`` is the ONE
+    write path, ED-31, and it validates)."""
     try:
-        doc = data_io.load_json(registry_path(data_dir))
-    except (OSError, ValueError):
+        doc = master_registry.load_registry(_data_dir(data_dir))
+    except (OSError, ValueError, ValidationError):
         return {"version": 1, "entries": {}}
     if not isinstance(doc, dict) or not isinstance(doc.get("entries"), dict):
         return {"version": 1, "entries": {}}
@@ -124,6 +159,38 @@ def frame_bounds(data_dir=None):
         return int(prop["minimum"]), int(prop["maximum"])
     except (OSError, ValueError, KeyError, TypeError):
         return 1, 1024
+
+
+def column_width_bounds(data_dir=None):
+    """``(minimum, maximum)`` for ``column_width``, READ FROM THE SCHEMA — the
+    sibling of ``frame_bounds`` above and for the same ED-30 reason: the bound
+    has exactly one home and no form may retype it. Falls back to the schema's
+    own (1, 256) if the schema is unreadable (E-37)."""
+    try:
+        schema = data_io.load_json(schema_path(data_dir))
+        prop = (schema["properties"]["entries"]["patternProperties"]
+                ["^[a-z][a-z0-9_]*$"]["properties"]["column_width"])
+        return int(prop["minimum"]), int(prop["maximum"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return 1, 256
+
+
+def _assert_registry_readable(data_dir):
+    """Raise ``RegistryUnreadableError`` if the registry exists but will not
+    load — see that class for why an import must refuse instead of degrading.
+    A MISSING file is fine and stays fine: that is the normal pre-import state
+    the seeded-empty registry describes."""
+    path = registry_path(data_dir)
+    if not path.exists():
+        return
+    try:
+        master_registry.load_registry(data_dir)
+    except (OSError, ValueError, ValidationError) as exc:
+        raise RegistryUnreadableError(
+            f"{path} exists but could not be read ({exc.__class__.__name__}). "
+            f"Importing now would replace it with an entry for this sheet "
+            f"alone and lose every other registered master sheet. Fix or "
+            f"remove the file first.") from exc
 
 
 def _slugify(name):
@@ -232,6 +299,9 @@ def import_master_sheet(data_dir, png_path, display_name, frame_w, frame_h):
     §2.1). The refusal happens BEFORE the PNG copy and before the registry
     write, so a refused import leaves disk byte-identical."""
     data_dir = _data_dir(data_dir)
+    # BEFORE anything reads or copies: a registry that exists but will not load
+    # must refuse the import, never be silently replaced by this one entry.
+    _assert_registry_readable(data_dir)
     png_path = Path(png_path)
     name = (str(display_name or "").strip() or png_path.stem)
     sheet_id = resolve_sheet_id(data_dir, png_path, name)
@@ -273,11 +343,27 @@ def import_master_sheet(data_dir, png_path, display_name, frame_w, frame_h):
     if not _same_bytes(png_path, destination):
         destination.write_bytes(png_path.read_bytes())
 
+    # STOPGAP (MasterSheetColumnsPLAN C3, superseded by S2's import form, which
+    # gives the designer a real `column_width` field). C1 made `column_width` a
+    # REQUIRED key, so this write must supply one. ONE COLUMN SPANNING THE WHOLE
+    # SHEET is the behaviour-preserving default: every existing sheet becomes a
+    # 1-column sheet, D7's per-sheet clamp holds every slot at column 0, and no
+    # art moves. A literal `1` would claim a 6-frame-wide sheet has six colour
+    # columns and send a column-driven slot into garbage.
+    # CLAMPED TO THE SCHEMA'S OWN BOUNDS, not left unbounded: a sheet wider
+    # than `cw_max` frames would otherwise derive a width the writer rejects,
+    # and that ValidationError lands AFTER the PNG copy above — leaving an
+    # orphan PNG with no registry entry, which is exactly the disk-untouched
+    # promise GridInUseError's ordering makes.
+    cw_min, cw_max = column_width_bounds(data_dir)
+    with Image.open(destination) as image:
+        sheet_w, _ = image.size
     doc["entries"][sheet_id] = {
         "file": master_ref(sheet_id),
         "display_name": name,
         "frame_w": frame_w,
         "frame_h": frame_h,
+        "column_width": max(cw_min, min(cw_max, sheet_w // frame_w)),
     }
     write_registry_doc(data_dir, doc)
     return sheet_id

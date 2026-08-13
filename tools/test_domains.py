@@ -191,6 +191,7 @@ DOMAINS = {
     "data": (
         "test_assets_registry.py",
         "test_balancing_data.py",
+        "test_master_registry.py",
         "test_schema_slot_sync.py",
         "test_strings_data.py",
         "test_theme_data.py",

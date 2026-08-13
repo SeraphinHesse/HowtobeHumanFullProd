@@ -56,8 +56,18 @@ class AssetStore:
         # shared PNG at different frame sizes are already unsafe to merge.
         # Folding frame_w/frame_h/row_start into the key to dedup frames too is
         # a NOTED FOLLOW-UP, deliberately not done here.
-        self._frames = {}   # (slot_key, row, col) -> Surface | _LOAD_FAILED
-        self._hit_masks = {}   # (slot_key, row, col) -> pygame.Mask
+        #
+        # The key also carries the resolved master-COLUMN block (D3/D7,
+        # MasterSheetColumnsPLAN): a caller-supplied column (a season index or
+        # a building's colour) can pick a different block per call for the
+        # SAME slot/row/col, and two blocks of one slot cut different pixels —
+        # exactly the same collision class `row_start` already forced the key
+        # to be slot- rather than sheet-keyed for. Dropping `block` from the
+        # key would hand column 2 the pixels of column 0, forever, for that
+        # slot — a silent wrong-pixels bug, not a crash. Do not "simplify"
+        # this back to a 3-tuple.
+        self._frames = {}   # (slot_key, row, col, block) -> Surface | _LOAD_FAILED
+        self._hit_masks = {}   # (slot_key, row, col, block) -> pygame.Mask
 
     def animation_total_ms(self, slot_key, name):
         """The named animation's total playback duration in ms for a slot, or
@@ -97,18 +107,24 @@ class AssetStore:
             return (0, 0)
         return (entry.offset_x, entry.offset_y)
 
-    def frame(self, slot_key, animation="idle", anim_time_ms=0, extra_hidden=None):
+    def frame(self, slot_key, animation="idle", anim_time_ms=0,
+             extra_hidden=None, column=None):
         """Never raises on missing/corrupt art: falls back to the grey X.
 
         `extra_hidden` (optional): passed straight through to
         `Manifest.current_frame` — a caller-side frame-column narrowing on
-        top of whatever the manifest row already hides."""
+        top of whatever the manifest row already hides.
+
+        `column` (optional): a live master-COLUMN index (a season index or a
+        building's colour) for entries whose `column_mode` is not "manual".
+        Ignored when the entry's `column_mode` is "manual" (or absent) — the
+        entry's own stored `column` wins in that case (D3)."""
         ref = self._manifest.current_frame(slot_key, animation, int(anim_time_ms),
                                             extra_hidden=extra_hidden)
         if ref is PLACEHOLDER:
             return self._placeholder(slot_key)
         entry = self._manifest.entry(slot_key)
-        surface = self._frame_surface(entry, ref)
+        surface = self._frame_surface(entry, ref, column)
         if surface is _LOAD_FAILED:
             return self._placeholder(slot_key)
         return Frame(surface=surface, frame_w=entry.frame_w,
@@ -116,7 +132,7 @@ class AssetStore:
                      offset_y=entry.offset_y, slice=entry.slice)
 
     def hit_opaque(self, slot_key, animation="idle", anim_time_ms=0,
-                   dest_size=None, rel_xy=(0, 0)):
+                   dest_size=None, rel_xy=(0, 0), column=None):
         """Opaque-pixel test for a slot's frame at a destination coord
         (pixel-perfect hit test for skinned buttons — E-37/R2).
 
@@ -133,6 +149,8 @@ class AssetStore:
                 `[0, dest_size[0]) x [0, dest_size[1])` — this method never
                 validates bounds against `dest_size`, only against the
                 resolved SOURCE frame (see below).
+            column: (optional) a live master-COLUMN index, same meaning and
+                same "ignored when column_mode is manual" rule as `frame()`.
 
         Returns:
             True if the pixel at `rel_xy` is opaque (alpha > 0) in the
@@ -146,12 +164,14 @@ class AssetStore:
         if ref is PLACEHOLDER:
             return True   # placeholder: opaque everywhere
         entry = self._manifest.entry(slot_key)
-        surface = self._frame_surface(entry, ref)
+        surface = self._frame_surface(entry, ref, column)
         if surface is _LOAD_FAILED:
             return True   # corrupt/missing sheet: degrade to opaque
 
         row, col = ref
-        key = (entry.slot_key, row, col)
+        sheet = self._sheet(entry)   # cached; needed to resolve the block
+        block = self._column_block(entry, sheet, column)
+        key = (entry.slot_key, row, col, block)
         mask = self._hit_masks.get(key)
         if mask is None:
             mask = self._hit_masks[key] = pygame.mask.from_surface(
@@ -196,28 +216,58 @@ class AssetStore:
         self._sheets[sheet_key] = surface
         return surface
 
-    def _frame_surface(self, entry, ref):
+    def _column_block(self, entry, sheet, column):
+        """The resolved master COLUMN this cut comes from (D3/D7).
+
+        `column` is the caller's live column (a season index or a building's
+        colour) or None. A stored `column_mode` of "manual" — or the absence
+        of a caller value — means the entry's own stored column wins."""
+        if entry.column_mode == "manual" or column is None:
+            block = entry.column
+        else:
+            block = column
+        if sheet is _LOAD_FAILED or entry.column_width <= 0:
+            sheet_cols = 1
+        else:
+            sheet_cols = sheet.get_width() // (entry.column_width * entry.frame_w)
+        # D7: clamp, never wrap. Clamped on BOTH sides — a negative caller
+        # column would otherwise build a negative rect x and degrade the frame
+        # to the grey-X placeholder instead of resolving column 0.
+        return max(0, min(block, sheet_cols - 1))
+
+    def _frame_surface(self, entry, ref, column=None):
         row, col = ref
-        key = (entry.slot_key, row, col)
+        # `self._sheet(entry)` moves ABOVE the cache check: the D7 clamp needs
+        # the sheet's real width, and the cache key must carry the RESOLVED
+        # block. `_sheet` is a dict lookup keyed by path after the first call,
+        # the load-failure marker is cached, and the could-not-load warning is
+        # already emitted exactly once — this is not a performance regression.
+        sheet = self._sheet(entry)
+        block = self._column_block(entry, sheet, column)
+        # The resolved BLOCK is part of the cache key on purpose — see the
+        # `_frames`/`_hit_masks` comment in __init__ for why.
+        key = (entry.slot_key, row, col, block)
         if key in self._frames:
             return self._frames[key]
-        sheet = self._sheet(entry)
         if sheet is _LOAD_FAILED:
             surface = _LOAD_FAILED
         else:
-            # THE one place the entry's row window is applied: `row` is an
-            # index into this entry's own rows[], `sheet_row` is where that
-            # lands in the (possibly shared) PNG.
+            # THE one place the entry's row window AND column block are
+            # applied: `row`/`col` index into this entry's own rows[]/
+            # frames[], `sheet_row`/the block are where that lands in the
+            # (possibly shared) PNG.
             sheet_row = row + entry.row_start
-            rect = pygame.Rect(col * entry.frame_w, sheet_row * entry.frame_h,
-                               entry.frame_w, entry.frame_h)
+            rect = pygame.Rect(
+                (block * entry.column_width + col) * entry.frame_w,
+                sheet_row * entry.frame_h, entry.frame_w, entry.frame_h)
             try:
                 surface = sheet.subsurface(rect)
             except ValueError:
                 log.warning("frame (row %d, col %d) of %s — sheet row %d "
-                            "(row_start %d) — is outside its sheet %s — using "
-                            "placeholder", row, col, entry.slot_key, sheet_row,
-                            entry.row_start, entry.sheet)
+                            "(row_start %d), column block %d — is outside "
+                            "its sheet %s — using placeholder", row, col,
+                            entry.slot_key, sheet_row, entry.row_start,
+                            block, entry.sheet)
                 surface = _LOAD_FAILED
         self._frames[key] = surface
         return surface
