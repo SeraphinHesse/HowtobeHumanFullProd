@@ -42,8 +42,10 @@ is complete: all three briefs committed (`docs/briefs/phase-B{1,2,3}-*.md`).
 
 **Gate** (mine, on merged `section-S3`) — `py tools/smoke.py` → **OK** (62 data
 files schema-valid, 5 headless frames, shell boot OK) — **measured**.
-`py -m pytest tools/tests/test_buildings_placement.py` → **DENIED 3× by
-`test_guard`** ("a test run is already in flight", sibling worktree
-`agent-a423e1e4e6ff2dccb` running `test_editor_viewport.py`). Reported, not
-retried further. B1's coder measured that file green in its own worktree:
-**12 passed, 4 subtests, 0 failed, 0 skipped**.
+`py -m pytest tools/tests/test_buildings_placement.py` → **DENIED 4× by
+`test_guard`**, always "a test run is already in flight" — from two different
+sibling worktrees (`agent-a423e1e4e6ff2dccb`/`test_editor_viewport.py`, then
+`agent-af9d32497ba6bcdc8`/`test_details_panel.py`). Queue-type deny, never a
+policy one; I stopped rather than retry further. **The top orchestrator should
+re-run this one file on the umbrella.** B1's coder measured it green in its own
+worktree: **12 passed, 4 subtests, 0 failed, 0 skipped**.
