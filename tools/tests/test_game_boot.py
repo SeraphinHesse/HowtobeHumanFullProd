@@ -18,6 +18,7 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
 import jsonschema  # noqa: E402
+import pygame  # noqa: E402
 
 from engine import data_io, tilemap  # noqa: E402
 from engine.render import fonts as _fonts  # noqa: E402
@@ -271,6 +272,51 @@ class TestRenderBackendSelection(TempDataBoot):
         self.assertIn("render backend: GPU", out)
         self.assertEqual(len(updates), 5, "the HUD composite must upload once "
                                           "per frame, or the HUD freezes")
+
+    def test_map_event_does_not_rescale_an_already_logical_mouse_pos(self):
+        """LIVE BUG (G4 follow-up): every main-menu button was dead on
+        --backend=gpu while its hover animation still worked.
+
+        pygame-ce ALREADY delivers mouse events in renderer-logical
+        coordinates once ``renderer.logical_size`` is set (MEASURED, pygame-ce
+        2.5.7 / SDL 2.32.10: a 1280x720 window at logical 640x360 reports
+        ``pos == (320, 180)`` for a click at physical (640, 360), and
+        ``rel == (100, 50)`` for a physical (+200, +100) move). ``map_event``
+        mapped them a SECOND time, so at the shipped fullscreen default every
+        click landed at a third of its true position. ``mouse_pos()`` reads
+        ``pygame.mouse.get_pos()``, which is NOT scaled, so hover stayed
+        correct and nothing else looked wrong.
+
+        The stub renderer below rescales, so a reintroduced mapping shows up
+        as a wrong coordinate rather than an AttributeError."""
+        class _StubRenderer:
+            def coordinates_from_window(self, point):
+                return point[0] / 3.0, point[1] / 3.0
+
+        presenter = game_main_module._GpuPresenter.__new__(
+            game_main_module._GpuPresenter)
+        presenter._renderer = _StubRenderer()
+
+        down = pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            {"pos": (320, 163), "button": 1, "clicks": 1, "touch": False})
+        mapped = game_main_module._GpuPresenter.map_event(presenter, down)
+        self.assertEqual(mapped.pos, (320, 163))
+        self.assertEqual(mapped.button, 1)
+
+        motion = pygame.event.Event(
+            pygame.MOUSEMOTION,
+            {"pos": (250, 200), "rel": (100, 50), "buttons": (0, 0, 0),
+             "touch": False})
+        mapped = game_main_module._GpuPresenter.map_event(presenter, motion)
+        self.assertEqual(mapped.pos, (250, 200))
+        self.assertEqual(mapped.rel, (100, 50))
+
+        # The other half of the asymmetry: get_pos() IS window pixels, so
+        # mouse_pos() must keep remapping it.
+        with unittest.mock.patch.object(pygame.mouse, "get_pos",
+                                        lambda: (960, 489)):
+            self.assertEqual(presenter.mouse_pos(), (320, 163))
 
 
 if __name__ == "__main__":

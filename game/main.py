@@ -263,8 +263,6 @@ class _GpuPresenter:
       explicit streaming ``Texture`` and calls ``update()`` every frame."""
 
     name = "gpu"
-    _MOUSE_EVENTS = (pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN,
-                     pygame.MOUSEBUTTONUP)
 
     def __init__(self, view_w, view_h, caption, display_mode):
         from pygame._sdl2 import video as sdl2
@@ -348,25 +346,35 @@ class _GpuPresenter:
         return int(x), int(y)
 
     def map_event(self, event):
-        """Window pixels -> logical 640x360, for the three mouse events. On a
-        standalone SDL window pygame does NOT do SCALED's free remap, and the
-        shipped default display mode is fullscreen — without this every click
-        lands somewhere else while every headless test still passes."""
-        if event.type not in self._MOUSE_EVENTS or not hasattr(event, "pos"):
-            return event
-        fields = {"pos": self._to_logical(event.pos)}
-        rel = event.__dict__.get("rel")
-        if rel is not None:
-            # Camera panning reads event.rel (the drag-pan branch), so it has
-            # to ride the same mapping. Differencing two mapped points is exact
-            # whatever the letterboxing.
-            x0, y0 = fields["pos"]
-            x1, y1 = self._to_logical((event.pos[0] - rel[0],
-                                       event.pos[1] - rel[1]))
-            fields["rel"] = (x0 - x1, y0 - y1)
-        return pygame.event.Event(event.type, event.__dict__ | fields)
+        """IDENTITY — and that is the measured, non-obvious part.
+
+        pygame-ce ALREADY delivers mouse EVENTS in renderer-logical
+        coordinates once ``renderer.logical_size`` is set, exactly as it does
+        under ``pygame.SCALED``. MEASURED on pygame-ce 2.5.7 / SDL 2.32.10: a
+        1280x720 window at logical 640x360 (scale 2) clicked at physical
+        (640, 360) delivers ``event.pos == (320, 180)``; the same window at
+        logical 320x180 (scale 4) delivers ``(160, 90)``. ``MOUSEMOTION.rel``
+        rides the same scale — a physical (+200, +100) move arrives as
+        ``rel == (100, 50)``.
+
+        G4 originally mapped ``pos``/``rel`` through
+        ``coordinates_from_window`` here, which applied that scale a SECOND
+        time: at the shipped fullscreen default (1920x1080 window, logical
+        640x360, scale 3) every click landed at a third of its true position,
+        so no button ever fired while hover — which reads ``mouse_pos()``, a
+        different and genuinely unmapped source — kept working. Do not
+        reintroduce the mapping here.
+
+        The seam itself stays: it is the one insertion point if a future SDL
+        or pygame version stops doing this for us, and the Surface presenter
+        implements the same identity for symmetry."""
+        return event
 
     def mouse_pos(self):
+        # NOT the identity: pygame.mouse.get_pos() is the OTHER half of the
+        # asymmetry above — it returns WINDOW PIXELS, unscaled by the
+        # renderer's logical size (measured: (640, 360) where the matching
+        # event reported (320, 180)). So this one really does need the remap.
         return self._to_logical(pygame.mouse.get_pos())
 
     def end_frame(self, capture_path=None):
