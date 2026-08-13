@@ -17,6 +17,7 @@ dist/
 *.log
 .claude/dispatch/
 .claude/worktrees/
+.claude/testruns/
 
 # ── Graphify code graph — generated, rebuild with `graphify update .` ──
 graphify-out/

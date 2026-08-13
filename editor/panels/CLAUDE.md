@@ -1715,6 +1715,54 @@ calls):
   correctable). Whether M4 must refuse that once a sheet HAS users is M4's
   question.
 
+## TestRunnerPLAN TR-5 — `panels/test_run_panel.py` (the test-run window)
+
+- **A POPUP WINDOW, not a dock** (reconciliation R3): `TestRunPanel` copies
+  `editor/thats_my_producer.py`'s shape — parented to the `MainWindow` (so it
+  dies with it), given `Qt.WindowType.Window` so it floats as its own non-modal
+  top-level window, with the shell holding the one reference
+  (`MainWindow.test_run_panel`). The editor stays usable while a run goes. Its
+  launch control is the "Run tests" toolbar button right after "thats my prod".
+- **A PURE VIEW. All threading lives in `main.py`** (see `editor/CLAUDE.md` —
+  this is the package's first `QThread`). The panel has no subprocess, no
+  stream parsing, no pytest vocabulary: it renders the `(domain, done, total,
+  state)` tuples TR-3 hands it and emits `run_requested(domain|None)`. That is
+  what lets its tests drive it synchronously from canned tuples — **no test in
+  the suite may launch a real test run.**
+- **The row list is DERIVED, never hardcoded**: `tools.test_domains.
+  DOMAIN_LABELS` in insertion order IS the row order (eight rows, "Tooling &
+  Agents" last). Same doctrine that killed the editor's `DOMAINS` constant. A
+  domain key with no row is **appended**, never dropped — a stray test module
+  that vanishes from the panel looks exactly like success.
+- **`total` may be `None`** (a full run has no up-front count), so the count
+  label counts UP — `"N run"`, not a fraction. It says "run", not "passed",
+  because TR-3's `done` is passed+failed+subfailed+skipped.
+- **Row buttons carry `objectName` `rerun:<domain>`**, the panel's existing
+  row-button convention, so a test asserts *which* rows are re-runnable without
+  walking the layout by index. Disabled while a run is in flight.
+- **A per-area re-run NEVER prints a gate line** (plan D2). `RunResult.
+  gate_line` is already `None` for one; the panel shows the neutral
+  `"<label>: n passed, m failed (re-run, not a gate)"` and never writes the
+  token `GATE` itself.
+- **Injection seams, each so a test touches nothing real**: `repo` (where
+  `.claude/testruns/` is), `state_dir` (the guard's directory — a test writes a
+  FAKE `inflight.json` into a tempdir), `detach` (so *Open report folder* is
+  captured as argv and no explorer opens; `plans.reveal_command` stays the ONE
+  folder-open path), `copy_fn` (so *Copy agent prompt* needs no clipboard),
+  `confirm` (so the in-flight warning never `exec()`s a modal).
+- **D5 — the in-flight warning WARNS AND ALLOWS.** `inflight_lock()` reads
+  `testguard_ledger.state_dir()/"inflight.json"` (resolved lazily, never
+  re-derived, and the hook is never imported — `.claude/hooks/` is not a
+  package). Missing, corrupt or past `LOCK_STALE_SECONDS` → "nothing running".
+  The dialog names what is running, when the guard's block clears and the
+  memory contention; Yes still starts the run. **The panel takes no lock and
+  deletes nothing under that directory.** One test asserts the lock file is
+  byte-identical afterwards, another that the filename constant still appears
+  in the hook's text.
+- ED-22: stock widgets only — no `paintEvent`, no `QPainter`, no
+  `pygame.Surface`, no `Renderer`. It draws no game content, so it needs
+  neither the `sheet_preview`/`vfx_preview` exception nor its argument.
+
 ## Verify
 Launch `py editor/main.py` and exercise the changed panel; for data-writing
 features, confirm the JSON on disk validates and a Play subprocess loads it. State

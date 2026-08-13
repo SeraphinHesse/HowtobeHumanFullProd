@@ -46,6 +46,7 @@ TIERS = {
     "test_smoke_pairing": "meta",
     "test_spawnclaude": "meta",
     "test_test_guard": "meta",   # the PreToolUse hook enforcing the test policy
+    "test_test_domains": "meta",   # the test-module -> game-area table
     "test_testgate": "meta",
     "test_tiers": "meta",
 
@@ -60,6 +61,7 @@ TIERS = {
     "test_timeline_panel": "editor",  # TimelinePLAN T5: editor/panels/timeline.py
     "test_editor_run_controls": "editor",
     "test_editor_selection": "editor",
+    "test_editor_test_run_panel": "editor",  # TR-5: the Qt run window
     "test_editor_tutorial_paint": "editor",
     "test_editor_viewport": "editor",
     "test_registry_ops": "editor",
@@ -99,6 +101,8 @@ TIERS = {
     "test_death_spawn": "core",
     "test_debug_log": "core",  # debug mode: recorder + metrics + reports
     "test_defence_aoe_beam": "core",
+    "test_editor_test_report": "core",  # TR-4: the report writer is Qt-free (D6)
+    "test_editor_test_runner": "core",  # TR-3: the run engine is Qt-free (D6)
     "test_enemies": "core",
     "test_enemy_hp_bars": "core",
     "test_enemy_intro": "core",  # feature-enemy-intro-dialogue: ENEMY_INTRO phase machine

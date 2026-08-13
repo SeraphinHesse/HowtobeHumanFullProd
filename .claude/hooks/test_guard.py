@@ -38,65 +38,30 @@ by an agent editing its own command line, and it shows up in the transcript.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
 import subprocess
 import sys
-import tempfile
 import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 
-_STATE_CACHE: list = []
+# The ledger key lives in tools/ so the editor can import it too (TestRunner
+# plan, D3). The hook runs as a standalone script, so put the repo ROOT on
+# sys.path and import the package path — never `sys.path.insert(REPO/"tools")`,
+# which would shadow stdlib-adjacent names with this repo's tools/*.py.
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
+try:
+    from tools.testguard_ledger import (          # noqa: E402
+        normalised_target, record_run, run_key, state_dir)
+except Exception as _ledger_error:                 # a broken guard must ALLOW
+    print(f"test_guard: ledger unavailable ({_ledger_error})", file=sys.stderr)
+    raise SystemExit(0)
 
-
-def _state() -> Path:
-    """The guard's private state directory: `<real git dir>/testguard`.
-
-    Resolved through `git rev-parse --git-dir`, NEVER as a literal
-    `REPO/.git/testguard`. In a linked worktree — which this repo's own
-    branching rules REQUIRE for concurrent agents — `.git` is a *file*
-    containing a `gitdir:` pointer, so the literal path made `mkdir(parents=
-    True)` try to create a directory over that file and raise `WinError 183`.
-    Every guard then swallowed the error and allowed the run: the enforcement
-    silently did nothing, which is the worst possible failure mode for a guard.
-
-    Resolving it also gives per-worktree isolation for free, which is what you
-    want: two agents in two worktrees must not share a lock or a repeat ledger.
-    Falls back to a repo-keyed temp dir if git is unavailable for any reason.
-    """
-    if _STATE_CACHE:
-        return _STATE_CACHE[0]
-    # Test seam (and a manual escape hatch): point the guard at a scratch
-    # directory so its own test suite cannot disturb the live session's lock
-    # or repeat ledger — the guard runs on every Bash call INCLUDING the ones
-    # pytest itself is invoked with.
-    override = os.environ.get("TESTGUARD_STATE_DIR")
-    if override:
-        path = Path(override)
-        _STATE_CACHE.append(path)
-        return path
-    path = None
-    try:
-        out = subprocess.run(["git", "rev-parse", "--git-dir"], cwd=REPO,
-                             capture_output=True, text=True, timeout=15,
-                             encoding="utf-8", errors="replace")
-        gitdir = out.stdout.strip()
-        if gitdir:
-            candidate = Path(gitdir)
-            if not candidate.is_absolute():
-                candidate = REPO / candidate
-            path = candidate / "testguard"
-    except Exception:
-        path = None
-    if path is None:
-        digest = hashlib.sha256(str(REPO).encode()).hexdigest()[:16]
-        path = Path(tempfile.gettempdir()) / f"testguard-{digest}"
-    _STATE_CACHE.append(path)
-    return path
+_state = state_dir  # noqa: E305 — alias keeps every call site below unchanged
 
 #: A run older than this is assumed dead (the process was killed, the machine
 #: slept, a hook was missed) and its lock is ignored rather than wedging every
@@ -160,66 +125,6 @@ def classify(command: str) -> str:
     return "none"
 
 
-def normalised_target(command: str) -> str:
-    """The command reduced to what it actually RUNS, for fingerprinting.
-
-    Strips leading environment assignments (`QT_QPA_PLATFORM=offscreen ...`),
-    collapses whitespace, and drops flags that change reporting but not which
-    tests execute — so `-q` vs `-v`, or a different `-n`, is correctly treated
-    as the same run rather than as a fresh one.
-    """
-    cmd = command.strip()
-    cmd = re.sub(r"^(?:\s*[A-Za-z_][A-Za-z_0-9]*=\S*\s+)+", "", cmd)
-    cmd = re.sub(r"\$env:[A-Za-z_][A-Za-z_0-9]*\s*=\s*\S+\s*;?\s*", "", cmd)
-    cmd = re.sub(r"\s+-(?:q|v|vv|s|x)\b", " ", cmd)
-    cmd = re.sub(r"\s+--no-header\b|\s+--tb=\S+|\s+-p\s+\S+|\s+-n\s*\S+", " ", cmd)
-    return re.sub(r"\s+", " ", cmd).strip()
-
-
-# --------------------------------------------------------------------------
-# working-tree fingerprint
-# --------------------------------------------------------------------------
-
-def _git_bytes(*args: str) -> bytes:
-    """Raw stdout, NEVER decoded.
-
-    `text=True` decodes with the locale codec, which on Windows is cp1252 —
-    and `git diff HEAD` in this repo carries bytes it cannot represent (an
-    imported `.otf`, any non-latin-1 content). The decode blew up inside
-    subprocess's reader THREAD, so `run()` returned normally with `stdout` set
-    to `None`, the join below raised "expected str instance, NoneType found",
-    and the blanket handler in `main()` swallowed it and ALLOWED the run. Both
-    stateful guards were silently dead. Hash the bytes; never decode them.
-    """
-    try:
-        out = subprocess.run(
-            ["git", *args], cwd=REPO, capture_output=True, timeout=20)
-        return out.stdout or b""
-    except Exception:
-        return b""
-
-
-SEP = b""   # unit separator: cannot occur in git output we hash
-
-
-def tree_fingerprint() -> str:
-    """A hash that changes whenever anything that could change a test result does.
-
-    HEAD + the full CONTENT of every tracked modification + the list of
-    untracked files. Content, not `git status`, is load-bearing: `status` marks
-    a file `M` and keeps saying `M` no matter how many times you edit it, so a
-    status-only hash would call a real fix "unchanged" and wrongly deny the
-    re-run that would have proved it.
-    """
-    digest = hashlib.sha256()
-    for args in (("rev-parse", "HEAD"),
-                 ("diff", "HEAD"),
-                 ("ls-files", "--others", "--exclude-standard")):
-        digest.update(_git_bytes(*args))
-        digest.update(SEP)
-    return digest.hexdigest()
-
-
 # --------------------------------------------------------------------------
 # role
 # --------------------------------------------------------------------------
@@ -235,13 +140,19 @@ def _session_id(payload: dict) -> str:
 def mark_role(payload: dict) -> int:
     """Record this session's role at SessionStart / SubagentStart.
 
-    **A `main` marker is never downgraded to `sub`.** When a subagent inherits
-    its parent's session id, its `SubagentStart` writes to the SAME marker path
-    the parent's `SessionStart` wrote — so a plain write would relabel the main
-    session `sub` and deny it the one full `testgate check` the whole policy is
-    built around. That is not hypothetical: it denied phase G2's handoff gate.
-    `_role()` is documented to fail OPEN for exactly this collision, and this
-    guard is what makes that docstring true.
+    **A `sub` mark never overwrites an existing `main` mark.** If the runtime
+    hands a subagent the SAME session id as its parent, both events land on one
+    marker file and last-write-wins decides the parent's role. `SubagentStart`
+    fires later than the parent's `SessionStart`, so without this guard the
+    parent is silently demoted to `sub` and guard 1 then denies the MAIN
+    session the single full run the whole policy is built around — the exact
+    outcome `_role`'s fail-open design exists to prevent. `_role` assumed a
+    collision would leave `main` on disk; it does not, unless we make it. That
+    is not hypothetical: it denied phase G2's handoff gate.
+
+    The other direction stays last-write-wins on purpose: a genuinely new
+    `SessionStart` on a recycled id SHOULD reset a stale `sub` to `main`, which
+    is also the fail-open direction.
     """
     sid = _session_id(payload)
     if not sid:
@@ -269,9 +180,15 @@ def _role(payload: dict) -> str:
 
     **This FAILS OPEN, on purpose.** A subagent is only ever identified by a
     marker written at `SubagentStart` for THIS session id. If the id is absent,
-    or the runtime turns out to give a subagent the same session id as its
-    parent (in which case the parent's `main` marker is what is on disk), the
-    answer is `main`/`unknown` and the role guard simply does not fire.
+    the answer is `unknown` and the role guard simply does not fire.
+
+    If the runtime gives a subagent the same session id as its parent, the
+    parent's `main` marker is what stays on disk — but only because
+    `mark_role` explicitly refuses to overwrite `main` with `sub`. That refusal
+    is load-bearing, not incidental: this docstring used to claim the collision
+    resolved to `main` on its own, and it did not. `SubagentStart` fires last,
+    so the parent was demoted to `sub` and then denied the single full run at
+    handoff. See `mark_role`.
 
     That is the right way round: guards 2 and 3 already stop the reported
     behaviour without knowing who is asking, so a role guard that occasionally
@@ -458,21 +375,45 @@ def pre(payload: dict) -> int:
 
     # -- guard 2: repeat --------------------------------------------------
     target = normalised_target(command)
-    fingerprint = tree_fingerprint()
-    key = hashlib.sha256(f"{target}\n{fingerprint}".encode()).hexdigest()[:32]
+    key = run_key(target)
     record = _read_json(_state() / f"run-{key}.json")
     if record:
         age = time.time() - float(record.get("finished", 0))
         if 0 <= age < REPEAT_TTL_SECONDS:
             outcome = record.get("outcome") or "(outcome not captured)"
+            # `.get`, never `[...]`: records written before TR-6 carry no
+            # source field at all, and they must keep today's wording exactly.
+            editor = record.get("source") == "editor"
+            if editor:
+                # The agent did NOT run this — the user did, from the editor —
+                # so a message that says "you already ran this" is simply
+                # false, and an agent that knows it never ran anything reads a
+                # false denial as a broken guard and reaches for the override.
+                # ASCII only: this text is read through a pipe whose codec is
+                # the machine locale, and a mangled character in the one line
+                # that has to be believed is not worth the typography.
+                head = (
+                    "DENIED by test_guard: this tree's full gate ALREADY RAN "
+                    "-- from the editor -- and nothing has changed since.\n"
+                    f"    target: {target}\n"
+                    f"    ran:    {int(age)}s ago, from the editor\n"
+                    f"    result: {outcome}\n"
+                    "The user started it with the editor's \"Run tests\" "
+                    "button. It is the same command on the same tree, so it IS "
+                    "the handoff\ngate (root CLAUDE.md, the \"Test Suite "
+                    "Policy\" section) - you are being handed its result, not "
+                    "refused a run.\n")
+            else:
+                head = (
+                    "DENIED by test_guard: you already ran this exact target "
+                    "and NOTHING has changed since.\n"
+                    f"    target: {target}\n"
+                    f"    ran:    {int(age)}s ago\n"
+                    f"    result: {outcome}\n")
             return _deny(
-                "DENIED by test_guard: you already ran this exact target and "
-                "NOTHING has changed since.\n"
-                f"    target: {target}\n"
-                f"    ran:    {int(age)}s ago\n"
-                f"    result: {outcome}\n"
-                "The working tree is byte-identical to that run, so the result "
-                "cannot be different.\n"
+                head
+                + "The working tree is byte-identical to that run, so the "
+                "result cannot be different.\n"
                 "Re-running to 'make sure' is the loop this guard exists to "
                 "stop. Act on the result above:\n"
                 "  * it passed  -> move on, or run a DIFFERENT target\n"
@@ -517,11 +458,8 @@ def post(payload: dict) -> int:
     hits = _VERDICT.findall(text)
     outcome = hits[-1].strip()[:200] if hits else "(no verdict line captured)"
 
-    (_state() / f"run-{key}.json").write_text(json.dumps({
-        "finished": time.time(),
-        "target": lock.get("target"),
-        "outcome": outcome,
-    }), encoding="utf-8")
+    record_run(_state(), lock.get("target"), outcome, source="agent",
+               key=key)
     return 0
 
 

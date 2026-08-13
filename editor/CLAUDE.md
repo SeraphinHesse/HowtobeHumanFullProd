@@ -34,6 +34,12 @@ else.
   spec; consumes `agent_forms.py` (§ below).
 - `theme.py` — THE light/dark chrome theme (§ below). The only place the app's
   Qt palette/style is set.
+- `test_runner.py` (TestRunnerPLAN TR-3) and `test_report.py` (TR-4) — the
+  editor's test-run engine and report writer. **Qt-free and pygame-free** (D6),
+  both in `TestPurity`: `test_runner` builds the command, streams the child and
+  parses it into per-domain counters + one `RunResult`; `test_report` serializes
+  that into `.claude/testruns/<stamp>.json` + `.md` and the paste-at-Claude
+  prompt. The Qt lives in `panels/test_run_panel.py` + `main.py` (§ below).
 - `domains.py` — derived domain list + balancing/schema path helpers (AD-6):
   the list is a function of slots.json ∩ `data/balancing/*.json`, never a
   hardcoded constant.
@@ -315,6 +321,34 @@ required positional argument: 'floaters'`). `floaters` still carries no
 preview LEVER of its own — `vfx_preview.py`'s `_EMIT_FAMILIES`/graceful-
 degrade placeholder for it is unchanged — this is purely what keeps the
 dataclass constructible for every OTHER family's preview.
+
+## Running the tests FROM the editor (TestRunnerPLAN TR-5) — the first QThread
+
+The **"Run tests"** button on the Agents toolbar, immediately after "thats my
+prod", pops up `panels/test_run_panel.py` as its own **non-modal window** (R3 —
+not a dock) and starts a full run. Panel detail lives in the panels doc; the
+cross-cutting shape is here because this is the package's FIRST worker thread.
+
+- **`_TestRunWorker(QObject)` in `main.py` owns the thread**, not the panel:
+  `moveToThread` + `thread.started -> worker.run`, one `TestRun` per run.
+- **A worker callback may do exactly ONE thing: `emit`.** TR-3 calls
+  `on_progress` on the worker thread; touching a widget, the panel or the status
+  bar from there is a cross-thread widget write — the classic intermittent
+  crash. `MainWindow._on_test_progress/_on_test_finished/_on_test_failed` are
+  the ONLY callers of `TestRunPanel.apply_*`.
+- **Marshalling is Qt's automatic queued delivery** and nothing else: the
+  emitter's thread affinity differs from the receiver's, so `AutoConnection`
+  queues each emission onto the GUI event loop. Never hand-roll it with
+  `QMetaObject.invokeMethod` or `QTimer.singleShot(0, …)`, and never force
+  `Qt.DirectConnection` (that puts the slot back on the worker thread).
+- Every `emit` is guarded with `shiboken6.isValid(self)` — the same guard
+  `RunControls` uses for the same hazard.
+- **`MainWindow.closeEvent` joins the thread** (cancel → `quit()` →
+  `wait(5000)`). A live `QThread` whose `QObject`s are being deleted is the
+  "Signal source has been deleted" class of crash, and the test harness's
+  `destroy()` really frees the C++ object.
+- A second run while one is in flight is **refused, not queued** (the Build
+  rule). TR-5 writes NOTHING to the guard's ledger and takes NO lock.
 
 ## Testing the editor — two rules, both learned the hard way
 
