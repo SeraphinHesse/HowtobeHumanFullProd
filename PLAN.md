@@ -5,7 +5,7 @@
 > plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
 > screen).
 
-<!-- status: IN PROGRESS — all 12 phases G0-G6 + M1-M5 done; M4/M5 live editor passes and G6's Surface control run are the only outstanding items, all human -->
+<!-- status: IN PROGRESS — all 12 phases G0-G6 + M1-M5 done; GPU confirmed on real hardware (world 17.54 -> 4.72 ms). Only M4/M5 live editor passes remain -->
 
 # GpuAndMasterSheetsPLAN.md — GPU render backend, then master spritesheets
 
@@ -214,7 +214,7 @@ store cache contract, E-37 tolerance split), `editor/panels/CLAUDE.md`
 | G3 | Ground cache on the GPU path | engine | G2 | **DONE** — `ground_cache_gpu.py` on render-target textures, pins parameterised over both implementations (§6/G3 RESULTS); still nothing selects it, G4 wires the host |
 | G4 | Host wiring, HUD composite, fallback, re-measure | engine + game | G3 | **DONE** — `--backend={gpu,surface,auto}` wires the host, HUD composites as one streaming upload/frame, D8 fallback tested; `GATE PASS 2334`. **All five §4.3 live checks passed at a display**, closing G2's pixel-art look and G3's large-map pan. Re-measure (SOFTWARE renderer, §6/G4 RESULTS): boss-load `world` 61–69 ms → 9.5–11.5 ms, but GPU **slower on every holex row** and the overlay pass **6× worse** — that regression is a live Part-A decision |
 | G5 | Overlay pass: clip the scratch to the target, reuse the buffer | engine | G4 | **DONE** — `9de2018`, merged `a180001` on `phase-G5-G6-umbrella`; brief `docs/briefs/phase-G5-overlay-clip-reuse.md`. Clip-before-allocate + one scratch buffer grown to the high-water mark, in `backend_gpu.py` alone. Re-measure (§6/G5 RE-MEASURE, same-session pre/post): gpu overlay Δ **1.92→0.77** (40), **8.76→2.73** (200, now faster than Surface), **3.51→0.13** (far polyline). `CHANNEL_TOLERANCE` untouched; parity green at tolerance 1 |
-| G6 | Retire G0's inferred HUD-cost claim (live frame timings) | — (measurement only) | G4 | **DONE** — live run at a display via the editor's Play (no flag → `auto` → GPU; confirmed by `composite` ≠ 0), late round, 17 samples (§6/G4 RESULTS → G6 RESULTS). `hud` **0.80 ms** + `composite` **0.10 ms** = 3% of a ~29.9 ms frame: G0's claim **confirmed**, D7 stands, §9 bullet retired. Raised a NEW out-of-scope finding — drawing is now 21% of the frame and `sim`+`submit` 50%, inverting G0's 84–97%. Surface control run + the `target_texture`/streaming unknowns still owed |
+| G6 | Retire G0's inferred HUD-cost claim (live frame timings) | — (measurement only) | G4 | **DONE** — live run at a display via the editor's Play (no flag → `auto` → GPU; confirmed by `composite` ≠ 0), late round, 17 samples (§6/G4 RESULTS → G6 RESULTS). `hud` **0.80 ms** + `composite` **0.10 ms** = 3% of a ~29.9 ms frame: G0's claim **confirmed**, D7 stands, §9 bullet retired. **Surface control run also taken** (49 samples): `hud`/`composite` **0.00 in all**, confirming the instrument, and `world` **17.54 → 4.72 ms — the first real-hardware confirmation of Part A's core claim, 3.7×**, 27.1 → 33.4 fps. Raised a NEW out-of-scope finding (drawing no longer the largest GPU-path cost while panning), qualified as worst-case since both runs were mid-camera-shake. Only the `target_texture`/streaming unknowns remain |
 | M1 | Data layer: master-sheet registry + schema + `row_start` | data | — | **DONE** — schema + seeded registry + `data/sprites/master/`; existing manifest byte-identical |
 | M2 | Engine: `row_start` slicing + sheet-path-keyed store | engine | M1, G2 | **DONE** — `48de489` + review fixes `81a2aa2`, merged `12ba043`. `row_start` applied in `AssetStore._frame_surface` only; store re-keyed on `entry.sheet`, so one PNG = one decode |
 | M3 | Editor: pure master-sheet import module + picker dialog | editor | M1 | **DONE** — `c8707a4` + review fix `fc7cd62`, merged `ff81203`. `editor/master_sheet_import.py` + `panels/master_sheet_dialog.py`. Left three carry-forwards, all ruled on in M4's brief §2 |
@@ -718,8 +718,15 @@ SCALED | ground cache: GroundCache`).
 pygame-ce 2.5.7 / SDL 2.32.10, Python 3.13.2, Windows 11). The driver string in
 the boot log reads `direct3d` but is `get_drivers()[0]`, **not** a readback of
 the renderer actually created — `Renderer.get_renderer_info` is gone in 2.5.7.
-**No hardware re-measure has been taken**, and none of §4.3's live checks have
-been run. Treat every GPU number as pending.
+~~**No hardware re-measure has been taken**, and none of §4.3's live checks have
+been run. Treat every GPU number as pending.~~ — **SUPERSEDED by G6
+(2026-08-13).** §4.3's live checks were run and passed under G4, and G6 has now
+taken the hardware re-measure on both backends: **`world` 17.54 ms (Surface) →
+4.72 ms (GPU), a 3.7× reduction on real hardware**, mid-camera-pan at a late
+round (§6/G6 RESULTS part 2). The software-renderer numbers in this section are
+kept as the record of what was known on 2026-08-13 before that run — they are
+no longer the only evidence, and where the two disagree the hardware numbers
+win.
 
 `world` = `Renderer.flush` minus the HUD backend call, i.e. exactly G0's
 `flush` column, so the two tables compare directly. `ovlΔ` = `world(40) −
@@ -899,12 +906,57 @@ the six buckets account for 21.12 ms of the 29.91 ms implied by mean fps, so
 cost. Anyone opening a Part-C performance plan should start by finding it, not
 by optimising `submit` blind.
 
-**Still owed from §6/G6, and deliberately not fabricated**: the matching
-`--backend=surface` live run (the control, where `hud`/`composite` read 0.00 by
-construction), and the two smaller unknowns G4 left open — whether
+#### G6 RESULTS, part 2 — the Surface control run (2026-08-13)
+
+**No longer owed — taken.** `--backend=surface` from a terminal (Play cannot
+request a backend), same activity, 49 consecutive samples. Both runs were taken
+**while violently shaking the camera to force worst-case behaviour** — that
+qualification is load-bearing and is applied below.
+
+| bucket | SURFACE (n=49) | GPU (n=17) | gpu ÷ surface |
+|---|---|---|---|
+| fps | 27.14 (17.9–39.8) | 33.44 (26.7–44.1) | **1.23× faster** |
+| sim | 4.03 | 5.23 | 1.30× |
+| submit | 9.20 (3.1–16.6) | 9.61 (6.8–13.0) | **1.04× — backend-independent** |
+| **world** | **17.54** (14.6–20.8) | **4.72** (2.8–5.8) | **0.27× — 3.7× faster** |
+| hud | **0.00** (0.0–0.0) | 0.80 | — |
+| composite | **0.00** (0.0–0.0) | 0.10 | — |
+| present | 0.74 | 0.66 | 0.89× |
+
+**The control did its job.** `hud` and `composite` read **0.00 in all 49
+samples**, exactly as `game/main.py:212` says they must on the Surface path.
+That is what licenses reading the GPU run's 0.80 / 0.10 as real, path-specific
+costs rather than instrument noise — the G0 retirement above now rests on a
+measured control, not on trusting a comment.
+
+**And it delivered something the control was not asked for: the FIRST
+real-hardware confirmation of this plan's core claim.** Every previous
+world-drawing number came from the headless software stand-in. On real hardware,
+same activity, same machine: **`world` 17.54 ms → 4.72 ms, a 3.7× reduction**,
+carrying total frame rate from 27.1 to 33.4 fps. §6/G0's caveat 1 ("pending
+confirmation on real hardware") is **discharged**.
+
+**`submit` is backend-independent** (9.20 vs 9.61, a 4% difference) — it does
+the same work whichever backend follows it. That rules out the GPU path as its
+cause and confirms it as a genuinely separate cost.
+
+**Correction to the "bottleneck has moved" finding above, now that there is a
+control.** That finding was written from the GPU run alone and stated more than
+the data supported. With both runs in hand: **`submit` ≈ 9–10 ms is a
+worst-case CAMERA-PANNING number, not a steady-state one.** Both runs were taken
+mid-shake, which is precisely the pathological case for this path — the ground
+cache repaints exposed edges on pan (`game/PERF.md`), and tile re-emission
+scales with it. Under panning, drawing is 50% of a Surface frame and 21% of a
+GPU frame, and `sim + submit` is 36% / 50% respectively. **What is true is that
+on the GPU path, drawing is no longer the largest cost while panning.** What is
+NOT established, and must not be quoted as though it were: that `submit`
+dominates a typical, non-panning frame. Anyone opening a Part-C performance plan
+measures a steady frame first.
+
+**Still owed** — the two smaller unknowns G4 left open: whether
 `target_texture=True` is strictly needed on this driver, and streaming vs static
-texture on real hardware. Neither is needed to retire G0's claim, which is what
-this phase existed to do.
+texture on real hardware. Neither is needed for G0's claim or for the real-
+hardware confirmation, both of which are now measured.
 
 **Tests**: `test_render.py` gains the `hud_target` split pins (single flat list
 when `hud_target is None`; world/HUD separation by production site; no
@@ -943,15 +995,22 @@ hold**, not a click. On first launch this presents as "the main menu buttons do
 nothing". Pre-existing behaviour on both backends, unrelated to G4, but the
 first thing a live tester hits.
 
-**Still open, and narrower than before**: the frame-timing numbers from §4.3
-Step 6 were not captured, so `hud`/`composite` on real hardware are still
-unknown and **G0's inferred claim that the HUD is not the dominant cost is
-formally unretired** — the instrument ships and reading it is now a one-minute
-job. Also unanswered: whether `target_texture=True` is strictly needed on this
-driver (it was passed, and the path works), and streaming vs static texture on
-hardware. **The overlay-pass regression measured above stands and needs a plan
-decision** — an overlay clip in `backend_gpu.py` is the obvious fix and is
-deliberately out of G4's scope.
+~~**Still open, and narrower than before**~~ — **all but one item CLOSED as of
+2026-08-13.** Original text: *the frame-timing numbers from §4.3 Step 6 were not
+captured, so `hud`/`composite` on real hardware are still unknown and G0's
+inferred claim that the HUD is not the dominant cost is formally unretired…
+Also unanswered: whether `target_texture=True` is strictly needed on this driver
+(it was passed, and the path works), and streaming vs static texture on
+hardware. The overlay-pass regression measured above stands and needs a plan
+decision.*
+
+- `hud`/`composite` on real hardware: **MEASURED by G6** — 0.80 / 0.10 ms on
+  GPU, 0.00 / 0.00 on Surface across 49 control samples. G0's claim is
+  **RETIRED**; D7 stands.
+- The overlay-pass regression: **FIXED by G5**, re-measured (§6/G5 RE-MEASURE).
+- `target_texture=True` necessity, and streaming vs static on hardware:
+  **still unanswered.** These are the only two open items left in Part A, and
+  neither blocks anything — the path works with what was passed.
 
 ### Phase G5 — Overlay pass: clip the scratch, reuse the buffer
 
@@ -1377,11 +1436,14 @@ and run those once.
   HUD stays single-implementation on the Surface path, and does not get
   re-opened. This plan now carries **no inferred performance claim**.
   **But G6 surfaced a new one, unretired and out of this plan's scope:**
-  drawing is down to 21% of the frame while `sim + submit` is 50%, inverting
-  G0's opening finding that drawing was 84–97%. `submit` (9.61 ms) is now the
-  largest single bucket, and ~8.8 ms/frame is unaccounted by any of the six
-  buckets. That is a Part-C question, not a Part-A one; it is recorded, not
-  acted on.
+  on the GPU path, drawing is no longer the largest cost — 21% of the frame
+  against `sim + submit`'s 50% — and `submit` (9.61 ms) is the largest single
+  bucket. **Read the qualification before quoting this:** both G6 runs were
+  taken while violently panning the camera, the pathological case for that
+  path, and `submit` is backend-independent (9.20 Surface vs 9.61 GPU), so
+  this is a worst-case-panning finding, **not** a claim about a steady frame.
+  ~5–9 ms/frame is also unaccounted by any of the six buckets. A Part-C plan
+  measures a quiet frame before touching `submit`. Recorded, not acted on.
 - **G4 MUST profile the overlay path, not just the sprite path** (raised in G2's
   review, deferred there deliberately; **discharged — G4 did it, see the G5
   bullet above**). `backend_gpu.py` rasterizes both
