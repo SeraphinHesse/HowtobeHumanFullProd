@@ -1,0 +1,61 @@
+{
+  "$id": "master_sheets.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "data/sprites/master_sheets.json (GpuAndMasterSheetsPLAN D1): the registry of MASTER spritesheets - one committed PNG under data/sprites/master/ holding many characters' rows stacked in one grid, keyed by a generated sheet id. A master sheet is a FILE with metadata, not a data/slots.json category: it is never previewed, animated or rendered on its own, so it carries no animation vocabulary and no slot key. A manifest entry links to one by setting its 'sheet' to master/<sheet_id>.png and its 'row_start' to the first row of its window (asset_manifest.schema.json). The registry OWNS the frame grid (D3): a linking slot inherits frame_w/frame_h from here and may not override them, so every slot cutting one master sheet agrees on what row N means. Written ONLY by the editor's master-sheet import, through the validating writer.",
+  "properties": {
+    "entries": {
+      "additionalProperties": false,
+      "description": "One entry per imported master spritesheet, keyed by sheet id.",
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "additionalProperties": false,
+          "description": "One master spritesheet: where its PNG lives, its designer-facing name, and the frame grid it is cut at.",
+          "properties": {
+            "display_name": {
+              "description": "Human-readable name shown in the editor's master-sheet picker.",
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "file": {
+              "description": "PNG path relative to data/sprites, resolved as a real path (D-31) - always master/<sheet_id>.png. Committed content like sprites/imported/*.png, never a build artifact.",
+              "pattern": "^master/[a-z][a-z0-9_]*\\.png$",
+              "type": "string"
+            },
+            "frame_h": {
+              "description": "Frame height in pixels this master sheet's grid is cut at; every linking slot inherits it (D3).",
+              "maximum": 1024,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "frame_w": {
+              "description": "Frame width in pixels this master sheet's grid is cut at; every linking slot inherits it (D3).",
+              "maximum": 1024,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "file",
+            "display_name",
+            "frame_w",
+            "frame_h"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "version": {
+      "const": 1,
+      "description": "Master-sheet registry format version; this schema is v1."
+    }
+  },
+  "required": [
+    "version",
+    "entries"
+  ],
+  "title": "master_sheets",
+  "type": "object"
+}

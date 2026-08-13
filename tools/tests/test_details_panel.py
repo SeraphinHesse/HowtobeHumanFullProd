@@ -18,11 +18,13 @@ from PySide6.QtCore import QPoint
 from PySide6.QtGui import QFontMetrics
 from PySide6.QtWidgets import QApplication
 
+from editor import master_sheet_import
 from editor.panels import details
 from editor.panels.balancing import _NoWheelSpinBox
 from editor.panels.details import DetailsPanel, RowEditor
 from editor.panels.level_bar import LevelBar
 from editor.panels.sheet_picker import SheetPickerDialog
+from editor.panels.sheet_preview import SheetPreview
 from engine import data_io
 from tools.tests.test_editor_panels import TempDataCase
 
@@ -501,6 +503,155 @@ class TestClearAsksFirst(DetailsCase):
         self.assertIn("painter_t1_lvl1", self.manifest_doc()["entries"])
         png = self.data_dir / "sprites" / "imported" / "painter_t1_lvl1.png"
         self.assertTrue(png.exists())
+
+
+class TestMasterSheetWindow(DetailsCase):
+    """M4 — "Use Master Spritesheet…": the slot LINKS to one big shared PNG,
+    inherits its grid (D3) and claims a contiguous row window in it (D2).
+
+    The master registry ships EMPTY, so the fixture sheet is imported by the
+    test — never borrowed from live `data/`."""
+
+    UNASSIGN = ("painter_t1_lvl1", "painter_t1_lvl2")
+
+    SLOT = "painter_t1_lvl1"
+    OTHER = "painter_t1_lvl2"
+    #: Deliberately NOT the painter category's 64x96: proving the grid is
+    #: inherited needs the two to disagree.
+    FRAME = (32, 48)
+    COLS, ROWS = 4, 6
+
+    def setUp(self):
+        super().setUp()
+        src = make_png(self.png_dir / "master.png",
+                       self.COLS * self.FRAME[0], self.ROWS * self.FRAME[1])
+        self.sheet_id = master_sheet_import.import_master_sheet(
+            self.data_dir, src, "Village Folk", *self.FRAME)
+        self.ref = f"master/{self.sheet_id}.png"
+        self.master_png = self.data_dir / "sprites" / self.ref
+        self.slots_json = self.data_dir / "slots.json"
+
+    def link(self, slot=None, row_start=None, row_count=None):
+        self.panel.set_slot(slot or self.SLOT)
+        return self.panel.use_master_sheet(self.sheet_id, row_start, row_count)
+
+    def test_linking_inherits_the_grid_and_locks_the_frame_spins(self):
+        slots_before = self.slots_json.read_bytes()
+        self.assertEqual(self.link(), (self.COLS, self.ROWS, True))
+
+        self.assertEqual(self.panel._sheet_ref, self.ref)
+        self.assertEqual(self.panel._row_frame_size, self.FRAME)
+        self.assertFalse(self.panel._frame_w.isEnabled())
+        self.assertFalse(self.panel._frame_h.isEnabled())
+        self.assertIn("master", self.panel._frame_w.toolTip().lower())
+
+        self.panel.save()
+        entry = self.manifest_doc()["entries"][self.SLOT]
+        self.assertEqual(entry["sheet"], self.ref)
+        self.assertEqual((entry["frame_w"], entry["frame_h"]), self.FRAME)
+        # D3: the grid came from the registry, so the per-slot slots.json
+        # override path (_on_frame_size_changed) must not have run.
+        self.assertEqual(self.slots_json.read_bytes(), slots_before)
+        self.assertFalse(self.data_dir.joinpath(
+            "sprites", "imported", f"{self.SLOT}.png").exists())
+
+    def test_the_row_window_shows_only_for_a_master_sheet(self):
+        self.panel.set_slot(self.SLOT)
+        self.panel.import_sheet(make_png(self.png_dir / "own.png", 64, 2 * 96))
+        self.assertTrue(self.panel._master_row.isHidden())
+        self.link()
+        self.assertFalse(self.panel._master_row.isHidden())
+
+    def test_the_window_rebuilds_the_rows_and_narrows_the_preview(self):
+        self.link(row_start=2, row_count=3)
+        self.assertEqual(len(self.panel._row_editors), 3)
+        self.assertEqual(self.panel._preview.row_window(), (2, 3))
+        # The spins say what the window says, and a > b is unrepresentable.
+        self.assertEqual((self.panel._row_from.value(),
+                          self.panel._row_to.value()), (2, 4))
+        self.assertEqual(self.panel._row_to.minimum(), 2)
+
+        self.panel._row_from.setValue(1)
+        self.panel._row_to.setValue(2)
+        self.panel._on_row_window_changed()
+        self.assertEqual(len(self.panel._row_editors), 2)
+        self.assertEqual(self.panel._preview.row_window(), (1, 2))
+
+    def test_a_click_on_the_first_visible_row_routes_to_row_editor_zero(self):
+        self.link(row_start=2, row_count=3)
+        preview = self.panel._preview
+        preview.resize(self.COLS * self.FRAME[0], 3 * self.FRAME[1])
+        # A real hit-test on the top-left cell of the WINDOW: the preview
+        # speaks entry-relative rows, so no offset arithmetic anywhere.
+        self.assertEqual(preview.cell_at(preview._cell_rect(0, 1).center()),
+                         (0, 1))
+        self.panel._on_frame_clicked(0, 1)
+        self.assertTrue(self.panel._row_editors[0].hide_boxes[1].isChecked())
+
+    def test_save_writes_row_start_and_omits_it_at_zero(self):
+        self.link(row_start=3, row_count=2)
+        self.panel.save()
+        entry = self.manifest_doc()["entries"][self.SLOT]
+        self.assertEqual(entry["row_start"], 3)
+        self.assertEqual(len(entry["rows"]), 2)      # the "til" blank, derived
+
+        self.panel.set_slot(None)
+        self.panel.set_slot(self.SLOT)               # re-read from disk
+        self.assertEqual((self.panel._row_start, len(self.panel._row_editors)),
+                         (3, 2))
+
+        self.link(row_start=0, row_count=2)
+        self.panel.save()
+        self.assertNotIn("row_start", self.manifest_doc()["entries"][self.SLOT])
+
+    def test_clearing_one_user_never_unlinks_a_master_sheet_others_cut(self):
+        self.link(self.SLOT, row_start=0, row_count=2)
+        self.panel.save()
+        self.link(self.OTHER, row_start=2, row_count=2)
+        self.panel.save()
+
+        self.panel.set_slot(self.OTHER)
+        self.panel.clear_entry(confirm=False)
+
+        self.assertTrue(self.master_png.exists())
+        entries = self.manifest_doc()["entries"]
+        self.assertNotIn(self.OTHER, entries)
+        self.assertEqual(entries[self.SLOT]["sheet"], self.ref)
+
+
+class TestSheetPreviewRowWindow(QtCase):
+    """The window is OPT-IN: three-argument callers (the sheet picker, the
+    master-sheet dialog's read-only previews, every non-master slot) paint the
+    whole sheet exactly as before."""
+
+    FRAME = (16, 24)
+
+    def preview(self, tmp):
+        png = make_png(Path(tmp) / "sheet.png", 3 * 16, 5 * 24)
+        widget = self.track(SheetPreview(interactive=True))
+        widget.resize(3 * 16, 5 * 24)
+        return widget, png
+
+    def test_default_arguments_show_the_whole_sheet(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            widget, png = self.preview(tmp)
+            widget.set_sheet(png, *self.FRAME)
+            self.assertEqual(widget.row_window(), (0, 5))
+            full_height = widget.heightForWidth(3 * 16)
+
+            widget.set_sheet(png, *self.FRAME, row_start=1, row_count=2)
+            self.assertEqual(widget.row_window(), (1, 2))
+            self.assertLess(widget.heightForWidth(3 * 16), full_height)
+
+            widget.set_sheet(png, *self.FRAME)      # a 3-arg call RESETS it
+            self.assertEqual(widget.row_window(), (0, 5))
+            self.assertEqual(widget.heightForWidth(3 * 16), full_height)
+
+    def test_a_window_past_the_bottom_is_clamped_not_raised(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            widget, png = self.preview(tmp)
+            widget.set_sheet(png, *self.FRAME, row_start=4, row_count=99)
+            self.assertEqual(widget.row_window(), (4, 1))
 
 
 class TestSheetPicker(DetailsCase):

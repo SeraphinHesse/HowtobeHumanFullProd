@@ -10,6 +10,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from jsonschema.exceptions import ValidationError
+
 from engine.assets import (
     Manifest,
     PLACEHOLDER,
@@ -18,6 +20,8 @@ from engine.assets import (
     parse_loop,
     playback_order,
 )
+from engine.data_io import validate
+from tools.tests.fixture_data import FIXTURE_DATA
 
 
 def row(animation="idle", frames=3, fps=8, hidden=(), loop=(0, 0, 1)):
@@ -194,6 +198,26 @@ class TestEntryFromDict(unittest.TestCase):
             m = load_manifest(path)
         self.assertEqual(m.slots(), ())
 
+    def test_row_start_absent_is_zero(self):
+        self.assertEqual(entry_from_dict("s", entry_dict([row()])).row_start, 0)
+
+    def test_row_start_parsed(self):
+        raw = entry_dict([row()])
+        raw["row_start"] = 3
+        e = entry_from_dict("s", raw)
+        self.assertEqual(e.row_start, 3)
+        # the window is a SLICING concern: row indices above it are unchanged
+        self.assertEqual(e.animations["idle"].row, 0)
+
+    def test_bad_row_start_raises(self):
+        # bool (an int subclass), float, numeric string, and negative — none
+        # may be coerced into a row the designer never authored
+        for bad in (True, 3.7, "3", -1, None, [3]):
+            raw = entry_dict([row()])
+            raw["row_start"] = bad
+            with self.subTest(row_start=bad), self.assertRaises(ValueError):
+                entry_from_dict("s", raw)
+
 
 class TestCurrentFrame(unittest.TestCase):
     def manifest(self):
@@ -348,6 +372,79 @@ class TestLoadManifestTolerance(unittest.TestCase):
         doc = {"version": 2, "entries": {"good": entry_dict([row()])}}
         m = load_manifest(self.write(json.dumps(doc)))
         self.assertEqual(m.slots(), ("good",))
+
+    def test_corrupt_row_start_warns_and_skips_that_entry(self):
+        bad = entry_dict([row()])
+        bad["row_start"] = "3"
+        doc = {"version": 2, "entries": {
+            "good": entry_dict([row()]),
+            "bad": bad,
+        }}
+        path = self.write(json.dumps(doc))
+        with self.assertLogs("engine.assets.manifest", level="WARNING"):
+            m = load_manifest(path)   # warn + skip, never raise (E-37)
+        self.assertEqual(m.slots(), ("good",))
+
+
+class TestMasterSheetSchemas(unittest.TestCase):
+    """M1 (GpuAndMasterSheetsPLAN): the master-sheet registry + row_start.
+
+    Schemas come from the PINNED snapshot, never live ``data/`` — this module
+    is not on ``test_fixture_guard``'s live-data allowlist. Validation is
+    read-only, so nothing here writes anywhere. Every assertion is about a
+    document this test itself builds; no live/fixture CONTENT is asserted on.
+    """
+
+    MASTER = FIXTURE_DATA / "schemas" / "master_sheets.schema.json"
+    MANIFEST = FIXTURE_DATA / "schemas" / "asset_manifest.schema.json"
+
+    @staticmethod
+    def registry(entries):
+        return {"version": 1, "entries": entries}
+
+    @staticmethod
+    def sheet_entry(**over):
+        e = {"file": "master/characters.png", "display_name": "Characters",
+             "frame_w": 64, "frame_h": 96}
+        e.update(over)
+        return e
+
+    # --- registry ---------------------------------------------------------
+    def test_seeded_registry_validates(self):
+        validate({"version": 1, "entries": {}}, self.MASTER)
+
+    def test_bad_file_path_rejected(self):
+        for bad in ("imported/characters.png", "master/Characters.png",
+                    "characters.png"):
+            with self.subTest(file=bad), self.assertRaises(ValidationError):
+                validate(self.registry({"characters": self.sheet_entry(file=bad)}),
+                         self.MASTER)
+
+    def test_bad_sheet_id_rejected(self):
+        for bad in ("1bad", "Bad-Id", "_lead"):
+            with self.subTest(sheet_id=bad), self.assertRaises(ValidationError):
+                validate(self.registry({bad: self.sheet_entry()}), self.MASTER)
+
+    def test_missing_frame_w_rejected(self):
+        entry = self.sheet_entry()
+        del entry["frame_w"]
+        with self.assertRaises(ValidationError):
+            validate(self.registry({"characters": entry}), self.MASTER)
+
+    # --- manifest ---------------------------------------------------------
+    def test_entry_without_row_start_and_master_sheet_both_validate(self):
+        doc = {"version": 2, "entries": {
+            "legacy": entry_dict([row()]),                        # no row_start
+            "windowed": dict(entry_dict([row()], sheet="master/characters.png"),
+                             row_start=4),
+        }}
+        validate(doc, self.MANIFEST)
+
+    def test_negative_row_start_rejected(self):
+        entry = dict(entry_dict([row()], sheet="master/characters.png"),
+                     row_start=-1)
+        with self.assertRaises(ValidationError):
+            validate({"version": 2, "entries": {"windowed": entry}}, self.MANIFEST)
 
 
 if __name__ == "__main__":

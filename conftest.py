@@ -123,6 +123,9 @@ TIERS = {
     "test_levelup": "core",
     "test_lightning": "core",
     "test_map_overlays": "core",  # MapOverlays: the TIER OVERVIEW toggle pill
+    # GpuAndMasterSheetsPLAN M3: editor/master_sheet_import.py + its picker
+    # dialog. `editor` because half of it builds Qt widgets.
+    "test_master_sheet_import": "editor",
     "test_movement": "core",
     "test_names": "core",
     "test_nine_slice": "core",
@@ -140,6 +143,7 @@ TIERS = {
     "test_projectile_sprites": "core",  # fix-anchor-offset-and-bullet-sprites Fix 2
     "test_range_sensor": "core",
     "test_render": "core",
+    "test_render_backend_parity": "core",
     "test_right_click_dismiss": "core",
     "test_scenarios": "core",
     "test_scene_query": "core",
