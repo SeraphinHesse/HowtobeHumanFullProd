@@ -5,7 +5,7 @@
 > plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
 > screen).
 
-<!-- status: IN PROGRESS — 1/8 phases (VA-1 done), authored 2026-08-13 -->
+<!-- status: IN PROGRESS — 2/8 phases (VA-1, VA-2 done), authored 2026-08-13 -->
 <!-- plan-scale: medium -->
 
 # VfxAuthoringPLAN.md — Authoring the VFX roster
@@ -172,7 +172,7 @@ executing agent reads both docs.
 | Phase | Scope | Package | Depends on | Status |
 |-------|-------|---------|------------|--------|
 | VA-1 | vfx slot restructure + generated schema enums | data + tools | — | **done** |
-| VA-2 | `variant_select`/`draw_in_front` schema; resolver; `vfx_misc` | data + game | VA-1 | todo |
+| VA-2 | `variant_select`/`draw_in_front` schema; resolver; `vfx_misc` | data + game | VA-1 | **done** |
 | VA-3 | `depth_key` rank; `WorldRect`; `submit_world` | engine | — | todo |
 | VA-4 | `building_respawn` trigger | game + data | VA-2 | todo |
 | VA-5 | seven highlights → trigger-driven; palette move | game + data | VA-2, VA-3 | todo |

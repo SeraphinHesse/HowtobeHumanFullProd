@@ -549,8 +549,14 @@ class TestSchema(unittest.TestCase):
     def test_fixture_validates_with_projectile_hit(self):
         data = data_io.load_validated(VFX_DATA_PATH, VFX_SCHEMA_PATH)
         self.assertIn("projectile_hit", data["triggers"])
-        self.assertEqual(data["triggers"]["projectile_hit"],
-                         {"sprite_slot": "", "procedural": ""})
+        # ESV-6 shipped this row INERT, and that is what this pins. It used to
+        # assert whole-dict equality, which made it a pin on the row's SHAPE
+        # too — so VfxAuthoringPLAN VA-2 adding `variant_select`/
+        # `draw_in_front` reddened it without anything about inertness
+        # changing. Assert the two fields that decide whether it draws.
+        row = data["triggers"]["projectile_hit"]
+        self.assertEqual(row["sprite_slot"], "")
+        self.assertEqual(row["procedural"], "")
 
     def test_triggers_missing_projectile_hit_fails_validation(self):
         data = data_io.load_json(VFX_DATA_PATH)
@@ -574,11 +580,15 @@ class TestSchema(unittest.TestCase):
 # ===========================================================================
 class TestEnginePurityUnaffectedByFloaterParams(unittest.TestCase):
     def test_file_set_unchanged(self):
+        # VfxAuthoringPLAN VA-2 added variants.py (the pure registry half of
+        # VFX variant resolution). Still a flat file, still no data access —
+        # which is what this pin actually guards.
         vfx_dir = REPO / "engine" / "vfx"
         scanned = sorted(vfx_dir.glob("*.py"))
         self.assertEqual({p.name for p in scanned},
                          {"__init__.py", "emitters.py", "params.py",
-                          "particle.py", "play_once.py", "system.py"})
+                          "particle.py", "play_once.py", "system.py",
+                          "variants.py"})
 
     def test_params_module_stays_pure(self):
         src = (REPO / "engine" / "vfx" / "params.py").read_text(encoding="utf-8")

@@ -60,6 +60,10 @@
       "additionalProperties": false,
       "description": "ESV-5: one event's sprite/procedural binding. Resolution order at every dispatch site: a non-empty sprite_slot whose slot has imported art spawns a one-shot PlayOnceVfx sprite (engine.vfx.spawn_play_once); otherwise the named procedural kind runs; procedural \"\" (or the event's row absent from the table entirely) is a silent no-op (E-37) - never a raise.",
       "properties": {
+        "draw_in_front": {
+          "description": "VfxAuthoringPLAN VA-2/D5: true draws this effect IN FRONT of a building or enemy sharing its tile, false behind it. It is a same-tile TIE-BREAK, not a layer switch - the effect still depth-sorts by its own world position against everything else, so an effect on a near tile keeps drawing over a building on a far one. Buildings and enemies share the `entities` layer and sort by iso depth, which is why this is ONE bool and not a separate one per kind: no sort order can put an effect in front of one and behind the other. Ships true on every row, reproducing the always-on-top behaviour every procedural effect had before (D10).",
+          "type": "boolean"
+        },
         "procedural": {
           "description": "The procedural VFX kind to run when sprite_slot is empty or has no imported art yet, or \"\" for a silent no-op. spark_place/spark_level/spark_tier all resolve through the same emit_burst call, keyed by the caller's kind argument - the three names exist so each of the three building-vfx events can be independently retuned/disabled without collapsing to one shared string. \"crater\" names the mortar shell's OWN continuous fade mark (game/enemies/combat.py's Crater/CraterFade), which always spawns unconditionally regardless of this table - naming it here is documentation, not a second spawn.",
           "enum": [
@@ -79,19 +83,52 @@
           "description": "The vfx_* slot key to play as a one-shot sprite when it has imported art, or \"\" to always use the procedural fallback. A bound slot with no art imported yet also falls through to the procedural fallback (E-37) - this is what keeps a fresh checkout byte-identical to today.",
           "enum": [
             "",
-            "vfx_hit",
-            "vfx_explosion",
-            "vfx_muzzle",
+            "vfx_beam",
+            "vfx_buff_arrow",
+            "vfx_crater",
             "vfx_death",
-            "vfx_slash",
-            "vfx_crater"
+            "vfx_digger_direction",
+            "vfx_digger_marker",
+            "vfx_dirt_pile",
+            "vfx_explosion",
+            "vfx_hit",
+            "vfx_muzzle",
+            "vfx_projectile",
+            "vfx_shell",
+            "vfx_slash"
           ],
           "type": "string"
+        },
+        "variant_select": {
+          "additionalProperties": false,
+          "description": "VfxAuthoringPLAN VA-2: how to choose among sprite_slot's interchangeable VARIANTS (the <stem>_v<k> slots sharing its leaf group in slots.json) each time this event fires. A slot with no variants resolves to itself under every mode, so this block is inert until a designer adds one. Procedural fallbacks are NOT varied (D3) - they have one param block each.",
+          "properties": {
+            "misc_key": {
+              "description": "For mode \"misc\" only: the name of a game-side value provider (game/vfx_misc.py's register()/resolve()). Code registers a function per key returning an int; an unregistered key - including the \"\" this ships with - resolves to variant 0 and never raises, so a key can be authored before the code that feeds it exists. Ignored by the other two modes.",
+              "type": "string"
+            },
+            "mode": {
+              "description": "\"random\" picks uniformly per spawn through the caller's injected rng (the game/enemies/enemy.py variant_slot shape - never the stdlib random module, so seeded-parity tests stay possible). \"level\" indexes by the SOURCE's level, clamped to the variant count: a building's 0-indexed tier, an enemy's era. Five of the ten events carry only a world point and no source object, so \"level\" resolves to variant 0 there (D4) - deliberate, not a bug. \"misc\" indexes by misc_key's registered provider, clamped the same way.",
+              "enum": [
+                "random",
+                "level",
+                "misc"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "misc_key",
+            "mode"
+          ],
+          "type": "object"
         }
       },
       "required": [
+        "draw_in_front",
         "procedural",
-        "sprite_slot"
+        "sprite_slot",
+        "variant_select"
       ],
       "type": "object"
     }

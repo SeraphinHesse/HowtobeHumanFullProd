@@ -294,44 +294,94 @@
   },
   "triggers": {
     "building_destroyed": {
+      "draw_in_front": true,
       "procedural": "death_burst",
-      "sprite_slot": ""
+      "sprite_slot": "",
+      "variant_select": {
+        "misc_key": "",
+        "mode": "random"
+      }
     },
     "building_level_up": {
+      "draw_in_front": true,
       "procedural": "spark_level",
-      "sprite_slot": ""
+      "sprite_slot": "",
+      "variant_select": {
+        "misc_key": "",
+        "mode": "random"
+      }
     },
     "building_placed": {
+      "draw_in_front": true,
       "procedural": "spark_place",
-      "sprite_slot": ""
+      "sprite_slot": "",
+      "variant_select": {
+        "misc_key": "",
+        "mode": "random"
+      }
     },
     "building_tier_up": {
+      "draw_in_front": true,
       "procedural": "spark_tier",
-      "sprite_slot": ""
+      "sprite_slot": "",
+      "variant_select": {
+        "misc_key": "",
+        "mode": "random"
+      }
     },
     "defender_fire": {
+      "draw_in_front": true,
       "procedural": "",
-      "sprite_slot": "vfx_muzzle"
+      "sprite_slot": "vfx_muzzle",
+      "variant_select": {
+        "misc_key": "",
+        "mode": "random"
+      }
     },
     "enemy_attack_melee": {
+      "draw_in_front": true,
       "procedural": "slash",
-      "sprite_slot": ""
+      "sprite_slot": "",
+      "variant_select": {
+        "misc_key": "",
+        "mode": "random"
+      }
     },
     "enemy_attack_ranged": {
+      "draw_in_front": true,
       "procedural": "",
-      "sprite_slot": ""
+      "sprite_slot": "",
+      "variant_select": {
+        "misc_key": "",
+        "mode": "random"
+      }
     },
     "enemy_death": {
+      "draw_in_front": true,
       "procedural": "splatter",
-      "sprite_slot": ""
+      "sprite_slot": "",
+      "variant_select": {
+        "misc_key": "",
+        "mode": "random"
+      }
     },
     "projectile_hit": {
+      "draw_in_front": true,
       "procedural": "",
-      "sprite_slot": "vfx_crater"
+      "sprite_slot": "vfx_crater",
+      "variant_select": {
+        "misc_key": "",
+        "mode": "random"
+      }
     },
     "splash_impact": {
+      "draw_in_front": true,
       "procedural": "crater",
-      "sprite_slot": "vfx_crater"
+      "sprite_slot": "vfx_crater",
+      "variant_select": {
+        "misc_key": "",
+        "mode": "random"
+      }
     }
   }
 }

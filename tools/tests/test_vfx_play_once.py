@@ -36,7 +36,7 @@ from engine.assets import load_registry
 from engine.core import Scene
 from engine.vfx import PlayOnceFade, PlayOnceVfx, VfxSystem, spawn_play_once
 from game.core.balance import load_balance
-from game.ui.effects import FloaterManager
+from game.ui.effects import FloaterManager, TriggerRow
 
 VFX_DATA_PATH = FIXTURE_DATA / "balancing" / "vfx.json"
 VFX_SCHEMA_PATH = FIXTURE_DATA / "schemas" / "vfx.schema.json"
@@ -183,7 +183,7 @@ class TestByteIdenticalFallbackAllEvents(unittest.TestCase):
         # nothing today), which turned this into a comparison against a no-op
         # and reddened it. The dispatcher's correctness must not depend on
         # which effects happen to be bound this week.
-        fm._triggers["enemy_attack_ranged"] = ("", "muzzle")
+        fm._triggers["enemy_attack_ranged"] = TriggerRow(procedural="muzzle")
         fm._play("enemy_attack_ranged", 1.0, 2.0, strong=True)
         direct.emit_muzzle(1.0, 2.0, strong=True)
         self._assert_particles_equal(fm, direct)
@@ -226,7 +226,7 @@ class TestDefenderFireInert(unittest.TestCase):
 
     def test_dispatch_is_a_true_no_op(self):
         fm = _fm()
-        fm._triggers["defender_fire"] = ("", "")
+        fm._triggers["defender_fire"] = TriggerRow()
         before = (list(fm._vfx._particles), list(fm._vfx._gold),
                   list(fm._vfx._slashes), list(fm._vfx._splatters))
         fm._play("defender_fire", 1.0, 2.0)   # must not raise
@@ -272,7 +272,7 @@ class TestMissingEmptyNoneHandles(unittest.TestCase):
 
     def test_both_fields_empty_degrades_silently(self):
         fm = _fm()
-        fm._triggers["custom_inert"] = ("", "")
+        fm._triggers["custom_inert"] = TriggerRow()
         fm._play("custom_inert", 1.0, 2.0)   # must not raise
 
     def test_assets_none_degrades_to_procedural(self):

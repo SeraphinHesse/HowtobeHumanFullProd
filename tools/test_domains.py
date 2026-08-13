@@ -137,6 +137,7 @@ DOMAINS = {
         "test_ui_skinning.py",
         "test_vfx.py",
         "test_vfx_play_once.py",
+        "test_vfx_variants.py",
     ),
     "engine": (
         "test_alpha_render.py",

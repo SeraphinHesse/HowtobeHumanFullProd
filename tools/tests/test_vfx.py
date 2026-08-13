@@ -291,14 +291,17 @@ class TestEnginePurity(unittest.TestCase):
         ESV-5 DID add a new module (play_once.py) — a flat file, so the bare
         glob picked it up automatically with zero test change to the glob
         itself; only this hardcoded expected-filename SET needed updating,
-        which is exactly the tripwire this test exists to force."""
+        which is exactly the tripwire this test exists to force.
+        VfxAuthoringPLAN VA-2 added variants.py the same way, and this pin
+        fired the same way."""
         vfx_dir = REPO / "engine" / "vfx"
         scanned = sorted((vfx_dir).glob("*.py"))
         actual = sorted(p for p in vfx_dir.rglob("*.py"))
         self.assertEqual(scanned, actual)
         self.assertEqual({p.name for p in scanned},
                          {"__init__.py", "emitters.py", "params.py",
-                          "particle.py", "play_once.py", "system.py"})
+                          "particle.py", "play_once.py", "system.py",
+                          "variants.py"})
 
 
 class TestDomainPromotion(unittest.TestCase):
