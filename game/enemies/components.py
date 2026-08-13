@@ -22,9 +22,9 @@ from engine.render.item import RenderItem
 from game.buildings.components import RoundStats
 from game.map.pathfinder import (
     _wall_blocks, block_covers, block_tiles, face_edges,
-    find_path_to_nearest_defence, find_path_to_nearest_economic,
-    find_path_to_nearest_non_base_building, find_path_to_nearest_structure,
-    internal_edges,
+    find_path_ignoring_walls, find_path_to_nearest_defence,
+    find_path_to_nearest_economic, find_path_to_nearest_non_base_building,
+    find_path_to_nearest_structure, internal_edges,
 )
 from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition
 
@@ -485,8 +485,21 @@ class PathAgent(Component):
 
     def _repath(self, owner, tm, mv):
         """Re-route from the current tile to the next victim, reloading
-        ``Movement`` and re-deriving the goal (10G / BP-2). No path at all (a
-        fully sealed board) leaves the agent standing with NO target — the next
+        ``Movement`` and re-deriving the goal (10G / BP-2). The hunt query
+        itself already falls back from "nearest prey" to "any reachable
+        prey" to "the base" (walls respected) — so an entirely EMPTY result
+        here means even the base is unreachable respecting walls, exactly
+        the "base enclosed" case ``Enemy.on_spawn`` has always handled by
+        retrying with ``find_path_ignoring_walls`` (a path to the base that
+        treats wall edges as passable, letting this agent cross into a wall
+        edge and hand off to the existing wall-attack machinery —
+        ``_wall_edge_ahead``/``EnemyCombat`` — instead of standing there). A
+        WallBuilder's perimeter wall next to a pond sealing the last gap out
+        of the player's territory is the concrete case that hits this: this
+        agent used to have no such retry, so it just stood there. A path
+        still empty even ignoring walls (nothing anywhere is reachable)
+        leaves the agent standing with NO target AND no waypoints,
+        explicitly idled rather than left mid-``"walk"`` — the next
         unblock/arrival retries, and the cleared target is what stops the
         dead-target watch from re-pathing every frame forever.
 
@@ -504,8 +517,15 @@ class PathAgent(Component):
         query = _HUNT_QUERIES.get(self.hunt, find_path_to_nearest_non_base_building)
         path = query(tm, col, row, footprint=self.footprint,
                      cond_weights=self._cond_weights)
+        if not path:
+            path = find_path_ignoring_walls(tm, col, row, footprint=self.footprint,
+                                            cond_weights=self._cond_weights)
         self.adopt_goal(path, tm)
         if not path:
+            mv.waypoints = []
+            mv.index = 0
+            mv.arrived = False
+            self._set_anim(owner, "idle")
             return
         mv.waypoints = [[float(c), float(r)] for c, r in path]
         # BP-4: do NOT rewind. path[0] is the tile we are STANDING IN (we
