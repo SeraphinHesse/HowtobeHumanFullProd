@@ -45,7 +45,8 @@ from types import SimpleNamespace
 
 from game.buildings import range_shape
 from game.buildings.components import (
-    BoostReceiver, Nameplate, RoundStats, TierState, YieldEconomy,
+    BoostReceiver, BuildingSprite, Nameplate, RoundStats, TierState,
+    YieldEconomy,
 )
 from game.buildings.movement import MoveError, is_movable, start_move
 from game.buildings.registry import (
@@ -85,6 +86,20 @@ SCREEN_ID = "building_panel"
 #: a dynamic-count card list individually overridable; `_clear_card_ids` uses
 #: this same prefix to sweep the previous build's entries out of `self.ids`.
 _CARD_ID_PREFIX = "card_"
+
+#: MasterSheetColumnsPLAN B3 — id prefix for the upgrade panel's colour
+#: swatches, completed by `ColorSwatchRow` with `_<index>` (`upgrade_swatch_0`,
+#: …). The COUNT is dynamic (1..16 per master sheet) and the row is rebuilt per
+#: selection, so `_clear_colour_ids` sweeps this prefix exactly the way
+#: `_clear_card_ids` sweeps `card_` — a stale id would leave `skinning.apply`
+#: writing overrides onto a dead Button.
+_UPGRADE_COLOR_PREFIX = "upgrade_swatch"
+
+#: Gap between the swatch row's bottom and the upgrade action button's top.
+#: The row hangs off `action_btn.rect` (like `move_btn` hangs BELOW it), so it
+#: sits in the one free band the upgrade panel has — see `_build_colour_row`
+#: for the worked arithmetic.
+_COLOUR_ROW_GAP = 6
 
 #: Slot-key prefix for the OPTIONAL dedicated card-portrait art family
 #: (`data/slots.json`'s `ui` -> "Card Portraits"), completed by the card's
@@ -292,41 +307,39 @@ def _tier_name(b):
     return b.tier_data()["name"]
 
 
-#: MasterSheetColumnsPLAN B2 — colour NAME -> the palette attribute NAME its
-#: swatch is filled with. Stored as a NAME and resolved through
-#: ``getattr(widgets, …)``, never import-bound: ``widgets.configure_palette``
-#: rebinds every ``C_*`` constant in place at boot (widgets.py:92-104), which
-#: an early ``from .widgets import C_GOLD`` binding could not see. The lookup
-#: runs when a row is BUILT, and a row is built fresh every time the modal
-#: opens — always after boot, so it can never capture a pre-configure value.
-#: The palette has no pink, so ``pink`` reuses ``C_PURPLE`` — the same
-#: documented stand-in ``game/ui/overlays.py`` already makes.
-_SWATCH_PALETTE_ATTR = {
-    "pink": "C_PURPLE",
-    "red": "C_RED",
-    "purple": "C_PURPLE",
-    "yellow": "C_GOLD",
-}
+#: MasterSheetColumnsPLAN B3 — the ONE key ``_swatch_rgb`` reads out of
+#: ``data/balancing/ui.json``. Optional in the schema on purpose (it is NOT in
+#: the root ``required`` list), so a balance document without it — the test
+#: fixture's, or an older save of the file — degrades to neutral swatches
+#: instead of raising.
+_BUILDING_COLORS_KEY = "BuildingColors"
 
 
 def _swatch_rgb(name, ui_balance=None):
     """A colour NAME -> ``(r, g, b)`` for the swatch fill.
 
-    B2: a hardcoded map over the SHARED PALETTE (``_SWATCH_PALETTE_ATTR``),
-    read as ``widgets.<NAME>`` attribute access. ``ui_balance`` is accepted
-    and ignored — it is threaded through from both call sites now purely so
-    that B3's change stays inside this ONE function body.
+    B3: the colours are DATA — ``ui.json``'s ``BuildingColors`` group, a
+    ``name -> [r, g, b]`` map a designer edits in the editor's balancing
+    panel (which picks the group up for free by recursing the schema). This
+    is the ONE place a colour name becomes an RGB; both callers
+    (``ConstructPreview``'s row and the upgrade panel's) pass the balance
+    dict they already hold.
 
-    B3 REPLACES THIS BODY (and nothing else) with a read of
-    ``ui_balance["BuildingColors"]``, falling back to this palette map and
-    then to the neutral swatch for an unknown name (plan phase B3). The
-    neutral fallback is what makes an unrecognised colour name degrade
-    instead of raising (E-37), and B3 keeps that rule.
+    **A miss degrades, it never raises** (E-37): an absent group, a `None`
+    balance (a bare row built by a tool or a test) or a ``columns`` name with
+    no entry all return the neutral ``widgets.C_PANEL_INSET`` — the swatch
+    still exists and still picks its column, it is just not tinted. Art may
+    declare any colour name it likes; the palette is not obliged to know it.
+
+    The neutral is read as ``widgets.<NAME>`` ATTRIBUTE ACCESS, never
+    import-bound: ``widgets.configure_palette`` rebinds every ``C_*``
+    constant in place at boot (widgets.py:92-104), which an early
+    ``from .widgets import C_PANEL_INSET`` could not see.
     """
-    attr = _SWATCH_PALETTE_ATTR.get(name)
-    if attr is None:
+    rgb = (ui_balance or {}).get(_BUILDING_COLORS_KEY, {}).get(name)
+    if rgb is None:
         return widgets.C_PANEL_INSET
-    return getattr(widgets, attr)
+    return tuple(rgb)
 
 
 class ColorSwatchRow:
@@ -926,6 +939,14 @@ class BuildingUI:
         #: what keeps a bare `BuildingUI` (tests, tools) working: an empty map
         #: means no building has colours, so no swatches and no `column=`.
         self.colour_columns = {}
+        #: MasterSheetColumnsPLAN B3: the upgrade panel's colour-swatch row —
+        #: the SAME `ColorSwatchRow` B2's build-confirm modal uses, pointed at
+        #: the LIVE building's `BuildingSprite.column` instead of a pending
+        #: int. Rebuilt per selection by `_build_colour_row`; seeded INERT here
+        #: (no colours => no buttons, no ids, nothing drawn) so `hover`/
+        #: `update`/`hit`/`submit` are safe before the first build and in every
+        #: other panel mode.
+        self.colour_row = ColorSwatchRow((), 0, 0, 0, _UPGRADE_COLOR_PREFIX)
         # -- 10G boss: base_info "BOSS CHOICES" button + history popup --
         self.boss_btn = Button(
             (self.panel_x + 6, 210, self.panel_w - 12, 16),
@@ -1085,6 +1106,7 @@ class BuildingUI:
         self._hover_cost = None
         self.cards = []
         self._card_parts = {}
+        self._clear_colour_ids()   # B3: the swatch row is per-selection
         self.scroll_offset = 0   # a fresh panel always opens at the top
         # -- 10J --
         self.selected_tiles = []
@@ -1543,6 +1565,7 @@ class BuildingUI:
         self._upgrade_hint = hint
         self._layout_upgrade_rows()
         self._build_move_btn()
+        self._build_colour_row()   # MasterSheetColumnsPLAN B3
 
     def _layout_upgrade_rows(self):
         """Stack the upgrade panel's text rows for the SELECTED building.
@@ -1604,6 +1627,84 @@ class BuildingUI:
                 self._upgrade_hint = T("building.hint.wall_rooted")
         else:
             self.move_btn.label = T("building.btn.move")
+
+    def _clear_colour_ids(self):
+        """Drop the last build's `upgrade_swatch_*` entries and make the row
+        inert (MasterSheetColumnsPLAN B3).
+
+        The `_clear_card_ids` rule, for the same reason: the swatch count is
+        dynamic and every swatch Button is rebuilt per selection, so an id left
+        pointing at a dead Button would have `skinning.apply` writing overrides
+        onto an object nothing draws — and a building with no colour-capable
+        art would keep the previous selection's ids forever."""
+        for key in [k for k in self.ids
+                    if k.startswith(_UPGRADE_COLOR_PREFIX)]:
+            del self.ids[key]
+        self.colour_row = ColorSwatchRow((), 0, 0, 0, _UPGRADE_COLOR_PREFIX)
+
+    def _build_colour_row(self):
+        """Build the upgrade panel's colour-swatch row (B3), or leave it inert.
+
+        THE SAME `ColorSwatchRow` B2's build-confirm modal uses — this panel
+        only points it at a different selection source (the LIVE building's
+        `BuildingSprite.column`) and a different band.
+
+        Shown only when ALL of these hold (D6). A building on placeholder or
+        single-column art shows nothing at all — no row, no gap, no
+        placeholder — and never raises:
+          * upgrade mode on a SINGLE selection (the `move_btn` rule: recolouring
+            a batch is not a feature this phase adds);
+          * the host wired a capability map (`colour_columns`, derived once at
+            boot by `game/main.py`; `{}` in tests/tools/the layout exporter
+            means "no colours" and is the quiet default);
+          * that map names >= 2 colours for THIS building's live slot key — one
+            colour is not a choice, the same gate `ConstructPreview` applies.
+
+        Vertical band, the ONE piece of dead space the upgrade panel has, all
+        of it derived from `action_btn.rect` so nothing already on the panel
+        moves (which is what keeps `data/ui/screen_defaults.json` a no-op):
+            stat column worst case bottom .......... y = 268 (_submit_upgrade)
+            THE SWATCH ROW ......................... y = 282..293 (SIZE 12)
+            action_btn top = view_h - 60 ........... y = 300 (6px clear)
+            move_btn, then the upgrade hint ........ y = 322+ (unchanged)
+        12px is the UR-5 click-target floor exactly (`ColorSwatchRow.SIZE`),
+        and the row is right-aligned into the panel's inner width, where the
+        helper's own clamp keeps the first `(118 + 2) // 14 = 8` colours."""
+        self._clear_colour_ids()
+        b = self._selected
+        if b is None or len(self.selected_tiles) != 1:
+            return
+        # The LIVE animator's slot key, not `b.slot_key()`: it is the key the
+        # host's map is built on (`registry.place_building` stamps the column
+        # off `anim.slot_key`), and `get_component` is None on the base
+        # building, which carries no animator at all. The sanctioned
+        # `game/ui -> game.buildings.components` read.
+        anim = b.get_component(BuildingSprite)
+        if anim is None:
+            return
+        names = (self.colour_columns or {}).get(anim.slot_key, ())
+        if len(names) < 2:
+            return
+        ax, ay, aw, _ah = self.action_btn.rect
+        self.colour_row = ColorSwatchRow(
+            names, ax, ax + aw,
+            ay - ColorSwatchRow.SIZE - _COLOUR_ROW_GAP,
+            _UPGRADE_COLOR_PREFIX, ui_balance=self._ui_balance)
+        # Merged BEFORE `skinning.apply` (which runs at submit), so a designer
+        # override can style/move an individual swatch — the ConstructPreview
+        # rule.
+        self.ids.update(self.colour_row.ids)
+
+    def _selected_column(self):
+        """The live building's colour column, or None when it has no driver.
+
+        `-1` is `SpriteAnimator`'s "no driver" SENTINEL and `0` is a REAL
+        colour index, so this is a `>= 0` test and never a truth test."""
+        b = self._selected
+        anim = b.get_component(BuildingSprite) if b is not None else None
+        if anim is None or anim.column < 0:
+            return None
+        return anim.column
 
     def _build_move_select(self, session):
         """Highlight every legal move destination: an unbuilt BUILDABLE tile
@@ -1771,6 +1872,9 @@ class BuildingUI:
                 self.move_btn.hover(mx, my, mouse_down)
                 self.move_btn.hovered = (self.move_btn.hovered
                                          and is_visible(self.move_btn))
+                # B3: the colour swatches. A no-op when the row is inert, and
+                # it carries the same `is_visible` guard internally.
+                self.colour_row.hover(mx, my, mouse_down)
         elif self.mode == "base_info":
             # -- 10G boss: base_info button + popup row hover (desc tooltip) --
             self.boss_btn.hover(mx, my, mouse_down)
@@ -1946,6 +2050,19 @@ class BuildingUI:
         if self._name_editing:
             self._commit_rename()
         # -- /10J --
+        # MasterSheetColumnsPLAN B3: a colour swatch recolours the LIVE
+        # building immediately — the index the click writes IS the column the
+        # renderer reads, so the board updates next frame with no confirm step,
+        # nothing spent and nothing logged. Sits AFTER the rename defocus above
+        # (so a swatch click commits an in-progress rename exactly like a move
+        # click does) and BEFORE `move_btn`, whose rect it never overlaps.
+        # `0` is a real colour, so the miss test is `is not None`.
+        idx = self.colour_row.hit(mx, my)
+        if idx is not None:
+            anim = b.get_component(BuildingSprite) if b is not None else None
+            if anim is not None:
+                anim.column = idx
+            return True
         # Building Movement: enter destination-picking mode. The tile pick
         # itself happens in `game/main.py` (the panel only ever sees
         # panel-space clicks); this just arms the mode + the highlight set.
@@ -2170,6 +2287,7 @@ class BuildingUI:
         self.action_btn.update(dt)
         self.close_btn.update(dt)
         self.move_btn.update(dt)          # Building Movement
+        self.colour_row.update(dt)        # B3 (a no-op when inert)
         self._dice_up.update(dt)  # 10J rename dice
         self.boss_btn.update(dt)          # -- 10G boss --
         self._boss_close_btn.update(dt)   # -- 10G boss --
@@ -2471,6 +2589,11 @@ class BuildingUI:
         if is_visible(self.move_btn):
             self.move_btn.submit(renderer, anim_ms=anim_ms,
                                  **button_kwargs(self.move_btn))
+        # B3: the colour swatches, still inside the BUTTON block (they ARE
+        # buttons) and before the hint text. Inert => draws nothing. The
+        # selection ring rides right after its own swatch, inside the row.
+        self.colour_row.submit(renderer, self._selected_column(),
+                               anim_ms=anim_ms)
         if self._upgrade_hint:
             bx, by, bw, bh = self.action_btn.rect
             if is_visible(self.move_btn):
