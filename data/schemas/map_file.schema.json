@@ -37,6 +37,39 @@
         }
       ]
     },
+    "camera_limit_center": {
+      "description": "The CENTRE of the camera's play area - a single movable map object, click-placed or dragged in the editor (Game tiles mode), exactly like camera_start. The camera does NOT start here; this tile is only what the core balancing Camera.max_offset_tiles_x/_y travel limit is measured from. When null the limit falls back to camera_start, then to the map centre. MAY BE null; the key is always present. Bounds (col < cols, row < rows) are cross-checked by engine.tilemap.load_map. Never rendered by the game or the editor's normal render pipeline (the editor draws its own blue outline).",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "col": {
+              "description": "Camera limit centre tile column, 0-based; must be < cols.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "row": {
+              "description": "Camera limit centre tile row, 0-based; must be < rows.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "slot": {
+              "const": "camera_limit_centerpoint",
+              "description": "Marker id (const-pinned; the slot registry's core/Camera Limit Center slot). Not a real sprite - the editor draws the marker as a blue outline."
+            }
+          },
+          "required": [
+            "col",
+            "row",
+            "slot"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "camera_start": {
       "description": "The camera startpoint - a single movable map object, click-placed or dragged in the editor (Game tiles mode), just like the base. The game opens its camera centred on this tile; if null the camera falls back to the default corner clamp. Only DRAWN in the running game when the ui.json Debug.show_camera_startpoint toggle is on (default off); always visible in the editor. MAY BE null; the key is always present. Bounds (col < cols, row < rows) are cross-checked by engine.tilemap.load_map.",
       "oneOf": [
@@ -442,6 +475,7 @@
   },
   "required": [
     "base",
+    "camera_limit_center",
     "camera_start",
     "cols",
     "deco",

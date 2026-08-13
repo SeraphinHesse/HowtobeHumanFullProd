@@ -12,6 +12,8 @@
   },
   "Camera": {
     "default_zoom": 1.0,
+    "max_offset_tiles_x": 50.0,
+    "max_offset_tiles_y": 50.0,
     "zoom_levels": [
       0.5,
       1.0,

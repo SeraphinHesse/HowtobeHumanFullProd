@@ -9,6 +9,7 @@ NOT Chebyshev, NOT tile-space Euclidean). Values are read from
 ``CORE["LightningStrike"]`` so the tests track data, with the current literals
 asserted once as a parity canary.
 """
+import copy
 import random
 import subprocess
 import sys
@@ -521,6 +522,90 @@ class TestMultiAcolyteStrike(unittest.TestCase):
                          5.0)      # untouched: never fired, never re-set
         scene.update(0.0)
         self.assertEqual(len(scene.by_tag("lightning_fx")), 2)  # one per firer
+
+
+# ---------------------------------------------------------------------------
+# 3c. Footprint-aware hit-test (the boss's "click above the model" bug)
+# ---------------------------------------------------------------------------
+class TestFootprintAwareHitTest(unittest.TestCase):
+    """The boss's 2x2 block draws centred on the block's true CENTRE
+    (renderer.py's ``block_center_offset``), not on ``transform.world_pos``
+    (the anchor / MIN corner). ``strike()`` must hit-test against that same
+    centre point — this is what previously made a click on the boss's
+    visible lower body miss (you had to click ABOVE the model, at the
+    anchor, to register a hit)."""
+
+    def _footprint_2_boss(self, tm, col=10, row=10, era=0):
+        enem = copy.deepcopy(ENEM)
+        for row_ in enem["EnemyTypes"]["Boss"]["stats"]:
+            row_["footprint"] = 2
+        return create_enemy("boss", col, row, enem, tm, era)
+
+    def test_click_near_the_far_corner_of_the_block_now_hits(self):
+        tm, scene, occ = build_board(["b" * 20] * 20)
+        boss = self._footprint_2_boss(tm)
+        priest = spawn_storm_priest(scene)          # tier 0 -> radius 1 tile
+        scene.spawn(boss)
+        scene.update(0.0)
+        st = RunState.from_balance(CORE, BUILD)
+        lt.unlock_from_placement(st, priest)
+        cs = make_cs()
+
+        anchor_wx, anchor_wy = boss.transform.world_pos
+        center_wx, center_wy = boss.center_world
+        self.assertEqual((center_wx, center_wy),
+                         (anchor_wx + 0.5, anchor_wy + 0.5))
+
+        # A click near the block's FAR corner — comfortably inside the
+        # visible sprite, past the radius from the OLD (anchor) hit-test
+        # point but within it from the true (centre) point.
+        click_wx, click_wy = anchor_wx + 1.2, anchor_wy + 1.2
+        radius_px = LS["radius"][0] * cs.geometry.tile_w / 2 * cs.camera.zoom
+        sx, sy = cs.world_to_screen(click_wx, click_wy)
+
+        ax, ay = cs.world_to_screen(anchor_wx, anchor_wy)
+        self.assertGreater((ax - sx) ** 2 + (ay - sy) ** 2, radius_px ** 2,
+                           "fixture is wrong: this click should be a MISS "
+                           "against the raw anchor point")
+        cx, cy = cs.world_to_screen(center_wx, center_wy)
+        self.assertLessEqual((cx - sx) ** 2 + (cy - sy) ** 2, radius_px ** 2,
+                             "fixture is wrong: this click should be a HIT "
+                             "against the true block centre")
+
+        hp0 = boss.get_component(Health).hp
+        self.assertTrue(lt.strike(st, CORE, VFX, scene, cs, click_wx, click_wy))
+        self.assertLess(boss.get_component(Health).hp, hp0)
+
+    def test_footprint_1_enemy_is_byte_identical(self):
+        """``center_world`` reduces to ``world_pos`` at footprint 1 — no
+        behaviour change for every non-boss enemy type."""
+        tm, scene, occ = build_board(FIELD)
+        e = spawn_enemy(scene, tm, 4, 4)
+        scene.update(0.0)
+        self.assertEqual(e.center_world, e.transform.world_pos)
+
+    def test_fx_marker_spawns_at_the_click_point_not_an_enemy(self):
+        """Regression: the per-enemy hit-test loop must never reuse
+        ``strike()``'s own ``wx``/``wy`` click-point parameter names for the
+        enemy's world position — doing so once left the loop overwriting the
+        click point with whichever enemy it last iterated, so the
+        ``LightningFX`` marker built right after the loop (and everything a
+        player visually reads as "where the bolt struck") landed on that
+        enemy instead of the actual click."""
+        tm, scene, occ = build_board(["b" * 20] * 20)
+        boss = self._footprint_2_boss(tm)          # far from the click below
+        priest = spawn_storm_priest(scene)
+        scene.spawn(boss)
+        scene.update(0.0)
+        st = RunState.from_balance(CORE, BUILD)
+        lt.unlock_from_placement(st, priest)
+        cs = make_cs()
+
+        click_wx, click_wy = 2.0, 2.0
+        self.assertTrue(lt.strike(st, CORE, VFX, scene, cs, click_wx, click_wy))
+        scene.update(0.0)
+        fx = scene.by_tag("lightning_fx")[0]
+        self.assertEqual(fx.transform.world_pos, (click_wx, click_wy))
 
 
 # ---------------------------------------------------------------------------

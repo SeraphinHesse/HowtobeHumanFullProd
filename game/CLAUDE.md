@@ -165,7 +165,21 @@ for the full event-kind contract (what an LLM or a human reads) and
 - Frame order is fixed per E-14: input → `Scene.update(dt)` → render submit (grid
   tiles + `scene.render_items()`) → `flush` → `flip`.
 - **Camera input mapping (E-5) lives here**, on pure engine camera state: **both
-  left- and right-click-drag pan** (`cs.pan` + `cs.clamp` to map bounds). Left-drag
+  left- and right-click-drag pan** (`cs.pan` + `cs.clamp`, which bounds the view
+  to **map bounds ∩ the camera leash**). The leash is `core` balancing's
+  `Camera.max_offset_tiles_x`/`max_offset_tiles_y` — how many TILES the viewport
+  centre may stray from the map's **`camera_limit_center`** marker, `0` =
+  unlimited. That marker is a separate paintable map object from
+  `camera_start` precisely so the opening view and the play-area centre are
+  independently placeable; a map that paints none falls back to `camera_start`,
+  then to the map centre. `main()` builds the
+  `engine.coords.CameraLimit` once at boot, right after `load_coordinate_system`
+  and BEFORE the first `frame_camera()`, and installs it on `cs` via
+  `set_camera_limit` — so drag-pan, `step_zoom` and `center_on` all honour it
+  without a single extra call site, and `build_gameplay()`'s re-frame inherits it.
+  Measuring in tiles (not pixels) is what makes the stop point land the same
+  distance out at every zoom level. The editor never installs one — its viewport
+  stays free-roam on purpose, so a designer can still see the whole map. Left-drag
   pans only when the press began over the world (not a panel/HUD button) and is
   gated by the same 4px drag threshold that separates a click from a drag, so a
   short left click still selects/places a tile while a left-drag moves the camera

@@ -37,6 +37,9 @@ ALLOWED = {
                               "buildable type",
     "test_editor_map_mode.py": "TempDataCase write-isolation on the real tree",
     "test_editor_panels.py": "defines TempDataCase (real tree incl. assets)",
+    "test_editor_camera_limit_center.py": "MapModeCase write-isolation on the "
+                                          "real tree, same reason as "
+                                          "test_editor_map_mode.py",
     "test_editor_tutorial_paint.py": "MapModeCase write-isolation on the real "
                                       "tree, same reason as test_editor_map_mode.py",
     "test_editor_run_controls.py": "TempDataCase-style copy of the real tree",
