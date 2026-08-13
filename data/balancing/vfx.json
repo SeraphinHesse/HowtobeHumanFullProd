@@ -491,7 +491,7 @@
     "tile_selected": {
       "draw_in_front": true,
       "procedural": "highlight",
-      "sprite_slot": "",
+      "sprite_slot": "vfx_tile_selected",
       "variant_select": {
         "misc_key": "",
         "mode": "random"

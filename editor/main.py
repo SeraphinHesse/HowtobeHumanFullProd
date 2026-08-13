@@ -1109,6 +1109,13 @@ class MainWindow(QMainWindow):
         self.palette.refresh_icons()
         self.anchors.reload()   # ESV-2: a DetailsPanel save/clear must not
         # leave the anchors panel (or its handle) stale relative to disk.
+        # VA-7 follow-up: the vfx preview owns its OWN AssetStore, built at
+        # construction, so art imported through the tree's importer never
+        # reached it — the preview kept drawing the procedural fallback for a
+        # slot that HAD art, which reads as "binding the sprite did nothing".
+        # Its own Import button already called this; a save from anywhere else
+        # has to as well.
+        self.vfx_preview.reload_assets()
 
     # -- run controls (ED-50/51/52) ------------------------------------------
 

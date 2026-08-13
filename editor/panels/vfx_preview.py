@@ -440,9 +440,17 @@ class VfxPreviewPanel(QWidget):
             # VA-5 gave each highlight its own vfx_<name> slot, so the family
             # DOES resolve to one fixed slot — it just depends on the
             # sub-combo rather than being a constant.
-            name = self._highlight_combo.currentText()
-            return f"vfx_{name}" if name else None
-        return _POINT_FX_SLOTS.get(self._family)
+            return self._highlight_slot()
+        fixed = _POINT_FX_SLOTS.get(self._family)
+        if fixed is not None:
+            return fixed
+        # VA-7 follow-up: every OTHER family binds art per-EVENT, so it has no
+        # slot of its own — which left an effect added through the roster with
+        # a slot and no way to put art on it. The roster's selected Variant is
+        # that answer: it is the designer's explicit "this is the art I am
+        # working on". A family with a FIXED slot still wins above, so
+        # projectile/shell, crater and beam are unchanged.
+        return self.current_slot()
 
     def _refresh_import_btn(self):
         has_slot = self._current_import_slot() is not None
@@ -1017,6 +1025,25 @@ class VfxPreviewPanel(QWidget):
     def current_highlight(self):
         return self._highlight_combo.currentText() or None
 
+    def _highlight_slot(self):
+        """The slot the selected highlight actually draws.
+
+        Reads the BOUND `triggers.<name>.sprite_slot` first and only falls
+        back to the `vfx_<name>` convention when nothing is bound. Resolving
+        by convention alone was a real bug: a designer who bound art to a
+        highlight saw the preview keep drawing the procedural diamond, because
+        the preview was looking at a different slot than the game was. A
+        preview that does not follow the binding is worse than no preview —
+        it actively misreports."""
+        name = self.current_highlight()
+        if not name:
+            return None
+        bound = None
+        if self._balancing is not None and self._balancing.domain == "vfx":
+            bound = self._balancing.staged_value(
+                f"triggers/{name}/sprite_slot")
+        return bound or f"vfx_{name}"
+
     def _submit_highlight_preview(self, dt):
         """Draw the selected tile highlight exactly as the game draws it: the
         bound `vfx_<name>` sheet when it has art, else the world-space diamond
@@ -1040,8 +1067,8 @@ class VfxPreviewPanel(QWidget):
         if not params:
             return
         col, row = _HIGHLIGHT_TILE
-        slot = f"vfx_{name}"
-        if self._assets.animation_total_ms(slot, "idle") is not None:
+        slot = self._highlight_slot()
+        if slot and self._assets.animation_total_ms(slot, "idle") is not None:
             self._renderer.submit(
                 RenderItem(slot, (col, row), animation="idle",
                            anim_time_ms=int(self._loop_clock * 1000)))
