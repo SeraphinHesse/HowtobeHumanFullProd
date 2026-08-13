@@ -344,6 +344,32 @@ preview LEVER of its own — `vfx_preview.py`'s `_EMIT_FAMILIES`/graceful-
 degrade placeholder for it is unchanged — this is purely what keeps the
 dataclass constructible for every OTHER family's preview.
 
+## Master-sheet column switcher (`panels/viewport.py`, MasterSheetColumnsPLAN E4)
+
+A third floating `_NoWheelComboBox` (`_column_combo`), twinned with the
+entity-preview animation combo (`_anim_combo`) — same construction / refresh /
+hide idiom, one call site each (`reload_assets`, `set_preview_slot`,
+`set_preview_draft`, `set_map_mode`'s entity branch; hidden in map and screen
+mode beside `_anim_combo`). It is driven off `currentIndexChanged`, not
+`currentTextChanged`: the INDEX is the value, and column labels carry no
+uniqueness guarantee.
+
+Visible only when the previewed slot's EFFECTIVE (draft-aware) entry links a
+master sheet (`entry.sheet` starts with `master/`, D2); labels are the sheet's
+declared `columns` names (D4) or generated `Column N` labels sized off
+`store.py`'s own clamp-ceiling formula (`sheet_width // (column_width *
+frame_w)`) — deliberately re-derived from the master-sheet registry rather than
+from any `MasterSheet` helper, so this panel owns no second notion of a sheet's
+column count. Selecting an entry rides `self.preview_column` onto the preview
+`RenderItem.column` (`int | None`) — `None` means "no live driver, use the
+entry's stored column", and `0` is a real column, never a sentinel.
+
+**For a `manual`-mode entry this combo changes nothing on screen**
+(`engine/assets/store.py`'s `_column_block` always resolves to the entry's own
+stored `column` when `column_mode == "manual"`, D3) — it only visibly drives
+`season` / `building_color` entries. That is intended, not a bug: if you pick a
+colour on a manual-mode slot and nothing moves, the combo is working.
+
 ## Running the tests FROM the editor (TestRunnerPLAN TR-5) — the first QThread
 
 The **"Run tests"** button on the Agents toolbar, immediately after "thats my
