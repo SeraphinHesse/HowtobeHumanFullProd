@@ -304,6 +304,10 @@ class MainWindow(QMainWindow):
         # ESV-4: vfx preview <-> balancing staging wiring
         self.vfx_preview.set_balancing_panel(self.balancing)
         self.balancing.value_staged.connect(self.vfx_preview.on_balancing_value_staged)
+        # VA-7: the panel's roster strip writes slots.json directly (registry
+        # edits are structural, not staged values), so the rest of the shell
+        # has to re-read it — the DetailsPanel.registry_changed precedent.
+        self.vfx_preview.registry_changed.connect(self._reload_registries)
 
         # Theme wiring (UH-6, D5): the "Theme" leaf -> right_stack; Save ->
         # reconfigure engine.render.fonts in-process + repaint the viewport
