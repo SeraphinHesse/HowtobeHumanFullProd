@@ -118,6 +118,7 @@ DOMAINS = {
         "test_construct_card.py",
         "test_cutscene_player.py",
         "test_cutscene_session.py",
+        "test_digger_telegraphs.py",
         "test_enemy_hp_bars.py",
         "test_esv6_converge.py",
         "test_game_boot.py",
