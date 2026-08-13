@@ -148,6 +148,27 @@
               },
               "type": "object"
             },
+            "column": {
+              "description": "Optional master-column window origin: the 0-based master COLUMN this entry cuts from, the horizontal twin of row_start. Entry frame j of row i cuts sheet x = (column * column_width + j) * frame_w. Omitted => 0 => the entry is byte-identical to a pre-column entry, the same 'optional by omission from required' convention slice, tint_overlay and row_start follow. Master sheets only (D2): meaningless on an imported/<slot>.png entry, which has no columns. 0-based like row_start, hence a ceiling of 255.",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "column_mode": {
+              "description": "Optional declaration of WHO picks this entry's column (D3). 'manual' (or the key absent) => the stored 'column' above wins. Any other value => a live column supplied by the render path wins, falling back to the stored 'column' when the caller supplies none. The engine only ever distinguishes manual from not-manual (D12); it never learns what a season or a colour is — those meanings live in game/ and editor/, and this enum is the only place their names are written down. 'season' => the map's season stepper drives it; 'building_color' => the placed building's chosen colour index drives it.",
+              "enum": [
+                "manual",
+                "season",
+                "building_color"
+              ],
+              "type": "string"
+            },
+            "column_width": {
+              "description": "How many frame-columns one master column spans, INHERITED from the linked master sheet's registry entry (sprites/master_sheets.json). It is a second copy of a registry value and exists only because engine/ never reads the registry from the cut path — the store sees entry.sheet as an opaque relative path. It cannot drift: no slicing value on a sheet may change while any slot links it. Omitted => 0 => column * 0 + frame_col == frame_col => byte-identical resolution for every pre-column entry. NOTE the deliberate asymmetry: 0 is NOT a legal authored value (minimum 1), it is only the in-memory default for an absent key.",
+              "maximum": 256,
+              "minimum": 1,
+              "type": "integer"
+            },
             "frame_h": {
               "description": "Frame height in pixels this sheet is sliced at.",
               "maximum": 1024,
