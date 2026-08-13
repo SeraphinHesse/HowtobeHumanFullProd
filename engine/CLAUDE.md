@@ -27,7 +27,7 @@ engine task; if an engine change forces a caller change, tell the user
 | `core/` | `engine/core/CLAUDE.md` | GameObject/Component/Transform/Scene; serialization; `Movement`/`RangeSensor`; spatial queries |
 | `render/` | `engine/render/CLAUDE.md` | RenderItem→depth-sort→blit; backend throughput; HUD pass + fonts (G4: `flush(target, hud_target=…)` splits the HUD onto its own target + the Surface backend, for the GPU host's per-frame composite); the ground cache |
 | `physics/` | `engine/physics/CLAUDE.md` | SpatialGrid, TileOccupancy, waypoint `advance` (E-30..E-32) |
-| `assets/` | `engine/assets/CLAUDE.md` | slot registry, manifest v2, `playback_order`, grey-X placeholder |
+| `assets/` | `engine/assets/CLAUDE.md` | slot registry, manifest v2, `playback_order`, grey-X placeholder; the master-sheet registry loader (`master_registry.py` — `data/sprites/master_sheets.json`, read by game AND editor) |
 | `vfx/` | none yet (this table is its doc) | procedural particle/gold/slash/splatter emitters + `VfxSystem` (ESV-3a); beam/crater/lightning/announce param dataclasses (ESV-3b, no engine-side state — see below); `play_once` — the one-shot sprite VFX (ESV-5, no engine-side state either — see below); `FloaterParams` (ESV-6, floater colours/lifetimes — also no engine-side state) |
 
 ## Top-level modules (`engine/*.py`) — this router IS their doc

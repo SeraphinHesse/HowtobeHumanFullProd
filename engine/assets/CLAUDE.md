@@ -133,6 +133,49 @@ crashes boot.** When you change asset conventions, update THIS doc.
   - A window running past the sheet's real rows degrades to the grey-X
     placeholder with a warning naming the resolved sheet row — never raises
     (E-37), the same path an off-sheet column already took.
+- **Optional `column` / `column_mode` / `column_width` (D1/D2/D3/D12,
+  MasterSheetColumnsPLAN)**: the FIFTH-through-SEVENTH optional per-entry
+  keys, the horizontal twin of `row_start`. `column` is the 0-based master
+  COLUMN this entry cuts from; `column_width` is how many frame-columns one
+  master column spans, **measured in FRAMES, not pixels** (D1) — a raw pixel
+  width can disagree with `frame_w` and produce a column boundary mid-frame;
+  `column_mode` declares WHO picks the live column (`"manual"`, or a key
+  absent, means the stored `column` wins; any other value means a caller-
+  supplied column wins, falling back to the stored `column` when the caller
+  supplies none). Columns are **master-sheet-only** (D2) — a plain
+  `imported/<slot>.png` entry has no column concept, exactly the scope rule
+  `row_start` already follows. `entry_from_dict` parses all three with the
+  same defensive shape as `row_start` — no `int()` coercion, so a bool, a
+  float, a numeric string or a negative all RAISE for `column`; `column_mode`
+  raises on anything outside its enum — and `load_manifest` is again the E-37
+  layer turning any of those raises into warn-and-skip-this-entry. Omitted
+  `column`/`column_mode` ⇒ `0`/`"manual"`; omitted `column_width` ⇒ `0` ⇒
+  `block * 0 + col == col` ⇒ the entry is **byte-identical** to a
+  pre-column entry, the same "optional by omission" convention `slice`,
+  `tint_overlay` and `row_start` already follow.
+  - **D12 — the engine never learns what a season or a colour is.** It only
+    ever distinguishes `manual` from not-manual; the enum's values live in
+    `data/schemas/asset_manifest.schema.json` and their MEANING lives in
+    `game/` and `editor/` — the same line `engine/vfx/` holds against
+    balancing key names.
+  - **It is a SLICING concern, never a playback one**, same as `row_start`:
+    `AssetStore._frame_surface`'s rect is the ONE place the column window is
+    applied (alongside the row window); `Track.row`, `playback_order` and
+    `current_frame` keep meaning "row *i* / frame *j* of THIS entry's own
+    `rows[]`".
+  - **The clamp is per-sheet and never wraps (D7).** The resolved block
+    clamps to the sheet's real column count (`sheet.get_width() //
+    (column_width * frame_w)`); a rect that still lands off the sheet after
+    the clamp degrades to the grey-X placeholder with a warning naming the
+    resolved block, never raises (E-37) — the same path an off-sheet row
+    already takes.
+  - **`_frames`/`_hit_masks` gain the resolved block in their cache key**
+    (`(slot_key, row, col, block)`, up from `(slot_key, row, col)`): two
+    different columns of one slot must resolve to two DIFFERENT surfaces, or
+    the cache would silently hand column 2 the pixels of column 0 forever —
+    the same collision class D10 already guards against for sheet-keyed
+    frames. There is a comment in `AssetStore.__init__` saying so; do not
+    "simplify" it back to a 3-tuple.
 - **Store**: `AssetStore(manifest, registry, frame_sizes, default_frame_size,
   sprites_dir)`; frame-size precedence manifest entry > registry (**per-slot
   override, then category**) > frame_sizes > default. Sheets load via `pygame.image.load` with NO
@@ -145,7 +188,12 @@ crashes boot.** When you change asset conventions, update THIS doc.
   **and** may declare its own `frame_w`/`frame_h`. Only the raw Surface is safe
   to share; deduping frames too would mean folding the grid and the window into
   the key, which is a noted follow-up and deliberately not done. There is a
-  comment in `__init__` saying so; do not "fix" it. A failing shared sheet is
+  comment in `__init__` saying so; do not "fix" it. **The key is now a 4-tuple
+  carrying the RESOLVED column block** (MasterSheetColumnsPLAN): the slot stays
+  in it for the reason above, and the block joins it because a live column can
+  make ONE slot resolve different pixels for the same `(row, col)` — two
+  columns of the same slot are two different surfaces, so the block has to be
+  part of what identifies a cached frame. A failing shared sheet is
   also logged once, naming only the first slot that asked for it — accepted, the
   resolved path is the actionable half.
   Sliced frames are SUBSURFACES — the parent sheet must stay cached. There is no
@@ -176,7 +224,8 @@ crashes boot.** When you change asset conventions, update THIS doc.
   the frame exactly like `frame()`, then maps `rel_xy` through
   `dest_to_source` and reads a `pygame.mask.from_surface(surface,
   threshold=0)` (alpha > 0 counts as opaque) cached in `self._hit_masks`,
-  keyed `(slot_key, row, col)` — the SAME key space as `_frames`. Tolerance
+  keyed `(slot_key, row, col, column_block)` — the SAME key space as
+  `_frames`, resolved column block and all (see **Store** above). Tolerance
   (E-37): a placeholder or a corrupt/missing sheet degrades to `True` (opaque
   everywhere — a partially-imported build stays fully clickable); a `rel_xy`
   that maps outside the source frame bounds degrades to `False` rather than
@@ -195,6 +244,18 @@ crashes boot.** When you change asset conventions, update THIS doc.
   the procedural `enemy`/`enemy_t*` entries are unreferenced strays in the
   manifest (the enemies registry points at the real `enemy_stage_N`/
   `raider_stage_N` sheets).
+- **`master_registry.py` (MasterSheetColumnsPLAN C3)** — the pure reader of
+  `data/sprites/master_sheets.json`, sibling of `registry.py`: fail-loud via
+  `data_io.load_validated` (the registry is infrastructure, the E-37 split
+  above). `columns_for(doc, ref)` / `column_width_for(doc, ref)` resolve a
+  `master/<id>.png` ref **against each entry's STORED `file`, never a
+  re-derived path**, and are total — an `imported/` ref, an unknown sheet or a
+  malformed entry returns `()` / `0` rather than raising. It lives in `engine/`
+  because `game/` and `editor/` both need it and may not import each other
+  (the `era_math.py` argument). The editor's
+  `master_sheet_import.load_registry_doc` delegates its READ here and keeps its
+  own E-37 degrade-to-empty-doc wrapper; `write_registry_doc` is still the ONE
+  write path.
 
 ## Verify
 `playback_order` + tolerance unit tests; the headless smoke test fails loud on an

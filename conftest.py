@@ -123,6 +123,7 @@ TIERS = {
     "test_levelup": "core",
     "test_lightning": "core",
     "test_map_overlays": "core",  # MapOverlays: the TIER OVERVIEW toggle pill
+    "test_master_registry": "core",   # MasterSheetColumnsPLAN C3
     # GpuAndMasterSheetsPLAN M3: editor/master_sheet_import.py + its picker
     # dialog. `editor` because half of it builds Qt widgets.
     "test_master_sheet_import": "editor",

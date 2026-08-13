@@ -63,11 +63,13 @@ class MasterSheetImportTest(DataDirCase):
         png = self.data_dir / "sprites" / "master" / "village_folk.png"
         self.assertTrue(png.is_file())
         # write_registry_doc goes through write_validated, so a re-load that
-        # carries exactly the four required keys is the validity assertion.
+        # carries exactly the five required keys is the validity assertion.
+        # `column_width` is the C3 stopgap default: the 128px-wide source is
+        # ONE column of 128 // 32 = 4 frames, so no slot's art can move.
         self.assertEqual(
             self.registry()["entries"]["village_folk"],
             {"file": "master/village_folk.png", "display_name": "Village Folk",
-             "frame_w": 32, "frame_h": 48})
+             "frame_w": 32, "frame_h": 48, "column_width": 4})
 
     def test_reimport_same_bytes_leaves_the_file_untouched(self):
         sheet_id = master_sheet_import.import_master_sheet(
@@ -132,6 +134,25 @@ class MasterSheetImportTest(DataDirCase):
         # "Alpha spare" before "zebra crowd" — display_name, case-insensitive.
         self.assertEqual([sheet.sheet_id for sheet in sheets],
                          [orphan, shared])
+
+
+class LoadRegistryDocDegradesTest(DataDirCase):
+    """MasterSheetColumnsPLAN C3 — the READ now delegates to
+    `engine.assets.master_registry.load_registry` (which fails loud), so the
+    E-37 degrade-to-empty-doc wrapper is the thing that must still hold."""
+
+    EMPTY = {"version": 1, "entries": {}}
+
+    def test_missing_registry_reads_as_an_empty_doc(self):
+        master_sheet_import.registry_path(self.data_dir).unlink()
+        self.assertEqual(
+            master_sheet_import.load_registry_doc(self.data_dir), self.EMPTY)
+
+    def test_corrupt_registry_reads_as_an_empty_doc(self):
+        master_sheet_import.registry_path(self.data_dir).write_text(
+            "{not json at all", encoding="utf-8")
+        self.assertEqual(
+            master_sheet_import.load_registry_doc(self.data_dir), self.EMPTY)
 
 
 class GridInUseTest(DataDirCase):

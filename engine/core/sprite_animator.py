@@ -19,6 +19,7 @@ class SpriteAnimator(Component):
     fit_tiles: float = 0.0
     scale: float = 1.0
     visible: bool = True
+    column: int = 0
 
     def update(self, dt):
         self.anim_time_ms += dt * 1000.0
@@ -39,4 +40,5 @@ class SpriteAnimator(Component):
             anim_time_ms=self.anim_time_ms + self.phase_ms,
             fit_tiles=self.fit_tiles,
             scale=self.scale,
+            column=self.column,
         )

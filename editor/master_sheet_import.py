@@ -33,10 +33,12 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from jsonschema import ValidationError
 from PIL import Image
 
 from editor.asset_import import load_manifest_doc, sheet_users
 from engine import data_io
+from engine.assets import master_registry
 
 REPO = Path(__file__).resolve().parents[1]
 DEFAULT_DATA = REPO / "data"
@@ -94,10 +96,21 @@ def master_ref(sheet_id):
 def load_registry_doc(data_dir=None):
     """The raw master-sheet registry doc, tolerant of a missing/corrupt file
     (E-37 — the pre-import state is normal; the file ships seeded EMPTY). Twin
-    of ``asset_import.load_manifest_doc``."""
+    of ``asset_import.load_manifest_doc``.
+
+    The READ delegates to ``engine.assets.master_registry.load_registry``
+    (C3) — ``game/`` and ``editor/`` both need to read this registry and may
+    not import each other, so the reader lives in ``engine/``. The E-37
+    tolerance stays HERE: the engine reader fails loud on purpose, and this
+    wrapper is the editor's own degrade-to-empty-doc policy. One deliberate
+    delta from the old ``load_json`` read: a registry that parses as JSON but
+    FAILS the schema now reads as ABSENT rather than being returned raw —
+    the same "corrupt file -> empty" branch this docstring already promised,
+    and only a hand-edit can produce one (``write_registry_doc`` is the ONE
+    write path, ED-31, and it validates)."""
     try:
-        doc = data_io.load_json(registry_path(data_dir))
-    except (OSError, ValueError):
+        doc = master_registry.load_registry(_data_dir(data_dir))
+    except (OSError, ValueError, ValidationError):
         return {"version": 1, "entries": {}}
     if not isinstance(doc, dict) or not isinstance(doc.get("entries"), dict):
         return {"version": 1, "entries": {}}
@@ -273,11 +286,21 @@ def import_master_sheet(data_dir, png_path, display_name, frame_w, frame_h):
     if not _same_bytes(png_path, destination):
         destination.write_bytes(png_path.read_bytes())
 
+    # STOPGAP (MasterSheetColumnsPLAN C3, superseded by S2's import form, which
+    # gives the designer a real `column_width` field). C1 made `column_width` a
+    # REQUIRED key, so this write must supply one. ONE COLUMN SPANNING THE WHOLE
+    # SHEET is the behaviour-preserving default: every existing sheet becomes a
+    # 1-column sheet, D7's per-sheet clamp holds every slot at column 0, and no
+    # art moves. A literal `1` would claim a 6-frame-wide sheet has six colour
+    # columns and send a column-driven slot into garbage.
+    with Image.open(destination) as image:
+        sheet_w, _ = image.size
     doc["entries"][sheet_id] = {
         "file": master_ref(sheet_id),
         "display_name": name,
         "frame_w": frame_w,
         "frame_h": frame_h,
+        "column_width": max(1, sheet_w // frame_w),
     }
     write_registry_doc(data_dir, doc)
     return sheet_id

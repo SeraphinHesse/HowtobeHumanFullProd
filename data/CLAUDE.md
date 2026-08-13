@@ -602,12 +602,43 @@ validating writer; don't hand-edit the JSON.
     window END is deliberately NOT stored: it is `len(rows)`, one source of
     truth. **Nothing reads it yet** — M1 ships schema only; M2 applies it in
     exactly one place in `engine/assets`.
+  - **`column`, `column_mode`, `column_width` (C1, MasterSheetColumnsPLAN)**
+    are three more OPTIONAL per-entry keys and, like `row_start`, a SLICING
+    concern and never a playback one — they move WHERE on the sheet a frame is
+    cut from, never how many frames play or in what order. `column` is the
+    0-based master COLUMN this entry cuts from, the horizontal twin of
+    `row_start`: entry frame `j` of row `i` cuts sheet
+    `x = (column * column_width + j) * frame_w`. Ints 0..255, same 0-based
+    convention. All three omitted ⇒ `column` 0 and `column_width` 0 ⇒
+    `column * 0 + j == j` ⇒ **byte-identical** resolution for every pre-column
+    entry, the same "optional by omission from `required`" trick `slice`,
+    `tint_overlay` and `row_start` use — which is why not one byte of
+    `sprites/asset_manifest.json` changed when the keys were added.
+    - **`column_width` here is an INHERITED COPY of the registry value**
+      (`sprites/master_sheets.json`), and that duplication is forced by
+      layering, not laziness: `engine/` never reads the registry from the cut
+      path — the store resolves `entry.sheet` as an opaque relative path — so
+      the width has to travel on the entry. It cannot drift, because no slicing
+      value on a sheet may change while any slot links it (D10). Note the
+      deliberate asymmetry: the schema `minimum` is 1 (0 is not a legal
+      authored value) while the loader's omitted-default is 0.
+    - **D12 — the engine only distinguishes `manual` from not-manual.**
+      `column_mode` absent or `"manual"` ⇒ the stored `column` wins; any other
+      value ⇒ a live column supplied by the render path wins, falling back to
+      the stored `column` when the caller supplies none. The engine never
+      learns what a season or a colour *is*; those meanings live in `game/` and
+      `editor/`, and the schema's `enum`
+      (`manual` / `season` / `building_color`) is the only place their names
+      are written down.
+    **Read end-to-end as of S1** — `AssetStore._frame_surface`
+    (`engine/assets/store.py`) is the ONE place the column window is applied,
+    exactly as it is for `row_start`.
 - **`sprites/master_sheets.json` ↔ `schemas/master_sheets.schema.json`
-  (M1, D1/D3)** — the registry of MASTER spritesheets:
+  (M1, D1/D3; columns C1)** — the registry of MASTER spritesheets:
   `{version: 1, entries: {<sheet_id>: {file: "master/<sheet_id>.png",
-  display_name, frame_w, frame_h}}}`, `sheet_id` on the usual
-  `^[a-z][a-z0-9_]*$` slot-key convention. Seeded empty. Written ONLY by the
-  editor's master-sheet import, through `write_validated`.
+  display_name, frame_w, frame_h, column_width, columns?}}}`, `sheet_id` on the
+  usual `^[a-z][a-z0-9_]*$` slot-key convention. Seeded empty. Written ONLY by
+  the editor's master-sheet import, through `write_validated`.
   - **Normal stem pairing — no fifth smoke directory exception.**
     `tools/smoke.py::validate_data` special-cases only `maps/`,
     `balancing_history/`, `agent_forms/` and `ui/screens/`; everything else
@@ -624,6 +655,22 @@ validating writer; don't hand-edit the JSON.
     slot cutting one master sheet agrees on what row N means. The bounds
     (1..1024) are deliberately identical to the manifest's — the two describe
     the same pixels and must not disagree.
+  - **The registry OWNS the column width too (C1, D1/D2/D4).**
+    `column_width` is **required** — the entry object has no optional-key
+    convention to join — and is counted in **FRAMES, never pixels**, so a
+    column boundary can never land mid-frame the way a raw pixel width can. A
+    sheet whose art is one single column sets it to its full column count (the
+    committed `slinger_t2_lvl3` is 15 cols × 6 rows and reads `column_width:
+    15`, no `columns`). **Columns are MASTER-SHEET-ONLY (D2)**: a plain
+    `imported/<slot>.png` has no column concept, which is why the manifest's
+    three column keys are optional. `columns` is an OPTIONAL array of per-column
+    names in sheet order (D4) — colour-swatch or season labels; omitted ⇒ this
+    sheet's columns are unnamed and referred to by INDEX, and the index is the
+    identity a building stores (D5), so two sheets in one upgrade chain must
+    author their colours in the same order and nothing enforces that.
+    **Both keys are read as of S1** — via `engine/assets/master_registry.py`
+    (`columns_for` / `column_width_for`), the reader `game/` and `editor/`
+    share because they may not import each other.
   - The `file` pattern does not cross-check that the id inside the path equals
     the entry key; JSON Schema cannot say that. If it is ever wanted it belongs
     in a loader cross-check (the `engine.tilemap` precedent), not the schema.
