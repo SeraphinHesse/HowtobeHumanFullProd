@@ -1848,6 +1848,14 @@ calls):
   engine's rule that `AssetStore._frame_surface` is the only place `row_start`
   is applied. That is why `DetailsPanel._on_frame_clicked` needs no offset.
 
+- **The column window is the row window's twin (E2)**: `set_sheet(png, fw, fh,
+  row_start=0, row_count=None, col_start=0, col_count=None)` — same
+  opt-in/reset/clamp rules, applied in the SAME source-rectangle line in
+  `paintEvent`, and `column_window()` sits beside `row_window()`. Cell captions
+  and `frame_clicked(row, col)` stay WINDOW-RELATIVE on BOTH axes now, not just
+  rows — the preview and the RowEditors below it must not be able to disagree
+  about what "frame 1" means on either axis.
+
 ### E1 — import path: column width + column names (MasterSheetColumnsPLAN)
 - **The import form collects the real designer-supplied `column_width`** plus an
   optional comma-separated **Colours** field, replacing S1/C3's stopgap

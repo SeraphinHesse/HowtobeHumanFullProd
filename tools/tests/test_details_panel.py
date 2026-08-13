@@ -654,6 +654,75 @@ class TestSheetPreviewRowWindow(QtCase):
             self.assertEqual(widget.row_window(), (4, 1))
 
 
+class TestSheetPreviewColumnWindow(QtCase):
+    """The column window is the row window's twin: equally OPT-IN, applied in
+    the SAME source rectangle, and WINDOW-RELATIVE — the first visible column
+    is column 0 for the captions and for `frame_clicked`."""
+
+    FRAME = (16, 24)
+    #: One flat colour per SHEET column, so a rendered pixel says which source
+    #: column the paintEvent actually sampled.
+    COLOURS = ((200, 60, 60), (60, 200, 60), (60, 60, 200))
+
+    def preview(self, tmp):
+        """A 3x5-frame sheet whose columns are individually identifiable."""
+        path = Path(tmp) / "striped.png"
+        image = Image.new("RGBA", (3 * 16, 5 * 24))
+        for col, colour in enumerate(self.COLOURS):
+            for x in range(col * 16, (col + 1) * 16):
+                for y in range(5 * 24):
+                    image.putpixel((x, y), colour + (255,))
+        image.save(path)
+        widget = self.track(SheetPreview(interactive=True))
+        widget.resize(3 * 16, 5 * 24)
+        return widget, path
+
+    def test_a_column_window_narrows_the_grid_and_the_source_rect(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            widget, png = self.preview(tmp)
+            widget.set_sheet(png, *self.FRAME)
+            full_width = widget._grid_rect().width()
+
+            widget.set_sheet(png, *self.FRAME, col_start=1, col_count=1)
+            self.assertEqual(widget.column_window(), (1, 1))
+            self.assertLess(widget._grid_rect().width(), full_width)
+            # The one application point really moved: the single visible cell
+            # is painted from SHEET column 1, not from column 0.
+            centre = widget._cell_rect(0, 0).center()
+            painted = widget.grab().toImage().pixelColor(centre).getRgb()[:3]
+            self.assertEqual(painted, self.COLOURS[1])
+
+    def test_the_first_visible_column_is_column_zero(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            widget, png = self.preview(tmp)
+            widget.set_sheet(png, *self.FRAME, col_start=1, col_count=2)
+            # cell_at IS the frame_clicked payload (mousePressEvent re-emits it
+            # verbatim), so asserting it pins the signal's vocabulary.
+            self.assertEqual(widget.cell_at(widget._cell_rect(0, 0).center()),
+                             (0, 0))
+            self.assertIsNone(widget.cell_at(widget._cell_rect(0, 2).center()))
+
+    def test_a_window_past_the_right_edge_is_clamped_not_raised(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            widget, png = self.preview(tmp)
+            widget.set_sheet(png, *self.FRAME, col_start=2, col_count=99)
+            self.assertEqual(widget.column_window(), (2, 1))
+
+    def test_default_arguments_show_the_whole_sheet(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            widget, png = self.preview(tmp)
+            widget.set_sheet(png, *self.FRAME)
+            self.assertEqual(widget.column_window(), (0, 3))
+            before = widget.grab().toImage()
+
+            widget.set_sheet(png, *self.FRAME, col_start=1, col_count=1)
+            self.assertEqual(widget.column_window(), (1, 1))
+
+            widget.set_sheet(png, *self.FRAME)      # a 3-arg call RESETS it
+            self.assertEqual(widget.column_window(), (0, 3))
+            self.assertEqual(widget.grab().toImage(), before)
+
+
 class TestSheetPicker(DetailsCase):
     """The picker lists PNGs in data/sprites/imported/ and filters them by the
     target slot's frame size.
