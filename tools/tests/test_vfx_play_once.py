@@ -352,9 +352,24 @@ class TestNewVfxSlotsRegistered(unittest.TestCase):
     per-slot override mechanism doing exactly its job — and the subtest went
     red for a data change it should have followed. The rule (override wins,
     else inherit the category) is derived from `slots.json` below, so a future
-    re-cut of any of these slots is tracked instead of breaking the suite."""
+    re-cut of any of these slots is tracked instead of breaking the suite.
+
+    VfxAuthoringPLAN VA-1/D1 then nested the `Effects` group into one leaf
+    CHILD group per effect (so `registry_ops.add_variant` becomes reachable),
+    which broke the flat `group["slots"]` walk below the same way — a
+    STRUCTURE change this time rather than a value one. The walk recurses now,
+    for the same reason it reads the doc at all: the expectation follows the
+    data instead of freezing a snapshot of it."""
 
     SLOTS = ("vfx_muzzle", "vfx_death", "vfx_slash", "vfx_crater")
+
+    @classmethod
+    def _raw_slot_entries(cls, group):
+        """Every raw slots[] entry under a group node, at any depth — the
+        `slots` XOR `children` shape `slots.schema.json` declares."""
+        yield from group.get("slots", ())
+        for child in group.get("children", ()):
+            yield from cls._raw_slot_entries(child)
 
     def _expected_sizes(self, data_dir):
         """{slot: (w, h)} for SLOTS, read from the `vfx` category in
@@ -365,7 +380,7 @@ class TestNewVfxSlotsRegistered(unittest.TestCase):
         default = (category["frame_w"], category["frame_h"])
         sizes = {slot: default for slot in self.SLOTS}
         for group in category["groups"]:
-            for entry in group["slots"]:
+            for entry in self._raw_slot_entries(group):
                 if isinstance(entry, dict) and entry["key"] in sizes:
                     sizes[entry["key"]] = (entry["frame_w"], entry["frame_h"])
         return default, sizes

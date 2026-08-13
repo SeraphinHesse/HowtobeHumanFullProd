@@ -79,12 +79,19 @@
           "description": "The vfx_* slot key to play as a one-shot sprite when it has imported art, or \"\" to always use the procedural fallback. A bound slot with no art imported yet also falls through to the procedural fallback (E-37) - this is what keeps a fresh checkout byte-identical to today.",
           "enum": [
             "",
-            "vfx_hit",
-            "vfx_explosion",
-            "vfx_muzzle",
+            "vfx_beam",
+            "vfx_buff_arrow",
+            "vfx_crater",
             "vfx_death",
-            "vfx_slash",
-            "vfx_crater"
+            "vfx_digger_direction",
+            "vfx_digger_marker",
+            "vfx_dirt_pile",
+            "vfx_explosion",
+            "vfx_hit",
+            "vfx_muzzle",
+            "vfx_projectile",
+            "vfx_shell",
+            "vfx_slash"
           ],
           "type": "string"
         }
