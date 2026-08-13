@@ -50,9 +50,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from editor import asset_import, registry_ops, selection
+from editor import asset_import, master_sheet_import, registry_ops, selection
 from editor.asset_import import pad_to_frame
 from editor.panels.balancing import _NoWheelComboBox, _NoWheelSpinBox
+from editor.panels.master_sheet_dialog import MasterSheetDialog
 from editor.panels.sheet_picker import SheetPickerDialog
 from editor.panels.sheet_preview import SheetPreview
 from engine.assets import load_manifest, load_registry
@@ -63,6 +64,15 @@ REPO = Path(__file__).resolve().parents[2]
 # tile conditions — the only one the tint-fallback checkbox applies to. Named
 # here rather than imported: `editor/` may never import `game/`.
 CONDITION_CATEGORY = "conditions"
+
+#: A manifest `sheet` under this prefix is a MASTER spritesheet (D1) — one PNG
+#: many slots cut their own row window out of. Tested against the entry's
+#: STORED ref, never re-derived from the slot key.
+MASTER_PREFIX = "master/"
+
+MASTER_GRID_TOOLTIP = (
+    "The master spritesheet owns this grid (D3) — every slot cutting it must\n"
+    "agree on what a row means, so the frame size is inherited, not per-slot.")
 
 
 class RowEditor(QGroupBox):
@@ -280,6 +290,16 @@ class DetailsPanel(QWidget):
         #: The sheet THIS slot's entry points at — may be another slot's PNG.
         self._sheet_ref = None
         self._row_frame_size = (1, 1)   # set for real by _load_sheet
+        #: The ROW WINDOW into a master sheet (M4/D2): `_row_start` is the sheet
+        #: row this entry's rows[0] cuts from, `_row_count` how many rows the
+        #: window spans (None = to the bottom of the sheet). 0/None for every
+        #: non-master sheet, which is what keeps those entries byte-identical.
+        self._row_start = 0
+        self._row_count = None
+        self._sheet_rows = 0            # rows the CURRENT sheet really has
+        #: The master sheet's own frame size while one is linked (D3) — the
+        #: registry's per-slot size does not apply then.
+        self._master_grid = None
 
         self._subcat_combo = _NoWheelComboBox()
         self._subcat_combo.currentIndexChanged.connect(self._on_subcat_changed)
@@ -298,13 +318,21 @@ class DetailsPanel(QWidget):
         # clicked(bool checked) would land in a kwarg default — always wrap
         # (the panels-doc footgun that bit map_details' Delete).
         self._use_btn.clicked.connect(lambda: self._on_use_clicked())
+        self._master_btn = QPushButton("Use Master Spritesheet…")
+        self._master_btn.setToolTip(
+            "Cut this slot's rows out of a MASTER spritesheet — one big PNG\n"
+            "many characters share. The sheet owns the frame size; this slot\n"
+            "claims a row window in it. Nothing is copied.")
+        # Wrapped, like _use_btn/_clear_btn: a bare connect would put Qt's
+        # clicked(bool checked) into the first argument (the panels-doc footgun).
+        self._master_btn.clicked.connect(lambda: self._on_master_clicked())
         self._save_btn = QPushButton("Save")
         self._save_btn.clicked.connect(self.save)
         self._clear_btn = QPushButton("Clear")
         self._clear_btn.clicked.connect(lambda: self.clear_entry())
         buttons = QHBoxLayout()
-        for btn in (self._import_btn, self._use_btn, self._save_btn,
-                    self._clear_btn):
+        for btn in (self._import_btn, self._use_btn, self._master_btn,
+                    self._save_btn, self._clear_btn):
             buttons.addWidget(btn)
         buttons.addStretch(1)
 
@@ -373,6 +401,26 @@ class DetailsPanel(QWidget):
         frames.addWidget(QLabel("(how the sheet is SLICED)"))
         frames.addStretch(1)
 
+        # The master-sheet ROW WINDOW (D2/D4), built exactly like the Frame W/H
+        # row above and shown only while the slot's sheet IS a master sheet.
+        # `a > b` is unrepresentable (ED-30): the second spin's minimum tracks
+        # the first as it moves, rather than a save-time error.
+        self._master_row = QWidget()
+        master_layout = QHBoxLayout(self._master_row)
+        master_layout.setContentsMargins(0, 0, 0, 0)
+        master_layout.addWidget(QLabel("Using rows"))
+        self._row_from = _NoWheelSpinBox()
+        self._row_to = _NoWheelSpinBox()
+        for spin in (self._row_from, self._row_to):
+            spin.setRange(0, 255)       # asset_manifest.schema.json row_start
+            spin.editingFinished.connect(self._on_row_window_changed)
+        self._row_from.valueChanged.connect(self._row_to.setMinimum)
+        master_layout.addWidget(self._row_from)
+        master_layout.addWidget(QLabel("til"))
+        master_layout.addWidget(self._row_to)
+        master_layout.addWidget(QLabel("(rows of the master spritesheet)"))
+        master_layout.addStretch(1)
+
         self._preview = SheetPreview(interactive=True)
         self._preview.frame_clicked.connect(self._on_frame_clicked)
 
@@ -392,11 +440,13 @@ class DetailsPanel(QWidget):
         layout.addWidget(self._slice_row)
         layout.addWidget(self._tint_row)
         layout.addLayout(frames)
+        layout.addWidget(self._master_row)
         layout.addWidget(self._info)
         layout.addWidget(scroll, 1)
         self._set_buttons_enabled(False, False, False)
         self._slice_row.setVisible(False)
         self._tint_row.setVisible(False)
+        self._master_row.setVisible(False)
 
     # -- subcategory dropdown (fed by the shell from the tree selection) ----
 
@@ -464,11 +514,13 @@ class DetailsPanel(QWidget):
             for spin in self._slice_spins:
                 spin.setValue(0)
             self._info.setText("")
+            self._reset_row_window()
             if slot_key is None:
                 self._sheet_ref = None
                 self._header.setText("Select a slot in the tree.")
                 self._set_buttons_enabled(False, False, False)
                 self._refresh_tint_state()
+                self._refresh_master_state()
                 self._refresh_preview()
                 return
             fw, fh = self.registry.frame_size(slot_key)
@@ -493,12 +545,21 @@ class DetailsPanel(QWidget):
             # some other slot's file).
             self._sheet_ref = ((entry or {}).get("sheet")
                                or asset_import.sheet_ref(slot_key))
+            if entry and self._master_applies():
+                # A master-linked entry carries the sheet's INHERITED grid (D3)
+                # and its own row window; both come off the entry rather than
+                # the registry, which does not own either.
+                self._master_grid = (int(entry["frame_w"]),
+                                     int(entry["frame_h"]))
+                self._row_start = int(entry.get("row_start", 0))
+                self._row_count = len(entry.get("rows") or ()) or None
             sheet = self._sheet_file(self._sheet_ref)
             if sheet.exists():
                 self._load_sheet(sheet, entry)
             else:
                 self._info.setText("No spritesheet imported — grey-X placeholder.")
                 self._set_buttons_enabled(True, False, bool(entry))
+                self._refresh_master_state()
                 self._refresh_preview()
             self._refresh_tint_state(entry)
         finally:
@@ -528,6 +589,7 @@ class DetailsPanel(QWidget):
         elif Path(png_path).resolve() != destination.resolve():
             shutil.copyfile(png_path, destination)
         self._sheet_ref = asset_import.sheet_ref(self.slot_key)
+        self._reset_row_window()      # its own PNG starts at row 0 by definition
         entry = self._read_doc()["entries"].get(self.slot_key)
         self._loading = True
         try:
@@ -577,6 +639,7 @@ class DetailsPanel(QWidget):
         with Image.open(path) as image:
             w, h = image.size
         self._sheet_ref = ref
+        self._reset_row_window()   # the picker only offers whole imported/ PNGs
         self._loading = True
         try:
             self._load_sheet(path, seed)
@@ -587,6 +650,64 @@ class DetailsPanel(QWidget):
             self._loading = False
         self._emit_draft()
         return (w // fw, h // fh, (w % fw == 0) and (h % fh == 0))
+
+    def use_master_sheet(self, sheet, row_start=None, row_count=None):
+        """LINK this slot to a MASTER spritesheet and claim a row window in it
+        (M4, D2/D3) — the "Use Master Spritesheet…" path.
+
+        Takes a `master_sheet_import.MasterSheet`, or its id / stored ref (both
+        resolved through the registry). Copies NO bytes, exactly like
+        `use_sheet`: the entry points at the registry entry's STORED `file`,
+        verbatim — never a re-derived ``master/<id>.png`` (see
+        `master_sheet_import.master_ref`'s docstring).
+
+        The sheet OWNS the grid (D3): `frame_w`/`frame_h` are inherited into
+        `_row_frame_size` (and so into the saved entry), and the Frame W/H
+        spinboxes go read-only. **This deliberately bypasses
+        `_on_frame_size_changed`** — that method writes a per-slot
+        `slots.json` override and re-saves, and a master sheet's grid is NOT a
+        per-slot override. `slots.json` must not be touched here.
+
+        `row_start`/`row_count` default to whatever this slot's existing entry
+        already claims on this sheet, else the whole sheet. Same shape as
+        `use_sheet` — (cols, rows-in-window, clean_grid), or None when there is
+        no slot or the sheet is missing. Nothing is written until Save."""
+        if self.slot_key is None:
+            return None
+        sheet = self._resolve_master_sheet(sheet)
+        if sheet is None or not sheet.path.exists():
+            return None
+        entry = self._read_doc()["entries"].get(self.slot_key)
+        seed = entry if (entry or {}).get("sheet") == sheet.ref else None
+        self._sheet_ref = sheet.ref
+        self._master_grid = (sheet.frame_w, sheet.frame_h)
+        self._row_start = (int(seed.get("row_start", 0)) if seed is not None
+                           and row_start is None else int(row_start or 0))
+        self._row_count = (len(seed.get("rows") or ()) or None
+                           if seed is not None and row_count is None
+                           else row_count)
+        self._loading = True
+        try:
+            self._load_sheet(sheet.path, seed)
+            self._offset_x.setValue(int((seed or {}).get("offset_x", 0)))
+            self._offset_y.setValue(int((seed or {}).get("offset_y", 0)))
+            self._refresh_tint_state(seed)
+        finally:
+            self._loading = False
+        self._emit_draft()
+        fw, fh = sheet.frame_w, sheet.frame_h
+        return (sheet.width // fw, len(self._row_editors),
+                (sheet.width % fw == 0) and (sheet.height % fh == 0))
+
+    def _resolve_master_sheet(self, sheet):
+        """A `MasterSheet` from the dataclass, its id, or its stored ref."""
+        if hasattr(sheet, "ref"):
+            return sheet
+        key = str(sheet)
+        for candidate in master_sheet_import.master_sheets(self._data_dir):
+            if key in (candidate.sheet_id, candidate.ref):
+                return candidate
+        return None
 
     def draft_entry(self):
         """Current UI state as a manifest-v2 entry dict (None: no rows)."""
@@ -610,6 +731,16 @@ class DetailsPanel(QWidget):
         existing = self._read_doc()["entries"].get(self.slot_key)
         if existing and "anchors" in existing:
             entry["anchors"] = existing["anchors"]
+        # M4: the row window. Optional like `slice`/`tint_overlay` — OMITTED at
+        # 0, so every non-master entry stays byte-identical. And the `anchors`
+        # argument in reverse: a path that does NOT author a window (the sheet
+        # is not a master sheet, so the row is not even shown) must carry an
+        # existing one through rather than silently erasing it.
+        if self._master_applies():
+            if self._row_start:
+                entry["row_start"] = self._row_start
+        elif existing and existing.get("row_start"):
+            entry["row_start"] = existing["row_start"]
         if self._tint_applies() and self._tint_check.isChecked():
             # Optional like `slice`: False omits the key, so an entry that
             # doesn't want the tint is byte-identical to a pre-feature one, and
@@ -635,6 +766,76 @@ class DetailsPanel(QWidget):
         """The tint fallback only means anything for tile-condition art."""
         return (self._context is not None
                 and self._context[0] == CONDITION_CATEGORY)
+
+    def _master_applies(self):
+        """The row window is offered for MASTER sheets only (D4) — a plain
+        per-slot sheet starts at row 0 by definition. Unlike `_slice_applies`/
+        `_tint_applies` this tests the current SHEET REF, not the category:
+        any category may cut a master sheet."""
+        return bool(self._sheet_ref) and self._sheet_ref.startswith(MASTER_PREFIX)
+
+    def _effective_frame_size(self):
+        """The grid the current sheet is CUT at. A master sheet owns its grid
+        and the linking slot inherits it (D3), so the registry's per-slot size
+        (and any slots.json override) does not apply while one is linked."""
+        if self._master_applies() and self._master_grid:
+            return self._master_grid
+        return self.registry.frame_size(self.slot_key)
+
+    def _reset_row_window(self):
+        """Back to "the whole sheet, from row 0" — every non-master path."""
+        self._row_start = 0
+        self._row_count = None
+        self._sheet_rows = 0
+        self._master_grid = None
+
+    def _refresh_master_state(self):
+        """Show/fill the row window, and lock Frame W/H while a master sheet is
+        linked (D3 — the registry owns that grid, so the per-slot override the
+        spins author would be a lie)."""
+        master = self._master_applies()
+        self._master_row.setVisible(master)
+        for spin in (self._frame_w, self._frame_h):
+            spin.setEnabled(not master)
+            spin.setToolTip(MASTER_GRID_TOOLTIP if master else "")
+        if not master or self._sheet_rows < 1:
+            return
+        last = self._sheet_rows - 1
+        count = max(1, self._row_count or 1)
+        for spin in (self._row_from, self._row_to):
+            spin.blockSignals(True)
+        self._row_from.setRange(0, last)
+        self._row_from.setValue(self._row_start)
+        # `a > b` unrepresentable (ED-30): the minimum tracks the first spin.
+        self._row_to.setRange(self._row_start, last)
+        self._row_to.setValue(min(last, self._row_start + count - 1))
+        for spin in (self._row_from, self._row_to):
+            spin.blockSignals(False)
+        fw, fh = self._row_frame_size
+        self._frame_w.setValue(fw)
+        self._frame_h.setValue(fh)
+
+    def _on_row_window_changed(self):
+        """Re-cut the slot at the new window and rebuild exactly that many
+        RowEditors. Unlike `_on_frame_size_changed` this writes NOTHING — the
+        window is entry state, saved with Save like every other row edit."""
+        if self._loading or self.slot_key is None or not self._master_applies():
+            return
+        start = self._row_from.value()
+        end = max(start, self._row_to.value())
+        if (start, end - start + 1) == (self._row_start, self._row_count):
+            return
+        self._row_start, self._row_count = start, end - start + 1
+        sheet = self._sheet_file(self._sheet_ref)
+        if not sheet.exists():
+            return
+        entry = self._read_doc()["entries"].get(self.slot_key)
+        self._loading = True
+        try:
+            self._load_sheet(sheet, entry)
+        finally:
+            self._loading = False
+        self._emit_draft()
 
     def _refresh_tint_state(self, entry=None):
         """Sync the tint checkbox to whether this slot HAS art.
@@ -733,8 +934,18 @@ class DetailsPanel(QWidget):
             self._write_doc(doc)
         for orphan in asset_import.unreferenced_sheets(
                 doc, [ref, asset_import.sheet_ref(slot_key)]):
+            # A MASTER sheet is never collected, even at zero users: it is
+            # committed library content with its own registry entry, and
+            # "orphans are legal — that is how you get the art back"
+            # (master_sheet_import's module docstring, §9). Unlinking it would
+            # also strand the registry entry pointing at a vanished PNG. The
+            # refcount above still protects a master sheet with users, which is
+            # what M4 §3.6 asks for; this line extends it to zero users.
+            if orphan.startswith(MASTER_PREFIX):
+                continue
             self._sheet_file(orphan).unlink(missing_ok=True)
         self._sheet_ref = asset_import.sheet_ref(slot_key)
+        self._reset_row_window()
         self._loading = True
         try:
             self._clear_rows()
@@ -747,6 +958,7 @@ class DetailsPanel(QWidget):
             self._loading = False
         self._info.setText("Cleared — slot reverts to the grey-X placeholder.")
         self._set_buttons_enabled(True, False, False)
+        self._refresh_master_state()
         self._refresh_preview()
         self.entry_cleared.emit(slot_key)
 
@@ -769,15 +981,27 @@ class DetailsPanel(QWidget):
         asset_import.write_manifest_doc(self._data_dir, doc)
 
     def _load_sheet(self, sheet_path, entry):
-        fw, fh = self.registry.frame_size(self.slot_key)
+        fw, fh = self._effective_frame_size()
         self._row_frame_size = (fw, fh)
+        self._header.setText(f"[{self.slot_key}]  {fw}×{fh}/frame")
         with Image.open(sheet_path) as image:
             w, h = image.size
-        cols, rows = w // fw, h // fh
-        if cols < 1 or rows < 1:
+        cols, sheet_rows = w // fw, h // fh
+        self._sheet_rows = sheet_rows
+        if cols < 1 or sheet_rows < 1:
             self._info.setText(f"⚠ sheet too small for one {fw}×{fh} frame.")
             self._set_buttons_enabled(True, False, bool(entry))
+            self._refresh_master_state()
             return
+        # ONE RowEditor per row IN THE WINDOW (the whole sheet unless a master
+        # sheet narrowed it). Row 0 of the WINDOW stays idle-locked, so E-35
+        # remains unrepresentable in the UI rather than a save-time error.
+        start = min(self._row_start if self._master_applies() else 0,
+                    sheet_rows - 1)
+        available = sheet_rows - start
+        count = (available if self._row_count is None
+                 else max(1, min(self._row_count, available)))
+        self._row_start, self._row_count, rows = start, count, count
         if (w % fw) or (h % fh):
             self._info.setText(
                 f"⚠ not a clean {fw}×{fh} grid — remainder cropped "
@@ -800,6 +1024,7 @@ class DetailsPanel(QWidget):
             self._rows_layout.insertWidget(self._rows_layout.count() - 1, editor)
             self._row_editors.append(editor)
         self._set_buttons_enabled(True, True, True)
+        self._refresh_master_state()
         self._refresh_preview()
 
     def _clear_rows(self):
@@ -810,8 +1035,10 @@ class DetailsPanel(QWidget):
 
     def _set_buttons_enabled(self, import_ok, save_ok, clear_ok):
         self._import_btn.setEnabled(import_ok)
-        # "Use" is available exactly when "Import" is — both just need a slot.
+        # "Use" and "Use Master" are available exactly when "Import" is — all
+        # three just need a slot.
         self._use_btn.setEnabled(import_ok)
+        self._master_btn.setEnabled(import_ok)
         self._save_btn.setEnabled(save_ok)
         self._clear_btn.setEnabled(clear_ok)
 
@@ -825,7 +1052,11 @@ class DetailsPanel(QWidget):
             self._preview.set_rows(())
             return
         fw, fh = self._row_frame_size
-        self._preview.set_sheet(self._sheet_file(self._sheet_ref), fw, fh)
+        # The window narrows the PICTURE too, and it speaks entry-relative rows
+        # on the way back out — so `_on_frame_clicked` needs no offset.
+        self._preview.set_sheet(self._sheet_file(self._sheet_ref), fw, fh,
+                                row_start=self._row_start,
+                                row_count=len(self._row_editors))
         self._preview.set_rows([
             {"hidden": editor.effective_hidden(),
              "static_frame": editor.static_frame()}
@@ -873,3 +1104,22 @@ class DetailsPanel(QWidget):
             sheet = dialog.chosen()
             if sheet is not None:
                 self.use_sheet(sheet)
+
+    def _on_master_clicked(self):
+        """Open the master-sheet library. Construction is split from display
+        (the sheet-picker rule), so tests drive `use_master_sheet` directly and
+        never exec() a modal."""
+        if self.slot_key is None:
+            return
+        dialog = MasterSheetDialog(self._data_dir, parent=self)
+        if self._master_applies():
+            # Open on the sheet this slot already cuts — matched on the STORED
+            # ref, never on an id re-derived from it.
+            for sheet in dialog.visible_sheets():
+                if sheet.ref == self._sheet_ref:
+                    dialog.select_sheet(sheet.sheet_id)
+                    break
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            sheet = dialog.chosen_sheet()
+            if sheet is not None:
+                self.use_master_sheet(sheet)

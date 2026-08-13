@@ -1706,14 +1706,79 @@ calls):
 - **The dialog never writes** — `editor/master_sheet_import.py` owns the one
   `write_validated` path for this file (ED-31), and its `sheet_users` refcount is
   `asset_import`'s, not a second one.
-- **Nothing constructs this dialog yet**: DetailsPanel wires it in M4 and
-  VfxPreviewPanel in M5 (D5). The tests are its only caller in M3, by design.
+- **`DetailsPanel` constructs it since M4** (`_on_master_clicked`);
+  VfxPreviewPanel follows in M5 (D5). Construction split from display still
+  holds — tests drive `DetailsPanel.use_master_sheet` directly.
 - **Import is uniquify-never-overwrite**: a colliding display name yields
   `<slug>_2`, because overwriting `master/characters.png` would silently
   re-point every slot already cutting it. Re-importing the SAME bytes reuses the
   id, leaves the PNG untouched and rewrites the entry (so a wrong grid is
-  correctable). Whether M4 must refuse that once a sheet HAS users is M4's
-  question.
+  correctable) — **the byte-identity check scans the whole slug FAMILY**
+  (`slug`, `slug_2`, `slug_3`, … in id order), so re-importing `characters_2`'s
+  own bytes returns `characters_2` instead of minting a third identical
+  `characters_3`. Deliberately scoped to the family, not the whole registry: a
+  registry-wide scan would also collapse the same PNG imported under an
+  unrelated display name, a different behaviour change.
+- **M4 answered "must a re-import refuse a changed grid once the sheet has
+  users?" — YES.** `master_sheet_import.GridInUseError` (a **`ValueError`
+  subclass**, so `master_sheet_dialog._on_import_clicked`'s existing
+  `except (OSError, ValueError)` shows it as a warning with no dialog edit) is
+  raised when the resolved id already exists with a different `frame_w`/
+  `frame_h` AND `asset_import.sheet_users` is non-empty; the message names the
+  users. It is raised **before the PNG copy and before the registry write**, so
+  a refused import leaves disk byte-identical. **Zero users still rewrites** —
+  nothing can be mis-cut when nothing links, and that is the "correct a wrong
+  frame_w" flow M3 documented.
+
+### DetailsPanel ▸ master sheets (M4: the button, the row window, the narrowing)
+- **A third button, "Use Master Spritesheet…"**, beside Import / Use / Save /
+  Clear, `clicked.connect`-**wrapped in a lambda** like `_use_btn`/`_clear_btn`
+  (the `clicked(bool checked)` footgun). Construction is split from display;
+  `use_master_sheet(sheet, row_start=None, row_count=None)` is the model half
+  and takes a `MasterSheet`, its id, or its stored ref.
+- **The entry's `sheet` is the registry entry's STORED `file`, verbatim** —
+  never a re-derived `master/<id>.png` (`master_sheet_import.master_ref`'s
+  docstring). Nothing is copied, exactly like "Use Spritesheet…".
+- **The sheet owns the grid (D3)**: `frame_w`/`frame_h` are inherited into
+  `_row_frame_size` and the saved entry, and the Frame W/H spins go **disabled
+  with a tooltip**. This **bypasses `_on_frame_size_changed` on purpose** —
+  that method writes a per-slot `slots.json` override and re-saves, and a
+  master sheet's grid is not a per-slot override. `slots.json` must not be
+  touched on this path. `_effective_frame_size()` is the ONE place the
+  master-vs-registry choice is made.
+- **`_master_applies()`** is the `_slice_applies()`/`_tint_applies()` idiom with
+  one difference: it tests the current **`_sheet_ref`** (does it start with
+  `master/`), not the category — any category may cut a master sheet.
+- **The `Using rows [a] til [b]` row** is built exactly like the Frame W/H row
+  (`_NoWheelSpinBox` imported from `balancing.py`, commit on `editingFinished`)
+  and is visible only while `_master_applies()`. `a > b` is unrepresentable
+  (ED-30): `_row_from.valueChanged` drives `_row_to.setMinimum`. **`til` is
+  derived, never stored** — the saved window is `row_start` + `len(rows)` (D2).
+- **`_load_sheet` builds one RowEditor per row IN THE WINDOW**; row 0 of the
+  WINDOW stays idle-locked, so E-35 stays unrepresentable rather than becoming
+  a save-time error. Changing the window re-cuts and rebuilds but **writes
+  nothing** (unlike `_on_frame_size_changed`'s two-file write) — it is entry
+  state, saved by Save.
+- **`row_start` is optional-key-shaped like `slice`/`tint_overlay`**: omitted at
+  0, so every non-master entry stays byte-identical; and `draft_entry()`
+  PRESERVES an existing `row_start` on any path that does not author a window —
+  the `anchors` argument in reverse.
+- **Clear never unlinks a `master/` ref.** The existing refcount
+  (`asset_import.unreferenced_sheets`) already protects a master sheet other
+  slots still use — that part needed no change — but the last user going away
+  would have deleted committed library art and stranded its registry entry
+  pointing at a vanished PNG. **Orphans are legal (§9)**, so `clear_entry`
+  skips the `master/` prefix outright.
+
+- **`sheet_preview.SheetPreview`'s row window is OPT-IN and defaults to the
+  whole sheet**: `set_sheet(png, fw, fh, row_start=0, row_count=None)`, so
+  every three-argument caller paints byte-identically to before (and a
+  three-argument call RESETS a previously set window). Everything the widget
+  emits and paints is **ENTRY-RELATIVE** — the first visible row is `0` for
+  `frame_clicked`, `set_rows` and the grid — and the window is applied in
+  exactly ONE place, the source rectangle in `paintEvent`, mirroring the
+  engine's rule that `AssetStore._frame_surface` is the only place `row_start`
+  is applied. That is why `DetailsPanel._on_frame_clicked` needs no offset.
 
 ## TestRunnerPLAN TR-5 — `panels/test_run_panel.py` (the test-run window)
 

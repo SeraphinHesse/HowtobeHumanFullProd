@@ -110,6 +110,73 @@ class MasterSheetImportTest(DataDirCase):
                          [orphan, shared])
 
 
+class GridInUseTest(DataDirCase):
+    """M4 §2.1 — a re-import may not re-cut a sheet slots already window into."""
+
+    def setUp(self):
+        super().setUp()
+        self.source = make_png(self.data_dir / "incoming" / "raw.png", 128, 192)
+        self.sheet_id = master_sheet_import.import_master_sheet(
+            self.data_dir, self.source, "Village Folk", 32, 48)
+
+    def link_slots(self, *slots):
+        path = self.data_dir / "sprites" / "asset_manifest.json"
+        doc = data_io.load_json(path)
+        for slot in slots:
+            doc["entries"][slot] = {
+                "sheet": f"master/{self.sheet_id}.png",
+                "frame_w": 32, "frame_h": 48, "offset_x": 0, "offset_y": 0,
+                "rows": [{"animation": "idle", "frames": 4, "fps": 8,
+                          "hidden": [], "loop_start": 0, "loop_end": 0,
+                          "loop_count": 1}]}
+        data_io.write_validated(
+            doc, path, self.data_dir / "schemas" / "asset_manifest.schema.json")
+
+    def test_changed_grid_with_users_is_refused_and_writes_nothing(self):
+        self.link_slots("painter_t1_lvl1", "flute_player_t1_lvl1")
+        png = self.data_dir / "sprites" / "master" / f"{self.sheet_id}.png"
+        registry_path = self.data_dir / "sprites" / "master_sheets.json"
+        before_png, before_registry = png.read_bytes(), registry_path.read_bytes()
+
+        with self.assertRaises(master_sheet_import.GridInUseError) as caught:
+            master_sheet_import.import_master_sheet(
+                self.data_dir, self.source, "Village Folk", 64, 64)
+
+        message = str(caught.exception)
+        self.assertIn("painter_t1_lvl1", message)      # names the users to fix
+        self.assertIn("flute_player_t1_lvl1", message)
+        # A ValueError subclass, so the dialog's existing except clause shows it.
+        self.assertIsInstance(caught.exception, ValueError)
+        self.assertEqual(png.read_bytes(), before_png)
+        self.assertEqual(registry_path.read_bytes(), before_registry)
+
+    def test_changed_grid_with_zero_users_still_rewrites_the_entry(self):
+        again = master_sheet_import.import_master_sheet(
+            self.data_dir, self.source, "Village Folk", 64, 64)
+        self.assertEqual(again, self.sheet_id)
+        entry = data_io.load_json(
+            self.data_dir / "sprites" / "master_sheets.json")["entries"][again]
+        self.assertEqual((entry["frame_w"], entry["frame_h"]), (64, 64))
+
+    def test_reimporting_a_family_members_bytes_reuses_that_member(self):
+        """M4 §2.2 — the byte-identity check scans the slug FAMILY, so
+        re-importing `<slug>_2`'s own bytes must not mint `<slug>_3`."""
+        other = make_png(self.data_dir / "incoming" / "other.png", 64, 64,
+                         colour=(200, 30, 30, 255))
+        second = master_sheet_import.import_master_sheet(
+            self.data_dir, other, "Village Folk", 16, 16)
+        self.assertEqual(second, f"{self.sheet_id}_2")
+
+        again = master_sheet_import.import_master_sheet(
+            self.data_dir, other, "Village Folk", 16, 16)
+
+        self.assertEqual(again, second)
+        self.assertEqual(
+            sorted(data_io.load_json(
+                self.data_dir / "sprites" / "master_sheets.json")["entries"]),
+            [self.sheet_id, second])
+
+
 class MasterSheetDialogTest(TempDataCase):
     """The Qt half: constructs, lists, selects — never exec()s a modal."""
 
