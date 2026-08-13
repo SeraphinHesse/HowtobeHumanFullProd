@@ -30,6 +30,14 @@ Never delete a branch that trips ANY of these:
    not.
 4. **Has an open PR** — `gh pr list --state open --json headRefName`.
 5. **Is the current branch or the main worktree's branch.**
+6. **Belongs to someone else** — `git log -1 --format='%an'` is anyone other
+   than `SeraphinHesse` / `Seraphin Hesse` / `Claude`. **Authorship, not the
+   name, is the real test of whose branch this is**, and it is the only one of
+   these rules that catches a teammate who names branches their own way. The
+   collaborator name patterns below are a convenience on top; they are not
+   sufficient. Known collaborators: **fabiankrg**, **Nox0901** (Joel),
+   **Dingle04** (Benji), **varjaxxO169**, **HenniBumBenni** (Hendrik),
+   **jakobdahlkar**.
 
 Everything the rules clear is, by definition, fully contained in
 `origin/Development` — so deleting it loses no commit, only a name.
@@ -37,9 +45,13 @@ Everything the rules clear is, by definition, fully contained in
 ## Default keep list (on top of the safety rules)
 
 - `Development`, `main`
-- **Collaborators' branches:** `Art/*`, `Joel-*`, `HendriksStuff` — other
-  people's work. Merged or not, deleting their refs is confusing, and deleting
-  their remotes would be hostile.
+- **Collaborators' branches:** `Art/*`, `HendriksStuff`, and case-insensitively
+  `joel*`, `benji*`, `fabian*`, `varjax*` — other people's work. Merged or not,
+  deleting their refs is confusing, and deleting their remotes would be hostile.
+  These patterns are a convenience only: safety rule 6 (authorship) is what
+  actually protects a teammate. A real run found `Joel_balancing3`,
+  `Lightning_Balancing` and `MapTest` — all teammates' — matching no pattern
+  here and surviving purely because they happened to be unmerged.
 - **Milestone markers:** `EngineAndEditorComplete`, `Phase-9-Complete`,
   `PrototypeMigrationComplete`, `BeforeScalingRework`
 - `Tutorial`
@@ -70,9 +82,13 @@ Edit this list here for a permanent change rather than passing `+`/`-` each run.
    the branch was not really merged — that is rule 1 catching a classification
    bug, so STOP and report rather than reaching for `-D`.
 5. **Remote branches: only with `--remote`.** Without the flag, list the stale
-   remote refs as a suggestion and delete nothing. With it, `git push origin
-   --delete <name>` only for branches that passed every safety rule AND are not
-   on the collaborator keep list.
+   remote refs as a suggestion and delete nothing. With it, classify
+   `git branch -r` under the SAME safety rules — re-derived from the remote
+   refs, never inherited from step 4, since the local refs are gone by then —
+   and `git push origin --delete` only what clears all six. Print the authors
+   alongside the delete list; a name you don't recognise is rule 6 doing its
+   job. Also skip any ref that fails `git rev-parse --verify` (the enumeration
+   can yield phantom tokens such as a bare `origin`).
 6. Report per the Final report section.
 
 ## Avoid
