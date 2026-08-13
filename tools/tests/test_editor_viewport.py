@@ -1516,6 +1516,7 @@ class TestPurity(unittest.TestCase):
             "editor.font_import, "
             "editor.panels.strings_panel, editor.strings_ops, "
             "editor.panels.vfx_preview, "
+            "editor.panels.test_run_panel, "
             "editor.thats_my_producer, "
             "editor.timeline_curve, editor.timeline_ops, "
             "editor.test_runner, "

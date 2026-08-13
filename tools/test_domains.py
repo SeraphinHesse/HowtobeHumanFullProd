@@ -200,6 +200,7 @@ DOMAINS = {
         "test_data_guard.py",
         "test_debug_log.py",
         "test_editor_test_report.py",
+        "test_editor_test_run_panel.py",
         "test_editor_test_runner.py",
         "test_fixture_guard.py",
         "test_migration_timeline.py",

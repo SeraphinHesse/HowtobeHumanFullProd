@@ -61,6 +61,7 @@ TIERS = {
     "test_timeline_panel": "editor",  # TimelinePLAN T5: editor/panels/timeline.py
     "test_editor_run_controls": "editor",
     "test_editor_selection": "editor",
+    "test_editor_test_run_panel": "editor",  # TR-5: the Qt run window
     "test_editor_tutorial_paint": "editor",
     "test_editor_viewport": "editor",
     "test_registry_ops": "editor",
