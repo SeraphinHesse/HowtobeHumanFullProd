@@ -144,7 +144,7 @@ worktree isolation:
 
 | Shared file | Phases | Rule |
 |---|---|---|
-| `tools/tests/conftest.py` (`TIERS`) | TR-1, TR-3, TR-4, TR-5 | one line per new test module; append. A module missing from `TIERS` is a HARD ERROR (`conftest.py:19`), not a skip. |
+| `conftest.py` — **at the REPO ROOT**, not `tools/tests/` (TR-1 verified: there is no `tools/tests/conftest.py`) | TR-1, TR-3, TR-4, TR-5 | one line per new test module in `TIERS`; append. A module missing from `TIERS` is a HARD ERROR (`conftest.py:19`), not a skip. Tier value is `"meta"` for tooling-ish modules, `"editor"` for Qt panels, `"core"` otherwise. |
 | `tools/tests/test_editor_viewport.py` (`TestPurity`) | TR-3, TR-4, TR-5 | one line per new **editor** module; append to the list at `:1492-1528`. `editor.main` is already there. |
 | `tools/test_domains.py` | TR-1 creates; TR-3/TR-4/TR-5 append | every new test module needs an entry or TR-1's exactly-one-domain test fails. New test modules for this feature go in `tooling`. |
 | `.claude/hooks/test_guard.py` | TR-2, TR-6 | TR-2 extracts the key logic; TR-6 rewords the deny message. |
