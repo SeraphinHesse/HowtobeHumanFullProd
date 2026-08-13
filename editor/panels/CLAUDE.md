@@ -1883,6 +1883,42 @@ calls):
   `width // (column_width * frame_w)`, matching `engine/assets/store.py`'s own
   column arithmetic.
 
+### E3 — DetailsPanel column controls (MasterSheetColumnsPLAN)
+- **The `Column [n] mode [combo] width: [n]` row** sits under the row-window row
+  and is built the same way (`_NoWheelSpinBox`/`_NoWheelComboBox` from
+  `balancing.py`, spin commits on `editingFinished`, combo on a **lambda-wrapped**
+  `currentIndexChanged`). Its visibility gate is the SAME `_master_applies()` —
+  the `master/` prefix on `_sheet_ref`, not the category (D2).
+- **`_on_column_changed` writes NOTHING** — the column is entry state, saved by
+  Save like every other row edit, and `slots.json` is never touched from here.
+  It is `_on_row_window_changed`'s twin, not `_on_frame_size_changed`'s. One
+  deliberate difference from the row window: it calls `_refresh_preview()` and
+  **does not rebuild the RowEditors**, because a column changes which horizontal
+  SLICE of the same rows is shown, not which rows exist.
+- **`column_width` is INHERITED, displayed disabled with a tooltip** — the exact
+  treatment Frame W/H get while a master sheet is linked (a disabled spin, not a
+  `QLabel`, so focus order and styling stay uniform). It is read through
+  **`engine.assets.master_registry.column_width_for(doc, ref)`**, never off a
+  `MasterSheet` attribute: the registry owns the value (D1) and the panel has no
+  business reaching into the import module's dataclass for it.
+- **The column spin's CEILING is `sheet_cols // column_width - 1`**, recomputed
+  per sheet in `_refresh_column_state` from `_sheet_cols` (stored by
+  `_load_sheet` beside `_sheet_rows`). An off-sheet column is unrepresentable
+  (ED-30) rather than a save-time error — the horizontal twin of `_row_to`'s
+  minimum tracking `_row_from`. The clamp is applied to the STATE too, since
+  `draft_entry()` reads `_column`.
+- **`column`/`column_mode`/`column_width` are optional-key-shaped** like
+  `slice`/`tint_overlay`/`row_start`: omitted at `0`/`"manual"`/`0`, and
+  `draft_entry()` **preserves** all three on any path that does not author them
+  (a plain `imported/<slot>.png` entry never shows the row and must not erase a
+  saved column). `0` for the width is only the absent-key in-memory default —
+  the schema floors an authored width at 1.
+- **An entry saved before this phase has no `column_width` key**, so `set_slot`'s
+  reload falls back to `column_width_for` rather than leaving the spin with a
+  `0..0` ceiling. `_effective_column()` is the one place the preview's column
+  origin is derived; the STORED column always wins there, because a non-manual
+  `column_mode` names a RENDER-time override the editor has no live value for.
+
 ## TestRunnerPLAN TR-5 — `panels/test_run_panel.py` (the test-run window)
 
 - **A POPUP WINDOW, not a dock** (reconciliation R3): `TestRunPanel` copies
