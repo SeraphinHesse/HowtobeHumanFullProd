@@ -9,6 +9,14 @@ across ``Timeline.levels``, and ``(building_type, tier_index)`` uniqueness
 across the whole Timeline (a tier must not be assigned twice) — are
 enforced here, before every write (the ``engine.tilemap.load_map``
 cross-check precedent: schema for shape, Python for what it can't express).
+The second of those is **skipped under ``exact_offer_slots``**, where a row is
+the literal card set and repeating a card at two levels is a legitimate
+authoring choice.
+
+The per-level ``round`` schedule (``scripted_leveling``) is validated the other
+way round — ``round_warnings`` returns human-readable strings and nothing ever
+raises, so a designer can save a half-authored schedule and keep working
+(user decision: warn, don't block).
 """
 from engine import data_io
 
@@ -76,12 +84,18 @@ def _find_level(doc, village_level):
     return None
 
 
-def add_level(doc, village_level):
-    """Insert a new, empty level record. No-op if one already exists."""
+def add_level(doc, village_level, round_num=0):
+    """Insert a new, empty level record. No-op if one already exists.
+
+    ``round_num`` seeds the scripted-leveling schedule; the panel passes that
+    level's best-case round so a fresh row starts somewhere sensible, and the
+    implicit creations below (``add_slot``/``assign_slot``) take the 0
+    default."""
     if _find_level(doc, village_level) is not None:
         return
     doc["Timeline"]["levels"].append(
-        {"village_level": village_level, "offer_slots": []})
+        {"village_level": village_level, "round": round_num,
+         "offer_slots": []})
     doc["Timeline"]["levels"].sort(key=lambda lvl: lvl["village_level"])
 
 
@@ -136,6 +150,39 @@ def clear_slot(doc, village_level, slot_index):
         slots[slot_index]["assignment"] = None
 
 
+# -- the two Timeline-wide mode flags + the per-level round schedule ---------
+# Staged into the in-memory doc exactly like `assign_slot`/`add_level`; the
+# panel's ONE Save is still the only write path.
+
+def scripted_leveling(doc):
+    return bool(doc["Timeline"].get("scripted_leveling", False))
+
+
+def set_scripted_leveling(doc, enabled):
+    doc["Timeline"]["scripted_leveling"] = bool(enabled)
+
+
+def exact_offer_slots(doc):
+    return bool(doc["Timeline"].get("exact_offer_slots", False))
+
+
+def set_exact_offer_slots(doc, enabled):
+    doc["Timeline"]["exact_offer_slots"] = bool(enabled)
+
+
+def level_round(doc, village_level):
+    """The authored round for a level, or ``None`` if it has no row."""
+    level = _find_level(doc, village_level)
+    return None if level is None else level.get("round", 0)
+
+
+def set_level_round(doc, village_level, round_num):
+    """Set a level's authored round. No-op if the level doesn't exist."""
+    level = _find_level(doc, village_level)
+    if level is not None:
+        level["round"] = int(round_num)
+
+
 def placements(doc):
     """``{(building_type, tier_index): village_level}`` for every non-null
     assignment — the index both ``validate_uniqueness`` and the browse
@@ -150,11 +197,66 @@ def placements(doc):
     return out
 
 
+# Above this many slots on one row the game's level-up window overflows its
+# 640px view (`game/ui/levelup.py` lays out any n, but at _BOX_W = 130 the
+# boxes run off screen). The editor warns rather than the game clamping.
+MAX_SLOTS_PER_LEVEL = 4
+
+
+def round_warnings(doc):
+    """Human-readable, NON-blocking complaints about the scripted-leveling
+    schedule and row widths — duplicate rounds, a level reached no later than
+    the one before it, and rows wider than the level-up window can show.
+    ``save_progression`` deliberately does NOT consult this (user decision:
+    warn, don't block); the panel surfaces it as a label.
+
+    ``village_level`` 1 is skipped in the round checks — the run starts there,
+    so its ``round`` is unused by the runtime and ordering against it would be
+    a false alarm. Never raises, never mutates ``doc``."""
+    warnings = []
+    levels = sorted(doc["Timeline"]["levels"],
+                    key=lambda lvl: lvl["village_level"])
+    scheduled = [lvl for lvl in levels if lvl["village_level"] != 1]
+
+    seen_rounds = {}
+    for level in scheduled:
+        round_num = level.get("round", 0)
+        if round_num in seen_rounds:
+            warnings.append(
+                f"Levels {seen_rounds[round_num]} and {level['village_level']} "
+                f"are both scheduled for round {round_num} — only the lower "
+                f"level will be reached there.")
+        else:
+            seen_rounds[round_num] = level["village_level"]
+
+    for previous, level in zip(scheduled, scheduled[1:]):
+        if level.get("round", 0) <= previous.get("round", 0):
+            warnings.append(
+                f"Level {level['village_level']} (round "
+                f"{level.get('round', 0)}) is not scheduled after level "
+                f"{previous['village_level']} (round "
+                f"{previous.get('round', 0)}).")
+
+    for level in levels:
+        slot_count = len(level["offer_slots"])
+        if slot_count > MAX_SLOTS_PER_LEVEL:
+            warnings.append(
+                f"Level {level['village_level']} has {slot_count} slots — the "
+                f"level-up window only fits {MAX_SLOTS_PER_LEVEL} cards.")
+    return warnings
+
+
 def validate_uniqueness(doc):
     """Raise ``ValueError`` when ``village_level`` repeats across levels, or
     a ``(building_type, tier_index)`` pair is placed in more than one slot
     — the two invariants JSON Schema cannot express. Called before every
-    write; never mutates ``doc``."""
+    write; never mutates ``doc``.
+
+    The placement half is SKIPPED under ``exact_offer_slots``: there a row is
+    the literal card set shown at that level-up, so offering the same card at
+    two different levels is deliberate authoring, not a mistake. The
+    ``village_level`` half holds in both modes — two rows for one level is
+    ambiguous however the rows are read."""
     seen_levels = set()
     for level in doc["Timeline"]["levels"]:
         village_level = level["village_level"]
@@ -162,6 +264,9 @@ def validate_uniqueness(doc):
             raise ValueError(
                 f"duplicate village_level {village_level} in Timeline.levels")
         seen_levels.add(village_level)
+
+    if exact_offer_slots(doc):
+        return
 
     seen_placements = {}
     for level in doc["Timeline"]["levels"]:

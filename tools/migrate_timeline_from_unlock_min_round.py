@@ -82,7 +82,12 @@ def compute_migration(buildings_balance, core_balance, enemies_balance,
     _cumulative, level_to_round = xp_curve.best_case_curve(
         core_balance, enemies_balance, 0, round_max, max_levels=max_levels)
 
-    doc = {"Timeline": {"levels": []}}
+    # Both mode flags ship OFF, matching the seeded content: the migration
+    # reproduces the pre-existing XP-driven behaviour, it does not opt anyone
+    # into scripted leveling. (Required keys — without them the doc this
+    # builds could not pass save_progression's schema validation.)
+    doc = {"Timeline": {"levels": [], "scripted_leveling": False,
+                        "exact_offer_slots": False}}
     diff_rows = []
     for building_type, tier_index, round_gate, group_label, tier_name in \
             _tiers_with_gates(buildings_balance):
@@ -99,6 +104,15 @@ def compute_migration(buildings_balance, core_balance, enemies_balance,
         diff_rows.append((
             building_type, tier_index, group_label, tier_name, round_gate,
             village_level, level_to_round.get(village_level)))
+    # Seed each row's scripted-leveling round from the same best-case curve
+    # this migration already bucketed against — inert while
+    # `scripted_leveling` is false, and the sensible starting schedule if a
+    # designer ever turns it on.
+    for level in doc["Timeline"]["levels"]:
+        village_level = level["village_level"]
+        best_case = level_to_round.get(village_level)
+        level["round"] = (0 if village_level == 1 or best_case is None
+                          else int(best_case))
     return doc, diff_rows
 
 

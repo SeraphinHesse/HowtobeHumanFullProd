@@ -57,8 +57,9 @@ LEAF_CLASSES = {
     "wall_builder": WallBuilder,
 }
 
-# The boost trio unlocks together from a single level-up card; the lead type owns
-# the card copy, the other two ride its ``unlock_group`` (see the RESEARCH rows).
+# The boost trio unlocks together from a single level-up card AND researches each
+# of its later tiers together from a single card; the lead type owns the card copy,
+# the other two ride its ``unlock_group``/``tier_group`` (see the RESEARCH rows).
 _BOOST_TRIO = ("boost_speed", "boost_damage", "boost_hp")
 
 
@@ -72,6 +73,8 @@ class ResearchSpec:
     unlock_group: tuple = ()        # types unlocked together (the boost trio)
     unlock_title: str = ""          # UI copy for the unlock card
     unlock_explanation: str = ""
+    tier_group: tuple = ()          # types whose TIERS research together (the trio)
+    tier_copy_path: tuple = ()      # buildings.json path holding the tier card copy
 
 
 # building_type -> ResearchSpec. Keys must exist in LEAF_CLASSES; an entry
@@ -121,9 +124,14 @@ RESEARCH = {
     # ever consulted by the roll (TimelinePLAN D8). The lead (boost_speed)
     # carries the card copy + is the only one the
     # roll offers an unlock card for; the other two ride its unlock_group (the
-    # roll skips non-lead members — see game/core/levelup.py). All three need a
-    # row so each offers its own Supporting Fan->Cheerleader->Drill Sergeant
-    # tier cards AFTER unlocking. They share ONE starts_unlocked flag at
+    # roll skips non-lead members — see game/core/levelup.py). Their later TIERS
+    # work exactly the same way: ``tier_group`` collapses the three per-line tier
+    # cards into ONE card that researches tier N for all three at once, whose copy
+    # is designer-editable at ``tier_copy_path`` (BoostBuildings.globals'
+    # tier_card_titles/tier_card_explanations) since no single line's tier name can
+    # title a card that grants all three. All three still need a row so
+    # ``tiers_unlocked``/``unlocked_buildings`` stay per-type. They share ONE
+    # starts_unlocked flag at
     # BoostBuildings.globals (their own SUBTREE groups are Speed/Damage/HP, so
     # the default derivation would miss it — hence the explicit
     # starts_unlocked_path on all three).
@@ -132,13 +140,17 @@ RESEARCH = {
         unlock_group=_BOOST_TRIO,
         unlock_title="Unlock Boost Buildings",
         unlock_explanation="Cheerleaders that buff adjacent defenders — but curse "
-                           "their neighbours when they fall."),
+                           "their neighbours when they fall.",
+        tier_group=_BOOST_TRIO,
+        tier_copy_path=("BoostBuildings", "globals")),
     "boost_damage": ResearchSpec(
         starts_unlocked_path=("BoostBuildings", "globals", "starts_unlocked"),
-        unlock_group=_BOOST_TRIO),
+        unlock_group=_BOOST_TRIO,
+        tier_group=_BOOST_TRIO),
     "boost_hp": ResearchSpec(
         starts_unlocked_path=("BoostBuildings", "globals", "starts_unlocked"),
-        unlock_group=_BOOST_TRIO),
+        unlock_group=_BOOST_TRIO,
+        tier_group=_BOOST_TRIO),
     # 10E — the two passive structure lines. Blocker's Bulwark/Bastion tiers are
     # researched at level-ups, gated by their own Timeline placements; the type
     # itself starts LOCKED (data-driven balance change — the

@@ -102,6 +102,7 @@ TIERS = {
     "test_death_spawn": "core",
     "test_debug_log": "core",  # debug mode: recorder + metrics + reports
     "test_defence_aoe_beam": "core",
+    "test_digger_telegraphs": "core",  # digger-hop-rework: entry-tile + direction arrows
     "test_editor_test_report": "core",  # TR-4: the report writer is Qt-free (D6)
     "test_editor_test_runner": "core",  # TR-3: the run engine is Qt-free (D6)
     "test_enemies": "core",

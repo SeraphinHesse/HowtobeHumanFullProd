@@ -54,9 +54,18 @@ class TestTimelinePanel(TempDataCase):
     def _panel(self):
         panel = self.track(TimelinePanel(data_dir=self.data_dir))
         panel.set_icon_provider(lambda slot_key: None)  # no viewport in this test
+        # PIN THE FIXTURE. These tests count rows and slots, so they must not
+        # read whatever schedule the shipped Timeline happens to carry today
+        # (data/CLAUDE.md: never assert against live data/ content). Emptying
+        # the staged doc here is the fixture; the panel's own Save is what
+        # would write it, and no test below saves without re-authoring first.
+        panel._doc["Timeline"]["levels"] = []
+        panel._rebuild_rows()
+        panel._dirty = False
+        panel.save_button.setEnabled(False)
         return panel
 
-    def test_starts_with_no_rows_on_the_seeded_empty_doc(self):
+    def test_starts_with_no_rows_on_an_empty_schedule(self):
         panel = self._panel()
         self.assertEqual(panel._row_widgets, {})
 
@@ -155,8 +164,113 @@ class TestTimelinePanel(TempDataCase):
         self.assertEqual(
             on_disk["Timeline"]["levels"],
             [{"village_level": 1,
+              "round": panel.round_for_level(1) or 0,
               "offer_slots": [{"assignment": {
                   "kind": "unlock", "building_type": "blocker", "tier_index": 0}}]}])
+
+
+class TestScriptedLevelingSwitches(TempDataCase):
+    """The two toolbar checkboxes: what each one changes in the panel."""
+
+    def _panel(self):
+        panel = self.track(TimelinePanel(data_dir=self.data_dir))
+        panel.set_icon_provider(lambda slot_key: None)
+        # Pinned fixture — two authored levels and both flags OFF, nothing
+        # from live data/. TempDataCase copies the LIVE `data/` tree, so the
+        # shipped `progression.json` seeds these two checkboxes; it already
+        # ships `scripted_leveling: true`, and every case below is written
+        # against "both off" (data/CLAUDE.md: never assert against live
+        # `data/` content). Toggling through the checkbox rather than poking
+        # `_doc` keeps widget and doc in step, and the `_dirty = False` below
+        # swallows the staging those toggles cause.
+        panel.scripted_check.setChecked(False)
+        panel.exact_check.setChecked(False)
+        panel._doc["Timeline"]["levels"] = []
+        panel._rebuild_rows()
+        panel.add_level(1)
+        panel.add_level(2)
+        panel._dirty = False
+        panel.save_button.setEnabled(False)
+        return panel
+
+    def test_both_flags_start_unchecked_on_the_shipped_doc(self):
+        panel = self._panel()
+        self.assertFalse(panel.scripted_check.isChecked())
+        self.assertFalse(panel.exact_check.isChecked())
+        self.assertFalse(panel.scripted_leveling())
+        self.assertFalse(panel.exact_offer_slots())
+
+    def test_scripted_checkbox_stages_the_flag_and_marks_dirty(self):
+        panel = self._panel()
+        panel.scripted_check.setChecked(True)
+        self.assertTrue(panel.scripted_leveling())
+        self.assertTrue(panel._dirty)
+        self.assertTrue(panel.save_button.isEnabled())
+
+    def test_exact_checkbox_stages_the_flag_and_marks_dirty(self):
+        panel = self._panel()
+        panel.exact_check.setChecked(True)
+        self.assertTrue(panel.exact_offer_slots())
+        self.assertTrue(panel._dirty)
+        self.assertTrue(panel.save_button.isEnabled())
+
+    def test_round_spinbox_appears_only_in_scripted_mode(self):
+        # isHidden(), not isVisible(): a widget whose window was never shown
+        # is never "visible" to Qt, so isVisible() would read False either way.
+        panel = self._panel()
+        self.assertTrue(panel._row_widgets[2].round_spin.isHidden())
+        panel.scripted_check.setChecked(True)
+        self.assertFalse(panel._row_widgets[2].round_spin.isHidden())
+        panel.scripted_check.setChecked(False)
+        self.assertTrue(panel._row_widgets[2].round_spin.isHidden())
+
+    def test_level_1_never_shows_a_round_spinbox(self):
+        panel = self._panel()
+        panel.scripted_check.setChecked(True)
+        self.assertTrue(panel._row_widgets[1].round_spin.isHidden())
+
+    def test_editing_the_spinbox_stages_the_round(self):
+        panel = self._panel()
+        panel.scripted_check.setChecked(True)
+        panel._row_widgets[2].round_spin.setValue(7)
+        self.assertEqual(panel.authored_round(2), 7)
+
+    def test_populating_the_spinbox_does_not_dirty_the_doc(self):
+        panel = self._panel()
+        panel._doc["Timeline"]["scripted_leveling"] = True
+        panel._rebuild_rows()
+        self.assertFalse(panel._dirty)
+
+    def test_exact_mode_stops_greying_a_placed_browse_card(self):
+        panel = self._panel()
+        panel.add_slot(1)
+        panel.assign_slot(1, 0, "unlock", "blocker", 0)
+        placed = [c for c in panel._browse_cards
+                  if c.building_type == "blocker" and c.tier_index == 0]
+        self.assertTrue(placed)
+        self.assertFalse(placed[0].isEnabled())
+
+        panel.exact_check.setChecked(True)
+        self.assertTrue(placed[0].isEnabled())
+
+    def test_a_bad_schedule_warns_without_disabling_save(self):
+        panel = self._panel()
+        panel.scripted_check.setChecked(True)
+        panel.add_level(3)
+        panel._row_widgets[2].round_spin.setValue(9)
+        panel._row_widgets[3].round_spin.setValue(4)
+        self.assertTrue(panel.warnings_label.text())
+        self.assertFalse(panel.warnings_label.isHidden())
+        self.assertTrue(panel.save_button.isEnabled())
+
+    def test_the_graph_ticks_the_authored_rounds_in_scripted_mode(self):
+        panel = self._panel()
+        panel.scripted_check.setChecked(True)
+        panel._row_widgets[2].round_spin.setValue(3)
+        self.assertEqual(panel._tick_rounds()[2], 3)
+
+        panel.scripted_check.setChecked(False)
+        self.assertEqual(panel._tick_rounds(), panel._level_to_round)
 
     def test_round_for_level_matches_editor_timeline_curve(self):
         panel = self._panel()

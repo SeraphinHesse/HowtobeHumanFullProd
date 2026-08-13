@@ -60,7 +60,34 @@ validating writer; don't hand-edit the JSON.
   sprite-slot vocabulary — see the Asset data section below), so it does not
   auto-render as a generic recursive form in the editor's balancing panel —
   it gets its own bespoke drag-and-drop panel instead (`editor/panels/
-  timeline.py`, T5). T2 shipped only the schema + an empty seed
+  timeline.py`, T5).
+  **`Timeline` carries two required sibling booleans, both shipped `false`,
+  and each `levels[]` row a required `round`** (designer-scripted leveling —
+  the `TileUnlocking.spawn_recede_enabled` / `EnemyScaling.spawn_ramp_enabled`
+  boolean-flag precedent). They are INDEPENDENT switches over two different
+  questions, and with both `false` the runtime is byte-identical to before
+  they existed:
+  - `scripted_leveling` answers **WHEN** a level is reached. On, the player
+    reaches level N at the END of that row's `round`, every run, and XP stops
+    being a mechanic entirely (`game/core/xp.py::award_xp` no-ops, so
+    `xp_events` never fills and the HUD's XP bar/icon/`40/60` text are
+    suppressed — `LVL N` stays). A level with no row NEVER fires and there is
+    no XP fallback, so past the last authored level the player stops
+    levelling. `round` is ignored for `village_level: 1` (the run starts
+    there) and ignored entirely while the flag is `false`; it is bounds-policy
+    0–1000 like every other round/level number.
+  - `exact_offer_slots` answers **WHAT** a level-up shows. On, a row stops
+    meaning "these cards become eligible from here on" and becomes the literal
+    card set: a `null` slot is a `+Love` card at `core.XP.levelup_love_reward`,
+    an already-claimed card is DROPPED from the row (not padded over), an
+    all-claimed row shows ONE `+Love`, and a level with no row falls back to
+    today's 3. Duplicate `(building_type, tier_index)` placements become legal
+    in this mode — `editor/timeline_ops.py::validate_uniqueness` skips that
+    check (the `village_level` uniqueness check still holds in both modes).
+  The rounds seeded on levels 1–12 came from the panel's own best-case curve
+  (level 1 → 0); they are a starting schedule, not a derived value — nothing
+  recomputes them.
+  T2 shipped only the schema + an empty seed
   (`{"Timeline": {"levels": []}}`); T6's migration
   (`tools/migrate_timeline_from_unlock_min_round.py`) then populated it from
   every building tier's then-existing `unlock_min_round`, and T4 made it the
@@ -128,7 +155,23 @@ validating writer; don't hand-edit the JSON.
   `vfx_buff_arrow` — the little golden arrow shown above any enemy with an
   active buff; unlike the ring, the arrow IS swappable art (E-37: with no
   art imported it falls back to a small procedural golden triangle, drawn
-  by `submit_buff_arrows`). Since **Phase 9A** the other
+  by `submit_buff_arrows`). **The digger-hop-rework feature** (player
+  feedback for the Digger's stand-and-erupt-in-place + knight-hop search,
+  `game/enemies/CLAUDE.md`'s Digger section) added two MORE `vfx` category
+  slots, `vfx_digger_marker`/`vfx_digger_direction` — the entry-tile marker
+  and heading arrow `game/ui/effects.py`'s `submit_digger_telegraphs` draws
+  over a submerged Digger, the `vfx_buff_arrow` swappable-art pattern applied
+  to a raw world point instead of a live enemy's screen anchor
+  (`game/ui/CLAUDE.md`'s Digger telegraph section). It added no new
+  `procedural` block — both fallback triangles' colour/size are code chrome,
+  the same "not a designer lever, only the swappable ART is" rule
+  `vfx_buff_arrow`'s own fallback follows. It also added two flat
+  `EnemyTypes.Digger` leaves, `dig_hop_long_tiles`/`dig_hop_short_tiles`
+  (int, default 3/1) — the knight-hop's two legs, alongside the pre-existing
+  `dig_range_tiles`/`dig_speed`/`emerge_cooldown`/`min_target_distance_tiles`
+  (see the "Enemy sizing leaves" pattern below for how a per-type flat leaf
+  is shaped; these are `EnemyTypes.Digger`-only, not shared across types).
+  Since **Phase 9A** the other
   five hold the prototype's live tuning verbatim, restructured into the
   REPLAN nested feature tree (see planning/MIGRATION_PLAN.md): PascalCase
   group objects

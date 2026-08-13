@@ -11,6 +11,23 @@ playthrough's timing), then one row per authored village_level with its
 offer slots (empty squares a building/tier card gets dragged into), and a
 browse list of every building type's cards to drag from.
 
+Two toolbar checkboxes flip the whole panel's meaning, and both default OFF
+(with both off everything below reads exactly as it did before they existed):
+
+* **Scripted leveling** — the designer authors the ROUND each level is reached
+  at, instead of reading a computed best-case estimate off the graph. Each
+  row's read-only "best-case round ~R" header becomes an editable spinbox, the
+  graph ticks the authored schedule rather than the curve's crossings, and the
+  caption says so. In-game this disables XP entirely.
+* **Exact offer slots** — a row stops being "these cards become eligible from
+  here on" and becomes "this level-up shows exactly these cards". Duplicate
+  placements are then legitimate, so the browse list stops greying placed
+  cards and ``timeline_ops.validate_uniqueness`` stops rejecting them.
+
+Round-schedule problems (duplicate / non-increasing rounds, rows too wide for
+the game's level-up window) surface as a NON-blocking warning label under the
+toolbar — Save stays enabled (user decision: warn, don't block).
+
 Edits are STAGED, not written immediately — the ``tutorial_panel.py``/
 ``game_theme.py`` pattern: every drag/clear/add/remove mutates an in-memory
 doc via the pure ``editor.timeline_ops`` helper + a dirty flag; ONE "Save
@@ -42,6 +59,7 @@ from pathlib import Path
 from PySide6.QtCore import QMimeData, QPoint, Qt, Signal
 from PySide6.QtGui import QDrag, QFont, QPainter, QPalette, QPen, QPixmap
 from PySide6.QtWidgets import (
+    QCheckBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -267,7 +285,8 @@ class _SlotWidget(QWidget):
 
 
 class _LevelRow(QWidget):
-    """One village_level's slot strip: a header ("Lv N ~round R"), its
+    """One village_level's slot strip: a header ("Lv N ~round R", or an
+    editable "reached at end of round" spinbox under scripted leveling), its
     offer-slot squares, +/- to append/remove a trailing slot, and a
     "Remove level" button."""
 
@@ -284,6 +303,16 @@ class _LevelRow(QWidget):
         header_font.setPointSize(header_font.pointSize() + 1)
         self._header.setFont(header_font)
         header_row.addWidget(self._header)
+        # Scripted leveling only: the authored round this level is reached at.
+        # Built once and shown/hidden by set_level (never rebuilt), so an
+        # in-flight edit survives a sibling row's refresh.
+        self.round_spin = _NoWheelSpinBox(self)
+        self.round_spin.setRange(0, 1000)
+        self.round_spin.setToolTip(
+            "The round at the END of which the player reaches this level.")
+        self.round_spin.valueChanged.connect(self._on_round_changed)
+        self.round_spin.setVisible(False)
+        header_row.addWidget(self.round_spin)
         header_row.addStretch(1)
         remove_level_btn = QPushButton("Remove Level", self)
         remove_level_btn.clicked.connect(
@@ -313,13 +342,33 @@ class _LevelRow(QWidget):
         self._slot_widgets = []
         self.set_level(village_level, [])
 
+    def _on_round_changed(self, value):
+        self._panel.set_level_round(self.village_level, value)
+
     def set_level(self, village_level, offer_slots):
         self.village_level = village_level
-        round_num = self._panel.round_for_level(village_level)
-        label = f"Level {village_level}"
-        if round_num is not None:
-            label += f"  —  best-case round ~{round_num}"
-        self._header.setText(label)
+        if self._panel.scripted_leveling():
+            # Level 1 is where the run starts, so its round is never read —
+            # show no spinbox rather than an editable value that does nothing.
+            editable = village_level != 1
+            self._header.setText(
+                f"Level {village_level}  —  reached at end of round"
+                if editable else f"Level {village_level}  —  the run starts here")
+            self.round_spin.setVisible(editable)
+            if editable:
+                # Signals blocked: populating the form must never dirty the
+                # doc (the balancing.py convention).
+                self.round_spin.blockSignals(True)
+                self.round_spin.setValue(
+                    self._panel.authored_round(village_level) or 0)
+                self.round_spin.blockSignals(False)
+        else:
+            self.round_spin.setVisible(False)
+            round_num = self._panel.round_for_level(village_level)
+            label = f"Level {village_level}"
+            if round_num is not None:
+                label += f"  —  best-case round ~{round_num}"
+            self._header.setText(label)
 
         while self._slots_row.count():
             item = self._slots_row.takeAt(0)
@@ -358,6 +407,48 @@ class TimelinePanel(QWidget):
         self.save_button.clicked.connect(self._on_save)
         toolbar.addWidget(self.save_button)
         toolbar.addSpacing(16)
+
+        self.scripted_check = QCheckBox("Scripted leveling", self)
+        self.scripted_check.toggled.connect(self._on_scripted_toggled)
+        toolbar.addWidget(self.scripted_check)
+        toolbar.addWidget(_InfoButton(
+            "Scripted Leveling",
+            "OFF (the default): the player levels up by earning XP from "
+            "kills, and the round each level lands on depends entirely on how "
+            "well they play. The graph's “best-case round ~R” is only an "
+            "estimate.\n\n"
+            "ON: you author the exact round each level is reached at. Every "
+            "row below grows a round box — set it, and the level-up fires at "
+            "the end of that round, every run. XP stops being a mechanic "
+            "altogether: no XP is awarded, and the XP bar, its icon and the "
+            "“40/60” text disappear from the in-game HUD (the “LVL N” "
+            "readout stays).\n\n"
+            "A level with no row here never fires, and there is no XP "
+            "fallback — past your last authored level the player stops "
+            "levelling. Level 1's round is ignored: the run starts there.",
+            self))
+        toolbar.addSpacing(8)
+
+        self.exact_check = QCheckBox("Exact offer slots", self)
+        self.exact_check.toggled.connect(self._on_exact_toggled)
+        toolbar.addWidget(self.exact_check)
+        toolbar.addWidget(_InfoButton(
+            "Exact Offer Slots",
+            "OFF (the default): a row means “these cards become ELIGIBLE from "
+            "this village level on”. The level-up then draws 3 cards at "
+            "random from everything eligible and not yet taken.\n\n"
+            "ON: a row means “this level-up shows EXACTLY these cards”, in "
+            "the order you place them. An empty slot becomes a “+Love” card; "
+            "a card whose reward the player already has is dropped from the "
+            "row rather than replaced; if every card is already claimed the "
+            "window shows a single “+Love”. A level with no row at all still "
+            "falls back to 3 “+Love” cards.\n\n"
+            "Because a row is now a literal card list, the same card may be "
+            "placed on several rows — so browse cards stop greying out once "
+            "placed, and Save no longer rejects duplicates.",
+            self))
+        toolbar.addSpacing(16)
+
         toolbar.addWidget(QLabel("Add level:", self))
         self._add_level_spin = _NoWheelSpinBox(self)
         self._add_level_spin.setRange(1, 1000)
@@ -393,17 +484,21 @@ class TimelinePanel(QWidget):
         toolbar.addWidget(self._view_max_spin)
         outer.addLayout(toolbar)
 
-        caption = QLabel(
-            "Best-case / upper-bound curve — assumes every enemy spawned is "
-            "killed that round. Real XP depends on the player's kill rate, "
-            "so a real playthrough reaches each level LATER than shown.",
-            self)
-        caption_font = caption.font()
+        # Non-blocking round-schedule complaints (timeline_ops.round_warnings).
+        # Save is never gated on these — the label is the whole enforcement.
+        self.warnings_label = QLabel(self)
+        self.warnings_label.setWordWrap(True)
+        self.warnings_label.setStyleSheet("color: #c07000;")
+        self.warnings_label.setVisible(False)
+        outer.addWidget(self.warnings_label)
+
+        self._caption = QLabel(self)
+        caption_font = self._caption.font()
         caption_font.setItalic(True)
         caption_font.setPointSize(max(7, caption_font.pointSize() - 1))
-        caption.setFont(caption_font)
-        caption.setWordWrap(True)
-        outer.addWidget(caption)
+        self._caption.setFont(caption_font)
+        self._caption.setWordWrap(True)
+        outer.addWidget(self._caption)
 
         self._graph = _TimelineGraph(self)
         outer.addWidget(self._graph)
@@ -454,9 +549,18 @@ class TimelinePanel(QWidget):
             for entry in self._catalog for tier in entry["tiers"]
         }
         self._dirty = False
+        # Signals blocked: seeding the toolbar from the loaded doc must never
+        # dirty it (the balancing.py "populate, then connect" convention).
+        for check, value in (
+                (self.scripted_check, timeline_ops.scripted_leveling(self._doc)),
+                (self.exact_check, timeline_ops.exact_offer_slots(self._doc))):
+            check.blockSignals(True)
+            check.setChecked(value)
+            check.blockSignals(False)
         self._recompute_curve()
         self._rebuild_browse_list()
         self._rebuild_rows()
+        self._refresh_mode_labels()
         self.save_button.setEnabled(False)
 
     def _show_unavailable(self):
@@ -489,7 +593,63 @@ class TimelinePanel(QWidget):
             for widget in row._slot_widgets:
                 widget.set_assignment(widget._assignment)
 
+    # -- the two mode flags ---------------------------------------------------
+
+    def scripted_leveling(self):
+        return self._doc is not None and timeline_ops.scripted_leveling(self._doc)
+
+    def exact_offer_slots(self):
+        return self._doc is not None and timeline_ops.exact_offer_slots(self._doc)
+
+    def _on_scripted_toggled(self, checked):
+        if self._doc is None:
+            return
+        timeline_ops.set_scripted_leveling(self._doc, checked)
+        # The rows' headers swap between a read-only estimate and an editable
+        # spinbox, and the graph's ticks swap source with them.
+        self._rebuild_rows()
+        self._refresh_mode_labels()
+        self._mark_dirty()
+
+    def _on_exact_toggled(self, checked):
+        if self._doc is None:
+            return
+        timeline_ops.set_exact_offer_slots(self._doc, checked)
+        self._refresh_placed_state()
+        self._refresh_mode_labels()
+        self._mark_dirty()
+
+    def _refresh_mode_labels(self):
+        """Caption + warning label + graph ticks — everything that reads a
+        mode flag rather than a single edited value."""
+        if self.scripted_leveling():
+            self._caption.setText(
+                "Authored schedule — each level is reached at the end of the "
+                "round set on its row, every run. The curve behind the ticks "
+                "is still the best-case XP curve, shown for reference only; "
+                "XP is not awarded in this mode.")
+        else:
+            self._caption.setText(
+                "Best-case / upper-bound curve — assumes every enemy spawned "
+                "is killed that round. Real XP depends on the player's kill "
+                "rate, so a real playthrough reaches each level LATER than "
+                "shown.")
+        self._graph.set_ticks(self._tick_rounds())
+        warnings = (timeline_ops.round_warnings(self._doc)
+                    if self._doc is not None else [])
+        self.warnings_label.setText("\n".join(warnings))
+        self.warnings_label.setVisible(bool(warnings))
+
     # -- best-case curve (editor.timeline_curve, D7) -------------------------
+
+    def _tick_rounds(self):
+        """``{village_level: round}`` for the graph's level ticks: the
+        AUTHORED schedule under scripted leveling, the computed best-case
+        crossings otherwise."""
+        if not self.scripted_leveling():
+            return self._level_to_round
+        return {level["village_level"]: level.get("round", 0)
+                for level in self._doc["Timeline"]["levels"]}
 
     def _recompute_curve(self):
         try:
@@ -501,7 +661,7 @@ class TimelinePanel(QWidget):
         cumulative, level_to_round = timeline_curve.best_case_curve(
             core, enemies, 0, view_max, max_levels=200)
         self._level_to_round = level_to_round
-        self._graph.set_curve(cumulative, level_to_round, view_max)
+        self._graph.set_curve(cumulative, self._tick_rounds(), view_max)
 
     def _on_view_max_changed(self, _value):
         if self._doc is None:
@@ -511,7 +671,15 @@ class TimelinePanel(QWidget):
             row.set_level(row.village_level, self._offer_slots(row.village_level))
 
     def round_for_level(self, village_level):
+        """The COMPUTED best-case round for a level (the estimate shown while
+        scripted leveling is off)."""
         return self._level_to_round.get(village_level)
+
+    def authored_round(self, village_level):
+        """The DESIGNER-authored round for a level (the scripted schedule)."""
+        if self._doc is None:
+            return None
+        return timeline_ops.level_round(self._doc, village_level)
 
     # -- browse list ----------------------------------------------------------
 
@@ -543,7 +711,14 @@ class TimelinePanel(QWidget):
         self.refresh_icons()
 
     def _refresh_placed_state(self):
-        placed = set(timeline_ops.placements(self._doc)) if self._doc else set()
+        # Under exact offer slots a card may legitimately appear on several
+        # rows, so nothing greys out — the greying exists purely to stop a
+        # duplicate placement that `validate_uniqueness` would reject, and
+        # that check is off in this mode.
+        if self._doc is None or self.exact_offer_slots():
+            placed = set()
+        else:
+            placed = set(timeline_ops.placements(self._doc))
         for card in self._browse_cards:
             card.set_placed((card.building_type, card.tier_index) in placed)
 
@@ -576,8 +751,13 @@ class TimelinePanel(QWidget):
     def add_level(self, village_level):
         if self._doc is None:
             return
-        timeline_ops.add_level(self._doc, village_level)
+        # A fresh row starts on that level's best-case round, so a designer
+        # flipping scripted leveling on gets a sane schedule rather than a
+        # column of zeroes.
+        timeline_ops.add_level(
+            self._doc, village_level, self.round_for_level(village_level) or 0)
         self._rebuild_rows()
+        self._refresh_mode_labels()
         self._mark_dirty()
 
     def remove_level(self, village_level):
@@ -586,6 +766,16 @@ class TimelinePanel(QWidget):
         timeline_ops.remove_level(self._doc, village_level)
         self._rebuild_rows()
         self._refresh_placed_state()
+        self._refresh_mode_labels()
+        self._mark_dirty()
+
+    def set_level_round(self, village_level, round_num):
+        """Stage a level's authored round. Deliberately does NOT rebuild the
+        row — that would destroy the spinbox the designer is typing into."""
+        if self._doc is None:
+            return
+        timeline_ops.set_level_round(self._doc, village_level, round_num)
+        self._refresh_mode_labels()
         self._mark_dirty()
 
     def add_slot(self, village_level):
@@ -595,6 +785,7 @@ class TimelinePanel(QWidget):
         self._row_widgets[village_level].set_level(
             village_level, self._offer_slots(village_level))
         self.refresh_icons()
+        self._refresh_mode_labels()
         self._mark_dirty()
 
     def remove_last_slot(self, village_level):
@@ -607,6 +798,7 @@ class TimelinePanel(QWidget):
         self._row_widgets[village_level].set_level(
             village_level, self._offer_slots(village_level))
         self._refresh_placed_state()
+        self._refresh_mode_labels()
         self._mark_dirty()
 
     def assign_slot(self, village_level, slot_index, kind, building_type, tier_index):
@@ -669,7 +861,9 @@ def _gridline_step(view_max, target_lines=8):
 
 class _TimelineGraph(QWidget):
     """The round-axis strip: round gridlines, the raw cumulative-XP curve,
-    and a tick + label per village_level's computed best-case round.
+    and a tick + label per village_level at the round it is reached — the
+    computed best-case round normally, the DESIGNER-AUTHORED round under
+    scripted leveling (the panel decides which, and hands the map in).
     Theme-aware (reads the widget's own palette, never a hardcoded color) so
     it stays readable in both light and dark chrome — see
     ``editor/theme.py``."""
@@ -692,6 +886,14 @@ class _TimelineGraph(QWidget):
         self._cumulative = cumulative
         self._level_to_round = level_to_round
         self._view_max = max(1, view_max)
+        self.update()
+
+    def set_ticks(self, level_to_round):
+        """Re-point the level ticks without recomputing the curve — the curve
+        depends only on core/enemies balancing, which this panel never writes,
+        but the ticks follow the authored schedule under scripted leveling and
+        therefore move on every round edit."""
+        self._level_to_round = level_to_round
         self.update()
 
     def paintEvent(self, _event):

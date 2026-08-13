@@ -414,6 +414,8 @@
             "vfx_buff_arrow",
             "vfx_crater",
             "vfx_death",
+            "vfx_digger_direction",
+            "vfx_digger_marker",
             "vfx_dirt_pile",
             "vfx_explosion",
             "vfx_hit",

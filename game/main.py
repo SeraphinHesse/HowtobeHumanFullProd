@@ -1373,7 +1373,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                     pending = session.state.pending_boss_cutscene or {}
                     gp["panel"].close()  # the modal owns the screen
                     gp["boss_cutscene"].open(pending.get("boss_num", 1),
-                                             pending.get("outcome", "win"))
+                                             pending.get("outcome", "win"),
+                                             pending.get("love_reward", 0))
                 # -- /10G --
                 # -- feature-enemy-intro-dialogue: open the first queued entry
                 # on ITS phase edge (same pattern). Subsequent queued entries
@@ -1674,6 +1675,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
             gp["floaters"].submit_enemy_hp_bars(renderer, cs, world.scene)
             # Golden arrow above any enemy carrying an active buff.
             gp["floaters"].submit_buff_arrows(renderer, cs, world.scene)
+            # Digger underground telegraph: entry-tile marker + heading arrow.
+            gp["floaters"].submit_digger_telegraphs(renderer, cs, world.scene)
             gp["floaters"].submit(renderer, cs)
             gp["floaters"].submit_projectiles(renderer, cs, world.scene)  # 10J
             gp["floaters"].submit_fx(renderer, cs)  # 10J sparks/shards/slashes

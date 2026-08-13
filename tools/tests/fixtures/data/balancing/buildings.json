@@ -166,7 +166,17 @@
       "flat_mode": false,
       "range_shape": "plus",
       "range_tiles": 1,
-      "starts_unlocked": false
+      "starts_unlocked": false,
+      "tier_card_explanations": [
+        "",
+        "Upgrades all three booster lines to their second tier.",
+        "Upgrades all three booster lines to their final tier."
+      ],
+      "tier_card_titles": [
+        "Boost Buildings",
+        "Motivators",
+        "Professionals"
+      ]
     }
   },
   "BuildingsGlobal": {

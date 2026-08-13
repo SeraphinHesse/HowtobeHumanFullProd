@@ -28,6 +28,8 @@ _FIXTURE_STRINGS = {
     "add_name.pool_count": "Names in pool: {count}",
     "boss_cutscene.box_label": "{prefix}{option}",
     "boss_cutscene.headline_loss": "Cutscene: Round Lost :(",
+    "boss_cutscene.headline_loss_reward":
+        "Cutscene: Round Lost :(  +{love} love",
     "boss_cutscene.headline_win": "Cutscene: Round Won :)",
     "boss_cutscene.prefix_loss": "Loss",
     "boss_cutscene.prefix_win": "Win",

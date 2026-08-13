@@ -225,6 +225,18 @@ BUFF_ARROW_SLOT = "vfx_buff_arrow"
 _BUFF_ARROW_W, _BUFF_ARROW_H = 10, 8   # base-zoom px, fixed screen size
 _BUFF_ARROW_GAP = 3                    # px above the HP-bar anchor point
 _BUFF_ARROW_GOLD = (255, 200, 50)      # placeholder colour == widgets.C_GOLD
+
+# Digger underground telegraph (player-feedback rework): two placeholder
+# arrows, the vfx_buff_arrow pattern applied to a raw WORLD point instead of
+# a live enemy's own screen anchor (its sprite is hidden while submerged).
+DIGGER_MARKER_SLOT = "vfx_digger_marker"
+DIGGER_DIRECTION_SLOT = "vfx_digger_direction"
+_DIGGER_MARKER_W, _DIGGER_MARKER_H = 12, 10    # base-zoom px
+_DIGGER_MARKER_GAP = 4                         # px above the entry tile centre
+_DIGGER_MARKER_COLOR = (150, 95, 40)           # placeholder dirt-brown
+_DIGGER_DIRECTION_LEN, _DIGGER_DIRECTION_W = 16, 8  # base-zoom px
+_DIGGER_DIRECTION_GAP = 4                      # px above the marker
+_DIGGER_DIRECTION_COLOR = (255, 205, 60)       # placeholder gold-yellow
 # -- /Drummer buff-range indicator + buffed-enemy arrow --
 
 # -- 10J FX: spark/gold/death-shard/muzzle/slash/splatter params live in
@@ -1211,6 +1223,83 @@ class FloaterManager:
                        (int(x_c), y + _BUFF_ARROW_H),
                        (int(x_c + w / 2), y))
                 renderer.submit_hud(HudLines(pts, _BUFF_ARROW_GOLD, width=2))
+
+    def submit_digger_telegraphs(self, renderer, cs, scene):
+        """Two placeholder arrows over a burrowed Digger's CURRENT dig — the
+        only visible trace of it while ``BurrowAgent.state ==
+        BURROW_SUBMERGED`` hides its sprite entirely
+        (``SpriteAnimator.visible = False``), alongside — never instead of —
+        the existing dirt-pile decal (``game/enemies/dirt_pile.py``): a
+        marker hovering over the entry tile (``start_wx``/``start_wy``,
+        re-set every new hop by ``BurrowAgent._submerge`` — so it MOVES with
+        each hop, never pinned to the original spawn dig) and a second arrow
+        rotated to point at ``dest_col``/``dest_row``, the segment currently
+        being dug. Both anchor off a raw WORLD point rather than the owner's
+        own screen anchor (unlike ``submit_buff_arrows``): the Digger is
+        untargetable and its sprite hidden here, so there is no live sprite
+        silhouette to anchor against.
+
+        Interchangeable placeholder art (E-37, the ``submit_buff_arrows``
+        shape): ``vfx_digger_marker``/``vfx_digger_direction`` draw as real
+        sprites once imported — unrotated at the anchor point, the
+        ``submit_beams`` sprite toggle's own accepted limitation
+        (``HudSprite`` carries no rotation) — and fall back to two small
+        procedural triangles otherwise: a downward pin over the entry tile,
+        and a chevron rotated (via ``atan2`` on the projected screen delta)
+        toward the dig's real destination."""
+        from game.enemies.components import BURROW_SUBMERGED, BurrowAgent
+
+        assets = getattr(renderer, "assets", None)
+        has_marker_art = (assets is not None and assets.animation_total_ms(
+            DIGGER_MARKER_SLOT, "idle") is not None)
+        has_direction_art = (assets is not None and assets.animation_total_ms(
+            DIGGER_DIRECTION_SLOT, "idle") is not None)
+        for e in scene.by_tag("enemy"):
+            if not getattr(e, "alive", False):
+                continue
+            burrow = e.get_component(BurrowAgent)
+            if burrow is None or burrow.state != BURROW_SUBMERGED:
+                continue
+            cx, cy = cs.world_to_screen(burrow.start_wx + 0.5,
+                                        burrow.start_wy + 0.5)
+            mw, mh = _DIGGER_MARKER_W, _DIGGER_MARKER_H
+            my = int(cy) - _DIGGER_MARKER_GAP
+            if has_marker_art:
+                renderer.submit_hud(HudSprite(
+                    DIGGER_MARKER_SLOT,
+                    (int(cx - mw / 2), my - mh), (mw, mh)))
+            else:
+                pts = ((int(cx - mw / 2), my - mh), (int(cx), my),
+                       (int(cx + mw / 2), my - mh))
+                renderer.submit_hud(
+                    HudLines(pts, _DIGGER_MARKER_COLOR, width=2))
+
+            dx, dy = cs.world_to_screen(burrow.dest_col + 0.5,
+                                        burrow.dest_row + 0.5)
+            ddx, ddy = dx - cx, dy - cy
+            length = math.hypot(ddx, ddy)
+            if length < 1e-6:
+                ux, uy = 0.0, -1.0    # degenerate (same tile): point "up"
+            else:
+                ux, uy = ddx / length, ddy / length
+            acx = cx
+            acy = my - mh - _DIGGER_DIRECTION_GAP
+            aw, ah = _DIGGER_DIRECTION_LEN, _DIGGER_DIRECTION_LEN
+            if has_direction_art:
+                renderer.submit_hud(HudSprite(
+                    DIGGER_DIRECTION_SLOT,
+                    (int(acx - aw / 2), int(acy - ah / 2)), (aw, ah)))
+            else:
+                half = _DIGGER_DIRECTION_LEN / 2
+                tip = (acx + ux * half, acy + uy * half)
+                base_x, base_y = acx - ux * half, acy - uy * half
+                px, py = -uy, ux
+                hw = _DIGGER_DIRECTION_W / 2
+                left = (base_x + px * hw, base_y + py * hw)
+                right = (base_x - px * hw, base_y - py * hw)
+                pts = tuple((int(x), int(y)) for x, y in (tip, left, right))
+                renderer.submit_hud(
+                    HudLines(pts, _DIGGER_DIRECTION_COLOR, width=2))
 
     # -- feature-storm-acolyte-multi-build: per-caster charge bars ----------
 
