@@ -148,6 +148,7 @@ DOMAINS = {
         "test_components.py",
         "test_coords.py",
         "test_core.py",
+        "test_depth_rank.py",
         "test_era_math.py",
         "test_ground_cache.py",
         "test_hud_items.py",

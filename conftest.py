@@ -172,6 +172,11 @@ TIERS = {
     "test_vfx": "core",  # ESV-3a: engine.vfx emitters + the vfx balancing domain
     "test_vfx_play_once": "core",  # ESV-5: PlayOnceVfx + the trigger table
     "test_vfx_variants": "core",  # VA-2: VFX variant selection (engine + game)
+    # VA-3: depth_key rank + WorldRect/WorldLines. Tier "core" (this table's
+    # values are the pytest MARKERS — core/editor/meta — not the panel domains
+    # in tools/test_domains.py, where this same module is filed under
+    # "engine").
+    "test_depth_rank": "core",
     "test_video_playback": "core",
     "test_video_source": "core",
     "test_migration_timeline": "core",  # TimelinePLAN T6: unlock_min_round -> Timeline migration

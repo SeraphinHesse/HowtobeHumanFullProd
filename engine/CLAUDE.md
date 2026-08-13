@@ -306,6 +306,20 @@ Note this module's docstring is worded around the name of the file-reading
 builtin: `tools/tests/test_vfx.py`'s package purity scan is a literal text
 sweep, so naming it even in prose reads as a violation.
 
+**VA-3** added `VfxSystem.submit_world(renderer, cs, rank=-1, layer=…)` beside
+`submit_hud` — the same particles and slashes, submitted as DEPTH-SORTED
+`WorldRect`/`WorldLines` items instead of always-on-top HUD ones, so a spark
+can pass behind the building that emitted it. `submit_hud` is unchanged and
+stays the default. The two produce **identical geometry by construction** (the
+same expressions, evaluated in `submit_world` rather than at flush) — which is
+why `WorldRect`/`WorldLines` take fully-resolved screen pixels rather than an
+anchor-relative offset; resolving at flush truncates `int(offset)` where
+`submit_hud` truncates `int(anchor + offset)`, measured 1px apart on a slash
+line. `rank` defaults to -1 because BEHIND is the only reason to call this:
++1 in the depth queue and the HUD pass both put the effect on top, and the HUD
+pass is cheaper. `spawn_play_once` gained a matching `rank=` so a sprite
+one-shot carries it through `Transform.rank`.
+
 ## Hard rules (whole package)
 - **pygame imports are allowed ONLY in** `render/`'s backends (`render/backend.py`
   and `render/backend_gpu.py`, the SDL2/Texture world backend), `render/fonts.py`,
