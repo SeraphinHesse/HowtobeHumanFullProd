@@ -120,8 +120,15 @@ the game, in a table the editor and anyone else can import.
 
 **Files.**
 - new: `tools/test_domains.py` — `DOMAINS: dict[str, tuple[str, ...]]` over
-  `buildings`, `enemies`, `map`, `ui`, `engine`, `editor`, `data`, plus a
-  display label per domain and `domain_for(module) -> str`.
+  EIGHT domains: `buildings`, `enemies`, `map`, `ui`, `engine`, `editor`,
+  `data`, `tooling`, plus a display label per domain (`DOMAIN_LABELS`, whose
+  insertion order is the panel's row order, "Tooling & Agents" last) and
+  `domain_for(module) -> str`. The eighth domain holds the ~18 modules that test
+  the repo's own scaffolding and developer tooling rather than the game
+  (`test_test_guard`, `test_ci_shards`, `test_tiers`, `tools/` script tests…);
+  filing them under `data` or `engine` would be a lie in a panel row, and D1
+  forbids a catch-all. It is NOT a catch-all: membership is explicit and an
+  unmapped module is still a hard error.
 - new: `tools/tests/test_test_domains.py`.
 
 **Tests.** Every module in `tools/tests/` is claimed by exactly one domain

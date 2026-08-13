@@ -46,6 +46,7 @@ TIERS = {
     "test_smoke_pairing": "meta",
     "test_spawnclaude": "meta",
     "test_test_guard": "meta",   # the PreToolUse hook enforcing the test policy
+    "test_test_domains": "meta",   # the test-module -> game-area table
     "test_testgate": "meta",
     "test_tiers": "meta",
 
