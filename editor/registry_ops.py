@@ -337,9 +337,10 @@ def add_button_family(data_dir, name):
 # either a dangling binding or art nobody can reach.
 
 
-def _resync_vfx_slot_enum(data_dir):
-    """Regenerate ``vfx.schema.json``'s ``trigger_row.sprite_slot`` enum from
-    the registry the caller just changed.
+def _resync_slot_enums(data_dir):
+    """Regenerate BOTH generated slot enums from the registry the caller just
+    changed: ``vfx.schema.json``'s ``trigger_row.sprite_slot`` AND
+    ``core.schema.json``'s ``enemy_intro_entry.sprite_slot``.
 
     Load-bearing, not housekeeping. That enum is GENERATED (VA-1/D2), so a
     freshly added slot is not a legal ``sprite_slot`` value until it is
@@ -348,20 +349,39 @@ def _resync_vfx_slot_enum(data_dir):
     schema on the way out. Found by ``test_vfx_roster_ops``, which could not
     bind a slot it had just created.
 
-    It CALLS the generator rather than reimplementing it:
-    ``test_schema_slot_sync`` pins that one function's output, and a second
-    copy here would be precisely the drift a generated enum exists to prevent.
+    BOTH, not just the vfx one. That was the bug the exit gate caught:
+    ``core.schema.json``'s enum spans EVERY slot in EVERY category, so adding a
+    vfx effect through the editor made it stale exactly as much as adding an
+    enemy would have. Resyncing only the vfx enum left `test_schema_slot_sync
+    .TestSpriteSlotEnumSync` red, and the designer who added the effect had no
+    reason to connect their click to a schema in another domain.
+
+    It CALLS the generators rather than reimplementing them:
+    ``test_schema_slot_sync`` pins their output, and a second copy here would
+    be precisely the drift a generated enum exists to prevent.
     ``editor -> tools`` is the established direction (``editor/main.py``
     imports ``tools.smoke``; ``editor/test_runner.py`` imports
-    ``tools.test_domains``), and the generator is pure ``engine`` underneath so
-    ``TestPurity`` is unaffected. Imported locally to keep this module's
-    top-level import surface engine-only."""
-    from tools.gen_sprite_slot_enum import apply_vfx
+    ``tools.test_domains``), and the generators are pure ``engine`` underneath
+    so ``TestPurity`` is unaffected. Imported locally to keep this module's
+    top-level import surface engine-only.
+
+    KNOWN GAP, pre-existing and out of scope here: the other append ops
+    (``add_variant``, ``_append_slot``, ``add_background_slot``,
+    ``add_deco_prop``, ``add_button_family``) do NOT call this, so adding an
+    enemy variant or a deco prop through the editor still leaves
+    ``core.schema.json`` stale. That predates this branch and affects every
+    category; ``test_vfx_roster_ops.TestBothSlotEnumsStayInSync`` pins the
+    current behaviour so the gap is visible rather than silent."""
+    from tools.gen_sprite_slot_enum import apply, apply_vfx
 
     data_dir = Path(data_dir)
-    schema = data_dir / "schemas" / "vfx.schema.json"
-    if schema.exists():
-        apply_vfx(schema, data_dir)
+    schemas = data_dir / "schemas"
+    vfx_schema = schemas / "vfx.schema.json"
+    if vfx_schema.exists():
+        apply_vfx(vfx_schema, data_dir)
+    core_schema = schemas / "core.schema.json"
+    if core_schema.exists():
+        apply(core_schema, data_dir)
 
 
 def vfx_effect_slot(name):
@@ -423,7 +443,7 @@ def add_vfx_effect(data_dir, name):
         raise ValueError(f"slot {slot!r} already exists in the registry")
 
     _append_child_group(data_dir, "vfx", ("Effects",), label, slot)
-    _resync_vfx_slot_enum(data_dir)
+    _resync_slot_enums(data_dir)
     return label, slot
 
 
@@ -497,7 +517,7 @@ def remove_slot(data_dir, slot_key):
         owner["slots"] = remaining
     data_io.write_validated(doc, slots_path,
                             data_dir / "schemas" / "slots.schema.json")
-    _resync_vfx_slot_enum(data_dir)
+    _resync_slot_enums(data_dir)
 
     manifest = asset_import.load_manifest_doc(data_dir)
     entry = manifest["entries"].pop(slot_key, None)
@@ -565,7 +585,7 @@ def rename_slot(data_dir, old_key, new_key):
     data_io.write_validated(doc, slots_path,
                             data_dir / "schemas" / "slots.schema.json")
     # BEFORE the trigger rewrite below: those rows validate against this enum.
-    _resync_vfx_slot_enum(data_dir)
+    _resync_slot_enums(data_dir)
 
     png_renamed = False
     manifest = asset_import.load_manifest_doc(data_dir)

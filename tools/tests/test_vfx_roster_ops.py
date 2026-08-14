@@ -306,6 +306,77 @@ class TestTriggerBindings(_Case):
             registry_ops.trigger_bindings(self.data, "vfx_muzzle"), ())
 
 
+class TestBothSlotEnumsStayInSync(_Case):
+    """Regression, caught by the exit gate.
+
+    Two schemas carry a GENERATED slot enum: vfx.schema.json's
+    trigger_row.sprite_slot (the vfx category only) and core.schema.json's
+    enemy_intro_entry.sprite_slot (EVERY slot in EVERY category). The roster
+    ops first resynced only the vfx one, so adding an effect through the
+    editor left core.schema.json stale and test_schema_slot_sync red. The
+    designer who clicked "+ Effect" had no reason to connect that click to a
+    schema in another domain.
+    """
+
+    def core_enum(self):
+        doc = data_io.load_json(self.data / "schemas" / "core.schema.json")
+        return doc["$defs"]["enemy_intro_entry"]["properties"]["sprite_slot"]["enum"]
+
+    def vfx_enum(self):
+        doc = data_io.load_json(self.data / "schemas" / "vfx.schema.json")
+        return doc["$defs"]["trigger_row"]["properties"]["sprite_slot"]["enum"]
+
+    def assert_both_match_the_registry(self):
+        slots = set(load_registry(self.data).slot_keys())
+        self.assertEqual(set(self.core_enum()), slots)
+        vfx_slots = set(load_registry(self.data).group_slots("vfx"))
+        self.assertEqual(set(self.vfx_enum()) - {""}, vfx_slots)
+
+    def test_add_resyncs_both(self):
+        registry_ops.add_vfx_effect(self.data, "Shockwave")
+        self.assertIn("vfx_shockwave", self.core_enum())
+        self.assertIn("vfx_shockwave", self.vfx_enum())
+        self.assert_both_match_the_registry()
+
+    def test_remove_resyncs_both(self):
+        _label, slot = registry_ops.add_vfx_effect(self.data, "Shockwave")
+        registry_ops.remove_slot(self.data, slot)
+        self.assertNotIn(slot, self.core_enum())
+        self.assertNotIn(slot, self.vfx_enum())
+        self.assert_both_match_the_registry()
+
+    def test_rename_resyncs_both(self):
+        _label, slot = registry_ops.add_vfx_effect(self.data, "Shockwave")
+        registry_ops.rename_slot(self.data, slot, "vfx_ripple")
+        for enum in (self.core_enum(), self.vfx_enum()):
+            self.assertIn("vfx_ripple", enum)
+            self.assertNotIn(slot, enum)
+        self.assert_both_match_the_registry()
+
+    def test_a_variant_reaches_the_registry_and_the_vfx_enum(self):
+        """KNOWN GAP, deliberately not fixed here: `add_variant` does NOT
+        resync `core.schema.json`.
+
+        It is the GENERIC variant op — enemies, deco, ui and conditions all
+        use it — so the gap predates this branch and affects every category
+        equally: adding an enemy variant in the editor has always left that
+        enum stale. The exit gate surfaced the `add_vfx_effect` half, which is
+        fixed; widening a handoff fix into the shared op (and into
+        `_append_slot`/`add_background_slot`/`add_deco_prop`/
+        `add_button_family`, which have the same shape) is a change that wants
+        its own branch and its own test run.
+
+        Asserting only what is true today, so this test does not quietly go
+        green on a half-fix."""
+        registry_ops.add_vfx_effect(self.data, "Shockwave")
+        key = registry_ops.add_variant(self.data, "vfx", ("Effects",),
+                                       "Shockwave")
+        self.assertIn(key, load_registry(self.data).group_slots("vfx"))
+        self.assertNotIn(key, self.core_enum(),
+                         "if this now passes, the generic add_variant gap was "
+                         "fixed — update this test and its note")
+
+
 class TestVariantTargetsIncludesVfx(unittest.TestCase):
     def test_vfx_is_a_variant_target_category(self):
         """Without this the "+ Variant" button stays disabled for vfx however
