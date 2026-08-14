@@ -1486,7 +1486,13 @@ building — like every other effect.
   path line read `move_target`; the drag-select rectangle's fill and the two
   name-field focus rings read `tile_selected`. Each of those IS the highlight's
   colour seen somewhere else, which is why sharing is correct here and a
-  second key would not be.
+  second key would not be. **One consumer was missed by this migration and
+  shipped a live `AttributeError`** (found the hard way, live-testing the
+  tile-buying tutorial topic below): `ColorSwatchRow.submit`'s selection ring
+  (`building_ui.py`, the construct-preview building-colour picker) still read
+  the deleted `widgets.C_HIGHLIGHT` directly. Fixed the same way as the other
+  four — `highlight_color("tile_selected")`, the same "ring around the
+  selected thing" reading the two name-field focus rings already use.
 - `wall_edge` draws a LINE, not a diamond, so its `border_width` is the line
   width and its `fill_alpha` is unused — the one non-uniform member of an
   otherwise uniform block, documented in the schema.
@@ -2016,11 +2022,22 @@ trigger call sites in `main.py`, never unified into one state machine:
   sharing `shell.skinning` like the other seven gameplay screens;
   `data/ui/screens/tutorial_message.json` is the 14th screen override file,
   started `{}` like every other.
-- **`widgets.C_TUTORIAL_HIGHLIGHT`** (white, a plain code constant — NOT
-  palette-data-backed, unlike every other `C_*`) + **`submit_ui_box_highlight
+- **`widgets.highlight_color("tutorial_highlight")`** (white; VA-5 moved this
+  off the old `C_TUTORIAL_HIGHLIGHT` bare constant into
+  `procedural.highlights.tutorial_highlight` data — see this file's "seven
+  tile highlights are EFFECTS" section) + **`submit_ui_box_highlight
   (renderer, rect, color=None, width=3)`** (a highlight ring around a card /
-  Confirm / End Turn button, plain HUD-space `HudRect`) are the two new D8
-  primitives the guided chain draws with; no new render-backend work.
+  Confirm / End Turn / Unlock button, plain HUD-space `HudRect`) are the two
+  D8 primitives the guided chain draws with; no new render-backend work.
+  **Feature addition**: every guided-chain highlight (this ring AND the world
+  tile diamond, `submit_highlight("tutorial_highlight", …)`) now pulses/glows
+  — alpha and border width both breathe on a sine cycle, off a new sibling
+  `procedural.tutorial_highlight_pulse` block and `widgets.
+  tutorial_pulse_style(clock_ms)`. The two `main.py` call sites compute it
+  once per frame off the existing `deco_clock_ms` wall clock and pass it as
+  `pulse_color`/`pulse_width` (tile diamond) or `color`/`width` (UI box ring)
+  — no new per-frame state, no change to either primitive's default
+  behaviour for its six other, still-static, callers.
 - **`building_ui.py` gained three small, additive, read-only members** (no
   change to `_construct_click`/`open_for_tile`/any existing control flow):
   `card_rect(building_type)` (the construct-mode card's rect, or `None`),
@@ -2034,17 +2051,27 @@ trigger call sites in `main.py`, never unified into one state machine:
   from "the preview was merely cancelled" (both clear `panel.preview` the
   same way) and clears it back to `None` itself. TU-8 added a FOURTH:
   `close_rect()` (the panel's own CLOSE/X rect, or `None` when the panel
-  isn't open — same additive shape).
+  isn't open — same additive shape). The tile-buying tutorial topic added a
+  FIFTH pair: `action_rect()` (mirrors `close_rect()`, gated on `self.mode
+  == "unlock"` since `action_btn` is reused across unlock/construct-advance/
+  upgrade modes) and `self.last_unlocked` (the `last_placed_type` shape
+  exactly — set `True` in `_unlock_click` on a real `tm.do_unlock` success,
+  read/cleared once by `main.py` right after a successful
+  `panel.handle_click()`, never reset by `close()`).
 - **TU-8 added a second widgets primitive, `submit_tutorial_banner(renderer,
   text, view_w, view_h)`** — the `submit_ui_box_highlight` sibling for a
-  full-text hint rather than a ring: a big `C_TUTORIAL_HIGHLIGHT`-filled,
-  screen-centred box sized to the text, drawn with **no hit-test and no
-  input consumption** (unlike `TutorialMessageScreen`, which must never be
-  used for a hint instructing a right-click — that modal swallows every
-  click while visible, `main.py` `handle_world_click`'s top branch). Reads
-  its text from `TutorialDirector.banner_text()`, submitted independently of
-  (and alongside) `ui_highlight_rects`'s Close-button ring — see
+  full-text hint rather than a ring: a big
+  `highlight_color("tutorial_highlight")`-filled, screen-centred box sized to
+  the text, drawn with **no hit-test and no input consumption** (unlike
+  `TutorialMessageScreen`, which must never be used for a hint instructing a
+  right-click — that modal swallows every click while visible, `main.py`
+  `handle_world_click`'s top branch). Reads its text from
+  `TutorialDirector.banner_text()`, submitted independently of (and
+  alongside) `ui_highlight_rects`'s Close-button ring — see
   `game/CLAUDE.md`'s "Un-stick on panel close + close-panel hint" section.
+  **Deliberately excluded from the pulse above** — an instructional text box,
+  not a click-target border; pulsing a filled banner would read as
+  distracting rather than clarifying.
 - **Detail on the director/host wiring** (the three choke points, the event
   feed, the D6 zero-overhead contract, TU-8's revert/close-panel-hint
   additions) → `game/CLAUDE.md`'s Tutorial director section.

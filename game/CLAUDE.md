@@ -538,6 +538,65 @@ did change — see the fixed callouts above).
   feed are unaffected, only which literal round they fire on shifted down by
   one.
 
+## Tile-buying tutorial topic + pulsing highlights (feature)
+A third chain appended to the SAME `data/tutorial/tutorial.json` step list
+TU-6/TU-7 built, right after round-2's stone-thrower placement: a message,
+a forced click on the map doc's new `tutorial_unlock` marker (a locked
+COMBAT tile), a forced click on the panel's unlock action button, then the
+existing flute/stone forced-placement pattern again pointed at a second new
+marker, `tutorial_stone_2` (the far corner of the newly-bought chunk) —
+teaching that a defender's range is finite and an adjacent tile needs its
+own coverage. Becomes the script's new terminal chain; no new engine code,
+same "past the last step" semantics TU-7 relies on.
+- **The one genuinely new mechanic: buying a tile was previously ungated by
+  the tutorial entirely** (`main.py`'s `_tutorial_allows_panel_click`
+  used to fall through `unlock/upgrade/base_info modes: untouched by TU-6`
+  for every unlock-panel click). It now gates `panel.mode == "unlock"`
+  clicks on `panel.action_btn` through a new `tutorial.allows(("unlock",))`
+  action kind, exactly like the construct-card branch above it.
+- **`TutorialDirector` gains one new event-feed method, `on_tile_unlocked()`**
+  → `sequencer.advance("tile_unlocked")`. No marker-name parameterization —
+  the step's own `allow` whitelist already guarantees only the correct
+  chunk's unlock button can be clicked while it holds. Fed from a new
+  `BuildingUI.last_unlocked` transient bool (the `last_placed_type`
+  read/clear precedent exactly): `_unlock_click` sets it `True` on a real
+  `tm.do_unlock` success, `main.py` reads/clears it right after a successful
+  `panel.handle_click()` in the panel's "normal branch" (the same call site
+  that already reads `last_placed_type` for card selection and
+  `was_visible and not panel.visible` for `on_panel_closed()` — the unlock
+  check runs BEFORE that fallback, since a successful unlock also closes the
+  panel and would otherwise misread as a bare close).
+- **`BuildingUI.action_rect()`** (new, mirrors `close_rect()`) resolves the
+  `"button:unlock"` highlight id for `ui_highlight_rects` — gated on
+  `self.mode == "unlock"` since `action_btn` is reused across
+  unlock/construct-advance/upgrade modes and must never highlight the wrong
+  one.
+- **Two new map markers**, `tutorial_unlock`/`tutorial_stone_2`
+  (`engine/tilemap.py`, `data/schemas/map_file.schema.json`,
+  `data/slots.json`'s `core` category, full editor paint/drag/undo support —
+  `engine/CLAUDE.md`, `editor/panels/CLAUDE.md`'s "Tutorial markers" section)
+  — same never-rendered `{col,row,slot}` shape as `tutorial_flute`/
+  `tutorial_stone`. Painted on the 3 tutorial-enabled maps (`autumn`,
+  `summertest3`, `forestmap`) at the tile immediately adjacent to
+  `tutorial_stone` and that chunk's far corner from the base respectively;
+  every other map carries the two keys `null` (schema-required, migrated).
+- **Pulsing/glowing highlights**: every tutorial highlight (tile diamonds AND
+  the card/Confirm/End-Turn/Close/Unlock UI-box rings) now breathes alpha
+  AND border width on a sine cycle, on top of `VfxAuthoringPLAN` VA-5's
+  highlights-as-data rework (`game/ui/CLAUDE.md`'s highlights section) — a
+  new sibling `procedural.tutorial_highlight_pulse` balancing block
+  (`data/balancing/vfx.json`, NOT a new key inside `procedural.highlights`
+  itself, whose 7-entry shape is uniform and shared by six OTHER highlights
+  that stay static), a new `widgets.tutorial_pulse_style(clock_ms)` helper
+  composing the pulse onto `highlight_color("tutorial_highlight")`, and
+  `submit_highlight`'s new optional `pulse_color`/`pulse_width` params
+  (override the static colour/width ONLY on the procedural-diamond fallback
+  — an imported `vfx_tutorial_highlight` sprite still wins untouched). Both
+  draw call sites in `main.py` reuse the EXISTING `deco_clock_ms` wall-clock
+  accumulator — no new per-frame state. `submit_tutorial_banner` (the TU-8
+  close-panel-hint text box) is deliberately excluded — instructional text,
+  not a click-target border.
+
 ## Wall + tile-highlight render order — host wiring (fix/depth-sorted-world-fills)
 Every tile-diamond highlight (click/drag-select, condition tint, RANGE,
 HEATMAP, TIER OVERVIEW, the tutorial highlight) and every wall segment now
