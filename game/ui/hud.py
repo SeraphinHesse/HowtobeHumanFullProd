@@ -478,7 +478,7 @@ class Hud:
                and self.end_turn.hit(mx, my) else None)
 
     def submit(self, renderer, session, view_w, view_h, hover_cost=None,
-              scene=None, drag_select_enabled=False):
+              scene=None, drag_select_enabled=False, love_display=None):
         from engine.render import HudRect  # local: keep module import list lean
 
         st = session.state
@@ -499,17 +499,21 @@ class Hud:
                         skin=self._icon_love.skin,
                         tint=getattr(self._icon_love, "tint", None), anim_ms=t)
         if hover_cost is not None:
-            remaining = st.love - hover_cost
-            # Unaffordable swaps to a DIFFERENT string id, so it goes through
-            # `text=` rather than the holder's own; the affordable case reads
-            # the holder's `text_id`, which a designer may re-point.
-            love_txt = (None if remaining >= 0
-                        else T("hud.love_unaffordable"))
-            amount, love_col = remaining, widgets.C_RED
+            # Shows the arithmetic ("current - price"), not the remainder —
+            # a player can read exactly what they have and what a purchase
+            # costs at a glance. Always the real, unanimated `st.love`
+            # (a correctness question — "can I afford this right now" — not
+            # a payout-flavor display); shown the same way whether or not
+            # it's affordable. Two separately-coloured runs (current love
+            # stays the plain love colour, only the " - price" half reads
+            # red) — two string-table ids rather than one combined template
+            # hand-split in code, so each half stays independently
+            # designer-editable.
+            self._submit_love_hover_cost(renderer, st.love, hover_cost)
         else:
-            love_txt, amount, love_col = None, st.love, widgets.C_GOLD
-        submit_label(renderer, self._love_text, text=love_txt,
-                     color=love_col, amount=amount)
+            amount = st.love if love_display is None else love_display
+            submit_label(renderer, self._love_text, color=widgets.C_GOLD,
+                         amount=amount)
 
         # -- XP bar + village level (right of the love pill) ---------------
         self._submit_xp(renderer, st)
@@ -631,6 +635,36 @@ class Hud:
         # -- income tooltip, LAST: topmost HUD layer (see the deferral above)
         if tooltip is not None:
             self._submit_income_tooltip(renderer, tooltip, income_pill)
+
+    def _submit_love_hover_cost(self, renderer, current_love, hover_cost):
+        """The love pill's hover-preview text, "current - price" as TWO
+        separately-coloured runs: the current-love half in the plain love
+        colour (a designer's ``text_color`` override on the ``love_text``
+        id still wins, the "None means compute" convention every other
+        override follows), the " - price" half always red — drawn
+        immediately after it via a live width measurement (``text_size``),
+        the same technique the income tooltip/lightning readout already use
+        for hover-only text with no stored rect. Left-aligned only — the
+        ``love_text`` holder is always left-aligned in practice; a future
+        non-left override would need this rewritten, so it falls back to
+        the single-colour combined draw instead of drawing wrong."""
+        holder = self._love_text
+        if not is_visible(holder):
+            return
+        if getattr(holder, "align", "left") != "left":
+            submit_label(renderer, holder,
+                         text=(T("hud.love_hover_cost_current", current=current_love)
+                               + T("hud.love_hover_cost_price", price=hover_cost)),
+                         color=widgets.C_RED)
+            return
+        current_text = T("hud.love_hover_cost_current", current=current_love)
+        price_text = T("hud.love_hover_cost_price", price=hover_cost)
+        x, y = holder.rect[0], holder.rect[1]
+        current_col = getattr(holder, "text_color", None) or widgets.C_GOLD
+        submit_text(renderer, current_text, (x, y), holder.font_key, current_col)
+        current_w, _h = text_size(current_text, holder.font_key)
+        submit_text(renderer, price_text, (x + current_w, y), holder.font_key,
+                   widgets.C_RED)
 
     def _submit_income_tooltip(self, renderer, sources, anchor):
         """The 10J per-source breakdown below the income line (prototype

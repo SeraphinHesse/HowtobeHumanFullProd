@@ -485,11 +485,19 @@
       "type": "string"
     },
     "hud.love_display": {
-      "description": "HUD love-pill count (also used for the affordable hover-cost preview). Placeholder: {amount} (the love count, int).",
+      "description": "HUD love-pill count, outside a hover preview. Placeholder: {amount} (the love count, int).",
+      "type": "string"
+    },
+    "hud.love_hover_cost_current": {
+      "description": "HUD love-pill display while hovering a buyable option (a card, an upgrade, a batch) — the CURRENT-love half of the \"current - price\" arithmetic, drawn in the plain gold love colour (hud.love_hover_cost_price is the red \" - price\" half, drawn immediately after it). Placeholder: {current} (love before spending, int). Shown whether or not it's affordable.",
+      "type": "string"
+    },
+    "hud.love_hover_cost_price": {
+      "description": "HUD love-pill display while hovering a buyable option — the \" - price\" half of the arithmetic, drawn in red immediately after hud.love_hover_cost_current's plain-coloured current-love text. Placeholder: {price} (the hovered cost, int). Shown whether or not it's affordable.",
       "type": "string"
     },
     "hud.love_unaffordable": {
-      "description": "HUD love-pill display when a hovered action's cost would take love negative. No placeholders.",
+      "description": "Unused by game/ui/hud.py as of the hover-cost-shows-arithmetic change (hud.love_hover_cost_current/_price now cover both the affordable and unaffordable hover case) — kept as a dead id rather than deleted, pending a later string-table cleanup sweep. No placeholders.",
       "type": "string"
     },
     "hud.phase.boss_cutscene": {
@@ -723,6 +731,8 @@
     "hud.lightning_ready",
     "hud.lives",
     "hud.love_display",
+    "hud.love_hover_cost_current",
+    "hud.love_hover_cost_price",
     "hud.love_unaffordable",
     "hud.phase.boss_cutscene",
     "hud.phase.building",

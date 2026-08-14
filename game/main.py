@@ -1716,12 +1716,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                         set_damage_hook(None)
                         set_wall_damage_hook(None)
                     session.post_sim(world.scene)
-                # payday fills state.income_events + flips to INCOME; spawn once
+                # payday fills state.income_events + flips to INCOME; queue
+                # the payout beat sequence once (boost -> economy(+painter)
+                # -> upkeep — game/ui/effects.py FloaterManager.begin_payout).
                 if (session.state.phase == GamePhase.INCOME
                         and gp["prev_phase"] != GamePhase.INCOME):
-                    gp["floaters"].spawn_income_events(session.state)
-                    gp["floaters"].spawn_painter_events(session.state)
-                    gp["floaters"].spawn_boost_events(session.state)
+                    gp["floaters"].begin_payout(session.state)
                     # VA-4: same edge, same drained-by-UI contract — payday's
                     # revive slot filled it a few steps earlier in the very
                     # transition this branch is reacting to.
@@ -1800,7 +1800,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 gp["panel"].hover(mx, my, mouse_down=held)
                 gp["panel"].update(dt)
                 gp["overlays"].update(dt, mx, my, mouse_down=held)   # 10I: toggle-pill hover
-                gp["floaters"].update(dt)
+                gp["floaters"].update(dt, session.state)
                 # -- 10J: game log + FX watchers (building deaths -> purple burst
                 # + kill message; enemy attack cadence -> muzzle/slash; enemy
                 # deaths -> blood splatters, double-gated on gore) --
@@ -2059,6 +2059,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             gp["floaters"].submit_announce(renderer, view_w, view_h)    # 10G
             gp["hud"].submit(renderer, session, view_w, view_h,
                              hover_cost=gp["panel"].hover_cost,
+                             love_display=gp["floaters"].love_display,
                              scene=world.scene,
                              drag_select_enabled=gp["drag_select_enabled"])
             # -- TU-6: UI-box highlights (card/Confirm/End Turn/Close) + the

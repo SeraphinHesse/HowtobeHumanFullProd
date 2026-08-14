@@ -144,6 +144,8 @@ _STRINGS = {
     "hud.lightning_ready": "⚡ CLICK TO STRIKE",
     "hud.lives": "LIVES {count}",
     "hud.love_display": "{amount}",
+    "hud.love_hover_cost_current": "{current}",
+    "hud.love_hover_cost_price": " - {price}",
     "hud.love_unaffordable": "-",
     "hud.phase.boss_cutscene": "CUTSCENE",
     "hud.phase.building": "BUILDING",

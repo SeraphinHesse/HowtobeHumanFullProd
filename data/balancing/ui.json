@@ -18,7 +18,8 @@
       "hold": 2.0
     },
     "gore_enabled": true,
-    "income_floaters_enabled": true
+    "income_floaters_enabled": true,
+    "love_counter_anim_duration": 1.2
   },
   "Menu": {
     "cutscene_length": 44.2

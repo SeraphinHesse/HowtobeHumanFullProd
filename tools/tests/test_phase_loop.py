@@ -158,6 +158,62 @@ class TestPayday(unittest.TestCase):
         run_payday(RunState.from_balance(CORE, BUILD), tm, CORE)
         self.assertFalse(base.alive)  # base excluded from the revive sweep
 
+    def test_upkeep_zero_building_appends_no_income_events_entry(self):
+        # Regression: a building whose upkeep() is 0 (a fresh tier-1
+        # defender by default balance) must never reach income_events —
+        # the payout phase's UI beat queue relies on this to skip it.
+        tm, musician, defender = self._board()
+        self.assertEqual(defender.upkeep(), 0)
+        st = RunState.from_balance(CORE, BUILD)
+
+        run_payday(st, tm, CORE)
+
+        self.assertFalse(any(kind == "upkeep" for *_, kind in st.income_events))
+
+    def test_phase_timer_boost_absent_upkeep_absent_is_the_bare_hold(self):
+        # No boost building, and a fresh defender's upkeep is 0 -> only the
+        # economy beat fires -> phase_timer is the bare post-last-beat hold,
+        # no stagger interval added.
+        tm, _musician, _defender = self._board()
+        st = RunState.from_balance(CORE, BUILD)
+
+        run_payday(st, tm, CORE)
+
+        self.assertAlmostEqual(st.phase_timer, PHASE["income_phase_duration"])
+
+    def test_phase_timer_grows_by_one_stagger_per_extra_beat(self):
+        # A boost building (nonzero upkeep by default balance, and it emits
+        # a per-turn boost_events entry onto its adjacent defender) makes
+        # all three beats fire: phase_timer = 2 stagger intervals + the
+        # bare hold.
+        tm, scene, occ = build_board(["bbbb"])
+        place_building(tm, tm.get(1, 0), "boost_speed", 9999, BUILD, scene, occ)
+        place_building(tm, tm.get(2, 0), "defence", 9999, BUILD, scene, occ)
+        st = RunState.from_balance(CORE, BUILD)
+
+        run_payday(st, tm, CORE)
+
+        self.assertTrue(st.boost_events)
+        self.assertTrue(any(kind == "upkeep" for *_, kind in st.income_events))
+        self.assertAlmostEqual(
+            st.phase_timer,
+            2 * PHASE["payout_stagger_interval"] + PHASE["income_phase_duration"])
+
+    def test_payout_love_checkpoints_bracket_the_upkeep_deduction(self):
+        tm, scene, occ = build_board(["bbbb"])
+        place_building(tm, tm.get(1, 0), "boost_speed", 9999, BUILD, scene, occ)
+        place_building(tm, tm.get(2, 0), "defence", 9999, BUILD, scene, occ)
+        st = RunState.from_balance(CORE, BUILD)
+        love0 = st.love
+
+        run_payday(st, tm, CORE)
+
+        total_upkeep = sum(-amount for _col, _row, amount, kind
+                           in st.income_events if kind == "upkeep")
+        self.assertEqual(st.payout_love_start, love0)
+        self.assertEqual(st.payout_love_after_economy, st.love + total_upkeep)
+        self.assertGreater(st.payout_love_after_economy, st.love)  # upkeep > 0
+
 
 # ---------------------------------------------------------------------------
 # Phase machine + multi-round currency ledger (the phase Quick Test)

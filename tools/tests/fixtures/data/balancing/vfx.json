@@ -86,6 +86,7 @@
         255,
         255
       ],
+      "income_life": 2.6,
       "painter_finished_color": [
         255,
         255,
@@ -464,7 +465,7 @@
     "projectile_hit": {
       "draw_in_front": true,
       "procedural": "",
-      "sprite_slot": "",
+      "sprite_slot": "vfx_crater",
       "variant_select": {
         "misc_key": "",
         "mode": "random"
@@ -489,7 +490,7 @@
       }
     },
     "tile_selected": {
-      "draw_in_front": true,
+      "draw_in_front": false,
       "procedural": "highlight",
       "sprite_slot": "",
       "variant_select": {

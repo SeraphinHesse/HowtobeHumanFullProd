@@ -129,6 +129,7 @@
             "vfx_section_2x2",
             "vfx_shell",
             "vfx_slash",
+            "vfx_test",
             "vfx_tile_selected",
             "vfx_tutorial_highlight",
             "vfx_upgrade_batch",
@@ -398,6 +399,12 @@
             "boost_color": {
               "$ref": "#/$defs/color"
             },
+            "income_life": {
+              "description": "Payout-phase floater lifetime in seconds — the boost/economy(+painter's own message shares painter_life)/upkeep beats spawned by FloaterManager.begin_payout. Independent of core.PhaseLoop.income_phase_duration (the payout phase's own hold time), so the two can be tuned separately.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
             "painter_finished_color": {
               "$ref": "#/$defs/color"
             },
@@ -425,6 +432,7 @@
           },
           "required": [
             "boost_color",
+            "income_life",
             "painter_finished_color",
             "painter_life",
             "painter_lost_color",

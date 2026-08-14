@@ -1159,6 +1159,12 @@
               "slots": [
                 "vfx_tutorial_highlight"
               ]
+            },
+            {
+              "label": "Test",
+              "slots": [
+                "vfx_test"
+              ]
             }
           ],
           "label": "Effects"
