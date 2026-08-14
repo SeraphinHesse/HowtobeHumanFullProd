@@ -53,9 +53,13 @@ _FIXTURE_PALETTE = {
     "ui_btn_disabled": [50, 45, 70],
     "ui_text": [235, 225, 195],
     "ui_text_dim": [150, 140, 120],
-    "highlight": [255, 230, 60],
-    "highlight2": [255, 180, 60],
-    "range_highlight": [180, 40, 40],
+    # `highlight` / `highlight2` / `range_highlight` were HERE until
+    # VfxAuthoringPLAN VA-5 moved them — with C_MOVE_HIGHLIGHT and
+    # C_TUTORIAL_HIGHLIGHT, which were never palette keys — into
+    # data/balancing/vfx.json's `procedural.highlights`, so each value has one
+    # home (G-7/D8) and every tile highlight is editable and previewable in
+    # the VFX editor. `tools/tests/test_highlight_data.py` pins them now, in
+    # this module's exact shape.
     "panel_stone": [40, 32, 58],
     "panel_inset": [150, 135, 185],
     "purple": [168, 105, 222],

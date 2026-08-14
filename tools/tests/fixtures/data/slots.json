@@ -1029,26 +1029,139 @@
       "frame_w": 64,
       "groups": [
         {
-          "label": "Effects",
-          "slots": [
-            "vfx_hit",
-            "vfx_explosion",
-            "vfx_muzzle",
-            "vfx_death",
-            "vfx_slash",
+          "children": [
             {
-              "frame_h": 96,
-              "frame_w": 64,
-              "key": "vfx_crater"
+              "label": "Hit",
+              "slots": [
+                "vfx_hit"
+              ]
             },
-            "vfx_projectile",
-            "vfx_shell",
-            "vfx_dirt_pile",
-            "vfx_buff_arrow",
-            "vfx_beam",
-            "vfx_digger_marker",
-            "vfx_digger_direction"
-          ]
+            {
+              "label": "Explosion",
+              "slots": [
+                "vfx_explosion"
+              ]
+            },
+            {
+              "label": "Muzzle",
+              "slots": [
+                "vfx_muzzle"
+              ]
+            },
+            {
+              "label": "Death",
+              "slots": [
+                "vfx_death"
+              ]
+            },
+            {
+              "label": "Slash",
+              "slots": [
+                "vfx_slash"
+              ]
+            },
+            {
+              "label": "Crater",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "vfx_crater"
+                }
+              ]
+            },
+            {
+              "label": "Projectile",
+              "slots": [
+                "vfx_projectile"
+              ]
+            },
+            {
+              "label": "Shell",
+              "slots": [
+                "vfx_shell"
+              ]
+            },
+            {
+              "label": "Dirt Pile",
+              "slots": [
+                "vfx_dirt_pile"
+              ]
+            },
+            {
+              "label": "Buff Arrow",
+              "slots": [
+                "vfx_buff_arrow"
+              ]
+            },
+            {
+              "label": "Beam",
+              "slots": [
+                "vfx_beam"
+              ]
+            },
+            {
+              "label": "Digger Marker",
+              "slots": [
+                "vfx_digger_marker"
+              ]
+            },
+            {
+              "label": "Digger Direction",
+              "slots": [
+                "vfx_digger_direction"
+              ]
+            },
+            {
+              "label": "Respawn",
+              "slots": [
+                "vfx_respawn"
+              ]
+            },
+            {
+              "label": "Selected tile",
+              "slots": [
+                "vfx_tile_selected"
+              ]
+            },
+            {
+              "label": "2x2 section",
+              "slots": [
+                "vfx_section_2x2"
+              ]
+            },
+            {
+              "label": "Attack range",
+              "slots": [
+                "vfx_attack_range"
+              ]
+            },
+            {
+              "label": "Move destination",
+              "slots": [
+                "vfx_move_target"
+              ]
+            },
+            {
+              "label": "Wall edge",
+              "slots": [
+                "vfx_wall_edge"
+              ]
+            },
+            {
+              "label": "Upgrade batch",
+              "slots": [
+                "vfx_upgrade_batch"
+              ]
+            },
+            {
+              "label": "Tutorial tile",
+              "slots": [
+                "vfx_tutorial_highlight"
+              ]
+            }
+          ],
+          "label": "Effects"
         }
       ],
       "key": "vfx"

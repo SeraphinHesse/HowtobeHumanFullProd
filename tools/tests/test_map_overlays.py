@@ -65,6 +65,7 @@ class FakeRenderer:
         self.overlay_polys = []
         self.overlay_lines = []
         self.world_fills = []
+        self.world_fill_ranks = []
 
     def submit_hud(self, item):
         self.hud.append(item)
@@ -76,7 +77,12 @@ class FakeRenderer:
         self.overlay_lines.append((tuple(points), color, width, closed))
 
     def submit_world_fill(self, points, world_pos, layer="entities",
-                          color=None, border=None, border_width=2):
+                          color=None, border=None, border_width=2, rank=0):
+        # `rank` (VA-3) is recorded SEPARATELY rather than appended to the
+        # tuple every assertion below unpacks: this module tests the overlay's
+        # content, not its depth ordering (test_depth_rank.py owns that), and
+        # widening the shared tuple would churn a dozen unrelated assertions.
+        self.world_fill_ranks.append(rank)
         self.world_fills.append(
             (tuple(points), world_pos, layer, color, border, border_width))
 
@@ -293,7 +299,11 @@ class TestTierOverviewSubmit(unittest.TestCase):
         mo.submit(r, tm, None, full_window(tm))
         tier_rgba = _level_color(1) + (_TIER_OVERVIEW_ALPHA,)  # fresh placement = level 1
         colors = [color for _pts, _wp, _layer, color, _border, _bw in r.world_fills]
-        self.assertIn(widgets.C_RANGE_HIGHLIGHT + (55,), colors)
+        # VA-5: the RANGE overlay's colour is `procedural.highlights
+        # .attack_range` now, not the deleted C_RANGE_HIGHLIGHT palette key —
+        # it is the same highlight seen through a different toggle, so it
+        # shares the one home rather than keeping a second copy.
+        self.assertIn(widgets.highlight_color("attack_range") + (55,), colors)
         self.assertEqual(colors[-1], tier_rgba)
         self.assertEqual(colors.count(tier_rgba), 1)
 

@@ -94,7 +94,11 @@ class VfxSystem:
 
     def submit_hud(self, renderer, cs):
         """Particles + slashes as screen-space HUD primitives (offsets are
-        base-zoom pixels around the anchor, scaled by the live zoom)."""
+        base-zoom pixels around the anchor, scaled by the live zoom).
+
+        This is the ALWAYS-ON-TOP pass — the HUD is drawn last with no depth
+        sort at all — and it stays the default. ``submit_world`` below is the
+        depth-participating alternative (VA-3)."""
         zoom = cs.camera.zoom
         for p in self._particles:
             cx, cy = cs.world_to_screen(p.wx, p.wy)
@@ -110,6 +114,44 @@ class VfxSystem:
                     ((int(cx + x1 * zoom), int(cy + y1 * zoom)),
                      (int(cx + x2 * zoom), int(cy + y2 * zoom))),
                     color, width=2))
+
+    def submit_world(self, renderer, cs, rank=-1, layer="entities"):
+        """VA-3: the same particles and slashes ``submit_hud`` draws, but as
+        DEPTH-SORTED world items instead of always-on-top HUD ones — so a
+        spark can pass behind the building that emitted it.
+
+        Geometry is identical to ``submit_hud``'s **by construction**: the
+        expressions below are the same expressions, evaluated here rather
+        than at flush, so the effect cannot move on screen when a designer
+        switches it between passes. That is why ``WorldRect``/``WorldLines``
+        take fully-resolved screen pixels instead of an anchor-relative
+        offset — an offset resolved at flush would truncate ``int(offset)``
+        where these truncate ``int(anchor + offset)``, which measured 1px
+        apart on a slash line.
+
+        ``rank`` defaults to -1 (BEHIND a same-tile entity) because that is
+        the only reason to call this instead of ``submit_hud``: +1 in the
+        depth queue and the HUD pass both put the effect on top, and the HUD
+        pass does it more cheaply. The caller passes the trigger row's
+        ``draw_in_front`` through as +1/-1 regardless.
+        """
+        zoom = cs.camera.zoom
+        for p in self._particles:
+            cx, cy = cs.world_to_screen(p.wx, p.wy)
+            w = max(1, int(p.size[0] * zoom))
+            h = max(1, int(p.size[1] * zoom))
+            renderer.submit_world_rect(
+                (p.wx, p.wy),
+                (int(cx + p.ox * zoom), int(cy + p.oy * zoom), w, h),
+                p.color(), layer=layer, rank=rank)
+        for s in self._slashes:
+            cx, cy = cs.world_to_screen(s.wx, s.wy)
+            for x1, y1, x2, y2, color in s.lines:
+                renderer.submit_world_lines(
+                    (s.wx, s.wy),
+                    ((int(cx + x1 * zoom), int(cy + y1 * zoom)),
+                     (int(cx + x2 * zoom), int(cy + y2 * zoom))),
+                    color, width=2, layer=layer, rank=rank)
 
     def submit_splatters(self, renderer, cs):
         """Ground blood marks: a small alpha polygon approximation of a
