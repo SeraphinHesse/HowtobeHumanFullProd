@@ -182,6 +182,7 @@ DOMAINS = {
         "test_editor_tutorial_paint.py",
         "test_editor_viewport.py",
         "test_master_sheet_import.py",
+        "test_master_sheets_panel.py",
         "test_registry_ops.py",
         "test_vfx_roster_ops.py",
         "test_vfx_roster_panel.py",
