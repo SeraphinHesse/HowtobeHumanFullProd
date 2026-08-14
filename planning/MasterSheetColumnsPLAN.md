@@ -148,7 +148,7 @@ prototype-exact animation semantics for nothing.
 | Section | Title | Phases | Depends on | Status |
 |---|---|---|---|---|
 | S1 | Column core — data + engine | C1, C2, C3 | — | **LANDED** (`section-S1`) |
-| S2 | Editor surfaces | E1, E2, E3, E4, E5 | S1 | not started |
+| S2 | Editor surfaces | E1, E2, E3, E4, E5 | S1 | **LANDED** (`section-S2`) |
 | S3 | Building colour | B1, B2, B3 | S1 | not started |
 | S4 | Seasons | N1, N2 | S1 | not started |
 
@@ -389,11 +389,16 @@ top-level selector item backed by `editor/panels/master_sheets.py`.
 
 | Phase | Scope (package) | Status |
 |---|---|---|
-| E1 | editor | not started |
-| E2 | editor | not started |
-| E3 | editor | not started |
-| E4 | editor | not started |
-| E5 | editor | not started |
+| E1 | editor | *(LANDED)* `phase-E1-import-path` @ `327fd8b` |
+| E2 | editor | *(LANDED)* `phase-E2-sheet-preview-columns` @ `ee418a7` |
+| E3 | editor | *(LANDED)* `phase-E3-details-column-controls` @ `4b97db7` |
+| E4 | editor | *(LANDED)* `phase-E4-viewport-column-switcher` @ `2b15282` |
+| E5 | editor | *(LANDED)* `phase-E5-master-sheets-panel` @ `fa856c8` |
+
+**Section gate (measured, on the merged `section-S2` @ `1dfacf0`):** `py
+tools/smoke.py` → OK; `py -m pytest` over the 6 touched test files → **312
+passed, 17 subtests, 0 failed, 0 skipped**. Every phase reviewed clean with
+**zero fix rounds**. Handoff: `docs/handoffs/section-S2.md`.
 
 #### Phase E1 — Import path
 
