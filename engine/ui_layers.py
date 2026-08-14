@@ -18,6 +18,41 @@ _APPEARANCE_KEYS = (
 )
 
 
+def _state_patch(layer_spec, state):
+    """The per-state appearance patch for `state` (UL-5), or ``{}``.
+
+    The D9 fallback rule, in one place: the resolved state key wins when it is
+    PRESENT (an explicitly-authored empty patch means "this state looks like
+    the base", not "fall through"); an ABSENT key falls back to ``"idle"``;
+    an absent/empty ``"states"`` object falls back to no patch at all, i.e.
+    the layer's own base appearance stands outright.
+    """
+    states = layer_spec.get("states") or {}
+    if not isinstance(states, dict):
+        return {}
+    if state in states:
+        return states[state] or {}
+    return states.get("idle") or {}
+
+
+def _patch_offset(value, base):
+    """A state patch's ``offset``, resolved against the layer's own `base`.
+
+    REPLACES the base offset rather than adding to it (UL-5 §2b), with the
+    2-length ``[dx, dy]`` form keeping the base's w/h so it moves the layer
+    without resizing it (UL-5 §2a's "size unchanged"). A malformed value
+    degrades to `base` rather than raising -- ``validate_offsets``' rule,
+    applied to the patch.
+    """
+    if not isinstance(value, (list, tuple)) or len(value) not in (2, 4):
+        return base
+    if not all(isinstance(v, int) and not isinstance(v, bool) for v in value):
+        return base
+    if len(value) == 2:
+        return (value[0], value[1], base[2], base[3])
+    return tuple(value)
+
+
 def resolve(layer_spec, owner_rect, state="idle"):
     """Compute one layer's absolute rect + resolved appearance.
 
@@ -28,11 +63,14 @@ def resolve(layer_spec, owner_rect, state="idle"):
         (already resolved by whatever placed the widget; this function does
         not know about screen_defaults.json or overrides, only the final
         rect it is handed).
-    state: forward-compat parameter for UL-5's "states" sub-object. UL-3
-        ships no "states" key in the schema, so this parameter is a
-        documented no-op today: passing any string produces the same
-        output. UL-5 will make this parameter meaningful without changing
-        resolve()'s signature or the shape of its return value.
+    state: which of the four D9 states ("idle" | "hover" | "pressed" |
+        "disabled") the OWNING widget is in. Selects one patch out of the
+        entry's "states" sub-object (UL-5) via `_state_patch`'s fallback
+        ladder; every key that patch sets overrides this entry's own value
+        for THIS resolution only (never mutating `layer_spec`), and every
+        key it omits leaves the base value untouched. An entry with no
+        "states" key resolves byte-identically to pre-UL-5, whatever
+        `state` is passed.
 
     Returns a dict:
         {
@@ -53,11 +91,13 @@ def resolve(layer_spec, owner_rect, state="idle"):
                                         # explicit default
         }
     """
-    del state  # documented no-op until UL-5
+    patch = _state_patch(layer_spec, state)
 
     validated = validate_offsets([layer_spec])[0]
     offset = validated.get("offset", (0, 0, 0, 0))
     dx, dy, w, h = offset
+    if "offset" in patch:
+        dx, dy, w, h = _patch_offset(patch["offset"], (dx, dy, w, h))
 
     ow, oh = owner_rect[2], owner_rect[3]
     out_w = ow if w == 0 else w
@@ -68,11 +108,15 @@ def resolve(layer_spec, owner_rect, state="idle"):
 
     out = {"rect": rect}
     for key in _APPEARANCE_KEYS:
-        value = layer_spec.get(key, None)
+        # Shallow merge, patch-wins-per-key: `{**base, **patch}` spelled out
+        # key by key so the returned dict keeps its documented shape (a
+        # patch's "offset" is geometry, above -- never an appearance key).
+        value = patch[key] if key in patch else layer_spec.get(key, None)
         if key in ("color", "text_color", "tint") and value is not None:
             value = tuple(value)
         out[key] = value
-    out["visible"] = layer_spec.get("visible", True)
+    out["visible"] = (patch["visible"] if "visible" in patch
+                      else layer_spec.get("visible", True))
     return out
 
 

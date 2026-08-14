@@ -1,9 +1,12 @@
-"""``ScreenSkinning.submit_layers`` — the drawing half of layered widgets (UL-4).
+"""Layer DRAW path tests (UiLayeredWidgetsPLAN UL-4) + per-state appearance
+(UL-5).
 
 UL-3 shipped the pure resolver (``engine/ui_layers.py``, covered by
 ``test_ui_layers.py``); this module covers the CALLER: which HUD primitive one
-resolved layer becomes, in what order the two bands submit, and the D2
-"a layer follows its owner" property once ``apply()`` has moved the owner.
+resolved layer becomes, in what order the two bands submit, the D2 "a layer
+follows its owner" property once ``apply()`` has moved the owner, and (UL-5)
+per-state appearance resolution on both a layer entry (``resolve()``) and an
+owner widget itself (``Button``/label-holder ``states`` patches).
 
 The golden-parity half (D5 — no ``layers`` authored anywhere means ZERO
 primitives, so ``test_ui_skinning.py``'s baselines stay byte-identical) is
@@ -12,13 +15,15 @@ pinned here by ``test_no_layers_emits_nothing`` and by that file itself.
 Headless, no pygame, no disk: ``ScreenSkinning.from_overrides`` takes an
 in-memory ``{screen_id: doc}`` map, the widgets are ``SimpleNamespace``s with a
 ``.rect`` (all ``submit_layers`` reads off a widget), and the renderer is the
-``RecordingRenderer`` stand-in ``test_ui_skinning.py`` uses.
+``RecordingRenderer`` stand-in ``test_ui_skinning.py``/``test_hud_panel.py``
+use.
 """
 import unittest
 from types import SimpleNamespace
 
 from engine.render import HudRect, HudSprite, HudText
-from game.ui import strings
+from engine.ui_layers import resolve
+from game.ui import strings, widgets
 from game.ui.skinning import ScreenSkinning
 
 SCREEN = "hud"
@@ -27,7 +32,7 @@ OWNER_RECT = (10, 20, 30, 40)
 
 class RecordingRenderer:
     """Records every ``submit_hud`` call verbatim (the same stand-in
-    ``tools/tests/test_ui_skinning.py`` uses)."""
+    ``tools/tests/test_ui_skinning.py``/``test_hud_panel.py`` use)."""
 
     def __init__(self):
         self.items = []
@@ -179,8 +184,95 @@ class TestFollowsItsOwner(unittest.TestCase):
         self.assertEqual(after.items[0].rect, (98, 197, 30, 40))
 
 
+# A layer entry whose four states each recolour it and nudge it differently —
+# one fixture, so the four per-state cases below cannot drift apart.
+FOUR_STATE_LAYER = {
+    "offset": [0, 0, 20, 10],
+    "color": [10, 10, 10],
+    "text_color": [1, 2, 3],
+    "states": {
+        "idle": {"color": [11, 11, 11], "offset": [0, 0, 20, 10]},
+        "hover": {"color": [22, 22, 22], "offset": [1, -1, 20, 10]},
+        "pressed": {"color": [33, 33, 33], "offset": [0, 2, 20, 10]},
+        "disabled": {"color": [44, 44, 44], "text_color": [9, 9, 9],
+                     "offset": [0, 0, 20, 6]},
+    },
+}
+OWNER = (100, 200, 50, 60)
+
+
+class TestResolveStates(unittest.TestCase):
+    def test_idle(self):
+        out = resolve(FOUR_STATE_LAYER, OWNER, "idle")
+        self.assertEqual(out["color"], (11, 11, 11))
+        self.assertEqual(out["rect"], (100, 200, 20, 10))
+        self.assertEqual(out["text_color"], (1, 2, 3))   # base key stands
+
+    def test_hover(self):
+        out = resolve(FOUR_STATE_LAYER, OWNER, "hover")
+        self.assertEqual(out["color"], (22, 22, 22))
+        self.assertEqual(out["rect"], (101, 199, 20, 10))
+
+    def test_pressed(self):
+        out = resolve(FOUR_STATE_LAYER, OWNER, "pressed")
+        self.assertEqual(out["color"], (33, 33, 33))
+        self.assertEqual(out["rect"], (100, 202, 20, 10))
+
+    def test_disabled(self):
+        out = resolve(FOUR_STATE_LAYER, OWNER, "disabled")
+        self.assertEqual(out["color"], (44, 44, 44))
+        self.assertEqual(out["text_color"], (9, 9, 9))
+        self.assertEqual(out["rect"], (100, 200, 20, 6))
+
+    def test_absent_state_falls_back_to_idle(self):
+        layer = {"offset": [0, 0, 5, 5], "color": [1, 1, 1],
+                 "states": {"idle": {"color": [7, 7, 7]}}}
+        self.assertEqual(resolve(layer, OWNER, "hover")["color"], (7, 7, 7))
+
+    def test_no_matching_state_and_no_idle_falls_back_to_base(self):
+        layer = {"offset": [1, 1, 5, 5], "color": [1, 1, 1],
+                 "states": {"pressed": {"color": [7, 7, 7]}}}
+        out = resolve(layer, OWNER, "hover")
+        self.assertEqual(out["color"], (1, 1, 1))
+        self.assertEqual(out["rect"], (101, 201, 5, 5))
+
+    def test_present_but_empty_state_does_not_fall_through_to_idle(self):
+        """PRESENCE of the key drives the fallback, not truthiness — an
+        authored ``"hover": {}`` means "hover looks like the base", so
+        collapsing this back to ``.get(state) or .get("idle")`` is a
+        behaviour change, not a simplification."""
+        layer = {"offset": [0, 0, 5, 5], "color": [1, 1, 1],
+                 "states": {"hover": {}, "idle": {"color": [9, 9, 9]}}}
+        self.assertEqual(resolve(layer, OWNER, "hover")["color"], (1, 1, 1))
+        self.assertEqual(resolve(layer, OWNER, "pressed")["color"], (9, 9, 9))
+
+    def test_two_length_patch_offset_moves_without_resizing(self):
+        layer = {"offset": [0, 0, 20, 10],
+                 "states": {"hover": {"offset": [3, -4]}}}
+        self.assertEqual(resolve(layer, OWNER, "hover")["rect"],
+                         (103, 196, 20, 10))
+
+    def test_no_states_key_resolves_identically_for_every_state(self):
+        """D5 parity: an un-authored entry cannot notice this phase."""
+        layer = {"offset": [1, 2, 3, 4], "slot": "s", "color": [5, 6, 7],
+                 "visible": False}
+        base = resolve(layer, OWNER, "idle")
+        for state in ("hover", "pressed", "disabled"):
+            self.assertEqual(resolve(layer, OWNER, state), base)
+
+    def test_resolve_never_mutates_the_spec(self):
+        layer = {"offset": [0, 0, 4, 4], "color": [1, 1, 1],
+                 "states": {"hover": {"color": [2, 2, 2], "offset": [9, 9]}}}
+        before = repr(layer)
+        resolve(layer, OWNER, "hover")
+        self.assertEqual(repr(layer), before)
+
+
 class TestStateOf(unittest.TestCase):
-    """UL-4 ships the placeholder; UL-5 replaces only this method's body."""
+    """``ScreenSkinning.state_of`` is the ONE normalizer (UL-4's seam,
+    UL-5 §2d's real body). A ``Button`` answers through its own ``_state()``;
+    every other widget (a plain ``SimpleNamespace``/label holder with no state
+    machine) resolves to ``"idle"``, always."""
 
     def test_state_of_is_a_bound_method_returning_idle(self):
         skinning = ScreenSkinning.empty()
@@ -199,6 +291,77 @@ class TestStateOf(unittest.TestCase):
 
         skinning.submit_layers(RecordingRenderer(), SCREEN, ids, "over", spy)
         self.assertEqual(seen, [widget])
+
+    def test_button_answers_through_its_own_state(self):
+        skinning = ScreenSkinning.empty()
+        btn = widgets.Button((0, 0, 40, 20), "GO")
+        self.assertEqual(skinning.state_of(btn), "idle")
+        btn.hovered = True
+        self.assertEqual(skinning.state_of(btn), "hover")
+        btn.mouse_down = True
+        self.assertEqual(skinning.state_of(btn), "pressed")
+        btn.enabled = False
+        btn.hovered = False
+        self.assertEqual(skinning.state_of(btn), "disabled")
+
+    def test_stateless_holder_is_always_idle(self):
+        holder = widgets.label_holder((5, 6, 0, 0), label="Hi")
+        self.assertEqual(ScreenSkinning.empty().state_of(holder), "idle")
+
+
+class TestWidgetStatePatch(unittest.TestCase):
+    def test_button_hover_patch_recolours_and_nudges_the_draw(self):
+        btn = widgets.Button((10, 20, 40, 20), "GO")
+        btn.states = {"hover": {"text_color": [1, 2, 3], "offset": [2, -3]}}
+        btn.hovered = True
+        r = RecordingRenderer()
+        btn.submit(r)
+        rects = [i for i in r.items if isinstance(i, HudRect)]
+        text = [i for i in r.items if isinstance(i, HudText)][0]
+        self.assertEqual(rects[0].rect, (12, 17, 40, 20))
+        self.assertEqual(text.color, (1, 2, 3))
+        self.assertEqual(btn.rect, (10, 20, 40, 20))     # NOT mutated
+
+    def test_button_without_states_is_untouched(self):
+        plain, patched = widgets.Button((10, 20, 40, 20), "GO"), \
+            widgets.Button((10, 20, 40, 20), "GO")
+        patched.states = {"pressed": {"offset": [5, 5]}}   # unreachable: idle
+        a, b = RecordingRenderer(), RecordingRenderer()
+        plain.submit(a)
+        patched.submit(b)
+        self.assertEqual([repr(i) for i in a.items], [repr(i) for i in b.items])
+
+    def test_present_but_empty_state_does_not_fall_through_to_idle(self):
+        """``widgets._state_patch`` is a second copy of the same ladder as
+        ``engine.ui_layers``' — pin its empty-vs-absent branch too."""
+        btn = widgets.Button((10, 20, 40, 20), "GO")
+        btn.states = {"hover": {}, "idle": {"offset": [7, 7]}}
+        btn.hovered = True
+        r = RecordingRenderer()
+        btn.submit(r)
+        drawn = [i for i in r.items if isinstance(i, HudRect)][0]
+        self.assertEqual(drawn.rect, (10, 20, 40, 20))   # base, not idle's
+
+    def test_explicit_call_site_color_beats_the_patch(self):
+        """A caller's computed semantic colour is MORE specific than the
+        screen doc — the same precedence ``Button.submit`` gives an explicit
+        ``text_color=`` kwarg."""
+        holder = widgets.label_holder((30, 40, 0, 0), label="Hi")
+        holder.states = {"idle": {"text_color": [4, 5, 6]}}
+        r = RecordingRenderer()
+        widgets.submit_label(r, holder, color=widgets.C_GOLD)
+        self.assertEqual(r.items[0].color, widgets.C_GOLD)
+
+    def test_label_holder_uses_its_idle_patch_only(self):
+        holder = widgets.label_holder((30, 40, 0, 0), label="Hi")
+        holder.states = {"idle": {"color": [4, 5, 6], "offset": [1, 2]},
+                         "hover": {"color": [7, 7, 7], "offset": [50, 50]}}
+        r = RecordingRenderer()
+        widgets.submit_label(r, holder)
+        text = r.items[0]
+        self.assertEqual(text.pos, (31, 42))
+        self.assertEqual(text.color, (4, 5, 6))
+        self.assertEqual(holder.rect, (30, 40, 0, 0))     # NOT mutated
 
 
 if __name__ == "__main__":
