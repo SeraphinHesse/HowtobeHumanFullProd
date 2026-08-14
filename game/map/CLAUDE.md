@@ -267,6 +267,12 @@ Conventions that differ from the prototype (deliberate, clean-arch):
     `set_tile_state` hook at all** — the roll itself is never touched by a
     zone transition. `rng=None` or `registry=None` ⇒ every roll stays `-1`,
     the same headless-fixture escape hatch condition art uses.
+    `spawn_deco_render_items(..., column=None)` takes an **opaque** master-sheet
+    column and copies it unread onto every item, exactly as `conditions.py`
+    does: this emitter reads no run state and gives the value no meaning (the
+    host drives it from `RunState.season`). `None` means "no live column",
+    leaving each slot's stored column in charge — and **`0` is a REAL column,
+    not "unset"**, so the value is never tested for truthiness.
   - `CONDITION_MODIFIER_KEY` (`tiles.py`) is the ONE enum→`TileConditions.
     modifiers` key table every stat-modifier consumer (buildings, enemies, UI
     tooltips) shares. Pond is EXPENSIVE (+9 weight), NOT impassable —
