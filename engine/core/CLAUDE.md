@@ -15,8 +15,19 @@ state as a plain subclass attribute.
   `cls._fields`, rejects non-JSON types (allowed: bool/int/float/str/list/dict),
   and registers the class by name for `component_from_dict`. Constructor takes
   field overrides as kwargs, type-checked.
+- **`Transform.rank` (VA-3)** — the depth-key tie-break, sitting beside `layer`
+  because it is the same kind of thing: draw-order metadata about the OBJECT's
+  position, with the same lifetime and the same one consumer
+  (`SpriteAnimator.render_items` already reads `layer` off the transform, so a
+  one-shot cosmetic sprite needs no new component field to say "draw me behind
+  the building I came from"). Deliberately NOT a `SpriteAnimator` field: that
+  component is on every building and enemy in the game, and this concerns
+  exactly one cosmetic object type — the same argument that kept `loop_count`
+  off it in ESV-5. **`to_dict` OMITS it at its default 0** (the manifest
+  `row_start`/`slice` convention), so every object saved before VA-3, and every
+  object that never opts in, serializes byte-identically.
 - **Serialization (E-15)**: `GameObject.to_dict()` → `{id, name, tags, transform:
-  {wx, wy, layer}, components: [{type, fields}]}`. `GameObject.from_dict` returns
+  {wx, wy, layer}, components: [{type, fields}]}` (plus `rank` when non-zero). `GameObject.from_dict` returns
   a *base* GameObject — subclass identity is not persisted (components carry all
   state; subclasses are behavior convenience).
 - **Setattr guard (E-11, mechanical)**: after `GameObject.__init__`, new public

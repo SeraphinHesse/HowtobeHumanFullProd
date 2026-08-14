@@ -201,6 +201,16 @@ def _screen_captures():
 #: ``test_ui_min_targets.py``, which installs the shipped face for its own
 #: module so this can never regress invisibly again; THIS file still captures
 #: under the fallback face, which is why its ``pos`` values are unchanged.
+#: Regenerated an ELEVENTH time (hide-speed-buttons-build-mode): the 1x/1.5x/
+#: 2x speed buttons are now hidden outright in ``GamePhase.BUILDING`` (the
+#: mock session's default phase, ``tools/screen_mocks.py``), since they have
+#: nothing to control there — ``main.py``'s ``sim_dt`` only ever scales the
+#: ENEMY phase, so build mode always played at 1x regardless of the selected
+#: speed even before this change. The ten speed-button primitives are
+#: DROPPED from ``hud``'s entry; nothing else moved (the DRAG SEL row's rect
+#: is unchanged — its position was never derived from the speed row's
+#: runtime visibility, only from its default layout) and every other
+#: screen's entry is byte-identical.
 _BASELINE = {
     "main_menu": [
         HudRect(rect=(0, 0, 640, 360), color=(18, 30, 20), border_radius=0, width=0),
@@ -383,16 +393,6 @@ _BASELINE = {
         HudRect(rect=(587, 6, 45, 15), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(587, 6, 45, 15), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='PAUSE', pos=(609, 7), font_key='md', color=(235, 225, 195), align='center'),
-        HudRect(rect=(6, 76, 28, 14), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(6, 76, 28, 14), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='1×', pos=(20, 77), font_key='sm', color=(255, 200, 50), align='center'),
-        HudRect(rect=(6, 76, 28, 14), color=(255, 200, 50), border_radius=3, width=2),
-        HudRect(rect=(37, 76, 28, 14), color=(50, 45, 70), border_radius=3, width=0),
-        HudRect(rect=(37, 76, 28, 14), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='1.5×', pos=(51, 77), font_key='sm', color=(150, 140, 120), align='center'),
-        HudRect(rect=(68, 76, 28, 14), color=(50, 45, 70), border_radius=3, width=0),
-        HudRect(rect=(68, 76, 28, 14), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='2×', pos=(82, 77), font_key='sm', color=(150, 140, 120), align='center'),
         HudRect(rect=(6, 93, 45, 14), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(6, 93, 45, 14), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='DRAG', pos=(28, 94), font_key='sm', color=(235, 225, 195), align='center'),
