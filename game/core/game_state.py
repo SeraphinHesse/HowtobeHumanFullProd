@@ -13,6 +13,8 @@ currency mutation).
 """
 from dataclasses import dataclass, field
 
+from engine.era_math import era_of_round
+
 from .phases import GamePhase, GameState
 
 
@@ -21,6 +23,14 @@ class RunState:
     phase: GamePhase = GamePhase.BUILDING
     state: GameState = GameState.GAMEPLAY
     round_num: int = 1
+    # -- N1: the season clock -----------------------------------------------
+    # 0-based ground-art season index, derived from ``round_num`` by
+    # ``update_season`` (never set by hand). ``0`` is a REAL season — the first
+    # one — not "unset": a fresh run is round 1, which is season 0, so the
+    # default already agrees with the derived value and ``from_balance`` needs
+    # no season seeding. Round 0 (the tutorial round) is season 0 too, via
+    # ``era_of_round``'s ``round_num < 1`` guard.
+    season: int = 0
     love: int = 0
     base_lives: int = 0
     phase_timer: float = 0.0
@@ -212,3 +222,17 @@ class RunState:
 
     def spend_love(self, amount):
         self.love = max(0, self.love - amount)
+
+    def update_season(self, rounds_per_season):
+        """Recompute ``season`` from ``round_num``; True iff it CHANGED.
+
+        The bool is the caller's invalidate trigger: the host repaints its
+        cached ground layer only when the season actually turns, not on every
+        round edge. No new math — ``era_of_round`` IS the season formula (D7),
+        so the era clock and the season clock cannot drift apart.
+        """
+        new = era_of_round(self.round_num, rounds_per_season)
+        if new == self.season:
+            return False
+        self.season = new
+        return True

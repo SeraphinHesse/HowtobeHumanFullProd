@@ -80,6 +80,12 @@ class TestClock(unittest.TestCase):
             for boss_at in range(1, rounds_per_era + 1):
                 self.assertFalse(is_boss_round(0, rounds_per_era, boss_at))
 
+    def test_era_of_round_is_also_the_season_formula(self):
+        """N1: the ground-art season IS ``era_of_round`` (D7) — no season math
+        of its own exists, so this pins the shared function's season reading."""
+        self.assertEqual([era_of_round(r, 10) for r in range(1, 11)], [0] * 10)
+        self.assertEqual([era_of_round(r, 10) for r in range(11, 21)], [1] * 10)
+
     def test_non_default_clock(self):
         # rounds_per_era 5, boss on the 3rd round of each era
         self.assertEqual([era_of_round(r, 5) for r in (1, 5, 6, 11)], [0, 0, 1, 2])

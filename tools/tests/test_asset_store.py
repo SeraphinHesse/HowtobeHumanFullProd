@@ -509,6 +509,31 @@ class TestColumnBlock(SheetCase):
         b = surface_bytes(store.frame("tower", "idle", 0, column=2).surface)
         self.assertNotEqual(a, b)
 
+    def test_season_zero_uses_column_zero_not_the_stored_column(self):
+        # N2 regression: `0` is a REAL live column (the FIRST season), not
+        # "unset". Only `None` falls back to the stored column, so any
+        # `column or entry.column` / truthiness test anywhere in the chain
+        # cuts from block 2 here and fails.
+        make_grid_sheet(self.sprites_dir / "imported" / "tower.png",
+                        cols=12, rows=2)
+        store = self.store(
+            entry(column_width=4, column=2, column_mode="season"))
+        self.assertEqual(
+            self.frame_colour(store.frame("tower", "idle", 0, column=0)),
+            grid_colour(0, 0))
+
+    def test_live_season_clamps_on_a_two_column_sheet(self):
+        # D7 clamp driven by the LIVE caller column (the clamp test above
+        # drives it from the STORED column, a different branch): a 2-block
+        # sheet holds at its last block rather than wrapping or grey-X-ing.
+        make_grid_sheet(self.sprites_dir / "imported" / "tower.png",
+                        cols=8, rows=2)   # 2 blocks of width 4: 0, 1
+        store = self.store(
+            entry(column_width=4, column=0, column_mode="season"))
+        self.assertEqual(
+            self.frame_colour(store.frame("tower", "idle", 0, column=5)),
+            grid_colour(0, 4))   # clamped to block 1
+
 
 class TestSheetDedup(SheetCase):
     """M2: `_sheets` is keyed by source path — one PNG decodes once, however

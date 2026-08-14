@@ -33,12 +33,18 @@ cut, cache keys) · C3 `phase-C3-registry-render` @ `f9c2732` (`master_registry.
   `tools/tests/test_components.py:23`, `test_hud_items.py:33/:45`.
 
 **Open findings**
-1. `RenderItem.column: int = 0` makes C2's `column is None` fallback unreachable on the
-   world path: a `season`/`building_color` entry with no live driver resolves to block 0,
-   not its stored `column` — contradicts D3. Harmless until columns are driven.
-   *Owner: top orchestrator → S3 + S4.* **verified**
-2. Schema caps `column_width` at 256, so the stopgap refuses a >256-frame sheet. *Owner:
-   S2/E1.* **inferred**
+1. ~~`RenderItem.column: int = 0` makes C2's `column is None` fallback unreachable on the
+   world path~~ — **RESOLVED on the umbrella** (`b594794`), and the fix is what wave 2
+   codes against: `RenderItem.column` is **`int | None = None`** and
+   `SpriteAnimator.column` is **`int = -1`** (a sentinel `render_items` maps to `None`;
+   a Component field must be JSON-safe, so `int | None` is rejected there, and `0` cannot
+   serve because season 0 and colour 0 are real). **Everything above in this file that
+   says `int = 0` is stale — trust this line and the plan doc's "Post-integration fixes"
+   block.** *Owner: closed by top orchestrator.* **verified**
+2. ~~Schema caps `column_width` at 256, so the stopgap refuses a >256-frame sheet.~~ —
+   **RESOLVED**: the stopgap is gone entirely. S2/E1 replaced it with the required
+   designer field and extended `GridInUseError` to `(frame_w, frame_h, column_width)`
+   (`editor/master_sheet_import.py:418-421`). *Owner: closed by S2/E1.* **measured**
 3. `tools/tests/fixtures/data/` has ~13 files of **pre-existing** drift from live `data/`,
    unrelated to S1. *Owner: user / top orchestrator.* **measured**
 

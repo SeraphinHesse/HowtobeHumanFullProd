@@ -1771,6 +1771,20 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                     gp["floaters"].spawn_income_events(session.state)
                     gp["floaters"].spawn_painter_events(session.state)
                     gp["floaters"].spawn_boost_events(session.state)
+                    # -- N1: the season clock ---------------------------------
+                    # payday already ran (it does round++ then flips to INCOME,
+                    # game/core/payday.py:277-280), so THIS edge is the round
+                    # edge: one frame per round, never per frame. The key is
+                    # schema-REQUIRED, so index it — a missing group must fail
+                    # loud here, not ship a whole run of wrong ground art.
+                    # The invalidate is conditional ON PURPOSE: repainting the
+                    # cached ground layer costs a full re-blit, so it fires only
+                    # when the season actually turns (once every
+                    # rounds_per_season rounds), not on every round edge.
+                    if session.state.update_season(
+                            core_balance["Seasons"]["rounds_per_season"]):
+                        ground_cache.invalidate()
+                    # -- /N1 --
                 # -- 10J: the previous round's blood clears when the next wave
                 # starts (prototype clear_splatters on End Turn, game.py:815) --
                 if (session.state.phase == GamePhase.ENEMY
@@ -1936,7 +1950,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 view_w, view_h,
                 lambda dmn, dmx, smn, smx: tilemap.band_render_items(
                     map_doc, dmn, dmx, smn, smx,
-                    code_overrides=world.tile_map.terrain_overrides))
+                    code_overrides=world.tile_map.terrain_overrides,
+                    # Read INSIDE the lambda body, never bound as a default
+                    # argument: the cache calls this back only on a rebuild,
+                    # so the season must be sampled when the repaint happens.
+                    column=session.state.season))
             # The GPU cache IGNORES this argument by design (it always draws
             # through the SDL Renderer it was built with — see
             # ground_cache_gpu.blit's docstring), so both classes take the same
@@ -1946,7 +1964,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             cmin, cmax, rmin, rmax = cs.visible_tile_window(view_w, view_h, margin=4)
             for item in tilemap.visible_render_items(
                     map_doc, cmin, cmax, rmin, rmax, terrain=False,
-                    camera=show_camera_start, anim_time_ms=int(deco_clock_ms)):
+                    camera=show_camera_start, anim_time_ms=int(deco_clock_ms),
+                    column=session.state.season):
                 renderer.submit(item)
             # Spawn-band tree deco on the `deco` layer — draws ABOVE enemies
             # (`entities`), so units emerging from the treeline are partly
@@ -1956,14 +1975,16 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # emitter reads `tile.state` live).
             for item in spawn_deco_render_items(
                     world.tile_map, cmin, cmax, rmin, rmax, tree_slots,
-                    anim_time_ms=int(deco_clock_ms)):
+                    anim_time_ms=int(deco_clock_ms),
+                    column=session.state.season):
                 renderer.submit(item)
             # Condition art on the `terrain` layer — above the ground tiles,
             # below everything on `entities`/`deco`. Reuses the window above;
             # emits nothing for conditions with no imported sheet.
             for item in condition_render_items(
                     world.tile_map, cmin, cmax, rmin, rmax, condition_art,
-                    anim_time_ms=int(deco_clock_ms)):
+                    anim_time_ms=int(deco_clock_ms),
+                    column=session.state.season):
                 renderer.submit(item)
             # Edge-wall art (fix/depth-sorted-world-fills) — every wall item
             # is on the SAME `entities` layer as buildings now, so it sorts

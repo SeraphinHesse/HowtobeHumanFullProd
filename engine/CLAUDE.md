@@ -88,6 +88,10 @@ engine task; if an engine change forces a caller change, tell the user
       base/deco gated by a `tall_margin`). Pair with
       `CoordinateSystem.visible_tile_window` so game AND editor viewports only
       generate on-screen tiles — the reason a 1024² map stays at full fps.
+      Optional `column=` is an **opaque** master-sheet column copied onto every
+      item it emits, exactly as opaque as `tint_for_code` — the engine stays
+      season-ignorant (D12); `None` means "no live column" and `0` is a REAL
+      column, so never truthiness-test it.
     - `band_render_items(doc, d_min, d_max, s_min, s_max, …)` — ground only,
       addressed by rotated iso coords `d = col−row`, `s = col+row`, for a thin
       diagonal on-screen strip (the ground cache's scroll-fill; a rectangular
@@ -96,6 +100,7 @@ engine task; if an engine change forces a caller change, tell the user
       `code_overrides={(col,row): code}` consults the caller's RUNTIME zone
       state before `doc.terrain` (the game's unlock/recede visuals) so the doc
       stays pristine; overrides resolve through the same legend/checker rule.
+      Optional `column=` — the same opaque pass-through as above.
 - **`era_math.py`** (pure, stdlib-only — EnemyScalingReworkPLAN D7) — the era
   clock + per-era stat/count resolvers (`era_of_round`/`round_in_era`/
   `is_boss_round`/`resolve_era_row`/`stats_at_round`/`count_at_round`/
