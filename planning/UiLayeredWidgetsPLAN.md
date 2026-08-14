@@ -1,10 +1,3 @@
-<!-- active-plan: UiLayeredWidgetsPLAN.md | set: 2026-08-14 -->
-> **Active plan:** UiLayeredWidgetsPLAN.md (mirror). Source of truth:
-> `planning/UiLayeredWidgetsPLAN.md`. Do **not** edit this file directly — edit the
-> source in `planning/` and re-run `/setcurrentplan`, or pick a different
-> plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
-> screen).
-
 <!-- plan-scale: large -->
 <!-- status: 0/4 sections, 0/12 phases -->
 
