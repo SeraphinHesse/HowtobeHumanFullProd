@@ -92,6 +92,82 @@
             "label": {
               "type": "string"
             },
+            "layers": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "offset": {
+                    "items": {
+                      "type": "integer"
+                    },
+                    "maxItems": 4,
+                    "minItems": 4,
+                    "type": "array"
+                  },
+                  "z": {
+                    "type": "integer"
+                  },
+                  "band": {
+                    "enum": ["under", "over"],
+                    "type": "string"
+                  },
+                  "slot": {
+                    "type": "string"
+                  },
+                  "text_id": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "font": {
+                    "type": "string"
+                  },
+                  "align": {
+                    "enum": ["left", "center", "right"],
+                    "type": "string"
+                  },
+                  "color": {
+                    "items": {
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 4,
+                    "minItems": 3,
+                    "type": "array"
+                  },
+                  "text_color": {
+                    "items": {
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 4,
+                    "minItems": 3,
+                    "type": "array"
+                  },
+                  "tint": {
+                    "items": {
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 4,
+                    "minItems": 3,
+                    "type": "array"
+                  },
+                  "visible": {
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
             "parent": {
               "description": "Designer re-parenting (authoring metadata the game never reads): the widget id this widget hangs off in the editor's outliner, overriding screen_defaults.json's own `parent`. Explicit null re-roots a widget whose default parent the designer rejected — distinct from the key being ABSENT, which keeps the default. A cyclic or dangling chain resolves to root in the editor rather than failing.",
               "type": [
