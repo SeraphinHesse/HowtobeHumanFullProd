@@ -159,6 +159,21 @@ class ScreenSkinning:
             for key, value in spec.items():
                 setattr(widget, _SPEC_TO_ATTR.get(key, key), _as_tuple(value))
 
+    def state_of(self, widget) -> str:
+        """Which of the four D9 states ``widget`` is in: ``"idle" | "hover" |
+        "pressed" | "disabled"`` (UL-4's seam, given its real body by UL-5).
+
+        The ONE place a widget's state is normalized for the layer/per-state
+        draw path. A ``Button`` answers through its own ``_state()`` — the
+        same call its skin row and flat fill already use, so a third
+        appearance layer can never disagree with those two. Every other
+        widget (panel/label/backdrop holders are plain ``SimpleNamespace``
+        objects with no state machine at all) resolves to ``"idle"``, always:
+        only a ``states.idle`` patch is reachable on one of those today.
+        """
+        fn = getattr(widget, "_state", None)
+        return fn() if callable(fn) else "idle"
+
     def defaults(self, screen_id: str) -> Dict[str, Any]:
         """The screen's ``defaults`` section (``button_skin``/``panel_skin``/
         ``font``/``text_color``), or ``{}`` when unset — the styling surface
