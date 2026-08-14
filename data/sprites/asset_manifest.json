@@ -3628,16 +3628,7 @@
       "sheet": "imported/enemy_t4.png"
     },
     "flute_player_t1_lvl1": {
-      "anchors": {
-        "floater_origin": [
-          -1,
-          -12
-        ],
-        "hp_bar": [
-          -3,
-          -26
-        ]
-      },
+      "column_width": 17,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3651,81 +3642,9 @@
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "master/ss_fluteplayer.png"
     },
     "flute_player_t1_lvl2": {
       "anchors": {
