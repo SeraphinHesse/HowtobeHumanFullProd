@@ -1429,6 +1429,20 @@ data, so the two can never silently drift apart.
   drawn via `HudRect` (no sheet), so a `tint` on it no-ops — the same deferred
   skin-on-a-non-skinnable-widget quirk as `backdrop`/`bar`. See
   `editor/panels/CLAUDE.md` "Reconciled rule".
+- **Optional per-widget `align` (UL-1)** — `data/ui/screens/<id>.json`'s
+  `widgets.<id>.align`, `left|center|right`, the designer-facing twin of the
+  holder attribute the section "`hud.round_label` carries its own alignment"
+  describes. **Zero game-side code changed to enable it**: `submit_label`
+  already resolves `getattr(holder, "align", "left")`, and `apply`'s generic
+  setattr loop threads any override key onto the widget (same as
+  `skin`/`tint`/`text_id` — no `_SPEC_TO_ATTR` entry). All that was missing
+  was the schema key. **Absent = `"left"` = today's rendering, pinned** — no
+  shipped screen doc authors it, so `test_ui_skinning.py`'s golden stream is
+  unmoved. Do not confuse this with `screen_defaults.json`'s `align`: that is
+  a GENERATED editor-only measuring hint the exporter reads off the code
+  holder, on a different file and a different schema, which the game never
+  reads back. The editor prefers the override over that hint when it sizes an
+  anchor's hit box (`_screen_primitives.resolve_align`).
 - **The editor's screen-mode preview honesty fix (ties to UH-3)**: the
   editor used to tint a skinned widget's preview from its `color` override
   — a lie, since the game has always ignored `color` on a skinned widget

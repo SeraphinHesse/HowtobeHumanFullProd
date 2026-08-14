@@ -715,13 +715,20 @@ class ViewportPanel(QWidget):
         effective rect, with any zero-extent axis grown to the measured size
         of its text (`_screen_primitives.interaction_rect`). Distinct from
         `_effective_rect`, which is what gets WRITTEN — a drag/nudge on an
-        anchor still stores w/h 0."""
+        anchor still stores w/h 0.
+
+        Alignment goes through `resolve_align` (UL-1) so a designer's own
+        `align` override wins over the exporter-recorded default, exactly as
+        `_widget_font_key`/`_widget_text` already prefer the doc: measuring a
+        re-aligned anchor against the OLD default puts the box beside the
+        glyphs."""
         spec = defaults.get("widgets", {}).get(widget_id) or {}
+        override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
         return _screen_primitives.interaction_rect(
             self._effective_rect(widget_id, defaults),
             text=self._widget_text(widget_id, spec),
             font_key=self._widget_font_key(widget_id, spec),
-            align=spec.get("align", "left"))
+            align=_screen_primitives.resolve_align(spec, override))
 
     def _widget_font_key(self, widget_id, spec):
         """The font the widget's text is drawn at: the doc's own `font`
