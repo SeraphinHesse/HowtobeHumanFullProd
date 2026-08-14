@@ -1,5 +1,5 @@
 <!-- plan-scale: large -->
-<!-- status: 1/4 sections, 3/13 phases — S1 landed, wave 2 (S2+S3+S4) next -->
+<!-- status: 4/4 sections, 13/13 phases — COMPLETE, all four sections landed -->
 
 # MasterSheetColumnsPLAN.md — master spritesheet COLUMNS, and the two systems that spend them
 
@@ -148,9 +148,9 @@ prototype-exact animation semantics for nothing.
 | Section | Title | Phases | Depends on | Status |
 |---|---|---|---|---|
 | S1 | Column core — data + engine | C1, C2, C3 | — | **LANDED** (`section-S1`) |
-| S2 | Editor surfaces | E1, E2, E3, E4, E5 | S1 | not started |
-| S3 | Building colour | B1, B2, B3 | S1 | not started |
-| S4 | Seasons | N1, N2 | S1 | not started |
+| S2 | Editor surfaces | E1, E2, E3, E4, E5 | S1 | **LANDED** (`section-S2`) |
+| S3 | Building colour | B1, B2, B3 | S1 | **LANDED** (`section-S3`) |
+| S4 | Seasons | N1, N2 | S1 | **LANDED** (`section-S4`) |
 
 **Waves:** wave 1 = S1. Wave 2 = S2 + S3 + S4, concurrently — they share no
 files, and each concurrent implementation agent gets `isolation: "worktree"` per
@@ -389,11 +389,16 @@ top-level selector item backed by `editor/panels/master_sheets.py`.
 
 | Phase | Scope (package) | Status |
 |---|---|---|
-| E1 | editor | not started |
-| E2 | editor | not started |
-| E3 | editor | not started |
-| E4 | editor | not started |
-| E5 | editor | not started |
+| E1 | editor | *(LANDED)* `phase-E1-import-path` @ `327fd8b` |
+| E2 | editor | *(LANDED)* `phase-E2-sheet-preview-columns` @ `ee418a7` |
+| E3 | editor | *(LANDED)* `phase-E3-details-column-controls` @ `4b97db7` |
+| E4 | editor | *(LANDED)* `phase-E4-viewport-column-switcher` @ `2b15282` |
+| E5 | editor | *(LANDED)* `phase-E5-master-sheets-panel` @ `fa856c8` |
+
+**Section gate (measured, on the merged `section-S2` @ `1dfacf0`):** `py
+tools/smoke.py` → OK; `py -m pytest` over the 6 touched test files → **312
+passed, 17 subtests, 0 failed, 0 skipped**. Every phase reviewed clean with
+**zero fix rounds**. Handoff: `docs/handoffs/section-S2.md`.
 
 #### Phase E1 — Import path
 
@@ -612,9 +617,14 @@ upgrade panel.
 
 | Phase | Scope (package) | Status |
 |---|---|---|
-| B1 | game | not started |
-| B2 | game | not started |
-| B3 | game + data | not started |
+| B1 | game | *(LANDED)* `phase-B1-colour-state` @ `bf53459` |
+| B2 | game | *(LANDED)* `phase-B2-construct-swatches` @ `b99d589` |
+| B3 | game + data | *(LANDED)* `phase-B3-upgrade-swatches` @ `353d5d1` |
+
+**Section S3 note.** The reconciled cross-phase interface — `place_building`'s
+final signature (`state=None, colour_columns=None, rng=None, column=None`), the
+host-derived `colour_columns` capability map, B2's `ColorSwatchRow` helper and
+B3's `BuildingColors` schema shape — is recorded in `docs/handoffs/section-S3.md`.
 
 #### Phase B1 — Colour state, the roll, and the render
 
@@ -739,17 +749,53 @@ deco / condition submit paths.
 
 | Phase | Scope (package) | Status |
 |---|---|---|
-| N1 | game + data | not started |
-| N2 | game + engine | not started |
+| N1 | game + data | *(LANDED)* `phase-N1-season-clock` @ `3fe4062` |
+| N2 | game + engine | *(LANDED)* `phase-N2-render-paths` @ `abc9bed` |
 
-#### Phase N1 — The season clock
+**Section gate (measured, on the merged `section-S4`):** `py tools/smoke.py` → OK
+(62 data files schema-valid, 5 headless frames, shell boot OK); `py -m pytest`
+over the 7 touched test files `-q -n 4` → **198 passed, 1351 subtests, 0 failed,
+0 skipped**. Handoff: `docs/handoffs/section-S4.md`.
+
+**D6/D3 ruled for the season path (S3 handed this question to S4).** S3 required
+a slot to satisfy **both** D6 (its sheet declares `columns`) **and** D3 (its
+`column_mode` is the matching driver) to count as colour-capable, because D6
+alone yields dead UI. **S4 deliberately computes NO capability predicate at
+all**, and that is not an oversight:
+- The **D3 half is already enforced exactly once**, in the engine, at
+  `engine/assets/store.py:225` (`if entry.column_mode == "manual" or column is
+  None`). A `manual` slot ignores the live season. `game/` must not re-implement
+  that check.
+- The **D6 half is irrelevant to seasons.** D4's `columns` array is a *naming*
+  affordance for the editor, and seasons address columns by **index**, never by
+  name. A sheet with `column_width: 4` and no `columns` array is a perfectly
+  valid seasonal sheet; requiring `columns` would make a sheet un-seasonal purely
+  for lacking cosmetic labels.
+- Seasons ship **no UI**: no swatches, no per-slot control. There is no
+  affordance to suppress, so the conjunction that D6 exists to protect has
+  nothing to protect here.
+- Degradation is already quiet and correct: a seasonal slot on a 1-column sheet
+  clamps to column 0 (D7) and a slot with no `column_width` resolves
+  byte-identically.
+
+#### Phase N1 — The season clock *(LANDED)*
 
 **Goal.** The run knows which season it is in, and says so exactly once per
 round.
 
 **Files** — modified: `data/balancing/core.json`, `data/schemas/core.schema.json`,
 `game/core/game_state.py`, `game/main.py`, `game/core/CLAUDE.md`,
-`tools/tests/test_game_state.py`, `tools/tests/test_balance_data.py`.
+`tools/tests/test_era_math.py`, `tools/tests/test_phase_loop.py`,
+`tools/tests/test_balancing_data.py`.
+
+> **Corrected during S4 execution (measured).** This line originally named
+> `tools/tests/test_game_state.py` and `tools/tests/test_balance_data.py`;
+> **neither module exists**. The real ones are `test_balancing_data.py`
+> (balanc*ing*), `test_era_math.py` (already covers `era_of_round`) and
+> `test_phase_loop.py` (already imports `RunState`). A NEW test module was
+> rejected deliberately: `conftest.py:19-23` makes a module missing from `TIERS`
+> a hard error and `tools/test_domains.py` requires a `DOMAINS` row, and both
+> files are outside this phase's scope.
 
 **Design notes**
 - New `Seasons` group in `core.json` with `rounds_per_season` (integer, default
@@ -776,21 +822,40 @@ exactly once per N rounds and never mid-round; the ground cache is invalidated o
 change and not otherwise; the new balancing key validates and is read by
 indexing.
 
-**Exit gate.** `py -m pytest tools/tests/test_game_state.py
-tools/tests/test_balance_data.py -x -q` plus `py tools/smoke.py`.
+**Exit gate.** `py -m pytest tools/tests/test_era_math.py
+tools/tests/test_phase_loop.py tools/tests/test_balancing_data.py -q -n 4`
+plus `py tools/smoke.py`. (`-n 4` overrides `pytest.ini`'s `-n auto`, which
+spawns 32 xdist workers on a 32-CPU box even for a 3-file run.)
 
-#### Phase N2 — The four render paths
+#### Phase N2 — The four render paths *(LANDED)*
 
 **Goal.** Seasonal slots follow the season; everything else is untouched.
 
 **Files** — modified: `engine/tilemap.py`, `engine/CLAUDE.md`, `game/main.py`,
 `game/map/spawn_deco.py`, `game/map/conditions.py`, `game/map/CLAUDE.md`,
-`tools/tests/test_tilemap_model.py`, `tools/tests/test_map_conditions.py`.
+`tools/tests/test_tilemap_model.py`, `tools/tests/test_spawn_deco.py`,
+`tools/tests/test_condition_art.py`, `tools/tests/test_asset_store.py`.
+
+> **Corrected during S4 execution (measured).** `tools/tests/test_map_conditions.py`
+> **does not exist**. `test_tile_conditions.py` has **0** references to
+> `condition_render_items`; `test_condition_art.py` has **9** — so the conditions
+> assertion lives there. `test_asset_store.py` was added because S1 already pinned
+> four of the five column-resolution cases in its `TestColumnBlock` class
+> (`:434`); N2 appends only the two uncovered branches rather than duplicating
+> them in a new module.
 
 **Design notes**
-- `band_render_items` and `visible_render_items` gain a `column=0` keyword that
-  rides onto every emitted `RenderItem`. `engine/tilemap.py` learns nothing about
-  seasons — it takes an int, the same way it already takes `tint_for_code`.
+- `band_render_items` and `visible_render_items` gain a **`column=None`** keyword
+  that rides onto every emitted `RenderItem`. `engine/tilemap.py` learns nothing
+  about seasons — it takes an opaque value, the same way it already takes
+  `tint_for_code`.
+
+> **Corrected during S4 execution (verified).** This bullet originally said
+> `column=0`. That is **wrong and superseded** by S1's post-integration fixes:
+> `RenderItem.column` is `int | None = None` and `SpriteAnimator.column` is an
+> `int = -1` sentinel. **`0` is a real season value, not "unset"** — season 0 is
+> the first season and D7 clamps *to* the last column, so `0` and the clamp
+> target are both live values. Any check treating `0` as falsy is a bug.
 - The four submit sites all pass `column=state.season`:
   gameplay + background tiles through the ground cache's `band_render_items`
   callback (`game/main.py:1877-1886`); map-authored deco through
@@ -809,10 +874,18 @@ slot at the same season resolves from its stored column; a slot with no
 `column_width` is byte-identical; the season clamps per-sheet on a 2-column sheet
 (D7); each of the four submit paths carries the column.
 
-**Exit gate.** `py -m pytest tools/tests/test_tilemap_model.py
-tools/tests/test_map_conditions.py -x -q` plus `py tools/smoke.py`; then a **live
-`py game/main.py`**: import a multi-column tile sheet, mark it `season`, cheat to
-round 11 and 21, and watch the tiles step. State that it was a live run.
+**Exit gate (coder).** `py tools/smoke.py` plus `py -m pytest
+tools/tests/test_asset_store.py tools/tests/test_tilemap_model.py
+tools/tests/test_spawn_deco.py tools/tests/test_condition_art.py -q -n 4`.
+
+**Quick Test (human, NOT the coder — downgraded out of the coder's gate during
+S4 execution).** A subagent cannot drive an interactive game window, so the live
+run is a human step: `py game/main.py`, import a multi-column tile sheet, mark it
+`season`, cheat to round 11 and 21, and watch the tiles step; confirm a 2-column
+sheet holds at its last column. **Blocked on art as of S4:** S2 measured that
+`data/sprites/master_sheets.json` holds exactly one entry (`slinger_t2_lvl3`,
+`column_width: 15`, no `columns`), so no shipped sheet is multi-column and a
+designer must author one before this Quick Test can run.
 
 ---
 

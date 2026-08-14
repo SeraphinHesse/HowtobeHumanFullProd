@@ -63,9 +63,10 @@ class SheetPreview(QWidget):
         self._pixmap = None
         self._frame_w = 1
         self._frame_h = 1
-        self._cols = 0
+        self._cols = 0          # cols IN THE WINDOW (the whole sheet by default)
         self._rows = 0          # rows IN THE WINDOW (the whole sheet by default)
         self._row_start = 0     # the SHEET row the window starts at
+        self._col_start = 0     # the SHEET column the window starts at
         self._row_state = []     # [{"hidden": set[int], "static_frame": int|None}]
         self._hover = None       # (row, col) under the cursor
 
@@ -80,7 +81,7 @@ class SheetPreview(QWidget):
     # -- content -------------------------------------------------------------
 
     def set_sheet(self, png_path, frame_w, frame_h, row_start=0,
-                  row_count=None):
+                  row_count=None, col_start=0, col_count=None):
         """Show a sheet sliced at frame_w x frame_h. None clears the view. An
         unreadable PNG clears it too — art problems never raise here (E-37).
 
@@ -92,9 +93,17 @@ class SheetPreview(QWidget):
         paints exactly as before, and a three-argument call always RESETS a
         previously set window.
 
-        Everything this widget emits and paints is ENTRY-RELATIVE: the first
-        VISIBLE row is row 0 for `frame_clicked`, `set_rows` and the grid. The
-        window is applied in exactly ONE place — the source rectangle in
+        THE COLUMN WINDOW IS THE ROW WINDOW'S TWIN, under the identical rule:
+        `col_start`/`col_count` narrow the view to sheet columns
+        ``col_start .. col_start + col_count - 1`` (`col_count=None` = to the
+        right edge), it is equally opt-in, a call omitting them RESETS a
+        previously set column window, and a count past the sheet's real column
+        count CLAMPS rather than raising.
+
+        Everything this widget emits and paints is ENTRY-RELATIVE ON BOTH AXES:
+        the first VISIBLE row is row 0 and the first VISIBLE column is column 0
+        for `frame_clicked`, `set_rows`, the cell captions and the grid. Both
+        windows are applied in exactly ONE place — the source rectangle in
         `paintEvent` — mirroring the engine's own rule that
         ``AssetStore._frame_surface`` is the only place `row_start` is applied.
         """
@@ -109,9 +118,14 @@ class SheetPreview(QWidget):
         if pixmap is None:
             self._cols = self._rows = 0
             self._row_start = 0
+            self._col_start = 0
         else:
-            self._cols = pixmap.width() // self._frame_w
+            sheet_cols = pixmap.width() // self._frame_w
             sheet_rows = pixmap.height() // self._frame_h
+            self._col_start = min(max(0, int(col_start)), max(0, sheet_cols))
+            col_available = sheet_cols - self._col_start
+            self._cols = (col_available if col_count is None
+                          else max(0, min(int(col_count), col_available)))
             self._row_start = min(max(0, int(row_start)), max(0, sheet_rows))
             available = sheet_rows - self._row_start
             self._rows = (available if row_count is None
@@ -123,6 +137,10 @@ class SheetPreview(QWidget):
     def row_window(self):
         """``(row_start, row_count)`` — the sheet rows currently drawn."""
         return (self._row_start, self._rows)
+
+    def column_window(self):
+        """``(col_start, col_count)`` — the sheet columns currently drawn."""
+        return (self._col_start, self._cols)
 
     def set_rows(self, row_state):
         """Per sheet row: {"hidden": iterable[int], "static_frame": int|None}.
@@ -208,10 +226,12 @@ class SheetPreview(QWidget):
         # Nearest-neighbour: this is pixel art, and a smoothed upscale would lie
         # about what the frame actually contains.
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
-        # THE ONE PLACE THE ROW WINDOW IS APPLIED. Every other coordinate in
-        # this widget — cells, captions, hit-tests, frame_clicked — is
-        # window-relative, so nothing below needs an offset (M4 §2.3).
-        source = QRect(0, self._row_start * self._frame_h,
+        # THE ONE PLACE EITHER WINDOW IS APPLIED — rows AND columns. Every other
+        # coordinate in this widget — cells, captions, hit-tests, frame_clicked
+        # — is window-relative on both axes, so nothing below needs an offset
+        # (M4 §2.3).
+        source = QRect(self._col_start * self._frame_w,
+                       self._row_start * self._frame_h,
                        self._cols * self._frame_w,
                        self._rows * self._frame_h)
         painter.drawPixmap(rect, self._pixmap, source)

@@ -526,7 +526,7 @@ class TestMasterSheetWindow(DetailsCase):
         src = make_png(self.png_dir / "master.png",
                        self.COLS * self.FRAME[0], self.ROWS * self.FRAME[1])
         self.sheet_id = master_sheet_import.import_master_sheet(
-            self.data_dir, src, "Village Folk", *self.FRAME)
+            self.data_dir, src, "Village Folk", *self.FRAME, self.COLS)
         self.ref = f"master/{self.sheet_id}.png"
         self.master_png = self.data_dir / "sprites" / self.ref
         self.slots_json = self.data_dir / "slots.json"
@@ -652,6 +652,75 @@ class TestSheetPreviewRowWindow(QtCase):
             widget, png = self.preview(tmp)
             widget.set_sheet(png, *self.FRAME, row_start=4, row_count=99)
             self.assertEqual(widget.row_window(), (4, 1))
+
+
+class TestSheetPreviewColumnWindow(QtCase):
+    """The column window is the row window's twin: equally OPT-IN, applied in
+    the SAME source rectangle, and WINDOW-RELATIVE — the first visible column
+    is column 0 for the captions and for `frame_clicked`."""
+
+    FRAME = (16, 24)
+    #: One flat colour per SHEET column, so a rendered pixel says which source
+    #: column the paintEvent actually sampled.
+    COLOURS = ((200, 60, 60), (60, 200, 60), (60, 60, 200))
+
+    def preview(self, tmp):
+        """A 3x5-frame sheet whose columns are individually identifiable."""
+        path = Path(tmp) / "striped.png"
+        image = Image.new("RGBA", (3 * 16, 5 * 24))
+        for col, colour in enumerate(self.COLOURS):
+            for x in range(col * 16, (col + 1) * 16):
+                for y in range(5 * 24):
+                    image.putpixel((x, y), colour + (255,))
+        image.save(path)
+        widget = self.track(SheetPreview(interactive=True))
+        widget.resize(3 * 16, 5 * 24)
+        return widget, path
+
+    def test_a_column_window_narrows_the_grid_and_the_source_rect(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            widget, png = self.preview(tmp)
+            widget.set_sheet(png, *self.FRAME)
+            full_width = widget._grid_rect().width()
+
+            widget.set_sheet(png, *self.FRAME, col_start=1, col_count=1)
+            self.assertEqual(widget.column_window(), (1, 1))
+            self.assertLess(widget._grid_rect().width(), full_width)
+            # The one application point really moved: the single visible cell
+            # is painted from SHEET column 1, not from column 0.
+            centre = widget._cell_rect(0, 0).center()
+            painted = widget.grab().toImage().pixelColor(centre).getRgb()[:3]
+            self.assertEqual(painted, self.COLOURS[1])
+
+    def test_the_first_visible_column_is_column_zero(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            widget, png = self.preview(tmp)
+            widget.set_sheet(png, *self.FRAME, col_start=1, col_count=2)
+            # cell_at IS the frame_clicked payload (mousePressEvent re-emits it
+            # verbatim), so asserting it pins the signal's vocabulary.
+            self.assertEqual(widget.cell_at(widget._cell_rect(0, 0).center()),
+                             (0, 0))
+            self.assertIsNone(widget.cell_at(widget._cell_rect(0, 2).center()))
+
+    def test_a_window_past_the_right_edge_is_clamped_not_raised(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            widget, png = self.preview(tmp)
+            widget.set_sheet(png, *self.FRAME, col_start=2, col_count=99)
+            self.assertEqual(widget.column_window(), (2, 1))
+
+    def test_default_arguments_show_the_whole_sheet(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            widget, png = self.preview(tmp)
+            widget.set_sheet(png, *self.FRAME)
+            self.assertEqual(widget.column_window(), (0, 3))
+            before = widget.grab().toImage()
+
+            widget.set_sheet(png, *self.FRAME, col_start=1, col_count=1)
+            self.assertEqual(widget.column_window(), (1, 1))
+
+            widget.set_sheet(png, *self.FRAME)      # a 3-arg call RESETS it
+            self.assertEqual(widget.column_window(), (0, 3))
+            self.assertEqual(widget.grab().toImage(), before)
 
 
 class TestSheetPicker(DetailsCase):
@@ -1077,6 +1146,135 @@ class TestConditionTintCheckbox(DetailsCase):
         self.panel.draft_changed.connect(lambda slot, e: drafts.append(e))
         self.panel._tint_check.setChecked(True)
         self.assertIs(drafts[-1]["tint_overlay"], True)
+
+
+class TestMasterSheetColumns(DetailsCase):
+    """E3 — the COLUMN row: the row window's horizontal twin. The column is
+    ENTRY state (saved by Save, never written on edit), the width is INHERITED
+    from the sheet's registry entry, and an off-sheet column is unrepresentable
+    rather than a save-time error.
+
+    The master registry ships EMPTY, so the fixture sheet is imported here —
+    never borrowed from live `data/`."""
+
+    UNASSIGN = ("painter_t1_lvl1",)
+
+    SLOT = "painter_t1_lvl1"
+    #: Deliberately not the painter category's own 64×96 (the grid is inherited).
+    FRAME = (32, 48)
+    #: 8 frame-columns at 2 per master column ⇒ 4 master columns, last = 3.
+    COLS, ROWS, WIDTH = 8, 3, 2
+
+    def setUp(self):
+        super().setUp()
+        src = make_png(self.png_dir / "master_cols.png",
+                       self.COLS * self.FRAME[0], self.ROWS * self.FRAME[1])
+        self.sheet_id = master_sheet_import.import_master_sheet(
+            self.data_dir, src, "Column Folk", *self.FRAME, self.WIDTH)
+        self.ref = f"master/{self.sheet_id}.png"
+        self.manifest_json = (self.data_dir / "sprites" / "asset_manifest.json")
+        self.slots_json = self.data_dir / "slots.json"
+
+    def link(self):
+        self.panel.set_slot(self.SLOT)
+        return self.panel.use_master_sheet(self.sheet_id)
+
+    def set_column(self, column, mode_label="Manual"):
+        """Drive the widgets the way the designer does, then commit."""
+        self.panel._column_spin.setValue(column)
+        self.panel._column_mode_combo.setCurrentText(mode_label)
+        self.panel._on_column_changed()
+
+    def test_the_column_row_shows_only_for_a_master_sheet(self):
+        self.panel.set_slot(self.SLOT)
+        self.panel.import_sheet(make_png(self.png_dir / "own.png", 64, 2 * 96))
+        self.assertTrue(self.panel._column_row.isHidden())
+        self.link()
+        self.assertFalse(self.panel._column_row.isHidden())
+        # The width is inherited, so it is shown but never editable (D1).
+        self.assertFalse(self.panel._column_width_display.isEnabled())
+        self.assertEqual(self.panel._column_width_display.value(), self.WIDTH)
+
+    def test_setting_the_column_recuts_the_preview_and_writes_nothing(self):
+        self.link()
+        self.assertEqual(self.panel._preview.column_window(), (0, self.WIDTH))
+        manifest_before = self.manifest_json.read_bytes()
+        slots_before = self.slots_json.read_bytes()
+
+        self.set_column(2)
+
+        self.assertEqual(self.panel._preview.column_window(),
+                         (2 * self.WIDTH, self.WIDTH))
+        # Entry state, saved by Save: no manifest write, and — unlike
+        # _on_frame_size_changed — no slots.json override either.
+        self.assertEqual(self.manifest_json.read_bytes(), manifest_before)
+        self.assertEqual(self.slots_json.read_bytes(), slots_before)
+        self.assertNotIn(self.SLOT, self.manifest_doc()["entries"])
+
+    def test_save_writes_the_column_keys(self):
+        self.link()
+        self.set_column(2, "Season")
+        self.panel.save()
+        entry = self.manifest_doc()["entries"][self.SLOT]
+        self.assertEqual(entry["column"], 2)
+        self.assertEqual(entry["column_mode"], "season")
+        self.assertEqual(entry["column_width"], self.WIDTH)
+
+        self.panel.set_slot(None)
+        self.panel.set_slot(self.SLOT)               # re-read from disk
+        self.assertEqual((self.panel._column, self.panel._column_mode),
+                         (2, "season"))
+
+    def test_save_omits_each_column_key_at_its_default(self):
+        self.link()
+        self.set_column(0, "Manual")
+        self.assertNotIn("column", self.panel.draft_entry())
+        self.assertNotIn("column_mode", self.panel.draft_entry())
+        # 0 is the absent-key in-memory default, never an authored width.
+        self.panel._column_width = 0
+        self.assertNotIn("column_width", self.panel.draft_entry())
+
+    def test_a_path_that_does_not_author_columns_preserves_them(self):
+        self.link()
+        self.set_column(3, "Building colour")
+        self.panel.save()
+
+        # A plain per-slot import never shows the column row — and must not
+        # erase what the master link saved (the `anchors` rule in reverse).
+        self.panel.set_slot(self.SLOT)
+        self.panel.import_sheet(make_png(self.png_dir / "own.png", 64, 2 * 96))
+        self.panel.save()
+        entry = self.manifest_doc()["entries"][self.SLOT]
+        self.assertEqual(entry["column"], 3)
+        self.assertEqual(entry["column_mode"], "building_color")
+        self.assertEqual(entry["column_width"], self.WIDTH)
+
+    def test_linking_adopts_the_sheets_column_width(self):
+        from engine.assets import master_registry
+
+        self.link()
+        self.assertEqual(
+            self.panel._column_width,
+            master_registry.column_width_for(
+                master_sheet_import.load_registry_doc(self.data_dir), self.ref))
+
+    def test_the_column_spin_ceiling_is_the_sheets_last_column(self):
+        self.link()
+        self.assertEqual(self.panel._column_spin.maximum(),
+                         self.COLS // self.WIDTH - 1)
+
+    def test_an_entry_saved_before_columns_falls_back_to_the_registry(self):
+        self.link()
+        self.panel.save()
+        doc = self.panel._read_doc()
+        del doc["entries"][self.SLOT]["column_width"]   # a pre-E3 entry
+        self.panel._write_doc(doc)
+
+        self.panel.set_slot(None)
+        self.panel.set_slot(self.SLOT)
+        self.assertEqual(self.panel._column_width, self.WIDTH)
+        self.assertEqual(self.panel._column_spin.maximum(),
+                         self.COLS // self.WIDTH - 1)
 
 
 if __name__ == "__main__":

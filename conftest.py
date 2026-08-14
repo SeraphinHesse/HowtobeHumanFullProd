@@ -127,6 +127,9 @@ TIERS = {
     # GpuAndMasterSheetsPLAN M3: editor/master_sheet_import.py + its picker
     # dialog. `editor` because half of it builds Qt widgets.
     "test_master_sheet_import": "editor",
+    # MasterSheetColumnsPLAN E5: editor/panels/master_sheets.py — the Master
+    # Sheets right-pane page. Qt-heavy, same tier as its import module.
+    "test_master_sheets_panel": "editor",
     "test_movement": "core",
     "test_names": "core",
     "test_nine_slice": "core",

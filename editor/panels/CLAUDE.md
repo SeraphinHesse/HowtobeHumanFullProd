@@ -1848,6 +1848,113 @@ calls):
   engine's rule that `AssetStore._frame_surface` is the only place `row_start`
   is applied. That is why `DetailsPanel._on_frame_clicked` needs no offset.
 
+- **The column window is the row window's twin (E2)**: `set_sheet(png, fw, fh,
+  row_start=0, row_count=None, col_start=0, col_count=None)` — same
+  opt-in/reset/clamp rules, applied in the SAME source-rectangle line in
+  `paintEvent`, and `column_window()` sits beside `row_window()`. Cell captions
+  and `frame_clicked(row, col)` stay WINDOW-RELATIVE on BOTH axes now, not just
+  rows — the preview and the RowEditors below it must not be able to disagree
+  about what "frame 1" means on either axis.
+
+### E1 — import path: column width + column names (MasterSheetColumnsPLAN)
+- **The import form collects the real designer-supplied `column_width`** plus an
+  optional comma-separated **Colours** field, replacing S1/C3's stopgap
+  derivation from the PNG's pixel width (deleted, not left as a second path):
+  `import_master_sheet(data_dir, png_path, display_name, frame_w, frame_h,
+  column_width, columns=())`. `columns` is OMITTED from the entry when empty
+  (the `slice`/`tint_overlay`/`row_start` convention) and is NOT preserved
+  across a re-import that omits it — the same way `frame_w`/`frame_h` are never
+  seeded from the existing entry either.
+- **`GridInUseError`'s comparison tuple is `(frame_w, frame_h, column_width)`**
+  (D10): a re-import changing only `column_width` on a sheet with users is
+  refused exactly like a frame-size change, with the same ordering (before the
+  PNG copy, before the registry write), and it still subclasses `ValueError` so
+  the dialog's existing `except (OSError, ValueError)` shows it.
+- **`master_sheet_import.parse_columns(text, data_dir)`** is the pure
+  slugify+validate step the Colours field runs through BEFORE any write: each
+  entry is slugified with the same `_slugify` sheet ids use (so the schema's
+  `^[a-z][a-z0-9_]*$` item pattern holds by construction, ED-30), blanks are
+  dropped, and a duplicate slug / over-length slug / over-cap count raises
+  `ValueError` there rather than as an opaque `ValidationError` after the copy.
+  Its bounds come from `columns_bounds()`, read off the schema.
+- **`MasterSheet.column_count()` is a NEW method, not a third `grid()` return
+  value** — `grid()` stays a 2-tuple because `panels/vfx_preview.py` and this
+  dialog already unpack it as exactly two. `column_count()` is
+  `width // (column_width * frame_w)`, matching `engine/assets/store.py`'s own
+  column arithmetic.
+
+### E3 — DetailsPanel column controls (MasterSheetColumnsPLAN)
+- **The `Column [n] mode [combo] width: [n]` row** sits under the row-window row
+  and is built the same way (`_NoWheelSpinBox`/`_NoWheelComboBox` from
+  `balancing.py`, spin commits on `editingFinished`, combo on a **lambda-wrapped**
+  `currentIndexChanged`). Its visibility gate is the SAME `_master_applies()` —
+  the `master/` prefix on `_sheet_ref`, not the category (D2).
+- **`_on_column_changed` writes NOTHING** — the column is entry state, saved by
+  Save like every other row edit, and `slots.json` is never touched from here.
+  It is `_on_row_window_changed`'s twin, not `_on_frame_size_changed`'s. One
+  deliberate difference from the row window: it calls `_refresh_preview()` and
+  **does not rebuild the RowEditors**, because a column changes which horizontal
+  SLICE of the same rows is shown, not which rows exist.
+- **`column_width` is INHERITED, displayed disabled with a tooltip** — the exact
+  treatment Frame W/H get while a master sheet is linked (a disabled spin, not a
+  `QLabel`, so focus order and styling stay uniform). It is read through
+  **`engine.assets.master_registry.column_width_for(doc, ref)`**, never off a
+  `MasterSheet` attribute: the registry owns the value (D1) and the panel has no
+  business reaching into the import module's dataclass for it.
+- **The column spin's CEILING is `sheet_cols // column_width - 1`**, recomputed
+  per sheet in `_refresh_column_state` from `_sheet_cols` (stored by
+  `_load_sheet` beside `_sheet_rows`). An off-sheet column is unrepresentable
+  (ED-30) rather than a save-time error — the horizontal twin of `_row_to`'s
+  minimum tracking `_row_from`. The clamp is applied to the STATE too, since
+  `draft_entry()` reads `_column`.
+- **`column`/`column_mode`/`column_width` are optional-key-shaped** like
+  `slice`/`tint_overlay`/`row_start`: omitted at `0`/`"manual"`/`0`, and
+  `draft_entry()` **preserves** all three on any path that does not author them
+  (a plain `imported/<slot>.png` entry never shows the row and must not erase a
+  saved column). `0` for the width is only the absent-key in-memory default —
+  the schema floors an authored width at 1.
+- **An entry saved before this phase has no `column_width` key**, so `set_slot`'s
+  reload falls back to `column_width_for` rather than leaving the spin with a
+  `0..0` ceiling. `_effective_column()` is the one place the preview's column
+  origin is derived; the STORED column always wins there, because a non-manual
+  `column_mode` names a RENDER-time override the editor has no live value for.
+
+## Master Sheets panel (`panels/master_sheets.py`, MasterSheetColumnsPLAN E5)
+
+- **Shape**: a `right_stack` PAGE (index 8), not a `QDialog` — the
+  Timeline/Theme family's shape with the master-sheet dialog's layout: a
+  `QListWidget` of every registry entry, an embedded read-only
+  `SheetPreview(interactive=False)` showing the WHOLE sheet (the raw registry
+  entry, so the three-argument `set_sheet` that resets any row/column window,
+  never one slot's window), and a word-wrapped detail label reporting the
+  real pixel size, the grid, `column_width`, the column count, the colour names
+  and the users by key.
+- **Construction is split from display**, the `sheet_picker`/
+  `master_sheet_dialog` rule: the model is `sheets`/`selected_sheet`/
+  `select_sheet`/`reload_sheets`/`save_selected`/`reimport_selected`, so no
+  test `exec()`s anything. `QFileDialog` is confined to
+  `_on_reimport_browse_clicked`; `set_reimport_source()` is the same seam
+  without the modal.
+- **D10 locks the SLICING FORM, not Re-import.** With users, the
+  frame_w/frame_h/column_width/colours editors and Save are disabled and a
+  label names the linking slots ("Clear them first"); `save_selected()` refuses
+  as well, defense in depth. Re-import stays enabled at all times on purpose:
+  the ENFORCEMENT is `GridInUseError` inside `import_master_sheet`, which
+  refuses a grid change on a linked sheet with a message naming the slots
+  before touching the PNG or the registry — a UI lock there would hide the
+  reason instead of stating it. `GridInUseError` subclasses `ValueError`, so
+  `_on_reimport_clicked`'s `except (OSError, ValueError)` → `QMessageBox`
+  shows it (the `master_sheet_dialog._on_import_clicked` precedent).
+- **Re-import passes `sheet_id=` and that is deliberate.** Going through
+  `resolve_sheet_id` — as the picker's import branch does, correctly — would
+  mint `<slug>_2` the moment the new art's bytes differ, leaving every manifest
+  entry pointed at the stale sheet: the exact opposite of this panel's promise
+  ("keeps the id and every link"). The explicit id is safe because the designer
+  selected that sheet and asked for the replacement, and the slicing hazard is
+  still covered by the untouched D10 guard.
+- **One refcount.** `MasterSheet.users` (`asset_import.sheet_users`) is it —
+  the panel never counts users a second way.
+
 ## TestRunnerPLAN TR-5 — `panels/test_run_panel.py` (the test-run window)
 
 - **A POPUP WINDOW, not a dock** (reconciliation R3): `TestRunPanel` copies

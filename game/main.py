@@ -61,6 +61,7 @@ import pygame
 
 from engine import data_io, tilemap
 from engine.assets import load_manifest, load_registry
+from engine.assets import master_registry  # B1: the colour-column registry
 from engine.assets.store import AssetStore
 from engine.audio import play_music
 from engine.coords import CameraLimit, load_coordinate_system
@@ -73,6 +74,8 @@ from game.buildings import BaseBuilding, attach_base
 # -- 10I: defence-range coverage producer (injected into the tilemap) --
 from game.buildings.coverage import wire_defence_coverage
 # -- /10I --
+# -- B1: the slots.json category whose slots may carry a colour column --
+from game.buildings.registry import BUILDINGS_CATEGORY
 # -- Building Movement: the in-transit sign slot + the cost/time formulas the
 # destination-pick preview quotes --
 from game.buildings.movement import (
@@ -119,6 +122,48 @@ _WORLD_STATES = (GameState.GAMEPLAY, GameState.GAME_OVER)
 _KEY_NAMES = None  # lazily built (needs pygame constants)
 
 _log = logging.getLogger(__name__)
+
+
+def _derive_colour_columns(registry, manifest, data_dir):
+    """``{slot_key: (colour_name, ...)}`` for every BUILDINGS slot whose art is
+    actually driven by a live colour column (MasterSheetColumnsPLAN B1).
+
+    THE HOST DOES THIS LOOKUP, ONCE, AND PASSES THE RESULT DOWN. ``game/ui``
+    and ``game/buildings`` may never reach into the asset layer themselves
+    (D6) — the same rule (and the same derive-once-at-boot argument: art cannot
+    change mid-run) that puts ``condition_art``/``tree_slots``/``wall_art`` in
+    ``main()`` rather than in their consumers.
+
+    A SLOT IS COLOUR-CAPABLE IFF BOTH HOLD:
+      1. its master sheet declares ``columns`` (``columns_for`` is non-empty) —
+         D6's stated rule; and
+      2. its manifest entry has ``column_mode == "building_color"``.
+    Condition 2 is the conjunct D6 does not state, and it is required by D3:
+    under ``column_mode == "manual"`` the entry's own STORED ``column`` wins and
+    a live column is ignored, so a manual slot would offer the player swatches
+    that change nothing. It is recorded as an open finding for the section
+    orchestrator; S4 faces the identical question for ``season``.
+
+    E-37: a missing or unreadable registry degrades to an EMPTY map with ONE
+    logged warning and never raises. An empty map simply means no building has
+    colours — exactly the escape hatch the three derived-art blocks above use.
+    """
+    try:
+        master_doc = master_registry.load_registry(data_dir)
+    except Exception as exc:                       # noqa: BLE001 — E-37
+        _log.warning(
+            "master-sheet registry unreadable (%s) — no building has colour "
+            "columns this run; the run itself is unaffected", exc)
+        return {}
+    colours = {}
+    for slot in registry.group_slots(BUILDINGS_CATEGORY):
+        entry = manifest.entry(slot)
+        if entry is None or entry.column_mode != "building_color":
+            continue
+        names = master_registry.columns_for(master_doc, entry.sheet)
+        if names:
+            colours[slot] = names
+    return colours
 
 
 def _key_name(key):
@@ -618,6 +663,13 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # here) — False means the slot has no imported sheet and the overlay draws
     # only its round countdown, never the grey-X placeholder (E-37).
     moving_sign_art = manifest.entry(MOVING_SIGN_SLOT) is not None
+    # B1: which building slots offer master-sheet colour columns, and their
+    # names. Derived once here for the same reason as the four blocks above —
+    # art cannot change mid-run — and handed down to the placement seam
+    # (`place_building(..., colour_columns=...)`) and to the construct panel.
+    # An empty map (today's live data, which declares no `columns` yet) means
+    # no building rolls a colour and every animator keeps its -1 sentinel.
+    colour_columns = _derive_colour_columns(registry, manifest, data_dir)
     widgets.set_skin_hit_test(assets.hit_opaque)  # R2: pixel-perfect click targets
     # D5/UH-6: theme data, loaded + schema-validated once at boot, before the
     # Shell/screens are built (so every screen's FIRST submit already sees
@@ -844,6 +896,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         # building's own tier sprite (the `floaters.assets` precedent below;
         # None-safe, so a bare BuildingUI in a test needs no store).
         gp["panel"].assets = assets
+        # B1: the colour-capability map, published to the construct flow the
+        # same host-sets-an-attribute way `assets` above and
+        # `overlays.condition_art` are. B2 is what READS it (swatches in the
+        # construct-confirm modal, then `place_building(..., column=...)`), so
+        # on this branch it is deliberately published and not yet consumed.
+        gp["panel"].colour_columns = colour_columns
         gp["floaters"].log = gp["game_log"]
         # -- /10J --
         # -- ESV-5/6: the handles _play/_anchored need to spawn a sprite
@@ -1713,6 +1771,20 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                     gp["floaters"].spawn_income_events(session.state)
                     gp["floaters"].spawn_painter_events(session.state)
                     gp["floaters"].spawn_boost_events(session.state)
+                    # -- N1: the season clock ---------------------------------
+                    # payday already ran (it does round++ then flips to INCOME,
+                    # game/core/payday.py:277-280), so THIS edge is the round
+                    # edge: one frame per round, never per frame. The key is
+                    # schema-REQUIRED, so index it — a missing group must fail
+                    # loud here, not ship a whole run of wrong ground art.
+                    # The invalidate is conditional ON PURPOSE: repainting the
+                    # cached ground layer costs a full re-blit, so it fires only
+                    # when the season actually turns (once every
+                    # rounds_per_season rounds), not on every round edge.
+                    if session.state.update_season(
+                            core_balance["Seasons"]["rounds_per_season"]):
+                        ground_cache.invalidate()
+                    # -- /N1 --
                 # -- 10J: the previous round's blood clears when the next wave
                 # starts (prototype clear_splatters on End Turn, game.py:815) --
                 if (session.state.phase == GamePhase.ENEMY
@@ -1878,7 +1950,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 view_w, view_h,
                 lambda dmn, dmx, smn, smx: tilemap.band_render_items(
                     map_doc, dmn, dmx, smn, smx,
-                    code_overrides=world.tile_map.terrain_overrides))
+                    code_overrides=world.tile_map.terrain_overrides,
+                    # Read INSIDE the lambda body, never bound as a default
+                    # argument: the cache calls this back only on a rebuild,
+                    # so the season must be sampled when the repaint happens.
+                    column=session.state.season))
             # The GPU cache IGNORES this argument by design (it always draws
             # through the SDL Renderer it was built with — see
             # ground_cache_gpu.blit's docstring), so both classes take the same
@@ -1888,7 +1964,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             cmin, cmax, rmin, rmax = cs.visible_tile_window(view_w, view_h, margin=4)
             for item in tilemap.visible_render_items(
                     map_doc, cmin, cmax, rmin, rmax, terrain=False,
-                    camera=show_camera_start, anim_time_ms=int(deco_clock_ms)):
+                    camera=show_camera_start, anim_time_ms=int(deco_clock_ms),
+                    column=session.state.season):
                 renderer.submit(item)
             # Spawn-band tree deco on the `deco` layer — draws ABOVE enemies
             # (`entities`), so units emerging from the treeline are partly
@@ -1898,14 +1975,16 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # emitter reads `tile.state` live).
             for item in spawn_deco_render_items(
                     world.tile_map, cmin, cmax, rmin, rmax, tree_slots,
-                    anim_time_ms=int(deco_clock_ms)):
+                    anim_time_ms=int(deco_clock_ms),
+                    column=session.state.season):
                 renderer.submit(item)
             # Condition art on the `terrain` layer — above the ground tiles,
             # below everything on `entities`/`deco`. Reuses the window above;
             # emits nothing for conditions with no imported sheet.
             for item in condition_render_items(
                     world.tile_map, cmin, cmax, rmin, rmax, condition_art,
-                    anim_time_ms=int(deco_clock_ms)):
+                    anim_time_ms=int(deco_clock_ms),
+                    column=session.state.season):
                 renderer.submit(item)
             # Edge-wall art (fix/depth-sorted-world-fills) — every wall item
             # is on the SAME `entities` layer as buildings now, so it sorts
