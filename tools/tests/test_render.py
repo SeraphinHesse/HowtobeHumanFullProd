@@ -737,7 +737,8 @@ class TestPurity(unittest.TestCase):
         code = (
             "import sys; "
             "import engine.coords, engine.data_io, engine.render, engine.assets, "
-            "engine.assets.manifest, engine.assets.registry, engine.tilemap; "
+            "engine.assets.manifest, engine.assets.registry, engine.tilemap, "
+            "engine.ui_layers; "
             "assert 'pygame' not in sys.modules, 'pygame leaked into pure modules'"
         )
         result = subprocess.run(
