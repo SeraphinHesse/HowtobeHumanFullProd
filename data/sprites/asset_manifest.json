@@ -9294,6 +9294,24 @@
       ],
       "sheet": "imported/ui_panel_v2.png"
     },
+    "vfx_attack_range": {
+      "frame_h": 64,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 4,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/vfx_attack_range.png"
+    },
     "vfx_crater": {
       "frame_h": 96,
       "frame_w": 64,
@@ -9348,6 +9366,26 @@
       ],
       "sheet": "imported/vfx_projectile.png"
     },
+    "vfx_section_2x2": {
+      "frame_h": 96,
+      "frame_w": 128,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 2,
+          "hidden": [
+            1
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/vfx_tile_selected.png"
+    },
     "vfx_shell": {
       "frame_h": 64,
       "frame_w": 64,
@@ -9365,6 +9403,26 @@
         }
       ],
       "sheet": "imported/vfx_shell.png"
+    },
+    "vfx_tile_selected": {
+      "frame_h": 96,
+      "frame_w": 128,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 2,
+          "hidden": [
+            1
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/vfx_tile_selected.png"
     },
     "wall_builder": {
       "anchors": {

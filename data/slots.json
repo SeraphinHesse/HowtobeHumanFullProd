@@ -1133,13 +1133,21 @@
             {
               "label": "Selected tile",
               "slots": [
-                "vfx_tile_selected"
+                {
+                  "frame_h": 96,
+                  "frame_w": 128,
+                  "key": "vfx_tile_selected"
+                }
               ]
             },
             {
               "label": "2x2 section",
               "slots": [
-                "vfx_section_2x2"
+                {
+                  "frame_h": 96,
+                  "frame_w": 128,
+                  "key": "vfx_section_2x2"
+                }
               ]
             },
             {
