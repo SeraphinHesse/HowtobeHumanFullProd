@@ -216,6 +216,8 @@ class MainMenu:
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
         self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "under", self.skinning.state_of)
         renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
         renderer.submit_hud(HudSprite(_BG_SLOT, (0, 0), (view_w, view_h)))
         if self._title.visible:
@@ -229,3 +231,5 @@ class MainMenu:
         for btn in self._all_buttons():
             if is_visible(btn):
                 btn.submit(renderer, anim_ms=t, **button_kwargs(btn))
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "over", self.skinning.state_of)

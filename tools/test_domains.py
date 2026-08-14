@@ -132,6 +132,7 @@ DOMAINS = {
         "test_right_click_dismiss.py",
         "test_shell.py",
         "test_tutorial_director.py",
+        "test_ui_layer_draw.py",
         "test_ui_layout_export.py",
         "test_ui_min_targets.py",
         "test_ui_skinning.py",

@@ -77,6 +77,8 @@ class GameLog:
         self.skinning.apply(self.screen_id, self.ids)
         if not self._style.visible:
             return
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "under", self.skinning.state_of)
         x, y = self._style.rect[0], self._style.rect[1]
         base = tuple(self._style.text_color[:3])
         for text, age in reversed(self._messages):  # newest at the bottom
@@ -88,3 +90,5 @@ class GameLog:
             submit_text(renderer, text, (x, y), self._style.font_key,
                        base + (alpha,))
             y -= _LINE_STEP
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "over", self.skinning.state_of)

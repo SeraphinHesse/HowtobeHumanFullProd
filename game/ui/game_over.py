@@ -90,6 +90,8 @@ class GameOverScreen:
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
         self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "under", self.skinning.state_of)
         renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
         if self._title.visible:
             submit_centered(renderer, self._title.label, self._title.rect[0],
@@ -103,3 +105,5 @@ class GameOverScreen:
                      color=widgets.C_UI_TEXT, count=state.enemies_killed)
         if is_visible(self.button):
             self.button.submit(renderer, anim_ms=t, **button_kwargs(self.button))
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "over", self.skinning.state_of)

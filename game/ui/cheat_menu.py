@@ -246,6 +246,8 @@ class CheatMenu:
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
         self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "under", self.skinning.state_of)
         renderer.submit_hud(HudRect((0, 0, view_w, view_h), _BG))
         if is_visible(self._panel):
             submit_panel(renderer, self.panel_rect, skin=self._panel.skin,
@@ -279,3 +281,5 @@ class CheatMenu:
                    tcol)
         if is_visible(self.go_btn):
             self.go_btn.submit(renderer, anim_ms=t, **button_kwargs(self.go_btn))
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "over", self.skinning.state_of)
