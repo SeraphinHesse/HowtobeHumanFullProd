@@ -205,6 +205,65 @@ class RegistryUnreadableTest(DataDirCase):
             master_sheet_import.load_registry_doc(self.data_dir)["entries"])
 
 
+class ExplicitSheetIdTest(DataDirCase):
+    """MasterSheetColumnsPLAN E5 — `import_master_sheet(sheet_id=...)`, the
+    deliberate "replace THIS sheet's art" path the Master Sheets panel uses.
+
+    Every test here swaps in PNGs with DIFFERENT BYTES on purpose: identical
+    bytes reuse the id through `resolve_sheet_id` as well, so a same-bytes test
+    would pass without the parameter existing and prove nothing."""
+
+    def setUp(self):
+        super().setUp()
+        pin_empty_registry(self.data_dir)
+        self.source = make_png(self.data_dir / "incoming" / "raw.png", 128, 192)
+        self.sheet_id = master_sheet_import.import_master_sheet(
+            self.data_dir, self.source, "Village Folk", 32, 48, 2)
+        self.different = make_png(self.data_dir / "incoming" / "new.png",
+                                  128, 192, colour=(200, 10, 10, 255))
+        self.png = self.data_dir / "sprites" / "master" / f"{self.sheet_id}.png"
+
+    def entries(self):
+        return master_sheet_import.load_registry_doc(self.data_dir)["entries"]
+
+    def test_explicit_id_replaces_that_entrys_art_and_keeps_the_id(self):
+        again = master_sheet_import.import_master_sheet(
+            self.data_dir, self.different, "Village Folk", 32, 48, 2,
+            sheet_id=self.sheet_id)
+        self.assertEqual(again, self.sheet_id)
+        self.assertEqual(list(self.entries()), [self.sheet_id])   # no `_2`
+        self.assertEqual(self.png.read_bytes(), self.different.read_bytes())
+
+    def test_omitting_the_id_still_mints_a_new_one_for_different_bytes(self):
+        """The default path is byte-for-byte what it always was — the
+        never-overwrite rule `resolve_sheet_id` exists for."""
+        again = master_sheet_import.import_master_sheet(
+            self.data_dir, self.different, "Village Folk", 32, 48, 2)
+        self.assertEqual(again, "village_folk_2")
+        self.assertEqual(self.png.read_bytes(), self.source.read_bytes())
+
+    def test_explicit_id_still_refuses_a_grid_change_while_slots_link(self):
+        """D10 is unweakened by the new parameter, and still refuses BEFORE the
+        PNG copy."""
+        path = self.data_dir / "sprites" / "asset_manifest.json"
+        doc = data_io.load_json(path)
+        doc["entries"]["painter_t1_lvl1"] = {
+            "sheet": f"master/{self.sheet_id}.png",
+            "frame_w": 32, "frame_h": 48, "offset_x": 0, "offset_y": 0,
+            "rows": [{"animation": "idle", "frames": 4, "fps": 8, "hidden": [],
+                      "loop_start": 0, "loop_end": 0, "loop_count": 1}]}
+        data_io.write_validated(
+            doc, path, self.data_dir / "schemas" / "asset_manifest.schema.json")
+        before = self.png.read_bytes()
+
+        with self.assertRaises(master_sheet_import.GridInUseError) as caught:
+            master_sheet_import.import_master_sheet(
+                self.data_dir, self.different, "Village Folk", 32, 48, 4,
+                sheet_id=self.sheet_id)
+        self.assertIn("painter_t1_lvl1", str(caught.exception))
+        self.assertEqual(self.png.read_bytes(), before)
+
+
 class GridInUseTest(DataDirCase):
     """M4 §2.1 — a re-import may not re-cut a sheet slots already window into."""
 
