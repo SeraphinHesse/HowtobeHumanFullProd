@@ -1178,8 +1178,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                                  tile.col, tile.row)
         panel.preview = MovePreview(
             building, tile, move_cost(distance, movement),
-            move_time(distance, movement), ui_balance, view_w, view_h,
-            skinning=shell.skinning)
+            move_time(distance, movement), movement["warning_text"],
+            ui_balance, view_w, view_h, skinning=shell.skinning)
 
     def handle_world_right_click(mx, my):
         """Right-click is a universal DISMISS, never a world action — it peels
