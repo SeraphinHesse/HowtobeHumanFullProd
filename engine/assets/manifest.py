@@ -96,6 +96,12 @@ class ManifestEntry:
     # instead of letting the sprite stand alone. Only the game's tile-condition
     # art reads it today; omitted ⇒ False ⇒ byte-identical entry.
     tint_overlay: bool = False
+    # First sheet row of this entry's WINDOW (0-based). Lets many slots cut
+    # their own row band out of one shared master spritesheet. It is a SLICING
+    # concern only: `animations`/`Track.row`/`current_frame` keep meaning
+    # "row i of THIS entry's rows[]", and `AssetStore._frame_surface` is the
+    # single place the window is applied. Omitted ⇒ 0 ⇒ byte-identical entry.
+    row_start: int = 0
 
     def anchor(self, name):
         """(x, y) frame-px anchor point named `name` (ESV-1), or None when
@@ -200,6 +206,16 @@ def entry_from_dict(slot_key, raw):
     if not isinstance(tint_overlay, bool):
         raise ValueError(f"{slot_key}: tint_overlay must be a boolean")
 
+    row_start = raw.get("row_start", 0)
+    # Same defensive shape as `slice`/`anchors`: no int() coercion, because
+    # True, 3.7 and "3" would all sail through it and silently pick a row the
+    # designer never authored. `load_manifest` is the E-37 layer that turns
+    # this raise into warn-and-skip-this-entry.
+    if isinstance(row_start, bool) or not isinstance(row_start, int):
+        raise ValueError(f"{slot_key}: row_start must be an integer")
+    if row_start < 0:
+        raise ValueError(f"{slot_key}: row_start must be >= 0")
+
     return ManifestEntry(
         slot_key=slot_key,
         sheet=sheet,
@@ -211,6 +227,7 @@ def entry_from_dict(slot_key, raw):
         slice=margins,
         anchors=anchors,
         tint_overlay=tint_overlay,
+        row_start=row_start,
     )
 
 

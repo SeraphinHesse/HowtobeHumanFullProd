@@ -147,7 +147,8 @@ def mark_role(payload: dict) -> int:
     parent is silently demoted to `sub` and guard 1 then denies the MAIN
     session the single full run the whole policy is built around — the exact
     outcome `_role`'s fail-open design exists to prevent. `_role` assumed a
-    collision would leave `main` on disk; it does not, unless we make it.
+    collision would leave `main` on disk; it does not, unless we make it. That
+    is not hypothetical: it denied phase G2's handoff gate.
 
     The other direction stays last-write-wins on purpose: a genuinely new
     `SessionStart` on a recycled id SHOULD reset a stale `sub` to `main`, which

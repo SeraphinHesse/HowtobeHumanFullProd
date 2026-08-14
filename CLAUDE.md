@@ -48,7 +48,7 @@ that breaks this table is *denied*, not merely discouraged.
   kept getting broken by agents who thought they had asked for a narrow run.)
 - **The full `py tools/testgate.py check` runs exactly ONCE**, by the MAIN
   SESSION, at handoff — or when the user explicitly asks. Never mid-task, never
-  twice. **"At handoff" means `/commitpushpr` stage 4, which is AFTER the PR is
+  twice. **"At handoff" means `/commitpushpr` stage 5, which is AFTER the PR is
   up and AFTER `Development` has been merged down** — not before either. (This
   bullet used to read "before handing work back or opening a PR", which is now
   wrong in both halves: the PR goes up first, marked UNTESTED, and gating a tree
@@ -315,7 +315,8 @@ Then:
 3. If anything architectural changed: update **the package CLAUDE.md** — not
    this router, not another package's doc.
 4. **Finishing a session ALWAYS goes through `/commitpushpr`** — it is the one
-   closing workflow, not one option among several. Report → **UNTESTED PR** →
+   closing workflow, not one option among several. Report (every plan phase by
+   its ID) → offer a summary **artifact** → **UNTESTED PR** →
    merge `Development` down → *then* the single gate (skippable — CI may
    already be green, or the user may have run it in the editor) → fix, push,
    rewrite the PR body to what actually happened. Do not hand-roll

@@ -1,8 +1,9 @@
 """Renderer (E-21/E-22): submit → resolve via assets → depth sort → coords
 → hand a flat DrawCall list to the backend.
 
-Pure orchestration — no pygame imports here; the default pygame backend is
-resolved lazily inside flush(), and tests inject a recording backend.
+Pure orchestration — no pygame imports here; the backend contract lives in
+`backend_api.py` (`Backend` Protocol + `default_backend()`), resolved
+lazily inside flush(), and tests inject a recording backend.
 
 Anchor convention: a frame is blitted CENTRED on the tile — horizontally on
 its world position, vertically on the tile diamond's centre (world_to_screen y
@@ -19,6 +20,9 @@ the knob for art that IS smaller than its footprint). Per-entry manifest
 offset_x/offset_y nudge from the anchor, riding the same scale (they are
 authored in frame pixels).
 """
+import time
+
+from . import backend_api
 from .hud import HudLines, HudRect, HudSprite, HudText
 from .item import LAYERS, DrawCall, OverlayLines, OverlayPolys, WorldFill
 
@@ -87,9 +91,14 @@ class Renderer:
         self._coords = coords
         self._assets = assets
         self._backend = backend
+        self._hud_backend = None   # G4: always the Surface backend (D7)
         self._queue = []
         self._overlay = []
         self._hud = []
+        # G4 instrumentation: milliseconds spent inside the backend call(s) of
+        # the most recent flush, split world vs HUD. The host's frame-timing
+        # line reads it; nothing else depends on it.
+        self.last_flush_ms = {"world": 0.0, "hud": 0.0}
 
     @property
     def assets(self):
@@ -146,10 +155,23 @@ class Renderer:
             )
         self._hud.append(item)
 
-    def flush(self, target):
+    def flush(self, target, hud_target=None):
         """Draw all submitted items to `target`, clear the queue, and return
         the number of items drawn. Target-agnostic (E-22): game window or
-        editor offscreen surface alike."""
+        editor offscreen surface alike.
+
+        `hud_target` (G4, D7): world sprites + overlays go to `target`
+        through `self._backend` (the GPU host's SDL backend), the HUD pass to
+        `hud_target` through the SURFACE backend — always, whatever
+        `self._backend` is. `None` (the editor / tools / the Surface host)
+        keeps the historical single flat list and single call, byte-identical.
+
+        The split is STRUCTURAL — by production site, never a post-hoc
+        isinstance filter over a merged list. `slice`/`crop_rect` are set in
+        exactly one place (the HUD loop below) and `backend_gpu.draw` raises
+        on either, so producing the HUD calls into their own list is what
+        GUARANTEES such a call cannot reach the world backend; a filter here
+        reopens that crash."""
         coords = self._coords
         ordered = sorted(
             self._queue,
@@ -215,12 +237,13 @@ class Renderer:
         # HUD pass (E-12): screen space already — no coords conversion, no
         # depth sort. Sprites resolve to DrawCalls; the rest pass through for
         # the backend to isinstance-dispatch (like OverlayLines).
+        hud_calls = draw_calls if hud_target is None else []
         for hud in self._hud:
             if isinstance(hud, HudSprite):
                 frame = self._assets.frame(
                     hud.slot_key, hud.animation, hud.anim_time_ms,
                     extra_hidden=hud.hidden_frames or None)
-                draw_calls.append(DrawCall(
+                hud_calls.append(DrawCall(
                     surface=frame.surface,
                     dest=hud.dest,
                     size=hud.size,
@@ -230,12 +253,20 @@ class Renderer:
                     crop_rect=hud.crop,
                 ))
             else:
-                draw_calls.append(hud)
+                hud_calls.append(hud)
         if self._backend is None:
-            from . import backend as _pygame_backend
-
-            self._backend = _pygame_backend.draw
+            self._backend = backend_api.default_backend()
+        _t0 = time.perf_counter()
         self._backend(target, draw_calls)
+        world_ms = (time.perf_counter() - _t0) * 1000.0
+        hud_ms = 0.0
+        if hud_target is not None and hud_calls:
+            if self._hud_backend is None:
+                self._hud_backend = backend_api.default_backend()
+            _t1 = time.perf_counter()
+            self._hud_backend(hud_target, hud_calls)
+            hud_ms = (time.perf_counter() - _t1) * 1000.0
+        self.last_flush_ms = {"world": world_ms, "hud": hud_ms}
         count = len(self._queue) + len(self._overlay) + len(self._hud)
         self._queue.clear()
         self._overlay.clear()

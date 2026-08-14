@@ -60,6 +60,13 @@ import heapq
 # Occupant building_type values counted as "economy" (prototype pathfinder.py:36).
 _ECONOMY_BUILDING_TYPES = {"economic", "meditator", "painter"}
 
+# The three boost building types (game/buildings/boost.py's BUILDING_TYPE
+# constants). digger-hop-rework Pass 5: the Digger's widened hunt once no
+# structure is left anywhere ("he focuses boost and economy buildings
+# instead") is this set UNIONED with _ECONOMY_BUILDING_TYPES above.
+_BOOST_BUILDING_TYPES = {"boost_speed", "boost_damage", "boost_hp"}
+_BOOST_ECONOMY_BUILDING_TYPES = _BOOST_BUILDING_TYPES | _ECONOMY_BUILDING_TYPES
+
 # NE-0/D1: every ATTACK-CAPABLE building — the "defence" hunt category. It used
 # to be the single literal ``building_type == "defence"``, i.e. the Defender
 # only, which left the three later attack buildings (mortar, Storm Priest, Sun
@@ -501,15 +508,19 @@ def _goal_tiles(tilemap, predicate, exclude=None):
 
 
 def _find_path_to_goals(tilemap, start_col, start_row, goals, footprint=1,
-                        cond_weights=None):
+                        cond_weights=None, ignore_walls=False):
     """Run a goal-set query; fall back to the base path when no goal exists or
-    none is reachable (prototype behaviour)."""
+    none is reachable (prototype behaviour). ``ignore_walls`` (digger-hop-
+    rework: a Digger tunnels, so walls must never be what stops it) threads
+    into both the goal-set search and the base-path fallback."""
+    base_fn = find_path_ignoring_walls if ignore_walls else find_path
     if not goals:
-        return find_path(tilemap, start_col, start_row, footprint, cond_weights)
-    path = _dijkstra(tilemap, start_col, start_row, goals, ignore_walls=False,
-                     footprint=footprint, cond_weights=cond_weights)
+        return base_fn(tilemap, start_col, start_row, footprint, cond_weights)
+    path = _dijkstra(tilemap, start_col, start_row, goals,
+                     ignore_walls=ignore_walls, footprint=footprint,
+                     cond_weights=cond_weights)
     if not path:
-        return find_path(tilemap, start_col, start_row, footprint, cond_weights)
+        return base_fn(tilemap, start_col, start_row, footprint, cond_weights)
     return path
 
 
@@ -546,7 +557,7 @@ def _nearest_goal_tile(goals, start_col, start_row, min_distance=0):
 
 
 def _hunt(tilemap, start_col, start_row, goals, footprint=1,
-         cond_weights=None, min_distance=0):
+         cond_weights=None, min_distance=0, ignore_walls=False):
     """The one hunt-query body (Chunk 4), shared by every prey-hunting
     variant below: choose the nearest goal by squared geometric distance,
     route to it by the ordinary weighted ``_dijkstra`` (D3 — choose by
@@ -566,17 +577,24 @@ def _hunt(tilemap, start_col, start_row, goals, footprint=1,
     ``min_distance`` (Digger fix) is threaded ONLY into the target CHOICE
     (``_nearest_goal_tile``) — the unreachable-target fallback still searches
     the whole goal set, because reachability always wins over a distance
-    preference, exactly like every other fallback in this module."""
+    preference, exactly like every other fallback in this module.
+
+    ``ignore_walls`` (digger-hop-rework, default False — every existing
+    caller byte-identical) threads into the route search AND the base-path
+    fallback, via ``_find_path_to_goals``. Live walls still route AROUND by
+    default (same as every other type); a caller whose unit tunnels through
+    obstacles regardless (the Digger) passes ``True``."""
+    base_fn = find_path_ignoring_walls if ignore_walls else find_path
     if not goals:
-        return find_path(tilemap, start_col, start_row, footprint, cond_weights)
+        return base_fn(tilemap, start_col, start_row, footprint, cond_weights)
     target = _nearest_goal_tile(goals, start_col, start_row, min_distance)
     path = _dijkstra(tilemap, start_col, start_row, {target},
-                     ignore_walls=False, footprint=footprint,
+                     ignore_walls=ignore_walls, footprint=footprint,
                      cond_weights=cond_weights)
     if path:
         return path
     return _find_path_to_goals(tilemap, start_col, start_row, goals, footprint,
-                               cond_weights)
+                               cond_weights, ignore_walls)
 
 
 def find_path_to_nearest_economic(tilemap, start_col, start_row, footprint=1,
@@ -616,12 +634,19 @@ def find_path_to_nearest_defence(tilemap, start_col, start_row, footprint=1,
 
 def find_path_to_nearest_structure(tilemap, start_col, start_row, footprint=1,
                                    cond_weights=None, exclude=None,
-                                   min_distance=0):
+                                   min_distance=0, ignore_walls=False):
     """Cheapest path to the nearest alive STRUCTURE — every non-economy,
     non-boost, non-base building (``_STRUCTURE_BUILDING_TYPES``: blocker,
     wall builder, and the four attack-capable types) — by geometric distance,
     routed by weighted cost through the shared ``_hunt`` body like every other
     prey query. Falls back to the base path if none exist.
+
+    ``ignore_walls`` (digger-hop-rework, default False): forwarded straight
+    to ``_hunt`` — see that docstring. The Digger's spawn approach calls this
+    a second time with it set, as a fallback ONLY when the normal
+    wall-respecting route came back empty/base-only, so its one overground
+    walk still routes around walls in the common case and only crosses one
+    when that is genuinely the sole way in.
 
     NE-0/D2. The ``"structure"`` hunt category, added for the Digger (NE-2) but
     landed a phase early so it rides the same reviewed helper the other hunts
@@ -653,6 +678,31 @@ def find_path_to_nearest_structure(tilemap, start_col, start_row, footprint=1,
         exclude,
     )
     return _hunt(tilemap, start_col, start_row, goals, footprint, cond_weights,
+                min_distance, ignore_walls)
+
+
+def find_path_to_nearest_boost_or_economic_building(tilemap, start_col,
+                                                     start_row, footprint=1,
+                                                     cond_weights=None,
+                                                     exclude=None,
+                                                     min_distance=0):
+    """Cheapest path to the nearest alive boost or economy building
+    (``_BOOST_ECONOMY_BUILDING_TYPES``) — the Digger's widened hunt once no
+    structure is left anywhere on the map (digger-hop-rework Pass 5: "if
+    there are 0 structure buildings on the map left for the Digger to focus
+    he focuses boost and economy buildings instead"). Falls back to the base
+    path if none exist.
+
+    ``exclude``/``min_distance`` mirror ``find_path_to_nearest_structure``'s
+    — the Digger's own claim exclusion and walk-target preference; this
+    widened hunt is their only caller today."""
+    _pre_query_refresh(tilemap)
+    goals = _goal_tiles(
+        tilemap,
+        lambda b: getattr(b, "building_type", None)
+        in _BOOST_ECONOMY_BUILDING_TYPES,
+        exclude)
+    return _hunt(tilemap, start_col, start_row, goals, footprint, cond_weights,
                 min_distance)
 
 
@@ -666,14 +716,19 @@ def find_path_to_nearest_building(tilemap, start_col, start_row, footprint=1,
                                cond_weights)
 
 
-def _non_base_goals(tilemap):
+def _non_base_goals(tilemap, exclude=None):
     """Every alive building tile EXCEPT the base — the boss's hunting ground.
 
     Keyed on ``building_type != "base"``, the same duck-typed occupant contract
     the rest of this module reads (and the same key the prototype excludes the
-    hole by), never a comparison against ``base_col``/``base_row``."""
+    hole by), never a comparison against ``base_col``/``base_row``.
+
+    ``exclude`` (digger-hop-rework, default None): the Digger's own claim
+    exclusion, threaded through when it widens its hunt beyond structures —
+    see ``find_path_to_nearest_non_base_building``."""
     return _goal_tiles(
-        tilemap, lambda b: getattr(b, "building_type", None) != "base")
+        tilemap, lambda b: getattr(b, "building_type", None) != "base",
+        exclude)
 
 
 def nearest_non_base_building_tile(tilemap, start_col, start_row):
@@ -711,10 +766,18 @@ def find_path_to_nearest_spawn(tilemap, start_col, start_row, footprint=1,
 
 
 def find_path_to_nearest_non_base_building(tilemap, start_col, start_row,
-                                           footprint=1, cond_weights=None):
+                                           footprint=1, cond_weights=None,
+                                           exclude=None, ignore_walls=False):
     """Route to the nearest alive NON-BASE building; the base path when the
     board is clear (BP-2 / decision D2 — the boss turns on the hole ONLY once
     nothing else is left standing).
+
+    ``exclude``/``ignore_walls`` (digger-hop-rework, both default
+    off/None — every existing caller, boss and commander included, byte-
+    identical): the Digger's own claim exclusion and wall-tunneling
+    fallback, threaded through here because this is what its ``retarget``
+    widens to when no unclaimed STRUCTURE is reachable at all — any other
+    non-base building beats standing down.
 
     ``find_path_to_nearest_building`` cannot do this job: its goal predicate is
     ``lambda b: True``, so the base sits in the goal set, and
@@ -738,5 +801,6 @@ def find_path_to_nearest_non_base_building(tilemap, start_col, start_row,
     Chunk 4: the body is now the shared ``_hunt`` helper — byte-identical to
     the pre-Chunk-4 version (pinned by ``test_boss.py``'s existing fixtures)."""
     _pre_query_refresh(tilemap)
-    goals = _non_base_goals(tilemap)
-    return _hunt(tilemap, start_col, start_row, goals, footprint, cond_weights)
+    goals = _non_base_goals(tilemap, exclude)
+    return _hunt(tilemap, start_col, start_row, goals, footprint, cond_weights,
+                ignore_walls=ignore_walls)

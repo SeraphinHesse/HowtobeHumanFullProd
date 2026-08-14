@@ -13,8 +13,10 @@ from unittest.mock import patch
 # PySide6, which reads those vars at import time.
 from tools.tests.qt_harness import APP as _APP, QtCase
 
+from PIL import Image
 from PySide6.QtGui import QColor
 
+from editor import asset_import, master_sheet_import
 from editor.panels import vfx_preview
 from editor.panels.balancing import BalancingPanel
 from editor.panels.vfx_preview import VfxPreviewPanel
@@ -215,6 +217,103 @@ class TestDeterministicEmit(VfxPreviewCase):
 
         self.assertTrue(len(first) > 0)
         self.assertEqual(first, second)
+
+
+class TestMasterSheetLink(VfxPreviewCase):
+    """M5 (GpuAndMasterSheetsPLAN §6): "Use Master Spritesheet…" on the vfx
+    preview's fixed `vfx_*` slots — one row out of a shared PNG."""
+
+    FRAME_W, FRAME_H = 32, 48
+    COLS, ROWS = 3, 3
+
+    def make_master(self, name="Effects Sheet"):
+        """A registered master sheet, 3x3 frames at 32x48."""
+        source = self.data_dir / "incoming" / "effects.png"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGBA", (self.FRAME_W * self.COLS, self.FRAME_H * self.ROWS),
+                  (10, 200, 90, 255)).save(source)
+        return master_sheet_import.import_master_sheet(
+            self.data_dir, source, name, self.FRAME_W, self.FRAME_H)
+
+    def entry(self, slot="vfx_crater"):
+        return asset_import.load_manifest_doc(self.data_dir)["entries"].get(slot)
+
+    def crater_preview(self):
+        _balancing, preview = self.make_pair()
+        preview._family_combo.setCurrentText("crater")
+        return preview
+
+    def test_link_inherits_the_sheets_grid_and_omits_row_start_at_zero(self):
+        sheet_id = self.make_master()
+        slots_before = (self.data_dir / "slots.json").read_bytes()
+        preview = self.crater_preview()
+
+        self.assertFalse(preview._master_btn.isHidden())
+        self.assertEqual(preview.use_master_sheet(sheet_id),
+                         (self.COLS, self.ROWS))
+
+        self.assertEqual(self.entry(), {
+            "sheet": f"master/{sheet_id}.png",
+            "frame_w": self.FRAME_W, "frame_h": self.FRAME_H,
+            "offset_x": 0, "offset_y": 0,
+            "rows": [{"animation": "idle", "frames": self.COLS, "fps": 8,
+                      "hidden": [], "loop_start": 0, "loop_end": 0,
+                      "loop_count": 1}],
+        })
+        # D3: the SHEET owns the grid — a linking slot inherits it and no
+        # per-slot override is written.
+        self.assertEqual((self.data_dir / "slots.json").read_bytes(),
+                         slots_before)
+        data_io.load_validated(
+            self.data_dir / "sprites" / "asset_manifest.json",
+            self.data_dir / "schemas" / "asset_manifest.schema.json")
+        # ED-42: the preview resolves the linked art with no editor restart.
+        self.assertIsNotNone(
+            preview._assets.animation_total_ms("vfx_crater", "idle"))
+
+    def test_row_spin_moves_the_window_and_zero_drops_the_key(self):
+        sheet_id = self.make_master()
+        preview = self.crater_preview()
+        preview.use_master_sheet(sheet_id, row=2)
+
+        self.assertEqual(self.entry()["row_start"], 2)
+        self.assertFalse(preview._master_row.isHidden())
+        self.assertEqual(preview._row_spin.value(), 2)
+        # the ceiling is the sheet's real last row — off-the-bottom windows are
+        # unrepresentable (ED-30)
+        self.assertEqual(preview._row_spin.maximum(), self.ROWS - 1)
+
+        preview._row_spin.setValue(1)
+        preview._on_master_row_changed()
+        self.assertEqual(self.entry()["row_start"], 1)
+        # …and only row_start moved: the row shape is untouched.
+        self.assertEqual(self.entry()["rows"][0]["frames"], self.COLS)
+
+        preview._row_spin.setValue(0)
+        preview._on_master_row_changed()
+        self.assertNotIn("row_start", self.entry())
+
+    def test_row_defaults_to_the_window_this_slot_already_claims(self):
+        sheet_id = self.make_master()
+        preview = self.crater_preview()
+        preview.use_master_sheet(sheet_id, row=2)
+
+        preview.use_master_sheet(sheet_id)          # re-link, same sheet
+        self.assertEqual(self.entry()["row_start"], 2)
+
+        other = self.make_master("Other Sheet")     # a DIFFERENT sheet: row 0
+        preview.use_master_sheet(other)
+        self.assertNotIn("row_start", self.entry())
+
+    def test_master_affordances_hidden_for_a_family_with_no_fixed_slot(self):
+        self.make_master()
+        _balancing, preview = self.make_pair()
+        preview._family_combo.setCurrentText("spark")
+
+        self.assertTrue(preview._master_btn.isHidden())
+        self.assertTrue(preview._master_row.isHidden())
+        # …and the model half refuses rather than writing to some other slot.
+        self.assertIsNone(preview.use_master_sheet("effects_sheet"))
 
 
 class TestGracefulDegrade(VfxPreviewCase):

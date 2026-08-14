@@ -8,8 +8,10 @@ bad art (E-23/E-37).
 
 Never call convert()/convert_alpha() here: they need a display mode and the
 editor runs under SDL dummy drivers. Sliced frames are subsurfaces, so the
-parent sheet must stay cached for as long as the store lives. There is no
-cache invalidation — when the manifest changes, build a new AssetStore.
+parent sheet must stay cached for as long as the store lives. Sheets are
+cached by SOURCE PATH, so one PNG decodes once however many slots name it
+(entries claim their own row band of a shared sheet via `row_start`). There
+is no cache invalidation — when the manifest changes, build a new AssetStore.
 """
 import logging
 from pathlib import Path
@@ -39,7 +41,21 @@ class AssetStore:
         self._frame_sizes = dict(frame_sizes or {})
         self._default_frame_size = default_frame_size
         self._sprites_dir = Path(sprites_dir) if sprites_dir is not None else None
-        self._sheets = {}   # slot_key -> Surface | _LOAD_FAILED
+        # Sheets are keyed by SOURCE PATH: many slots may name one PNG (a
+        # linked sheet, or a master sheet each slot windows with `row_start`),
+        # and one file must decode exactly once into exactly one Surface.
+        self._sheets = {}   # entry.sheet -> Surface | _LOAD_FAILED
+        # Frames and hit masks stay SLOT-keyed even though the sheet no longer
+        # is — this is decision D10, and it is deliberate, not an oversight.
+        # Only the raw Surface is safe to share. Two slots naming one PNG cut
+        # it DIFFERENTLY: each applies its own `row_start` window, and each may
+        # declare its own frame_w/frame_h, so the same (row, col) means
+        # different pixels per slot. A sheet-keyed frame cache would hand slot
+        # B slot A's art — a silent wrong-pixels bug, not a crash. Note the
+        # frame-size half stands on its own: two `row_start: 0` slots on one
+        # shared PNG at different frame sizes are already unsafe to merge.
+        # Folding frame_w/frame_h/row_start into the key to dedup frames too is
+        # a NOTED FOLLOW-UP, deliberately not done here.
         self._frames = {}   # (slot_key, row, col) -> Surface | _LOAD_FAILED
         self._hit_masks = {}   # (slot_key, row, col) -> pygame.Mask
 
@@ -157,12 +173,17 @@ class AssetStore:
         return Frame(surface=placeholder_surface(w, h), frame_w=w, frame_h=h)
 
     def _sheet(self, entry):
-        slot_key = entry.slot_key
-        if slot_key in self._sheets:
-            return self._sheets[slot_key]
+        # Cache key is the sheet PATH, not the slot key — see __init__.
+        # Consequence, accepted deliberately: a failing sheet is logged ONCE,
+        # naming only the FIRST slot that asked for it, not every slot sharing
+        # it. That is fine — the resolved path is printed and it is the
+        # actionable half. Do not "fix" this by enumerating slots.
+        sheet_key = entry.sheet
+        if sheet_key in self._sheets:
+            return self._sheets[sheet_key]
         if self._sprites_dir is None:
             log.warning("no sprites_dir configured — %s renders as placeholder",
-                        slot_key)
+                        entry.slot_key)
             surface = _LOAD_FAILED
         else:
             path = self._sprites_dir / entry.sheet
@@ -170,9 +191,9 @@ class AssetStore:
                 surface = pygame.image.load(str(path))
             except (OSError, pygame.error) as exc:
                 log.warning("could not load sheet %s for %s: %s — using "
-                            "placeholder", path, slot_key, exc)
+                            "placeholder", path, entry.slot_key, exc)
                 surface = _LOAD_FAILED
-        self._sheets[slot_key] = surface
+        self._sheets[sheet_key] = surface
         return surface
 
     def _frame_surface(self, entry, ref):
@@ -184,14 +205,19 @@ class AssetStore:
         if sheet is _LOAD_FAILED:
             surface = _LOAD_FAILED
         else:
-            rect = pygame.Rect(col * entry.frame_w, row * entry.frame_h,
+            # THE one place the entry's row window is applied: `row` is an
+            # index into this entry's own rows[], `sheet_row` is where that
+            # lands in the (possibly shared) PNG.
+            sheet_row = row + entry.row_start
+            rect = pygame.Rect(col * entry.frame_w, sheet_row * entry.frame_h,
                                entry.frame_w, entry.frame_h)
             try:
                 surface = sheet.subsurface(rect)
             except ValueError:
-                log.warning("frame (row %d, col %d) of %s is outside its "
-                            "sheet — using placeholder", row, col,
-                            entry.slot_key)
+                log.warning("frame (row %d, col %d) of %s — sheet row %d "
+                            "(row_start %d) — is outside its sheet %s — using "
+                            "placeholder", row, col, entry.slot_key, sheet_row,
+                            entry.row_start, entry.sheet)
                 surface = _LOAD_FAILED
         self._frames[key] = surface
         return surface

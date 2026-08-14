@@ -5,13 +5,31 @@ RenderItem submit → resolve frames via assets → depth sort → coords → bl
 game window and the editor viewport use the SAME pipeline. When you change render
 conventions, update THIS doc.
 
-**pygame lives here** (`backend.py`, `fonts.py`, `ground_cache.py`) — `renderer.py`
+**pygame lives here** (`backend.py`, `backend_gpu.py`, `fonts.py`,
+`ground_cache.py`, `ground_cache_gpu.py`) — `renderer.py`
 itself is pure orchestration. See the engine router's pygame-import allow-list.
 
 ## Render flow
-- `Renderer(coords, assets, backend=None)` — `renderer.py` produces `DrawCall`s;
-  the pygame backend (`render/backend.py`) is lazily imported on first `flush()`
-  and injectable for tests.
+- `Renderer(coords, assets, backend=None)` — `renderer.py` produces `DrawCall`s.
+  The backend CONTRACT (G1) lives in `render/backend_api.py`: a `Backend`
+  `typing.Protocol` (`__call__(target, draw_calls) -> None`, documentation +
+  a type hook, not a runtime check) plus `default_backend()`, which resolves
+  and returns `render/backend.py`'s `draw` function. `backend_api.py` is pure
+  (no pygame at module level), so the pygame allow-list below is unchanged.
+  Resolution is still lazy — `Renderer.flush()` calls `default_backend()` on
+  first flush and memoises the result — and still injectable for tests.
+- **`flush(target, hud_target=None)` (G4, D7)** — with a `hud_target`, world
+  sprites + overlays go to `target` through `self._backend` (the host's GPU
+  backend) and the HUD pass goes to `hud_target` through the SURFACE backend,
+  resolved and memoised separately in `self._hud_backend`. **The split is by
+  PRODUCTION SITE, never a post-hoc isinstance filter**: `slice`/`crop_rect`
+  are set only in the HUD loop and `backend_gpu.draw` raises on either, so
+  building the HUD calls into their own list is the structural guarantee that
+  such a call cannot reach the world backend. `hud_target=None` (the editor,
+  the tools, the Surface host, every existing test) keeps the historical
+  single flat list and single backend call, byte-identical. `flush` also
+  records `renderer.last_flush_ms = {"world": ms, "hud": ms}` for the host's
+  frame-timing line (`hud` is 0.0 on the single-call path).
 - Draw layers fixed: `LAYERS = ("ground", "terrain", "entities", "deco",
   "overlay")` (E-26); HUD is drawn by the host after flush. **`terrain` sits
   between `ground` and `entities`** for content that overlays the ground tiles
@@ -187,6 +205,81 @@ item's actual sorted position instead of in a separate trailing block.
 2. Plain sprite draws accumulate into one `target.blits(...)` **batch**, flushed
    whenever a non-sprite (overlay/HUD) call must land in order.
 Both are pixel-transparent (tests in `test_render.TestBackendThroughput`).
+
+## Second backend: `render/backend_gpu.py` (G2), the WORLD path only
+A second `Backend` draws the same flat draw list onto a
+`pygame._sdl2.video.Renderer` instead of a `Surface`: the source uploads to a
+`Texture` once and all scaling lives in the destination rect, so zoom ≠ 1 costs
+no `transform.scale` per frame. **Sprites and overlays only** — `HudRect`/
+`HudLines`/`HudText`, `DrawCall.slice` and `DrawCall.crop_rect` stay
+single-implementation on `backend.py` and raise `NotImplementedError` here
+(D7; the HUD composites over the GPU frame in G4). Its texture cache is keyed by
+source-surface identity in a `WeakKeyDictionary` exactly like `_scale_cache`
+above (weak eviction is what stops the grey-X placeholder leaking a texture per
+call), with an inner `id(renderer)` key because pygame-ce's `Renderer` is not
+weak-referenceable; `clear_cache()` clears it. Dests, sizes and overlay points
+still go through `round_half_up` and reach SDL as integer `Rect`s, never floats.
+**The game host selects it (G4)** via `--backend={auto,gpu,surface}` (default
+`auto`; `HTBH_RENDER_BACKEND` when there is no argv), constructing
+`Renderer(cs, assets, backend=backend_gpu.draw)` — `default_backend()` is still
+the Surface blitter for everyone else (editor, tools, tests, and the D8
+fallback). The HUD composites over the GPU frame as ONE streaming-texture
+upload per frame, driven by `Renderer.flush(target, hud_target=…)` (below).
+Parity is pinned in `test_render_backend_parity.py`.
+
+**Overlay pass (`OverlayLines`/`OverlayPolys`) — clipped scratch, reused
+buffer (G5).** `_draw_lines`/`_draw_polys` still rasterize with the SAME
+`pygame.draw.lines`/`pygame.draw.polygon` call `backend.py` uses (the parity
+argument), but the bounding-box scratch is (1) clipped to
+`target.get_viewport()` **before** anything is allocated — an overlay wholly
+outside the target is a no-op, returned before any `Surface`/`Texture`
+construction, since `Texture(renderer, (0, 0))` raises `ValueError` where
+`Surface((0, 0))` would silently succeed — and (2) drawn into ONE
+module-level scratch `Surface` reused across every overlay call, every
+renderer, every frame, instead of a fresh allocation per call. The scratch
+grows to the high-water mark and is never shrunk; growing it invalidates the
+per-renderer streaming `Texture`s that mirror its size (`_overlay_textures`,
+keyed by `id(target)` for the same reason `_texture_cache`'s inner key is —
+`Renderer` is not weak-referenceable). Each draw clears only the sub-rect it
+is about to use (`Surface.fill((0,0,0,0), rect)`, not the whole high-water
+buffer), refreshes the matching Texture in place with `texture.update(scratch,
+area)`, and draws with an explicit `srcrect=area` — the reused Texture is
+usually larger than the current overlay, so an implicit "draw the whole
+Texture" would stretch it over the destination. This Texture is **never**
+routed through `_texture()`/`_texture_cache` above: that cache snapshots at
+first draw and never refreshes, which is wrong for a buffer whose pixels
+differ on every call. The translation that maps world points into the
+scratch's local coordinates uses the **clipped** rect's origin, not the raw
+bbox's — using the raw origin after clipping the size is a one-pixel-shift
+regression. `clear_cache()` drops the scratch buffer and every per-renderer
+overlay Texture along with the sprite texture cache. Tests:
+`TestOverlayClipReuse` in `test_render_backend_parity.py`.
+
+**KNOWN PARITY GAP — LAYERED translucent overlays differ by up to 2/255, and
+it is platform-dependent.** The two backends do not blend alpha through the
+same code: the GPU path uploads the scratch and lets SDL composite it with
+`BLENDMODE_BLEND`, while `backend.py` blits an SRCALPHA scratch with pygame.
+Over a **flat background** the two round identically on every platform tested
+(hence `TestParity`'s `alpha=100` poly is green everywhere, CI included). Over
+an **already-drawn destination** — a translucent overlay laid on top of an
+earlier overlay — they diverge: measured **2/255 per channel** on SDL's Linux
+software renderer in CI, and **0** on Windows/Direct3D. Found 2026-08-13 when
+G5's new clipped-overlay cases layered a translucent poly over a line and went
+red on CI while passing locally.
+
+Consequences, in order of importance:
+- **`CHANNEL_TOLERANCE = 1` stays pinned.** Plan §9 forbids relaxing it, and
+  widening a global tolerance to accommodate one blend path would blind every
+  other parity assertion. `TestOverlayClipReuse` uses opaque colours instead,
+  so it asserts the clip and nothing else.
+- **No parity test currently asserts layered-alpha equality**, deliberately —
+  the platforms do not guarantee it, so asserting it makes CI a coin toss.
+- **In game this is not visible**: 2/255 on one channel where two translucent
+  overlays cross. It is recorded because a future reader comparing the two
+  backends pixel-by-pixel will otherwise re-discover it as a "bug".
+- If bit-identical layered alpha is ever actually required, the fix is to make
+  both paths composite the same way (e.g. pre-composite all overlays into one
+  scratch before upload), not to move the tolerance.
 
 ## Nine-slice (A2) — `DrawCall.slice`, HUD only
 A `DrawCall` may carry `slice = (left, top, right, bottom)` — nine-slice margins
@@ -381,6 +474,22 @@ off the cached surface.
   (non-scrolling) consumers only.
 - **NOT exported from `engine.render.__init__`** (which stays pure) — import it by
   full path `engine.render.ground_cache`, like the backend/store.
+- **GPU variant (G3, `ground_cache_gpu.py`)**: `GroundCacheGpu` sits behind the
+  same `ensure`/`blit`/`invalidate` surface, backed by a pair of render-target
+  `Texture`s instead of a `pygame.Surface`. `Surface.scroll`'s memmove becomes a
+  self-blit between the two textures, ping-ponged, because SDL cannot read and
+  write one render target in a single pass. The strip clip is
+  `renderer.set_viewport`, which also translates the strip's origin to `(0, 0)`
+  — compensated by shifting the private camera's pan by that same integer
+  amount, which `round_half_up`'s `floor(v + 0.5)` makes exact rather than
+  approximate. The background fill is `fill_rect`, never `clear()`, because
+  `clear()` measures as ignoring the viewport and wiping the whole target. The
+  diagonal-band derivation is shared through `ground_cache.band_for_rect`, not
+  copied. **The game host selects it (G4)**: `game/main.py` builds
+  `GroundCacheGpu(sdl_renderer, cs, assets, bg_color=BACKGROUND)` on the GPU
+  path and today's `GroundCache` otherwise, then calls `ensure`/`blit` with no
+  branch — `blit`'s `target` argument is ignored on the GPU path by design.
+  `default_backend()` still returns the Surface blitter for everyone else.
 
 ## Verify
 Render/asset-facing changes: headless smoke test (`tools/smoke.py`) and, if

@@ -5,19 +5,24 @@ and fails LOUD on invalid map structure — tolerance is for art only.
 Headless via SDL dummy drivers; runs against a tempfile copy of data/
 (repo data never touched).
 """
+import contextlib
+import io
 import os
 import shutil
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
 import jsonschema  # noqa: E402
+import pygame  # noqa: E402
 
 from engine import data_io, tilemap  # noqa: E402
 from engine.render import fonts as _fonts  # noqa: E402
+from game import main as game_main_module  # noqa: E402
 from game.main import main as game_main  # noqa: E402
 from game.ui import strings as _strings  # noqa: E402
 from game.ui import widgets as _widgets  # noqa: E402
@@ -195,6 +200,123 @@ class TestActiveMapBoot(TempDataBoot):
         path.write_text(data_io.dumps_deterministic(doc), encoding="utf-8")
         with self.assertRaises(ValueError):
             game_main(max_frames=1, data_dir=self.data_dir)
+
+
+class TestRenderBackendSelection(TempDataBoot):
+    """G4: the host's GPU path, its D8 fallback, and the one bug that is
+    otherwise invisible (a frozen HUD). Headless under the dummy video driver,
+    which CAN host an SDL Renderer."""
+
+    def _boot(self, **kw):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            frames = game_main(max_frames=5, data_dir=self.data_dir,
+                               autostart=True, **kw)
+        return frames, buf.getvalue()
+
+    def test_gpu_boot_runs_and_names_the_backend(self):
+        frames, out = self._boot(backend="gpu")
+        self.assertEqual(frames, 5)
+        self.assertIn("render backend: GPU (SDL2 texture", out)
+        self.assertIn("ground cache: GroundCacheGpu", out)
+
+    def test_headless_default_stays_on_the_surface_path(self):
+        # `max_frames is not None` forces Surface — the single condition that
+        # keeps tools/smoke.py on today's stack with no flag of its own.
+        frames, out = self._boot()
+        self.assertEqual(frames, 5)
+        self.assertIn("render backend: Surface (CPU blitter)", out)
+        self.assertNotIn("GPU", out)
+
+    def test_gpu_failure_falls_back_to_surface_and_says_why(self):
+        from pygame._sdl2 import video as sdl2
+
+        def boom(*args, **kwargs):
+            raise RuntimeError("no fast renderer available")
+
+        with unittest.mock.patch.object(sdl2, "Renderer", boom):
+            frames, out = self._boot(backend="gpu")
+        self.assertEqual(frames, 5)
+        self.assertIn("render backend: Surface (CPU blitter) — GPU requested "
+                      "but unavailable: RuntimeError: no fast renderer "
+                      "available", out)
+
+    def test_hud_texture_is_updated_once_per_frame_not_once_ever(self):
+        """The §1.3 pin: backend_gpu's texture cache snapshots a source
+        surface at first upload, so a HUD that rode it would freeze at frame 1
+        with no exception, no log line and no other failing test. The host
+        therefore owns a streaming Texture it updates EVERY frame — assert the
+        count, not merely that it happened."""
+        updates = []
+        original = game_main_module._GpuPresenter._new_streaming_texture
+
+        class _SpyTexture:
+            def __init__(self, tex):
+                self._tex = tex
+
+            def update(self, *args, **kwargs):
+                updates.append(1)
+                return self._tex.update(*args, **kwargs)
+
+            def __getattr__(self, name):
+                return getattr(self._tex, name)
+
+        def spied(presenter):
+            return _SpyTexture(original(presenter))
+
+        with unittest.mock.patch.object(
+                game_main_module._GpuPresenter, "_new_streaming_texture",
+                spied):
+            frames, out = self._boot(backend="gpu")
+        self.assertEqual(frames, 5)
+        self.assertIn("render backend: GPU", out)
+        self.assertEqual(len(updates), 5, "the HUD composite must upload once "
+                                          "per frame, or the HUD freezes")
+
+    def test_map_event_does_not_rescale_an_already_logical_mouse_pos(self):
+        """LIVE BUG (G4 follow-up): every main-menu button was dead on
+        --backend=gpu while its hover animation still worked.
+
+        pygame-ce ALREADY delivers mouse events in renderer-logical
+        coordinates once ``renderer.logical_size`` is set (MEASURED, pygame-ce
+        2.5.7 / SDL 2.32.10: a 1280x720 window at logical 640x360 reports
+        ``pos == (320, 180)`` for a click at physical (640, 360), and
+        ``rel == (100, 50)`` for a physical (+200, +100) move). ``map_event``
+        mapped them a SECOND time, so at the shipped fullscreen default every
+        click landed at a third of its true position. ``mouse_pos()`` reads
+        ``pygame.mouse.get_pos()``, which is NOT scaled, so hover stayed
+        correct and nothing else looked wrong.
+
+        The stub renderer below rescales, so a reintroduced mapping shows up
+        as a wrong coordinate rather than an AttributeError."""
+        class _StubRenderer:
+            def coordinates_from_window(self, point):
+                return point[0] / 3.0, point[1] / 3.0
+
+        presenter = game_main_module._GpuPresenter.__new__(
+            game_main_module._GpuPresenter)
+        presenter._renderer = _StubRenderer()
+
+        down = pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            {"pos": (320, 163), "button": 1, "clicks": 1, "touch": False})
+        mapped = game_main_module._GpuPresenter.map_event(presenter, down)
+        self.assertEqual(mapped.pos, (320, 163))
+        self.assertEqual(mapped.button, 1)
+
+        motion = pygame.event.Event(
+            pygame.MOUSEMOTION,
+            {"pos": (250, 200), "rel": (100, 50), "buttons": (0, 0, 0),
+             "touch": False})
+        mapped = game_main_module._GpuPresenter.map_event(presenter, motion)
+        self.assertEqual(mapped.pos, (250, 200))
+        self.assertEqual(mapped.rel, (100, 50))
+
+        # The other half of the asymmetry: get_pos() IS window pixels, so
+        # mouse_pos() must keep remapping it.
+        with unittest.mock.patch.object(pygame.mouse, "get_pos",
+                                        lambda: (960, 489)):
+            self.assertEqual(presenter.mouse_pos(), (320, 163))
 
 
 if __name__ == "__main__":

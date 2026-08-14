@@ -168,7 +168,12 @@ validating writer; don't hand-edit the JSON.
   `vfx_buff_arrow`'s own fallback follows. It also added two flat
   `EnemyTypes.Digger` leaves, `dig_hop_long_tiles`/`dig_hop_short_tiles`
   (int, default 3/1) — the knight-hop's two legs, alongside the pre-existing
-  `dig_range_tiles`/`dig_speed`/`emerge_cooldown`/`min_target_distance_tiles`
+  `dig_range_tiles`/`dig_speed`/`emerge_cooldown`/`min_target_distance_tiles`.
+  **Both hop leaves were REMOVED again by digger-hop-rework Pass 5** (a
+  ground-up rewrite of the underground movement at the user's request — no
+  more hop shape at all, see `game/enemies/CLAUDE.md`'s Digger section) —
+  they no longer exist in the schema or content; only `dig_range_tiles`/
+  `dig_speed`/`emerge_cooldown`/`min_target_distance_tiles` remain
   (see the "Enemy sizing leaves" pattern below for how a per-type flat leaf
   is shaped; these are `EnemyTypes.Digger`-only, not shared across types).
   Since **Phase 9A** the other
@@ -556,7 +561,8 @@ validating writer; don't hand-edit the JSON.
   `rows[0].animation` is schema-forced to `idle` (`prefixItems`). Written ONLY
   by the editor's import panel, through `write_validated`. (The one-shot
   migration tool that seeded it is deleted — the editor is the only door now.)
-  - **`slice` (A2) and `anchors` (ESV-1) are the two OPTIONAL per-entry keys** —
+  - **`slice` (A2), `anchors` (ESV-1), `tint_overlay` and `row_start` (M1) are
+    the four OPTIONAL per-entry keys** —
     everything else is `required`. `"slice": [left, top, right, bottom]`, ints
     0..1024, nine-slice margins in FRAME pixels (same convention as
     `offset_x`/`offset_y`). It exists so a UI panel/button skin can be drawn at
@@ -569,7 +575,8 @@ validating writer; don't hand-edit the JSON.
     `[x, y]` frame-px handle points, all optional, same coordinate convention.
     Unlike `slice` they are pure metadata (never affect slicing/blitting); see
     `engine/assets/CLAUDE.md`. No committed entry carries one yet.
-  - **`slice` (A2) and `tint_overlay` are the OPTIONAL per-entry keys** —
+  - **`slice` (A2), `anchors` (ESV-1), `tint_overlay` and `row_start` (M1) are
+    the four OPTIONAL per-entry keys** —
     everything else is `required`. `tint_overlay` (bool) is a render hint the
     engine carries uninterpreted: "keep drawing the consumer's own flat colour
     overlay under this art". Read only by the game's tile-condition art; omit
@@ -583,13 +590,61 @@ validating writer; don't hand-edit the JSON.
     only** — world sprites ignore it and keep uniform zoom scaling. Omit it for
     plain scaling; no committed entry carries one yet. The geometry lives in
     `engine/render/backend.py` (see `engine/render/CLAUDE.md`).
-- **`sprites/imported/*.png` are committed content (D-31)**, copied there at
+  - **`row_start` (M1, GpuAndMasterSheetsPLAN)** is a SLICING concern and
+    nothing else: the 0-based *sheet* row that this entry's `rows[0]` (idle)
+    cuts from, so entry row `i` cuts sheet row `row_start + i`. It exists so
+    many characters stacked in one MASTER spritesheet can each claim their own
+    contiguous row window. Ints 0..255 (0-based twin of `rows`' 256-count
+    bound, same convention as `hidden`/`loop_start`). Omitted ⇒ 0 ⇒ the entry
+    is byte-identical to a pre-window entry — the same "optional by omission
+    from `required`" trick `slice` and `tint_overlay` use, which is why not one
+    byte of `sprites/asset_manifest.json` changed when the key was added. The
+    window END is deliberately NOT stored: it is `len(rows)`, one source of
+    truth. **Nothing reads it yet** — M1 ships schema only; M2 applies it in
+    exactly one place in `engine/assets`.
+- **`sprites/master_sheets.json` ↔ `schemas/master_sheets.schema.json`
+  (M1, D1/D3)** — the registry of MASTER spritesheets:
+  `{version: 1, entries: {<sheet_id>: {file: "master/<sheet_id>.png",
+  display_name, frame_w, frame_h}}}`, `sheet_id` on the usual
+  `^[a-z][a-z0-9_]*$` slot-key convention. Seeded empty. Written ONLY by the
+  editor's master-sheet import, through `write_validated`.
+  - **Normal stem pairing — no fifth smoke directory exception.**
+    `tools/smoke.py::validate_data` special-cases only `maps/`,
+    `balancing_history/`, `agent_forms/` and `ui/screens/`; everything else
+    falls through to `schema_dir / f"{path.stem}.schema.json"`
+    (`tools/smoke.py:60-61`), which is how `sprites/asset_manifest.json`
+    already pairs. `sprites/master_sheets.json` pairs the same way with zero
+    change to `tools/smoke.py`.
+  - **D1 — a master sheet is a FILE with metadata, not a `slots.json`
+    category.** It is never previewed, animated or rendered on its own, so it
+    carries no animation vocabulary, gets no selector node and no entry in the
+    cross-category `sprite_slot` enum. Only manifest entries render.
+  - **D3 — the registry OWNS the frame grid.** A slot linking to a master sheet
+    inherits `frame_w`/`frame_h` from here and may not override them, so every
+    slot cutting one master sheet agrees on what row N means. The bounds
+    (1..1024) are deliberately identical to the manifest's — the two describe
+    the same pixels and must not disagree.
+  - The `file` pattern does not cross-check that the id inside the path equals
+    the entry key; JSON Schema cannot say that. If it is ever wanted it belongs
+    in a loader cross-check (the `engine.tilemap` precedent), not the schema.
+- **`sprites/imported/*.png` and `sprites/master/*.png` are committed content
+  (D-31)**, copied there at
   import time by the editor (historically also by the migration tool, now gone).
-  Never gitignore them.
+  Never gitignore them. `sprites/master/` is tracked through an empty
+  `sprites/master/.gitkeep`, the exact `sprites/imported/.gitkeep` precedent —
+  git cannot track an empty directory, and the folder must exist before the
+  first master sheet lands.
 - **A sheet may be SHARED — `sheet` is a path, not a slot-derived name.** The
   engine resolves `sprites_dir / entry.sheet` verbatim
   (`engine/assets/store.py`), and the schema's pattern always allowed any
-  `imported/*.png`. The editor's **"Use Spritesheet…"** uses that: it points a
+  `imported/*.png`. **Since M1 the pattern admits two folders** —
+  `^(imported|master)/[a-z][a-z0-9_]*\.png$` — so an entry may equally point at
+  a master sheet (`master/<sheet_id>.png` + `row_start`). Written as a single
+  alternation, deliberately not a `oneOf`: the editor's form walker handles
+  `oneOf` badly. **One-way door:** a manifest carrying a `master/` path will not
+  validate against an older checkout's schema, so rolling the schema back
+  without rolling the content back fails loud.
+  The editor's **"Use Spritesheet…"** uses that: it points a
   slot's entry at ANOTHER slot's PNG and copies no bytes, so one file backs many
   slots (a variant reusing its parent's art, two props sharing a sheet).
   `imported/<slot>.png` is therefore only (a) the file a slot's own *file* import

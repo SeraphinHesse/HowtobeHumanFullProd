@@ -172,6 +172,12 @@
               "minimum": -256,
               "type": "integer"
             },
+            "row_start": {
+              "description": "Optional row window origin: the 0-based SHEET row that this entry's rows[0] (idle) cuts from; entry row i cuts sheet row row_start + i. Exists so many characters stacked in one master spritesheet can each claim their own contiguous rows. Omit for a sheet this entry starts at the top of — omitted ⇒ 0 ⇒ the entry is byte-identical to a pre-window entry, the same convention slice and tint_overlay follow. The window END is NOT stored: it is len(rows), so there is one source of truth. 0-based like hidden/loop_start, hence a ceiling of 255 against rows' 256-count bound.",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
             "rows": {
               "description": "Sheet rows top to bottom; row 0 is the required idle animation (E-35).",
               "items": {
@@ -197,8 +203,8 @@
               "type": "array"
             },
             "sheet": {
-              "description": "Sheet path relative to data/sprites, resolved as a real path (D-31) — NOT derived from the slot key. Normally imported/<slot>.png, the file this slot's own import owns; but a slot may LINK to another slot's sheet (the editor's 'Use Spritesheet...'), so one PNG can back many slots. Anything deleting art must refcount this field first.",
-              "pattern": "^imported/[a-z][a-z0-9_]*\\.png$",
+              "description": "Sheet path relative to data/sprites, resolved as a real path (D-31) — NOT derived from the slot key. Normally imported/<slot>.png, the file this slot's own import owns; but a slot may LINK to another slot's sheet (the editor's 'Use Spritesheet…'), so one PNG can back many slots. It may equally live in master/<sheet_id>.png — a MASTER spritesheet registered in sprites/master_sheets.json, shared by many slots, each claiming its own row window via row_start. Anything deleting art must refcount this field first.",
+              "pattern": "^(imported|master)/[a-z][a-z0-9_]*\\.png$",
               "type": "string"
             },
             "slice": {

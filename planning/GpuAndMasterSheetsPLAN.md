@@ -1,11 +1,53 @@
-<!-- status: NOT STARTED — phases G0–G4 then M1–M5 -->
+<!-- status: COMPLETE — 2026-08-13. All 12 phases (G0-G6, M1-M5) done, gated and live-passed. GATE PASS 2488, zero failures. Two non-blocking unknowns remain, listed under "Completion". -->
 
 # GpuAndMasterSheetsPLAN.md — GPU render backend, then master spritesheets
 
+## Completion (2026-08-13)
+
+**This plan is DONE.** All twelve phases are implemented, reviewed, gated and —
+where the gate was a human step — live-passed by the user. Final state:
+`GATE PASS 2488 ran | 0 known | 0 new | 0 fixed | 0 unexpected skips` on
+`MasterSpritesheet_Implementation`.
+
+**What it set out to do, and what it actually delivered:**
+
+| Claim | Status |
+|---|---|
+| Drawing was the bottleneck (84–97% of frame) | **Measured** in G0 |
+| Moving drawing to the GPU makes it dramatically cheaper | **Measured on real hardware** in G6: `world` **17.54 ms → 4.72 ms (3.7×)**, 27.1 → 33.4 fps |
+| The overlay regression the rewrite introduced | **Fixed** in G5: gpu overlay Δ 1.92→0.77 / 8.76→2.73 / 3.51→0.13 ms |
+| "The HUD cannot plausibly be the dominant cost" (G0, *inferred*) | **RETIRED** in G6 — 0.90 ms of a ~29.9 ms frame, 3%. D7 stands |
+| One PNG can hold many characters, loaded once | **Delivered** M1–M5, and **used**: `slinger_t2_lvl3` (15×6 at 64×96) is the first real master sheet |
+
+**This plan carries no inferred performance claim.** Every number in it is
+measured, and where a measurement could not be reproduced (G4's Surface
+far-polyline row) it is flagged rather than quietly overwritten.
+
+**Two non-blocking unknowns survive, deliberately unanswered** (§9): whether
+`target_texture=True` is strictly needed on this driver, and streaming vs static
+texture on real hardware. Neither blocks anything — the path works as passed.
+
+**One finding is handed forward, NOT acted on**: on the GPU path drawing is no
+longer the largest cost while panning (21% vs `sim+submit`'s 50%), and ~5–9 ms
+of a frame is unaccounted by any bucket. Read §9's qualification before quoting
+it — both G6 runs were taken mid-camera-shake, and `submit` is
+backend-independent, so it is a worst-case number, not a steady-state one. **A
+Part-C plan measures a quiet frame first.**
+
+**One lesson worth carrying**: importing the first real master sheet instantly
+turned 3 tests red (`1adae9b`). They compared the whole registry against only
+what they imported — true only while `data/sprites/master_sheets.json` shipped
+empty. Never assert against live `data/`; pin the fixture.
+
 Phased, agent-executable plan (same family as `AgentDispatchPLAN.md` /
-`TimelinePLAN.md`). Base branch: `Development`. Runnable via
-`/execute-plan-phases planning/GpuAndMasterSheetsPLAN.md G0-M5` or phase by
-phase.
+`TimelinePLAN.md`). Base branch: `Development`.
+
+**Run it ONE PHASE AT A TIME** — `/execute-plan-phases
+planning/GpuAndMasterSheetsPLAN.md G1` then `… G2`, and so on. This plan is a
+dependency chain, not a fan-out; **§5.1 explains why a multi-phase range is the
+wrong invocation here** and which two phases should use `/execute-phase`
+instead. Written against `Development` @ `bb0af73`; every file/line reference
+below was re-verified after that merge.
 
 Packages touched: **engine** (render backend, asset store, manifest), **data**
 (two schemas, one new registry, one new content folder), **editor** (details
@@ -167,34 +209,79 @@ store cache contract, E-37 tolerance split), `editor/panels/CLAUDE.md`
 - `engine/render/` is small: `backend.py` 227 lines, `renderer.py` 211,
   `ground_cache.py` 186, `hud.py` 141, `fonts.py` 186, `item.py` 68. The
   migration is contained.
-- **Unverified and load-bearing:** whether an SDL2 `Renderer` can be created at
-  all under `SDL_VIDEODRIVER=dummy`. Phase G1 must answer this experimentally
-  before G2 is written; the answer only affects whether the GPU path can be
-  *tested* headlessly, not the dual-backend decision itself (D6 stands either
-  way).
+- **RESOLVED by G1's probe (measured 2026-08-12) — the dummy driver CAN host a
+  Renderer.** This was the plan's one "unverified and load-bearing" item: whether
+  an SDL2 `Renderer` can be created at all under `SDL_VIDEODRIVER=dummy`, which
+  decides whether the GPU path can be *tested* headlessly. It can. A throwaway
+  probe (one fresh subprocess per driver, since SDL init is process-global)
+  drove `pygame.init()` → `pygame._sdl2.video.Window` → `Renderer` →
+  `Texture.from_surface` upload → `clear()` + `draw()` + `to_surface()` readback
+  + a pixel comparison:
+
+  | Driver | Result |
+  |---|---|
+  | **`dummy`** | **full success** — Window, Renderer, Texture upload, draw and `to_surface()` readback all worked; the read-back pixel `(10, 200, 30)` matched the uploaded colour exactly |
+  | `offscreen` | fails at `Window()`: "offscreen not available" |
+  | `software` | fails at `Window()`: "software not available" |
+
+  `dummy` is the one that matters — it is already the driver the entire test
+  suite and `tools/smoke.py` run under. **So G2's parity test can run in normal
+  CI and must NOT be marked live-only**, and §9's "reduction in safety" risk is
+  retired. `offscreen`/`software` being unavailable in this SDL build is moot.
+  (D6's dual backend was never contingent on this — it stands either way,
+  because the editor's `SDL_VIDEODRIVER=dummy` module-level rule is about the
+  editor keeping the Surface path, not about testability.)
 
 ---
 
 ## 5. Build order
 
-| Phase | Scope | Status |
-|-------|-------|--------|
-| G0 | Measure the real render cost (no engine changes) | not started |
-| G1 | Backend seam + headless-renderer feasibility probe | not started |
-| G2 | `backend_gpu.py` — world sprites, overlays, texture cache | not started |
-| G3 | Ground cache on the GPU path | not started |
-| G4 | Host wiring, HUD composite, fallback, re-measure | not started |
-| M1 | Data layer: master-sheet registry + schema + `row_start` | not started |
-| M2 | Engine: `row_start` slicing + sheet-path-keyed store | not started |
-| M3 | Editor: pure master-sheet import module + picker dialog | not started |
-| M4 | DetailsPanel: button, row window, narrowed preview + rows | not started |
-| M5 | VFX preview panel button | not started |
+| Phase | Scope | Package | Depends on | Status |
+|-------|-------|---------|-----------|--------|
+| G0 | Measure the real render cost (no engine changes) | tools/game | — | **DONE** — verdict in §6/G0: blit throughput dominates (84–97% of frame); Part A proceeds unchanged |
+| G1 | Backend seam + headless-renderer feasibility probe | engine | G0 verdict | **DONE** — `backend_api.py` seam; probe says the dummy driver CAN host a Renderer (§4), so G2's parity test runs in CI |
+| G2 | `backend_gpu.py` — world sprites, overlays, texture cache | engine | G1 | **DONE** — parity within a pinned tolerance of 1 (§6/G2 RESULTS); nothing selects it yet, G4 wires the host |
+| G3 | Ground cache on the GPU path | engine | G2 | **DONE** — `ground_cache_gpu.py` on render-target textures, pins parameterised over both implementations (§6/G3 RESULTS); still nothing selects it, G4 wires the host |
+| G4 | Host wiring, HUD composite, fallback, re-measure | engine + game | G3 | **DONE** — `--backend={gpu,surface,auto}` wires the host, HUD composites as one streaming upload/frame, D8 fallback tested; `GATE PASS 2334`. **All five §4.3 live checks passed at a display**, closing G2's pixel-art look and G3's large-map pan. Re-measure (SOFTWARE renderer, §6/G4 RESULTS): boss-load `world` 61–69 ms → 9.5–11.5 ms, but GPU **slower on every holex row** and the overlay pass **6× worse** — that regression is a live Part-A decision |
+| G5 | Overlay pass: clip the scratch to the target, reuse the buffer | engine | G4 | **DONE** — `9de2018`, merged `a180001` on `phase-G5-G6-umbrella`; brief `docs/briefs/phase-G5-overlay-clip-reuse.md`. Clip-before-allocate + one scratch buffer grown to the high-water mark, in `backend_gpu.py` alone. Re-measure (§6/G5 RE-MEASURE, same-session pre/post): gpu overlay Δ **1.92→0.77** (40), **8.76→2.73** (200, now faster than Surface), **3.51→0.13** (far polyline). `CHANNEL_TOLERANCE` untouched; parity green at tolerance 1 |
+| G6 | Retire G0's inferred HUD-cost claim (live frame timings) | — (measurement only) | G4 | **DONE** — live run at a display via the editor's Play (no flag → `auto` → GPU; confirmed by `composite` ≠ 0), late round, 17 samples (§6/G4 RESULTS → G6 RESULTS). `hud` **0.80 ms** + `composite` **0.10 ms** = 3% of a ~29.9 ms frame: G0's claim **confirmed**, D7 stands, §9 bullet retired. **Surface control run also taken** (49 samples): `hud`/`composite` **0.00 in all**, confirming the instrument, and `world` **17.54 → 4.72 ms — the first real-hardware confirmation of Part A's core claim, 3.7×**, 27.1 → 33.4 fps. Raised a NEW out-of-scope finding (drawing no longer the largest GPU-path cost while panning), qualified as worst-case since both runs were mid-camera-shake. Only the `target_texture`/streaming unknowns remain |
+| M1 | Data layer: master-sheet registry + schema + `row_start` | data | — | **DONE** — schema + seeded registry + `data/sprites/master/`; existing manifest byte-identical |
+| M2 | Engine: `row_start` slicing + sheet-path-keyed store | engine | M1, G2 | **DONE** — `48de489` + review fixes `81a2aa2`, merged `12ba043`. `row_start` applied in `AssetStore._frame_surface` only; store re-keyed on `entry.sheet`, so one PNG = one decode |
+| M3 | Editor: pure master-sheet import module + picker dialog | editor | M1 | **DONE** — `c8707a4` + review fix `fc7cd62`, merged `ff81203`. `editor/master_sheet_import.py` + `panels/master_sheet_dialog.py`. Left three carry-forwards, all ruled on in M4's brief §2 |
+| M4 | DetailsPanel: button, row window, narrowed preview + rows | editor | M2, M3 | **DONE (code + live pass)** — `0c33004` + review fix `056b362` on `phase-M4-details-master-sheet`; brief `docs/briefs/phase-M4-details-panel-master-sheet.md`. `GATE PASS 2467` (2456 at the `367ff9c` base, so +11). Ruled on all three of M3's carry-forwards (brief §2). **LIVE PASS PASSED 2026-08-13** — the user ran the live-editor walkthrough and reported it clean. The project's FIRST real master sheet landed with it: `slinger_t2_lvl3` (960×576 PNG, 64×96 frames = 15 cols × 6 rows), committed at `7acc59d` with its registry entry written by the validating writer. **M4 is CLOSED.** Note the import immediately turned 3 tests red — they compared the whole registry against only what they imported, which held only while the registry shipped empty; fixed at `1adae9b` (§below) |
+| M5 | VFX preview panel button | editor | M4 | **DONE (code + live pass)** — `phase-M5-vfx-master-sheet`. "Use Master Spritesheet…" beside Import on the fixed `vfx_*` slots, **ONE row spin** (a vfx entry is a single `idle` row, so a second spin has no representable state — §6/M5's open call), grid inherited from the registry with `slots.json` untouched, `row_start` omitted at 0, write-through + `reload_assets` because this panel has no Save. No `/add-vfx` work was in flight on the file. **LIVE PASS PASSED 2026-08-13** — run together with M4's; the user reported both clean. **M5 is CLOSED**, and with it the whole plan. Its exit gate (§7/M5) was rewritten during the pass: the old wording ("a live editor run selecting a vfx slot") was too vague to follow, because the button is in the VFX PREVIEW panel rather than DetailsPanel and appears on `projectile`/`crater`/`beam` ONLY |
 
-Phases are sequential. G0→G4 must land before M2 re-keys the store (M2's dedup
-is what G2's texture cache keys off), and M1 must land before M2 (schema before
-parser). M3/M4/M5 are editor-only and could be split across worktrees if run
-concurrently — **two or more implementation agents running at the same time must
-each get `isolation: "worktree"`** (root `CLAUDE.md`, Hard rules).
+### 5.1 This plan is a CHAIN, not a fan-out — read before dispatching
+
+`/execute-plan-phases` dispatches one planner per phase and then one coder per
+phase **in parallel waves**. That fits a plan whose phases are independent.
+**This plan's are not.** The `Depends on` column above is near-total: G2 writes
+against the seam G1 creates, G3 draws into the backend G2 wrote, M2 parses the
+schema M1 added, M4 drives the dialog M3 built. Dispatching G1–G4 as one
+parallel wave gives three coders a seam that does not exist yet.
+
+Two consequences, both binding on whoever executes this:
+
+- **Run it in dependency-respecting ranges, not one big range.** The genuine
+  parallelism here is exactly one pair: **M1 is independent of all of Part A**.
+  Everything else is sequential. Recommended invocations, in order:
+  `G0` → *(user reads the verdict)* → `G1` → `G2` → `G3` → `G4` → `M1` → `M2`
+  → `M3` → `M4` → `M5`. A single-phase range is a legal range and the
+  orchestrator's wave machinery degenerates to planner→coder→reviewer for that
+  one phase, which is the correct shape here.
+- **`/execute-phase` is the better tool for most of these** — it is the
+  interactive single-phase skill and it updates this doc's Status column the
+  same way. Use `/execute-plan-phases` when you want the unattended
+  planner→coder→reviewer→PR wave for one phase; use `/execute-phase` when you
+  want to be in the loop. **G0 and G4 should be `/execute-phase`**: G0's output
+  is a judgement call the user must read before Part A continues, and G4's exit
+  gate is a live `py game/main.py` look that no headless agent can perform.
+
+**Concurrency rule if you do run two phases at once** (only M1 alongside a Part-A
+phase qualifies): each implementation agent gets `isolation: "worktree"`. A
+file-scope fence written in a dispatch prompt is honour-based prose; a worktree
+is enforced. This is a root `CLAUDE.md` hard rule and it has already cost this
+repo one incident.
 
 ---
 
@@ -229,6 +316,97 @@ default.
 document, naming the dominant cost. **If the dominant cost is not blit
 throughput, stop and re-scope Part A with the user before G1.** Every later
 phase states its target against these numbers.
+
+#### G0 RESULTS (measured 2026-08-12, `phase-G1-umbrella`)
+
+Harness: `tools/profile_render.py` (new, committed — deterministic: fixed map
+file, seeded sprite placement, fixed serpentine pan, 300 measured frames after
+30 discarded warm-up frames). Machine: pygame-ce 2.5.7 / SDL 2.32.10, Python
+3.13.2, Windows 11, real `pygame.SCALED` window at `display.json`'s size.
+
+**`game/main.py` was NOT modified.** The per-frame timing split this phase was
+scoped to add **already exists** (`game/main.py:1690-1704`, documented as the
+"Frame-timing HUD" in `game/PERF.md:154-157`): windowed runs already print
+`sim/submit/flush/flip` mean ms beside the fps line, gated on `tune_gc` so
+headless stays silent. Widening it was judged unnecessary once the harness
+isolated the answer, and leaving the host untouched is strictly safer. The one
+split the existing instrumentation cannot make is HUD-draw vs world-draw (both
+land inside its `flush` bucket) — see the caveat below.
+
+All times in **ms, mean / p95 per frame.** `ground` = `GroundCache.ensure` +
+`blit`; `submit` = tile emit + `Renderer.submit`; `flush` = `Renderer.flush`
+(the backend's blits); `flip` = `display.flip` (the SCALED upscale).
+
+| Map | Zoom | Camera | Sprites | ground | submit | **flush** | flip | frame | fps |
+|---|---|---|---|---|---|---|---|---|---|
+| first_light 20² | 1.0 | static | 160 | 0.20 / 0.33 | 0.07 / 0.10 | **10.56 / 14.34** | 0.82 / 1.03 | 11.65 / 15.56 | 86 |
+| first_light 20² | 1.0 | panning | 160 | 0.59 / 0.95 | 0.05 / 0.07 | **10.07 / 12.92** | 0.61 / 0.77 | 11.32 / 14.33 | 88 |
+| first_light 20² | 2.0 | static | 160 | 0.19 / 0.30 | 0.06 / 0.08 | **7.08 / 7.94** | 0.59 / 0.78 | 7.91 / 8.90 | 126 |
+| first_light 20² | 2.0 | panning | 160 | 1.25 / 1.55 | 0.05 / 0.07 | **9.74 / 12.45** | 0.59 / 0.76 | 11.64 / 14.60 | 86 |
+| first_light 20² | 1.0 | static | 1016 | 0.20 / 0.33 | 0.23 / 0.40 | **63.02 / 101.03** | 0.87 / 1.22 | 64.32 / 103.51 | 15.5 |
+| first_light 20² | 1.0 | panning | 1016 | 0.66 / 1.06 | 0.21 / 0.33 | **61.09 / 71.84** | 0.81 / 1.05 | 62.76 / 73.43 | 15.9 |
+| first_light 20² | 2.0 | static | 1016 | 0.24 / 0.53 | 0.31 / 0.93 | **79.87 / 199.01** | 1.12 / 2.53 | 81.54 / 201.08 | 12.3 |
+| first_light 20² | 2.0 | panning | 1016 | 1.59 / 3.22 | 0.27 / 0.57 | **80.95 / 124.49** | 0.98 / 1.48 | 83.79 / 129.01 | 11.9 |
+| holex 1024² | 1.0 | static | 1016 | 0.21 / 0.32 | 0.24 / 0.40 | **14.72 / 19.45** | 0.91 / 1.39 | 16.08 / 21.51 | 62 |
+| holex 1024² | 1.0 | panning | 1016 | 2.68 / 4.80 | 0.24 / 0.56 | **13.51 / 17.40** | 0.83 / 1.21 | 17.27 / 23.94 | 58 |
+| holex 1024² | 2.0 | static | 1016 | 0.22 / 0.35 | 0.28 / 0.51 | **17.66 / 25.73** | 1.06 / 1.82 | 19.23 / 27.66 | 52 |
+| holex 1024² | 2.0 | panning | 1016 | 5.02 / 10.64 | 0.75 / 1.46 | **33.44 / 65.33** | 1.86 / 3.80 | 41.06 / 76.25 | 24 |
+
+The 1016-sprite cases are the **era-4 boss round** — `data/balancing/
+enemies.json`'s `EnemyTypes.Boss.round_counts` era 4 spawns 976 enemies
+(215 raiders + 700 regular + 61 siege); era 2 is 436. The 160-sprite cases are
+a mid-game reference. `first_light` (20×20) is the worst case *because* it is
+small: every sprite is on screen. On `holex` (1024²) the same 1016 sprites
+scatter far beyond the viewport, which is why its `flush` is 4× cheaper — that
+column is measuring how many sprites actually land on screen, not map size.
+
+**Asset store, warm** (`py tools/profile_render.py --warm-store`, every one of
+the 278 manifest slots resolved):
+
+| Metric | Value |
+|---|---|
+| Manifest entries | 278 |
+| Sheet Surfaces held | 274 |
+| Distinct source PNGs | 194 |
+| **Duplicate Surfaces** | **80** |
+| Sheet pixel memory | 94.7 MB |
+| **Of which duplicate decode** | **58.3 MB (62%)** |
+| Process RSS, cold → warm | 83 MB → 179 MB |
+
+**Verdict: the dominant cost IS blit throughput, and Part A proceeds
+unchanged.** `Renderer.flush` is **84–97% of every frame measured**, in every
+map / zoom / camera combination — 61–81 ms of a 63–84 ms frame at the era-4
+boss load, which is 12–16 fps and exactly the frame-rate complaint that
+motivated this plan. The three alternative hypotheses D9 named are all
+measured and all dead: per-frame Python in the submit loop is **0.05–0.75 ms**
+(under 1% of a frame, and it barely grows from 160 to 1016 sprites, so the
+depth sort and `DrawCall` construction are not the problem); `display.flip`'s
+SCALED upscale is **0.6–1.9 ms**; and the ground cache is **0.2–5.0 ms**, real
+but second-order — its cost tracks pan speed and map size exactly as
+`game/PERF.md` claims, peaking at 5.02 / 10.64 ms only in the 1024²-panning-
+at-max-zoom corner. So G2's Texture backend targets the one bucket that
+matters, and G3's ground-cache port is correctly ordered *after* it and
+correctly scoped as a smaller win. Independently, the warm-store table gives
+**M2 its own hard justification**: 80 of 274 sheet Surfaces are duplicate
+decodes of a PNG another slot already loaded, costing **58.3 MB** — 62% of all
+sheet pixel memory — before a single master sheet exists, and that number only
+grows once ten slots share one master PNG.
+
+**Two honest caveats on these numbers.**
+1. **The harness measures the render stack, not a live `Session`.** It builds
+   the same map doc / `AssetStore` / `Renderer` / `GroundCache` / SCALED window
+   `game/main.py` builds, then drives a fixed sprite population instead of real
+   `Enemy` objects — deliberate, because a fixed population is the only way two
+   runs compare, and a sprite's blit cost does not depend on what produced its
+   `RenderItem`. Simulation cost is therefore **not** in this table;
+   `game/main.py`'s own `sim` bucket measures that on real hardware.
+2. **The HUD pass is not broken out.** Its submit lands in the harness's
+   `submit` bucket only for world items, and in the real host its draw is
+   inside `flush` — no instrumentation separates HUD-draw from world-draw
+   today. The HUD is a few dozen items a frame against 1016 world sprites, so
+   it cannot plausibly be the dominant cost, but that is **inferred, not
+   measured**, and it is the one number a live late-round `py game/main.py`
+   run should confirm before G4 re-takes these measurements.
 
 ### Phase G1 — Backend seam + feasibility probe
 
@@ -297,6 +475,101 @@ untouched and green; if the G1 probe said the dummy driver cannot host a
 Renderer, the parity test is marked live-only and the phase report says so
 explicitly.
 
+#### G2 RESULTS (measured 2026-08-12, `phase-G2-umbrella`)
+
+`engine/render/backend_gpu.py` + `tools/tests/test_render_backend_parity.py`,
+plus one `conftest.py` `TIERS` line (`"test_render_backend_parity": "core"` —
+it runs in normal CI, not live-only, per §4's probe) and the two doc edits.
+`backend.py`, `backend_api.py`, `renderer.py`, `__init__.py` and
+`ground_cache.py` are untouched: **nothing selects this backend**,
+`default_backend()` still returns the Surface blitter, and G4 wires the host.
+
+**Three plan statements this phase corrected** — the source won each time:
+1. **There is no `flip_y`.** `DrawCall` carries a single horizontal `flip: bool`
+   (`item.py:44`, `backend_api.py:40`). The backend passes
+   `flip_x=call.flip, flip_y=False`; no field was added to `DrawCall`.
+2. **`Renderer.blit` cannot carry the sprite draw** — measured on pygame-ce
+   2.5.7, its signature is `blit(source, dest=None, area=None,
+   special_flags=0)` with no flip parameters and a docstring saying
+   `special_flags` "have no effect at this moment". The path is
+   `Texture.draw(srcrect, dstrect, angle, origin, flip_x, flip_y)`.
+3. **`tint` → `texture.color`/`texture.alpha` leaks without a reset.** The
+   Surface path's `surface.copy()` (`backend.py:223`) is what stops the shared
+   source being mutated; modulation is persistent state on a *cached, shared*
+   Texture, so the backend sets and resets it inside one `try/finally` that
+   opens before the first assignment. Pinned by a tinted-then-untinted draw
+   from the same source surface.
+
+**Overlays are CPU-rasterized into a scratch Surface and uploaded per call**,
+for both `OverlayLines` and `OverlayPolys` — no native/scratch split.
+Measured: SDL's `Renderer.draw_line(p1, p2)` takes no width, while
+`OverlayLines.width` is an arbitrary int (`item.py:57`), and no native
+primitive covers `OverlayPolys`' arbitrary-length polygon with optional alpha.
+Rasterizing through the *same* `pygame.draw` calls is parity-exact by
+construction instead of requiring two rasterizers to agree forever. The cost
+of that choice is recorded as a G4 risk in §9 — it is unmeasured.
+
+**Texture cache**: outer key is the source Surface in a `WeakKeyDictionary`
+(mirroring `backend.py`'s `_scale_cache`, so the grey-X placeholder's
+fresh-surface-per-call never leaks a texture); inner key is `id(renderer)`,
+because **pygame-ce 2.5.7's `Renderer` is not weak-referenceable** — measured,
+`weakref.ref` raises `TypeError` (same for `Texture`). Id reuse cannot mix
+renderers up: a cached `Texture` holds a strong reference to its `Renderer`, so
+while any entry keyed `id(R)` lives, `R` lives. `clear_cache()` is exported.
+
+**Nearest sampling is pinned in code, not inherited.** Textures are built as
+`Texture(renderer, size, scale_quality=SCALEQUALITY_NEAREST)` + `update()`
+rather than `Texture.from_surface`, because `from_surface` takes no
+`scale_quality` and the filter would then come from
+`SDL_HINT_RENDER_SCALE_QUALITY` — default nearest, but overridable process-wide
+by the `SDL_RENDER_SCALE_QUALITY` env var. Pixel art is the aesthetic; the
+filter is not something to inherit. That switch surfaced a real trap: **the
+empty-texture constructor leaves `blend_mode` at `0` (`BLENDMODE_NONE`)** where
+`from_surface` returned `1` (`BLENDMODE_BLEND`), so the explicit `blend_mode`
+assignment became load-bearing — without it every sprite would have drawn with
+alpha ignored.
+
+**Parity, measured under `SDL_VIDEODRIVER=dummy`** (200×160 fixture: a 1:1
+sprite, a `.5`-tie dest *and* size, a flipped sprite, a tinted sprite followed
+by an untinted one from the same source, a width-3 open polyline, a width-2
+closed polyline, an opaque triangle, an alpha-100 quad):
+
+| Metric | Value |
+|---|---|
+| Max per-channel \|CPU − GPU\| | **1** |
+| Differing pixels | 1234 / 32000 (3.86%) |
+| Delta histogram | `{1: 1234}` |
+| Where they are | **all** inside the alpha < 255 `OverlayPolys` |
+| Scaled / flipped / tinted sprites | **byte-identical** |
+
+`CHANNEL_TOLERANCE = 1`, a named module constant with a comment recording
+exactly the above. **No blur finding**: the delta is one-ULP alpha-blend
+rounding, not resampling, and an 8×8 → 21×21 GPU draw compared to
+`pygame.transform.scale(s, (21, 21))` gave **0** mismatching pixels.
+
+**The flip × non-integer-scale question was raised in review and is retired,
+measured 0.** The two paths compose flip and resample in opposite orders —
+`backend.py:219-221` scales *then* mirrors; the GPU path hands SDL an unscaled
+texture and asks it to resample a *mirrored* read — which are provably equal
+only at integer factors (`(kS−1−i)//k == S−1−i//k`), so the original test's
+exact-×2 flipped sprite could not have seen a divergence. Re-measured on a
+fixture with an asymmetric leftmost column (so a one-column mirror error is
+unmissable), at factors 1.125 / 1.5 / 1.625 / 2.0 / 2.5625 / 2.625 / 3.8125:
+**max delta 0, 0 differing pixels at every factor.** Byte-identical, not
+merely within tolerance. Seven sampled factors is strong evidence, not a proof
+of the general S→D case.
+
+**G2 moved no fps number and could not have** — no host calls this backend.
+G0's measurements (`flush` at 84–97% of frame; 61–81 ms of a 63–84 ms frame at
+the era-4 boss load, 12–16 fps) are **G4's to re-take**.
+
+**Still open — the live look was NOT run.** The brief's Quick Test (a real
+non-dummy window, a real sheet from `data/sprites/imported/`, a saved CPU/GPU
+PNG pair compared at 1:1 and magnified) needs a human at a display; every
+number above comes from the dummy driver in one environment. It is the only
+check that would independently catch a sampling-quality regression, and it
+carries forward to G4's live gate.
+
 ### Phase G3 — Ground cache on the GPU path
 
 **Goal**: the ground layer's scroll-and-fill technique, on textures, behind the
@@ -308,9 +581,13 @@ same public signature.
 `engine/render/CLAUDE.md`, `tools/tests/test_ground_cache.py`.
 
 **Design notes**
-- Same `ensure(view_w, view_h, ground_items_fn)` signature, so both callers
-  (game and editor) are untouched and the content-agnostic callback contract
-  holds.
+- Same `ensure(view_w, view_h, ground_items_fn)` signature, so every caller is
+  untouched and the content-agnostic callback contract holds. **Corrected in
+  G3 (verified): "both callers (game and editor)" was wrong — the editor never
+  uses `GroundCache` at all**, it submits ground tiles directly
+  (`editor/panels/viewport.py:1816-1818`). The real callers are `game/main.py`
+  (`:339`, `:432-433`, `:1503-1508`), `tools/profile_render.py` (`:194`,
+  `:263-264`) and the test module.
 - The `Surface.scroll` memmove becomes a **self-blit between two render-target
   textures** — SDL cannot read and write one target in a single pass — then the
   newly-exposed strip is repainted.
@@ -332,6 +609,91 @@ both implementations rather than copy-pasted.
 **Exit gate**: both variants pass the same pin suite; a live look at panning a
 large map in `py game/main.py` with no seams or stutter — state that it was a
 live run, not a reasoned claim.
+
+#### G3 RESULTS (measured 2026-08-12, `phase-G3-umbrella`)
+
+`engine/render/ground_cache_gpu.py` (new, `GroundCacheGpu`), the shared
+`band_for_rect(...)` extraction in `ground_cache.py`, both doc edits, and
+`tools/tests/test_ground_cache.py` reworked so the existing pins run against
+**both** implementations. `conftest.py` needed no `TIERS` line —
+`"test_ground_cache": "core"` already existed and the GPU class lives in that
+same module. `backend_gpu.py`, `backend.py`, `backend_api.py`, `renderer.py`,
+`__init__.py`, `item.py` and `game/**` are untouched: **nothing selects this
+either**, `default_backend()` still returns the Surface blitter, and G4 wires
+the host.
+
+**New module, not a variant class** (the choice §6/G3 left to the implementer).
+The decisive criterion is import cost: a module-level `pygame._sdl2.video`
+import inside `ground_cache.py` would make every importer of the *Surface*
+path — the game host, `tools/profile_render.py`, the tests — depend on the SDL2
+layer loading. Its only real cost, duplicating the band derivation, is removed
+by extracting `ground_cache.py:137-145` into a pure module-level
+`band_for_rect(...)` that both `_paint` implementations call. That extraction is
+the whole of the `ground_cache.py` diff (32 lines, behaviour-preserving).
+
+**Three SDL facts measured on pygame-ce 2.5.7 / SDL 2.32.10, not assumed.**
+A render target is `Texture(renderer, size, target=True,
+scale_quality=SCALEQUALITY_NEAREST)` with `renderer.target = tex / None`;
+readback is `renderer.to_surface()` (**`Texture` has no `to_surface`**). Two
+traps that would each have produced a subtly wrong ground layer:
+1. **`set_viewport` clips *and translates*** — a fill at `(0, 0)` inside a
+   viewport at `(12, 12)` lands at `(12, 12)`. The anchor technique survives it
+   because the translation is compensated by shifting the private camera pan by
+   integer `+(x0, y0)`, and `floor(v + k + 0.5) == floor(v + 0.5) + k` for
+   integer `k` keeps that rounding-exact.
+2. **`clear()` ignores the viewport and wipes the whole target** — so the strip
+   background is `fill_rect`, never `clear()`. The viewport also resets on every
+   target switch, and a `target=True` texture's `blend_mode` is
+   `BLENDMODE_NONE`.
+
+**Parity is NOT byte-exact; `GPU_CHANNEL_TOLERANCE = 2`** (G2's backend pin is
+1). Measured against a from-scratch direct render: zoom 1 max delta 1 over
+38100/76800 px; zoom 2 max delta 1 over 47585/76800 px; map edge max delta 1
+over 25965/76800 px; 11 scroll steps across both scroll pins max delta 1
+throughout; and the **tint (editor) path max delta 2**, histogram
+`{1: 35795, 2: 7338}` — the only scenario reaching 2, i.e. tint modulation
+compounding on the same alpha-blend rounding G2 already pinned. The ~50%
+differing-pixel fraction is geometric, not alarming: the fixture ships **no
+sprite PNGs**, so every ground tile falls back to the grey-X placeholder, whose
+fill is `(110, 110, 110, 200)` — per-pixel alpha — across the whole tile
+rectangle, so about half of all on-screen ground pixels pass through an alpha
+blend on every draw.
+
+**The tolerance was negative-controlled, not trusted** (measured by the
+orchestrator, not the implementer). The live question was whether a ±2
+per-channel tolerance could mask a one-pixel *spatial* shift — the failure the
+scroll pins exist to catch. Injecting `+1` on the blit dest's x made the pins
+fail at **max per-channel delta 140**, 70× the tolerance, failing 7 of the 11
+GPU tests including both scroll pins and `test_blit_offset_sign`. The
+placeholder's opaque border and cross lines are what make a misalignment
+unmissable. The perturbation was reverted; the tree is byte-identical.
+
+**Tests**: the pins moved into a mixin (`_make_cache`, `_blit_to_surface`,
+`_capture_blit_dest`, `CHANNEL_TOLERANCE` are the only seams the two subclasses
+supply), so the CPU and GPU classes cannot drift apart — collection went **8 →
+18**, all green, no skips (the GPU class builds a real `Window`/`Renderer`
+unconditionally under the dummy driver). Two GPU-only mechanics tests: target
+and viewport are restored after `ensure`, after `blit` and after a scroll; and
+the two render-target textures are distinct objects whose identities actually
+swap across a scrolling `ensure`.
+
+**G3 moved no fps number and could not have** — no host calls it. Its honest
+ceiling is G0's measured ground-cache cost of **0.2–5.0 ms mean / 10.64 ms
+p95**, real but second-order against `flush` at 84–97% of frame, and only in
+the 1024²-panning-at-max-zoom corner. G4 re-takes the measurements.
+
+**`WorldFill` (PR #122) changes nothing here** (verified): every
+`submit_world_fill` caller uses the `layer="entities"` default
+(`game/ui/widgets.py:294,306`); `layer="ground"` appears only in
+`engine/tilemap.py:286,328,384`; and the cache's private `Renderer` can only
+ever see `band_render_items` output.
+
+**Still open — the live look, and this phase could not have run it even with a
+human present.** `default_backend()` is still the Surface blitter, so a
+`py game/main.py` pan would exercise the *Surface* cache and prove only that the
+`band_for_rect` extraction is a no-op. Exercising `GroundCacheGpu` live needs
+either a throwaway harness at a real display or G4's wiring. It carries forward
+into G4's live gate alongside G2's outstanding pixel-art look.
 
 ### Phase G4 — Host wiring, HUD composite, fallback
 
@@ -362,6 +724,414 @@ raise) asserting the game still produces frames; the parity suite still green.
 the log line that the GPU path is in use, then a second live run with the
 fallback forced, confirming identical-looking output; G0's measurements re-taken
 and written into this doc beside the originals. State which checks were live.
+
+#### G4 RESULTS (2026-08-13)
+
+`game/main.py` (the presenter seam), `engine/render/renderer.py`
+(`hud_target` + `last_flush_ms`), `tools/profile_render.py` (both backends +
+the overlay pass), the three doc edits, and pins in `test_render.py` /
+`test_game_boot.py`. Two commits: `9200acd` (host wiring) and `9f2ef19` (the
+harness + re-measure). **`backend_gpu.py`, `ground_cache_gpu.py`, `backend.py`,
+`backend_api.py`, `editor/**`, `tools/smoke.py` and `data/**` are untouched**,
+and `default_backend()` still returns the Surface blitter — the GPU path is
+selected by the host alone.
+
+**The port is now reachable**: `py game/main.py --backend={gpu,surface,auto}`,
+env `HTBH_RENDER_BACKEND` when the flag is absent, `SystemExit` on an
+unrecognised value. Default is `auto` for a windowed run and **forced
+`surface` whenever `max_frames is not None`** — the existing headless seam, so
+`tools/smoke.py` stays on the Surface path **with no edit to it** (confirmed
+from its own boot line: `render backend: Surface (CPU blitter) | window 640x360
+SCALED | ground cache: GroundCache`).
+
+**All numbers below are the SOFTWARE renderer** (`SDL_VIDEODRIVER=dummy`,
+pygame-ce 2.5.7 / SDL 2.32.10, Python 3.13.2, Windows 11). The driver string in
+the boot log reads `direct3d` but is `get_drivers()[0]`, **not** a readback of
+the renderer actually created — `Renderer.get_renderer_info` is gone in 2.5.7.
+~~**No hardware re-measure has been taken**, and none of §4.3's live checks have
+been run. Treat every GPU number as pending.~~ — **SUPERSEDED by G6
+(2026-08-13).** §4.3's live checks were run and passed under G4, and G6 has now
+taken the hardware re-measure on both backends: **`world` 17.54 ms (Surface) →
+4.72 ms (GPU), a 3.7× reduction on real hardware**, mid-camera-pan at a late
+round (§6/G6 RESULTS part 2). The software-renderer numbers in this section are
+kept as the record of what was known on 2026-08-13 before that run — they are
+no longer the only evidence, and where the two disagree the hardware numbers
+win.
+
+`world` = `Renderer.flush` minus the HUD backend call, i.e. exactly G0's
+`flush` column, so the two tables compare directly. `ovlΔ` = `world(40) −
+world(0)` over the identical deterministic frame sequence. 30 warm-up + 300
+measured frames.
+
+| Map | Zoom | Camera | Sprites | Backend | ground | submit | world | ovlΔ | hud | composite | present | frame | fps |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| first_light 20² | 1.0 | static | 1016 | surface | 0.19 | 0.30 | **61.46** | 5.24 | 0.00 | 0.00 | 0.33 | 62.29 | 16.1 |
+| first_light 20² | 1.0 | static | 1016 | **gpu** | 0.04 | 0.25 | **9.53** | 0.96 | 0.00 | 0.11 | 2.22 | **12.16** | **82.3** |
+| first_light 20² | 1.0 | panning | 1016 | surface | 0.68 | 0.29 | **68.78** | 2.14 | 0.00 | 0.00 | 0.34 | 70.09 | 14.3 |
+| first_light 20² | 1.0 | panning | 1016 | **gpu** | 0.86 | 0.29 | **11.47** | 2.61 | 0.00 | 0.13 | 2.63 | **15.37** | **65.1** |
+| first_light 20² | 2.0 | static | 1016 | surface | 0.19 | 0.29 | **53.19** | 2.34 | 0.00 | 0.00 | 0.31 | 53.98 | 18.5 |
+| first_light 20² | 2.0 | static | 1016 | **gpu** | 0.06 | 0.29 | **10.96** | 2.09 | 0.00 | 0.12 | 14.95 | **26.38** | **37.9** |
+| first_light 20² | 2.0 | panning | 1016 | surface | 1.39 | 0.26 | **68.87** | 0.82 | 0.00 | 0.00 | 0.32 | 70.84 | 14.1 |
+| first_light 20² | 2.0 | panning | 1016 | **gpu** | 1.73 | 0.27 | **11.10** | 2.13 | 0.00 | 0.12 | 17.64 | **30.86** | **32.4** |
+| holex 1024² | 1.0 | panning | 1016 | surface | 2.18 | 0.24 | 9.16 | 0.53 | 0.00 | 0.00 | 0.30 | **11.88** | **84.2** |
+| holex 1024² | 1.0 | panning | 1016 | gpu | 2.40 | 0.25 | 10.31 | 1.41 | 0.00 | 0.11 | 0.41 | **13.49** | 74.1 |
+| holex 1024² | 2.0 | panning | 1016 | surface | 1.37 | 0.23 | 9.29 | 0.86 | 0.00 | 0.00 | 0.29 | **11.19** | **89.4** |
+| holex 1024² | 2.0 | panning | 1016 | gpu | 1.88 | 0.25 | 10.70 | 1.54 | 0.00 | 0.11 | 0.41 | **13.35** | 74.9 |
+| first_light 20² | 1.0 | static | 160 | surface | 0.16 | 0.12 | 10.43 | 0.79 | 0.00 | 0.00 | 0.29 | 11.00 | 90.9 |
+| first_light 20² | 1.0 | static | 160 | gpu | 0.04 | 0.10 | 2.44 | 1.16 | 0.00 | 0.11 | 0.74 | 3.43 | 291.3 |
+| first_light 20² | 1.0 | panning | 160 | surface | 0.59 | 0.11 | 10.67 | 0.32 | 0.00 | 0.00 | 0.29 | 11.65 | 85.8 |
+| first_light 20² | 1.0 | panning | 160 | gpu | 0.72 | 0.11 | 2.57 | 1.27 | 0.00 | 0.11 | 0.70 | 4.22 | 237.2 |
+| first_light 20² | 2.0 | static | 160 | surface | 0.15 | 0.11 | 7.56 | 0.73 | 0.00 | 0.00 | 0.28 | 8.11 | 123.4 |
+| first_light 20² | 2.0 | static | 160 | gpu | 0.04 | 0.11 | 2.93 | 1.60 | 0.00 | 0.11 | 2.17 | 5.36 | 186.6 |
+| first_light 20² | 2.0 | panning | 160 | surface | 1.19 | 0.11 | 10.57 | 1.05 | 0.00 | 0.00 | 0.30 | 12.17 | 82.2 |
+| first_light 20² | 2.0 | panning | 160 | gpu | 1.58 | 0.11 | 3.05 | 1.70 | 0.00 | 0.11 | 2.80 | 7.66 | 130.6 |
+| holex 1024² | 1.0 | panning | 160 | surface | 2.14 | 0.10 | 1.97 | 0.64 | 0.00 | 0.00 | 0.29 | **4.51** | **221.7** |
+| holex 1024² | 1.0 | panning | 160 | gpu | 2.25 | 0.11 | 2.44 | 1.09 | 0.00 | 0.11 | 0.38 | **5.28** | 189.3 |
+| holex 1024² | 2.0 | panning | 160 | surface | 1.46 | 0.11 | 2.16 | 0.90 | 0.00 | 0.00 | 0.30 | **4.03** | **248.0** |
+| holex 1024² | 2.0 | panning | 160 | gpu | 1.81 | 0.11 | 2.95 | 1.65 | 0.00 | 0.11 | 0.39 | **5.37** | 186.2 |
+
+**Verdict — the boss-load win is real, and it is not the whole story.** At the
+era-4 boss load on `first_light` the `world` bucket drops **61–69 ms → 9.5–11.5
+ms (5–7×)**, moving the frame from 54–71 ms to 12–31 ms. That is the number G4
+existed to move and it moved. But three findings cut against a clean win:
+
+1. **The GPU path is SLOWER on every `holex` row** — 11.88→13.49, 11.19→13.35,
+   4.51→5.28, 4.03→5.37 ms. On a map where few sprites land on screen the CPU
+   blitter is already cheap and the GPU path pays fixed per-frame costs. The
+   ground bucket is also consistently *worse* on GPU when panning (0.68→0.86,
+   1.39→1.73, 2.18→2.40) — G3's cache is not free on this driver.
+2. **`present` is load-dependent and not free**: 0.41 ms on holex but **14.95 /
+   17.64 ms** on first_light at zoom 2.0. The software renderer defers sprite
+   composition to `present()`, so on THIS driver the honest GPU cost is
+   `world + present`. This is the single number most likely to collapse on real
+   hardware, and it is why no verdict here is final.
+3. **The overlay pass is the predicted regression, and it is worse than
+   predicted** (below).
+
+**Overlay Δ — measured in isolation** (first_light 20², 160 sprites, zoom 1.0,
+static, 300 frames; the `ovlΔ` column in the sweep above is inside run-to-run
+variance at the 60–70 ms boss load — trust these, not that column):
+
+| overlays | surface Δ ms/frame | gpu Δ ms/frame | ratio |
+|---|---|---|---|
+| 40 diamonds | 0.72 | **4.31** | **6.0× worse on gpu** |
+| 200 diamonds | 9.30 | **17.50** | **1.9× worse on gpu** |
+
+Each diamond is one `OverlayPolys` + one `OverlayLines`, so 40 diamonds = 80
+uncached bounding-box SRCALPHA scratch surfaces created, rasterized and
+uploaded **per frame** (`backend_gpu.py:110-156`). Since PR #122 routes every
+tile highlight and wall segment through `WorldFill` → that path, this is a
+live-gameplay cost, not synthetic. §9's prediction was correct.
+
+**The pathological far-off-screen polyline** — ONE `submit_overlay_lines` with
+its second point 50 tiles off-screen. Screen bbox **1603 × 803 px = 4.9 MB
+SRCALPHA**, allocated + rasterized + uploaded fresh every frame on the GPU
+path. Δ per frame: **surface 6.47 ms, gpu 10.66 ms**. Both are bad — the
+Surface backend rasterizes the whole clipped line too — with the GPU path 1.65×
+worse plus 4.9 MB of churn. **Not fine.** A real hazard if any gameplay code
+ever submits a world-space line with an off-screen endpoint.
+
+#### G5 RE-MEASURE (2026-08-13) — the overlay Δ after the clip + buffer reuse
+
+Same harness and case as the table above (`first_light` 20², 160 sprites,
+`--zoom default --static`, 300 frames). **Measured as a same-session
+before/after**: the "pre" column is the umbrella's parent commit `75695c8`
+checked out into a throwaway worktree and profiled minutes before the "post"
+column, on this machine, under the same load. That pairing is the measurement —
+see the caveat below for why the G4 absolutes above are *not* a usable baseline.
+
+| case | gpu Δ **pre-G5** | gpu Δ **post-G5** | surface Δ (same session) | gpu ÷ surface, post |
+|---|---|---|---|---|
+| 40 diamonds | 1.92 | **0.77** | 0.38 (−0.26 / 0.81 / 0.59, n=3) | ~2×, both sub-ms |
+| 200 diamonds | 8.76 | **2.73** | 3.31 | **0.83× — gpu now FASTER** |
+| far-off-screen polyline | 3.51 | **0.13** | 0.05 (0.10 / −0.06 / 0.10, n=3) | both at the noise floor |
+
+**The phase's success criterion is met.** §6/G5 asks that the GPU column no
+longer be a multiple of the Surface column, explicitly not that it beat it. At
+200 diamonds the GPU path is now *faster* than Surface (2.73 vs 3.31); the
+far-off-screen polyline — the 4.9 MB-per-frame case — collapses to the noise
+floor, 27× down on the same tree; and 40 diamonds drops 2.5×, landing both
+backends under a millisecond where the ratio stops being meaningful.
+
+**Caveat, and it is the reason this table has its own pre column: G4's absolute
+numbers above do not reproduce on this machine today.** Pre-G5 GPU here is
+uniformly ~2.2–3× *lower* than G4 recorded (1.92 vs 4.31; 8.76 vs 17.50; 3.51
+vs 10.66) — a consistent factor that reads as machine/load state, since the code
+at `75695c8` is G4's code. The Surface far-polyline row does **not** fit even
+that: G4 recorded 6.47 ms, this session measures **0.05 ms** stably across three
+runs, on a code path G5 never touched (`backend.py` is byte-identical between
+the two commits). Zoom was ruled out as the explanation (`--zoom max` gives 0.27,
+not 6.47). **That row of G4's table should be treated as unreliable until
+someone reproduces it**; it is left standing above rather than edited, because
+overwriting another phase's recorded measurement with a different session's is
+how a plan doc stops being a record. Nothing in G5's verdict rests on it — the
+verdict rests on the pre/post pair, which is same-machine and same-session.
+
+~~**The HUD's cost is STILL NOT MEASURED.**~~ — **MEASURED BY G6, 2026-08-13.**
+`hud` read 0.00 in every row of the table above only because
+`tools/profile_render.py` is a render harness and submits no HUD items. G0's
+one *inferred* claim is now retired against a real run; original text: *the
+instrument that retires it exists and shipped (`renderer.last_flush_ms`,
+surfaced in the frame-timing line as `sim | submit | world | hud | composite |
+present`); it needs a live late round to read it. That is §4.3 Step 6 and it is
+owed.*
+
+#### G6 RESULTS (2026-08-13) — live, at a display, GPU backend, late round
+
+**MEASURED**, not inferred: a live windowed run carried to a late round, 17
+consecutive one-second samples read off the frame-timing line.
+
+**How it was launched, and why that is worth recording.** Not
+`py game/main.py --backend=gpu` — it was the **editor's Play button**, which
+runs `[python, game/main.py]` with **no `--backend` flag at all**
+(`editor/run_controls.py:31-33`). That leaves `backend=None` → `choice =
+"auto"` (`game/main.py:713`), and the `auto`→`surface` downgrade applies only
+when `max_frames is not None` (headless), so a windowed run stays on `auto` and
+takes the GPU path. **The samples confirm it independently rather than by
+assumption**: `composite` reads 0.10 ms in all 17, and the Surface presenter
+hardcodes `last_composite_ms = 0.0` — *"no composite on this path, ever"*
+(`game/main.py:212`) — so a nonzero `composite` is only producible by the GPU
+stack. This is the GPU backend.
+
+Two consequences. The concurrent-editor contention noted below is **inherent to
+measuring via Play**, not an accident of this run: Play spawns the game as a
+child process while the editor stays open. And the still-owed Surface control
+run **cannot** be taken from the editor — Play has no way to request a backend,
+so it needs `py game/main.py --backend=surface` from a terminal.
+
+| bucket | mean ms/frame | min | max |
+|---|---|---|---|
+| sim | 5.23 | 1.10 | 12.40 |
+| submit | **9.61** | 6.80 | 13.00 |
+| world | 4.72 | 2.80 | 5.80 |
+| **hud** | **0.80** | 0.60 | 1.00 |
+| **composite** | **0.10** | 0.10 | 0.10 |
+| present | 0.66 | 0.60 | 1.00 |
+| fps | 33.4 | 26.7 | 44.1 |
+
+**G0's claim is CONFIRMED and RETIRED.** `hud` + `composite` = **0.90 ms of a
+~29.9 ms frame — 3%**, against `submit`'s 9.61 ms and `world`'s 4.72 ms. The HUD
+is not the dominant cost and is not close to it. **D7 stands**: keeping the HUD
+single-implementation on the Surface path costs 0.9 ms/frame and buys one
+implementation of nine-slice, fonts and crop instead of two. `composite` — the
+GPU path's whole HUD-texture upload+draw — is 0.10 ms and never varied across
+17 samples, so the one-streaming-upload-per-frame design in G4 is doing exactly
+what it was built to do.
+
+**The reading is a conservative upper bound**, which only strengthens the
+retirement: the editor was running concurrently throughout (`editor fps: 62.5`,
+`frame_cost_ms` ~4.4–7.4, interleaved in the same console), so every bucket here
+is inflated by contention from a second process. The true quiet-machine `hud`
+is at or below 0.80 ms.
+
+**NEW FINDING — the bottleneck has moved, and it is no longer drawing.**
+Drawing in total (`world + hud + composite + present`) is **6.28 ms, 21% of the
+frame**, while `sim + submit` is **14.84 ms, 50%**. G0 opened this plan with
+drawing at **84–97% of every frame measured**; Part A has inverted that. `submit`
+— tile emit + `Renderer.submit` — is now the single largest bucket at 9.61 ms,
+larger than all drawing combined. **This is a new profile target and is out of
+scope for this plan**; it is recorded here rather than acted on. Note also that
+the six buckets account for 21.12 ms of the 29.91 ms implied by mean fps, so
+~8.8 ms/frame sits outside all six — frame limiter, clock tick, or an unbucketed
+cost. Anyone opening a Part-C performance plan should start by finding it, not
+by optimising `submit` blind.
+
+#### G6 RESULTS, part 2 — the Surface control run (2026-08-13)
+
+**No longer owed — taken.** `--backend=surface` from a terminal (Play cannot
+request a backend), same activity, 49 consecutive samples. Both runs were taken
+**while violently shaking the camera to force worst-case behaviour** — that
+qualification is load-bearing and is applied below.
+
+| bucket | SURFACE (n=49) | GPU (n=17) | gpu ÷ surface |
+|---|---|---|---|
+| fps | 27.14 (17.9–39.8) | 33.44 (26.7–44.1) | **1.23× faster** |
+| sim | 4.03 | 5.23 | 1.30× |
+| submit | 9.20 (3.1–16.6) | 9.61 (6.8–13.0) | **1.04× — backend-independent** |
+| **world** | **17.54** (14.6–20.8) | **4.72** (2.8–5.8) | **0.27× — 3.7× faster** |
+| hud | **0.00** (0.0–0.0) | 0.80 | — |
+| composite | **0.00** (0.0–0.0) | 0.10 | — |
+| present | 0.74 | 0.66 | 0.89× |
+
+**The control did its job.** `hud` and `composite` read **0.00 in all 49
+samples**, exactly as `game/main.py:212` says they must on the Surface path.
+That is what licenses reading the GPU run's 0.80 / 0.10 as real, path-specific
+costs rather than instrument noise — the G0 retirement above now rests on a
+measured control, not on trusting a comment.
+
+**And it delivered something the control was not asked for: the FIRST
+real-hardware confirmation of this plan's core claim.** Every previous
+world-drawing number came from the headless software stand-in. On real hardware,
+same activity, same machine: **`world` 17.54 ms → 4.72 ms, a 3.7× reduction**,
+carrying total frame rate from 27.1 to 33.4 fps. §6/G0's caveat 1 ("pending
+confirmation on real hardware") is **discharged**.
+
+**`submit` is backend-independent** (9.20 vs 9.61, a 4% difference) — it does
+the same work whichever backend follows it. That rules out the GPU path as its
+cause and confirms it as a genuinely separate cost.
+
+**Correction to the "bottleneck has moved" finding above, now that there is a
+control.** That finding was written from the GPU run alone and stated more than
+the data supported. With both runs in hand: **`submit` ≈ 9–10 ms is a
+worst-case CAMERA-PANNING number, not a steady-state one.** Both runs were taken
+mid-shake, which is precisely the pathological case for this path — the ground
+cache repaints exposed edges on pan (`game/PERF.md`), and tile re-emission
+scales with it. Under panning, drawing is 50% of a Surface frame and 21% of a
+GPU frame, and `sim + submit` is 36% / 50% respectively. **What is true is that
+on the GPU path, drawing is no longer the largest cost while panning.** What is
+NOT established, and must not be quoted as though it were: that `submit`
+dominates a typical, non-panning frame. Anyone opening a Part-C performance plan
+measures a steady frame first.
+
+**Still owed** — the two smaller unknowns G4 left open: whether
+`target_texture=True` is strictly needed on this driver, and streaming vs static
+texture on real hardware. Neither is needed for G0's claim or for the real-
+hardware confirmation, both of which are now measured.
+
+**Tests**: `test_render.py` gains the `hud_target` split pins (single flat list
+when `hud_target is None`; world/HUD separation by production site; no
+`slice`/`crop_rect` reaching the world backend) plus a `--backend`/`--overlays`
+CLI pin; `test_game_boot.py` gains GPU boot, forced fallback, and the
+HUD-freeze pin — which drives 5 frames and asserts `update()` was called 5
+times, not once, and is the only test that would catch the §1.3 snapshot bug.
+
+**Review of `9200acd`** found no severity-1 defects. The three ranked traps all
+PASS: the HUD-freeze pin is per-frame; the world/HUD split is structural
+(`renderer.py:240` aliases the same list when `hud_target is None`, no
+`isinstance` filter); and the coder's one unbriefed change — `blit_fullscreen`
+also clearing the HUD surface — is **correct and necessary**, since the Surface
+path's opaque full-window blit covers world *and* HUD, so without the clear the
+GPU composite would paint the previous frame's stale HUD back over every
+cutscene frame. The brief missed this case. Also corrected: the brief claimed
+nothing reads `event.rel`; `game/main.py:1499` does
+(`cs.pan(-event.rel[0], -event.rel[1])`), and `map_event` maps it by
+differencing two `coordinates_from_window` points — exact under an affine
+remap.
+
+**THE LIVE CHECKS RAN, AND THEY PASSED** (user-run at a display, 2026-08-13).
+G4 is the phase that stops saying "the live look was NOT run". All of §4.3
+passed: the GPU path boots and announces itself; pixel-art edges are equally
+hard on both backends at full zoom (**G2's outstanding check, closed**); the
+1024² `holex` pan shows no seam, no leading-edge flash, no grid jitter and no
+drift on stop (**G3's outstanding check, closed**); the HUD updates every frame
+and the building panel changes per tile (**the §1.3 snapshot trap did not
+fire**); and fullscreen clicks land on the tile clicked (**§2.6's remap is
+correct on real hardware**).
+
+**One §4.3 finding worth recording, because it cost the user ten minutes and it
+is not a bug.** The game boots into the intro cutscene (`game/main.py:665`),
+and `:1349` swallows every input while it plays — skipping is a **two-second
+hold**, not a click. On first launch this presents as "the main menu buttons do
+nothing". Pre-existing behaviour on both backends, unrelated to G4, but the
+first thing a live tester hits.
+
+~~**Still open, and narrower than before**~~ — **all but one item CLOSED as of
+2026-08-13.** Original text: *the frame-timing numbers from §4.3 Step 6 were not
+captured, so `hud`/`composite` on real hardware are still unknown and G0's
+inferred claim that the HUD is not the dominant cost is formally unretired…
+Also unanswered: whether `target_texture=True` is strictly needed on this driver
+(it was passed, and the path works), and streaming vs static texture on
+hardware. The overlay-pass regression measured above stands and needs a plan
+decision.*
+
+- `hud`/`composite` on real hardware: **MEASURED by G6** — 0.80 / 0.10 ms on
+  GPU, 0.00 / 0.00 on Surface across 49 control samples. G0's claim is
+  **RETIRED**; D7 stands.
+- The overlay-pass regression: **FIXED by G5**, re-measured (§6/G5 RE-MEASURE).
+- `target_texture=True` necessity, and streaming vs static on hardware:
+  **still unanswered.** These are the only two open items left in Part A, and
+  neither blocks anything — the path works with what was passed.
+
+### Phase G5 — Overlay pass: clip the scratch, reuse the buffer
+
+**Goal**: kill the overlay regression G4 measured. This phase is **scheduled,
+not deferred** — G4's own numbers make it a live Part-A decision, and §9 already
+predicted it before it was measured.
+
+**The measured problem** (§6/G4 RESULTS, "Overlay Δ — measured in isolation"):
+`backend_gpu.py:110-156` rasterizes every `OverlayLines` / `OverlayPolys` into a
+fresh bounding-box `SRCALPHA` scratch Surface and uploads it **per call, per
+frame, uncached**. At 40 diamonds (80 overlay calls/frame) the pass costs
+**4.31 ms on GPU vs 0.72 ms on Surface — 6.0× worse**; at 200 diamonds, 17.50
+vs 9.30 ms (1.9×). Worse, the scratch is sized from the **raw point bounding
+box with no clip to the target**, so the pathological far-off-screen polyline
+(one point 50 tiles off-screen) allocates **1603 × 803 px = 4.9 MB** every
+frame: **surface 6.47 ms, gpu 10.66 ms**. Since PR #122 routes every tile
+highlight and wall segment through `WorldFill` → this path, it is a
+live-gameplay cost, not synthetic.
+
+**Files** — modified: `engine/render/backend_gpu.py`,
+`tools/tests/test_render_backend_parity.py`, `engine/render/CLAUDE.md`,
+`tools/profile_render.py` (re-measure only if the harness needs a new case).
+**No other file.** `backend.py`, `backend_api.py`, `renderer.py`,
+`ground_cache*.py`, `game/**`, `editor/**` and `data/**` are out of scope.
+
+**Design notes**
+- **Clip the scratch rect to the target bounds** before allocating. This is the
+  bigger of the two wins and it is what `backend.py:190` already gets for free
+  by drawing straight onto the target. The point coordinates must then be
+  translated by the clipped origin, not the raw bbox origin — that translation
+  is where this regresses into a one-pixel shift, so pin it.
+- **Reuse the scratch Surface across calls** rather than allocating per call:
+  one buffer per backend instance, grown to the high-water mark, `fill(0)`-ed
+  per use — mirroring the `_scale_cache` / texture-cache precedent already in
+  this module. A streaming texture updated in place beats create-and-destroy.
+- **Parity is not negotiable.** `CHANNEL_TOLERANCE = 1` is pinned and §9 forbids
+  nudging it. A clip that changes any on-screen pixel is a defect, not a
+  tolerance question. Add a fixture whose overlay extends past every edge of the
+  target (all four sides, and one wholly off-screen call that must draw nothing)
+  and compare against `backend.py` at the existing tolerance.
+- An overlay fully outside the target must become a **no-op**, not a zero-sized
+  Surface — `pygame.Surface((0, 0))` and a zero-area texture are separate traps.
+
+**Tests**: the existing parity suite green **unchanged** at tolerance 1; new
+clipped-overlay parity cases (each edge, a corner, wholly off-screen); a test
+that N overlay draws allocate ONE scratch Surface, not N (spy on the allocation
+the way G2's texture-cache test counts uploads); a test that the buffer grows
+and is not re-allocated when a smaller overlay follows a larger one.
+
+**Exit gate**: `py tools/smoke.py` + `py -m pytest
+tools/tests/test_render_backend_parity.py tools/tests/test_render.py -q`, plus a
+**re-measure of the overlay Δ table above** through `tools/profile_render.py`
+(40 and 200 diamonds, and the far-off-screen polyline) written into this doc
+beside the originals. The phase succeeds when the GPU column is no longer a
+multiple of the surface column; it does not need to *beat* the Surface path.
+
+### Phase G6 — Retire G0's inferred HUD-cost claim
+
+**Goal**: turn the plan's one surviving **inferred** performance claim into a
+measured one. Nothing is implemented; this phase produces numbers.
+
+**Why it is not an agent dispatch.** The instrument already shipped in G4
+(`renderer.last_flush_ms`, surfaced in the frame-timing line as
+`sim | submit | world | hud | composite | present`). What is missing is a
+**live run at a real display, at a late round** — §4.3 Step 6. `tools/
+profile_render.py` cannot supply it: it is a render harness that submits no HUD
+items, which is exactly why `hud` reads 0.00 in every row of G4's table. No
+headless agent can produce this number. **Run it as `/execute-phase` with the
+user at a display** (§5.1's rule, the same one that scoped G0 and G4).
+
+**The claim under test** (§6/G0, caveat 2): *"The HUD is a few dozen items a
+frame against 1016 world sprites, so it cannot plausibly be the dominant cost —
+but that is inferred, not measured."*
+
+**What to capture**: from one live `py game/main.py` run on each backend,
+carried to a late round (era 4 if reachable), read the frame-timing line and
+record `hud` and `composite` as mean ms/frame beside `world` and `present`.
+Also settles the two smaller unknowns G4 left open: whether
+`target_texture=True` is strictly needed on this driver, and streaming vs
+static texture on real hardware.
+
+**Files** — modified: this plan doc only (the numbers, and the §9 bullet this
+retires). If the run reveals the HUD *is* a significant cost, that is a
+re-scope finding to bring to the user — D7 kept the HUD on the Surface path on
+the strength of the claim this phase tests.
+
+**Tests**: none — no shipped behaviour changes.
+
+**Exit gate**: `hud` and `composite` recorded as measured numbers in §6/G4
+RESULTS, the §9 bullet marked retired or the finding escalated, and an explicit
+statement that it was a live run.
 
 ---
 
@@ -590,18 +1360,80 @@ or a single "row" spin. Implementer's call; state which and why in the phase
 report. Everything else (button wrapped in a lambda, frame size inherited and
 locked, `row_start` omitted at 0) is M4's behaviour unchanged.
 
+**⚠ File collision with the `/add-vfx` skill** (added to `Development` after this
+plan was first written). `.claude/commands/add-vfx.md` edits this same file: it
+reads and may append to `_EMIT_FAMILIES`, `_LEVERS`, `_RAMP_KEY`
+(`vfx_preview.py:85-128`) and the per-family fixed `vfx_*` slot mapping that the
+existing "Import Spritesheet…" button at `:198` resolves through. M5 touches the
+button row and the frame-size/row-window controls, not those tables — but **do
+not run M5 concurrently with an `/add-vfx` dispatch on the same checkout.** If
+both are in flight, worktree-isolate them and merge M5 second, since its diff is
+the smaller one. Whoever executes M5 should check `git log --oneline -- editor/panels/vfx_preview.py`
+first.
+
 **Exit gate**: `py -m pytest -m editor`; a live editor run selecting a vfx slot
 and importing from a master sheet.
+
+**The live walkthrough, precisely — written down 2026-08-13 because the vague
+version above sent the user looking in the wrong place.** "Select a vfx slot" is
+not enough: the M5 button is **not** on every vfx slot, and it is **not** in the
+DetailsPanel where M4's twin lives.
+
+1. `py editor/main.py`, select a **vfx** tree node. The VFX preview panel appears
+   BELOW the details pane (`editor/main.py:762-764`, `:501`) — it is hidden
+   outside vfx mode, so it is easy to miss.
+2. Set the **Family** combo to **`crater`** or **`beam`**. Only now does "Use
+   Master Spritesheet…" appear. `_refresh_import_btn` shows the button only when
+   `_current_import_slot()` is non-`None` (`vfx_preview.py:390-394`), and that is
+   true for **`projectile` / `crater` / `beam` ONLY** (`:381-388`):
+   `crater`→`vfx_crater`, `beam`→`vfx_beam`, and `projectile` swaps between
+   `vfx_projectile` and `vfx_shell` via the shell checkbox. Every other family
+   (spark, muzzle, slash, death_burst, gold_highlight, splatter, floaters) binds
+   art per-EVENT through the `triggers` table's `sprite_slot`, so it has no fixed
+   slot and correctly shows **no button at all**. Seeing nothing on `spark` is
+   the design working, not a defect.
+3. Click it, pick a master sheet. The **"Master sheet row"** spin appears only
+   once the slot actually cuts a master sheet, and its ceiling is the sheet's
+   real last row — a window off the bottom of the PNG is unrepresentable.
+4. Change the row: the preview follows **immediately, no restart and no Save**
+   (this panel writes through, like its Import button).
+
+**Pass**: button on those three families only; row spin appears only after
+linking; ceiling = last row; row change is live. **Defects**: a ceiling past the
+last row, or writable frame_w/frame_h (the SHEET owns the grid; `slots.json`
+must stay untouched).
+
+**Expect the art to look wrong** if the sheet is a character sheet — cutting a
+crater out of a 64×96 humanoid row is absurd on screen and is NOT a failure.
+This gate proves the link/row-window/live-refresh mechanism, not art fit.
 
 ---
 
 ## 8. Verify (whole plan)
 
-Iteration policy is the root `CLAUDE.md` Test Suite Policy, not this doc:
-targeted `py -m pytest tools/tests/test_<area>.py -x -q` while working, **one**
-full `py tools/testgate.py check` at handoff, never mid-task, never twice, never
-two runs in flight. `--affected` does not reliably narrow — read its `GATE INFO`
-line before believing it did.
+Iteration policy is the root `CLAUDE.md` Test Suite Policy, not this doc. It is
+**role-scoped**, and `.claude/hooks/test_guard.py` enforces the mechanical parts
+— a run that breaks the table is *denied*, not merely discouraged:
+
+| Role | Gate for this plan |
+|---|---|
+| Dispatched coder / reviewer (any phase) | `py tools/smoke.py` + `py -m pytest tools/tests/test_<file>.py -q` over **the files it touched** — nothing wider. **Not** the full suite, **not** a tier sweep, **not** `--affected` (its safety pass is the whole core tier, so the hook denies it for subagents). |
+| Main session, mid-plan | targeted files, or `py tools/testgate.py check --affected` after a merge |
+| Main session, at handoff | exactly ONE `py tools/testgate.py check` |
+
+**A denied test run is a REPORT, never a retry.** `test_guard.py` denies with
+exit 2 and a reason. Do not re-issue, do not vary the flags (it normalises
+`-q/-v/-x/-n/--tb`, so a reworded command fingerprints identically), do not reach
+for the escape hatch. Two denies are expected and must not be fought: *"already
+ran this exact target and nothing has changed"* (the guard fingerprints the main
+checkout's diff, and worktrees are gitignored, so a coder's own edits can be
+invisible to it) and *"another test run is already in flight"* (never wait-loop,
+never delete the lock — only the orchestrator clears one, and only after
+confirming nothing is live).
+
+`--affected` **aborts rather than silently widening**: a `GATE ABORT` is not a
+test failure and not something to retry — name the affected test files yourself
+and run those once.
 
 - Every phase's own exit gate above.
 - Data phases: every touched file validates; `py tools/smoke.py`.
@@ -615,7 +1447,11 @@ line before believing it did.
 - Tests must never write into `data/` (`TempDataCase`) and must never assert
   against live `data/` content — pin the fixture. `master_sheets.json` and
   `data/sprites/master/` must be copied by the editor-test temp-data helper;
-  extend it in M1 if it does not already copy the whole tree.
+  extend it in M1 if it does not already copy the whole tree. Note the committed
+  fixture manifest (`tools/tests/fixtures/data/sprites/asset_manifest.json`)
+  currently holds **278 entries** and grew again in the tile-condition rework —
+  assert on entries the test itself writes, never on a count or on "this slot has
+  no art".
 - Docs: `engine/CLAUDE.md` + `engine/render/CLAUDE.md` + `engine/assets/CLAUDE.md`
   for Part A/M2, `data/CLAUDE.md` for M1, `editor/CLAUDE.md` +
   `editor/panels/CLAUDE.md` for M3–M5. Architectural changes update **the package
@@ -625,10 +1461,11 @@ line before believing it did.
 
 - **G0 may invalidate Part A's shape** (D9). The plan explicitly permits a
   re-scope; taking it is the success case, not a failure.
-- **SDL2 Renderer under the dummy video driver is unverified** (§4). If it
-  cannot run headless, G2/G3's parity coverage becomes a live-only check and CI
-  covers the Surface path only — a real reduction in safety that must be stated
-  on the PR, not glossed.
+- ~~**SDL2 Renderer under the dummy video driver is unverified**~~ — **RETIRED
+  by G1's probe** (§4, measured 2026-08-12). The `dummy` driver hosts
+  `Window`/`Renderer`/`Texture` upload/draw/`to_surface()` readback correctly,
+  so G2/G3's parity coverage runs in normal CI and the feared reduction in
+  safety does not apply.
 - **Pixel parity between SDL's scaler and `pygame.transform.scale` is not
   guaranteed.** The plan accepts a pinned tolerance rather than pretending to
   bit-identity. If the difference is visible on pixel art at zoom, that is a
@@ -637,6 +1474,87 @@ line before believing it did.
 - **Two backends is two implementations to keep in parity**, forever. Mitigated
   by the parity test and by keeping HUD / nine-slice / fonts / crop
   single-implementation on the Surface path (D7).
+- ~~**The overlay-pass regression is MEASURED and SCHEDULED as phase G5**~~ —
+  **RETIRED by G5 (merged `a180001`, re-measured 2026-08-13).** The clip +
+  buffer reuse landed in `backend_gpu.py` alone; the same-session pre/post
+  re-measure (§6/G5 RE-MEASURE) puts the gpu overlay Δ at 0.77 ms at 40
+  diamonds (was 1.92 on the same tree), 2.73 at 200 diamonds — **faster than
+  the Surface path's 3.31** — and 0.13 on the far-off-screen polyline, whose
+  4.9 MB/frame allocation is gone. The scoping fence below (**no phase outside
+  G5 may touch `backend_gpu.py`**) is therefore lifted. Original text kept for
+  the record:
+  G4 broke the pass out and found
+  **6.0× worse on GPU at 40 diamonds** (4.31 vs 0.72 ms) and **1.65× worse plus
+  4.9 MB of per-frame churn** on the far-off-screen polyline. The decision is
+  taken: clip the scratch to the target and reuse the buffer, in
+  `backend_gpu.py` alone (§6/G5). Until G5 lands, the GPU path carries a real
+  live-gameplay regression on every tile highlight and wall segment PR #122
+  routes through `WorldFill`, and **no phase outside G5 may touch
+  `backend_gpu.py`** — a second editor of that file while G5 is scoped is how
+  the two fixes collide.
+- ~~**G0's HUD-cost claim is still INFERRED and unretired**~~ — **RETIRED BY G6
+  (measured live at a display, 2026-08-13).** The claim held: `hud` 0.80 ms +
+  `composite` 0.10 ms = **0.90 ms of a ~29.9 ms frame, 3%**, against `submit`
+  9.61 ms and `world` 4.72 ms (§6/G4 RESULTS → G6 RESULTS). **D7 stands** — the
+  HUD stays single-implementation on the Surface path, and does not get
+  re-opened. This plan now carries **no inferred performance claim**.
+  **But G6 surfaced a new one, unretired and out of this plan's scope:**
+  on the GPU path, drawing is no longer the largest cost — 21% of the frame
+  against `sim + submit`'s 50% — and `submit` (9.61 ms) is the largest single
+  bucket. **Read the qualification before quoting this:** both G6 runs were
+  taken while violently panning the camera, the pathological case for that
+  path, and `submit` is backend-independent (9.20 Surface vs 9.61 GPU), so
+  this is a worst-case-panning finding, **not** a claim about a steady frame.
+  ~5–9 ms/frame is also unaccounted by any of the six buckets. A Part-C plan
+  measures a quiet frame before touching `submit`. Recorded, not acted on.
+- **G4 MUST profile the overlay path, not just the sprite path** (raised in G2's
+  review, deferred there deliberately; **discharged — G4 did it, see the G5
+  bullet above**). `backend_gpu.py` rasterizes both
+  `OverlayLines` and `OverlayPolys` into a bounding-box `SRCALPHA` scratch
+  Surface and uploads it **per call, per frame, uncached** — the only route that
+  is parity-exact, since SDL's `draw_line` has no width and no native primitive
+  covers an arbitrary-length alpha polygon. Two consequences the Surface backend
+  does not have: (a) the scratch is sized from the raw point bounding box with
+  **no clip to the target**, while `backend.py:190` draws straight onto the
+  target and clips — a polyline with one point far off-screen (the renderer
+  converts world→screen without clipping) asks for a surface that wide every
+  frame; (b) per-frame alloc → CPU rasterize → upload → destroy churn, on a path
+  the game feeds tile fills, splatters, glows and drummer-aura rings through.
+  G0 profiled `flush` as one bucket and never separated overlays, so this is
+  **unmeasured**: G4's re-measure must break the overlay pass out, or the port
+  can move frame time the wrong way at exactly the boss load this plan exists to
+  fix.
+- **`backend_gpu` snapshots a source Surface at first upload and never
+  refreshes it**, where `backend.py` returns the live surface at 1:1. A
+  consumer that mutates a surface in place and keeps handing it to the same
+  `DrawCall` renders correctly on the Surface path and freezes at its
+  first-frame contents on the GPU path, with no error. No shipped consumer does
+  this today; it is a new precondition G3/G4 must not violate (the ground cache
+  in particular composites into a surface it reuses — G3 must upload a target
+  Texture, never hand a mutated cache Surface to `backend_gpu`).
+- **A non-zero `slice` on a 1:1-sized draw diverges between the backends.**
+  `backend.py:216` takes the nine-patch branch only when the dest size differs
+  from the source, so such a call is a legal plain scale there; `backend_gpu`
+  raises `NotImplementedError` on any non-zero slice. That guard is exactly what
+  G2 was specified to write (slice is HUD-only and must be asserted, not
+  implemented twice), so it is not a defect — but it is a latent crash if G4's
+  HUD-composite split ever lets a sliced `DrawCall` reach the world path.
+- **G4 now inherits THREE live checks, none of which has ever been run**: G2's
+  pixel-art look (a real non-dummy window, a real sheet from
+  `data/sprites/imported/`, a CPU/GPU PNG pair at 1:1 and magnified), G3's
+  large-map pan for seams and stutter, and G4's own fallback-vs-GPU comparison.
+  All three are blocked on the same thing — nothing selects the GPU path until
+  G4 wires it — so G4 is the first phase where any of them is even *possible*,
+  and it should be run with a human at a display (§5.1 already flags G4 as
+  `/execute-phase` for exactly this).
+- **The GPU parity tolerances are pinned per phase and must not be nudged.**
+  `backend_gpu` is 1, `GroundCacheGpu` is 2 (tint path only, §6/G3 RESULTS). A
+  later phase that finds a pin failing has found a regression; widening the
+  constant to make a phase pass is the one move this plan forbids outright, and
+  both constants carry the measured histogram in a comment so the next reader
+  can tell drift from noise. G3's tolerance was negative-controlled (a 1px
+  injected shift fails at delta 140), so it is known to still catch the
+  misalignment class it exists for — repeat that control if either number moves.
 - **`row_start` interacts with sheet sharing.** Two slots on one master sheet
   with overlapping windows is legal and probably intentional. Two slots on one
   sheet with different frame sizes is not — which is exactly why the master sheet
