@@ -221,17 +221,31 @@ validating writer; don't hand-edit the JSON.
   `ui:FX/boss_announce/enabled`, `core:TheHole/building_revive`,
   `core:XP/xp_from_buildings`).
 - **`buildings.json`'s `BuildingsGlobal.Movement` group (Building Movement)**
-  — the 8 tunables for moving an already-placed building: `money_cost_enabled`
+  — the 9 tunables for moving an already-placed building: `money_cost_enabled`
   / `time_cost_enabled` (the two off-switches; off ⇒ that axis is a flat 0),
   `base_love_cost` / `love_cost_increase_increment` / `love_cost_increase`,
   `base_moving_time` / `moving_time_increase_increment` /
-  `moving_time_increase`. Both axes resolve as `base + (distance // increment)
-  * increase` over the **Chebyshev** tile distance. **Both `*_increment` keys
+  `moving_time_increase`, plus `warning_text` (string — see below). Both cost
+  axes resolve as `base + (distance // increment) * increase` over the
+  **Chebyshev** tile distance. **Both `*_increment` keys
   carry `minimum: 1`, and that is load-bearing, not cosmetic** — the formula
   floor-divides by them, so a schema-permitted 0 would be a div-by-zero at
-  runtime. Shipped defaults (10 / 2 / 10 / 1 / 2 / 1) make a 3-tile move cost
-  20 love and take 2 rounds. Read by `game/buildings/movement.py`, which is
-  handed the subtree and never opens a file.
+  runtime. **`money_cost_enabled` ships `false`** (feature: moving costs time
+  only, no love) — the shipped time defaults (10 / 2 / 10 / 1 / 2 / 1, love
+  values now inert) still make a 3-tile move take 2 rounds; flipping the flag
+  back on is a live designer lever, not a code change. Read by
+  `game/buildings/movement.py`, which is handed the subtree and never opens a
+  file.
+  - **`warning_text`** is shown in `MovePreview` (the move confirmation
+    modal, `game/ui/building_ui.py`) whenever the move takes 1+ rounds — a
+    move in transit despawns the building for the whole window
+    (`movement.py`'s "represented by ABSENCE" design, above), so it misses
+    any combat phase that falls inside it. Skipped for an instant (`rounds ==
+    0`) move, and skipped if left blank. Designer copy, not a `strings.json`
+    id — it lives beside the other Movement tunables a designer already edits
+    as a group, the `tier_card_titles`/`tier_card_explanations` precedent for
+    balance-adjacent copy living in `balancing/` rather than the UI string
+    table.
 - **`building_type` + `card_slots` (TimelinePLAN T1/D3)**: each of the TWELVE
   building-type groups in `buildings.json` (`DefenceBuildings.{BasicDefence,
   AOEDefence,BeamDefence,StormPriest}`, `EconomyBuildings.{Musicians,Painters,

@@ -730,15 +730,43 @@ picker and the confirmation.
   rung — move_select peels back to upgrade before the bare-panel close.
 - **`MovePreview`** — the `ConstructPreview` sibling, minus the name field,
   the dice and the stat list (nothing about the building changes, it just
-  relocates): display name, `Cost`/`Time` lines (`Free`/`Instant` at zero),
-  destination coords, CONFIRM/CANCEL. It reuses the SAME
-  `ui.Timing.construct_show_cancel`/`confirm_on_right_side` chrome keys and
-  the SAME `preview_*` id namespace, and mirrors `ConstructPreview`'s public
-  surface (`hover`/`confirm_hovered`/`update`/`handle_click`/`handle_key`/
-  `submit` + `confirm_btn`) closely enough that `main.py`'s existing
-  `panel.preview is not None` modal branch drives it with **no
-  preview-class-specific code**. `_preview_click` is the one place that
-  branches, on `isinstance(self.preview, MovePreview)`.
+  relocates): display name, ONE `Cost` line quoting ROUNDS (`Instant` at
+  zero — feature: move-building-time-only-cost merged the old separate
+  Cost-in-love/Time-in-rounds pair into this single line, since moving a
+  building spends no love any more), destination coords, CONFIRM/CANCEL.
+  `self.cost` (the love figure, always 0) is still carried and still what
+  `total_cost`/`_do_move`'s affordability check reads — only the SEPARATE
+  love-cost text line is gone. **The Cost line draws in `C_MOVE_HIGHLIGHT`
+  (the same cyan the destination path-line preview uses), never the
+  love-gold `C_GOLD` every OTHER preview's cost line uses** — the deliberate
+  visual signal that this number is a round count, not a currency figure. It
+  reuses the SAME `ui.Timing.construct_show_cancel`/`confirm_on_right_side`
+  chrome keys and the SAME `preview_*` id namespace, and mirrors
+  `ConstructPreview`'s public surface (`hover`/`confirm_hovered`/`update`/
+  `handle_click`/`handle_key`/`submit` + `confirm_btn`) closely enough that
+  `main.py`'s existing `panel.preview is not None` modal branch drives it
+  with **no preview-class-specific code**. Two places in THIS module branch
+  on `isinstance(self.preview, MovePreview)`: `_preview_click` (routes
+  CONFIRM to `_do_move` instead of `_do_place`), and `BuildingUI.hover` —
+  every other preview's hovered CONFIRM sets `self._hover_cost` to preview a
+  love spend on the HUD's top-left pill (`hud.py`'s `submit(...,
+  hover_cost=)`); a `MovePreview`'s CONFIRM is explicitly excluded from that,
+  since its cost is rounds, not love, and the pill must draw exactly as if
+  nothing were hovered.
+  - **The "will miss combat" warning (feature: move-building-time-only-cost)**
+    — a red `BuildingsGlobal.Movement.warning_text` line below the
+    destination coords, present only when `rounds > 0` (an instant, 0-round
+    move skips it — nothing is missed) and the balancing string is non-blank.
+    Wrapped at CONSTRUCT time via `wrap_text(..., "sm", pw - 16,
+    max_lines=3)` into `self._warning_lines`, which is what the panel's
+    height (`ph`) grows to fit — geometry is still fixed for the instance's
+    whole lifetime (10L-B), just computed from the actual wrapped line count
+    instead of a bare literal. It is dynamic designer content with no stored
+    id (the `ConstructPreview` stat-list/`levelup` explanation precedent), so
+    it is wrapped at construct time rather than draw time without tripping
+    the "layout_h, never a live font measurement" rule above — that rule
+    guards content the golden `screen_defaults.json`/`screen_previews.json`
+    capture, and this line is captured by neither.
 - **`_do_move`** mirrors `_do_place`: re-check love (a race since the modal
   opened), call `start_move` in a `try/except MoveError` (flash
   `CANNOT MOVE THERE` — the destination got taken), spend, log, close the
