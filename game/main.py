@@ -1591,6 +1591,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 # movement and the combat sweep together (prototype game.py:1211-13).
                 # ROUND_END/INCOME timers always run on real time, and the pause is
                 # just a 0.0 multiplier, so the round machine is never touched.
+                # This also means build mode (BUILDING phase) always plays at
+                # plain `dt` no matter which speed is selected — the speed
+                # buttons are hidden there too (game/ui/hud.py) since they'd
+                # have nothing to control.
                 sim_dt = (dt * session.combat_speed
                           if session.state.phase == GamePhase.ENEMY else dt)
                 session.pre_sim(sim_dt, world.scene)
