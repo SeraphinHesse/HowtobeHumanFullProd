@@ -120,7 +120,7 @@ Read `game/ui/CLAUDE.md`, `data/CLAUDE.md`'s "UI screen data" section and
 
 | Section | Title | Phases | Depends on | Status |
 |---|---|---|---|---|
-| S1 | Quick wins — alignment and fonts | UL-1, UL-2 | — | not started |
+| S1 | Quick wins — alignment and fonts | UL-1, UL-2 | — | *(LANDED)* — `ul-section-S1` |
 | S2 | The layer model | UL-3, UL-4, UL-5 | — | not started |
 | S3 | Layers in the editor | UL-6, UL-7, UL-8 | S2 | not started |
 | S4 | Clickable layers + life counters | UL-9, UL-10, UL-11, UL-12 | S2, S3 | not started |
@@ -152,8 +152,8 @@ this section makes the SIZES authorable, not the faces.
 
 | Phase | Scope (package) | Status |
 |---|---|---|
-| UL-1 | Alignment as a real override (data + game + editor) | not started |
-| UL-2 | Designer-defined font presets (data + engine + editor) | not started |
+| UL-1 | Alignment as a real override (data + game + editor) | *(LANDED)* — `ul-phase-UL-1-align`, review clean |
+| UL-2 | Designer-defined font presets (data + engine + editor) | *(LANDED)* — `ul-phase-UL-2-fonts`, review clean |
 
 #### Phase UL-1 — Text alignment becomes editable
 
