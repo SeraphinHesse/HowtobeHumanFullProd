@@ -1,5 +1,5 @@
 <!-- plan-scale: large -->
-<!-- status: 0/4 sections, 0/12 phases -->
+<!-- status: 0/4 sections, 3/12 phases (S2 landed on ul-section-S2, pending umbrella merge) -->
 
 # UiLayeredWidgetsPLAN.md — a widget is a stack
 
@@ -120,13 +120,21 @@ Read `game/ui/CLAUDE.md`, `data/CLAUDE.md`'s "UI screen data" section and
 
 | Section | Title | Phases | Depends on | Status |
 |---|---|---|---|---|
-| S1 | Quick wins — alignment and fonts | UL-1, UL-2 | — | *(LANDED)* — `ul-section-S1` |
-| S2 | The layer model | UL-3, UL-4, UL-5 | — | not started |
+| S1 | Quick wins — alignment and fonts | UL-1, UL-2 | — | **LANDED** — `ul-section-S1`, merged to umbrella |
+| S2 | The layer model | UL-3, UL-4, UL-5 | — | **LANDED** — `ul-section-S2`, merged to umbrella |
 | S3 | Layers in the editor | UL-6, UL-7, UL-8 | S2 | not started |
 | S4 | Clickable layers + life counters | UL-9, UL-10, UL-11, UL-12 | S2, S3 | not started |
 
-**Waves:** W1 = **S1 + S2** (concurrent — S1 touches fonts/align only, S2 touches
-the layer schema and the draw path; no shared file). W2 = **S3**. W3 = **S4**.
+**Waves:** W1 = **S1 + S2** (concurrent). W2 = **S3**. W3 = **S4**.
+
+> **Correction (W1 close).** This line originally claimed S1 and S2 share **no
+> file**. They do: both add a key to the per-widget override object in
+> `data/schemas/ui_screen.schema.json` (S1 `align`, S2 `layers` + `states`).
+> The wave was run with an explicit shared-file contract — surgical additions
+> only, neither section referencing the other's key — and the file auto-merged
+> without conflict. The three real conflicts at the umbrella merge were
+> additive registration lists (`conftest.py`, `tools/test_domains.py`) and this
+> plan doc's own status table, all resolved by union.
 
 ---
 
@@ -249,9 +257,9 @@ section every later one is built on.
 
 | Phase | Scope (package) | Status |
 |---|---|---|
-| UL-3 | Layer schema + the pure resolver (data + engine) | not started |
-| UL-4 | The game draws layers (game) | not started |
-| UL-5 | Per-state appearance, layer and owner (data + engine + game) | not started |
+| UL-3 | Layer schema + the pure resolver (data + engine) | *(LANDED)* |
+| UL-4 | The game draws layers (game) | *(LANDED)* |
+| UL-5 | Per-state appearance, layer and owner (data + engine + game) | *(LANDED)* |
 
 #### Phase UL-3 — The layer schema and a pure resolver
 

@@ -170,6 +170,8 @@ TIERS = {
     # editor.panels._screen_primitives — that module is Qt-free and
     # editor/panels/__init__.py is empty, so no PySide6 is pulled.
     "test_ui_align": "core",
+    "test_ui_layer_draw": "core",  # UL-4: ScreenSkinning.submit_layers (the caller)
+    "test_ui_layers": "core",  # UL-3: engine.ui_layers pure resolver (unused until UL-4)
     "test_ui_layout_export": "core",  # 10L-B phase B3: layout exporter staleness gate
     "test_ui_min_targets": "core",  # UR-5: click-target floor + static label fit
     "test_ui_skinning": "core",  # 10L-B phase B2: skinning + parity pin

@@ -101,6 +101,357 @@
             "label": {
               "type": "string"
             },
+            "layers": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "offset": {
+                    "items": {
+                      "type": "integer"
+                    },
+                    "maxItems": 4,
+                    "minItems": 4,
+                    "type": "array"
+                  },
+                  "z": {
+                    "type": "integer"
+                  },
+                  "band": {
+                    "enum": ["under", "over"],
+                    "type": "string"
+                  },
+                  "slot": {
+                    "type": "string"
+                  },
+                  "text_id": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "font": {
+                    "type": "string"
+                  },
+                  "align": {
+                    "enum": ["left", "center", "right"],
+                    "type": "string"
+                  },
+                  "color": {
+                    "items": {
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 4,
+                    "minItems": 3,
+                    "type": "array"
+                  },
+                  "states": {
+                    "additionalProperties": false,
+                    "description": "Per-state appearance patch (UL-5) for this layer, resolved from the OWNING widget's state: idle | hover | pressed | disabled, falling back to \"idle\" when the resolved key is absent. Every sub-key overrides this layer entry's own value for that state only; \"offset\" REPLACES (never adds to) the layer's own offset -- a 2-length [dx, dy] form moves the layer and keeps the base offset's w/h.",
+                    "properties": {
+                      "disabled": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "align": {
+                            "enum": [
+                              "left",
+                              "center",
+                              "right"
+                            ],
+                            "type": "string"
+                          },
+                          "color": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "font": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "offset": {
+                            "items": {
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 2,
+                            "type": "array"
+                          },
+                          "slot": {
+                            "type": "string"
+                          },
+                          "text_color": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "text_id": {
+                            "type": "string"
+                          },
+                          "tint": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "visible": {
+                            "type": "boolean"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "hover": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "align": {
+                            "enum": [
+                              "left",
+                              "center",
+                              "right"
+                            ],
+                            "type": "string"
+                          },
+                          "color": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "font": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "offset": {
+                            "items": {
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 2,
+                            "type": "array"
+                          },
+                          "slot": {
+                            "type": "string"
+                          },
+                          "text_color": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "text_id": {
+                            "type": "string"
+                          },
+                          "tint": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "visible": {
+                            "type": "boolean"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "idle": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "align": {
+                            "enum": [
+                              "left",
+                              "center",
+                              "right"
+                            ],
+                            "type": "string"
+                          },
+                          "color": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "font": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "offset": {
+                            "items": {
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 2,
+                            "type": "array"
+                          },
+                          "slot": {
+                            "type": "string"
+                          },
+                          "text_color": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "text_id": {
+                            "type": "string"
+                          },
+                          "tint": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "visible": {
+                            "type": "boolean"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "pressed": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "align": {
+                            "enum": [
+                              "left",
+                              "center",
+                              "right"
+                            ],
+                            "type": "string"
+                          },
+                          "color": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "font": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "offset": {
+                            "items": {
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 2,
+                            "type": "array"
+                          },
+                          "slot": {
+                            "type": "string"
+                          },
+                          "text_color": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "text_id": {
+                            "type": "string"
+                          },
+                          "tint": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "visible": {
+                            "type": "boolean"
+                          }
+                        },
+                        "type": "object"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "text_color": {
+                    "items": {
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 4,
+                    "minItems": 3,
+                    "type": "array"
+                  },
+                  "tint": {
+                    "items": {
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 4,
+                    "minItems": 3,
+                    "type": "array"
+                  },
+                  "visible": {
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
             "parent": {
               "description": "Designer re-parenting (authoring metadata the game never reads): the widget id this widget hangs off in the editor's outliner, overriding screen_defaults.json's own `parent`. Explicit null re-roots a widget whose default parent the designer rejected — distinct from the key being ABSENT, which keeps the default. A cyclic or dangling chain resolves to root in the editor rather than failing.",
               "type": [
@@ -118,6 +469,213 @@
             },
             "skin": {
               "type": "string"
+            },
+            "states": {
+              "additionalProperties": false,
+              "description": "Per-state appearance patch (UL-5). Keys: idle | hover | pressed | disabled, resolved from the widget's own state (Button._state(); any widget with no _state() is always \"idle\"), falling back to \"idle\" when the resolved key is absent and to no patch at all when \"states\" is absent. Every sub-key OVERRIDES the widget's own value for that state only; \"offset\" is a [dx, dy] or [dx, dy, dw, dh] NUDGE from the widget's own rect applied at DRAW time -- never a new absolute rect, and never written back onto the widget.",
+              "properties": {
+                "disabled": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "color": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    },
+                    "font": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "offset": {
+                      "items": {
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 2,
+                      "type": "array"
+                    },
+                    "text_color": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    },
+                    "tint": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                },
+                "hover": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "color": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    },
+                    "font": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "offset": {
+                      "items": {
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 2,
+                      "type": "array"
+                    },
+                    "text_color": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    },
+                    "tint": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                },
+                "idle": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "color": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    },
+                    "font": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "offset": {
+                      "items": {
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 2,
+                      "type": "array"
+                    },
+                    "text_color": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    },
+                    "tint": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                },
+                "pressed": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "color": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    },
+                    "font": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "offset": {
+                      "items": {
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 2,
+                      "type": "array"
+                    },
+                    "text_color": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    },
+                    "tint": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "type": "object"
             },
             "text_color": {
               "items": {

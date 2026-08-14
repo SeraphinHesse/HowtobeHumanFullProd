@@ -1140,6 +1140,49 @@ background(screen_id)` / `submit_background(...)` add an OPTIONAL full-view
 background layer (slot or flat color) — a no-op today (no shipped screen JSON
 sets one).
 
+- **Per-widget `layers` (UL-4)**: a widget's override may carry a `layers`
+  array (`data/ui/screens/<id>.json` ONLY — never `screen_defaults.json`), each
+  entry an OFFSET `[dx, dy, w, h]` from its owner's post-override rect (`0`
+  w/h inherits the owner's), resolved by the pure `engine/ui_layers.py`. Every
+  screen's `submit()` calls `self.skinning.submit_layers(renderer,
+  self.screen_id, self.ids, band, self.skinning.state_of)` **exactly twice** —
+  `"under"` as early as possible (right after `submit_background`, but after
+  any `ids`-building or nothing-to-draw guard) and `"over"` as the LAST
+  statement. The HUD pass has no depth sort, so an `under` layer sits behind
+  EVERYTHING on that screen, not just behind its own owner: that is the
+  documented trade-off of two bands per screen, not a bug. `z` orders layers
+  within a band. A layer picks ONE role, first match wins: `slot` → `HudSprite`,
+  else `text_id`/`label` → `HudText` (through `strings.T`, empty string draws
+  nothing), else `color` → `HudRect`, else nothing. **No `layers` authored ⇒
+  ZERO primitives**, which is what keeps the golden parity pin byte-identical.
+  `state_of(widget)` is the per-widget draw state passed BY REFERENCE (a bound
+  method, never a hardcoded `"idle"` at a call site): a `Button` answers
+  through its own `_state()`; every other widget (a plain `SimpleNamespace`/
+  label holder with no state machine) always resolves to `"idle"`.
+
+- **Per-state appearance, layer and owner (UL-5)**: a `layers` entry, and a
+  widget's own override object, may each carry a `states` object keyed
+  `idle`/`hover`/`pressed`/`disabled` (D9's existing four-state vocabulary —
+  no new one), each value a PARTIAL PATCH of the same appearance keys as its
+  owner, plus its own `offset`. Fallback: `states[state]` if that KEY IS
+  PRESENT (even an empty `{}` patch counts — "this state looks like the
+  base"), else `states["idle"]` if present, else no patch at all — presence
+  drives the fallback, not truthiness. A patch's `offset` REPLACES the base
+  offset for that resolution when 4 elements are given; a 2-element `[dx, dy]`
+  form moves without resizing (keeps the base offset's w/h). `engine/
+  ui_layers.py::resolve(layer_spec, owner_rect, state)` applies this for a
+  LAYER; `game/ui/widgets.py`'s own `_state_patch`/`_state_offset` apply the
+  identical ladder for the OWNER — `Button.submit` patches `text_color` and
+  nudges the DRAW position only (never mutates `self.rect`, so next-frame
+  hit-testing is untouched), and an explicit `text_color=`/`color=` kwarg at
+  the call site still wins over the patch (a caller passing one is more
+  specific than the screen doc). `submit_label` mirrors this for a non-Button
+  holder, but since `state_of` always resolves such a holder to `"idle"`, only
+  `states.idle` is ever reachable there today — `hover`/`pressed`/`disabled`
+  on a label/panel/backdrop are validated by the schema but dead code (no
+  hover/press tracking exists for non-Button widgets). **No `states` key ⇒
+  identical output for every state**, preserving the golden parity pin.
+
 - **Non-`Button` widgets get a `types.SimpleNamespace` holder** (`rect`,
   `skin`, `font_key`, `text_color`, `label`, `visible` as needed) that
   `submit()` reads from instead of a hardcoded literal — every screen's

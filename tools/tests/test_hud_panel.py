@@ -154,6 +154,28 @@ class TestHudButtonZOrder(unittest.TestCase):
                         "separator must draw BEHIND (before) the End Turn button")
 
 
+class TestButtonStates(unittest.TestCase):
+    """UL-5: a ``states`` offset patch nudges what is DRAWN and nothing else.
+    ``self.rect`` is the hit-test truth (``_surface_hit``/``hit`` read it on
+    the very next frame), so a state that moved it would make a hovered
+    button un-clickable at the position it appears to occupy."""
+
+    def test_hover_state_patch_offsets_draw_not_rect(self):
+        btn = widgets.Button((40, 50, 60, 20), "END TURN")
+        btn.states = {"hover": {"offset": [0, -4]}}
+        btn.hover(45, 55, mouse_down=False)          # inside -> hovered
+        self.assertTrue(btn.hovered)
+        before = btn.rect
+
+        r = RecordingRenderer()
+        btn.submit(r)
+
+        drawn = [i for i in r.items if isinstance(i, HudRect)][0]
+        self.assertEqual(drawn.rect, (40, 46, 60, 20))
+        self.assertEqual(btn.rect, before)
+        self.assertTrue(btn.hit(45, 55))             # still hit-tests as laid out
+
+
 class TestConstructPreviewZOrder(unittest.TestCase):
     """``ConstructPreview.submit()`` used to intersperse TEXT submissions
     between the panel/name-box and the confirm/cancel/close/dice BUTTONS.
