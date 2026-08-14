@@ -46,6 +46,12 @@
           "minimum": 0,
           "type": "number"
         },
+        "loss_love_reward": {
+          "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to loss_love_reward, the consolation love a LOST boss round pays; floored to whole love.",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "number"
+        },
         "move_speed": {
           "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to move_speed (tiles per second).",
           "maximum": 1000,
@@ -91,6 +97,7 @@
         "footprint",
         "hp",
         "interval",
+        "loss_love_reward",
         "move_speed",
         "raiders",
         "regular",
@@ -130,6 +137,12 @@
         },
         "hp": {
           "description": "Boss hit points (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "loss_love_reward": {
+          "description": "Consolation love paid ONCE when the player LOSES this era's boss round (lost at least one life while the boss was up). 0 pays nothing. Per-era like every other boss variable, so a later boss can console harder; past the last authored row it grows by endgame_boss_scaling.loss_love_reward.",
           "maximum": 100000,
           "minimum": 0,
           "type": "integer"
@@ -181,6 +194,7 @@
         "dmg",
         "footprint",
         "hp",
+        "loss_love_reward",
         "move_speed",
         "name",
         "shake",

@@ -359,6 +359,13 @@
       ],
       "jitter": 0.6,
       "radius_px": 4.0
+    },
+    "tutorial_highlight_pulse": {
+      "alpha_max": 255,
+      "alpha_min": 140,
+      "pulse_period_s": 0.8,
+      "width_max": 4,
+      "width_min": 2
     }
   },
   "triggers": {
@@ -464,7 +471,7 @@
     "projectile_hit": {
       "draw_in_front": true,
       "procedural": "",
-      "sprite_slot": "",
+      "sprite_slot": "vfx_crater",
       "variant_select": {
         "misc_key": "",
         "mode": "random"
@@ -489,7 +496,7 @@
       }
     },
     "tile_selected": {
-      "draw_in_front": true,
+      "draw_in_front": false,
       "procedural": "highlight",
       "sprite_slot": "",
       "variant_select": {
