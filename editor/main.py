@@ -257,6 +257,9 @@ class MainWindow(QMainWindow):
         self.palette.start_area_armed.connect(self.viewport.arm_start_area)
         self.palette.tutorial_flute_armed.connect(self.viewport.arm_tutorial_flute)
         self.palette.tutorial_stone_armed.connect(self.viewport.arm_tutorial_stone)
+        self.palette.tutorial_unlock_armed.connect(self.viewport.arm_tutorial_unlock)
+        self.palette.tutorial_stone_2_armed.connect(
+            self.viewport.arm_tutorial_stone_2)
         self.palette.spawn_reserve_armed.connect(self.viewport.arm_spawn_reserve)
         self.palette.reserve_number_changed.connect(
             self.viewport.set_reserve_number)

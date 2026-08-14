@@ -1012,6 +1012,18 @@
           ]
         },
         {
+          "label": "Tutorial Unlock",
+          "slots": [
+            "tutorial_unlock"
+          ]
+        },
+        {
+          "label": "Tutorial Stone 2",
+          "slots": [
+            "tutorial_stone_2"
+          ]
+        },
+        {
           "label": "Moving Sign",
           "slots": [
             "moving_sign"

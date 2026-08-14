@@ -435,7 +435,8 @@ class ColorSwatchRow:
             btn.submit(renderer, anim_ms=anim_ms, **kwargs)
             if selected is not None and i == selected:
                 renderer.submit_hud(
-                    HudRect(btn.rect, widgets.C_HIGHLIGHT, width=1))
+                    HudRect(btn.rect,
+                           widgets.highlight_color("tile_selected"), width=1))
 
 
 class ConstructPreview:
@@ -920,6 +921,10 @@ class BuildingUI:
         # it; NEVER reset in close() (open_for_tile()'s internal close() call
         # inside _do_place() would wipe it before the host gets to read it). --
         self.last_placed_type = None
+        # the last_placed_type precedent, for a successful tile unlock — the
+        # host reads it once right after a successful handle_click() and
+        # clears it; NEVER reset in close() for the same reentrancy reason.
+        self.last_unlocked = False
         self._selected = None
         self._session = None
         self._upgrade_hint = None
@@ -1211,6 +1216,16 @@ class BuildingUI:
         panel isn't open (TU-8, Fix 2's close-panel-hint step). Read-only —
         never mutates panel state."""
         return self.close_btn.rect if self.visible else None
+
+    def action_rect(self):
+        """Screen rect of the panel's mode-independent action button while it
+        means "unlock this tile", or None otherwise (the tile-buying
+        tutorial topic's highlighted-button step). ``action_btn`` is reused
+        across unlock/construct-advance/upgrade modes, so this only resolves
+        in ``"unlock"`` mode — never highlights the wrong button in another
+        mode. Read-only — never mutates panel state."""
+        return self.action_btn.rect if (
+            self.visible and self.mode == "unlock") else None
 
     # -- /TU-6 ---------------------------------------------------------------
 
@@ -2026,10 +2041,13 @@ class BuildingUI:
                 self.action_btn.start_flash(self._flash_dur,
                                         T("building.flash.not_enough_love"))
             else:
+                unlocked_any = False
                 for tile, chunk_cost in chunks:
                     if tm.do_unlock(tile):
                         st.spend_love(chunk_cost)
+                        unlocked_any = True
                 self.close()
+                self.last_unlocked = unlocked_any  # TU-6: signal a real unlock
             return True
         return contains(self.panel_rect, mx, my)
 

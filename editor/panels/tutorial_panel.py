@@ -59,6 +59,7 @@ _MESSAGE_LABELS = {
     "economy_intro": "Economy intro message",
     "lives_intro": "Lives intro message",
     "close_panel_hint": "Close-panel hint (banner)",
+    "tile_buying_intro": "Tile buying intro message",
 }
 _FLAG_KEYS = ("skippable", "first_loss_costs_life")
 _FLAG_LABELS = {
