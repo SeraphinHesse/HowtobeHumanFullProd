@@ -18,7 +18,17 @@ Four files beside `balance.py`:
   `round_num` (starts 1, `++`'d in payday — prototype numbering), `love`,
   `base_lives`, `phase_timer`, run stats. `from_balance(core, buildings)` seeds
   it — `buildings` decides which types start unlocked (`starts_unlocked_for`,
-  data-driven; see `game/buildings/CLAUDE.md`); `add_love`/`spend_love` clamp
+  data-driven; see `game/buildings/CLAUDE.md`). **`season` +
+  `update_season(rounds_per_season)` (N1):** `season` is the 0-based ground-art
+  season index, and **0 is a real season, not "unset"**. `update_season` is pure
+  delegation to `engine.era_math.era_of_round` — the era clock IS the season
+  formula (D7), so **write no season math here** — and returns True iff the
+  value CHANGED. The host calls it once on the INCOME phase edge (the round
+  edge, `game/main.py`'s watcher chain, right after the floater spawns), reading
+  `core_balance["Seasons"]["rounds_per_season"]` by indexing: a schema-required
+  key fails loud. That returned bool is the SOLE trigger for the host's
+  `ground_cache.invalidate()`, so the cached ground layer repaints on a season
+  crossing and on no other round. `add_love`/`spend_love` clamp
   at ≥0 (prototype clamps every currency write).
 - **`payday.py`** — `run_payday(state, tilemap, core, occupancy=None, scene=None)`
   mirrors `_begin_income_phase` **step for step; the ordering is SACROSANCT**. 9F

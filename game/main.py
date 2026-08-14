@@ -1713,6 +1713,20 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                     gp["floaters"].spawn_income_events(session.state)
                     gp["floaters"].spawn_painter_events(session.state)
                     gp["floaters"].spawn_boost_events(session.state)
+                    # -- N1: the season clock ---------------------------------
+                    # payday already ran (it does round++ then flips to INCOME,
+                    # game/core/payday.py:277-280), so THIS edge is the round
+                    # edge: one frame per round, never per frame. The key is
+                    # schema-REQUIRED, so index it — a missing group must fail
+                    # loud here, not ship a whole run of wrong ground art.
+                    # The invalidate is conditional ON PURPOSE: repainting the
+                    # cached ground layer costs a full re-blit, so it fires only
+                    # when the season actually turns (once every
+                    # rounds_per_season rounds), not on every round edge.
+                    if session.state.update_season(
+                            core_balance["Seasons"]["rounds_per_season"]):
+                        ground_cache.invalidate()
+                    # -- /N1 --
                 # -- 10J: the previous round's blood clears when the next wave
                 # starts (prototype clear_splatters on End Turn, game.py:815) --
                 if (session.state.phase == GamePhase.ENEMY
