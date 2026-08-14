@@ -1,5 +1,5 @@
 <!-- plan-scale: large -->
-<!-- status: 0/4 sections, 0/12 phases -->
+<!-- status: 0/4 sections, 3/12 phases (S2 landed on ul-section-S2, pending umbrella merge) -->
 
 # UiLayeredWidgetsPLAN.md — a widget is a stack
 
@@ -121,7 +121,7 @@ Read `game/ui/CLAUDE.md`, `data/CLAUDE.md`'s "UI screen data" section and
 | Section | Title | Phases | Depends on | Status |
 |---|---|---|---|---|
 | S1 | Quick wins — alignment and fonts | UL-1, UL-2 | — | not started |
-| S2 | The layer model | UL-3, UL-4, UL-5 | — | not started |
+| S2 | The layer model | UL-3, UL-4, UL-5 | — | LANDED on `ul-section-S2` (pending umbrella merge) |
 | S3 | Layers in the editor | UL-6, UL-7, UL-8 | S2 | not started |
 | S4 | Clickable layers + life counters | UL-9, UL-10, UL-11, UL-12 | S2, S3 | not started |
 
@@ -249,9 +249,9 @@ section every later one is built on.
 
 | Phase | Scope (package) | Status |
 |---|---|---|
-| UL-3 | Layer schema + the pure resolver (data + engine) | not started |
-| UL-4 | The game draws layers (game) | not started |
-| UL-5 | Per-state appearance, layer and owner (data + engine + game) | not started |
+| UL-3 | Layer schema + the pure resolver (data + engine) | *(LANDED)* |
+| UL-4 | The game draws layers (game) | *(LANDED)* |
+| UL-5 | Per-state appearance, layer and owner (data + engine + game) | *(LANDED)* |
 
 #### Phase UL-3 — The layer schema and a pure resolver
 
