@@ -489,9 +489,9 @@
       }
     },
     "tile_selected": {
-      "draw_in_front": true,
+      "draw_in_front": false,
       "procedural": "highlight",
-      "sprite_slot": "vfx_tile_selected",
+      "sprite_slot": "",
       "variant_select": {
         "misc_key": "",
         "mode": "random"
