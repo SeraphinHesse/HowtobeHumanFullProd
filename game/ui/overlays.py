@@ -287,8 +287,10 @@ class MapOverlays:
             for (c, r) in self.range_coverage(tilemap):
                 # prototype hud.py:424-425: fill alpha 55
                 submit_tile_diamond_fill(
-                    renderer, c, r, widgets.C_RANGE_HIGHLIGHT + (55,),
-                    border=widgets.C_RANGE_HIGHLIGHT, border_width=1)
+                    renderer, c, r,
+                    widgets.highlight_color("attack_range") + (55,),
+                    border=widgets.highlight_color("attack_range"),
+                    border_width=1)
         if self.show_heatmap and self.path_heatmap:
             max_count = max(self.path_heatmap.values())
             for (c, r), count in self.path_heatmap.items():

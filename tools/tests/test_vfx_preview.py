@@ -305,14 +305,39 @@ class TestMasterSheetLink(VfxPreviewCase):
         preview.use_master_sheet(other)
         self.assertNotIn("row_start", self.entry())
 
-    def test_master_affordances_hidden_for_a_family_with_no_fixed_slot(self):
+    def test_master_affordances_follow_the_roster_when_the_family_has_no_slot(self):
+        """VA-7 follow-up: this used to assert the affordances were HIDDEN for
+        a family with no fixed slot, and that was right while nothing else
+        named a slot — offering an import with no target would have written to
+        an arbitrary one.
+
+        The roster changed that premise: its Variant combo is the designer's
+        explicit "this is the art I am working on", and without this an effect
+        added through the roster had a slot and no way to put art on it. A
+        family WITH a fixed slot still wins (the test below)."""
         self.make_master()
         _balancing, preview = self.make_pair()
         preview._family_combo.setCurrentText("spark")
 
+        target = preview.current_slot()
+        self.assertTrue(target, "the roster should have a selection")
+        self.assertEqual(preview._current_import_slot(), target)
+        self.assertFalse(preview._master_btn.isHidden())
+
+    def test_master_affordances_hidden_with_no_family_slot_AND_no_roster_pick(self):
+        """The original safety property, kept: with nothing naming a slot at
+        all, the import must not be offered and the model half must refuse
+        rather than write to some other slot."""
+        self.make_master()
+        _balancing, preview = self.make_pair()
+        preview._family_combo.setCurrentText("spark")
+        preview._effect_combo.clear()
+        preview._variant_combo.clear()
+        preview._refresh_import_btn()
+
+        self.assertIsNone(preview._current_import_slot())
         self.assertTrue(preview._master_btn.isHidden())
         self.assertTrue(preview._master_row.isHidden())
-        # …and the model half refuses rather than writing to some other slot.
         self.assertIsNone(preview.use_master_sheet("effects_sheet"))
 
 

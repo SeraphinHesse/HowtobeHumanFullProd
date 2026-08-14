@@ -1,10 +1,3 @@
-<!-- active-plan: VfxAuthoringPLAN.md | set: 2026-08-13 -->
-> **Active plan:** VfxAuthoringPLAN.md (mirror). Source of truth:
-> `planning/VfxAuthoringPLAN.md`. Do **not** edit this file directly — edit the
-> source in `planning/` and re-run `/setcurrentplan`, or pick a different
-> plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
-> screen).
-
 <!-- status: COMPLETE — 8/8 phases (VA-1–VA-8), authored + completed 2026-08-13 -->
 <!-- plan-scale: medium -->
 

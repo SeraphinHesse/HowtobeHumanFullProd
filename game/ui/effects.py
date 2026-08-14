@@ -142,6 +142,7 @@ path (`_fire_splash`) is untouched.
 """
 import math    # feature-storm-acolyte-multi-build: the polygon-ring helper
 import random  # 10H bolt jitter / 10J particle spread (stdlib — pure)
+from dataclasses import dataclass   # VA-2: the resolved TriggerRow
 
 from engine.core import Health, SpriteAnimator
 from engine.render import (
@@ -158,6 +159,7 @@ from engine.vfx import (
 from game.buildings.components import BeamAttacker, Nameplate, TierState
 from game.core.lightning import LightningCaster
 from game.core.phases import GamePhase
+from game import vfx_variants
 
 from .widgets import (
     submit_bar, submit_centered, submit_text
@@ -386,14 +388,43 @@ def _params_from_balance(vfx):
         drummer_aura=drummer_aura)
 
 
+@dataclass(frozen=True)
+class TriggerRow:
+    """One resolved ``triggers`` row (VA-2). Was a bare
+    ``(sprite_slot, procedural)`` tuple through ESV-6; became a dataclass when
+    ``variant_select`` and ``draw_in_front`` joined it, because a 5-tuple at
+    the unpack site is where a field silently ends up read as the wrong one.
+
+    The defaults are the "event absent from the table" row, and they are the
+    INERT ones: no sprite, no procedural kind, and ``draw_in_front`` matching
+    what every effect did before VA-2 (D10)."""
+
+    sprite_slot: str = ""
+    procedural: str = ""
+    variant_mode: str = vfx_variants.RANDOM
+    misc_key: str = ""
+    draw_in_front: bool = True
+
+
+_NO_TRIGGER = TriggerRow()
+
+
 def _triggers_from_balance(vfx):
     """Turn ``vfx.json``'s top-level ``triggers`` object into a plain
-    ``{event: (sprite_slot, procedural)}`` dict — the ONE place a trigger-
-    table EVENT NAME is read (ESV-5), mirroring ``_params_from_balance`` for
-    the procedural side; nothing downstream (``_play``'s callers) learns a
-    key name, they just pass the event string they already know."""
-    return {event: (row["sprite_slot"], row["procedural"])
-            for event, row in vfx["triggers"].items()}
+    ``{event: TriggerRow}`` dict — the ONE place a trigger-table EVENT NAME is
+    read (ESV-5), mirroring ``_params_from_balance`` for the procedural side;
+    nothing downstream (``_play``'s callers) learns a key name, they just pass
+    the event string they already know."""
+    return {
+        event: TriggerRow(
+            sprite_slot=row["sprite_slot"],
+            procedural=row["procedural"],
+            variant_mode=row["variant_select"]["mode"],
+            misc_key=row["variant_select"]["misc_key"],
+            draw_in_front=row["draw_in_front"],
+        )
+        for event, row in vfx["triggers"].items()
+    }
 
 
 def _polygon_ring(cx, cy, r, segments):
@@ -557,6 +588,25 @@ class FloaterManager:
                 self.log.post(text)
         state.painter_events.clear()
 
+    def spawn_building_respawn_events(self, state):
+        """Drain ``state.building_respawn_events`` (filled by the payday
+        revive slot, VA-4) — one effect per building that came BACK from
+        dead, at its tile. Called on the INCOME edge beside the income /
+        painter / boost floaters.
+
+        The ledger carries the building's tier, so this is the one event
+        whose ``level`` variant mode works without an object in hand (D4's
+        variant-0 fallback covers the rest). The shipped row plays the
+        ``spark_respawn`` preset — the same burst mechanism
+        ``place``/``level``/``tier`` use — until a designer imports art into
+        ``vfx_respawn``.
+        """
+        for col, row, tier in state.building_respawn_events:
+            self._play("building_respawn", col + 0.5, row + 0.5, level=tier,
+                       preset=self._spark_presets.get(
+                           "respawn", self._spark_presets["place"]))
+        state.building_respawn_events.clear()
+
     def spawn_boost_events(self, state):
         """Drain ``state.boost_events`` (filled by the payday boost slot) into white
         per-turn boost floaters over each buffed defender — prototype white text.
@@ -571,21 +621,42 @@ class FloaterManager:
 
     # -- ESV-5: the trigger-table dispatch seam ------------------------------
 
-    _SPARK_KINDS = ("spark_place", "spark_level", "spark_tier")
+    _SPARK_KINDS = ("spark_place", "spark_level", "spark_tier",
+                    "spark_respawn")
 
-    def _play(self, event, wx, wy, **kw):
+    def _play(self, event, wx, wy, source=None, level=None, **kw):
         """Consult the trigger table: a bound sprite slot with art spawns a
         PlayOnceVfx; otherwise the named procedural kind runs; an empty row
         (or an event absent from the table) is a silent no-op (E-37). ``**kw``
         carries the per-kind extras the procedural branch needs (``preset``
         for the spark burst, ``large=`` for the slash, ``strong=`` for the
-        muzzle)."""
-        sprite_slot, procedural = self._triggers.get(event, ("", ""))
-        if sprite_slot and self.assets is not None and self.scene is not None:
-            vfx = spawn_play_once(self.scene, self.assets, sprite_slot, wx, wy)
+        muzzle).
+
+        ``source`` (VA-2) is the building/enemy the event came FROM, when the
+        call site has one — it feeds ``"level"`` variant mode and nothing
+        else. It is keyword-only-by-position and NOT part of ``**kw`` on
+        purpose: ``**kw`` is forwarded verbatim to ``_run_procedural``, and a
+        stray ``source=`` arriving there would land in an emitter call.
+        Only ``watch_buildings``/``watch_enemies`` pass it; the other five
+        events carry a bare world point, so level mode resolves to variant 0
+        there (D4).
+        """
+        row = self._triggers.get(event, _NO_TRIGGER)
+        if row.sprite_slot and self.assets is not None and self.scene is not None:
+            # `getattr`, not `.registry`: `self.assets` is a duck-typed
+            # host-wired handle (the `self.log`/`self.scene` precedent) that
+            # tests and tools stub with far less than a real AssetStore. A
+            # stub without a registry resolves the slot unchanged — the same
+            # degrade-never-raise contract every other read of this handle
+            # keeps.
+            slot = vfx_variants.resolve(
+                getattr(self.assets, "registry", None), row.sprite_slot,
+                row.variant_mode, row.misc_key, rng=self._rng, source=source,
+                level=level)
+            vfx = spawn_play_once(self.scene, self.assets, slot, wx, wy)
             if vfx is not None:
                 return
-        self._run_procedural(procedural, wx, wy, **kw)
+        self._run_procedural(row.procedural, wx, wy, **kw)
 
     def _run_procedural(self, kind, wx, wy, **kw):
         """The procedural fallback a trigger row names. ``kind`` absent from
@@ -660,7 +731,7 @@ class FloaterManager:
                 continue
             wx, wy = b.transform.wx + 0.5, b.transform.wy + 0.5
             wx, wy = self._anchored(b, "impact", wx, wy)
-            self._play("building_destroyed", wx, wy)
+            self._play("building_destroyed", wx, wy, source=b)
             np = b.get_component(Nameplate)
             if log is not None and np is not None and np.custom_name:
                 log.post(T("game_log.building_killed",
@@ -697,10 +768,10 @@ class FloaterManager:
             wx, wy = self._anchored(e, "muzzle", *e.transform.world_pos)
             etype = getattr(e, "ETYPE", "standard")
             if etype in ("raider", "boss"):
-                self._play("enemy_attack_melee", wx, wy,
+                self._play("enemy_attack_melee", wx, wy, source=e,
                           large=(etype == "boss"))
             else:
-                self._play("enemy_attack_ranged", wx, wy,
+                self._play("enemy_attack_ranged", wx, wy, source=e,
                           strong=(etype == "siege"))
         if len(self._enemy_cooldowns) > 2 * len(seen) + 16:
             self._enemy_cooldowns = {

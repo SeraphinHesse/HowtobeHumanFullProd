@@ -344,6 +344,84 @@ preview LEVER of its own — `vfx_preview.py`'s `_EMIT_FAMILIES`/graceful-
 degrade placeholder for it is unchanged — this is purely what keeps the
 dataclass constructible for every OTHER family's preview.
 
+## The VFX roster is editable (VfxAuthoringPLAN VA-6)
+`editor/registry_ops.py` could only APPEND until this phase. For the `vfx`
+category it now also removes and renames:
+- **`add_vfx_effect(data_dir, name)`** — `add_button_family`'s stack one
+  category over (slug via `vfx_effect_slot`, validate-before-any-write, a new
+  leaf child group under vfx ▸ Effects, ready for its own `_v<k>` variants).
+- **`remove_slot(data_dir, slot_key)`** — **refuses while the slot is BOUND**
+  to a trigger row rather than orphaning that row; drops the manifest entry;
+  drops the leaf group when its last slot goes; unlinks the PNG **only** when
+  `asset_import.unreferenced_sheets` clears it, so a slot that LINKED to
+  another's art can never delete art the owner still needs. Refuses to remove
+  the last effect (an empty `children` list fails the schema).
+- **`rename_slot(data_dir, old, new)`** — a FOUR-FILE migration, which is the
+  whole point of it existing: `slots.json`, the manifest entry, the owned PNG
+  (a LINKED sheet is left pointing where it pointed) and every `triggers` row
+  naming the old key. One that moved three of the four would leave either a
+  dangling binding or art nobody can reach.
+
+**All three resync the generated `sprite_slot` enum** through
+`_resync_vfx_slot_enum` → `tools.gen_sprite_slot_enum.apply_vfx`. Load-bearing,
+not housekeeping: that enum is GENERATED (VA-1/D2), so without the resync "Add
+effect" hands the designer an effect they cannot BIND, and "Rename" writes a
+trigger row that fails its own schema on the way out. Found by
+`test_vfx_roster_ops`, which could not bind a slot it had just created. It
+CALLS the generator rather than reimplementing it — `test_schema_slot_sync`
+pins that one function, and a second copy here would be exactly the drift a
+generated enum exists to prevent. `editor -> tools` is the established
+direction (`main.py` → `tools.smoke`, `test_runner.py` → `tools.test_domains`)
+and the generator is pure `engine` underneath, so `TestPurity` is unaffected.
+
+`"vfx"` also joined `main.py`'s `_VARIANT_TARGETS`, which is what lights up the
+existing "+ Variant" button. It could not be listed before VA-1 restructured
+that category: a flat `slots` group makes `selection.variant_target()` return
+`None`, so the button would have been dead.
+
+## VFX panel: the roster + binding strip (VA-7) and the highlights preview (VA-8)
+Two rows above the existing family/lever controls turn VA-6's ops and VA-2's
+schema into something a designer reaches:
+- **Roster** — Effect / Variant combos + `+ Effect`, `+ Variant`, `Rename…`,
+  `Remove`. It reads the live registry through `editor/selection.py`, so it
+  adds no parallel state (the single-selection rule's spirit).
+- **Binding** — Event combo, Bind / Unbind, the variant `Pick` mode, the misc
+  key (shown only in `misc` mode) and the `draw in front` checkbox.
+
+**The two write paths deliberately differ.** Registry edits are STRUCTURAL, so
+they go straight to `slots.json` through `registry_ops` and emit
+`registry_changed` for the shell to re-read (`DetailsPanel.registry_changed`'s
+precedent). Everything else is a BALANCING value and STAGES through
+`self._balancing.stage_value` — this panel does not become a second writer of
+`vfx.json`, and Save stays the balancing panel's one button. Pinned by a test
+that binds an effect and asserts `vfx.json` is byte-unchanged.
+
+Two things worth keeping in mind when editing this strip:
+- **Populating the binding row blocks signals throughout.** Without that,
+  merely SELECTING an event fires the handlers that stage values, so *looking*
+  at an effect would dirty the document. There is a test for exactly that.
+- **Every modal is split from its model half** (`name=` / `new_key=` /
+  `confirm=`) — `main.py::_on_add_button_type`'s seam — so no test `exec()`s a
+  dialog. The delete button's `clicked.connect(lambda: self._on_remove())`
+  wrap is load-bearing (an unchecked button emits `clicked(False)`, which
+  would land in `confirm` and skip the confirmation). The test for it stubs
+  `QMessageBox.question` and asserts it was REACHED rather than clicking
+  through a real dialog — the first version opened one and crashed an xdist
+  worker.
+
+**VA-8** gave `highlights` a real preview instead of the E-37 placeholder. It
+is the one `procedural` key holding SEVEN blocks, so it gets a sub-combo (the
+`spark`/`_preset_combo` shape) and `_submit_highlight_preview`, which draws the
+selected highlight's diamond through `submit_world_fill` — the same
+depth-sorted primitive `game/ui/widgets.py::submit_tile_diamond` uses. The four
+polygon points are duplicated rather than imported, because `editor/` may never
+import `game/`; what matters is that both go through the one world-fill path,
+so the preview cannot drift on the thing that counts (which primitive, at which
+depth). Its import button targets `vfx_<highlight>`, so the family resolves to
+a fixed slot that depends on the sub-combo. **Respawn needed no preview path at
+all** — VA-4/D11 made it a fourth `spark` PRESET, so it rides the existing
+spark family.
+
 ## Running the tests FROM the editor (TestRunnerPLAN TR-5) — the first QThread
 
 The **"Run tests"** button on the Agents toolbar, immediately after "thats my

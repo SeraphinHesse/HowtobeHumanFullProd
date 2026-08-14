@@ -48,24 +48,33 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
 import pygame
+from PySide6.QtCore import Signal
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
     QCheckBox,
     QColorDialog,
     QComboBox,
     QDialog,
+    QDialogButtonBox,
     QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
+    QMessageBox,
     QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
-from editor import asset_import, domains, master_sheet_import, vfx_params
+from editor import (
+    asset_import, domains, master_sheet_import, registry_ops, selection,
+    vfx_params,
+)
 from editor.asset_import import import_idle_sheet
-from editor.panels.balancing import _NoWheelDoubleSpinBox, _NoWheelSpinBox
+from editor.panels.balancing import (
+    _NoWheelComboBox, _NoWheelDoubleSpinBox, _NoWheelSpinBox,
+)
 from editor.panels.master_sheet_dialog import MasterSheetDialog
 from editor.panels.viewport import surface_to_qimage
 from engine import data_io
@@ -79,7 +88,9 @@ REPO = Path(__file__).resolve().parents[2]
 BACKGROUND = (24, 20, 32)
 DEFAULT_SEED = 1234
 DEFAULT_LOOP_INTERVAL = 1.0
-_PRESET_KEYS = ("place", "level1", "level2", "tier")
+# VA-4 appended "respawn": the payday revive is a fourth spark PRESET, not
+# a new family, so it previews through this combo with no new preview path.
+_PRESET_KEYS = ("place", "level1", "level2", "tier", "respawn")
 
 # family -> [(label, staged-path-suffix relative to procedural/<family>/)]
 # for the curated lever strip (phase-esv-4-vfx-preview.md §1.3's table).
@@ -122,11 +133,20 @@ _EMIT_FAMILIES = ("spark", "death_burst", "muzzle", "slash", "gold_highlight",
 _PROJECTILE_FAMILY = "projectile"
 _CRATER_FAMILY = "crater"
 _BEAM_FAMILY = "beam"
+# VA-8: `highlights` is ONE `procedural` key holding SEVEN blocks, so it is
+# one entry in the family combo with its own sub-combo choosing which
+# highlight to preview — the `spark`/`_preset_combo` shape. Like crater/beam
+# it is a continuous object the game draws itself, never a VfxSystem burst.
+_HIGHLIGHT_FAMILY = "highlights"
+#: The tile the highlight preview is drawn on. Middle-ish of the preview grid
+#: so the diamond is fully visible at the default camera.
+_HIGHLIGHT_TILE = (2, 2)
 # vfx-projectile-spritesheets: crater/beam are the SAME shape as projectile —
 # continuous/impact objects the game draws itself, not a VfxSystem burst — so
 # they join it as SUPPORTED, non-degrading previews with their own small
 # `_submit_crater_preview`/`_submit_beam_preview` paths.
-_POINT_FX_FAMILIES = (_PROJECTILE_FAMILY, _CRATER_FAMILY, _BEAM_FAMILY)
+_POINT_FX_FAMILIES = (_PROJECTILE_FAMILY, _CRATER_FAMILY, _BEAM_FAMILY,
+                      _HIGHLIGHT_FAMILY)
 # family -> the ONE fixed vfx_* slot its "Import Spritesheet…" button
 # targets. `projectile` has no entry here — it swaps between two slots via
 # `_shell_check`, resolved by `_current_import_slot()` instead. Every other
@@ -139,10 +159,24 @@ _POINT_FX_SLOTS = {_CRATER_FAMILY: "vfx_crater", _BEAM_FAMILY: "vfx_beam"}
 #: STORED ref, never re-derived from the slot key (`details.py`'s M4 rule).
 MASTER_PREFIX = "master/"
 
+#: VA-7: the `variant_select.mode` vocabulary, mirrored from
+#: `game/vfx_variants.py` because `editor/` may never import `game/` — the
+#: same sanctioned duplication `editor/vfx_params.py` already is. A schema
+#: test pins the two equal.
+RANDOM_MODE = "random"
+LEVEL_MODE = "level"
+MISC_MODE = "misc"
+VARIANT_MODES = (RANDOM_MODE, LEVEL_MODE, MISC_MODE)
+
 
 class VfxPreviewPanel(QWidget):
     """The preview surface + its controls, in one widget so `editor/main.py`
     can add it to `right_stack` as a single page (index 3+)."""
+
+    #: VA-7: a structural registry edit landed (add/remove/rename/variant), so
+    #: the shell should re-read the registry into the selector tree and the
+    #: other panels. `DetailsPanel.registry_changed`'s precedent.
+    registry_changed = Signal()
 
     def __init__(self, data_dir=None, seed=DEFAULT_SEED, parent=None):
         super().__init__(parent)
@@ -188,6 +222,12 @@ class VfxPreviewPanel(QWidget):
         self._preset_combo = QComboBox()
         self._preset_combo.addItems(_PRESET_KEYS)
         self._preset_combo.currentTextChanged.connect(self._on_preset_changed)
+        # VA-8: which of `highlights`' seven blocks to preview — the
+        # _preset_combo shape, for the one family that is a dict of blocks
+        # rather than a single block.
+        self._highlight_combo = QComboBox()
+        self._highlight_combo.currentTextChanged.connect(
+            self._on_highlight_changed)
         self._strong_check = QCheckBox("strong")
         self._strong_check.toggled.connect(self._on_strong_toggled)
         self._large_check = QCheckBox("large")
@@ -219,6 +259,7 @@ class VfxPreviewPanel(QWidget):
         top_row.addWidget(QLabel("Family"))
         top_row.addWidget(self._family_combo)
         top_row.addWidget(self._preset_combo)
+        top_row.addWidget(self._highlight_combo)
         top_row.addWidget(self._strong_check)
         top_row.addWidget(self._large_check)
         top_row.addWidget(self._shell_check)
@@ -272,7 +313,11 @@ class VfxPreviewPanel(QWidget):
         ramp_box = QWidget()
         ramp_box.setLayout(self._ramp_row)
 
+        roster_row, binding_row = self._build_roster_ui()
+
         controls = QVBoxLayout()
+        controls.addLayout(roster_row)
+        controls.addLayout(binding_row)
         controls.addLayout(top_row)
         controls.addWidget(self._master_row)
         controls.addLayout(loop_row)
@@ -282,7 +327,8 @@ class VfxPreviewPanel(QWidget):
         controls.addStretch(1)
         controls_widget = QWidget()
         controls_widget.setLayout(controls)
-        controls_widget.setMaximumHeight(220)
+        # Two more rows than before VA-7, so the cap rises with them.
+        controls_widget.setMaximumHeight(300)
 
         self._surface_widget = _PreviewSurface(self)
         self._surface_widget.setMinimumHeight(200)
@@ -293,6 +339,8 @@ class VfxPreviewPanel(QWidget):
         # No family is selected until `refresh_families` runs, so both
         # slot-scoped affordances start hidden rather than flashing.
         self._refresh_import_btn()
+        self.refresh_roster()
+        self.refresh_events()
 
     # -- balancing-panel plumbing (§2.3): one staging store, no second writer
 
@@ -363,6 +411,9 @@ class VfxPreviewPanel(QWidget):
         self._strong_check.setVisible(name == "muzzle")
         self._large_check.setVisible(name == "slash")
         self._shell_check.setVisible(name == _PROJECTILE_FAMILY)
+        self._highlight_combo.setVisible(name == _HIGHLIGHT_FAMILY)
+        if name == _HIGHLIGHT_FAMILY:
+            self._refresh_highlight_combo()
         self._refresh_import_btn()
         self._degrade_label.setText(
             "" if supported else f"no preview for {name!r} yet")
@@ -385,7 +436,21 @@ class VfxPreviewPanel(QWidget):
         `triggers` table's `sprite_slot` field instead)."""
         if self._family == _PROJECTILE_FAMILY:
             return "vfx_shell" if self._shell else "vfx_projectile"
-        return _POINT_FX_SLOTS.get(self._family)
+        if self._family == _HIGHLIGHT_FAMILY:
+            # VA-5 gave each highlight its own vfx_<name> slot, so the family
+            # DOES resolve to one fixed slot — it just depends on the
+            # sub-combo rather than being a constant.
+            return self._highlight_slot()
+        fixed = _POINT_FX_SLOTS.get(self._family)
+        if fixed is not None:
+            return fixed
+        # VA-7 follow-up: every OTHER family binds art per-EVENT, so it has no
+        # slot of its own — which left an effect added through the roster with
+        # a slot and no way to put art on it. The roster's selected Variant is
+        # that answer: it is the designer's explicit "this is the art I am
+        # working on". A family with a FIXED slot still wins above, so
+        # projectile/shell, crater and beam are unchanged.
+        return self.current_slot()
 
     def _refresh_import_btn(self):
         has_slot = self._current_import_slot() is not None
@@ -921,11 +986,565 @@ class VfxPreviewPanel(QWidget):
             self._submit_crater_preview(dt)
         elif self._family == _BEAM_FAMILY:
             self._submit_beam_preview(dt)
+        elif self._family == _HIGHLIGHT_FAMILY:
+            self._submit_highlight_preview(dt)
         self._renderer.flush(self._surface)
         self._qimage = surface_to_qimage(self._surface)
         self._surface_widget.update()
         self.last_frame_ms = (time.perf_counter() - t0) * 1000.0
 
+
+
+    # -- the `highlights` family (VA-8) ------------------------------------
+
+    def _refresh_highlight_combo(self):
+        """Populate the sub-combo from the staged doc, so a highlight added to
+        `procedural.highlights` shows up without an editor change — the same
+        data-driven rule `refresh_families` follows for the family combo
+        itself."""
+        names = sorted(self._staged_highlights())
+        current = self._highlight_combo.currentText()
+        self._highlight_combo.blockSignals(True)
+        self._highlight_combo.clear()
+        self._highlight_combo.addItems(names)
+        if current in names:
+            self._highlight_combo.setCurrentText(current)
+        self._highlight_combo.blockSignals(False)
+
+    def _staged_highlights(self):
+        if self._balancing is None:
+            return {}
+        proc = self._balancing.staged_value("procedural") or {}
+        return proc.get(_HIGHLIGHT_FAMILY) or {}
+
+    def _on_highlight_changed(self, _name):
+        self._refresh_import_btn()
+        self._rebuild_levers()
+        self._rebuild_colors()
+
+    def current_highlight(self):
+        return self._highlight_combo.currentText() or None
+
+    def _highlight_slot(self):
+        """The slot the selected highlight actually draws.
+
+        Reads the BOUND `triggers.<name>.sprite_slot` first and only falls
+        back to the `vfx_<name>` convention when nothing is bound. Resolving
+        by convention alone was a real bug: a designer who bound art to a
+        highlight saw the preview keep drawing the procedural diamond, because
+        the preview was looking at a different slot than the game was. A
+        preview that does not follow the binding is worse than no preview —
+        it actively misreports."""
+        name = self.current_highlight()
+        if not name:
+            return None
+        bound = None
+        if self._balancing is not None and self._balancing.domain == "vfx":
+            bound = self._balancing.staged_value(
+                f"triggers/{name}/sprite_slot")
+        return bound or f"vfx_{name}"
+
+    def _submit_highlight_preview(self, dt):
+        """Draw the selected tile highlight exactly as the game draws it: the
+        bound `vfx_<name>` sheet when it has art, else the world-space diamond
+        in the staged colour/outline/fill.
+
+        The diamond is four world points through `submit_world_fill` — the
+        SAME primitive `game/ui/widgets.py::submit_tile_diamond` uses — rather
+        than a call into that module, because `editor/` may never import
+        `game/`. The polygon is trivial enough that duplicating it costs
+        nothing; what matters is that both go through the one depth-sorted
+        world-fill path, so the preview cannot drift from the game in the way
+        that actually matters (which primitive, at which depth).
+
+        `dt` is accepted for signature parity with the other point-FX preview
+        paths; a highlight is a static outline with no clock of its own.
+        """
+        name = self.current_highlight()
+        if not name:
+            return
+        params = self._staged_highlights().get(name)
+        if not params:
+            return
+        col, row = _HIGHLIGHT_TILE
+        slot = self._highlight_slot()
+        if slot and self._assets.animation_total_ms(slot, "idle") is not None:
+            self._renderer.submit(
+                RenderItem(slot, (col, row), animation="idle",
+                           anim_time_ms=int(self._loop_clock * 1000)))
+            self._loop_clock += dt
+            return
+        color = tuple(params.get("color") or (255, 255, 255))
+        width = int(params.get("border_width", 2))
+        alpha = int(params.get("fill_alpha", 0))
+        points = [(col, row), (col + 1, row),
+                  (col + 1, row + 1), (col, row + 1)]
+        self._renderer.submit_world_fill(
+            points, world_pos=(col, row),
+            color=(color + (alpha,)) if alpha else None,
+            border=color, border_width=width)
+
+    # ======================================================================
+    # The roster + binding strip (VfxAuthoringPLAN VA-7)
+    # ======================================================================
+    # Everything above this line tunes an effect that already exists. This
+    # section is where the designer changes WHICH effects exist, what art they
+    # carry, and how one is chosen at play time.
+    #
+    # Two contracts hold throughout:
+    #
+    # * Registry edits (add/remove/rename/variant) write `slots.json`
+    #   IMMEDIATELY through `editor/registry_ops.py`, like every other registry
+    #   op in the editor — they are structural, not staged values.
+    # * Everything else (a binding, a mode, a misc key, the layering bool) is a
+    #   BALANCING value and goes through `self._balancing.stage_value`, so this
+    #   panel keeps its no-second-writer contract and Save stays the balancing
+    #   panel's one button.
+    #
+    # Every modal has a model half that takes its answer as an argument, so no
+    # test ever has to `exec()` a dialog (`main.py`'s `_on_add_button_type`
+    # precedent).
+
+    def _build_roster_ui(self):
+        """The two rows this phase adds, returned as widgets the caller drops
+        into the existing controls column."""
+        self._effect_combo = _NoWheelComboBox()
+        self._effect_combo.currentIndexChanged.connect(self._on_effect_changed)
+        self._variant_combo = _NoWheelComboBox()
+        self._variant_combo.currentIndexChanged.connect(self._on_variant_changed)
+
+        self._add_effect_btn = QPushButton("+ Effect")
+        self._add_effect_btn.setToolTip(
+            "Add a new VFX effect. It starts with one slot and no art;\n"
+            "import a spritesheet onto it, then bind it to an event below.")
+        self._add_effect_btn.clicked.connect(lambda: self._on_add_effect())
+        self._add_variant_btn = QPushButton("+ Variant")
+        self._add_variant_btn.setToolTip(
+            "Add another interchangeable sheet for this effect. Which one\n"
+            "plays is decided by the Pick control below.")
+        self._add_variant_btn.clicked.connect(lambda: self._on_add_variant())
+        self._rename_btn = QPushButton("Rename…")
+        self._rename_btn.clicked.connect(lambda: self._on_rename())
+        self._remove_btn = QPushButton("Remove")
+        self._remove_btn.clicked.connect(lambda: self._on_remove())
+
+        roster = QHBoxLayout()
+        roster.addWidget(QLabel("Effect"))
+        roster.addWidget(self._effect_combo)
+        roster.addWidget(QLabel("Variant"))
+        roster.addWidget(self._variant_combo)
+        roster.addWidget(self._add_effect_btn)
+        roster.addWidget(self._add_variant_btn)
+        roster.addWidget(self._rename_btn)
+        roster.addWidget(self._remove_btn)
+        roster.addStretch(1)
+
+        self._event_combo = _NoWheelComboBox()
+        self._event_combo.currentTextChanged.connect(self._refresh_binding_row)
+        self._bind_btn = QPushButton("Bind")
+        self._bind_btn.setToolTip(
+            "Play the selected effect's art for this event.")
+        self._bind_btn.clicked.connect(lambda: self._on_bind())
+        self._unbind_btn = QPushButton("Unbind")
+        self._unbind_btn.setToolTip(
+            "Fall back to this event's procedural effect.")
+        self._unbind_btn.clicked.connect(lambda: self._on_unbind())
+        self._bound_label = QLabel("")
+
+        self._mode_combo = _NoWheelComboBox()
+        self._mode_combo.addItems(VARIANT_MODES)
+        self._mode_combo.setToolTip(
+            "How a variant is chosen each time this event fires.\n"
+            "random: uniformly, per spawn.\n"
+            "level: by the source's tier (buildings) or era (enemies);\n"
+            "  events that carry no source object use the first variant.\n"
+            "misc: by a named value game code registers later.")
+        self._mode_combo.currentTextChanged.connect(self._on_mode_changed)
+        self._misc_key_edit = QLineEdit()
+        self._misc_key_edit.setPlaceholderText("misc key")
+        self._misc_key_edit.setToolTip(
+            "The name game code registers a provider for\n"
+            "(game/vfx_misc.py). Unregistered = the first variant.")
+        self._misc_key_edit.editingFinished.connect(self._on_misc_key_edited)
+        self._front_check = QCheckBox("draw in front")
+        self._front_check.setToolTip(
+            "On: this effect draws OVER a building or enemy on its own tile.\n"
+            "Off: behind it. Effects still sort by tile position either way —\n"
+            "this decides only the tie on the same tile.")
+        self._front_check.toggled.connect(self._on_front_toggled)
+
+        binding = QHBoxLayout()
+        binding.addWidget(QLabel("Event"))
+        binding.addWidget(self._event_combo)
+        binding.addWidget(self._bind_btn)
+        binding.addWidget(self._unbind_btn)
+        binding.addWidget(self._bound_label)
+        binding.addWidget(QLabel("Pick"))
+        binding.addWidget(self._mode_combo)
+        binding.addWidget(self._misc_key_edit)
+        binding.addWidget(self._front_check)
+        binding.addStretch(1)
+        return roster, binding
+
+    # -- reading the roster out of the registry ----------------------------
+
+    def _effect_labels(self):
+        """Every VFX effect's label, in registry document order."""
+        try:
+            return list(selection.subcategories(
+                self._registry, "vfx", ("Effects",)))
+        except Exception:
+            return []
+
+    def _effect_slots(self, label):
+        """One effect's interchangeable slots (its variants), in order."""
+        labels = self._effect_labels()
+        if label not in labels:
+            return []
+        return list(selection.level_slots(
+            self._registry, "vfx", ("Effects",), labels.index(label)))
+
+    def current_effect(self):
+        """The selected effect LABEL, or None."""
+        return self._effect_combo.currentText() or None
+
+    def current_slot(self):
+        """The selected VARIANT's slot key, or None — what Bind, Rename,
+        Remove and the import buttons all act on."""
+        return self._variant_combo.currentText() or None
+
+    def refresh_roster(self):
+        """Rebuild both combos from the live registry, preserving the
+        selection where it survived (a rename changes the key, so the effect
+        label is the stabler anchor of the two)."""
+        wanted_effect = self._effect_combo.currentText()
+        wanted_slot = self._variant_combo.currentText()
+
+        labels = self._effect_labels()
+        self._effect_combo.blockSignals(True)
+        self._effect_combo.clear()
+        self._effect_combo.addItems(labels)
+        if wanted_effect in labels:
+            self._effect_combo.setCurrentText(wanted_effect)
+        self._effect_combo.blockSignals(False)
+
+        self._refresh_variants(prefer=wanted_slot)
+        self._refresh_binding_row()
+
+    def _refresh_variants(self, prefer=None):
+        slots = self._effect_slots(self._effect_combo.currentText())
+        self._variant_combo.blockSignals(True)
+        self._variant_combo.clear()
+        self._variant_combo.addItems(slots)
+        if prefer in slots:
+            self._variant_combo.setCurrentText(prefer)
+        self._variant_combo.blockSignals(False)
+        # Removing the last remaining effect would leave the group empty,
+        # which `slots.json` cannot represent — so the op refuses and the
+        # button says so rather than offering an action that raises.
+        self._remove_btn.setEnabled(bool(slots) and len(self._effect_labels()) > 1)
+        self._add_variant_btn.setEnabled(bool(slots))
+        self._rename_btn.setEnabled(bool(slots))
+        self._refresh_import_btn()
+
+    def _on_effect_changed(self, _idx=None):
+        self._refresh_variants()
+
+    def _on_variant_changed(self, _idx=None):
+        self._refresh_import_btn()
+        self._refresh_binding_row()
+
+    # -- the registry ops --------------------------------------------------
+
+    def _reload_registry(self):
+        """Re-read `slots.json` after a structural edit, rebuild the asset
+        store on top of it, and tell the shell so the selector tree follows."""
+        self._registry = load_registry(self._data_dir)
+        self.reload_assets()
+        self.refresh_roster()
+        self.registry_changed.emit()
+
+    def _report(self, message):
+        """One place the ops say what happened. A panel with no window (every
+        test) simply drops it."""
+        window = self.window()
+        bar = getattr(window, "statusBar", None)
+        if callable(bar):
+            try:
+                bar().showMessage(message, 6000)
+                return
+            except Exception:
+                pass
+        self._degrade_label.setText(message)
+
+    def _on_add_effect(self, name=None):
+        """`name=None` opens the naming dialog; passing a name is the test
+        seam (`main.py::_on_add_button_type`'s shape)."""
+        if name is None:
+            name = self._prompt_effect_name()
+            if name is None:
+                return None
+        try:
+            label, slot = registry_ops.add_vfx_effect(self._data_dir, name)
+        except (KeyError, OSError, ValueError) as exc:
+            self._report(f"Could not add effect: {exc}")
+            return None
+        self._reload_registry()
+        self._effect_combo.setCurrentText(label)
+        self._refresh_variants(prefer=slot)
+        self._report(f"Added effect {label!r} ({slot}) — import art onto it, "
+                     f"then bind it to an event.")
+        return label, slot
+
+    def _on_add_variant(self):
+        label = self.current_effect()
+        if not label:
+            return None
+        try:
+            key = registry_ops.add_variant(
+                self._data_dir, "vfx", ("Effects",), label)
+        except (KeyError, OSError, ValueError) as exc:
+            self._report(f"Could not add variant: {exc}")
+            return None
+        self._reload_registry()
+        self._effect_combo.setCurrentText(label)
+        self._refresh_variants(prefer=key)
+        self._report(f"Added variant {key} — import art onto it.")
+        return key
+
+    def _on_rename(self, new_key=None):
+        slot = self.current_slot()
+        if slot is None:
+            return None
+        if new_key is None:
+            new_key = self._prompt_rename(slot)
+            if new_key is None:
+                return None
+        try:
+            rebound, png = registry_ops.rename_slot(
+                self._data_dir, slot, new_key)
+        except (KeyError, OSError, ValueError) as exc:
+            self._report(f"Could not rename: {exc}")
+            return None
+        self._reload_registry()
+        self._refresh_variants(prefer=new_key)
+        moved = " (art moved)" if png else ""
+        bound = f", rebound {', '.join(rebound)}" if rebound else ""
+        self._report(f"Renamed {slot} -> {new_key}{moved}{bound}.")
+        return new_key
+
+    def _on_remove(self, confirm=True):
+        """`confirm=False` skips the dialog — the test seam.
+
+        NOTE the `clicked.connect(lambda: self._on_remove())` wrapper at the
+        button: a bare connect would hand Qt's `clicked(bool)` straight into
+        `confirm` and silently skip the confirmation, which is the exact
+        footgun the panels doc records biting `map_details`' Delete."""
+        slot = self.current_slot()
+        if slot is None:
+            return False
+        bound = registry_ops.trigger_bindings(self._data_dir, slot)
+        if bound:
+            self._report(f"{slot} is still bound to {', '.join(bound)} — "
+                         f"unbind it first.")
+            return False
+        if confirm:
+            answer = QMessageBox.question(
+                self, "Remove effect",
+                f"Remove {slot}?\n\nIts imported art is deleted too, unless "
+                f"another slot links to the same sheet.")
+            if answer != QMessageBox.Yes:
+                return False
+        try:
+            removed_group, removed_png = registry_ops.remove_slot(
+                self._data_dir, slot)
+        except (KeyError, OSError, ValueError) as exc:
+            self._report(f"Could not remove: {exc}")
+            return False
+        self._reload_registry()
+        art = " and its art" if removed_png else ""
+        self._report(f"Removed {slot}{art}.")
+        return True
+
+    # -- the two modals, split from their model halves ---------------------
+
+    def _prompt_effect_name(self):
+        """Name dialog with a live slug preview — `main.py`'s
+        `_prompt_button_type_name`, verbatim in shape."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("New VFX effect")
+        form = QFormLayout(dialog)
+        name_edit = QLineEdit()
+        key_label = QLabel("—")
+        form.addRow("Name", name_edit)
+        form.addRow("Slot key", key_label)
+
+        def preview(text):
+            try:
+                key_label.setText(registry_ops.vfx_effect_slot(text))
+            except ValueError:
+                key_label.setText("—")
+
+        name_edit.textChanged.connect(preview)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        form.addRow(buttons)
+        if dialog.exec() != QDialog.Accepted:
+            return None
+        return name_edit.text().strip() or None
+
+    def _prompt_rename(self, slot):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Rename slot")
+        form = QFormLayout(dialog)
+        key_edit = QLineEdit(slot)
+        form.addRow("Slot key", key_edit)
+        form.addRow(QLabel(
+            "The imported art, the manifest entry and every\n"
+            "trigger binding follow the new name."))
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        form.addRow(buttons)
+        if dialog.exec() != QDialog.Accepted:
+            return None
+        return key_edit.text().strip() or None
+
+    # -- the trigger binding + variant-select controls ---------------------
+
+    def _trigger_events(self):
+        """Every event the schema declares, sorted — read from the SCHEMA, not
+        from the staged doc, so the list is complete even before a designer
+        has touched anything."""
+        try:
+            return sorted(
+                self._schema["properties"]["triggers"]["properties"])
+        except (KeyError, TypeError):
+            return []
+
+    def current_event(self):
+        return self._event_combo.currentText() or None
+
+    def _trigger_value(self, event, *path):
+        if self._balancing is None or self._balancing.domain != "vfx":
+            return None
+        return self._balancing.staged_value("/".join(("triggers", event) + path))
+
+    def _stage_trigger(self, event, path, value):
+        if self._balancing is None or self._balancing.domain != "vfx":
+            self._report("Select the vfx domain to edit trigger bindings.")
+            return False
+        self._balancing.stage_value(f"triggers/{event}/{path}", value)
+        return True
+
+    def refresh_events(self):
+        events = self._trigger_events()
+        current = self._event_combo.currentText()
+        self._event_combo.blockSignals(True)
+        self._event_combo.clear()
+        self._event_combo.addItems(events)
+        if current in events:
+            self._event_combo.setCurrentText(current)
+        self._event_combo.blockSignals(False)
+        self._refresh_binding_row()
+
+    def _refresh_binding_row(self, _text=None):
+        """Push the selected event's stored row into the widgets. Signals are
+        blocked throughout: setting a combo would otherwise fire the handler
+        that stages a value, so merely LOOKING at an event would dirty the
+        document."""
+        event = self.current_event()
+        enabled = bool(event) and self._balancing is not None \
+            and getattr(self._balancing, "domain", None) == "vfx"
+        for widget in (self._bind_btn, self._unbind_btn, self._mode_combo,
+                       self._misc_key_edit, self._front_check):
+            widget.setEnabled(enabled)
+        if not enabled:
+            self._bound_label.setText("")
+            return
+
+        bound = self._trigger_value(event, "sprite_slot") or ""
+        self._bound_label.setText(self.binding_summary(event))
+        self._bind_btn.setEnabled(bool(self.current_slot()))
+        self._unbind_btn.setEnabled(bool(bound))
+
+        mode = self._trigger_value(event, "variant_select", "mode")
+        misc = self._trigger_value(event, "variant_select", "misc_key")
+        front = self._trigger_value(event, "draw_in_front")
+        for widget in (self._mode_combo, self._misc_key_edit,
+                       self._front_check):
+            widget.blockSignals(True)
+        if mode in VARIANT_MODES:
+            self._mode_combo.setCurrentText(mode)
+        self._misc_key_edit.setText(misc or "")
+        self._misc_key_edit.setVisible(mode == MISC_MODE)
+        self._front_check.setChecked(bool(front))
+        for widget in (self._mode_combo, self._misc_key_edit,
+                       self._front_check):
+            widget.blockSignals(False)
+
+    def binding_summary(self, event):
+        """What this event will ACTUALLY draw, in one line.
+
+        Not just "bound or not": the trigger table's resolution order is
+        "the sprite slot IF it has imported art, OTHERWISE the procedural
+        kind", so a row can be bound and still draw procedurally. Naming the
+        procedural kind is what the designer asked for, and spelling out the
+        bound-but-no-art case is the state that reads as "binding the sprite
+        did nothing" — the exact confusion this panel has already caused once.
+        """
+        procedural = self._trigger_value(event, "procedural") or ""
+        fallback = f"procedural: {procedural}" if procedural else "nothing"
+        slot = self._trigger_value(event, "sprite_slot") or ""
+        if not slot:
+            return f"→ {fallback}"
+        has_art = (self._assets is not None
+                   and self._assets.animation_total_ms(slot, "idle") is not None)
+        if has_art:
+            return f"→ {slot}"
+        return f"→ {slot} (no art yet) → {fallback}"
+
+    def _on_bind(self):
+        event, slot = self.current_event(), self.current_slot()
+        if not event or not slot:
+            return False
+        if not self._stage_trigger(event, "sprite_slot", slot):
+            return False
+        self._refresh_binding_row()
+        self._report(f"{event} → {slot} (Save to keep it).")
+        return True
+
+    def _on_unbind(self):
+        event = self.current_event()
+        if not event:
+            return False
+        if not self._stage_trigger(event, "sprite_slot", ""):
+            return False
+        self._refresh_binding_row()
+        return True
+
+    def _on_mode_changed(self, mode):
+        event = self.current_event()
+        if not event or mode not in VARIANT_MODES:
+            return
+        self._stage_trigger(event, "variant_select/mode", mode)
+        self._misc_key_edit.setVisible(mode == MISC_MODE)
+
+    def _on_misc_key_edited(self):
+        event = self.current_event()
+        if not event:
+            return
+        self._stage_trigger(event, "variant_select/misc_key",
+                            self._misc_key_edit.text().strip())
+
+    def _on_front_toggled(self, checked):
+        event = self.current_event()
+        if not event:
+            return
+        self._stage_trigger(event, "draw_in_front", bool(checked))
 
 class _PreviewSurface(QWidget):
     """The engine-`Renderer` paint target. `QPainter` blits the converted
