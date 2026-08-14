@@ -344,6 +344,68 @@ preview LEVER of its own — `vfx_preview.py`'s `_EMIT_FAMILIES`/graceful-
 degrade placeholder for it is unchanged — this is purely what keeps the
 dataclass constructible for every OTHER family's preview.
 
+## Master-sheet column switcher (`panels/viewport.py`, MasterSheetColumnsPLAN E4)
+
+A third floating `_NoWheelComboBox` (`_column_combo`), twinned with the
+entity-preview animation combo (`_anim_combo`) — same construction / refresh /
+hide idiom, one call site each (`reload_assets`, `set_preview_slot`,
+`set_preview_draft`, `set_map_mode`'s entity branch; hidden in map and screen
+mode beside `_anim_combo`). It is driven off `currentIndexChanged`, not
+`currentTextChanged`: the INDEX is the value, and column labels carry no
+uniqueness guarantee.
+
+Visible only when the previewed slot's EFFECTIVE (draft-aware) entry links a
+master sheet (`entry.sheet` starts with `master/`, D2); labels are the sheet's
+declared `columns` names (D4) or generated `Column N` labels sized off
+`store.py`'s own clamp-ceiling formula (`sheet_width // (column_width *
+frame_w)`) — deliberately re-derived from the master-sheet registry rather than
+from any `MasterSheet` helper, so this panel owns no second notion of a sheet's
+column count. Selecting an entry rides `self.preview_column` onto the preview
+`RenderItem.column` (`int | None`) — `None` means "no live driver, use the
+entry's stored column", and `0` is a real column, never a sentinel.
+
+**For a `manual`-mode entry this combo changes nothing on screen**
+(`engine/assets/store.py`'s `_column_block` always resolves to the entry's own
+stored `column` when `column_mode == "manual"`, D3) — it only visibly drives
+`season` / `building_color` entries. That is intended, not a bug: if you pick a
+colour on a manual-mode slot and nothing moves, the combo is working.
+
+## Master Sheets panel (`panels/master_sheets.py`, MasterSheetColumnsPLAN E5)
+
+**A TOP-LEVEL selector item, not a leaf under a category (D9).** Timeline hangs
+off `buildings` and Theme/Strings off `ui`, and both gate a `domain_selected`
+emission on that category. A master sheet is not a `slots.json` slot and there
+is no `master_sheets` balancing domain, so this item emits
+`master_sheets_selected` **alone** — never `domain_selected` (nothing to gate
+on) and never `node_selected` (the single-document-leaf rule: the
+entity-preview machinery must not react to a selection naming no slot). Its
+payload `category_key` is the placeholder `"master_sheets"`, which matches no
+registry category and is in no domain, so `domains()` and `refresh_markers()`
+already skip it with no special case. It is the LAST top-level item, added
+outside the category loop; `right_stack` index 8.
+
+**One panel, three verbs.** `reload_sheets()` re-reads
+`master_sheet_import.master_sheets(data_dir)` — REGISTRY-driven, never a folder
+glob — on entry (`_on_master_sheets_selected`, the reload-on-entry convention).
+`save_selected()` writes only the slicing values, through `write_registry_doc`.
+`reimport_selected()` replaces the PNG through `import_master_sheet`. Those two
+are the only write paths (ED-31); the panel never calls `write_validated`
+itself and never computes a refcount — **the ONE refcount is
+`asset_import.sheet_users`, reached via `MasterSheet.users`.**
+
+**Re-import keeps the id, via `import_master_sheet(..., sheet_id=…)`.** Left
+`None` that parameter changes nothing: the id comes from `resolve_sheet_id`,
+whose never-overwrite rule mints `<slug>_2` as soon as genuinely different art
+arrives under a taken slug — right for the picker's anonymous "import a PNG"
+flow, and exactly wrong here, where forking a second id would strand every
+linking manifest entry on the stale sheet. The panel passes the SELECTED
+sheet's id verbatim because the designer named that sheet and asked to replace
+its art. D10's `GridInUseError` guard is untouched and still refuses a
+`(frame_w, frame_h, column_width)` change while slots link, before the PNG copy
+— which is why the Re-import box stays enabled even on a locked sheet (the
+refusal names the slots), while the *slicing* form is disabled with a label
+naming them.
+
 ## Running the tests FROM the editor (TestRunnerPLAN TR-5) — the first QThread
 
 The **"Run tests"** button on the Agents toolbar, immediately after "thats my

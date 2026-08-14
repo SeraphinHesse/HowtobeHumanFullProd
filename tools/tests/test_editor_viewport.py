@@ -1338,9 +1338,10 @@ class TestMainWindowVfxMode(TempDataCase):
         # game_theme (3, UH-6 — it took the index ESV-5 freed when the vfx
         # preview moved INTO details_pane) + cutscenes (4, TU-3) +
         # tutorial_panel (5, TU-4) + strings_panel (6, Phase C) +
-        # timeline (7, TimelinePLAN T5). The point of the pin is that the
+        # timeline (7, TimelinePLAN T5) + master_sheets (8,
+        # MasterSheetColumnsPLAN E5). The point of the pin is that the
         # vfx preview is NOT a stack page of its own.
-        self.assertEqual(window.right_stack.count(), 8)
+        self.assertEqual(window.right_stack.count(), 9)
         self.assertIs(window.vfx_preview.parent().parent(), window.details_pane)
 
         window.selector.select_domain("vfx")
@@ -1508,6 +1509,7 @@ class TestPurity(unittest.TestCase):
             "editor.panels.level_bar, editor.panels.palette, "
             "editor.panels.map_details, editor.panels.sheet_preview, "
             "editor.panels.sheet_picker, editor.panels.master_sheet_dialog, "
+            "editor.panels.master_sheets, "
             "editor.panels.screen_details, "
             "editor.panels.anchors_panel, "
             "editor.panels._screen_primitives, editor.panels._screen_rules, "
@@ -1535,6 +1537,146 @@ class TestPurity(unittest.TestCase):
             [sys.executable, "-c", code], cwd=REPO, capture_output=True, text=True
         )
         self.assertEqual(result.returncode, 0, msg=result.stderr)
+
+
+class TestColumnSwitcher(TempDataCase):
+    """MasterSheetColumnsPLAN E4: the third floating combo that previews a
+    master-sheet-linked slot's COLUMN, twinned with the animation combo.
+
+    Every fixture here is WRITTEN, never inherited: the master-sheet registry
+    is replaced wholesale with a hand-authored doc, so a real import landing in
+    data/sprites/master_sheets.json cannot redden these.
+    """
+
+    SLOT = "painter_t1_lvl1"
+    FRAME_W = 32
+    FRAME_H = 32
+
+    def pin_master(self, *, columns=None, column_count=2, column_width=1,
+                   sheet_id="e4_fixture"):
+        """Write ONE master sheet (PNG + registry doc) and return its ref.
+
+        The sheet is exactly `column_count` master columns wide, so the
+        generated-label count is a property of the fixture, not of live art.
+        """
+        ref = f"master/{sheet_id}.png"
+        png = self.data_dir / "sprites" / ref
+        png.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGBA",
+                  (column_count * column_width * self.FRAME_W, self.FRAME_H),
+                  (60, 140, 200, 255)).save(png)
+        entry = {"file": ref, "display_name": sheet_id,
+                 "frame_w": self.FRAME_W, "frame_h": self.FRAME_H,
+                 "column_width": column_width}
+        if columns is not None:
+            entry["columns"] = list(columns)
+        data_io.write_validated(
+            {"version": 1, "entries": {sheet_id: entry}},
+            self.data_dir / "sprites" / "master_sheets.json",
+            self.data_dir / "schemas" / "master_sheets.schema.json")
+        return ref
+
+    def master_entry(self, ref, *, column=0, column_mode="season",
+                     column_width=1):
+        """A manifest-entry dict linking self.SLOT to `ref` (one idle row)."""
+        return {"sheet": ref, "frame_w": self.FRAME_W, "frame_h": self.FRAME_H,
+                "offset_x": 0, "offset_y": 0,
+                "rows": [{"animation": "idle", "frames": 1, "fps": 8,
+                          "hidden": [], "loop_start": 0, "loop_end": 0,
+                          "loop_count": 1}],
+                "column": column, "column_mode": column_mode,
+                "column_width": column_width}
+
+    def link_slot(self, entry):
+        path = self.data_dir / "sprites" / "asset_manifest.json"
+        doc = data_io.load_json(path)
+        doc["entries"][self.SLOT] = entry
+        data_io.write_validated(
+            doc, path,
+            self.data_dir / "schemas" / "asset_manifest.schema.json")
+
+    def make(self):
+        panel = self.track(ViewportPanel(data_dir=self.data_dir))
+        panel.resize(256, 256)
+        return panel
+
+    def labels(self, combo):
+        return [combo.itemText(i) for i in range(combo.count())]
+
+    def test_combo_lists_the_sheets_declared_column_names(self):
+        ref = self.pin_master(columns=("summer", "winter"), column_count=2)
+        self.link_slot(self.master_entry(ref))
+        panel = self.make()
+        panel.set_preview_slot(self.SLOT)
+        combo = panel._column_combo
+        self.assertFalse(combo.isHidden())
+        self.assertEqual(self.labels(combo), ["summer", "winter"])
+        self.assertEqual(panel.preview_column, 0)
+
+    def test_unnamed_sheet_falls_back_to_generated_labels(self):
+        ref = self.pin_master(columns=None, column_count=3, column_width=2)
+        self.link_slot(self.master_entry(ref, column_width=2))
+        panel = self.make()
+        panel.set_preview_slot(self.SLOT)
+        self.assertEqual(self.labels(panel._column_combo),
+                         ["Column 0", "Column 1", "Column 2"])
+
+    def test_combo_hidden_for_a_non_master_slot(self):
+        self.pin_slot_rows(self.SLOT, ("idle",))   # imported/<slot>.png
+        panel = self.make()
+        panel.set_preview_slot(self.SLOT)
+        self.assertEqual(panel._preview_column_labels(), ())
+        self.assertTrue(panel._column_combo.isHidden())
+
+    def test_combo_hidden_in_screen_mode(self):
+        ref = self.pin_master(columns=("summer", "winter"))
+        self.link_slot(self.master_entry(ref))
+        panel = self.make()
+        panel.set_preview_slot(self.SLOT)
+        self.assertFalse(panel._column_combo.isHidden())
+        session = self.track(UIScreenSession(data_dir=self.data_dir))
+        session.open("main_menu")
+        panel.set_screen_mode(session, FIXTURE_DEFAULTS)
+        self.assertTrue(panel._column_combo.isHidden())
+
+    def test_selecting_a_column_rides_onto_the_preview_render_item(self):
+        ref = self.pin_master(columns=("summer", "winter"))
+        self.link_slot(self.master_entry(ref))
+        panel = self.make()
+        panel.set_preview_slot(self.SLOT)
+        items = []
+        original = panel._renderer.submit
+
+        def wrapper(item):
+            items.append(item)
+            return original(item)
+
+        panel._renderer.submit = wrapper
+        panel.render_frame()
+        first = [i for i in items if i.slot_key == self.SLOT]
+        self.assertEqual([i.column for i in first], [0])
+        panel._column_combo.setCurrentIndex(1)
+        self.assertEqual(panel.preview_column, 1)
+        items.clear()
+        panel.render_frame()
+        self.assertEqual(
+            [i.column for i in items if i.slot_key == self.SLOT], [1])
+
+    def test_unsaved_draft_column_is_reflected(self):
+        ref = self.pin_master(columns=("summer", "winter"))
+        self.pin_slot_rows(self.SLOT, ("idle",))   # on DISK: not master-linked
+        panel = self.make()
+        panel.set_preview_slot(self.SLOT)
+        self.assertEqual(panel._preview_column_labels(), ())
+        panel.set_preview_draft(self.SLOT, self.master_entry(ref, column=1))
+        self.assertEqual(self.labels(panel._column_combo),
+                         ["summer", "winter"])
+        on_disk = data_io.load_json(
+            self.data_dir / "sprites" / "asset_manifest.json")
+        self.assertNotIn("column", on_disk["entries"][self.SLOT])
+        panel.set_preview_draft(self.SLOT, None)   # draft dropped
+        self.assertEqual(panel._preview_column_labels(), ())
+        self.assertTrue(panel._column_combo.isHidden())
 
 
 if __name__ == "__main__":
