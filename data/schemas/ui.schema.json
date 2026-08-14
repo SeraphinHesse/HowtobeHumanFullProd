@@ -11,6 +11,7 @@
         "pink": {
           "description": "Swatch fill RGB for the 'pink' colour column (new — the shared widgets palette has no pink).",
           "items": {
+            "description": "One RGB channel of the swatch fill, 0..255.",
             "maximum": 255,
             "minimum": 0,
             "type": "integer"
@@ -22,6 +23,7 @@
         "purple": {
           "description": "Swatch fill RGB for the 'purple' colour column (the shared palette's C_PURPLE).",
           "items": {
+            "description": "One RGB channel of the swatch fill, 0..255.",
             "maximum": 255,
             "minimum": 0,
             "type": "integer"
@@ -33,6 +35,7 @@
         "red": {
           "description": "Swatch fill RGB for the 'red' colour column (the shared palette's C_RED).",
           "items": {
+            "description": "One RGB channel of the swatch fill, 0..255.",
             "maximum": 255,
             "minimum": 0,
             "type": "integer"
@@ -44,6 +47,7 @@
         "yellow": {
           "description": "Swatch fill RGB for the 'yellow' colour column (the shared palette's C_GOLD).",
           "items": {
+            "description": "One RGB channel of the swatch fill, 0..255.",
             "maximum": 255,
             "minimum": 0,
             "type": "integer"
