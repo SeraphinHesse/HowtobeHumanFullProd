@@ -749,7 +749,17 @@ round.
 
 **Files** — modified: `data/balancing/core.json`, `data/schemas/core.schema.json`,
 `game/core/game_state.py`, `game/main.py`, `game/core/CLAUDE.md`,
-`tools/tests/test_game_state.py`, `tools/tests/test_balance_data.py`.
+`tools/tests/test_era_math.py`, `tools/tests/test_phase_loop.py`,
+`tools/tests/test_balancing_data.py`.
+
+> **Corrected during S4 execution (measured).** This line originally named
+> `tools/tests/test_game_state.py` and `tools/tests/test_balance_data.py`;
+> **neither module exists**. The real ones are `test_balancing_data.py`
+> (balanc*ing*), `test_era_math.py` (already covers `era_of_round`) and
+> `test_phase_loop.py` (already imports `RunState`). A NEW test module was
+> rejected deliberately: `conftest.py:19-23` makes a module missing from `TIERS`
+> a hard error and `tools/test_domains.py` requires a `DOMAINS` row, and both
+> files are outside this phase's scope.
 
 **Design notes**
 - New `Seasons` group in `core.json` with `rounds_per_season` (integer, default
@@ -776,8 +786,10 @@ exactly once per N rounds and never mid-round; the ground cache is invalidated o
 change and not otherwise; the new balancing key validates and is read by
 indexing.
 
-**Exit gate.** `py -m pytest tools/tests/test_game_state.py
-tools/tests/test_balance_data.py -x -q` plus `py tools/smoke.py`.
+**Exit gate.** `py -m pytest tools/tests/test_era_math.py
+tools/tests/test_phase_loop.py tools/tests/test_balancing_data.py -q -n 4`
+plus `py tools/smoke.py`. (`-n 4` overrides `pytest.ini`'s `-n auto`, which
+spawns 32 xdist workers on a 32-CPU box even for a 3-file run.)
 
 #### Phase N2 — The four render paths
 
@@ -785,12 +797,29 @@ tools/tests/test_balance_data.py -x -q` plus `py tools/smoke.py`.
 
 **Files** — modified: `engine/tilemap.py`, `engine/CLAUDE.md`, `game/main.py`,
 `game/map/spawn_deco.py`, `game/map/conditions.py`, `game/map/CLAUDE.md`,
-`tools/tests/test_tilemap_model.py`, `tools/tests/test_map_conditions.py`.
+`tools/tests/test_tilemap_model.py`, `tools/tests/test_spawn_deco.py`,
+`tools/tests/test_condition_art.py`, `tools/tests/test_asset_store.py`.
+
+> **Corrected during S4 execution (measured).** `tools/tests/test_map_conditions.py`
+> **does not exist**. `test_tile_conditions.py` has **0** references to
+> `condition_render_items`; `test_condition_art.py` has **9** — so the conditions
+> assertion lives there. `test_asset_store.py` was added because S1 already pinned
+> four of the five column-resolution cases in its `TestColumnBlock` class
+> (`:434`); N2 appends only the two uncovered branches rather than duplicating
+> them in a new module.
 
 **Design notes**
-- `band_render_items` and `visible_render_items` gain a `column=0` keyword that
-  rides onto every emitted `RenderItem`. `engine/tilemap.py` learns nothing about
-  seasons — it takes an int, the same way it already takes `tint_for_code`.
+- `band_render_items` and `visible_render_items` gain a **`column=None`** keyword
+  that rides onto every emitted `RenderItem`. `engine/tilemap.py` learns nothing
+  about seasons — it takes an opaque value, the same way it already takes
+  `tint_for_code`.
+
+> **Corrected during S4 execution (verified).** This bullet originally said
+> `column=0`. That is **wrong and superseded** by S1's post-integration fixes:
+> `RenderItem.column` is `int | None = None` and `SpriteAnimator.column` is an
+> `int = -1` sentinel. **`0` is a real season value, not "unset"** — season 0 is
+> the first season and D7 clamps *to* the last column, so `0` and the clamp
+> target are both live values. Any check treating `0` as falsy is a bug.
 - The four submit sites all pass `column=state.season`:
   gameplay + background tiles through the ground cache's `band_render_items`
   callback (`game/main.py:1877-1886`); map-authored deco through
@@ -809,10 +838,18 @@ slot at the same season resolves from its stored column; a slot with no
 `column_width` is byte-identical; the season clamps per-sheet on a 2-column sheet
 (D7); each of the four submit paths carries the column.
 
-**Exit gate.** `py -m pytest tools/tests/test_tilemap_model.py
-tools/tests/test_map_conditions.py -x -q` plus `py tools/smoke.py`; then a **live
-`py game/main.py`**: import a multi-column tile sheet, mark it `season`, cheat to
-round 11 and 21, and watch the tiles step. State that it was a live run.
+**Exit gate (coder).** `py tools/smoke.py` plus `py -m pytest
+tools/tests/test_asset_store.py tools/tests/test_tilemap_model.py
+tools/tests/test_spawn_deco.py tools/tests/test_condition_art.py -q -n 4`.
+
+**Quick Test (human, NOT the coder — downgraded out of the coder's gate during
+S4 execution).** A subagent cannot drive an interactive game window, so the live
+run is a human step: `py game/main.py`, import a multi-column tile sheet, mark it
+`season`, cheat to round 11 and 21, and watch the tiles step; confirm a 2-column
+sheet holds at its last column. **Blocked on art as of S4:** S2 measured that
+`data/sprites/master_sheets.json` holds exactly one entry (`slinger_t2_lvl3`,
+`column_width: 15`, no `columns`), so no shipped sheet is multi-column and a
+designer must author one before this Quick Test can run.
 
 ---
 
