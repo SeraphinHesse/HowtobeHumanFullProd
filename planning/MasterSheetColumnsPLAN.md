@@ -739,10 +739,10 @@ deco / condition submit paths.
 
 | Phase | Scope (package) | Status |
 |---|---|---|
-| N1 | game + data | not started |
-| N2 | game + engine | not started |
+| N1 | game + data | *(LANDED)* `phase-N1-season-clock` @ `3fe4062` |
+| N2 | game + engine | in progress |
 
-#### Phase N1 — The season clock
+#### Phase N1 — The season clock *(LANDED)*
 
 **Goal.** The run knows which season it is in, and says so exactly once per
 round.
