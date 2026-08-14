@@ -27,6 +27,14 @@ _FONT_SPECS = {
     "hud_lvl": (12, False),
 }
 
+# The 7 SHIPPED preset keys, frozen at import BEFORE any configure_fonts call
+# (UL-2/D6). ``configure_fonts`` now accepts designer-defined extra keys and
+# writes them into ``_FONT_SPECS``, so a LIVE ``set(_FONT_SPECS)`` read inside
+# the missing-key check would let a custom key left over from an EARLIER call
+# in the same process masquerade as required (tests reconfigure repeatedly).
+# This snapshot keeps that check honest: exactly the 7, forever.
+_REQUIRED_KEYS = frozenset(_FONT_SPECS)
+
 _FALLBACK_KEY = "md"
 
 # Pinned layout-math heights (Fix 1, phase-10L wave3): CI runs Linux, dev runs
@@ -53,6 +61,18 @@ _LAYOUT_H = {
     "hud_lvl": 14,
 }
 
+# ...and the 7 keys above, frozen at import: these entries are PINNED and are
+# never recomputed, by ``configure_fonts`` or anything else (UL-2/D6 — "the
+# seven shipped presets stay exactly as they are, never resized"). Only keys
+# OUTSIDE this set get a derived entry (see ``_derive_layout_h``).
+_PINNED_LAYOUT_KEYS = frozenset(_LAYOUT_H)
+
+# The sample string the 7 pinned heights were measured from (module docstring
+# above: they are Windows ``TextMetrics().size("Ag", key)[1]`` values, done
+# once by a human and hardcoded). A derived custom entry reuses it so both
+# halves of the table mean the same thing.
+_LAYOUT_SAMPLE = "Ag"
+
 
 def layout_h(font_key):
     """The PINNED text height for ``font_key`` — use for every layout
@@ -78,9 +98,13 @@ def configure_fonts(doc, font_path=None):
     construction (tests/tools) never needs a ``data/`` tree, exactly like
     ``game.ui.skinning.ScreenSkinning.empty()``'s no-disk-I/O precedent.
 
-    Same 7 keys as today's presets — fails loud on a key-set mismatch (a
-    renamed/dropped preset would otherwise leave some ``font_key`` silently
-    unconfigured, the "no silent break" argument every D5 data file shares).
+    The 7 shipped presets (``_REQUIRED_KEYS``) MUST all be present — fails
+    loud on a missing one (a renamed/dropped preset would otherwise leave
+    some ``font_key`` silently unconfigured, the "no silent break" argument
+    every D5 data file shares). EXTRA keys are allowed and additive (UL-2/
+    D6): a designer defines their own preset in the editor's Theme panel,
+    the schema's ``patternProperties`` validates it, and it lands in
+    ``_FONT_SPECS`` next to the 7 like any other ``font_key``.
     Clears ``_cache`` so already-built fonts (sized/sourced from the OLD
     spec) are rebuilt on the next ``get_font`` — a stale cached font would
     otherwise keep drawing at the old size/family until process restart.
@@ -107,24 +131,55 @@ def configure_fonts(doc, font_path=None):
     bad/unreadable file's failure to config time (loud, where the host is
     already validating) instead of the first draw.
 
-    Does NOT touch ``_LAYOUT_H``/``layout_h`` (the pinned cross-platform
-    layout invariant, W3-4/UH-6 plan §5): a designer who enlarges a preset
-    or swaps the font family changes drawn glyphs only; STORED layout rects
-    (screen_defaults.json, every id'd widget rect) are unaffected — text can
-    overflow its widget, which is the pinned-layout contract, not a bug (the
-    Theme panel says so in a tooltip)."""
-    unknown = set(doc) - set(_FONT_SPECS)
-    missing = set(_FONT_SPECS) - set(doc)
-    if unknown or missing:
+    Never touches the 7 PINNED ``_LAYOUT_H``/``layout_h`` entries (the
+    pinned cross-platform layout invariant, W3-4/UH-6 plan §5): a designer
+    who enlarges a shipped preset or swaps the font family changes drawn
+    glyphs only; STORED layout rects (screen_defaults.json, every id'd
+    widget rect) are unaffected — text can overflow its widget, which is
+    the pinned-layout contract, not a bug (the Theme panel says so in a
+    tooltip). A DESIGNER-DEFINED key (UL-2/D6) has no pinned entry to
+    protect and no committed golden artifact to diverge from, so its
+    ``_LAYOUT_H`` entry is DERIVED here — once per call, at config time,
+    never measured live at a layout call site (see ``_derive_layout_h``)."""
+    missing = _REQUIRED_KEYS - set(doc)
+    if missing:
         raise ValueError(
-            f"fonts.json key set mismatch: missing {sorted(missing)}, "
-            f"unknown {sorted(unknown)}")
+            f"fonts.json key set mismatch: missing {sorted(missing)}")
     for key, spec in doc.items():
         _FONT_SPECS[key] = (spec["size"], spec["bold"])
     global _FONT_PATH, _FONT_BYTES
     _FONT_PATH = str(font_path) if font_path is not None else None
     _FONT_BYTES = Path(_FONT_PATH).read_bytes() if _FONT_PATH is not None else None
     _cache.clear()
+    _derive_layout_h(doc)
+
+
+def _derive_layout_h(doc):
+    """Fill ``_LAYOUT_H`` for every DESIGNER-DEFINED key in ``doc`` (UL-2/
+    D6) — the 7 pinned keys are skipped outright, so their hardcoded
+    cross-platform values can never be overwritten by a measurement.
+
+    Called at the END of ``configure_fonts`` (after ``_FONT_SPECS``,
+    ``_FONT_BYTES`` and the cleared ``_cache`` are in their new state) so
+    the measurement sees the font the key will actually draw with, family
+    swap included. The height is one ``get_font(key).size("Ag")[1]`` — the
+    same measurement a human made once for the pinned 7 — taken ONCE per
+    configure call and STORED, never re-measured at a layout call site.
+    Re-deriving on every call is deliberate: a custom preset's size is
+    designer data that can change between calls, and unlike the 7 it has no
+    committed golden artifact (``data/ui/screen_defaults.json``, the
+    ``test_ui_skinning.py`` baseline) whose byte-for-byte cross-platform
+    reproduction the pin exists to protect.
+
+    A custom key from an EARLIER call that is absent from this ``doc`` is
+    left in place rather than swept, mirroring ``_FONT_SPECS``'s own
+    write-only update above — the two tables stay in step, and no live read
+    of either is ever treated as "what the 7 are" (that is
+    ``_REQUIRED_KEYS``/``_PINNED_LAYOUT_KEYS``)."""
+    for key in doc:
+        if key in _PINNED_LAYOUT_KEYS:
+            continue
+        _LAYOUT_H[key] = int(get_font(key).size(_LAYOUT_SAMPLE)[1])
 
 
 _cache = {}

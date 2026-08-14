@@ -114,6 +114,7 @@ TIERS = {
     "test_era_math": "core",  # ES-1: pure era clock / per-era stat + count math
     "test_esv6_converge": "core",  # ESV-6: anchored impact/muzzle VFX (D4 guardrail)
     "test_flow_field": "core",
+    "test_font_presets": "core",  # UL-2: designer-defined font presets (schema + derived layout_h)
     "test_footprint_path": "core",
     "test_game_boot": "core",
     "test_ground_cache": "core",
