@@ -441,6 +441,8 @@ class ConstructPreview:
     def submit(self, renderer, anim_ms=0):
         from engine.render import HudRect
 
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "under", self.skinning.state_of)
         x, y, w, h = self.rect
         # Submission order (game/ui/CLAUDE.md "panel -> button -> text"):
         # ALL panel/background submissions first, THEN all buttons, THEN all
@@ -510,6 +512,8 @@ class ConstructPreview:
             submit_text(renderer, str(value), (x + w - 8, sy), "sm", widgets.C_UI_TEXT,
                         align="right")
             sy += step
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "over", self.skinning.state_of)
 
 
 class MovePreview:
@@ -632,6 +636,8 @@ class MovePreview:
         uniform `preview.handle_key(...)` routing needs no branch."""
 
     def submit(self, renderer, anim_ms=0):
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "under", self.skinning.state_of)
         x, y, w, h = self.rect
         # Submission order (game/ui/CLAUDE.md "panel -> button -> text").
         if is_visible(self._panel):
@@ -661,6 +667,8 @@ class MovePreview:
                     T("building.move_preview.dest",
                       col=self.dest_tile.col, row=self.dest_tile.row),
                     (cx, y + 60), "sm", widgets.C_UI_TEXT_DIM, align="center")
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "over", self.skinning.state_of)
 
 
 class BuildingUI:
@@ -2036,6 +2044,8 @@ class BuildingUI:
         self.panel_rect = self._panel.rect
         self.skinning.submit_background(renderer, self.screen_id,
                                         self.view_w, self.view_h)
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "under", self.skinning.state_of)
         if is_visible(self._panel):
             submit_panel(renderer, self.panel_rect, skin=self._panel.skin,
                         tint=getattr(self._panel, "tint", None), anim_ms=t)
@@ -2058,6 +2068,8 @@ class BuildingUI:
         # -- /10I --
         if self.preview is not None:
             self.preview.submit(renderer, anim_ms=t)
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "over", self.skinning.state_of)
 
     def _submit_unlock(self, renderer, session, anim_ms=0):
         txt = self._text

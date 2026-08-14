@@ -485,6 +485,8 @@ class Hud:
         self.layout(view_w, view_h)
         self._layout_readouts()  # 10L-B: second apply() pass (pill-relative)
         self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "under", self.skinning.state_of)
         t = anim_ms(self._clock)  # 10L-A skin anim clock, shared by every skin draw
 
         # -- love pill (top-left) -----------------------------------------
@@ -631,6 +633,9 @@ class Hud:
         # -- income tooltip, LAST: topmost HUD layer (see the deferral above)
         if tooltip is not None:
             self._submit_income_tooltip(renderer, tooltip, income_pill)
+
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "over", self.skinning.state_of)
 
     def _submit_income_tooltip(self, renderer, sources, anchor):
         """The 10J per-source breakdown below the income line (prototype

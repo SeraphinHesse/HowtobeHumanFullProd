@@ -1140,6 +1140,25 @@ background(screen_id)` / `submit_background(...)` add an OPTIONAL full-view
 background layer (slot or flat color) — a no-op today (no shipped screen JSON
 sets one).
 
+- **Per-widget `layers` (UL-4)**: a widget's override may carry a `layers`
+  array (`data/ui/screens/<id>.json` ONLY — never `screen_defaults.json`), each
+  entry an OFFSET `[dx, dy, w, h]` from its owner's post-override rect (`0`
+  w/h inherits the owner's), resolved by the pure `engine/ui_layers.py`. Every
+  screen's `submit()` calls `self.skinning.submit_layers(renderer,
+  self.screen_id, self.ids, band, self.skinning.state_of)` **exactly twice** —
+  `"under"` as early as possible (right after `submit_background`, but after
+  any `ids`-building or nothing-to-draw guard) and `"over"` as the LAST
+  statement. The HUD pass has no depth sort, so an `under` layer sits behind
+  EVERYTHING on that screen, not just behind its own owner: that is the
+  documented trade-off of two bands per screen, not a bug. `z` orders layers
+  within a band. A layer picks ONE role, first match wins: `slot` → `HudSprite`,
+  else `text_id`/`label` → `HudText` (through `strings.T`, empty string draws
+  nothing), else `color` → `HudRect`, else nothing. **No `layers` authored ⇒
+  ZERO primitives**, which is what keeps the golden parity pin byte-identical.
+  `state_of(widget)` is the per-widget draw state passed BY REFERENCE (a bound
+  method, never a hardcoded `"idle"` at a call site) so its body is the only
+  thing that changes when real hover/pressed/disabled states land.
+
 - **Non-`Button` widgets get a `types.SimpleNamespace` holder** (`rect`,
   `skin`, `font_key`, `text_color`, `label`, `visible` as needed) that
   `submit()` reads from instead of a hardcoded literal — every screen's
