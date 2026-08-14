@@ -81,6 +81,16 @@ class TestResolveStates(unittest.TestCase):
         self.assertEqual(out["color"], (1, 1, 1))
         self.assertEqual(out["rect"], (101, 201, 5, 5))
 
+    def test_present_but_empty_state_does_not_fall_through_to_idle(self):
+        """PRESENCE of the key drives the fallback, not truthiness — an
+        authored ``"hover": {}`` means "hover looks like the base", so
+        collapsing this back to ``.get(state) or .get("idle")`` is a
+        behaviour change, not a simplification."""
+        layer = {"offset": [0, 0, 5, 5], "color": [1, 1, 1],
+                 "states": {"hover": {}, "idle": {"color": [9, 9, 9]}}}
+        self.assertEqual(resolve(layer, OWNER, "hover")["color"], (1, 1, 1))
+        self.assertEqual(resolve(layer, OWNER, "pressed")["color"], (9, 9, 9))
+
     def test_two_length_patch_offset_moves_without_resizing(self):
         layer = {"offset": [0, 0, 20, 10],
                  "states": {"hover": {"offset": [3, -4]}}}
@@ -144,6 +154,27 @@ class TestWidgetStatePatch(unittest.TestCase):
         plain.submit(a)
         patched.submit(b)
         self.assertEqual([repr(i) for i in a.items], [repr(i) for i in b.items])
+
+    def test_present_but_empty_state_does_not_fall_through_to_idle(self):
+        """``widgets._state_patch`` is a second copy of the same ladder as
+        ``engine.ui_layers``' — pin its empty-vs-absent branch too."""
+        btn = widgets.Button((10, 20, 40, 20), "GO")
+        btn.states = {"hover": {}, "idle": {"offset": [7, 7]}}
+        btn.hovered = True
+        r = RecordingRenderer()
+        btn.submit(r)
+        drawn = [i for i in r.items if isinstance(i, HudRect)][0]
+        self.assertEqual(drawn.rect, (10, 20, 40, 20))   # base, not idle's
+
+    def test_explicit_call_site_color_beats_the_patch(self):
+        """A caller's computed semantic colour is MORE specific than the
+        screen doc — the same precedence ``Button.submit`` gives an explicit
+        ``text_color=`` kwarg."""
+        holder = widgets.label_holder((30, 40, 0, 0), label="Hi")
+        holder.states = {"idle": {"text_color": [4, 5, 6]}}
+        r = RecordingRenderer()
+        widgets.submit_label(r, holder, color=widgets.C_GOLD)
+        self.assertEqual(r.items[0].color, widgets.C_GOLD)
 
     def test_label_holder_uses_its_idle_patch_only(self):
         holder = widgets.label_holder((30, 40, 0, 0), label="Hi")

@@ -318,10 +318,14 @@ def submit_label(renderer, holder, *, text=None, color=None, align=None, **fmt):
     # only one a label/panel/backdrop can ever select. The patch is more
     # specific than the holder's own static ``text_color``, so it wins over
     # it; both spellings are accepted (``text_color`` is the holder's own
-    # attribute name, ``color`` this function's parameter name).
+    # attribute name, ``color`` this function's parameter name). It does NOT
+    # win over an explicit call-site ``color=``, mirroring ``Button.submit``'s
+    # ``text_color=`` rule: a caller passing a computed semantic colour (the
+    # ~13 ``C_UI_TEXT_DIM``/``C_GOLD`` sites in building_ui/settings/levelup/
+    # boss_cutscene) is being more specific than the screen doc.
     patch = _state_patch(holder, "idle")
     pcol = patch.get("text_color", patch.get("color"))
-    if pcol is not None:
+    if color is None and pcol is not None:
         tcol = tuple(pcol)
     if align is None:
         align = getattr(holder, "align", "left") or "left"
