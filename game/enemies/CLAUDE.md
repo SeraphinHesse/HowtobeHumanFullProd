@@ -1244,6 +1244,110 @@ precedent is `game/ui/widgets.py`'s `set_skin_hit_test`.
   nothing and therefore appears in NO per-round telemetry column — it is
   event-stream-only, deliberately.
 
+## Crowd spacing (feature) — Standard/Walker and Raider
+When 2+ SAME-TYPE enemies genuinely share a tile (not just briefly crossing
+paths), they ease into small evenly-spread positions instead of drawing
+stacked on top of each other. **Grouping is strictly per-type**: a Raider and
+a Standard sharing a tile never share a slot layout, even though both may be
+crowding independently at once — each type reads its own
+`data/balancing/enemies.json` `CrowdSpacing.<Type>` block (`Standard`/
+`Raider` today), so a designer can tune (or cap) one type's crowding without
+touching the other's. This is a REAL position offset — it is written into
+the same `Transform.wx/wy` combat and range-gating read, a deliberate user
+decision: `combat.py`'s range gate rounds to a tile so it is unaffected at
+any offset under half a tile, but the Euclidean nearest-target tiebreak and
+the mortar splash-radius check both read the CONTINUOUS position, so they
+are measurably (if very slightly) affected by design, not by oversight.
+- **Why a naive per-frame nudge doesn't work.** `engine/core/movement.py`'s
+  `Movement.update()` reads `transform.wx/wy` as *this frame's* starting
+  point and writes the stepped result back into the same field — it has no
+  separate "true path position" input. Writing a crowd offset into
+  `transform.wx/wy` directly would make next frame's `Movement.update()`
+  treat last frame's offset as the real path position, permanently dragging
+  the route off-centre and fighting the waypoint-arrival threshold (0.06
+  tiles — smaller than a typical crowd offset).
+- **`CrowdSpacing` (`game/enemies/crowd_spacing.py`) is declared state
+  only, and carries NO per-type identity of its own** — `base_wx`/`base_wy`
+  (the clean, un-offset path position; `-1.0` is the "not yet seeded"
+  sentinel, the `PathAgent.target_col/_row` -1 precedent),
+  `dwell_time`/`dwell_tile_col`/`dwell_tile_row` (how long this enemy has
+  continuously held its current rounded tile), `offset_dx`/`offset_dy` (the
+  current EASED visual offset). Every type carrying it uses the identical
+  bare constructor; `_crowd_group_key(enemy)` derives which
+  `CrowdSpacing.<Type>` balancing block an enemy reads from its OWN class —
+  it reuses `Enemy.STAT_SUBTREE` (already the `EnemyTypes.<Type>` lookup
+  path every type's stats resolve through) rather than a second, parallel
+  type -> key table that could drift from it. The component carries **no
+  `update()`** — the logic is two pure functions, the `DeathSpawn` state +
+  `Enemy.advance_second_phase` + `Spawner._advance_second_phases` split
+  applied here, because grouping every crowd-spacing enemy by tile is
+  naturally ONE O(N) pass over the whole enemy list, not something each
+  enemy's own `Component.update()` should redo independently (an O(N²) cost
+  the `DrummerAura` "drummers × enemies" precedent can absorb at 1-4
+  drummers but Standard/Walker, the single most common type running into
+  the hundreds, cannot).
+- **Standard/Walker and Raider carry the component; every other type
+  doesn't.** `Enemy.extra_components` (the base classmethod) returns
+  `(CrowdSpacing(),)` iff `cls.ETYPE in ("standard", "raider")`, else `()` —
+  zero changes needed to any other subclass, since every other type's
+  `ETYPE` differs (including `Tutorial`, whose own `ETYPE = "tutorial"`
+  excludes it automatically even though it otherwise reuses the Walker's
+  slots). This is also how "a type without the mechanism sharing the tile
+  is ignored by the grouping" is satisfied for free: the grouping pass only
+  ever looks for a `CrowdSpacing` component.
+- **Host wiring (`game/main.py`), bracketing `world.scene.update(sim_dt)`**:
+  `restore_crowd_positions(scene)` runs BEFORE it (undoes last frame's
+  offset so `Movement` steps from the clean position), `apply_crowd_spacing
+  (scene, sim_dt, enemies_balance["CrowdSpacing"])` runs AFTER it and BEFORE
+  `resolve_combat` — so combat sees the final offset position for the frame,
+  matching the "real offset" decision above. `enemies_balance["CrowdSpacing"]`
+  is the WHOLE per-type dict (`{"Standard": {...}, "Raider": {...}}`), not one
+  flat block. `apply_crowd_spacing` buckets every `CrowdSpacing`-bearing
+  enemy by `(round(wx), round(wy), _crowd_group_key(enemy))` in one pass —
+  the type key in the bucket is what keeps a Raider and a Standard on the
+  same tile from ever landing in the same group — updates each one's dwell
+  timer, and — for any group with 2+ enemies whose OWN `dwell_time` has
+  crossed that TYPE's `dwell_threshold_seconds` — sorts them by `.id` (the
+  `BuffState.sources` stable-key precedent) and assigns each a slot in
+  `ANCHOR_TABLE[min(count, that type's own max_slots)]`. An enemy that
+  hasn't dwelled long enough yet, or is alone in its group, targets `(0, 0)`
+  — this is what filters "too far ahead to actually stay on 1 tile" with no
+  separate check: a fast-passing enemy simply leaves the tile before its own
+  dwell timer crosses the threshold.
+- **`ANCHOR_TABLE`** (module constant, the `CARRY_OFFSET_TILES` cosmetic
+  precedent — not balancing data, and SHARED across every type: only the
+  magnitude/cap differ per type, not the layout shape) holds one row per
+  occupant count (2-6), each a list of `(fx, fy)` direction fractions of
+  a type's own `max_offset_tiles`, in world space chosen to read as clean
+  horizontal/vertical spacing ON SCREEN under the iso projection. **No entry
+  exceeds ±1.0 per axis — this is load-bearing**: every
+  `CrowdSpacing.<Type>.max_offset_tiles` schema maximum (0.4) relies on it
+  to guarantee an offset enemy can never round into a neighboring tile (a
+  tile owns `wx`/`wy` in `[c-0.5, c+0.5)`). A `(max_slots + 1)`th occupant in
+  one group (by sorted `.id`) reuses the table's last slot rather than
+  growing past that type's cap — Standard ships `max_slots: 6`, Raider ships
+  `max_slots: 5` (feature request: raiders crowd a little less densely than
+  walkers before extras start stacking). `max_slots` is itself schema-bounded
+  2-6, since `ANCHOR_TABLE` defines no layout wider than 6.
+- **Overhead UI needs no changes.** `game/ui/effects.py`'s
+  `submit_enemy_hp_bars`/`submit_buff_arrows` already read the enemy's live
+  `transform.wx/wy` via `world_to_screen` every frame with no caching, so
+  both follow the offset automatically.
+- **Formation / multi-tile-footprint seam — documented, NOT implemented.**
+  A `Formation` (or any footprint>1 body) is ONE GameObject occupying an
+  N×N block, not several enemies (see the Formation section above; D5:
+  footprints deliberately never enter `TileOccupancy` and are allowed to
+  overlap). Extending crowd spacing to multi-tile bodies is a DIFFERENT
+  problem — detecting overlapping *blocks*, not shared tiles, and offsetting
+  a whole block's anchor point with the offset magnitude scaled by how much
+  the blocks overlap (a fixed small offset that looks right on a 1-tile
+  walker would be invisible on a 4×4 era-4 Formation, and naively scaling it
+  to the body's own footprint risks the same neighboring-tile push the
+  safety bound above prevents for 1-tile bodies). This wants its own design
+  pass reusing `dwell_threshold_seconds`/`offset_ease_seconds`; flagged here
+  so a future task starts from this note instead of rediscovering the
+  constraint.
+
 ## Rules
 - **`death_spawn` — the ONE death-spawn mechanic (ER-3, plan D4)**. Every
   `EnemyTypes/<type>` block carries a **required** `death_spawn` — **except the
