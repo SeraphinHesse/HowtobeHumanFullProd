@@ -85,7 +85,8 @@ def grid_colour(row, col):
 
 
 def entry(slot="tower", frames=(3, 2), offset=(0, 0), slice_=None,
-          row_start=None, sheet=None):
+          row_start=None, sheet=None, column=None, column_mode=None,
+          column_width=None):
     rows = [{"animation": "idle", "frames": frames[0], "fps": 8,
              "hidden": [], "loop_start": 0, "loop_end": 0, "loop_count": 1}]
     if len(frames) > 1:
@@ -102,6 +103,12 @@ def entry(slot="tower", frames=(3, 2), offset=(0, 0), slice_=None,
         raw["slice"] = slice_
     if row_start is not None:
         raw["row_start"] = row_start
+    if column is not None:
+        raw["column"] = column
+    if column_mode is not None:
+        raw["column_mode"] = column_mode
+    if column_width is not None:
+        raw["column_width"] = column_width
     return entry_from_dict(slot, raw)
 
 
@@ -218,7 +225,7 @@ class TestSlicing(SheetCase):
         store.hit_opaque("tower", animation="idle", dest_size=(FRAME_W, FRAME_H))
         store.hit_opaque("tower", animation="attack", dest_size=(FRAME_W, FRAME_H))
         self.assertEqual(sorted(store._hit_masks),
-                         sorted([("tower", 0, 0), ("tower", 1, 0)]))
+                         sorted([("tower", 0, 0, 0), ("tower", 1, 0, 0)]))
         # same key shape as _frames (store.py's existing subsurface cache)
         self.assertEqual(sorted(store._frames), sorted(store._hit_masks))
 
@@ -422,6 +429,130 @@ class TestRowStartWindow(SheetCase):
         with self.assertLogs("engine.assets.store", level="WARNING"):
             frame = store.frame("tower", "idle", 0)
         self.assertEqual(frame.surface.get_size(), (FRAME_W, FRAME_H))
+
+
+class TestColumnBlock(SheetCase):
+    """MasterSheetColumnsPLAN C2: `column`/`column_mode`/`column_width` cut a
+    master COLUMN block, the horizontal twin of `row_start`. Column indices
+    above the store keep meaning 'frame j of this entry's own rows[]'."""
+
+    def test_column_width_and_column_pick_the_block(self):
+        make_grid_sheet(self.sprites_dir / "imported" / "tower.png",
+                        cols=12, rows=2)
+        store = self.store(entry(column_width=4, column=2))
+        # entry idle frame 0 -> block 2 -> sheet frame-col 2*4 + 0 = 8
+        self.assertEqual(self.frame_colour(store.frame("tower", "idle", 0)),
+                         grid_colour(0, 8))
+
+    def test_no_column_width_cuts_exactly_where_it_always_did(self):
+        # PIN 1: the compatibility argument for the whole feature — an entry
+        # with no column_width resolves byte-identically to today's pixels.
+        png = self.sprites_dir / "imported" / "tower.png"
+        make_grid_sheet(png, rows=2)
+        e = entry()
+        self.assertEqual(e.column_width, 0)   # omitted => 0 => unchanged entry
+        store = self.store(e)
+        raw = pygame.image.load(str(png))
+        for row, animation in ((0, "idle"), (1, "attack")):
+            expected = raw.subsurface(
+                pygame.Rect(0, row * FRAME_H, FRAME_W, FRAME_H))
+            got = store.frame("tower", animation, 0).surface
+            self.assertEqual(surface_bytes(got), surface_bytes(expected))
+
+    def test_caller_column_overrides_stored_when_not_manual(self):
+        make_grid_sheet(self.sprites_dir / "imported" / "tower.png",
+                        cols=12, rows=2)
+        store = self.store(
+            entry(column_width=4, column=1, column_mode="season"))
+        # no caller column -> stored column (1) wins
+        self.assertEqual(self.frame_colour(store.frame("tower", "idle", 0)),
+                         grid_colour(0, 4))
+        # caller column (2) overrides the stored one
+        self.assertEqual(
+            self.frame_colour(store.frame("tower", "idle", 0, column=2)),
+            grid_colour(0, 8))
+
+    def test_frame_past_the_column_width_yields_placeholder(self):
+        """A row may not out-run its own column (D1).
+
+        The live bug this pins: the editor derived a row's `frames` from the
+        WHOLE sheet width, so a 4-frame row sat in a 2-frame-wide column and
+        the cut walked into the NEXT column's art — a different colour/season,
+        returned silently as if it were this one — and off the sheet entirely
+        past the last column."""
+        make_grid_sheet(self.sprites_dir / "imported" / "tower.png",
+                        cols=12, rows=2)
+        store = self.store(entry(frames=(4, 2), column_width=2, column=0))
+        # frame 1 is the column's LAST frame — still real art.
+        self.assertEqual(self.frame_colour(store.frame("tower", "idle", 125)),
+                         grid_colour(0, 1))
+        # frame 2 is column 1's frame 0. Refuse it; never borrow it.
+        with self.assertLogs("engine.assets.store", level="WARNING"):
+            frame = store.frame("tower", "idle", 250)
+        self.assertNotEqual(self.frame_colour(frame), grid_colour(0, 2))
+        self.assertEqual(frame.surface.get_size(), (FRAME_W, FRAME_H))
+
+    def test_caller_column_ignored_when_manual(self):
+        make_grid_sheet(self.sprites_dir / "imported" / "tower.png",
+                        cols=12, rows=2)
+        store = self.store(
+            entry(column_width=4, column=1, column_mode="manual"))
+        self.assertEqual(
+            self.frame_colour(store.frame("tower", "idle", 0, column=2)),
+            grid_colour(0, 4))   # stored column still wins
+
+    def test_block_past_the_sheet_clamps_to_last_column(self):
+        make_grid_sheet(self.sprites_dir / "imported" / "tower.png",
+                        cols=12, rows=2)   # 3 blocks of width 4: 0, 1, 2
+        store = self.store(entry(column_width=4, column=5))
+        self.assertEqual(self.frame_colour(store.frame("tower", "idle", 0)),
+                         grid_colour(0, 8))   # clamped to block 2
+
+    def test_negative_caller_column_clamps_to_the_first_column(self):
+        # D7 clamps on BOTH sides: a negative block would build a negative
+        # rect x and degrade to the grey-X placeholder instead of column 0.
+        make_grid_sheet(self.sprites_dir / "imported" / "tower.png",
+                        cols=12, rows=2)
+        store = self.store(entry(column_width=4, column=1, column_mode="season"))
+        self.assertEqual(
+            self.frame_colour(store.frame("tower", "idle", 0, column=-3)),
+            grid_colour(0, 0))
+
+    def test_two_columns_of_one_slot_return_different_surfaces(self):
+        # PIN 2: the cache key must carry the resolved block, or a second
+        # column silently gets the first column's pixels forever.
+        make_grid_sheet(self.sprites_dir / "imported" / "tower.png",
+                        cols=12, rows=2)
+        store = self.store(
+            entry(column_width=4, column=0, column_mode="season"))
+        a = surface_bytes(store.frame("tower", "idle", 0, column=0).surface)
+        b = surface_bytes(store.frame("tower", "idle", 0, column=2).surface)
+        self.assertNotEqual(a, b)
+
+    def test_season_zero_uses_column_zero_not_the_stored_column(self):
+        # N2 regression: `0` is a REAL live column (the FIRST season), not
+        # "unset". Only `None` falls back to the stored column, so any
+        # `column or entry.column` / truthiness test anywhere in the chain
+        # cuts from block 2 here and fails.
+        make_grid_sheet(self.sprites_dir / "imported" / "tower.png",
+                        cols=12, rows=2)
+        store = self.store(
+            entry(column_width=4, column=2, column_mode="season"))
+        self.assertEqual(
+            self.frame_colour(store.frame("tower", "idle", 0, column=0)),
+            grid_colour(0, 0))
+
+    def test_live_season_clamps_on_a_two_column_sheet(self):
+        # D7 clamp driven by the LIVE caller column (the clamp test above
+        # drives it from the STORED column, a different branch): a 2-block
+        # sheet holds at its last block rather than wrapping or grey-X-ing.
+        make_grid_sheet(self.sprites_dir / "imported" / "tower.png",
+                        cols=8, rows=2)   # 2 blocks of width 4: 0, 1
+        store = self.store(
+            entry(column_width=4, column=0, column_mode="season"))
+        self.assertEqual(
+            self.frame_colour(store.frame("tower", "idle", 0, column=5)),
+            grid_colour(0, 4))   # clamped to block 1
 
 
 class TestSheetDedup(SheetCase):

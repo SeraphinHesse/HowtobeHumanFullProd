@@ -56,7 +56,7 @@ from editor.panels.balancing import _NoWheelComboBox, _NoWheelSpinBox
 from editor.panels.master_sheet_dialog import MasterSheetDialog
 from editor.panels.sheet_picker import SheetPickerDialog
 from editor.panels.sheet_preview import SheetPreview
-from engine.assets import load_manifest, load_registry
+from engine.assets import load_manifest, load_registry, master_registry
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -73,6 +73,27 @@ MASTER_PREFIX = "master/"
 MASTER_GRID_TOOLTIP = (
     "The master spritesheet owns this grid (D3) — every slot cutting it must\n"
     "agree on what a row means, so the frame size is inherited, not per-slot.")
+
+COLUMN_WIDTH_TOOLTIP = (
+    "The master spritesheet owns this value (D1) — how many frame columns one\n"
+    "master column spans is a property of the SHEET, so it is inherited here,\n"
+    "not editable per slot.")
+
+#: `column` carries asset_manifest.schema.json's row_start bound EXACTLY
+#: (0..255, 0-based) — one spelling of the bound, reused by the spin's static
+#: range and by its per-sheet ceiling (ED-30).
+COLUMN_RANGE = (0, 255)
+#: `column_width` is 1..256 when authored; 0 is only the absent-key in-memory
+#: default, never a value written.
+COLUMN_WIDTH_RANGE = (1, 256)
+#: Display label ⇄ stored enum value. The manifest stores the enum, NEVER the
+#: friendly label; `column_mode` names WHO picks the column at render time (D3).
+COLUMN_MODES = (("Manual", "manual"),
+                ("Season", "season"),
+                ("Building colour", "building_color"))
+COLUMN_MODE_VALUES = {label: value for label, value in COLUMN_MODES}
+COLUMN_MODE_LABELS = {value: label for label, value in COLUMN_MODES}
+DEFAULT_COLUMN_MODE = "manual"
 
 
 class RowEditor(QGroupBox):
@@ -300,6 +321,17 @@ class DetailsPanel(QWidget):
         #: The master sheet's own frame size while one is linked (D3) — the
         #: registry's per-slot size does not apply then.
         self._master_grid = None
+        #: The COLUMN WINDOW into a master sheet — the row window's horizontal
+        #: twin. `_column` is the 0-based master column this entry cuts,
+        #: `_column_mode` declares WHO picks it at render time (D3), and
+        #: `_column_width` is how many frame-columns one master column spans,
+        #: INHERITED from the sheet's registry entry (D1 — the sheet owns it).
+        #: 0/"manual"/0 for every non-master sheet, which is what keeps those
+        #: entries byte-identical.
+        self._column = 0
+        self._column_mode = DEFAULT_COLUMN_MODE
+        self._column_width = 0
+        self._sheet_cols = 0            # frame-columns the CURRENT sheet has
 
         self._subcat_combo = _NoWheelComboBox()
         self._subcat_combo.currentIndexChanged.connect(self._on_subcat_changed)
@@ -421,6 +453,36 @@ class DetailsPanel(QWidget):
         master_layout.addWidget(QLabel("(rows of the master spritesheet)"))
         master_layout.addStretch(1)
 
+        # The master-sheet COLUMN WINDOW (D1/D3) — the row window's horizontal
+        # twin: same shape, same `_master_applies()` visibility gate, and the
+        # same "writes nothing until Save" rule. The WIDTH is inherited from
+        # the sheet, so it gets the Frame W/H treatment (a disabled spin with a
+        # tooltip, not a bare QLabel) — tab order and styling stay uniform.
+        self._column_row = QWidget()
+        column_layout = QHBoxLayout(self._column_row)
+        column_layout.setContentsMargins(0, 0, 0, 0)
+        column_layout.addWidget(QLabel("Column"))
+        self._column_spin = _NoWheelSpinBox()
+        self._column_spin.setRange(*COLUMN_RANGE)   # per-sheet ceiling below
+        self._column_spin.editingFinished.connect(self._on_column_changed)
+        column_layout.addWidget(self._column_spin)
+        column_layout.addWidget(QLabel("mode"))
+        self._column_mode_combo = _NoWheelComboBox()
+        self._column_mode_combo.addItems([label for label, _ in COLUMN_MODES])
+        # Wrapped like every other connect in this panel: currentIndexChanged
+        # hands the new index to the first argument (the panels-doc footgun).
+        self._column_mode_combo.currentIndexChanged.connect(
+            lambda _i: self._on_column_changed())
+        column_layout.addWidget(self._column_mode_combo)
+        column_layout.addWidget(QLabel("width:"))
+        self._column_width_display = _NoWheelSpinBox()
+        self._column_width_display.setRange(*COLUMN_WIDTH_RANGE)
+        self._column_width_display.setEnabled(False)   # inherited, never edited
+        self._column_width_display.setToolTip(COLUMN_WIDTH_TOOLTIP)
+        column_layout.addWidget(self._column_width_display)
+        column_layout.addWidget(QLabel("(columns of the master spritesheet)"))
+        column_layout.addStretch(1)
+
         self._preview = SheetPreview(interactive=True)
         self._preview.frame_clicked.connect(self._on_frame_clicked)
 
@@ -441,12 +503,14 @@ class DetailsPanel(QWidget):
         layout.addWidget(self._tint_row)
         layout.addLayout(frames)
         layout.addWidget(self._master_row)
+        layout.addWidget(self._column_row)
         layout.addWidget(self._info)
         layout.addWidget(scroll, 1)
         self._set_buttons_enabled(False, False, False)
         self._slice_row.setVisible(False)
         self._tint_row.setVisible(False)
         self._master_row.setVisible(False)
+        self._column_row.setVisible(False)
 
     # -- subcategory dropdown (fed by the shell from the tree selection) ----
 
@@ -553,6 +617,17 @@ class DetailsPanel(QWidget):
                                      int(entry["frame_h"]))
                 self._row_start = int(entry.get("row_start", 0))
                 self._row_count = len(entry.get("rows") or ()) or None
+                self._column = int(entry.get("column", 0))
+                self._column_mode = entry.get("column_mode",
+                                              DEFAULT_COLUMN_MODE)
+                # An entry SAVED BEFORE columns shipped has no `column_width`
+                # key (in-memory default 0), which would leave the spin with a
+                # 0..0 ceiling. Fall back to the registry — the sheet owns the
+                # value anyway, so re-reading it is the correct answer, not a
+                # guess.
+                self._column_width = (int(entry.get("column_width", 0))
+                                      or self._column_width_from_registry(
+                                          self._sheet_ref))
             sheet = self._sheet_file(self._sheet_ref)
             if sheet.exists():
                 self._load_sheet(sheet, entry)
@@ -681,6 +756,12 @@ class DetailsPanel(QWidget):
         seed = entry if (entry or {}).get("sheet") == sheet.ref else None
         self._sheet_ref = sheet.ref
         self._master_grid = (sheet.frame_w, sheet.frame_h)
+        # The sheet owns `column_width` (D1) exactly as it owns the grid (D3):
+        # adopt it from the REGISTRY, and seed the column/mode the same way the
+        # row window is seeded from an existing entry on this sheet.
+        self._column_width = self._column_width_from_registry(sheet.ref)
+        self._column = int((seed or {}).get("column", 0))
+        self._column_mode = (seed or {}).get("column_mode", DEFAULT_COLUMN_MODE)
         self._row_start = (int(seed.get("row_start", 0)) if seed is not None
                            and row_start is None else int(row_start or 0))
         self._row_count = (len(seed.get("rows") or ()) or None
@@ -741,6 +822,22 @@ class DetailsPanel(QWidget):
                 entry["row_start"] = self._row_start
         elif existing and existing.get("row_start"):
             entry["row_start"] = existing["row_start"]
+        # The COLUMN window, under that same two-branch rule: authored while a
+        # master sheet is linked (each key omitted at its default — 0 /
+        # "manual" / 0, so a pre-column entry stays byte-identical), and
+        # otherwise PRESERVED from `existing`, because a path that never shows
+        # the column row must not erase a column somebody saved.
+        if self._master_applies():
+            if self._column:
+                entry["column"] = self._column
+            if self._column_mode != DEFAULT_COLUMN_MODE:
+                entry["column_mode"] = self._column_mode
+            if self._column_width:
+                entry["column_width"] = self._column_width
+        elif existing:
+            for key in ("column", "column_mode", "column_width"):
+                if existing.get(key):
+                    entry[key] = existing[key]
         if self._tint_applies() and self._tint_check.isChecked():
             # Optional like `slice`: False omits the key, so an entry that
             # doesn't want the tint is byte-identical to a pre-feature one, and
@@ -783,11 +880,17 @@ class DetailsPanel(QWidget):
         return self.registry.frame_size(self.slot_key)
 
     def _reset_row_window(self):
-        """Back to "the whole sheet, from row 0" — every non-master path."""
+        """Back to "the whole sheet, from row 0 and column 0" — every
+        non-master path. A column only ever means something on a master sheet
+        (D2), exactly like the row window."""
         self._row_start = 0
         self._row_count = None
         self._sheet_rows = 0
         self._master_grid = None
+        self._column = 0
+        self._column_mode = DEFAULT_COLUMN_MODE
+        self._column_width = 0
+        self._sheet_cols = 0
 
     def _refresh_master_state(self):
         """Show/fill the row window, and lock Frame W/H while a master sheet is
@@ -795,6 +898,8 @@ class DetailsPanel(QWidget):
         spins author would be a lie)."""
         master = self._master_applies()
         self._master_row.setVisible(master)
+        self._column_row.setVisible(master)
+        self._refresh_column_state()
         for spin in (self._frame_w, self._frame_h):
             spin.setEnabled(not master)
             spin.setToolTip(MASTER_GRID_TOOLTIP if master else "")
@@ -814,6 +919,49 @@ class DetailsPanel(QWidget):
         fw, fh = self._row_frame_size
         self._frame_w.setValue(fw)
         self._frame_h.setValue(fh)
+
+    def _refresh_column_state(self):
+        """Fill the column row from state, with the spin's CEILING pinned to
+        the sheet's real last master column (`sheet_cols // column_width - 1`).
+        An off-sheet column is therefore UNREPRESENTABLE (ED-30) rather than a
+        save-time error — the horizontal twin of `_row_to`'s minimum tracking
+        `_row_from`. Nothing to fill until a master sheet with a known width is
+        loaded (a pre-column entry falls back to the registry in `set_slot`)."""
+        if (not self._master_applies() or self._sheet_cols < 1
+                or self._column_width < 1):
+            return
+        width = max(1, self._column_width)
+        ceiling = min(COLUMN_RANGE[1], max(0, (self._sheet_cols // width) - 1))
+        # Clamp the STATE too, not just the widget: draft_entry() reads
+        # `_column`, and a column past the sheet must never reach the manifest.
+        self._column = min(max(0, self._column), ceiling)
+        self._column_spin.blockSignals(True)
+        self._column_spin.setRange(COLUMN_RANGE[0], ceiling)
+        self._column_spin.setValue(self._column)
+        self._column_spin.blockSignals(False)
+        self._column_mode_combo.blockSignals(True)
+        self._column_mode_combo.setCurrentText(COLUMN_MODE_LABELS.get(
+            self._column_mode, COLUMN_MODE_LABELS[DEFAULT_COLUMN_MODE]))
+        self._column_mode_combo.blockSignals(False)
+        self._column_width_display.setValue(width)
+
+    def _effective_column(self):
+        """The master column the PREVIEW cuts. The STORED column always wins
+        here: a non-manual `column_mode` names who overrides it at RENDER time
+        (the season stepper, a building's colour), and the editor has no such
+        live value — the schema's own "falls back to the stored column when the
+        caller supplies none" rule."""
+        return max(0, self._column) if self._master_applies() else 0
+
+    def _column_width_from_registry(self, ref):
+        """The linked sheet's `column_width` off the master registry, or 0.
+
+        Read through `engine.assets.master_registry` rather than off a
+        `MasterSheet` attribute: the registry is the one owner of this value
+        (D1), and this panel has no business reaching into the import module's
+        dataclass for it."""
+        return master_registry.column_width_for(
+            master_sheet_import.load_registry_doc(self._data_dir), ref)
 
     def _on_row_window_changed(self):
         """Re-cut the slot at the new window and rebuild exactly that many
@@ -835,6 +983,28 @@ class DetailsPanel(QWidget):
             self._load_sheet(sheet, entry)
         finally:
             self._loading = False
+        self._emit_draft()
+
+    def _on_column_changed(self):
+        """Re-cut the PREVIEW at the new column/mode. Like
+        `_on_row_window_changed` — and pointedly unlike
+        `_on_frame_size_changed` — this writes NOTHING: the column is entry
+        state, saved by Save with every other row edit, and `slots.json` is
+        never touched from here.
+
+        It does not rebuild the RowEditors either. The row window changes WHICH
+        ROWS EXIST (hence its `_load_sheet` call); the column window only
+        changes which horizontal SLICE of those same rows is shown, so
+        `_refresh_preview()` alone is the whole update."""
+        if self._loading or self.slot_key is None or not self._master_applies():
+            return
+        column = self._column_spin.value()
+        mode = COLUMN_MODE_VALUES.get(self._column_mode_combo.currentText(),
+                                      DEFAULT_COLUMN_MODE)
+        if (column, mode) == (self._column, self._column_mode):
+            return
+        self._column, self._column_mode = column, mode
+        self._refresh_preview()
         self._emit_draft()
 
     def _refresh_tint_state(self, entry=None):
@@ -988,6 +1158,7 @@ class DetailsPanel(QWidget):
             w, h = image.size
         cols, sheet_rows = w // fw, h // fh
         self._sheet_rows = sheet_rows
+        self._sheet_cols = cols     # the column spin's ceiling is derived here
         if cols < 1 or sheet_rows < 1:
             self._info.setText(f"⚠ sheet too small for one {fw}×{fh} frame.")
             self._set_buttons_enabled(True, False, bool(entry))
@@ -1002,17 +1173,33 @@ class DetailsPanel(QWidget):
         count = (available if self._row_count is None
                  else max(1, min(self._row_count, available)))
         self._row_start, self._row_count, rows = start, count, count
+        # A ROW IS AS WIDE AS ITS MASTER COLUMN, NOT AS THE WHOLE SHEET.
+        # `cols` is the sheet's full frame-column count and stays that way —
+        # `_sheet_cols` above derives the column spin's ceiling from it. But a
+        # column-sliced entry only owns `column_width` of those columns (D1),
+        # so the RowEditors (and the `frames` count they save) must stop at the
+        # column boundary. Deriving them from `cols` instead is what wrote a
+        # 68-frame idle row against a 17-frame-wide column: the animation
+        # walked straight out of its colour into the next one and, past the
+        # last column, off the sheet into the grey X.
+        row_cols = (min(self._column_width, cols)
+                    if self._master_applies() and self._column_width > 0
+                    else cols)
         if (w % fw) or (h % fh):
             self._info.setText(
                 f"⚠ not a clean {fw}×{fh} grid — remainder cropped "
                 f"({cols} cols × {rows} rows).")
+        elif row_cols != cols:
+            self._info.setText(
+                f"{cols} cols × {rows} rows  ({fw}×{fh}/frame) — "
+                f"{row_cols}/column")
         else:
             self._info.setText(f"{cols} cols × {rows} rows  ({fw}×{fh}/frame)")
         self._clear_rows()
         vocabulary = self.registry.animations(self.slot_key)
         saved_rows = (entry or {}).get("rows", [])
         for r in range(rows):
-            editor = RowEditor(r, cols, vocabulary)
+            editor = RowEditor(r, row_cols, vocabulary)
             if r < len(saved_rows):
                 editor.set_from(saved_rows[r])
             elif r > 0:
@@ -1054,9 +1241,20 @@ class DetailsPanel(QWidget):
         fw, fh = self._row_frame_size
         # The window narrows the PICTURE too, and it speaks entry-relative rows
         # on the way back out — so `_on_frame_clicked` needs no offset.
+        # ...and the COLUMN narrows it horizontally, on the same terms. This is
+        # the ONE place the column window reaches the preview, mirroring the
+        # row window. Off a master sheet the two arguments are the widget's own
+        # defaults, so the call is byte-identical to the row-only shape — which
+        # is what RESETS a column window left over from a previous slot.
+        master_column = self._master_applies() and self._column_width > 0
         self._preview.set_sheet(self._sheet_file(self._sheet_ref), fw, fh,
                                 row_start=self._row_start,
-                                row_count=len(self._row_editors))
+                                row_count=len(self._row_editors),
+                                col_start=(self._effective_column()
+                                           * self._column_width
+                                           if master_column else 0),
+                                col_count=(self._column_width
+                                           if master_column else None))
         self._preview.set_rows([
             {"hidden": editor.effective_hidden(),
              "static_frame": editor.static_frame()}

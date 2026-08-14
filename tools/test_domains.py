@@ -182,6 +182,7 @@ DOMAINS = {
         "test_editor_tutorial_paint.py",
         "test_editor_viewport.py",
         "test_master_sheet_import.py",
+        "test_master_sheets_panel.py",
         "test_registry_ops.py",
         "test_vfx_roster_ops.py",
         "test_vfx_roster_panel.py",
@@ -198,6 +199,7 @@ DOMAINS = {
     "data": (
         "test_assets_registry.py",
         "test_balancing_data.py",
+        "test_master_registry.py",
         "test_schema_slot_sync.py",
         "test_strings_data.py",
         "test_theme_data.py",

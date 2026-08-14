@@ -294,6 +294,9 @@
     "speed_1_5x_min_round": 10,
     "speed_2x_min_round": 20
   },
+  "Seasons": {
+    "rounds_per_season": 10
+  },
   "TheHole": {
     "base_hp": 10,
     "base_income": 5,

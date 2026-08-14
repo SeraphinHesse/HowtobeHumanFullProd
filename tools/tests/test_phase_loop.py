@@ -98,6 +98,33 @@ class TestRunState(unittest.TestCase):
         st.add_love(7)
         self.assertEqual(st.love, 7)
 
+    def test_season_advances_once_per_n_rounds(self):
+        """N1: season 0 by default, and walking rounds 1..25 at
+        rounds_per_season=10 turns the season at 11 and 21 and nowhere else."""
+        st = RunState()
+        self.assertEqual(st.season, 0)   # 0 is a REAL season, not "unset"
+        seen = {}
+        for r in range(1, 26):
+            st.round_num = r
+            st.update_season(10)
+            seen[r] = st.season
+        self.assertEqual([r for r in range(2, 26) if seen[r] != seen[r - 1]],
+                         [11, 21])
+        self.assertEqual((seen[1], seen[10], seen[11], seen[20], seen[21]),
+                         (0, 0, 1, 1, 2))
+
+    def test_update_season_returns_true_only_on_the_change_round(self):
+        """N1: that bool IS the ground-cache invalidate trigger in
+        ``game/main.py`` — True only when the season actually turns, so the
+        cached ground layer is repainted on the crossing and never otherwise."""
+        st = RunState()
+        changed = []
+        for r in range(1, 26):
+            st.round_num = r
+            if st.update_season(10):
+                changed.append(r)
+        self.assertEqual(changed, [11, 21])
+
 
 # ---------------------------------------------------------------------------
 # Payday ordering (prototype _begin_income_phase)

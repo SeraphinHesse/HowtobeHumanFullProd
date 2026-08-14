@@ -50,6 +50,15 @@ state as a plain subclass attribute.
   pygame.
 - **E-12 phasing**: `SpriteAnimator` + `Health` shipped in Phase 2. `Movement`
   and `RangeSensor` land with the `engine/physics` primitives they wrap (below).
+- **`SpriteAnimator.column: int = -1` (MasterSheetColumnsPLAN C3)** — the live
+  master-sheet COLUMN this sprite draws at (a season index, a building's
+  colour), emitted onto `RenderItem.column`. **`-1` is a sentinel meaning "no
+  driver"**, and `render_items` translates it to `RenderItem.column = None`,
+  which is what makes the manifest entry's own stored `column` win (D3). Two
+  constraints force this shape and neither is cosmetic: a Component field must
+  be JSON-safe, so `_JSON_FIELD_TYPES` above rejects `int | None` outright; and
+  the sentinel cannot be `0`, because season 0 and colour index 0 are real
+  values a caller will drive. Do not "simplify" it to `0`.
 - **`SpriteAnimator.visible: bool = True`** (`game/enemies`'s Digger,
   NE-2 follow-up) — `render_items` yields nothing while `False`. Default
   `True` keeps every existing sprite byte-identical; it exists so a component

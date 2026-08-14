@@ -233,6 +233,19 @@ class TestSpawnDecoRenderItems(unittest.TestCase):
             self.tm, tile.col, tile.col, tile.row, tile.row, TREE_SLOTS)
         self.assertEqual(len(after), 1)
 
+    def test_column_rides_every_item_and_defaults_to_none(self):
+        # N2: an OPAQUE master-sheet column (the host drives it from
+        # RunState.season) rides every emitted item. Default None ("no live
+        # column"), never 0 — 0 is a real column, i.e. the first season.
+        items = spawn_deco_render_items(
+            self.tm, 0, self.tm.cols - 1, 0, self.tm.rows - 1, TREE_SLOTS,
+            column=2)
+        self.assertTrue(items)   # guard: an empty list would pass vacuously
+        self.assertTrue(all(i.column == 2 for i in items))
+        plain = spawn_deco_render_items(
+            self.tm, 0, self.tm.cols - 1, 0, self.tm.rows - 1, TREE_SLOTS)
+        self.assertTrue(all(i.column is None for i in plain))
+
     def test_no_tree_slots_emits_nothing(self):
         self.assertEqual(
             spawn_deco_render_items(self.tm, 0, self.tm.cols - 1,

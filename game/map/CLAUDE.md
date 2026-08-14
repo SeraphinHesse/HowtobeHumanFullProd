@@ -217,12 +217,15 @@ Conventions that differ from the prototype (deliberate, clean-arch):
     `cond_mountain_buildable_v3` added in the editor grows that pool with NO
     code change (same contract as deco types and enemy eras).
   - **`conditions.py` is the ONE emitter** (pure): `condition_render_items(
-    tile_map, col_min, col_max, row_min, row_max, art_slots, anim_time_ms)` →
-    `RenderItem`s on the **`terrain`** draw layer, which
+    tile_map, col_min, col_max, row_min, row_max, art_slots, anim_time_ms,
+    column)` → `RenderItem`s on the **`terrain`** draw layer, which
     `engine.render.LAYERS` places between `ground` and `entities` — condition
     art draws OVER the map tiles and UNDER buildings/enemies/the base/deco.
     Windowed like `engine.tilemap.visible_render_items` (never a full-grid
     per-frame scan) with the same deterministic per-cell animation phase.
+    `column` (default `None`) is an opaque master-sheet column passed straight
+    onto every item — the host drives it from `RunState.season`; this module
+    reads no run state, and `0` is a REAL column, never "unset".
     `art_slots` is the host's `{slot: tint_overlay}` map over the condition
     slots that actually have a manifest entry, so an **un-imported condition
     emits nothing rather than a grey X**; `draws_tint(slot, art)` — the shared
@@ -264,6 +267,12 @@ Conventions that differ from the prototype (deliberate, clean-arch):
     `set_tile_state` hook at all** — the roll itself is never touched by a
     zone transition. `rng=None` or `registry=None` ⇒ every roll stays `-1`,
     the same headless-fixture escape hatch condition art uses.
+    `spawn_deco_render_items(..., column=None)` takes an **opaque** master-sheet
+    column and copies it unread onto every item, exactly as `conditions.py`
+    does: this emitter reads no run state and gives the value no meaning (the
+    host drives it from `RunState.season`). `None` means "no live column",
+    leaving each slot's stored column in charge — and **`0` is a REAL column,
+    not "unset"**, so the value is never tested for truthiness.
   - `CONDITION_MODIFIER_KEY` (`tiles.py`) is the ONE enum→`TileConditions.
     modifiers` key table every stat-modifier consumer (buildings, enemies, UI
     tooltips) shares. Pond is EXPENSIVE (+9 weight), NOT impassable —
