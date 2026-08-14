@@ -339,6 +339,33 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   card, and the upgrade panel's advance-to-next-tier button (`tier_unlock_cost` /
   `tier_unlock_cost_per_tier` were removed from the schema — dead weight once
   `build_cost` covers all three).
+- **Master-sheet COLOUR is stamped at placement and is just
+  `SpriteAnimator.column`** (MasterSheetColumnsPLAN B1). `place_building` grew
+  three keyword-only-in-practice arguments, all defaulted so every pre-existing
+  caller is byte-identical: `colour_columns` (`{slot_key: (colour_name, …)}`),
+  `rng`, `column`. Semantics, in order: an explicit `column is not None` is
+  used **verbatim** (the player's swatch pick — `0` is a REAL colour index, so
+  this is never a truth test); otherwise a slot present in `colour_columns`
+  rolls `rng.randrange(len(names))` exactly once (`rng=None` ⇒ the stdlib
+  `random` module, the `game/enemies/spawner.py` shape); otherwise the animator
+  is left at its **`-1` "no driver" sentinel** (`engine/core/sprite_animator.py`)
+  — never `0`. The stamp happens AFTER `apply_tier_stats()`, which is what
+  writes `anim.slot_key` (the map's key); every later upgrade rewrites only
+  `slot_key`, so the colour survives a level-up and a tier advance for free —
+  D5's accepted consequence being that a chain must author its colours in the
+  same order at every tier. `components.BuildingSprite` needed no change: its
+  `render_items` delegates to `super()`, which already maps `-1` to
+  `RenderItem.column=None`.
+  **This package never reads the asset layer to get that map** (D6/E-37): the
+  HOST derives it once at boot (`game/main.py::_derive_colour_columns`, beside
+  `condition_art`/`tree_slots`/`wall_art` — art cannot change mid-run) and
+  passes it down, and publishes it to the construct panel as
+  `BuildingUI.colour_columns`. A slot is colour-capable iff its master sheet
+  declares `columns` **and** its manifest entry's `column_mode ==
+  "building_color"` (the second conjunct is required by D3 — a `manual` entry's
+  stored column wins, so swatches on it would do nothing). Only
+  `BUILDINGS_CATEGORY` (the bare `"buildings"` slots.json key) lives here,
+  beside the feature, exactly as `WALL_CATEGORY` lives in `game/map`.
 
 ## Building Movement (`movement.py`)
 Moving an ALREADY-PLACED building to another unbuilt buildable tile.

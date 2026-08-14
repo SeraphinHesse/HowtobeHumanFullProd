@@ -706,6 +706,103 @@ The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
   `submit_lightning`, world-overlay pass (before the panel), not the later
   HP-bar section.
 
+## Building-colour swatches (MasterSheetColumnsPLAN B2)
+
+The build-confirm modal picks the master-sheet COLOUR COLUMN a building is
+placed in. Two new module-level members in `building_ui.py`, both deliberately
+reusable — the upgrade panel gets the same row in B3 and **must not
+re-implement either**:
+- **`ColorSwatchRow(colors, left, right, top, id_prefix, ui_balance=None)`** —
+  layout + hit-test + draw over `widgets.Button`, right-aligned to `right` and
+  clamped to the first `(avail + GAP) // (SIZE + GAP)` colours (the registry
+  schema allows 16 names; only ~8 12px swatches fit the modal's band, and
+  shipped sheets declare 4). It owns **no state**: `hit(mx, my)` returns an
+  INDEX or `None` and `submit(renderer, selected, anim_ms=0)` takes the
+  caller's selection as an argument, which is what lets one screen point it at
+  a pending int and another at a live `SpriteAnimator.column`. `ids` merges
+  into the owning screen's dict BEFORE `skinning.apply`; `__bool__` is False
+  when inert. `SIZE = 12` is the UR-5 click-target floor exactly.
+- **`_swatch_rgb(name, ui_balance=None)`** — the ONE colour lookup, now (B3) a
+  read of `data/balancing/ui.json`'s `BuildingColors` group (`name -> [r, g,
+  b]`). Both screens pass the balance dict they already hold; there is no
+  second table. A miss of ANY kind — no balance, no group, or a `columns` name
+  the palette does not know — degrades to the neutral `widgets.C_PANEL_INSET`
+  rather than raising (E-37): the swatch still exists and still picks its
+  column, it just isn't tinted. The neutral is read as `widgets.<NAME>`
+  attribute access, never import-bound (`configure_palette` rebinds the `C_*`
+  constants at boot).
+  - **`BuildingColors` is deliberately NOT in `ui.schema.json`'s root
+    `required`** (it is the only optional group there). The root is
+    `additionalProperties: false` with four required groups, and a fifth
+    required key would redden `tools/tests/fixtures/data/balancing/ui.json`,
+    which no UI change may touch. So the read is `.get("BuildingColors", {})`
+    and absence is a supported state — which is exactly what the fixture
+    exercises. Its four names (`pink`/`purple`/`red`/`yellow`) are fixed schema
+    properties, not an open map, so the editor's balancing panel renders them
+    by recursing the schema with no editor code at all; growing the palette is
+    a one-line schema edit through `/add-balancing-value`.
+
+## Upgrade-panel colour swatches (MasterSheetColumnsPLAN B3)
+
+The upgrade panel grows the SAME `ColorSwatchRow`, pointed at the live
+building instead of a pending int — `BuildingUI.colour_row`, built by
+`_build_colour_row()` at the tail of `_build_upgrade` (after `_build_move_btn`)
+and swept by `_clear_colour_ids()` (the `_clear_card_ids` prefix rule, also
+called from `close()`), ids `upgrade_swatch_0…`.
+
+- **The D6 gate**: upgrade mode, SINGLE selection (the `move_btn` rule — a
+  batch recolour is not a feature), a host-wired `colour_columns` map, and
+  `>= 2` colours for the building's LIVE `BuildingSprite.slot_key` (the key the
+  host's map is built on, and `None` on the base, which has no animator).
+  Anything else leaves the row inert: no row, no gap, no placeholder, no ids,
+  never a raise.
+- **Clicking swatch `i` writes `i` onto `BuildingSprite.column`** — the field
+  the renderer reads, so the board recolours next frame with no confirm step,
+  nothing spent, nothing logged; it survives later upgrades for free because
+  `apply_tier_stats` rewrites only `slot_key`. The hit test sits after the
+  rename defocus (a swatch click commits an in-progress rename, like a move
+  click) and before `move_btn`. `-1` is the "no driver" sentinel and `0` is a
+  REAL colour, so the ring test is `_selected_column()`'s `>= 0`, never
+  truthiness.
+- **The band is dead space, so nothing moves.** All of it derives from
+  `action_btn.rect`: the row is `y 282..293` (12px, the UR-5 floor exactly),
+  6px above the action button's `y = 300` top and 14px below the stat column's
+  268 worst case; `action_btn`, `move_btn`, the stat rows and the hint keep
+  their exact rects. That is why `py tools/export_ui_layouts.py` was a **no-op
+  diff** and `test_ui_skinning.py`'s `building_panel` baseline needed no edit.
+- **The swatches are not in `screen_defaults.json` at all**, and the golden pin
+  does not cover them: the exporter's mock builds a real building but wires no
+  capability map, so the "no map ⇒ no colours ⇒ no row" path runs there. That
+  is deliberate — dynamic-count content is styled through
+  `ScreenSkinning.defaults()`, and an id absent from the defaults file is
+  harmless (`_validate_ids` only fails on an override naming an id the code
+  does not know). `tools/screen_mocks.py` is untouched on purpose: it is the
+  ONE mock state shared by `screen_defaults.json` and `screen_previews.json`.
+
+Rules this section fixes:
+- **`0` is a real colour index; `-1` is the "no driver" sentinel.** Nothing
+  here may truth-test a column — `is not None`, always. A slot with fewer than
+  2 colours builds no widgets at all, registers no ids, draws nothing, and
+  leaves `chosen_column = None` so `place_building` keeps the sentinel.
+- **The preview may not lie.** `ConstructPreview.__init__` ROLLS the initial
+  index (`random.randrange`, the same stdlib module the name dice already
+  uses — no rng seam threaded through the UI) and `_do_place` always passes it
+  as `place_building(..., column=)`, so confirming without touching a swatch
+  places exactly the colour shown.
+- **The capability map is the HOST's.** `game/main.py`'s
+  `_derive_colour_columns` builds `{slot_key: (colour_name, …)}` once at boot
+  and assigns `panel.colour_columns` — the `panel.assets` /
+  `overlays.condition_art` precedent. `BuildingUI.__init__` defaults it to
+  `{}`, so a bare panel in a test or tool has no colours and is unchanged.
+  `game/ui` never reaches into the asset layer (D6/E-37).
+- **Nothing already on the modal moved.** The row is `y+36..y+47`: 1px under
+  the cost line, exactly abutting the `y+48` name box, entirely above the
+  `y+69` stat list — so `data/ui/screen_defaults.json` needs no regeneration
+  and the stat list's 2px slack is untouched. It is hit-tested BEFORE
+  `handle_click`'s `name_rect` branch (a plain containment test, the broadest
+  one) and drawn inside `submit`'s BUTTON block, its selection ring right
+  after its own swatch (the sanctioned "ring after its own button" exception).
+
 ## Move Building (Building Movement)
 The upgrade panel's fifth mode + a second preview modal. Rules live in
 `game/buildings/movement.py` (`game/buildings/CLAUDE.md`); this module is the
