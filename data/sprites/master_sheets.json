@@ -9,6 +9,12 @@
     },
     "ss_fluteplayer": {
       "column_width": 17,
+      "columns": [
+        "pink",
+        "red",
+        "purple",
+        "yellow"
+      ],
       "display_name": "SS_Fluteplayer",
       "file": "master/ss_fluteplayer.png",
       "frame_h": 96,
