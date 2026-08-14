@@ -150,7 +150,7 @@ prototype-exact animation semantics for nothing.
 | S1 | Column core — data + engine | C1, C2, C3 | — | **LANDED** (`section-S1`) |
 | S2 | Editor surfaces | E1, E2, E3, E4, E5 | S1 | not started |
 | S3 | Building colour | B1, B2, B3 | S1 | not started |
-| S4 | Seasons | N1, N2 | S1 | not started |
+| S4 | Seasons | N1, N2 | S1 | **LANDED** (`section-S4`) |
 
 **Waves:** wave 1 = S1. Wave 2 = S2 + S3 + S4, concurrently — they share no
 files, and each concurrent implementation agent gets `isolation: "worktree"` per
@@ -740,7 +740,33 @@ deco / condition submit paths.
 | Phase | Scope (package) | Status |
 |---|---|---|
 | N1 | game + data | *(LANDED)* `phase-N1-season-clock` @ `3fe4062` |
-| N2 | game + engine | in progress |
+| N2 | game + engine | *(LANDED)* `phase-N2-render-paths` @ `abc9bed` |
+
+**Section gate (measured, on the merged `section-S4`):** `py tools/smoke.py` → OK
+(62 data files schema-valid, 5 headless frames, shell boot OK); `py -m pytest`
+over the 7 touched test files `-q -n 4` → **198 passed, 1351 subtests, 0 failed,
+0 skipped**. Handoff: `docs/handoffs/section-S4.md`.
+
+**D6/D3 ruled for the season path (S3 handed this question to S4).** S3 required
+a slot to satisfy **both** D6 (its sheet declares `columns`) **and** D3 (its
+`column_mode` is the matching driver) to count as colour-capable, because D6
+alone yields dead UI. **S4 deliberately computes NO capability predicate at
+all**, and that is not an oversight:
+- The **D3 half is already enforced exactly once**, in the engine, at
+  `engine/assets/store.py:225` (`if entry.column_mode == "manual" or column is
+  None`). A `manual` slot ignores the live season. `game/` must not re-implement
+  that check.
+- The **D6 half is irrelevant to seasons.** D4's `columns` array is a *naming*
+  affordance for the editor, and seasons address columns by **index**, never by
+  name. A sheet with `column_width: 4` and no `columns` array is a perfectly
+  valid seasonal sheet; requiring `columns` would make a sheet un-seasonal purely
+  for lacking cosmetic labels.
+- Seasons ship **no UI**: no swatches, no per-slot control. There is no
+  affordance to suppress, so the conjunction that D6 exists to protect has
+  nothing to protect here.
+- Degradation is already quiet and correct: a seasonal slot on a 1-column sheet
+  clamps to column 0 (D7) and a slot with no `column_width` resolves
+  byte-identically.
 
 #### Phase N1 — The season clock *(LANDED)*
 
@@ -791,7 +817,7 @@ tools/tests/test_phase_loop.py tools/tests/test_balancing_data.py -q -n 4`
 plus `py tools/smoke.py`. (`-n 4` overrides `pytest.ini`'s `-n auto`, which
 spawns 32 xdist workers on a 32-CPU box even for a 3-file run.)
 
-#### Phase N2 — The four render paths
+#### Phase N2 — The four render paths *(LANDED)*
 
 **Goal.** Seasonal slots follow the season; everything else is untouched.
 
