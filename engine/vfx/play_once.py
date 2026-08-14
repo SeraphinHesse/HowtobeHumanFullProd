@@ -44,11 +44,11 @@ class PlayOnceVfx(GameObject):
     world point, then despawns."""
 
     def __init__(self, wx, wy, slot_key, life_ms, layer="entities",
-                 fit_tiles=0.0, scale=1.0):
+                 fit_tiles=0.0, scale=1.0, rank=0):
         super().__init__(
             name="vfx_oneshot",
             tags=("vfx_oneshot",),
-            transform=Transform(wx=wx, wy=wy, layer=layer),
+            transform=Transform(wx=wx, wy=wy, layer=layer, rank=rank),
             components=[
                 SpriteAnimator(slot_key=slot_key, animation=ONESHOT_ANIM,
                                fit_tiles=fit_tiles, scale=scale),
@@ -58,7 +58,7 @@ class PlayOnceVfx(GameObject):
 
 
 def spawn_play_once(scene, assets, slot_key, wx, wy, *, layer="entities",
-                    fit_tiles=0.0, scale=1.0):
+                    fit_tiles=0.0, scale=1.0, rank=0):
     """Spawn a ``PlayOnceVfx`` playing ``slot_key``'s sheet once. Returns
     ``None`` when the slot has no imported art — ``assets.animation_total_ms``
     returns ``None`` for a slot/animation absent from the manifest, with no
@@ -68,7 +68,7 @@ def spawn_play_once(scene, assets, slot_key, wx, wy, *, layer="entities",
     if life_ms is None:
         return None
     vfx = PlayOnceVfx(wx, wy, slot_key, life_ms, layer=layer,
-                      fit_tiles=fit_tiles, scale=scale)
+                      fit_tiles=fit_tiles, scale=scale, rank=rank)
     vfx.get_component(PlayOnceFade)._scene = scene
     scene.spawn(vfx)
     return vfx

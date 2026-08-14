@@ -12,6 +12,33 @@
       "minItems": 3,
       "type": "array"
     },
+    "highlight": {
+      "additionalProperties": false,
+      "description": "VA-5: one continuous tile-highlight effect. Drawn every frame while its tile is highlighted, as a world-space depth-sorted diamond (game/ui/widgets.py submit_tile_diamond / _fill), or as the bound sprite_slot's sheet when one has art.",
+      "properties": {
+        "border_width": {
+          "description": "Outline thickness in px (the LINE width for wall_edge).",
+          "maximum": 32,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "color": {
+          "$ref": "#/$defs/color"
+        },
+        "fill_alpha": {
+          "description": "Interior fill alpha, 0-255; 0 draws an outline only (every shipped highlight).",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "border_width",
+        "color",
+        "fill_alpha"
+      ],
+      "type": "object"
+    },
     "ramp": {
       "additionalProperties": false,
       "description": "A 3-stop age-fraction colour ramp: stop_0 (age 0) -> stop_1 -> stop_2 (age ~life).",
@@ -60,8 +87,12 @@
       "additionalProperties": false,
       "description": "ESV-5: one event's sprite/procedural binding. Resolution order at every dispatch site: a non-empty sprite_slot whose slot has imported art spawns a one-shot PlayOnceVfx sprite (engine.vfx.spawn_play_once); otherwise the named procedural kind runs; procedural \"\" (or the event's row absent from the table entirely) is a silent no-op (E-37) - never a raise.",
       "properties": {
+        "draw_in_front": {
+          "description": "VfxAuthoringPLAN VA-2/D5: true draws this effect IN FRONT of a building or enemy sharing its tile, false behind it. It is a same-tile TIE-BREAK, not a layer switch - the effect still depth-sorts by its own world position against everything else, so an effect on a near tile keeps drawing over a building on a far one. Buildings and enemies share the `entities` layer and sort by iso depth, which is why this is ONE bool and not a separate one per kind: no sort order can put an effect in front of one and behind the other. Ships true on every row, reproducing the always-on-top behaviour every procedural effect had before (D10).",
+          "type": "boolean"
+        },
         "procedural": {
-          "description": "The procedural VFX kind to run when sprite_slot is empty or has no imported art yet, or \"\" for a silent no-op. spark_place/spark_level/spark_tier all resolve through the same emit_burst call, keyed by the caller's kind argument - the three names exist so each of the three building-vfx events can be independently retuned/disabled without collapsing to one shared string. \"crater\" names the mortar shell's OWN continuous fade mark (game/enemies/combat.py's Crater/CraterFade), which always spawns unconditionally regardless of this table - naming it here is documentation, not a second spawn.",
+          "description": "The procedural VFX kind to run when sprite_slot is empty or has no imported art yet, or \"\" for a silent no-op. spark_place/spark_level/spark_tier all resolve through the same emit_burst call, keyed by the caller's kind argument - the three names exist so each of the three building-vfx events can be independently retuned/disabled without collapsing to one shared string. \"crater\" names the mortar shell's OWN continuous fade mark (game/enemies/combat.py's Crater/CraterFade), which always spawns unconditionally regardless of this table - naming it here is documentation, not a second spawn. \"highlight\" (VA-5) means \"draw this event's own procedural.highlights entry\" - the seven continuous tile highlights all name it, and each is tuned by its OWN block, so unlike the spark_* trio they need no separate kind each.",
           "enum": [
             "",
             "spark_place",
@@ -71,7 +102,9 @@
             "slash",
             "muzzle",
             "splatter",
-            "crater"
+            "crater",
+            "spark_respawn",
+            "highlight"
           ],
           "type": "string"
         },
@@ -79,19 +112,61 @@
           "description": "The vfx_* slot key to play as a one-shot sprite when it has imported art, or \"\" to always use the procedural fallback. A bound slot with no art imported yet also falls through to the procedural fallback (E-37) - this is what keeps a fresh checkout byte-identical to today.",
           "enum": [
             "",
-            "vfx_hit",
-            "vfx_explosion",
-            "vfx_muzzle",
+            "vfx_attack_range",
+            "vfx_beam",
+            "vfx_buff_arrow",
+            "vfx_crater",
             "vfx_death",
+            "vfx_digger_direction",
+            "vfx_digger_marker",
+            "vfx_dirt_pile",
+            "vfx_explosion",
+            "vfx_hit",
+            "vfx_move_target",
+            "vfx_muzzle",
+            "vfx_projectile",
+            "vfx_respawn",
+            "vfx_section_2x2",
+            "vfx_shell",
             "vfx_slash",
-            "vfx_crater"
+            "vfx_test",
+            "vfx_tile_selected",
+            "vfx_tutorial_highlight",
+            "vfx_upgrade_batch",
+            "vfx_wall_edge"
           ],
           "type": "string"
+        },
+        "variant_select": {
+          "additionalProperties": false,
+          "description": "VfxAuthoringPLAN VA-2: how to choose among sprite_slot's interchangeable VARIANTS (the <stem>_v<k> slots sharing its leaf group in slots.json) each time this event fires. A slot with no variants resolves to itself under every mode, so this block is inert until a designer adds one. Procedural fallbacks are NOT varied (D3) - they have one param block each.",
+          "properties": {
+            "misc_key": {
+              "description": "For mode \"misc\" only: the name of a game-side value provider (game/vfx_misc.py's register()/resolve()). Code registers a function per key returning an int; an unregistered key - including the \"\" this ships with - resolves to variant 0 and never raises, so a key can be authored before the code that feeds it exists. Ignored by the other two modes.",
+              "type": "string"
+            },
+            "mode": {
+              "description": "\"random\" picks uniformly per spawn through the caller's injected rng (the game/enemies/enemy.py variant_slot shape - never the stdlib random module, so seeded-parity tests stay possible). \"level\" indexes by the SOURCE's level, clamped to the variant count: a building's 0-indexed tier, an enemy's era. Five of the ten events carry only a world point and no source object, so \"level\" resolves to variant 0 there (D4) - deliberate, not a bug. \"misc\" indexes by misc_key's registered provider, clamped the same way.",
+              "enum": [
+                "random",
+                "level",
+                "misc"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "misc_key",
+            "mode"
+          ],
+          "type": "object"
         }
       },
       "required": [
+        "draw_in_front",
         "procedural",
-        "sprite_slot"
+        "sprite_slot",
+        "variant_select"
       ],
       "type": "object"
     }
@@ -409,6 +484,43 @@
             "fill_color",
             "hold",
             "life"
+          ],
+          "type": "object"
+        },
+        "highlights": {
+          "additionalProperties": false,
+          "description": "VA-5: the seven tile highlights the panel and the host draw. Their colours USED to be data/ui/palette.json's highlight / highlight2 / range_highlight plus two bare code constants; those three palette keys are DELETED, so each value has exactly one home (G-7).",
+          "properties": {
+            "attack_range": {
+              "$ref": "#/$defs/highlight"
+            },
+            "move_target": {
+              "$ref": "#/$defs/highlight"
+            },
+            "section_2x2": {
+              "$ref": "#/$defs/highlight"
+            },
+            "tile_selected": {
+              "$ref": "#/$defs/highlight"
+            },
+            "tutorial_highlight": {
+              "$ref": "#/$defs/highlight"
+            },
+            "upgrade_batch": {
+              "$ref": "#/$defs/highlight"
+            },
+            "wall_edge": {
+              "$ref": "#/$defs/highlight"
+            }
+          },
+          "required": [
+            "attack_range",
+            "move_target",
+            "section_2x2",
+            "tile_selected",
+            "tutorial_highlight",
+            "upgrade_batch",
+            "wall_edge"
           ],
           "type": "object"
         },
@@ -745,6 +857,9 @@
                 "place": {
                   "$ref": "#/$defs/spark_preset"
                 },
+                "respawn": {
+                  "$ref": "#/$defs/spark_preset"
+                },
                 "tier": {
                   "$ref": "#/$defs/spark_preset"
                 }
@@ -753,6 +868,7 @@
                 "level1",
                 "level2",
                 "place",
+                "respawn",
                 "tier"
               ],
               "type": "object"
@@ -853,6 +969,7 @@
         "drummer_aura",
         "floaters",
         "gold_highlight",
+        "highlights",
         "lightning",
         "muzzle",
         "projectile",
@@ -864,8 +981,11 @@
     },
     "triggers": {
       "additionalProperties": false,
-      "description": "ESV-5: per-event sprite-slot / procedural-fallback binding, a sibling of procedural. Every key names a cosmetic EVENT (never a JSON-key vocabulary the engine sees); game/ui/effects.py's _triggers_from_balance is the ONE place these key names are read.",
+      "description": "ESV-5: per-event sprite-slot / procedural-fallback binding, a sibling of procedural. Every key names a cosmetic EVENT (never a JSON-key vocabulary the engine sees); game/ui/effects.py's _triggers_from_balance is the ONE place these key names are read. VfxAuthoringPLAN VA-4: a non-base building revived by the payday building_revive slot (game/core/payday.py step 9). Fires once per building that was actually DEAD and came back - not for the full-heal every living building also gets in that slot - at its tile, drained on the INCOME phase edge beside the income/painter/boost floaters. VfxAuthoringPLAN VA-5 added seven CONTINUOUS rows - tile_selected, section_2x2, attack_range, move_target, wall_edge, upgrade_batch, tutorial_highlight. Unlike every row above them these are not one-shots: they are drawn every frame for as long as the tile is highlighted, so they dispatch through game/ui/widgets.py's submit_highlight rather than _play/PlayOnceVfx (whose despawn clock would respawn them each frame).",
       "properties": {
+        "attack_range": {
+          "$ref": "#/$defs/trigger_row"
+        },
         "building_destroyed": {
           "$ref": "#/$defs/trigger_row"
         },
@@ -873,6 +993,9 @@
           "$ref": "#/$defs/trigger_row"
         },
         "building_placed": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "building_respawn": {
           "$ref": "#/$defs/trigger_row"
         },
         "building_tier_up": {
@@ -890,24 +1013,50 @@
         "enemy_death": {
           "$ref": "#/$defs/trigger_row"
         },
+        "move_target": {
+          "$ref": "#/$defs/trigger_row"
+        },
         "projectile_hit": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "section_2x2": {
           "$ref": "#/$defs/trigger_row"
         },
         "splash_impact": {
           "$ref": "#/$defs/trigger_row"
+        },
+        "tile_selected": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "tutorial_highlight": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "upgrade_batch": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "wall_edge": {
+          "$ref": "#/$defs/trigger_row"
         }
       },
       "required": [
+        "attack_range",
         "building_destroyed",
         "building_level_up",
         "building_placed",
+        "building_respawn",
         "building_tier_up",
         "defender_fire",
         "enemy_attack_melee",
         "enemy_attack_ranged",
         "enemy_death",
+        "move_target",
         "projectile_hit",
-        "splash_impact"
+        "section_2x2",
+        "splash_impact",
+        "tile_selected",
+        "tutorial_highlight",
+        "upgrade_batch",
+        "wall_edge"
       ],
       "type": "object"
     }

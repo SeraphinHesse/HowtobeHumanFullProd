@@ -7,6 +7,13 @@ conventions, update THIS doc.
 ## What it owns
 - `world_to_screen`, `screen_to_world` (exact inverse), iso depth key, camera
   state. Geometry constants come from `data/`, never hardcoded.
+- **`depth_key(wx, wy, layer_index=0, rank=0)` → `(layer_index, wx+wy, wy,
+  rank)`** (VA-3). `rank` is the LAST element and decides only an otherwise
+  EXACT tie — layer stays primary (the ground cache depends on it) and iso
+  depth still beats it. A 4-tuple with a constant last element sorts exactly as
+  the old 3-tuple did, so every existing caller is untouched; `engine/render`
+  is still the only consumer. Why it exists and why the lever above it is one
+  bool rather than two → `engine/render/CLAUDE.md`.
 - `clamp` keeps the viewport on the map, *centring* an axis only when the map is
   smaller than the viewport there.
 - **The optional camera LEASH**: `set_camera_limit(CameraLimit(anchor_wx,

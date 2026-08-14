@@ -33,6 +33,10 @@ class RenderItem:
     flip: bool = False
     fit_tiles: float = 0.0   # 0 = no fit: draw at the raw frame size
     scale: float = 1.0       # extra multiplier applied after the fit
+    # VA-3: depth-key tie-break within this item's layer — +1 draws in front
+    # of a same-tile entity, -1 behind it. 0 (every shipping caller) keeps the
+    # historical ordering exactly. See CoordinateSystem.depth_key.
+    rank: int = 0
 
 
 @dataclass(frozen=True)
@@ -96,3 +100,68 @@ class WorldFill:
     color: tuple = None       # RGB/RGBA fill; None = outline only
     border: tuple = None      # RGB/RGBA outline colour; None = no outline
     border_width: int = 2
+    rank: int = 0             # VA-3 depth-key tie-break; see RenderItem.rank
+
+
+@dataclass(frozen=True)
+class WorldRect:
+    """VA-3: a FIXED-PIXEL-SIZE rect at a world DEPTH anchor.
+
+    The gap this fills: ``WorldFill`` is depth-sorted but its polygon is
+    world-space, so it grows and shrinks with zoom — right for a tile
+    diamond, wrong for a particle, which is a few screen pixels at every
+    zoom level. ``HudRect`` has the fixed size but lives in the HUD pass,
+    which is drawn dead last with no depth at all. A spark that wants to
+    pass BEHIND the building that emitted it needs both halves, so this
+    carries the depth anchor and the pixel geometry separately:
+
+    * ``world_pos`` is the depth-sort anchor ONLY — same convention as
+      ``WorldFill``/``RenderItem`` (the raw ``(col, row)`` a ``Transform``
+      uses), and it is also the point ``offset`` is measured from.
+    * ``offset`` and ``size`` are SCREEN pixels at the live zoom; the caller
+      scales them (a particle's own offsets are authored at base zoom).
+
+    ``world_pos`` is the depth-sort anchor and NOTHING ELSE — same convention
+    as ``WorldFill``/``RenderItem`` (the raw ``(col, row)`` a ``Transform``
+    uses). ``rect`` is FULLY-RESOLVED screen pixels, converted by the caller,
+    which is deliberate rather than lazy: the caller already holds the
+    ``CoordinateSystem`` (it needs it for the equivalent HUD submit), and
+    resolving here instead would round at a different point than the HUD pass
+    does. That difference is not hypothetical — it was measured at 1px on a
+    slash line while writing ``test_depth_rank.py``, because
+    ``VfxSystem.submit_hud`` truncates ``int(anchor + offset)`` while an
+    offset resolved at flush truncates the offset alone. Carrying the final
+    rect makes "the same effect drawn in the other pass does not move"
+    true by construction instead of by matching two rounding sites by hand.
+
+    It resolves to an ``OverlayPolys`` of four screen corners rather than a
+    ``HudRect``: both backends draw polys, while ``backend_gpu`` raises on
+    every HUD primitive by design (D7), so emitting a ``HudRect`` into the
+    depth-sorted world list would crash the GPU host.
+    """
+
+    world_pos: tuple          # (wx, wy) depth-sort anchor ONLY
+    rect: tuple               # (x, y, w, h) fully-resolved SCREEN px
+    color: tuple              # RGB/RGBA
+    layer: str = "entities"
+    rank: int = 0
+
+
+@dataclass(frozen=True)
+class WorldLines:
+    """VA-3: ``WorldRect``'s polyline sibling — screen-pixel geometry sorted
+    at a world depth anchor. A melee slash is a handful of lines around its
+    attacker, so ``VfxSystem``'s world submit needs this as well as the rect
+    to mirror what its HUD submit already draws.
+
+    ``points`` are FULLY-RESOLVED screen pixels, for the same reason
+    ``WorldRect.rect`` is. Resolves to an ``OverlayLines``.
+    """
+
+    world_pos: tuple          # (wx, wy) depth-sort anchor ONLY
+    points: tuple             # ((x, y), ...) fully-resolved SCREEN px
+    color: tuple
+    width: int = 1
+    closed: bool = False
+    layer: str = "entities"
+    rank: int = 0

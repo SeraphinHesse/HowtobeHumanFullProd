@@ -6,6 +6,7 @@ Headless via SDL dummy drivers; runs against a tempfile copy of data/
 (repo data never touched).
 """
 import contextlib
+import copy
 import io
 import os
 import shutil
@@ -76,6 +77,15 @@ def _restore_font_state_after(case):
     # passed on Windows (where the shuffle happened to separate them) and
     # failed on CI's `core` shard, reporting a drift that did not exist.
     strings_snapshot = dict(_strings._STRINGS)
+    # A FOURTH, exactly as this class's docstring predicted one would be:
+    # VfxAuthoringPLAN VA-5's `configure_highlights` moved five tile-highlight
+    # colours out of the C_* block (three of them palette keys) into
+    # `data/balancing/vfx.json`, and rebinds two module dicts IN PLACE from
+    # the live file at boot — the same shape as `_STRINGS`, so the same leak.
+    # `test_highlight_data.TestFallbackEqualsData` is the drift test it would
+    # otherwise have made lie.
+    highlights_snapshot = copy.deepcopy(_widgets._HIGHLIGHTS)
+    highlight_triggers_snapshot = dict(_widgets._HIGHLIGHT_TRIGGERS)
 
     def restore():
         _fonts._FONT_PATH, _fonts._FONT_BYTES = font_family
@@ -88,6 +98,12 @@ def _restore_font_state_after(case):
             setattr(_widgets, name, value)
         _strings._STRINGS.clear()
         _strings._STRINGS.update(strings_snapshot)
+        # Both are replaced IN PLACE by configure_highlights, so restore them
+        # the same way rather than rebinding the names.
+        _widgets._HIGHLIGHTS.clear()
+        _widgets._HIGHLIGHTS.update(highlights_snapshot)
+        _widgets._HIGHLIGHT_TRIGGERS.clear()
+        _widgets._HIGHLIGHT_TRIGGERS.update(highlight_triggers_snapshot)
 
     case.addCleanup(restore)
 
@@ -114,7 +130,8 @@ class TestTheRestoreCoversEveryThemeGlobal(unittest.TestCase):
         called = set(re.findall(r"\b(configure_\w+)\s*\(", host))
         covered = {"configure_fonts",     # _FONT_PATH/_FONT_BYTES/_FONT_SPECS/_cache
                    "configure_palette",   # widgets.C_*
-                   "configure_strings"}   # strings._STRINGS
+                   "configure_strings",   # strings._STRINGS
+                   "configure_highlights"}  # widgets._HIGHLIGHTS/_TRIGGERS
         self.assertEqual(
             called, covered,
             "game/main.py configures a module global this file's "
