@@ -120,7 +120,9 @@ class MasterSheetsPanel(QWidget):
         self._colours.setPlaceholderText(
             "Comma-separated colour/season names (optional)")
 
-        self._save = QPushButton("Save slicing", box)
+        # Not "Save slicing": on a sheet with users this button saves the
+        # colour names ALONE (the slicing fields are locked and preserved).
+        self._save = QPushButton("Save", box)
         self._save.clicked.connect(self._on_save_clicked)
 
         self._lock_label = QLabel("", box)
@@ -216,15 +218,23 @@ class MasterSheetsPanel(QWidget):
         self._on_current_changed(self._list.currentItem(), None)
 
     def save_selected(self):
-        """Write the slicing form back to the selected sheet's registry entry.
-        No PNG is touched. Returns the sheet id, or None when there is nothing
-        to write.
+        """Write the form back to the selected sheet's registry entry. No PNG
+        is touched. Returns the sheet id, or None when there is nothing to
+        write.
 
-        Refuses (returns None) while the sheet has users — defense in depth
-        behind the disabled controls, the same D10 rule ``GridInUseError``
-        enforces on the re-import path."""
+        **D10 locks the SLICING values, not the colour NAMES.** With users, the
+        three slicing fields (`frame_w`/`frame_h`/`column_width`) keep their
+        stored values verbatim — defense in depth behind the disabled controls,
+        the same rule ``GridInUseError`` enforces on the re-import path — but
+        `columns` is still written. Naming a sheet's columns re-cuts nothing:
+        it maps an INDEX the art already has to a label, so no linking slot's
+        window moves by a pixel. Refusing it wholesale is what made a
+        colour-capable sheet impossible to declare after its first slot linked,
+        which in turn left the building-colour swatches permanently unbuildable
+        (D6 needs a non-empty `columns`), with the only escape being to clear
+        every linking slot first."""
         sheet = self.selected_sheet()
-        if sheet is None or sheet.users:
+        if sheet is None:
             return None
         columns = master_sheet_import.parse_columns(
             self._colours.text(), self._data_dir)
@@ -232,9 +242,10 @@ class MasterSheetsPanel(QWidget):
         entry = (doc.get("entries") or {}).get(sheet.sheet_id)
         if not isinstance(entry, dict):
             return None
-        entry["frame_w"] = self._frame_w.value()
-        entry["frame_h"] = self._frame_h.value()
-        entry["column_width"] = self._column_width.value()
+        if not sheet.users:
+            entry["frame_w"] = self._frame_w.value()
+            entry["frame_h"] = self._frame_h.value()
+            entry["column_width"] = self._column_width.value()
         # Omit-at-default (the `slice`/`tint_overlay`/`row_start` convention):
         # an unnamed sheet carries no `columns` key at all, which the schema's
         # `minItems: 1` requires anyway.
@@ -349,7 +360,9 @@ class MasterSheetsPanel(QWidget):
             names = ", ".join(sheet.users)
             self._lock_label.setText(
                 f"Locked: {len(sheet.users)} slot(s) cut windows out of this "
-                f"sheet — {names}. Clear them first to change its slicing.")
+                f"sheet — {names}. Clear them first to change its slicing. "
+                f"Colour names stay editable — naming a column re-cuts "
+                f"nothing.")
             for widget in self._slicing_widgets():
                 widget.setToolTip(f"Locked by: {names}")
         else:
@@ -359,8 +372,16 @@ class MasterSheetsPanel(QWidget):
                 widget.setToolTip("")
 
     def _slicing_widgets(self):
-        return (self._frame_w, self._frame_h, self._column_width,
-                self._colours, self._save)
+        """The three SLICING fields D10 locks while slots link.
+
+        `_colours` and `_save` are deliberately NOT here. A colour name maps an
+        index the art already has to a label — it moves no window and re-cuts
+        no frame — so locking it with the slicing values made a colour-capable
+        sheet undeclarable the moment its first slot linked, and the building
+        swatches (which D6 gates on a non-empty `columns`) permanently
+        unreachable. `save_selected` keeps the stored slicing values verbatim
+        while there are users, so an enabled Save cannot write one."""
+        return (self._frame_w, self._frame_h, self._column_width)
 
     def _set_slicing_enabled(self, enabled):
         for widget in self._slicing_widgets():

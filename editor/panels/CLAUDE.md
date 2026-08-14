@@ -1907,6 +1907,18 @@ calls):
   (ED-30) rather than a save-time error — the horizontal twin of `_row_to`'s
   minimum tracking `_row_from`. The clamp is applied to the STATE too, since
   `draft_entry()` reads `_column`.
+- **A RowEditor is as wide as the master COLUMN, not as the sheet** (the
+  live-testing fix). `_load_sheet` keeps `_sheet_cols` = the sheet's full
+  frame-column count (the column spin's ceiling derives from it) but builds
+  each `RowEditor` with `min(column_width, cols)` whenever `_master_applies()`
+  and `column_width > 0` — so the `frames` count a row SAVES, its hide
+  checkboxes and its loop spins all stop at the column boundary. Deriving them
+  from the sheet width instead is what wrote a 68-frame idle row against a
+  17-frame-wide column: the animation walked out of its colour into the next
+  one and, past the last column, off the sheet into the grey X. The info line
+  says `… — N/column` when the two differ. `engine/assets/CLAUDE.md` documents
+  the engine-side net that now refuses such a frame rather than borrowing the
+  neighbour's pixels.
 - **`column`/`column_mode`/`column_width` are optional-key-shaped** like
   `slice`/`tint_overlay`/`row_start`: omitted at `0`/`"manual"`/`0`, and
   `draft_entry()` **preserves** all three on any path that does not author them
@@ -1935,10 +1947,18 @@ calls):
   test `exec()`s anything. `QFileDialog` is confined to
   `_on_reimport_browse_clicked`; `set_reimport_source()` is the same seam
   without the modal.
-- **D10 locks the SLICING FORM, not Re-import.** With users, the
-  frame_w/frame_h/column_width/colours editors and Save are disabled and a
-  label names the linking slots ("Clear them first"); `save_selected()` refuses
-  as well, defense in depth. Re-import stays enabled at all times on purpose:
+- **D10 locks the SLICING FORM, not Re-import — and NOT the colour names.**
+  With users, the frame_w/frame_h/column_width spins are disabled and a label
+  names the linking slots ("Clear them first"); `save_selected()` keeps those
+  three stored values verbatim, defense in depth. **`_colours` and Save stay
+  ENABLED**, and `save_selected` still writes `columns`: naming a column maps
+  an index the art already has to a label, moving no window and re-cutting no
+  frame, so D10's argument does not reach it. Locking it with the slicing
+  values made a colour-capable sheet undeclarable the moment its first slot
+  linked — and since D6 gates the building-colour swatches on a non-empty
+  `columns`, that made the swatches unreachable in both screens with no
+  recovery but clearing every linking slot. `_slicing_widgets()` is therefore
+  the three spins ONLY; do not put the colours field or Save back into it. Re-import stays enabled at all times on purpose:
   the ENFORCEMENT is `GridInUseError` inside `import_master_sheet`, which
   refuses a grid change on a linked sheet with a message naming the slots
   before touching the PNG or the registry — a UI lock there would hide the

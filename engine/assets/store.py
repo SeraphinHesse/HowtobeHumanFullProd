@@ -251,6 +251,26 @@ class AssetStore:
             return self._frames[key]
         if sheet is _LOAD_FAILED:
             surface = _LOAD_FAILED
+        elif entry.column_width > 0 and col >= entry.column_width:
+            # OUT OF THE COLUMN WINDOW. A master column spans exactly
+            # `column_width` frame-columns (D1), so frame `col` of a
+            # column-sliced entry must satisfy `col < column_width`. Without
+            # this the rect just walks into the NEXT column and silently
+            # returns a different colour's/season's pixels — and, past the
+            # last column, off the sheet entirely. That is the "silently wrong
+            # pixels" failure D10's cache-key note guards on the other axis;
+            # this is the same guard on the frame axis. Degrade to the grey X
+            # with one warning, exactly as an off-sheet row already does
+            # (E-37) — never raise, and never borrow a neighbour's art.
+            # It CANNOT fire for a pre-column entry: `column_width` is 0 there.
+            # The usual cause is an authored `frames` count taken from the
+            # whole sheet width instead of the column width.
+            log.warning("frame (row %d, col %d) of %s is outside its master "
+                        "column: the column is %d frame(s) wide, so this "
+                        "entry's rows may declare at most %d frames — using "
+                        "placeholder", row, col, entry.slot_key,
+                        entry.column_width, entry.column_width)
+            surface = _LOAD_FAILED
         else:
             # THE one place the entry's row window AND column block are
             # applied: `row`/`col` index into this entry's own rows[]/

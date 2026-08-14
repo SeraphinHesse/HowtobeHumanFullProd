@@ -33,6 +33,7 @@ import copy
 import math
 import os
 import time
+from dataclasses import replace
 from pathlib import Path
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
@@ -379,6 +380,7 @@ class ViewportPanel(QWidget):
         manifest = self._disk_manifest
         if self._draft is not None:
             manifest = manifest.override(*self._draft)
+        manifest = self._with_preview_column(manifest)
         self._manifest = manifest
         self._assets = AssetStore(manifest=manifest, registry=self._registry,
                                   sprites_dir=self._data_dir / "sprites")
@@ -443,8 +445,43 @@ class ViewportPanel(QWidget):
 
     def _on_column_index_changed(self, index):
         """The column combo's live driver: the selected INDEX is the column
-        (D3). -1 (an empty combo) means "no driver" -> None."""
+        (D3). -1 (an empty combo) means "no driver" -> None.
+
+        Rebuilds the store because `_with_preview_column` resolves the manual
+        case into the in-memory entry — passing `column=` on the RenderItem
+        alone only ever moved a `season`/`building_color` slot."""
         self.preview_column = index if index >= 0 else None
+        self._build_store()
+
+    def _with_preview_column(self, manifest):
+        """EDITOR-ONLY: let the column combo preview ANY column, including on a
+        `manual` slot.
+
+        The store resolves a `manual` entry to its own STORED column and
+        ignores the caller's live one (D3) — correct for the game, and the
+        reason the combo used to look dead on the majority of slots, which are
+        manual. A preview control that silently does nothing is not honest
+        about the art; the designer is asking "what is in column 2 of this
+        sheet", a question every mode can answer. So for a manual entry the
+        chosen column is folded into the previewed COPY of the entry, where
+        `manual` reads it as authoritative.
+
+        This touches the viewport's in-memory manifest only. `DetailsPanel.
+        draft_entry()` builds the saved entry from its OWN state, so nothing
+        here can be written to disk, and the store's D3 rule is untouched — the
+        game still resolves a manual slot to its stored column."""
+        # `getattr`, not attribute access: `_build_store()` runs during
+        # __init__, BEFORE the preview attributes are assigned.
+        slot = getattr(self, "preview_slot", None)
+        column = getattr(self, "preview_column", None)
+        if slot is None or column is None:
+            return manifest
+        entry = manifest.entry(slot)
+        if (entry is None or entry.column_width <= 0
+                or entry.column_mode != "manual"
+                or entry.column == column):
+            return manifest
+        return manifest.override(slot, replace(entry, column=column))
 
     def set_anchors(self, mapping):
         """The panel's authoritative {name: (x, y)} mapping for the

@@ -76,21 +76,27 @@ class MasterSheetsPanelTest(TempDataCase):
         panel = self.make()
         panel.select_sheet(self.sheet_id)
         self.assertFalse(panel._column_width.isEnabled())
-        self.assertFalse(panel._save.isEnabled())
         self.assertIn("painter_t1_lvl1", panel._lock_label.text())
+        # D10 locks the SLICING values, never the colour NAMES: naming a column
+        # re-cuts nothing, and locking it made a colour-capable sheet
+        # undeclarable once its first slot linked.
+        self.assertTrue(panel._colours.isEnabled())
+        self.assertTrue(panel._save.isEnabled())
 
         panel.select_sheet(self.other_id)          # nothing links to this one
         self.assertTrue(panel._column_width.isEnabled())
         self.assertTrue(panel._save.isEnabled())
 
-    def test_save_selected_is_refused_while_slots_link(self):
+    def test_save_keeps_slicing_but_writes_colours_while_slots_link(self):
         self.link_slots("painter_t1_lvl1")
         panel = self.make()
         panel.select_sheet(self.sheet_id)
-        panel._column_width.setValue(4)
-        self.assertIsNone(panel.save_selected())
-        self.assertEqual(
-            self.registry()["entries"][self.sheet_id]["column_width"], 2)
+        panel._column_width.setValue(4)            # locked: must not land
+        panel._colours.setText("Pink, Red")        # free: must land
+        self.assertEqual(panel.save_selected(), self.sheet_id)
+        entry = self.registry()["entries"][self.sheet_id]
+        self.assertEqual(entry["column_width"], 2)
+        self.assertEqual(entry["columns"], ["pink", "red"])
 
     # -- writes --------------------------------------------------------------
 

@@ -472,6 +472,26 @@ class TestColumnBlock(SheetCase):
             self.frame_colour(store.frame("tower", "idle", 0, column=2)),
             grid_colour(0, 8))
 
+    def test_frame_past_the_column_width_yields_placeholder(self):
+        """A row may not out-run its own column (D1).
+
+        The live bug this pins: the editor derived a row's `frames` from the
+        WHOLE sheet width, so a 4-frame row sat in a 2-frame-wide column and
+        the cut walked into the NEXT column's art — a different colour/season,
+        returned silently as if it were this one — and off the sheet entirely
+        past the last column."""
+        make_grid_sheet(self.sprites_dir / "imported" / "tower.png",
+                        cols=12, rows=2)
+        store = self.store(entry(frames=(4, 2), column_width=2, column=0))
+        # frame 1 is the column's LAST frame — still real art.
+        self.assertEqual(self.frame_colour(store.frame("tower", "idle", 125)),
+                         grid_colour(0, 1))
+        # frame 2 is column 1's frame 0. Refuse it; never borrow it.
+        with self.assertLogs("engine.assets.store", level="WARNING"):
+            frame = store.frame("tower", "idle", 250)
+        self.assertNotEqual(self.frame_colour(frame), grid_colour(0, 2))
+        self.assertEqual(frame.surface.get_size(), (FRAME_W, FRAME_H))
+
     def test_caller_column_ignored_when_manual(self):
         make_grid_sheet(self.sprites_dir / "imported" / "tower.png",
                         cols=12, rows=2)

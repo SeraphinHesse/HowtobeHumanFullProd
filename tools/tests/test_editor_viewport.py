@@ -1658,6 +1658,11 @@ class TestColumnSwitcher(TempDataCase):
         panel._column_combo.setCurrentIndex(1)
         self.assertEqual(panel.preview_column, 1)
         items.clear()
+        # Re-patch: a column change rebuilds the store (and with it the
+        # Renderer), because the manual case is resolved into the previewed
+        # entry rather than passed on the RenderItem alone.
+        original = panel._renderer.submit
+        panel._renderer.submit = wrapper
         panel.render_frame()
         self.assertEqual(
             [i.column for i in items if i.slot_key == self.SLOT], [1])

@@ -170,6 +170,21 @@ crashes boot.** When you change asset conventions, update THIS doc.
     the clamp degrades to the grey-X placeholder with a warning naming the
     resolved block, never raises (E-37) — the same path an off-sheet row
     already takes.
+  - **A ROW MAY NOT OUT-RUN ITS COLUMN, and `_frame_surface` enforces it.**
+    A master column spans exactly `column_width` frame-columns (D1), so a
+    column-sliced entry's frame index must satisfy `col < column_width`;
+    `col >= column_width` degrades to the grey X with one warning, exactly
+    like an off-sheet row. It cannot fire for a pre-column entry
+    (`column_width` is 0 there, and the guard is gated on `> 0`).
+    **Without it the rect simply walked into the NEXT column** and returned
+    another colour's/season's pixels as if they were this one — the same
+    "silently wrong pixels" class the 4-tuple cache key guards on the other
+    axis, and a real shipped bug: the editor derived a row's `frames` from the
+    whole sheet width, so a 68-frame idle row sat in a 17-frame column,
+    rotated through all four colours and then ran off the sheet. The authoring
+    half of that fix is in `editor/panels/CLAUDE.md`; this guard is the net
+    under it, and it is why a mis-authored `frames` count now announces itself
+    instead of looking like a carousel.
   - **`_frames`/`_hit_masks` gain the resolved block in their cache key**
     (`(slot_key, row, col, block)`, up from `(slot_key, row, col)`): two
     different columns of one slot must resolve to two DIFFERENT surfaces, or

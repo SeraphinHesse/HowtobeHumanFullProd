@@ -364,11 +364,21 @@ column count. Selecting an entry rides `self.preview_column` onto the preview
 `RenderItem.column` (`int | None`) — `None` means "no live driver, use the
 entry's stored column", and `0` is a real column, never a sentinel.
 
-**For a `manual`-mode entry this combo changes nothing on screen**
-(`engine/assets/store.py`'s `_column_block` always resolves to the entry's own
-stored `column` when `column_mode == "manual"`, D3) — it only visibly drives
-`season` / `building_color` entries. That is intended, not a bug: if you pick a
-colour on a manual-mode slot and nothing moves, the combo is working.
+**It previews ANY column, in every mode — including `manual`.** The store
+resolves a `manual` entry to its own stored `column` and ignores a caller's
+live one (D3, and the game still behaves exactly that way), so passing
+`column=` on the `RenderItem` alone moved only `season`/`building_color`
+slots and left the combo visibly dead on the majority of slots, which are
+manual. `ViewportPanel._with_preview_column` closes that: for a manual entry
+the chosen column is folded into the previewed COPY of the manifest entry —
+where `manual` reads it as authoritative — inside `_build_store`, which is why
+`_on_column_index_changed` rebuilds the store instead of only setting a field.
+It touches the viewport's IN-MEMORY manifest only: `DetailsPanel.draft_entry()`
+builds the saved entry from its own state, so a previewed column can never be
+written to disk, and the store's D3 rule is untouched. (This reverses the
+earlier "if nothing moves, the combo is working" note — a preview control that
+silently does nothing was not honest about the art; "what is in column 2 of
+this sheet" is a question every mode can answer.)
 
 ## Master Sheets panel (`panels/master_sheets.py`, MasterSheetColumnsPLAN E5)
 

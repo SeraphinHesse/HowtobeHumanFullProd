@@ -1173,17 +1173,33 @@ class DetailsPanel(QWidget):
         count = (available if self._row_count is None
                  else max(1, min(self._row_count, available)))
         self._row_start, self._row_count, rows = start, count, count
+        # A ROW IS AS WIDE AS ITS MASTER COLUMN, NOT AS THE WHOLE SHEET.
+        # `cols` is the sheet's full frame-column count and stays that way —
+        # `_sheet_cols` above derives the column spin's ceiling from it. But a
+        # column-sliced entry only owns `column_width` of those columns (D1),
+        # so the RowEditors (and the `frames` count they save) must stop at the
+        # column boundary. Deriving them from `cols` instead is what wrote a
+        # 68-frame idle row against a 17-frame-wide column: the animation
+        # walked straight out of its colour into the next one and, past the
+        # last column, off the sheet into the grey X.
+        row_cols = (min(self._column_width, cols)
+                    if self._master_applies() and self._column_width > 0
+                    else cols)
         if (w % fw) or (h % fh):
             self._info.setText(
                 f"⚠ not a clean {fw}×{fh} grid — remainder cropped "
                 f"({cols} cols × {rows} rows).")
+        elif row_cols != cols:
+            self._info.setText(
+                f"{cols} cols × {rows} rows  ({fw}×{fh}/frame) — "
+                f"{row_cols}/column")
         else:
             self._info.setText(f"{cols} cols × {rows} rows  ({fw}×{fh}/frame)")
         self._clear_rows()
         vocabulary = self.registry.animations(self.slot_key)
         saved_rows = (entry or {}).get("rows", [])
         for r in range(rows):
-            editor = RowEditor(r, cols, vocabulary)
+            editor = RowEditor(r, row_cols, vocabulary)
             if r < len(saved_rows):
                 editor.set_from(saved_rows[r])
             elif r > 0:
