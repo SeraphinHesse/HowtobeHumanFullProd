@@ -56,7 +56,10 @@ class RecordingRenderer:
         self.overlay.append(("polys", points, rgba))
 
     def submit_world_fill(self, points, world_pos, layer="entities",
-                          color=None, border=None, border_width=2):
+                          color=None, border=None, border_width=2, rank=0):
+        # `rank` (VA-3) is accepted and dropped: this recorder feeds the
+        # screen-preview capture, which is about WHAT is drawn, not the depth
+        # order it is drawn in.
         self.world_fills.append(
             (points, world_pos, layer, color, border, border_width))
 

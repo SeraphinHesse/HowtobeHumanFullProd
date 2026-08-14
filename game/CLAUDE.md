@@ -158,6 +158,42 @@ for the full event-kind contract (what an LLM or a human reads) and
   `game.core.session` imports `game.debug` at module scope, so exporting it
   would close an import cycle.
 
+## VFX variant selection (`vfx_variants.py`, `vfx_misc.py`, VfxAuthoringPLAN VA-2)
+Two small top-level modules owning the GAME half of "which of this effect's
+interchangeable sprites plays this time". The pure registry half (which slots
+are a family, clamped indexing) is `engine/vfx/variants.py`, which is kept free
+of this vocabulary exactly as `engine/vfx/params.py` is kept free of spark
+preset names (D5).
+- **`vfx_variants.py`** — `RANDOM`/`LEVEL`/`MISC` (the `variant_select.mode`
+  enum), `source_level(obj)` and `resolve(registry, slot_key, mode, misc_key,
+  *, rng=None, source=None)`. **`resolve` short-circuits before any mode logic
+  when a slot has fewer than two variants, and that is load-bearing, not an
+  optimisation**: every vfx slot ships with exactly one variant, so drawing an
+  RNG number on the common path would consume from the shared global stream
+  and desync every downstream roll from what the game did before this feature.
+  VA-2 is a visual no-op only because that branch exists;
+  `tools/tests/test_vfx_variants.py` pins it with a draw-counting Random.
+  `source_level` reads a building's `TierState.current_tier` or an enemy's
+  `_enemy_era` transient — reaching into that underscore is deliberate (it is
+  set on EVERY enemy at construction, including the boss, whose public `era`
+  is a different number off `DeathSpawn`), and the alternative is widening
+  `RunState.*_events` and the `resolve_combat` callbacks to thread a level
+  through for a cosmetic lever, which D4 declines. No source in hand ⇒ variant
+  0 — the answer at the five events that carry only a world point.
+- **`vfx_misc.py`** — the "misc value" provider registry: `register(key, fn)` /
+  `resolve(key) -> int` / `unregister` / `clear` / `registered`. **Nothing
+  registers a provider today, and that is the point**: a designer can author a
+  `misc_key` in the editor before the code that feeds it exists. EVERY failure
+  mode resolves to 0 and none of them raise (unregistered key, empty key, a
+  provider that throws, a non-integer return) — this is a cosmetic lever, so a
+  bad provider must pick the first variant, not take down the frame that
+  consulted it. An empty key cannot be registered: `""` is what every trigger
+  row ships with, and binding it would turn every un-configured misc row live
+  at once.
+- **`editor/` mirrors the mode→index mapping rather than importing it** (that
+  package may never import `game/`) — the sanctioned duplication
+  `editor/vfx_params.py` and `editor/timeline_curve.py` already are.
+
 ## Host conventions (`main.py`, Phase 2 → 10A)
 - `main(max_frames=None)` is importable so `tools/smoke.py` can drive the same code
   headlessly (G-8); `py game/main.py` runs it windowed. `main(autostart=True)`

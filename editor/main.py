@@ -306,6 +306,10 @@ class MainWindow(QMainWindow):
         # ESV-4: vfx preview <-> balancing staging wiring
         self.vfx_preview.set_balancing_panel(self.balancing)
         self.balancing.value_staged.connect(self.vfx_preview.on_balancing_value_staged)
+        # VA-7: the panel's roster strip writes slots.json directly (registry
+        # edits are structural, not staged values), so the rest of the shell
+        # has to re-read it — the DetailsPanel.registry_changed precedent.
+        self.vfx_preview.registry_changed.connect(self._reload_registries)
 
         # Theme wiring (UH-6, D5): the "Theme" leaf -> right_stack; Save ->
         # reconfigure engine.render.fonts in-process + repaint the viewport
@@ -878,8 +882,14 @@ class MainWindow(QMainWindow):
     # family (Buttons/Button, Panels/Panel, …) — a variant is another skin.
     # "conditions" is the deco case exactly: each condition's leaf group holds
     # interchangeable art the game rolls between per tile.
+    # "vfx" joined in VfxAuthoringPLAN VA-6, and it is the deco/conditions case
+    # exactly: each effect's leaf group holds interchangeable art the game
+    # rolls between per spawn (random) or indexes by the source's tier/era.
+    # It could not be listed before VA-1 restructured that category — the vfx
+    # Effects group was FLAT, so `selection.variant_target()` returned None and
+    # "+ Variant" would have been a dead button.
     _VARIANT_TARGETS = {"enemies": None, "deco": None, "map": {"Background"},
-                        "ui": None, "conditions": None}
+                        "ui": None, "conditions": None, "vfx": None}
     _DECO_CATEGORY = "deco"
     # ui -> Buttons is the second "+ Type" target: a brand-new button FAMILY
     # (its own variant family), not another skin of an existing one.
@@ -1107,6 +1117,13 @@ class MainWindow(QMainWindow):
         self.palette.refresh_icons()
         self.anchors.reload()   # ESV-2: a DetailsPanel save/clear must not
         # leave the anchors panel (or its handle) stale relative to disk.
+        # VA-7 follow-up: the vfx preview owns its OWN AssetStore, built at
+        # construction, so art imported through the tree's importer never
+        # reached it — the preview kept drawing the procedural fallback for a
+        # slot that HAD art, which reads as "binding the sprite did nothing".
+        # Its own Import button already called this; a save from anywhere else
+        # has to as well.
+        self.vfx_preview.reload_assets()
 
     # -- run controls (ED-50/51/52) ------------------------------------------
 

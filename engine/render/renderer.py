@@ -24,9 +24,16 @@ import time
 
 from . import backend_api
 from .hud import HudLines, HudRect, HudSprite, HudText
-from .item import LAYERS, DrawCall, OverlayLines, OverlayPolys, WorldFill
+from .item import (
+    LAYERS, DrawCall, OverlayLines, OverlayPolys, WorldFill, WorldLines,
+    WorldRect,
+)
 
 _HUD_TYPES = (HudRect, HudText, HudSprite, HudLines)
+# VA-3: the depth-queue members that carry screen-pixel geometry hung off a
+# world anchor, rather than world-space geometry. Grouped so flush() can
+# resolve their shared anchor step once.
+_WORLD_PX_TYPES = (WorldRect, WorldLines)
 
 
 def fit_factor(frame_w, tile_w, fit_tiles):
@@ -112,7 +119,7 @@ class Renderer:
         self._queue.append(item)
 
     def submit_world_fill(self, points, world_pos, layer="entities",
-                          color=None, border=None, border_width=2):
+                          color=None, border=None, border_width=2, rank=0):
         """fix/depth-sorted-world-fills: a WorldFill, appended to the SAME
         queue as RenderItem so it sorts by real tile depth against buildings
         (see WorldFill's docstring) — unlike submit_overlay_lines/polys
@@ -125,7 +132,29 @@ class Renderer:
         if color is None and border is None:
             raise ValueError("world fill needs a color, a border, or both")
         self._queue.append(WorldFill(tuple(points), world_pos, layer, color,
-                                     border, border_width))
+                                     border, border_width, rank))
+
+    def submit_world_rect(self, world_pos, rect, color, layer="entities",
+                          rank=0):
+        """VA-3: a fixed-PIXEL-SIZE rect depth-sorted at ``world_pos`` — see
+        WorldRect's docstring for why neither WorldFill (world-space
+        geometry, so it scales with zoom) nor HudRect (no depth at all) can
+        do this. ``rect`` is (x, y, w, h) in FULLY-RESOLVED screen pixels;
+        ``world_pos`` decides only where it sorts."""
+        if layer not in LAYERS:
+            raise ValueError(f"unknown draw layer {layer!r}; expected one of {LAYERS}")
+        self._queue.append(WorldRect(world_pos, tuple(rect), color, layer, rank))
+
+    def submit_world_lines(self, world_pos, points, color, width=1,
+                           closed=False, layer="entities", rank=0):
+        """VA-3: WorldRect's polyline sibling. ``points`` are fully-resolved
+        SCREEN pixels; ``world_pos`` decides only where they sort."""
+        if len(points) < 2:
+            raise ValueError("world lines need at least 2 points")
+        if layer not in LAYERS:
+            raise ValueError(f"unknown draw layer {layer!r}; expected one of {LAYERS}")
+        self._queue.append(WorldLines(world_pos, tuple(points), color, width,
+                                      closed, layer, rank))
 
     def submit_overlay_lines(self, points, color, width=1, closed=False):
         """E-24 overlay pass: a polyline in WORLD coordinates (e.g. the
@@ -176,7 +205,8 @@ class Renderer:
         ordered = sorted(
             self._queue,
             key=lambda item: coords.depth_key(
-                item.world_pos[0], item.world_pos[1], LAYERS.index(item.layer)
+                item.world_pos[0], item.world_pos[1], LAYERS.index(item.layer),
+                item.rank,
             ),
         )
         zoom = coords.camera.zoom
@@ -199,6 +229,27 @@ class Renderer:
                     draw_calls.append(OverlayLines(
                         points=screen_points, color=item.border,
                         width=item.border_width, closed=True))
+                continue
+            if isinstance(item, _WORLD_PX_TYPES):
+                # VA-3: geometry that is ALREADY screen pixels — world_pos
+                # served its whole purpose in the sort above. No coords call
+                # here on purpose: resolving the anchor at this point would
+                # round at a different place than the equivalent HUD submit
+                # does, and the two passes drawing the same effect 1px apart
+                # is exactly what this primitive exists to prevent (see
+                # WorldRect's docstring). Both resolve to OVERLAY primitives
+                # rather than HUD ones because backend_gpu raises on every
+                # HUD primitive (D7).
+                if isinstance(item, WorldRect):
+                    x0, y0, w, h = item.rect
+                    draw_calls.append(OverlayPolys(
+                        points=((x0, y0), (x0 + w, y0),
+                                (x0 + w, y0 + h), (x0, y0 + h)),
+                        color=item.color))
+                else:
+                    draw_calls.append(OverlayLines(
+                        points=item.points, color=item.color,
+                        width=item.width, closed=item.closed))
                 continue
             frame = self._assets.frame(item.slot_key, item.animation,
                                        item.anim_time_ms, column=item.column)

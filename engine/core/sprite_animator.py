@@ -47,4 +47,8 @@ class SpriteAnimator(Component):
             fit_tiles=self.fit_tiles,
             scale=self.scale,
             column=self.column if self.column >= 0 else None,
+            # VA-3: read off the transform beside `layer`, for the same reason
+            # — both are the OBJECT's draw-order metadata, not this
+            # component's. 0 everywhere but a cosmetic one-shot that opted in.
+            rank=transform.rank,
         )

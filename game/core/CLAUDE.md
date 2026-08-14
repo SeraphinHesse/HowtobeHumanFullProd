@@ -661,6 +661,18 @@ transitions it into a carrier (see `game/enemies/CLAUDE.md`).
 `Session.on_enemy_death` and `on_base_hit`; the gore gates live in the FX
 layer, core stays ui-free). No phase/payday ordering change.
 
+**A fourth: `building_respawn_events` (VfxAuthoringPLAN VA-4)** — `(col, row,
+tier)` per non-base building the payday revive slot brought BACK from dead.
+Filled inside step 9 (a pure append — **the sacrosanct step order is
+untouched**), drained by `game/ui/effects.py`'s
+`spawn_building_respawn_events` on the INCOME edge beside the income/painter/
+boost floaters. `alive` is read BEFORE `rebuild()`, because that slot
+full-heals every LIVING building too and only a genuine revive is a "respawn".
+It carries the tier where its siblings carry only a point: D4 declines to
+WIDEN the existing ledgers to thread a level through for a cosmetic lever, but
+this one is new, payday already holds the building, and a respawn is precisely
+the per-building event whose "vary the art by tier" the feature asked for.
+
 **A third, added later: `life_lost_events`** — the `boss_events` marker
 contract, one entry (the round number) appended by `on_base_hit` **inside its
 `charge` branch**, so a TU-7 waived tutorial loss (which costs no life)

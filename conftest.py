@@ -66,6 +66,9 @@ TIERS = {
     "test_editor_tutorial_paint": "editor",
     "test_editor_viewport": "editor",
     "test_registry_ops": "editor",
+    "test_vfx_roster_ops": "editor",  # VA-6: add/remove/rename a VFX effect
+    "test_vfx_roster_panel": "editor",  # VA-7: the panel roster + binding strip
+    "test_vfx_highlight_preview": "editor",  # VA-8: the highlights preview path
     "test_run_controls": "editor",
     "test_screen_honest_controls": "editor",
     "test_vfx_preview": "editor",
@@ -175,6 +178,14 @@ TIERS = {
     "test_ui_text_binding": "editor",
     "test_vfx": "core",  # ESV-3a: engine.vfx emitters + the vfx balancing domain
     "test_vfx_play_once": "core",  # ESV-5: PlayOnceVfx + the trigger table
+    "test_vfx_variants": "core",  # VA-2: VFX variant selection (engine + game)
+    # VA-3: depth_key rank + WorldRect/WorldLines. Tier "core" (this table's
+    # values are the pytest MARKERS — core/editor/meta — not the panel domains
+    # in tools/test_domains.py, where this same module is filed under
+    # "engine").
+    "test_depth_rank": "core",
+    "test_building_respawn": "core",  # VA-4: the building_respawn event
+    "test_highlight_data": "core",  # VA-5: tile highlights as data
     "test_video_playback": "core",
     "test_video_source": "core",
     "test_migration_timeline": "core",  # TimelinePLAN T6: unlock_min_round -> Timeline migration

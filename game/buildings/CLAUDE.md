@@ -378,6 +378,10 @@ Moving an ALREADY-PLACED building to another unbuilt buildable tile.
   `BuildingsGlobal.Movement` in `data/balancing/buildings.json` (G-7); the
   caller passes that subtree in, this module never loads it. `move_cost` /
   `move_time` / `move_distance` are pure and are what the UI quotes.
+  **`money_cost_enabled` ships `false` (feature: moving costs time only)** —
+  a move is free in love, `time_cost_enabled` alone still gates the round
+  cost; `Movement.warning_text` (designer copy, shown in the move confirm
+  modal whenever the move takes 1+ rounds) lives beside it — `data/CLAUDE.md`.
   **No diagonal shortcut and no tilemap/ownership check** (fix for the
   building-move-manhattan-distance bug, where a diagonal-shortcut Chebyshev
   metric let a move quote the same price whether the tiles it crossed were

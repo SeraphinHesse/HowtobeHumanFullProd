@@ -69,6 +69,19 @@ class AssetStore:
         self._frames = {}   # (slot_key, row, col, block) -> Surface | _LOAD_FAILED
         self._hit_masks = {}   # (slot_key, row, col, block) -> pygame.Mask
 
+    @property
+    def registry(self):
+        """The ``SlotRegistry`` this store resolves frame sizes through, or
+        None when constructed without one (test dummies).
+
+        Read-only, and added for VfxAuthoringPLAN VA-2: a caller holding an
+        AssetStore to ask "does this slot have art?" often also needs "which
+        slots are interchangeable with it?", which is registry structure. The
+        alternative was every such caller reaching into ``_registry`` or the
+        host wiring the registry a second time alongside the store it is
+        already inside."""
+        return self._registry
+
     def animation_total_ms(self, slot_key, name):
         """The named animation's total playback duration in ms for a slot, or
         ``None`` when the slot or that animation is absent (no idle fallback).

@@ -37,10 +37,25 @@ itself is pure orchestration. See the engine router's pygame-import allow-list.
   art is its one consumer (`game/map/conditions.py`). Engine-generic name on
   purpose: no game vocabulary here. Adding it left `ground` at index 0, which
   is what kept the ground-cache invariant below intact.
-- **`depth_key = (layer_index, wx+wy, wy)`** makes the draw LAYER the primary sort
-  key, so the whole `ground` layer always draws before `entities`/`deco`/
-  `overlay`. This is a **LOAD-BEARING invariant** — if `depth_key` ever
-  interleaves layers, the ground cache breaks.
+- **`depth_key = (layer_index, wx+wy, wy, rank)`** makes the draw LAYER the
+  primary sort key, so the whole `ground` layer always draws before
+  `entities`/`deco`/`overlay`. This is a **LOAD-BEARING invariant** — if
+  `depth_key` ever interleaves layers, the ground cache breaks.
+  - **`rank` (VA-3) is LAST, and that placement is the design.** It is how a
+    cosmetic effect says it draws in front of (+1) or behind (-1) the building
+    or enemy standing on its own tile — and only that. Layer still beats it (the
+    ground cache), and iso depth still beats it, so an effect on a near tile
+    keeps drawing over a building on a far one. It decides what position alone
+    cannot: the exact tie.
+  - **A 4-tuple whose last element is constant sorts identically to the old
+    3-tuple**, so every existing submitter (all of them, today) is a
+    byte-identical no-op. `RenderItem`, `WorldFill`, `WorldRect` and
+    `WorldLines` all carry `rank: int = 0`; `Transform` carries it too, so a
+    scene sprite gets it through `SpriteAnimator.render_items`.
+  - **This is why the designer-facing lever is ONE bool, not two.** Buildings
+    and enemies share the `entities` layer and sort against each other by the
+    same iso depth, so no single total order can put an effect in front of one
+    and behind the other.
 
 ## `RenderItem.column` — the LIVE master-sheet column (MasterSheetColumnsPLAN C3)
 `RenderItem` carries `column: int | None = None`, appended last, and
@@ -211,6 +226,31 @@ item's actual sorted position instead of in a separate trailing block.
   condition tint, RANGE, HEATMAP, TIER OVERVIEW, the tutorial highlight — one
   choke point, so every caller of those two got this for free) and
   `game/map/wall_render.py`'s wall-art emitter (see `game/map/CLAUDE.md`).
+
+### Screen-pixel depth items — `submit_world_rect` / `submit_world_lines` (VA-3)
+`WorldFill` is depth-sorted but its polygon is WORLD-space, so it grows and
+shrinks with zoom — right for a tile diamond, wrong for a particle, which is a
+few screen pixels at every zoom level. `HudRect` has the fixed size but lives in
+the HUD pass, drawn dead last with no depth at all. A spark that wants to pass
+BEHIND the building that emitted it needs both halves, and `WorldRect` /
+`WorldLines` are it: a world `world_pos` that decides ONLY where the item sorts,
+plus **fully-resolved SCREEN-pixel geometry**.
+- **The caller resolves the pixels, not `flush`.** This is deliberate: the
+  caller already holds the `CoordinateSystem` (it needs it for the equivalent
+  HUD submit), and resolving at flush would round at a different point than the
+  HUD pass does. That is not hypothetical — an anchor-relative offset truncates
+  `int(offset)` where `VfxSystem.submit_hud` truncates `int(anchor + offset)`,
+  **measured 1px apart on a slash line** while writing `test_depth_rank.py`.
+  Carrying the final rect makes "the same effect drawn in the other pass does
+  not move" true by construction rather than by matching two rounding sites by
+  hand.
+- **Both resolve to `OverlayPolys`/`OverlayLines`, never a HUD primitive** —
+  `backend_gpu.draw` raises `NotImplementedError` on every HUD primitive by
+  design (D7), so a `HudRect` in the depth-sorted world list would crash the GPU
+  host. Pinned by `test_depth_rank.TestWorldPixelPrimitives`.
+- Consumer: `engine/vfx/system.py`'s `submit_world`, the depth-participating
+  alternative to its `submit_hud` (which stays the default, and stays
+  always-on-top).
 
 ## Backend throughput (perf, for hundreds of entities/projectiles)
 `render/backend.py`:

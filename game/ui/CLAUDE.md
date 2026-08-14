@@ -827,15 +827,43 @@ picker and the confirmation.
   rung — move_select peels back to upgrade before the bare-panel close.
 - **`MovePreview`** — the `ConstructPreview` sibling, minus the name field,
   the dice and the stat list (nothing about the building changes, it just
-  relocates): display name, `Cost`/`Time` lines (`Free`/`Instant` at zero),
-  destination coords, CONFIRM/CANCEL. It reuses the SAME
-  `ui.Timing.construct_show_cancel`/`confirm_on_right_side` chrome keys and
-  the SAME `preview_*` id namespace, and mirrors `ConstructPreview`'s public
-  surface (`hover`/`confirm_hovered`/`update`/`handle_click`/`handle_key`/
-  `submit` + `confirm_btn`) closely enough that `main.py`'s existing
-  `panel.preview is not None` modal branch drives it with **no
-  preview-class-specific code**. `_preview_click` is the one place that
-  branches, on `isinstance(self.preview, MovePreview)`.
+  relocates): display name, ONE `Cost` line quoting ROUNDS (`Instant` at
+  zero — feature: move-building-time-only-cost merged the old separate
+  Cost-in-love/Time-in-rounds pair into this single line, since moving a
+  building spends no love any more), destination coords, CONFIRM/CANCEL.
+  `self.cost` (the love figure, always 0) is still carried and still what
+  `total_cost`/`_do_move`'s affordability check reads — only the SEPARATE
+  love-cost text line is gone. **The Cost line draws in `C_MOVE_HIGHLIGHT`
+  (the same cyan the destination path-line preview uses), never the
+  love-gold `C_GOLD` every OTHER preview's cost line uses** — the deliberate
+  visual signal that this number is a round count, not a currency figure. It
+  reuses the SAME `ui.Timing.construct_show_cancel`/`confirm_on_right_side`
+  chrome keys and the SAME `preview_*` id namespace, and mirrors
+  `ConstructPreview`'s public surface (`hover`/`confirm_hovered`/`update`/
+  `handle_click`/`handle_key`/`submit` + `confirm_btn`) closely enough that
+  `main.py`'s existing `panel.preview is not None` modal branch drives it
+  with **no preview-class-specific code**. Two places in THIS module branch
+  on `isinstance(self.preview, MovePreview)`: `_preview_click` (routes
+  CONFIRM to `_do_move` instead of `_do_place`), and `BuildingUI.hover` —
+  every other preview's hovered CONFIRM sets `self._hover_cost` to preview a
+  love spend on the HUD's top-left pill (`hud.py`'s `submit(...,
+  hover_cost=)`); a `MovePreview`'s CONFIRM is explicitly excluded from that,
+  since its cost is rounds, not love, and the pill must draw exactly as if
+  nothing were hovered.
+  - **The "will miss combat" warning (feature: move-building-time-only-cost)**
+    — a red `BuildingsGlobal.Movement.warning_text` line below the
+    destination coords, present only when `rounds > 0` (an instant, 0-round
+    move skips it — nothing is missed) and the balancing string is non-blank.
+    Wrapped at CONSTRUCT time via `wrap_text(..., "sm", pw - 16,
+    max_lines=3)` into `self._warning_lines`, which is what the panel's
+    height (`ph`) grows to fit — geometry is still fixed for the instance's
+    whole lifetime (10L-B), just computed from the actual wrapped line count
+    instead of a bare literal. It is dynamic designer content with no stored
+    id (the `ConstructPreview` stat-list/`levelup` explanation precedent), so
+    it is wrapped at construct time rather than draw time without tripping
+    the "layout_h, never a live font measurement" rule above — that rule
+    guards content the golden `screen_defaults.json`/`screen_previews.json`
+    capture, and this line is captured by neither.
 - **`_do_move`** mirrors `_do_place`: re-check love (a race since the modal
   opened), call `start_move` in a `try/except MoveError` (flash
   `CANNOT MOVE THERE` — the destination got taken), spend, log, close the
@@ -1418,6 +1446,52 @@ exercised by the golden capture/exporter today; re-check this if either ever
 starts pinning them). Pinned by `tools/tests/test_layout_h_invariant.py`
 (monkeypatches the measurement +1px and asserts both artifacts are
 unaffected).
+
+## The seven tile highlights are EFFECTS now (VfxAuthoringPLAN VA-5)
+`tile_selected`, `section_2x2`, `attack_range`, `move_target`, `wall_edge`,
+`upgrade_batch` and `tutorial_highlight` are `data/balancing/vfx.json` entries:
+a `procedural.highlights.<name>` param block (colour / outline width / fill
+alpha) plus a `triggers.<name>` row, so each can be retuned, replaced by an
+imported `vfx_<name>` spritesheet, and put in front of or behind a same-tile
+building — like every other effect.
+- **`widgets.submit_highlight(renderer, event, col, row, assets=…)` is the ONE
+  draw path**, and `_highlight_tiles` carries the EVENT NAME where it used to
+  carry a colour. Resolution mirrors `FloaterManager._play`: a bound
+  `sprite_slot` with imported art wins (the same
+  `animation_total_ms(slot, "idle") is not None` signal every art-tolerant
+  site uses), else the procedural diamond; `draw_in_front` becomes the VA-3
+  depth rank.
+- **They are CONTINUOUS, so they do NOT go through `_play`** (D7). A selection
+  outline is drawn every frame for as long as the tile stays selected;
+  `PlayOnceVfx`'s despawn clock would respawn the object every frame. That is
+  also why the resolver lives in `widgets.py` rather than behind
+  `FloaterManager`: `BuildingUI.submit` and the host both draw highlights and
+  neither holds the FX manager, while this module already owned
+  `submit_tile_diamond` — the one place a tile highlight has ever been drawn.
+- **`configure_highlights(vfx_doc)` is `configure_palette`'s twin**, called at
+  the same boot slot, with the same loaded-doc contract, the same
+  UNCONFIGURED-FALLBACK literals and the same fail-loud-on-key-mismatch rule.
+  Deliberately so: three of these five values WERE palette keys until this
+  phase. Read colours through `highlight_color(event)` at CALL time — the
+  early-binding trap the `C_*` block already warns about.
+- **Five constants are DELETED**: `C_HIGHLIGHT`, `C_HIGHLIGHT2`,
+  `C_RANGE_HIGHLIGHT` (palette keys, also removed from `palette.json` and
+  `_PALETTE_KEYS`) plus `C_MOVE_HIGHLIGHT` and `C_TUTORIAL_HIGHLIGHT` (bare
+  code constants). One home per value (G-7/D8) — leaving them in the palette
+  as well would be the dead-data gap `procedural.floaters` opened and ESV-6
+  had to close.
+- **Their non-tile consumers re-point at the same params rather than keeping a
+  second copy**: the RANGE overlay pill (`overlays.py`) and a wall builder's
+  walled TILES read `attack_range`; the move instruction text and the L-shaped
+  path line read `move_target`; the drag-select rectangle's fill and the two
+  name-field focus rings read `tile_selected`. Each of those IS the highlight's
+  colour seen somewhere else, which is why sharing is correct here and a
+  second key would not be.
+- `wall_edge` draws a LINE, not a diamond, so its `border_width` is the line
+  width and its `fill_alpha` is unused — the one non-uniform member of an
+  otherwise uniform block, documented in the schema.
+- Pinned by `tools/tests/test_highlight_data.py`, in `test_theme_data.py`'s
+  shape (stock table, fallback-equals-data, rebind-reaches-consumers).
 
 ## Fonts + palette are DATA now (UH-6, D5) + optional per-widget tint (D6)
 `data/ui/fonts.json` / `data/ui/palette.json` ship the exact 7 font presets /

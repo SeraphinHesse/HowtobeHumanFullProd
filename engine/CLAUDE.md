@@ -28,7 +28,7 @@ engine task; if an engine change forces a caller change, tell the user
 | `render/` | `engine/render/CLAUDE.md` | RenderItem→depth-sort→blit; backend throughput; HUD pass + fonts (G4: `flush(target, hud_target=…)` splits the HUD onto its own target + the Surface backend, for the GPU host's per-frame composite); the ground cache |
 | `physics/` | `engine/physics/CLAUDE.md` | SpatialGrid, TileOccupancy, waypoint `advance` (E-30..E-32) |
 | `assets/` | `engine/assets/CLAUDE.md` | slot registry, manifest v2, `playback_order`, grey-X placeholder; the master-sheet registry loader (`master_registry.py` — `data/sprites/master_sheets.json`, read by game AND editor) |
-| `vfx/` | none yet (this table is its doc) | procedural particle/gold/slash/splatter emitters + `VfxSystem` (ESV-3a); beam/crater/lightning/announce param dataclasses (ESV-3b, no engine-side state — see below); `play_once` — the one-shot sprite VFX (ESV-5, no engine-side state either — see below); `FloaterParams` (ESV-6, floater colours/lifetimes — also no engine-side state) |
+| `vfx/` | none yet (this table is its doc) | procedural particle/gold/slash/splatter emitters + `VfxSystem` (ESV-3a); beam/crater/lightning/announce param dataclasses (ESV-3b, no engine-side state — see below); `play_once` — the one-shot sprite VFX (ESV-5, no engine-side state either — see below); `FloaterParams` (ESV-6, floater colours/lifetimes — also no engine-side state); `variants` — the pure registry half of VFX variant selection (VA-2, vocabulary-free by design) |
 
 ## Top-level modules (`engine/*.py`) — this router IS their doc
 - **`tilemap.py`** (pure — no pygame, no Qt) is the ONE authority for the D-20 map
@@ -289,6 +289,41 @@ crater uses, with the alpha breathing over a sine pulse keyed off
 `FloaterManager`'s own `self._clock` (the `hud.py` XP-bar pulse shape). Every
 direct `VfxParams(...)` construction needed a `drummer_aura=` argument again
 (`editor/vfx_params.py`, `tools/tests/test_vfx.py`'s `VFX_PARAMS` fixture).
+
+**VfxAuthoringPLAN VA-2** added `engine/vfx/variants.py` — the PURE REGISTRY
+half of VFX variant selection: `variant_slots(registry, slot_key)` (every slot
+interchangeable with this one) and `slot_at(variants, index)` (clamped, never
+wrapped). It resolves a family through the registry's GROUP STRUCTURE, not by
+stripping the `_v<k>` suffix, for the same reason `game/enemies/enemy.py`'s era
+roll reads `group_slots(...)`: the grouping is the authored truth, and a rename
+moves a slot's group with it while a suffix match would silently stop finding
+its family. Both functions degrade to `(slot_key,)` / `None` rather than
+raising (E-37).
+**It deliberately knows nothing about HOW the index was chosen.** The
+`"random"`/`"level"`/`"misc"` mode names in `data/balancing/vfx.json`'s
+`variant_select` are vocabulary, and D5 keeps vocabulary out of `engine/`
+exactly as it keeps JSON key names out — the same call `params.py` makes for
+spark presets. `game/vfx_variants.py` maps a mode to an index and calls in
+here; a `tools/tests/test_vfx_variants.py` test parses this module's AST and
+fails if any mode name appears as a real string literal (parsed, not grepped —
+the docstring names all three in order to state the rule).
+Note this module's docstring is worded around the name of the file-reading
+builtin: `tools/tests/test_vfx.py`'s package purity scan is a literal text
+sweep, so naming it even in prose reads as a violation.
+
+**VA-3** added `VfxSystem.submit_world(renderer, cs, rank=-1, layer=…)` beside
+`submit_hud` — the same particles and slashes, submitted as DEPTH-SORTED
+`WorldRect`/`WorldLines` items instead of always-on-top HUD ones, so a spark
+can pass behind the building that emitted it. `submit_hud` is unchanged and
+stays the default. The two produce **identical geometry by construction** (the
+same expressions, evaluated in `submit_world` rather than at flush) — which is
+why `WorldRect`/`WorldLines` take fully-resolved screen pixels rather than an
+anchor-relative offset; resolving at flush truncates `int(offset)` where
+`submit_hud` truncates `int(anchor + offset)`, measured 1px apart on a slash
+line. `rank` defaults to -1 because BEHIND is the only reason to call this:
++1 in the depth queue and the HUD pass both put the effect on top, and the HUD
+pass is cheaper. `spawn_play_once` gained a matching `rank=` so a sprite
+one-shot carries it through `Transform.rank`.
 
 ## Hard rules (whole package)
 - **pygame imports are allowed ONLY in** `render/`'s backends (`render/backend.py`

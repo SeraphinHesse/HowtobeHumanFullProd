@@ -32,7 +32,9 @@ known methods (duck-typed, the ``occupancy``/``scene`` precedent) and this file
 just calls them at the right ordinal position. See ``game/debug/recorder.py``'s
 docstring for what each hook captures and why it must sit exactly there.
 """
-from game.buildings.components import BoostEmitter, PainterProgress, RoundStats
+from game.buildings.components import (
+    BoostEmitter, PainterProgress, RoundStats, TierState,
+)
 from game.buildings.movement import process_moves
 from game.map.tiles import TileState
 from .boss_bonuses import love_bonus_income
@@ -257,7 +259,17 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None,
                     _free_tile(tilemap, tile, occupancy, scene)
                     continue
                 b.get_component(PainterProgress).progress = 0
+            # VA-4: read `alive` BEFORE rebuild. This slot full-heals every
+            # LIVING building too, and only one that was actually DEAD and
+            # came back is a "respawn" — a cosmetic-only ledger append, no
+            # ordering change (the sacrosanct step order is untouched).
+            was_dead = not getattr(b, "alive", True)
             b.rebuild()
+            if was_dead:
+                tier_state = b.get_component(TierState)
+                state.building_respawn_events.append(
+                    (tile.col, tile.row,
+                     0 if tier_state is None else tier_state.current_tier))
 
     # 10. Rebuild walls (10E): every alive WallBuilder restores its frozen
     #     perimeter to full HP — walls damaged during the round regenerate, and a

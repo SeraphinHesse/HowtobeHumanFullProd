@@ -36,7 +36,7 @@ from engine.assets import load_registry
 from engine.core import Scene
 from engine.vfx import PlayOnceFade, PlayOnceVfx, VfxSystem, spawn_play_once
 from game.core.balance import load_balance
-from game.ui.effects import FloaterManager
+from game.ui.effects import FloaterManager, TriggerRow
 
 VFX_DATA_PATH = FIXTURE_DATA / "balancing" / "vfx.json"
 VFX_SCHEMA_PATH = FIXTURE_DATA / "schemas" / "vfx.schema.json"
@@ -48,7 +48,19 @@ _LIVE_EVENTS = (
 )
 # ESV-6 adds the 10th event, projectile_hit (also shipped inert, like
 # defender_fire) — see docs/briefs/phase-esv-6-converge.md §1.3.
-_ALL_EVENTS = _LIVE_EVENTS + ("defender_fire", "projectile_hit")
+# VfxAuthoringPLAN VA-4 adds the 11th, building_respawn — the payday revive
+# slot's cosmetic event. Unlike the two above it does NOT ship inert: it plays
+# the `spark_respawn` preset until a designer imports art into vfx_respawn.
+# VA-5 adds seven more — the tile highlights. They are CONTINUOUS, not
+# one-shots, so they never reach `_play`/PlayOnceVfx (game/ui/widgets.py's
+# submit_highlight draws them every frame instead); they are listed here
+# because this pin is over the trigger TABLE's key set, which they do join.
+_HIGHLIGHT_EVENTS = (
+    "tile_selected", "section_2x2", "attack_range", "move_target",
+    "wall_edge", "upgrade_batch", "tutorial_highlight",
+)
+_ALL_EVENTS = (_LIVE_EVENTS + ("defender_fire", "projectile_hit",
+                               "building_respawn") + _HIGHLIGHT_EVENTS)
 
 
 class _FakeAssets:
@@ -183,7 +195,7 @@ class TestByteIdenticalFallbackAllEvents(unittest.TestCase):
         # nothing today), which turned this into a comparison against a no-op
         # and reddened it. The dispatcher's correctness must not depend on
         # which effects happen to be bound this week.
-        fm._triggers["enemy_attack_ranged"] = ("", "muzzle")
+        fm._triggers["enemy_attack_ranged"] = TriggerRow(procedural="muzzle")
         fm._play("enemy_attack_ranged", 1.0, 2.0, strong=True)
         direct.emit_muzzle(1.0, 2.0, strong=True)
         self._assert_particles_equal(fm, direct)
@@ -226,7 +238,7 @@ class TestDefenderFireInert(unittest.TestCase):
 
     def test_dispatch_is_a_true_no_op(self):
         fm = _fm()
-        fm._triggers["defender_fire"] = ("", "")
+        fm._triggers["defender_fire"] = TriggerRow()
         before = (list(fm._vfx._particles), list(fm._vfx._gold),
                   list(fm._vfx._slashes), list(fm._vfx._splatters))
         fm._play("defender_fire", 1.0, 2.0)   # must not raise
@@ -272,7 +284,7 @@ class TestMissingEmptyNoneHandles(unittest.TestCase):
 
     def test_both_fields_empty_degrades_silently(self):
         fm = _fm()
-        fm._triggers["custom_inert"] = ("", "")
+        fm._triggers["custom_inert"] = TriggerRow()
         fm._play("custom_inert", 1.0, 2.0)   # must not raise
 
     def test_assets_none_degrades_to_procedural(self):
@@ -352,9 +364,24 @@ class TestNewVfxSlotsRegistered(unittest.TestCase):
     per-slot override mechanism doing exactly its job — and the subtest went
     red for a data change it should have followed. The rule (override wins,
     else inherit the category) is derived from `slots.json` below, so a future
-    re-cut of any of these slots is tracked instead of breaking the suite."""
+    re-cut of any of these slots is tracked instead of breaking the suite.
+
+    VfxAuthoringPLAN VA-1/D1 then nested the `Effects` group into one leaf
+    CHILD group per effect (so `registry_ops.add_variant` becomes reachable),
+    which broke the flat `group["slots"]` walk below the same way — a
+    STRUCTURE change this time rather than a value one. The walk recurses now,
+    for the same reason it reads the doc at all: the expectation follows the
+    data instead of freezing a snapshot of it."""
 
     SLOTS = ("vfx_muzzle", "vfx_death", "vfx_slash", "vfx_crater")
+
+    @classmethod
+    def _raw_slot_entries(cls, group):
+        """Every raw slots[] entry under a group node, at any depth — the
+        `slots` XOR `children` shape `slots.schema.json` declares."""
+        yield from group.get("slots", ())
+        for child in group.get("children", ()):
+            yield from cls._raw_slot_entries(child)
 
     def _expected_sizes(self, data_dir):
         """{slot: (w, h)} for SLOTS, read from the `vfx` category in
@@ -365,7 +392,7 @@ class TestNewVfxSlotsRegistered(unittest.TestCase):
         default = (category["frame_w"], category["frame_h"])
         sizes = {slot: default for slot in self.SLOTS}
         for group in category["groups"]:
-            for entry in group["slots"]:
+            for entry in self._raw_slot_entries(group):
                 if isinstance(entry, dict) and entry["key"] in sizes:
                     sizes[entry["key"]] = (entry["frame_w"], entry["frame_h"])
         return default, sizes

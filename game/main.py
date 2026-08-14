@@ -723,6 +723,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     enemies_balance = load_balance(data_dir, "enemies")
     ui_balance = load_balance(data_dir, "ui")
     vfx_balance = load_balance(data_dir, "vfx")  # ESV-3a: procedural VFX params
+    # VA-5: the seven tile highlights are effects now — colour/outline/fill and
+    # their sprite bindings come from this same doc. Same fail-loud-on-mismatch
+    # shape as configure_palette above, and the same boot slot, which is where
+    # three of these colours used to live.
+    widgets.configure_highlights(vfx_balance)
     # TimelinePLAN T4: the sole source of unlock timing (game/core/levelup.py).
     progression_balance = load_balance(data_dir, "progression")
     # debug: draw the camera-startpoint marker in-game (default off)
@@ -1236,8 +1241,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                                  tile.col, tile.row)
         panel.preview = MovePreview(
             building, tile, move_cost(distance, movement),
-            move_time(distance, movement), ui_balance, view_w, view_h,
-            skinning=shell.skinning)
+            move_time(distance, movement), movement["warning_text"],
+            ui_balance, view_w, view_h, skinning=shell.skinning)
 
     def handle_world_right_click(mx, my):
         """Right-click is a universal DISMISS, never a world action — it peels
@@ -1644,6 +1649,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 # movement and the combat sweep together (prototype game.py:1211-13).
                 # ROUND_END/INCOME timers always run on real time, and the pause is
                 # just a 0.0 multiplier, so the round machine is never touched.
+                # This also means build mode (BUILDING phase) always plays at
+                # plain `dt` no matter which speed is selected — the speed
+                # buttons are hidden there too (game/ui/hud.py) since they'd
+                # have nothing to control.
                 sim_dt = (dt * session.combat_speed
                           if session.state.phase == GamePhase.ENEMY else dt)
                 session.pre_sim(sim_dt, world.scene)
@@ -1785,6 +1794,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                             core_balance["Seasons"]["rounds_per_season"]):
                         ground_cache.invalidate()
                     # -- /N1 --
+                    # VA-4: same edge, same drained-by-UI contract — payday's
+                    # revive slot filled it a few steps earlier in the very
+                    # transition this branch is reacting to.
+                    gp["floaters"].spawn_building_respawn_events(session.state)
                 # -- 10J: the previous round's blood clears when the next wave
                 # starts (prototype clear_splatters on End Turn, game.py:815) --
                 if (session.state.phase == GamePhase.ENEMY
@@ -2028,8 +2041,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # overlay, before buildings and before the panel's own selection
             # highlights --
             for col, row in gp["tutorial"].tile_highlight_targets():
-                widgets.submit_tile_diamond(renderer, col, row,
-                                            widgets.C_TUTORIAL_HIGHLIGHT)
+                widgets.submit_highlight(renderer, "tutorial_highlight",
+                                         col, row, assets=assets)
             # -- /TU-6 --
             # -- drag-select: the live rectangle, same world-overlay slot as
             # the tutorial highlight. It runs the SAME _SEL_CATEGORY filter
@@ -2054,7 +2067,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                                     and tutorial.allows(("tile", col, row))):
                                 widgets.submit_tile_diamond_fill(
                                     renderer, col, row,
-                                    widgets.C_HIGHLIGHT + (70,))
+                                    widgets.highlight_color("tile_selected") + (70,))
             # -- /drag-select --
             gp["panel"].submit(renderer, session)
             # -- /fix/depth-sorted-world-fills --
@@ -2108,7 +2121,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                     widgets.submit_text(
                         renderer, str(order.rounds_left),
                         (int(scx), int(scy - sh * 21 // 96)), "md",
-                        widgets.C_MOVE_HIGHLIGHT, align="center")
+                        widgets.highlight_color("move_target"), align="center")
             # -- /Building Movement --
             gp["floaters"].submit_beams(renderer, cs, world.scene)    # 10B: HUD
             gp["floaters"].submit_hp_bars(renderer, cs, world.scene)

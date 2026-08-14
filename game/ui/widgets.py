@@ -18,7 +18,7 @@ later ``configure_palette`` rebind cannot reach) — see ``game/ui/CLAUDE.md``.
 import math
 from types import SimpleNamespace
 
-from engine.render import HudLines, HudRect, HudSprite, HudText
+from engine.render import HudLines, HudRect, HudSprite, HudText, RenderItem
 from engine.render.fonts import TextMetrics, layout_h
 
 from . import strings
@@ -61,18 +61,16 @@ C_UI_BTN_ACTIVE = (60, 140, 60)
 C_UI_BTN_DISABLED = (50, 45, 70)
 C_UI_TEXT = (235, 225, 195)
 C_UI_TEXT_DIM = (150, 140, 120)
-C_HIGHLIGHT = (255, 230, 60)         # selected tile
-C_HIGHLIGHT2 = (255, 180, 60)        # unlock-area tiles
-C_TUTORIAL_HIGHLIGHT = (255, 255, 255)  # TU-6: guided-chain highlight (white)
-# Building Movement: the "you can move the selected building here" tiles. A
-# plain code constant, NOT palette-data-backed — the same deliberate exception
-# `C_TUTORIAL_HIGHLIGHT` above is (see `_PALETTE_KEYS`, which both are absent
-# from, and game/ui/CLAUDE.md's palette section).
-C_MOVE_HIGHLIGHT = (80, 200, 255)    # move-destination tiles (cyan)
-C_RANGE_HIGHLIGHT = (180, 40, 40)    # defence attack range
+# VfxAuthoringPLAN VA-5 DELETED five highlight colour constants from this
+# block — C_HIGHLIGHT, C_HIGHLIGHT2, C_RANGE_HIGHLIGHT (which were palette
+# keys) and C_MOVE_HIGHLIGHT, C_TUTORIAL_HIGHLIGHT (which were bare code
+# constants). All five are now `procedural.highlights.*` in
+# data/balancing/vfx.json, read through `highlight_color(event)` below, so
+# each has exactly one home (G-7/D8) and every one of them is editable and
+# previewable in the VFX editor like any other effect.
 # Construct panel: a tile that already hosted a Painter and paid out, so it
-# can never host another one. Same "plain code constant" exception as
-# C_MOVE_HIGHLIGHT above.
+# can never host another one. A plain code constant, NOT palette-data-backed —
+# it is not a highlight a designer authors, it is a "this is barred" grey.
 C_PAINTER_USED = (110, 110, 110)     # grey — barred painter tile
 C_PANEL_STONE = (40, 32, 58)         # HUD "stone pill" body
 C_PANEL_INSET = (150, 135, 185)
@@ -84,7 +82,7 @@ C_PURPLE = (168, 105, 222)           # the house purple (matches the XP bar fill
 _PALETTE_KEYS = (
     "gold", "red", "hp_green", "hp_red", "green_stat", "ui_panel",
     "ui_border", "ui_btn", "ui_btn_hover", "ui_btn_active", "ui_btn_disabled",
-    "ui_text", "ui_text_dim", "highlight", "highlight2", "range_highlight",
+    "ui_text", "ui_text_dim",
     "panel_stone", "panel_inset", "purple",
 )
 
@@ -282,7 +280,123 @@ def submit_label(renderer, holder, *, text=None, color=None, align=None, **fmt):
                                 holder.font_key, tcol, align=align))
 
 
-def submit_tile_diamond(renderer, col, row, color, width=2):
+# ===========================================================================
+# Tile highlights are DATA (VfxAuthoringPLAN VA-5)
+# ===========================================================================
+# The seven continuous tile highlights are effects now: colour, outline width
+# and fill alpha come from `data/balancing/vfx.json`'s `procedural.highlights`,
+# and each can be replaced outright by an imported `vfx_<event>` spritesheet
+# through its `triggers` row.
+#
+# They live HERE rather than behind `FloaterManager` because they are drawn by
+# `BuildingUI.submit` and by the host, neither of which holds the FX manager —
+# and because this module already owns `submit_tile_diamond`, i.e. the one
+# place a tile highlight has ever been drawn. The configure/fallback shape is
+# `configure_palette`'s, deliberately: these values were palette keys until
+# this phase, so the mechanism that replaces them is the one they came from.
+#
+# The literals below are the UNCONFIGURED FALLBACK (bare test/tool
+# construction), equal to the pre-VA-5 constants; `test_highlight_data.py`
+# pins them against the committed JSON so the two cannot drift.
+_HIGHLIGHTS = {
+    "tile_selected": {"color": (255, 230, 60), "border_width": 2, "fill_alpha": 0},
+    "section_2x2": {"color": (255, 180, 60), "border_width": 2, "fill_alpha": 0},
+    "attack_range": {"color": (180, 40, 40), "border_width": 2, "fill_alpha": 0},
+    "move_target": {"color": (80, 200, 255), "border_width": 2, "fill_alpha": 0},
+    "wall_edge": {"color": (255, 230, 60), "border_width": 4, "fill_alpha": 0},
+    "upgrade_batch": {"color": (255, 230, 60), "border_width": 2, "fill_alpha": 0},
+    "tutorial_highlight": {"color": (255, 255, 255), "border_width": 2,
+                           "fill_alpha": 0},
+}
+# event -> (sprite_slot, draw_in_front), from the same doc's `triggers`.
+_HIGHLIGHT_TRIGGERS = {name: ("", True) for name in _HIGHLIGHTS}
+
+
+def configure_highlights(vfx_doc):
+    """Rebind the highlight params + their trigger bindings from a loaded,
+    schema-validated ``data/balancing/vfx.json`` (the host loads it; this
+    module stays data-dir-free, exactly like ``configure_palette``).
+
+    Fails loud on a key-set mismatch, for `configure_palette`'s reason: a
+    renamed or dropped highlight would otherwise leave one silently on its
+    fallback, which looks like "the designer's edit did nothing".
+    """
+    highlights = vfx_doc["procedural"]["highlights"]
+    unknown = set(highlights) - set(_HIGHLIGHTS)
+    missing = set(_HIGHLIGHTS) - set(highlights)
+    if unknown or missing:
+        raise ValueError(
+            f"vfx.json procedural.highlights key set mismatch: missing "
+            f"{sorted(missing)}, unknown {sorted(unknown)}")
+    for name, block in highlights.items():
+        _HIGHLIGHTS[name] = {"color": tuple(block["color"]),
+                             "border_width": block["border_width"],
+                             "fill_alpha": block["fill_alpha"]}
+    triggers = vfx_doc.get("triggers", {})
+    for name in _HIGHLIGHTS:
+        row = triggers.get(name)
+        if row is not None:
+            _HIGHLIGHT_TRIGGERS[name] = (row["sprite_slot"],
+                                         row["draw_in_front"])
+
+
+def highlight_color(event):
+    """``event``'s authored colour.
+
+    For the handful of places that draw something OTHER than the tile diamond
+    in a highlight's colour and would otherwise need a second home for it: the
+    RANGE overlay pill, the move-instruction text and path line, the
+    drag-select rectangle's fill. Read it at CALL time, never bind it to a
+    module constant — the early-binding trap `configure_palette`'s consumers
+    already live under.
+    """
+    return _HIGHLIGHTS[event]["color"]
+
+
+def highlight_params(event):
+    """``event``'s full param dict (colour, border width, fill alpha)."""
+    return _HIGHLIGHTS[event]
+
+
+def submit_highlight(renderer, event, col, row, assets=None, anim_time_ms=0):
+    """Draw one continuous tile highlight for ``event`` at ``(col, row)``.
+
+    The sibling of ``FloaterManager._play`` for effects that are NOT one-shots
+    (VA-5/D7): a selection outline is drawn every frame for as long as the
+    tile stays selected, so ``PlayOnceVfx``'s despawn clock is the wrong
+    mechanism — it would respawn the object every frame.
+
+    Resolution order matches ``_play``'s: a bound ``sprite_slot`` with
+    imported art wins, otherwise the procedural diamond runs. "Has art" is the
+    same ``animation_total_ms(slot, "idle") is not None`` signal every other
+    art-tolerant site uses, so the two paths cannot disagree about
+    "imported". ``assets=None`` (a bare panel a test builds) simply takes the
+    procedural path.
+
+    ``draw_in_front`` becomes the depth rank (VA-3): +1 draws over a
+    same-tile building, -1 behind it.
+    """
+    slot, in_front = _HIGHLIGHT_TRIGGERS.get(event, ("", True))
+    rank = 1 if in_front else -1
+    if slot and assets is not None:
+        if assets.animation_total_ms(slot, "idle") is not None:
+            renderer.submit(RenderItem(
+                slot, (col, row), animation="idle",
+                anim_time_ms=anim_time_ms, rank=rank))
+            return
+    params = _HIGHLIGHTS.get(event)
+    if params is None:
+        return                      # unknown event: a silent no-op (E-37)
+    color, width = params["color"], params["border_width"]
+    alpha = params["fill_alpha"]
+    if alpha:
+        submit_tile_diamond_fill(renderer, col, row, color + (alpha,),
+                                 border=color, border_width=width, rank=rank)
+    else:
+        submit_tile_diamond(renderer, col, row, color, width=width, rank=rank)
+
+
+def submit_tile_diamond(renderer, col, row, color, width=2, rank=0):
     """A world-space diamond outline around tile ``(col, row)`` — a selection /
     range / unlock highlight. fix/depth-sorted-world-fills: goes through
     ``Renderer.submit_world_fill`` (world_pos=(col, row), the same anchor a
@@ -292,11 +406,11 @@ def submit_tile_diamond(renderer, col, row, color, width=2):
     sprite (see ``engine/render/CLAUDE.md``'s "Depth-sorted world fills")."""
     pts = [(col, row), (col + 1, row), (col + 1, row + 1), (col, row + 1)]
     renderer.submit_world_fill(pts, world_pos=(col, row), border=color,
-                               border_width=width)
+                               border_width=width, rank=rank)
 
 
 def submit_tile_diamond_fill(renderer, col, row, rgba, border=None,
-                             border_width=2):
+                             border_width=2, rank=0):
     """An alpha-FILLED world-space tile diamond with an optional outline —
     the prototype's SRCALPHA tile overlays (condition tint, RANGE, heatmap,
     tier overview). fix/depth-sorted-world-fills: same
@@ -304,17 +418,20 @@ def submit_tile_diamond_fill(renderer, col, row, rgba, border=None,
     — draws behind a building on/near this tile instead of always on top."""
     pts = [(col, row), (col + 1, row), (col + 1, row + 1), (col, row + 1)]
     renderer.submit_world_fill(pts, world_pos=(col, row), color=rgba,
-                               border=border, border_width=border_width)
+                               border=border, border_width=border_width,
+                               rank=rank)
 
 
 def submit_ui_box_highlight(renderer, rect, color=None, width=3):
     """A highlight ring around a UI element (card / Confirm / End Turn) —
     the tutorial guided-chain highlight (D8, TU-6). Plain HUD-space rect;
-    ``color`` defaults to the CURRENT ``C_TUTORIAL_HIGHLIGHT`` inside the
-    body (never as a def-time default — the same UH-6 rebind trap
-    ``submit_panel``'s ``fill``/``border`` guards against)."""
+    ``color`` defaults to the CURRENT tutorial-highlight colour, resolved
+    inside the body (never as a def-time default — the same UH-6 rebind trap
+    ``submit_panel``'s ``fill``/``border`` guards against; since VA-5 the
+    value comes from ``procedural.highlights.tutorial_highlight`` rather than
+    a module constant, which makes reading it late matter more, not less)."""
     if color is None:
-        color = C_TUTORIAL_HIGHLIGHT
+        color = highlight_color("tutorial_highlight")
     renderer.submit_hud(HudRect(rect, color, width=width))
 
 
@@ -322,14 +439,17 @@ def submit_tutorial_banner(renderer, text, view_w, view_h, *, pad=12,
                             font_key="lg"):
     """A large, non-interactive, screen-centred banner (TU-8 Fix 2) — the
     ``submit_ui_box_highlight`` sibling for a full text hint (e.g. "right
-    click anywhere to close"). A filled ``C_TUTORIAL_HIGHLIGHT`` box with a
-    dark border and dark centred text, sized to the text. Deliberately
-    carries NO hit-test and consumes no input, UNLIKE ``TutorialMessageScreen``
-    — a banner instructing a right-click must never itself swallow it."""
+    click anywhere to close"). A box filled in the tutorial highlight's own
+    colour (``procedural.highlights.tutorial_highlight`` since VA-5, read at
+    call time) with a dark border and dark centred text, sized to the text.
+    Deliberately carries NO hit-test and consumes no input, UNLIKE
+    ``TutorialMessageScreen`` — a banner instructing a right-click must never
+    itself swallow it."""
     tw, th = text_size(text, font_key)
     w, h = tw + pad * 2, th + pad * 2
     x, y = (view_w - w) // 2, (view_h - h) // 2
-    renderer.submit_hud(HudRect((x, y, w, h), C_TUTORIAL_HIGHLIGHT))
+    renderer.submit_hud(HudRect((x, y, w, h),
+                                highlight_color("tutorial_highlight")))
     renderer.submit_hud(HudRect((x, y, w, h), C_UI_BORDER, width=3))
     submit_centered(renderer, text, view_w // 2, y + pad, font_key,
                     C_UI_PANEL)

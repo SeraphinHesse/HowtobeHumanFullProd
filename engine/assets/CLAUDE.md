@@ -215,6 +215,17 @@ crashes boot.** When you change asset conventions, update THIS doc.
   Sliced frames are SUBSURFACES — the parent sheet must stay cached. There is no
   cache invalidation: when the manifest changes, build a new AssetStore (the
   editor's `reload_assets()` does exactly that).
+- **`AssetStore.registry` (VfxAuthoringPLAN VA-2)** — a read-only property
+  exposing the `SlotRegistry` the store already holds for frame sizes, `None`
+  when constructed without one (test dummies). Added because a caller holding
+  a store to ask "does this slot have art?" (`animation_total_ms`) often also
+  needs "which slots are interchangeable with it?", which is registry
+  structure — `game/ui/effects.py`'s trigger dispatch is the first. The
+  alternative was every such caller reaching into `_registry`, or the host
+  wiring the registry a second time alongside the store it is already inside.
+  Callers that duck-type a stub store must still read it with `getattr(...,
+  "registry", None)`: `FloaterManager.assets` is a host-wired handle tests
+  stub with far less than a real store.
 - **Pixel hit-mask (A8, R2 design)**: `engine/assets/nine_slice.py` (NEW, pure —
   no pygame, no engine imports) holds `clamp_pair(a, b, limit)` — moved here
   from `engine/render/backend.py`, which now imports it (`from

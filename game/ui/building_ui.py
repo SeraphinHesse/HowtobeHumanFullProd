@@ -71,7 +71,7 @@ from .strings import T
 from .widgets import (
     Button, anim_ms, contains, label_holder, submit_label, submit_panel,
     submit_tile_diamond, submit_tile_diamond_fill, submit_text, text_h,
-    text_size
+    text_size, wrap_text
 )
 from . import widgets
 
@@ -648,7 +648,13 @@ class ConstructPreview:
         nx, ny, nw, nh = self.name_rect
         renderer.submit_hud(HudRect(self.name_rect, widgets.C_PANEL_STONE))
         renderer.submit_hud(HudRect(
-            self.name_rect, widgets.C_HIGHLIGHT if self.editing else widgets.C_UI_BORDER,
+            self.name_rect,
+            # VA-5: the focus ring borrows the SELECTION colour deliberately —
+            # it read the same `highlight` palette key before that key moved
+            # into procedural.highlights, so this is zero visual change with
+            # one home rather than a second copy of the value.
+            (widgets.highlight_color("tile_selected") if self.editing
+             else widgets.C_UI_BORDER),
             width=1))
         if is_visible(self.dice_btn):
             self.dice_btn.submit(renderer, anim_ms=anim_ms,
@@ -716,8 +722,8 @@ class MovePreview:
     ``panel.preview is not None`` modal branch and ``BuildingUI._preview_click``
     drive it with no preview-class-specific code."""
 
-    def __init__(self, building, dest_tile, cost, rounds, ui_balance,
-                 view_w, view_h, skinning=None):
+    def __init__(self, building, dest_tile, cost, rounds, warning_text,
+                 ui_balance, view_w, view_h, skinning=None):
         self.screen_id = SCREEN_ID
         self.skinning = skinning or ScreenSkinning.empty()
         self.building = building
@@ -731,7 +737,28 @@ class MovePreview:
         # nothing to type, so this stays False forever (handle_key is a no-op).
         self.editing = False
 
-        pw, ph = 170, 95
+        pw = 170
+        # Building Movement: a move in transit despawns the building until it
+        # lands (`movement.py`'s module docstring) — every combat phase that
+        # falls inside that window happens with the building gone. `rounds ==
+        # 0` (an instant relocation — the time cost off, or tuned to zero) is
+        # the one case that ISN'T true, so the warning is skipped there.
+        # Text is designer content (`BuildingsGlobal.Movement.warning_text`,
+        # `data/CLAUDE.md`) — wrapped at CONSTRUCT time, not draw time: unlike
+        # an id'd widget's `label`, this line is never captured by
+        # `screen_defaults.json`/the golden parity pin, so there is no
+        # Windows/Linux measurement-drift risk (`game/ui/CLAUDE.md`'s
+        # "layout_h, never a live font measurement" note doesn't apply here).
+        self._warning_lines = (
+            wrap_text(warning_text, "sm", pw - 16, max_lines=3)
+            if rounds > 0 and warning_text.strip() else [])
+        _warn_step = _row_step("sm", leading=0)
+        _warn_h = len(self._warning_lines) * _warn_step
+        # 83, not the pre-merge 95: the modal used to stack a separate Cost
+        # line and Time line (feature: move-building-time-only-cost merged
+        # them into the one `cost_text` line below), which freed exactly one
+        # `_row_step("sm")` == 12px row.
+        ph = 83 + (_warn_h + 4 if self._warning_lines else 0)
         x, y = view_w // 2 - pw // 2, view_h // 2 - ph // 2
         self.rect = (x, y, pw, ph)
         self.close_btn = Button((x + pw - 17, y + 3, _CLOSE_W, _CLOSE_H),
@@ -771,23 +798,30 @@ class MovePreview:
     @property
     def total_cost(self):
         """The ``ConstructPreview.total_cost`` alias: a single move has no
-        batch to sum, so this is just ``cost`` — but ``BuildingUI.hover``
-        reads ``self.preview.total_cost`` unconditionally on ANY preview
-        whose confirm button is hovered, so every preview class must carry
-        the name."""
+        batch to sum, so this is just ``cost`` (always 0 — ``money_cost_
+        enabled`` ships ``false``). Kept for the shared preview surface
+        (``ConstructPreview`` carries the same name) and for ``_do_move``'s
+        own affordability check via ``self.cost`` beside it — but
+        ``BuildingUI.hover`` no longer reads it FOR THIS CLASS specifically
+        (feature: move-building-time-only-cost — a move's cost is rounds,
+        not love, so hovering CONFIRM must not preview a love spend on the
+        HUD's pill; see the ``isinstance(self.preview, MovePreview)`` guard
+        there)."""
         return self.cost
 
     @property
     def cost_text(self):
-        return (T("building.move_preview.cost_free") if self.cost == 0
-                else T("building.move_preview.cost", cost=self.cost))
-
-    @property
-    def time_text(self):
+        """Moving costs only TIME now (feature: move-building-time-only-cost
+        — `BuildingsGlobal.Movement.money_cost_enabled` ships `false`), so
+        the modal's one Cost line quotes rounds, not love. `self.cost` (the
+        love figure, always 0 with the flag off but still read by
+        `total_cost`/`_do_move`'s affordability check) is deliberately not
+        shown here any more — a 0-love line would be a Cost/Free redundant
+        with this one."""
         if self.rounds == 0:
-            return T("building.move_preview.time_instant")
+            return T("building.move_preview.cost_instant")
         unit = "round" if self.rounds == 1 else "rounds"
-        return T("building.move_preview.time", rounds=self.rounds, unit=unit)
+        return T("building.move_preview.cost", rounds=self.rounds, unit=unit)
 
     def hover(self, mx, my, mouse_down=False):
         for btn in (self.confirm_btn, self.close_btn):
@@ -845,14 +879,25 @@ class MovePreview:
                     widgets.C_UI_TEXT, align="center")
         submit_text(renderer, self.title, (cx, y + 20), "md",
                     widgets.C_UI_TEXT_DIM, align="center")
+        # Blue, not the love-cost gold every other preview's cost line uses
+        # (feature: move-building-time-only-cost) — this line quotes ROUNDS,
+        # not love, so it takes the SAME `move_target` highlight cyan as the
+        # destination path-line preview (`BuildingUI.submit`'s move-path
+        # line, `game/ui/CLAUDE.md`), not a colour that reads as "currency".
         submit_text(renderer, self.cost_text, (cx, y + 36), "md",
-                    widgets.C_GOLD, align="center")
-        submit_text(renderer, self.time_text, (cx, y + 48), "md",
-                    widgets.C_MOVE_HIGHLIGHT, align="center")
+                    widgets.highlight_color("move_target"), align="center")
         submit_text(renderer,
                     T("building.move_preview.dest",
                       col=self.dest_tile.col, row=self.dest_tile.row),
-                    (cx, y + 60), "sm", widgets.C_UI_TEXT_DIM, align="center")
+                    (cx, y + 48), "sm", widgets.C_UI_TEXT_DIM, align="center")
+        # Building Movement: the "will miss combat" warning — only present
+        # (non-empty `_warning_lines`) once `rounds > 0`, see __init__.
+        wy = y + 48 + _row_step("sm")
+        step = _row_step("sm", leading=0)
+        for line in self._warning_lines:
+            submit_text(renderer, line, (cx, wy), "sm", widgets.C_HP_RED,
+                        align="center")
+            wy += step
 
 
 class BuildingUI:
@@ -1211,8 +1256,14 @@ class BuildingUI:
                 else:
                     # range diamond only on a single selection (prototype
                     # game.py:552-556); a batch highlights its tiles.
+                    # This IS the upgrade batch — VA-5 first wired it to
+                    # `tile_selected` and gave `upgrade_batch` to the CONSTRUCT
+                    # panel below, i.e. exactly backwards. Invisible while both
+                    # shipped the same colour; the moment a designer bound art
+                    # to `tile_selected`, a buildable tile kept the old diamond
+                    # and a combat tile did not.
                     self._highlight_tiles = [
-                        (t.col, t.row, widgets.C_HIGHLIGHT)
+                        (t.col, t.row, "upgrade_batch")
                         for t in self.selected_tiles]
         # SPAWNING / BACKGROUND / empty BUILT -> stays closed
 
@@ -1248,10 +1299,10 @@ class BuildingUI:
             self.action_btn.label = T("building.action.unlock", cost=cost)
         hl = []
         for sel in self.selected_tiles:
-            hl.append((sel.col, sel.row, widgets.C_HIGHLIGHT))
+            hl.append((sel.col, sel.row, "tile_selected"))
             for t in tm.get_chunk_for_tile(sel):
                 if t is not sel:
-                    hl.append((t.col, t.row, widgets.C_HIGHLIGHT2))
+                    hl.append((t.col, t.row, "section_2x2"))
         self._highlight_tiles = hl
 
     # -- construct card: geometry, art + the two screen-level bools ---------
@@ -1464,7 +1515,9 @@ class BuildingUI:
             self.ids[f"{key}_price_icon"] = ("panel", icon)
             self.ids[f"{key}_price_text"] = ("label", price_text)
             y += _CARD_H + _CARD_GAP
-        self._highlight_tiles = [(t.col, t.row, widgets.C_HIGHLIGHT)
+        # The construct panel's own selected tile(s) — the SELECTION
+        # highlight, not a batch (see the note at the upgrade-batch site).
+        self._highlight_tiles = [(t.col, t.row, "tile_selected")
                                  for t in self.selected_tiles]
         # Grey out every BUILDABLE tile that already hosted a Painter and
         # paid out (`state.used_painter_tiles`) — visible only while this
@@ -1711,7 +1764,7 @@ class BuildingUI:
         that is not already an endpoint of a move in progress."""
         self._highlight_edges = []
         self._highlight_tiles = [
-            (t.col, t.row, widgets.C_MOVE_HIGHLIGHT)
+            (t.col, t.row, "move_target")
             for t in session.tilemap.buildable_tiles()
             if not session.tilemap.is_moving(t.col, t.row)]
 
@@ -1760,7 +1813,7 @@ class BuildingUI:
         return contains(self.panel_rect, mx, my)
 
     def _set_range_highlight(self, b, tilemap):
-        hl = [(b.col, b.row, widgets.C_HIGHLIGHT)]
+        hl = [(b.col, b.row, "tile_selected")]
         # 10I: the selection highlight shows the EFFECTIVE (mountain-boosted)
         # range — a consumption site of the effective value (prototype
         # game.py:578-581); pathfinding coverage stays on the raw range.
@@ -1774,7 +1827,7 @@ class BuildingUI:
             shape = getattr(b, "range_shape", lambda: "square")()
             for dc, dr in range_shape.offsets(r, shape):
                 if tilemap.get(b.col + dc, b.row + dr) is not None:
-                    hl.append((b.col + dc, b.row + dr, widgets.C_RANGE_HIGHLIGHT))
+                    hl.append((b.col + dc, b.row + dr, "attack_range"))
         self._highlight_tiles = hl
 
     def _set_wall_highlight(self, b, tilemap):
@@ -1797,7 +1850,7 @@ class BuildingUI:
             if edge.owner is not b:
                 continue
             self._highlight_tiles.append(
-                (edge.col_a, edge.row_a, widgets.C_RANGE_HIGHLIGHT))
+                (edge.col_a, edge.row_a, "attack_range"))
             pts = edge_world_points(edge.col_a, edge.row_a,
                                     edge.col_b, edge.row_b)
             if pts is None:
@@ -1817,7 +1870,13 @@ class BuildingUI:
         # -- /10I --
         if self.preview is not None:
             self.preview.hover(mx, my, mouse_down)
-            if self.preview.confirm_hovered():
+            # feature: move-building-time-only-cost — a MovePreview's cost is
+            # ROUNDS, not love (`money_cost_enabled` ships `false`), so
+            # hovering its CONFIRM must NOT preview a love spend against the
+            # HUD's top-left pill the way every other preview's confirm does;
+            # `_hover_cost` stays `None` and `hud.py`'s pill draws normally.
+            if (self.preview.confirm_hovered()
+                    and not isinstance(self.preview, MovePreview)):
                 # The BATCH total, not the first tile's unit price — matches
                 # what CONFIRM will actually charge (feature-storm-acolyte-
                 # multi-build's escalating sequence, or the familiar flat
@@ -2301,8 +2360,9 @@ class BuildingUI:
 
     def submit(self, renderer, session):
         t = anim_ms(self._clock)
-        for col, row, color in self._highlight_tiles:
-            submit_tile_diamond(renderer, col, row, color)
+        for col, row, event in self._highlight_tiles:
+            widgets.submit_highlight(renderer, event, col, row,
+                                     assets=self.assets, anim_time_ms=t)
         for col, row in self._painter_used_tiles:
             submit_tile_diamond_fill(
                 renderer, col, row,
@@ -2311,7 +2371,9 @@ class BuildingUI:
         # lines. Sits BEFORE the `visible` guard exactly like the tile
         # diamonds above it, so the two behave identically.
         for pts in self._highlight_edges:
-            renderer.submit_overlay_lines(pts, widgets.C_HIGHLIGHT, width=4)
+            renderer.submit_overlay_lines(
+                pts, widgets.highlight_color("wall_edge"),
+                width=widgets.highlight_params("wall_edge")["border_width"])
         # Building Movement: the straight-line (Manhattan) path to the picked
         # destination, shown once a destination is chosen — L-shaped
         # (col-first, then row), matching the tiles move_distance() actually
@@ -2323,7 +2385,8 @@ class BuildingUI:
             path_pts = [(b.col + 0.5, b.row + 0.5),
                         (dest.col + 0.5, b.row + 0.5),
                         (dest.col + 0.5, dest.row + 0.5)]
-            renderer.submit_overlay_lines(path_pts, widgets.C_MOVE_HIGHLIGHT,
+            renderer.submit_overlay_lines(path_pts,
+                                     widgets.highlight_color("move_target"),
                                           width=3)
         if not self.visible:
             return
@@ -2491,7 +2554,8 @@ class BuildingUI:
         renderer.submit_hud(HudRect(self._name_box_rect, widgets.C_PANEL_STONE))
         renderer.submit_hud(HudRect(
             self._name_box_rect,
-            widgets.C_HIGHLIGHT if self._name_editing else widgets.C_UI_BORDER, width=1))
+            (widgets.highlight_color("tile_selected") if self._name_editing
+             else widgets.C_UI_BORDER), width=1))
         if self._name_buf or self._name_editing:
             submit_label(renderer, txt["upgrade_name"],
                          text=self._name_buf + "_", color=widgets.C_UI_TEXT)
@@ -2612,7 +2676,8 @@ class BuildingUI:
         if b is not None:
             submit_label(renderer, txt["move_name"], text=_display_name(b),
                          color=widgets.C_UI_TEXT_DIM)
-        submit_label(renderer, txt["move_pick"], color=widgets.C_MOVE_HIGHLIGHT)
+        submit_label(renderer, txt["move_pick"],
+                     color=widgets.highlight_color("move_target"))
         for key in ("move_hint_1", "move_hint_2", "move_hint_cancel"):
             submit_label(renderer, txt[key], color=widgets.C_UI_TEXT_DIM)
 
