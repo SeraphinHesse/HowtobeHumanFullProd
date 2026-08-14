@@ -227,6 +227,7 @@ class ScreenDetailsPanel(QWidget):
         self._live_commit_timer.timeout.connect(self._on_rect_edited)
         self._skin_baseline = None
         self._font_baseline = None
+        self._align_baseline = None     # UL-1
         self._color_baseline = None
         self._tint_baseline = None      # UH-6/D6: the Color row's OTHER key
         self._color_is_tint = False     # UH-6: which key the row is showing
@@ -297,6 +298,19 @@ class ScreenDetailsPanel(QWidget):
         font_row, self.font_reset_button = self._field_row(
             (self.font_combo,), "font", lambda: self._on_reset_field("font"))
         form.addRow("Font", font_row)
+
+        # UL-1: which way the widget's text spreads from its stored anchor.
+        # Unlike Skin/Font (open-ended, registry-driven, hence their
+        # `_populate_*` methods) this is a fixed 3-value enum pinned by
+        # `ui_screen.schema.json`, so it is filled once, here.
+        self.align_combo = _NoWheelComboBox(self)
+        self.align_combo.addItem("Left", "left")
+        self.align_combo.addItem("Center", "center")
+        self.align_combo.addItem("Right", "right")
+        self.align_combo.activated.connect(self._on_align_changed)
+        align_row, self.align_reset_button = self._field_row(
+            (self.align_combo,), "align", lambda: self._on_reset_field("align"))
+        form.addRow("Align", align_row)
 
         # UH-6/D6: this ONE control is Color on an unskinned widget, Tint on
         # a skinned one (repurposing UH-3's disabled-on-skin state — see
@@ -695,7 +709,8 @@ class ScreenDetailsPanel(QWidget):
     def _set_widget_form_enabled(self, enabled):
         for w in (self.x_spin, self.y_spin, self.w_spin, self.h_spin,
                   self.parent_combo,
-                  self.skin_combo, self.font_combo, self.color_button,
+                  self.skin_combo, self.font_combo, self.align_combo,
+                  self.color_button,
                   self.text_color_button, self.label_edit,
                   self.text_id_combo,
                   self.visible_check, self.reset_button):
@@ -707,7 +722,8 @@ class ScreenDetailsPanel(QWidget):
             # widget selected there is nothing to reset, full stop.
             for btn in (self.rect_reset_button, self.parent_reset_button,
                        self.skin_reset_button,
-                       self.font_reset_button, self.color_reset_button,
+                       self.font_reset_button, self.align_reset_button,
+                       self.color_reset_button,
                        self.text_color_reset_button, self.label_reset_button,
                        self.text_id_reset_button, self.visible_reset_button):
                 btn.setEnabled(False)
@@ -732,6 +748,7 @@ class ScreenDetailsPanel(QWidget):
         self.parent_reset_button.setEnabled(widget_tree.PARENT_KEY in override)
         self.skin_reset_button.setEnabled("skin" in override)
         self.font_reset_button.setEnabled("font" in override)
+        self.align_reset_button.setEnabled("align" in override)
         self.color_reset_button.setEnabled(self._active_color_key() in override)
         self.text_color_reset_button.setEnabled("text_color" in override)
         self.label_reset_button.setEnabled("label" in override)
@@ -885,6 +902,14 @@ class ScreenDetailsPanel(QWidget):
         self._font_baseline = font
         self.font_combo.setCurrentIndex(max(0, self.font_combo.findData(font)))
 
+        # UL-1: baseline is the RAW override (None = absent), but the combo
+        # shows the EFFECTIVE value — an unoverridden widget reads "Left",
+        # which is what `submit_label` actually draws.
+        align = override.get("align")
+        self._align_baseline = align
+        self.align_combo.setCurrentIndex(
+            max(0, self.align_combo.findData(align or "left")))
+
         self._color_baseline = override.get("color")
         self._tint_baseline = override.get("tint")   # UH-6/D6
         self._text_color_baseline = override.get("text_color")
@@ -1024,6 +1049,21 @@ class ScreenDetailsPanel(QWidget):
             return
         self._session.push_field(self._current_widget, "font", old_font, new_font)
         self._font_baseline = new_font
+
+    def _on_align_changed(self, index):
+        """UL-1. Mirrors `_on_font_changed`: one key, no dependent UI, so no
+        `_refresh_widget_form()` (unlike skin, which flips the honest-controls
+        Color row). `push_field` is generic by key — `align` needs no
+        session-side change."""
+        if self._current_widget is None:
+            return
+        new_align = self.align_combo.itemData(index)
+        old_align = self._align_baseline
+        if new_align == old_align:
+            return
+        self._session.push_field(self._current_widget, "align",
+                                 old_align, new_align)
+        self._align_baseline = new_align
 
     def _pick_color(self, current):
         base = QColor(*current[:3]) if current else QColor(255, 255, 255)

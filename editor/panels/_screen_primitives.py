@@ -90,6 +90,24 @@ def is_anchor_rect(rect):
     return rect[2] <= 0 or rect[3] <= 0
 
 
+def resolve_align(spec, override):
+    """The alignment `interaction_rect` should measure against (UL-1).
+
+    The designer's OVERRIDE `align` if set (`data/ui/screens/<id>.json`'s
+    `widgets.<id>.align`, which the game reads back through
+    `widgets.submit_label`), else the DEFAULT recorded in
+    `screen_defaults.json` (an editor-only measuring hint the exporter took
+    off the code holder), else "left" — `submit_label`'s own fallback.
+
+    `spec` is the widget's `screen_defaults.json` entry, `override` is the
+    screen doc's per-widget override dict; both may be `{}`. Without this the
+    editor's hit box for a re-aligned position-only anchor lands beside the
+    glyphs instead of on them (the `hud.round_label` failure in
+    `game/ui/CLAUDE.md`, now reachable from the doc rather than only from
+    code)."""
+    return (override or {}).get("align") or (spec or {}).get("align", "left")
+
+
 def interaction_rect(rect, *, text=None, font_key="md", align="left"):
     """The box the editor hit-tests and outlines for a widget at `rect`.
 

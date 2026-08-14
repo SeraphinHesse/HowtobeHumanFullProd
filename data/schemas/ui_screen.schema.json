@@ -76,6 +76,15 @@
         "^[a-z][a-z0-9_]*$": {
           "additionalProperties": false,
           "properties": {
+            "align": {
+              "description": "Which way the widget's text spreads from its stored anchor x — the same three values game/ui/widgets.submit_label already reads off the holder. Absent means \"left\", submit_label's own fallback, so a screen doc that predates this key draws unchanged.",
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ],
+              "type": "string"
+            },
             "color": {
               "items": {
                 "maximum": 255,

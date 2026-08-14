@@ -165,6 +165,10 @@ TIERS = {
     "test_tutorial_data": "core",  # TU-1: tutorial script + cutscene registry data
     "test_tutorial_director": "core",  # TU-6: TutorialDirector fake-event chain
     "test_tutorial_engine": "core",  # TU-6: engine.tutorial step-sequencer
+    # UL-1: designer-authorable per-widget `align`. `core` despite importing
+    # editor.panels._screen_primitives — that module is Qt-free and
+    # editor/panels/__init__.py is empty, so no PySide6 is pulled.
+    "test_ui_align": "core",
     "test_ui_layout_export": "core",  # 10L-B phase B3: layout exporter staleness gate
     "test_ui_min_targets": "core",  # UR-5: click-target floor + static label fit
     "test_ui_skinning": "core",  # 10L-B phase B2: skinning + parity pin
