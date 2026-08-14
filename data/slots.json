@@ -1127,7 +1127,11 @@
             {
               "label": "Respawn",
               "slots": [
-                "vfx_respawn"
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "vfx_respawn"
+                }
               ]
             },
             {
