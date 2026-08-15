@@ -229,23 +229,15 @@
       "type": "string"
     },
     "building.move_preview.cost": {
-      "description": "Move preview cost line. `cost` is the love figure.",
+      "description": "Move preview cost line. Moving costs only time now (money_cost_enabled ships false) - `rounds` is the round count, `unit` the already-pluralised word (round/rounds).",
       "type": "string"
     },
-    "building.move_preview.cost_free": {
-      "description": "Move preview cost line when the move is free. No placeholders.",
+    "building.move_preview.cost_instant": {
+      "description": "Move preview cost line when the move completes immediately. No placeholders.",
       "type": "string"
     },
     "building.move_preview.dest": {
       "description": "Move preview destination line. `col`/`row` are the destination tile coordinates.",
-      "type": "string"
-    },
-    "building.move_preview.time": {
-      "description": "Move preview time line. `rounds` is the round count, `unit` the already-pluralised word (round/rounds).",
-      "type": "string"
-    },
-    "building.move_preview.time_instant": {
-      "description": "Move preview time line when the move completes immediately. No placeholders.",
       "type": "string"
     },
     "building.preview.click_to_name": {
@@ -659,10 +651,8 @@
     "building.move.pick_tile",
     "building.move.title",
     "building.move_preview.cost",
-    "building.move_preview.cost_free",
+    "building.move_preview.cost_instant",
     "building.move_preview.dest",
-    "building.move_preview.time",
-    "building.move_preview.time_instant",
     "building.preview.click_to_name",
     "building.preview.cost",
     "building.preview.name_label",

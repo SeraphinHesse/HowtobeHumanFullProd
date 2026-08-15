@@ -233,7 +233,7 @@ class TestMasterSheetLink(VfxPreviewCase):
         Image.new("RGBA", (self.FRAME_W * self.COLS, self.FRAME_H * self.ROWS),
                   (10, 200, 90, 255)).save(source)
         return master_sheet_import.import_master_sheet(
-            self.data_dir, source, name, self.FRAME_W, self.FRAME_H)
+            self.data_dir, source, name, self.FRAME_W, self.FRAME_H, self.COLS)
 
     def entry(self, slot="vfx_crater"):
         return asset_import.load_manifest_doc(self.data_dir)["entries"].get(slot)

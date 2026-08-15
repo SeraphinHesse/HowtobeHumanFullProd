@@ -1,4 +1,4 @@
-<!-- status: IN PROGRESS — all T1-T7 phases implemented; full testgate check pending before merge -->
+<!-- status: COMPLETE -->
 
 # TimelinePLAN.md — authored building unlock scheduling
 

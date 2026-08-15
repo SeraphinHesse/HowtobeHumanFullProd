@@ -1,4 +1,4 @@
-<!-- status: NOT STARTED — 0/7 phases -->
+<!-- status: COMPLETE — 7/7 phases -->
 
 # TutorialPLAN.md — Guided tutorial + cutscene system
 

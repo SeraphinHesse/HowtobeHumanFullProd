@@ -54,7 +54,7 @@ def spawn_tree_slots(registry):
 
 
 def spawn_deco_render_items(tile_map, col_min, col_max, row_min, row_max,
-                             tree_slots, anim_time_ms=0):
+                             tree_slots, anim_time_ms=0, column=None):
     """Spawn-deco RenderItems for the tiles inside a visible tile window.
 
     ``tree_slots`` is the host's manifest-filtered tree family (art cannot
@@ -66,6 +66,12 @@ def spawn_deco_render_items(tile_map, col_min, col_max, row_min, row_max,
     ``anim_time_ms`` feeds idle animation; the same deterministic per-cell
     phase as the other two window emitters keeps identical neighbouring
     tiles from animating in lockstep.
+
+    ``column`` is an OPAQUE master-sheet column passed straight through onto
+    every emitted item — this emitter reads no run state and gives the value
+    no meaning. ``None`` (the default) means "no live column", leaving each
+    slot's stored column in charge; ``0`` is a REAL column, never "unset", so
+    the value is never tested for truthiness here or downstream.
     """
     if not tree_slots:
         return []
@@ -92,5 +98,5 @@ def spawn_deco_render_items(tile_map, col_min, col_max, row_min, row_max,
             phase = (col * 131 + row * 197) % 997   # ms, deterministic & pure
             items.append(RenderItem(slot, (col, row), layer=LAYER,
                                     anim_time_ms=anim_time_ms + phase,
-                                    flip=flip))
+                                    flip=flip, column=column))
     return items

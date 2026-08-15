@@ -43,7 +43,8 @@ class FakeAssets:
         self.offsets = offsets or {}
         self.slices = slices or {}
 
-    def frame(self, slot_key, animation="idle", anim_time_ms=0, extra_hidden=None):
+    def frame(self, slot_key, animation="idle", anim_time_ms=0, extra_hidden=None,
+              column=None):
         w, h = self.sizes.get(slot_key, self.default)
         offset_x, offset_y = self.offsets.get(slot_key, (0, 0))
         return Frame(surface=f"SURF:{slot_key}", frame_w=w, frame_h=h,
@@ -552,7 +553,8 @@ class RecordingAssetsWithHidden(FakeAssets):
         super().__init__(sizes={"btn": (64, 64)})
         self.last_extra_hidden = None
 
-    def frame(self, slot_key, animation="idle", anim_time_ms=0, extra_hidden=None):
+    def frame(self, slot_key, animation="idle", anim_time_ms=0, extra_hidden=None,
+              column=None):
         self.last_extra_hidden = set(extra_hidden) if extra_hidden else extra_hidden
         return super().frame(slot_key, animation, anim_time_ms)
 
@@ -866,6 +868,47 @@ class TestProfileRenderCli(unittest.TestCase):
         self.assertTrue(args.far_polyline)
         with self.assertRaises(SystemExit):
             self._parse(["--overlays", "-1"])
+
+
+class RecordingAssetsWithColumn(FakeAssets):
+    """FakeAssets that records the `column` the renderer asked for."""
+
+    def __init__(self):
+        super().__init__()
+        self.last_column = "unasked"
+
+    def frame(self, slot_key, animation="idle", anim_time_ms=0, extra_hidden=None,
+              column=None):
+        self.last_column = column
+        return super().frame(slot_key, animation, anim_time_ms)
+
+
+class TestRenderItemColumn(unittest.TestCase):
+    """MasterSheetColumnsPLAN C3: a world RenderItem's master-sheet column
+    block reaches the asset store, and the default None changes no pixels."""
+
+    def test_non_zero_column_reaches_the_store(self):
+        assets = RecordingAssetsWithColumn()
+        r = Renderer(make_cs(), assets, backend=RecordingBackend())
+        r.submit(RenderItem("ent", (2, 3), column=4))
+        r.flush(target=None)
+        self.assertEqual(assets.last_column, 4)
+
+    def test_default_column_draws_the_same_call_as_before(self):
+        backend = RecordingBackend()
+        r = Renderer(make_cs(), FakeAssets(), backend=backend)
+        item = RenderItem("ent", (2, 3), fit_tiles=1.0, tint=(1, 2, 3), flip=True)
+        call = only_call(r, backend, item)
+        # None, not 0: "no driver — the entry's stored `column` wins" (D3).
+        self.assertIsNone(item.column)
+        # The pre-change DrawCall, recomputed from the same inputs.
+        px, py = make_cs().world_to_screen(2 + block_center_offset(1.0),
+                                           3 + block_center_offset(1.0))
+        self.assertEqual(call.surface, "SURF:ent")
+        self.assertEqual(call.size, (64.0, 32.0))
+        self.assertEqual(call.dest, (px - 32.0, py + 16.0 - 16.0))
+        self.assertEqual(call.tint, (1, 2, 3))
+        self.assertTrue(call.flip)
 
 
 if __name__ == "__main__":

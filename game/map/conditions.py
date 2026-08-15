@@ -22,7 +22,7 @@ LAYER = "terrain"
 
 
 def condition_render_items(tile_map, col_min, col_max, row_min, row_max,
-                           art_slots, anim_time_ms=0):
+                           art_slots, anim_time_ms=0, column=None):
     """Condition-art RenderItems for the tiles inside a visible tile window.
 
     ``art_slots`` is the set of condition slot keys that actually HAVE imported
@@ -42,6 +42,12 @@ def condition_render_items(tile_map, col_min, col_max, row_min, row_max,
     added so identical neighbouring tiles don't animate in lockstep (the same
     rule, and the same constants, as the deco branch of
     ``engine.tilemap.visible_render_items``).
+
+    ``column`` is an OPAQUE master-sheet column passed straight through onto
+    every emitted item — this emitter reads no run state and gives the value
+    no meaning. ``None`` (the default) means "no live column", leaving each
+    slot's stored column in charge; ``0`` is a REAL column, not "unset", so
+    the value is never tested for truthiness.
     """
     if not art_slots:
         return []
@@ -60,7 +66,8 @@ def condition_render_items(tile_map, col_min, col_max, row_min, row_max,
                 continue
             phase = (col * 131 + row * 197) % 997   # ms, deterministic & pure
             items.append(RenderItem(slot, (col, row), layer=LAYER,
-                                    anim_time_ms=anim_time_ms + phase))
+                                    anim_time_ms=anim_time_ms + phase,
+                                    column=column))
     return items
 
 

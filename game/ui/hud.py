@@ -212,6 +212,13 @@ class Hud:
         # AFTER it, so both right-edge buttons would paint on top of it. While
         # it is open they are neither drawn nor hit-tested.
         self._panel_open = False
+        # Speed buttons are combat-only chrome: hidden outright in BUILDING
+        # phase (build mode), where they have nothing to control (main.py's
+        # sim_dt only ever scales the ENEMY phase — build mode always plays
+        # at 1x regardless of the selected speed). Recomputed each frame in
+        # update(); read back in hit()/submit() the `_panel_open` way, since
+        # hit() has no session/phase access of its own.
+        self._speed_buttons_visible = True
         # -- 10H --
         self._mx = self._my = 0  # cursor pos: anchors the cooldown bar
         # -- /10H --
@@ -405,6 +412,8 @@ class Hud:
         # unlock / construct / upgrade / base_info, plus the construct preview
         # modal — any of them owns the right column.
         self._panel_open = panel.visible or panel.preview is not None
+        # build mode = GamePhase.BUILDING; hidden there (see __init__ note)
+        self._speed_buttons_visible = st.phase != GamePhase.BUILDING
         self.end_turn.enabled = (
             st.state == GameState.GAMEPLAY
             and st.phase == GamePhase.BUILDING
@@ -425,9 +434,11 @@ class Hud:
                          (2, self.speed_2x)):
             btn.enabled = (st.state == GameState.GAMEPLAY
                           and not self._panel_open
+                          and self._speed_buttons_visible
                           and session.speed_unlocked(idx))
             btn.hover(mx, my, mouse_down)
-            btn.hovered = btn.hovered and is_visible(btn)
+            btn.hovered = (btn.hovered and is_visible(btn)
+                          and self._speed_buttons_visible)
             btn.update(dt)
         # -- /10L speed --
         # -- drag-select: same enable rule as `pause` — NO unlock/round gate,
@@ -445,13 +456,14 @@ class Hud:
             return None
         if is_visible(self.pause) and self.pause.hit(mx, my):
             return "pause"
-        # -- 10L: speed buttons --
-        if is_visible(self.speed_1x) and self.speed_1x.hit(mx, my):
-            return ("speed", 0)
-        if is_visible(self.speed_1_5x) and self.speed_1_5x.hit(mx, my):
-            return ("speed", 1)
-        if is_visible(self.speed_2x) and self.speed_2x.hit(mx, my):
-            return ("speed", 2)
+        # -- 10L: speed buttons — hidden in build mode, see update() --
+        if self._speed_buttons_visible:
+            if is_visible(self.speed_1x) and self.speed_1x.hit(mx, my):
+                return ("speed", 0)
+            if is_visible(self.speed_1_5x) and self.speed_1_5x.hit(mx, my):
+                return ("speed", 1)
+            if is_visible(self.speed_2x) and self.speed_2x.hit(mx, my):
+                return ("speed", 2)
         # -- /10L speed --
         # -- drag-select: a PURE READ. main.py calls Hud.hit() twice per click
         # (the MOUSEBUTTONDOWN `over_ui` pan-arming probe, then for real from
@@ -579,18 +591,20 @@ class Hud:
                 self.pause.submit(renderer, anim_ms=t,
                                   **button_kwargs(self.pause))
             # -- 10L: fast-forward speed buttons — active one gets the
-            # overlays.py gold-rim treatment (overrides any skin color) --
-            for idx, btn in ((0, self.speed_1x), (1, self.speed_1_5x),
-                             (2, self.speed_2x)):
-                if not is_visible(btn):
-                    continue
-                if idx == session.combat_speed_idx:
-                    btn.submit(renderer, color=widgets.C_UI_BTN,
-                              text_color=widgets.C_GOLD, anim_ms=t)
-                    renderer.submit_hud(HudRect(btn.rect, widgets.C_GOLD,
-                                                width=2, border_radius=3))
-                else:
-                    btn.submit(renderer, anim_ms=t, **button_kwargs(btn))
+            # overlays.py gold-rim treatment (overrides any skin color).
+            # Hidden outright in build mode (BUILDING phase) — see update(). --
+            if self._speed_buttons_visible:
+                for idx, btn in ((0, self.speed_1x), (1, self.speed_1_5x),
+                                 (2, self.speed_2x)):
+                    if not is_visible(btn):
+                        continue
+                    if idx == session.combat_speed_idx:
+                        btn.submit(renderer, color=widgets.C_UI_BTN,
+                                  text_color=widgets.C_GOLD, anim_ms=t)
+                        renderer.submit_hud(HudRect(btn.rect, widgets.C_GOLD,
+                                                    width=2, border_radius=3))
+                    else:
+                        btn.submit(renderer, anim_ms=t, **button_kwargs(btn))
             # -- /10L speed --
             # -- drag-select toggle: same gold-rim-when-active treatment as
             # the speed buttons; the state itself is the host's (gp[

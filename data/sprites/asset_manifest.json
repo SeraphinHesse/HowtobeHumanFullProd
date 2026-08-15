@@ -3684,16 +3684,8 @@
       "sheet": "imported/enemy_t4.png"
     },
     "flute_player_t1_lvl1": {
-      "anchors": {
-        "floater_origin": [
-          -1,
-          -12
-        ],
-        "hp_bar": [
-          -3,
-          -26
-        ]
-      },
+      "column_mode": "building_color",
+      "column_width": 17,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3707,81 +3699,9 @@
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "master/ss_fluteplayer.png"
     },
     "flute_player_t1_lvl2": {
       "anchors": {
@@ -3794,92 +3714,16 @@
           -28
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 17,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 1,
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [
-            0,
-            2,
-            3,
-            4,
-            5,
-            6
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
           "fps": 6,
           "frames": 17,
           "hidden": [],
@@ -3888,7 +3732,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "master/ss_fluteplayer.png"
     },
     "flute_player_t1_lvl3": {
       "anchors": {
@@ -3901,92 +3745,16 @@
           -30
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 17,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 2,
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [
-            0,
-            1,
-            3,
-            4,
-            5,
-            6
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
           "fps": 6,
           "frames": 17,
           "hidden": [],
@@ -3995,7 +3763,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "master/ss_fluteplayer.png"
     },
     "formation_stage_1": {
       "anchors": {
@@ -4240,50 +4008,19 @@
           -21
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 17,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 3,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
           "frames": 17,
           "hidden": [
-            0,
-            1,
-            2,
-            4,
-            5,
-            6
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [
             8,
             9,
             10,
@@ -4294,77 +4031,12 @@
             15,
             16
           ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "master/ss_fluteplayer.png"
     },
     "harp_player_t2_lvl2": {
       "anchors": {
@@ -8352,92 +8024,16 @@
           -24
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 17,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 6,
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
           "fps": 6,
           "frames": 17,
           "hidden": [],
@@ -8446,7 +8042,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "master/ss_fluteplayer.png"
     },
     "trio_t3_lvl2": {
       "anchors": {
@@ -8459,92 +8055,16 @@
           -30
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 17,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 7,
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
           "fps": 6,
           "frames": 17,
           "hidden": [],
@@ -8553,103 +8073,17 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "master/ss_fluteplayer.png"
     },
     "trio_t3_lvl3": {
-      "anchors": {
-        "floater_origin": [
-          -1,
-          -24
-        ],
-        "hp_bar": [
-          -1,
-          -29
-        ]
-      },
+      "column_mode": "building_color",
+      "column_width": 17,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 8,
       "rows": [
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
         {
           "animation": "idle",
           "fps": 6,
@@ -8660,7 +8094,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "master/ss_fluteplayer.png"
     },
     "ui_bg_main_menu": {
       "frame_h": 270,
