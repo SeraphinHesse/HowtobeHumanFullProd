@@ -111,20 +111,20 @@
     },
     "gold_highlight": {
       "border_color": [
-        255,
-        240,
-        80
+        222,
+        158,
+        65
       ],
       "border_width": 2,
-      "fade_in": 0.15,
+      "fade_in": 1.0,
       "fill_alpha": 90,
       "fill_color": [
-        255,
-        215,
-        0
+        232,
+        193,
+        112
       ],
-      "hold": 0.35,
-      "life": 1.2
+      "hold": 0.15,
+      "life": 2.0
     },
     "highlights": {
       "attack_range": {
@@ -392,7 +392,7 @@
     "building_placed": {
       "draw_in_front": true,
       "procedural": "spark_place",
-      "sprite_slot": "",
+      "sprite_slot": "vfx_respawn",
       "variant_select": {
         "misc_key": "",
         "mode": "random"
@@ -401,7 +401,7 @@
     "building_respawn": {
       "draw_in_front": true,
       "procedural": "spark_respawn",
-      "sprite_slot": "",
+      "sprite_slot": "vfx_respawn",
       "variant_select": {
         "misc_key": "",
         "mode": "random"
@@ -471,9 +471,9 @@
       }
     },
     "section_2x2": {
-      "draw_in_front": true,
+      "draw_in_front": false,
       "procedural": "highlight",
-      "sprite_slot": "",
+      "sprite_slot": "vfx_section_2x2",
       "variant_select": {
         "misc_key": "",
         "mode": "random"
@@ -491,7 +491,7 @@
     "tile_selected": {
       "draw_in_front": false,
       "procedural": "highlight",
-      "sprite_slot": "",
+      "sprite_slot": "vfx_tile_selected",
       "variant_select": {
         "misc_key": "",
         "mode": "random"
