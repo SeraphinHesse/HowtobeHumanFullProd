@@ -29,6 +29,9 @@ DEFAULTS = {
     "toggle_heatmap": "h",
     "toggle_range": "r",
     "toggle_tier_overview": "t",
+    "zoom_level_1": "4",
+    "zoom_level_2": "5",
+    "zoom_level_3": "6",
 }
 
 

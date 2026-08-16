@@ -241,6 +241,21 @@
           "description": "Toggles the TIERS map overlay - the same flag the TIERS HUD pill flips on click.",
           "pattern": "^(ctrl\\+)?[a-z0-9]+$",
           "type": "string"
+        },
+        "zoom_level_1": {
+          "description": "Sets the camera zoom to the 1st (smallest-scale) data-driven zoom level (core.json Camera.zoom_levels, sorted ascending), keeping the viewport-centre world point fixed - the same recentring step_zoom uses.",
+          "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+          "type": "string"
+        },
+        "zoom_level_2": {
+          "description": "Sets the camera zoom to the 2nd data-driven zoom level (core.json Camera.zoom_levels, sorted ascending), keeping the viewport-centre world point fixed. A no-op if fewer than 2 levels are authored.",
+          "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+          "type": "string"
+        },
+        "zoom_level_3": {
+          "description": "Sets the camera zoom to the 3rd (largest-scale) data-driven zoom level (core.json Camera.zoom_levels, sorted ascending), keeping the viewport-centre world point fixed. A no-op if fewer than 3 levels are authored.",
+          "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+          "type": "string"
         }
       },
       "required": [
@@ -254,7 +269,10 @@
         "toggle_drag_select",
         "toggle_heatmap",
         "toggle_range",
-        "toggle_tier_overview"
+        "toggle_tier_overview",
+        "zoom_level_1",
+        "zoom_level_2",
+        "zoom_level_3"
       ],
       "type": "object"
     },

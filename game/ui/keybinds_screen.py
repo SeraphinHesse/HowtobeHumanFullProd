@@ -1,8 +1,9 @@
 """Rebindable-hotkeys screen (feature: rebindable hotkeys).
 
-Lists 9 of the 11 actions in ``data/balancing/ui.json``'s ``Keybindings``
+Lists 12 of the 14 actions in ``data/balancing/ui.json``'s ``Keybindings``
 group (the designer-editable defaults) with their current key and a REBIND
-button per row — ``toggle_cheat_menu`` and ``quick_skip_combat`` are
+button per row, in TWO columns (12 rows in one column would run off the
+640x360 logical surface) — ``toggle_cheat_menu`` and ``quick_skip_combat`` are
 deliberately EXCLUDED from ``ACTIONS`` (cut from this screen on request): both
 keep working exactly as before, dispatched through ``key_bindings`` in
 ``game/main.py`` same as any other action, they are just not surfaced as
@@ -42,22 +43,30 @@ from . import widgets
 _BG = (12, 20, 14)
 
 #: (action name, on-screen label) — the rebindable-AND-shown gameplay
-#: actions, in display order. A subset of ``data/balancing/ui.json``'s
-#: ``Keybindings`` group's 11 keys (see the module docstring for the two
-#: deliberately-omitted ones); every action name here must still match
-#: ``engine.input``'s callers in ``game/main.py`` and a ``Keybindings`` key
-#: exactly.
+#: actions, in display order (first `_ROWS_PER_COL` go in the left column,
+#: the rest in the right — see `layout()`). A subset of
+#: ``data/balancing/ui.json``'s ``Keybindings`` group's 14 keys (see the
+#: module docstring for the two deliberately-omitted ones); every action name
+#: here must still match ``engine.input``'s callers in ``game/main.py`` and a
+#: ``Keybindings`` key exactly.
 ACTIONS = [
     ("end_turn", "End Turn"),
     ("combat_speed_1", "Combat Speed 1x"),
     ("combat_speed_2", "Combat Speed 1.5x"),
     ("combat_speed_3", "Combat Speed 2x"),
+    ("confirm_purchase", "Confirm Purchase"),
     ("toggle_heatmap", "Toggle Heatmap"),
     ("toggle_range", "Toggle Range"),
     ("toggle_tier_overview", "Toggle Tiers"),
     ("toggle_drag_select", "Drag Select"),
-    ("confirm_purchase", "Confirm Purchase"),
+    ("zoom_level_1", "Zoom Level 1"),
+    ("zoom_level_2", "Zoom Level 2"),
+    ("zoom_level_3", "Zoom Level 3"),
 ]
+
+#: Two columns keep 12 rows readable on the 640x360 logical surface — see
+#: `layout()`. `-(-len(ACTIONS) // 2)` is ceil-division with no `math` import.
+_ROWS_PER_COL = -(-len(ACTIONS) // 2)
 
 _FLASH_DUR = 1.5
 
@@ -96,14 +105,22 @@ class KeybindsScreen:
     def layout(self, view_w, view_h):
         cx = view_w // 2
         self._cx = cx
-        self._top = view_h // 2 - 130
-        y = self._top + 40
-        self._row_y = []
-        for _action, _label, btn in self.rows:
-            self._row_y.append(y)
-            btn.rect = (cx + 45, y - 3, 60, 18)
-            y += 22
-        self.back_btn.rect = (cx - 50, y + 12, 100, 23)
+        self._top = view_h // 2 - 150
+        top_y = self._top + 40
+        # Two columns (12 rows would run off a single 640x360 column) — left
+        # column's label/key/button sit left of centre, right column mirrors
+        # it right of centre, both growing downward from the same top_y.
+        col_x = ((cx - 300, cx - 170, cx - 150),   # (label, key, button) x
+                (cx + 40, cx + 170, cx + 190))
+        self._row_xy = []
+        for i, (_action, _label, btn) in enumerate(self.rows):
+            col, row_in_col = divmod(i, _ROWS_PER_COL)
+            label_x, key_x, btn_x = col_x[col]
+            y = top_y + row_in_col * 22
+            self._row_xy.append((label_x, key_x, y))
+            btn.rect = (btn_x, y - 3, 60, 18)
+        bottom_y = top_y + _ROWS_PER_COL * 22
+        self.back_btn.rect = (cx - 50, bottom_y + 12, 100, 23)
         self._backdrop.rect = (0, 0, view_w, view_h)
         self._title.rect = (cx, self._top, 0, 0)
         self.ids = {
@@ -172,10 +189,11 @@ class KeybindsScreen:
                             self._title.rect[1], self._title.font_key,
                             self._title.text_color)
 
-        for (action, label, btn), y in zip(self.rows, self._row_y):
-            submit_text(renderer, label, (cx - 140, y), "sm", widgets.C_UI_TEXT)
+        for (action, label, btn), (label_x, key_x, y) in zip(
+                self.rows, self._row_xy):
+            submit_text(renderer, label, (label_x, y), "sm", widgets.C_UI_TEXT)
             submit_text(renderer, display_key(self.bindings.get(action, "")),
-                       (cx - 10, y), "sm", widgets.C_GOLD)
+                       (key_x, y), "sm", widgets.C_GOLD)
             if is_visible(btn):
                 btn.submit(renderer, anim_ms=t, **button_kwargs(btn))
 

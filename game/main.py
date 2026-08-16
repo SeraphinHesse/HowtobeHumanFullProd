@@ -566,19 +566,39 @@ class _World:
         # -- /10I --
 
 
+def _recenter_zoom(cs, new_zoom, view_w, view_h):
+    """Apply `new_zoom`, keeping the world point at the viewport centre fixed
+    (coords authority only, E-5) — the shared body of `step_zoom` (a relative
+    step) and `set_zoom_level` (an absolute jump, feature: rebindable
+    hotkeys)."""
+    cx, cy = view_w / 2, view_h / 2
+    anchor = cs.screen_to_world(cx, cy)
+    cs.set_zoom(new_zoom)
+    px, py = cs.world_to_screen(*anchor)
+    cs.pan(px - cx, py - cy)
+    cs.clamp(view_w, view_h)
+
+
 def step_zoom(cs, direction, view_w, view_h):
     """Move one step through the data-driven zoom levels, keeping the world
-    point at the viewport centre fixed (coords authority only, E-5)."""
+    point at the viewport centre fixed."""
     levels = sorted(cs.geometry.zoom_levels)
     i = levels.index(cs.camera.zoom) + direction
     if not 0 <= i < len(levels):
         return
-    cx, cy = view_w / 2, view_h / 2
-    anchor = cs.screen_to_world(cx, cy)
-    cs.set_zoom(levels[i])
-    px, py = cs.world_to_screen(*anchor)
-    cs.pan(px - cx, py - cy)
-    cs.clamp(view_w, view_h)
+    _recenter_zoom(cs, levels[i], view_w, view_h)
+
+
+def set_zoom_level(cs, index, view_w, view_h):
+    """Jump straight to the zoom level at `index` (0-based, sorted ascending)
+    — `step_zoom`'s ABSOLUTE-jump sibling for the zoom-level hotkeys (feature:
+    rebindable hotkeys). A silent no-op if that index doesn't exist (fewer
+    zoom levels authored than hotkeys) — the combat-speed round-gate
+    precedent."""
+    levels = sorted(cs.geometry.zoom_levels)
+    if not 0 <= index < len(levels):
+        return
+    _recenter_zoom(cs, levels[index], view_w, view_h)
 
 
 def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
@@ -1636,6 +1656,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                     # handle_world_click's "drag_select" HUD action does for
                     # the DRAG SEL button's own click.
                     gp["drag_select_enabled"] = not gp["drag_select_enabled"]
+                elif _binding_key_name(event) == key_bindings["zoom_level_1"]:
+                    set_zoom_level(cs, 0, view_w, view_h)
+                elif _binding_key_name(event) == key_bindings["zoom_level_2"]:
+                    set_zoom_level(cs, 1, view_w, view_h)
+                elif _binding_key_name(event) == key_bindings["zoom_level_3"]:
+                    set_zoom_level(cs, 2, view_w, view_h)
                 elif session.state.phase == GamePhase.ENEMY:
                     # Combat-speed shortcuts + quick-skip (10F). 1.5x/2x are
                     # round-gated inside Session, so a locked key is a no-op.

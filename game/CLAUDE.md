@@ -266,19 +266,24 @@ preset names (D5).
   `ui.json`'s `Keybindings` group + any player rebind in
   `scores/keybindings.json`, `engine.input.load_keybindings`) compared
   against `_binding_key_name(event)` — the pygame-keycode-to-neutral-string
-  translator beside `_key_name`. 9 actions: `end_turn` (Space), combat speed
+  translator beside `_key_name`. 14 actions: `end_turn` (Space), combat speed
   ×3 (`1`/`2`/`3`), `quick_skip_combat` (`P`), `toggle_cheat_menu` (Ctrl+L),
   `toggle_heatmap`/`toggle_range`/`toggle_tier_overview` (H/R/T, the same
   flip `MapOverlays.hit()` does for their pills), `toggle_drag_select` (Q,
   the same flip the DRAG SEL HUD button does), `confirm_purchase` (Enter —
   only while a construct/move preview is open, routed through the SAME
   public `panel.handle_click` a mouse click on CONFIRM uses, aimed at that
-  button's own centre, so keyboard and mouse can never disagree). Esc, F12
-  and text-editing keys (Backspace/arrows/Enter-while-typing-a-name) stay
-  fixed system conventions, never rebindable. The in-game Settings → Controls
-  screen (`game/ui/keybinds_screen.py`, `game/ui/CLAUDE.md`) surfaces 9 of
-  the 11 `Keybindings` actions for player rebinding; `toggle_cheat_menu` (a
-  hidden dev feature) and `quick_skip_combat` (a testing convenience) are
+  button's own centre, so keyboard and mouse can never disagree), and
+  `zoom_level_1`/`_2`/`_3` (`4`/`5`/`6` — an ABSOLUTE jump to the data-driven
+  `core.json Camera.zoom_levels[i]`, sorted ascending, via the new
+  `set_zoom_level(cs, index, view_w, view_h)`, `step_zoom`'s sibling sharing
+  its `_recenter_zoom` recentring body; a no-op if that index doesn't exist,
+  the combat-speed round-gate precedent). Esc, F12 and text-editing keys
+  (Backspace/arrows/Enter-while-typing-a-name) stay fixed system conventions,
+  never rebindable. The in-game Settings → Controls screen
+  (`game/ui/keybinds_screen.py`, `game/ui/CLAUDE.md`) surfaces 12 of the 14
+  `Keybindings` actions for player rebinding; `toggle_cheat_menu` (a hidden
+  dev feature) and `quick_skip_combat` (a testing convenience) are
   deliberately excluded from that screen but keep dispatching normally.
   Rebind capture (Esc cancels, a collision flashes, otherwise the key is
   written + persisted) is host-only logic (`main.py`'s `_handle_capture_key`)

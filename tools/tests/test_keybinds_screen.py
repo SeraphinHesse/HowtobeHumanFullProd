@@ -29,6 +29,9 @@ BINDINGS = {
     "toggle_heatmap": "h",
     "toggle_range": "r",
     "toggle_tier_overview": "t",
+    "zoom_level_1": "4",
+    "zoom_level_2": "5",
+    "zoom_level_3": "6",
 }
 
 
@@ -55,6 +58,11 @@ class TestActionsScope(unittest.TestCase):
             {"end_turn", "toggle_heatmap", "toggle_range",
              "toggle_tier_overview", "toggle_drag_select"},
             shown)
+
+    def test_the_three_zoom_levels_are_shown(self):
+        shown = {action for action, _label in ACTIONS}
+        self.assertLessEqual(
+            {"zoom_level_1", "zoom_level_2", "zoom_level_3"}, shown)
 
 
 class TestKeybindsScreenCapture(unittest.TestCase):
