@@ -403,6 +403,8 @@
             "ui_button_pause",
             "ui_button_pill",
             "ui_choice_box",
+            "ui_icon_boss_next",
+            "ui_icon_boss_next_off",
             "ui_icon_lives",
             "ui_icon_love",
             "ui_icon_xp",

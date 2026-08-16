@@ -4996,6 +4996,16 @@
           14
         ]
       },
+      "icon_boss_next": {
+        "kind": "panel",
+        "label": "",
+        "rect": [
+          568,
+          6,
+          15,
+          15
+        ]
+      },
       "icon_lives": {
         "display_name": "Lives icon",
         "kind": "panel",

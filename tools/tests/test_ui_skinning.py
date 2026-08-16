@@ -211,12 +211,26 @@ def _screen_captures():
 #: is unchanged — its position was never derived from the speed row's
 #: runtime visibility, only from its default layout) and every other
 #: screen's entry is byte-identical.
-#: Regenerated a TWELFTH time (cheat menu Unlock Speed): the cheat menu
+#: Regenerated a TWELFTH time (boss-round indicator icon): ``hud`` gained a
+#: new BUILDING-phase-only icon immediately left of Pause (a
+#: `ui_icon_boss_next`/`ui_icon_boss_next_off` HudSprite, tinted while
+#: neither slot carries real art), so ONE primitive is INSERTED into that
+#: entry between END TURN and Pause — nothing already there moved, and every
+#: other screen's entry is byte-identical, which is what says the change was
+#: contained.
+#: Regenerated a THIRTEENTH time (cheat menu Unlock Speed): the cheat menu
 #: gained an ``unlock_speed`` row (bypasses the combat-speed round gate for
 #: the rest of the run) between ``Unlock Tech`` and ``Debug Log``, so the
 #: panel grew one row step (15px) and every row from ``Debug Log`` downward
 #: shifts. Only ``cheat_menu``'s entry moved; every other screen's entry is
 #: byte-identical, which is what says the change was contained.
+#: The TWELFTH and THIRTEENTH regenerations landed on separate branches and
+#: met here at a merge. They are independent: one rewrites only ``hud``'s
+#: entry, the other only ``cheat_menu``'s, so neither supersedes the other
+#: and the merged baseline carries BOTH. That disjointness is the merge's
+#: containment signal — if a future merge of two UI branches touches the SAME
+#: entry, the resolution is to re-capture from ``_screen_captures()``, never
+#: to pick a side.
 _BASELINE = {
     "main_menu": [
         HudRect(rect=(0, 0, 640, 360), color=(18, 30, 20), border_radius=0, width=0),
@@ -396,6 +410,7 @@ _BASELINE = {
         HudRect(rect=(552, 322, 80, 30), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(552, 322, 80, 30), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='END TURN', pos=(592, 330), font_key='md', color=(235, 225, 195), align='center'),
+        HudSprite(slot_key='ui_icon_boss_next_off', dest=(568, 6), size=(15, 15), tint=(150, 150, 150, 255), flip=False, animation='idle', anim_time_ms=0),
         HudRect(rect=(587, 6, 45, 15), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(587, 6, 45, 15), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='PAUSE', pos=(609, 7), font_key='md', color=(235, 225, 195), align='center'),

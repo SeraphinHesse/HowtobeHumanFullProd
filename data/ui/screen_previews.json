@@ -5475,6 +5475,29 @@
         "type": "text"
       },
       {
+        "anim_time_ms": 0,
+        "animation": "idle",
+        "crop": null,
+        "dest": [
+          568,
+          6
+        ],
+        "flip": false,
+        "hidden_frames": [],
+        "size": [
+          15,
+          15
+        ],
+        "slot_key": "ui_icon_boss_next_off",
+        "tint": [
+          150,
+          150,
+          150,
+          255
+        ],
+        "type": "sprite"
+      },
+      {
         "border_radius": 3,
         "color": [
           75,
