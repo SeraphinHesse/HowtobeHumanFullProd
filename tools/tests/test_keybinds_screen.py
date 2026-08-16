@@ -23,6 +23,10 @@ BINDINGS = {
     "combat_speed_3": "3",
     "confirm_purchase": "return",
     "end_turn": "space",
+    "move_down": "s",
+    "move_left": "a",
+    "move_right": "d",
+    "move_up": "w",
     "quick_skip_combat": "p",
     "toggle_cheat_menu": "ctrl+l",
     "toggle_drag_select": "q",
@@ -63,6 +67,11 @@ class TestActionsScope(unittest.TestCase):
         shown = {action for action, _label in ACTIONS}
         self.assertLessEqual(
             {"zoom_level_1", "zoom_level_2", "zoom_level_3"}, shown)
+
+    def test_the_four_movement_actions_are_shown(self):
+        shown = {action for action, _label in ACTIONS}
+        self.assertLessEqual(
+            {"move_up", "move_down", "move_left", "move_right"}, shown)
 
 
 class TestKeybindsScreenCapture(unittest.TestCase):

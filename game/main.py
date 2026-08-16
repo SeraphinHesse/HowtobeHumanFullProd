@@ -191,6 +191,22 @@ def _key_name(key):
 _BINDING_KEY_NAMES = None  # lazily built (needs pygame constants)
 
 
+def _binding_key_names_table():
+    """The pygame-keycode -> neutral-name table `_binding_key_name` and its
+    reverse, `_binding_pygame_key`, both share — built once (needs pygame
+    constants)."""
+    global _BINDING_KEY_NAMES
+    if _BINDING_KEY_NAMES is None:
+        _BINDING_KEY_NAMES = {
+            pygame.K_SPACE: "space",
+            pygame.K_RETURN: "return",
+            pygame.K_KP_ENTER: "return",
+            pygame.K_ESCAPE: "escape",
+            pygame.K_BACKSPACE: "backspace",
+        }
+    return _BINDING_KEY_NAMES
+
+
 def _binding_key_name(event):
     """A KEYDOWN event's NEUTRAL binding string — "space", "ctrl+l", "h",
     "1", "return" — the vocabulary ``engine.input``'s bindings dict and
@@ -204,16 +220,7 @@ def _binding_key_name(event):
     named here — they stay a fixed always-on alias in the combat-speed
     dispatch, outside the rebindable set (rebinding only ever changes the
     primary key)."""
-    global _BINDING_KEY_NAMES
-    if _BINDING_KEY_NAMES is None:
-        _BINDING_KEY_NAMES = {
-            pygame.K_SPACE: "space",
-            pygame.K_RETURN: "return",
-            pygame.K_KP_ENTER: "return",
-            pygame.K_ESCAPE: "escape",
-            pygame.K_BACKSPACE: "backspace",
-        }
-    name = _BINDING_KEY_NAMES.get(event.key)
+    name = _binding_key_names_table().get(event.key)
     if name is None and 0 < event.key < 128 and chr(event.key).isalnum():
         name = chr(event.key)
     if name is None:
@@ -221,6 +228,33 @@ def _binding_key_name(event):
     if event.mod & pygame.KMOD_CTRL:
         return f"ctrl+{name}"
     return name
+
+
+def _binding_pygame_key(binding):
+    """Reverse of `_binding_key_name`: a binding string ("w", "ctrl+l") -> the
+    base pygame keycode to poll, or `None` if it can't be resolved. The
+    movement hotkeys are POLLED every frame via `pygame.key.get_pressed()`
+    (held-down panning), not KEYDOWN-dispatched like every other action, so
+    they need this reverse lookup instead of a live event's `.key`."""
+    name = binding[len("ctrl+"):] if binding.startswith("ctrl+") else binding
+    if len(name) == 1 and name.isalnum():
+        return ord(name)
+    for key, mapped in _binding_key_names_table().items():
+        if mapped == name:
+            return key
+    return None
+
+
+def _binding_held(binding, keys_pressed):
+    """True while the (possibly rebound) key for `binding` is currently held
+    down — the `keys[pygame.K_SPACE]` cutscene-hold-to-skip precedent,
+    generalized to any binding string for the movement hotkeys."""
+    base = _binding_pygame_key(binding)
+    if base is None or not keys_pressed[base]:
+        return False
+    if binding.startswith("ctrl+"):
+        return bool(pygame.key.get_mods() & pygame.KMOD_CTRL)
+    return True
 
 
 def _apply_display_mode(mode, view_w, view_h, caption):
@@ -1771,6 +1805,35 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         keys = pygame.key.get_pressed()
         # cutscene hold-to-skip: left click, space, or esc held continuously
         skip_held = held or keys[pygame.K_SPACE] or keys[pygame.K_ESCAPE]
+
+        # feature: rebindable hotkeys — WASD/arrow-key camera panning, held
+        # continuously (polled every frame via `keys`, the skip_held pattern
+        # above, not a single KEYDOWN dispatch like every other hotkey).
+        # Gated the same way mouse drag-panning already is: only while a
+        # world state is live, never while the sim is frozen (LEVELUP/
+        # BOSS_CUTSCENE/ENEMY_INTRO), the cheat menu is open, a construct/
+        # move preview modal has focus (which also captures typed characters
+        # — WASD must not leak into a name field), or the upgrade panel's
+        # rename row is capturing keys. Arrow keys ALWAYS pan too, a fixed
+        # always-on alias outside the rebindable set (the numpad precedent).
+        world = gp["world"]
+        if (world is not None and shell.state in _WORLD_STATES
+                and not world.session.frozen and not gp["cheat"].visible
+                and gp["panel"].preview is None
+                and not gp["panel"].name_editing):
+            pan_speed = core_balance["Camera"]["keyboard_pan_speed"]
+            dx = dy = 0.0
+            if _binding_held(key_bindings["move_left"], keys) or keys[pygame.K_LEFT]:
+                dx -= pan_speed * dt
+            if _binding_held(key_bindings["move_right"], keys) or keys[pygame.K_RIGHT]:
+                dx += pan_speed * dt
+            if _binding_held(key_bindings["move_up"], keys) or keys[pygame.K_UP]:
+                dy -= pan_speed * dt
+            if _binding_held(key_bindings["move_down"], keys) or keys[pygame.K_DOWN]:
+                dy += pan_speed * dt
+            if dx or dy:
+                cs.pan(dx, dy)
+                cs.clamp(view_w, view_h)
 
         # 2. simulate / update — per state
         _t_sim0 = time.perf_counter()

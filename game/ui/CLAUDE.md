@@ -610,8 +610,8 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
   Reached via a new CONTROLS button on `SettingsScreen`; opened as
   `Shell.controls_open`, an overlay flag on `GameState.SETTINGS` (the
   `debug_settings_open`-on-`MAIN_MENU` pattern — reachable from exactly one
-  place, so no new `GameState` member). Lists 12 of the 14
-  `data/balancing/ui.json Keybindings` actions in TWO columns (12 rows in one
+  place, so no new `GameState` member). Lists 16 of the 18
+  `data/balancing/ui.json Keybindings` actions in TWO columns (16 rows in one
   column overflows the 640x360 logical surface — `_ROWS_PER_COL`)
   (`toggle_cheat_menu`/`quick_skip_combat` deliberately excluded — see
   `game/CLAUDE.md`'s Rebindable hotkeys section) with a REBIND button per row.

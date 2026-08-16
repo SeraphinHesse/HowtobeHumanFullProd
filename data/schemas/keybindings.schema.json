@@ -29,6 +29,26 @@
       "pattern": "^(ctrl\\+)?[a-z0-9]+$",
       "type": "string"
     },
+    "move_down": {
+      "description": "Pans the camera down (WASD). The Down arrow key ALWAYS pans down too, as a fixed always-on alias outside the rebindable set. Held continuously (polled every frame).",
+      "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+      "type": "string"
+    },
+    "move_left": {
+      "description": "Pans the camera left (WASD). The Left arrow key ALWAYS pans left too, as a fixed always-on alias outside the rebindable set. Held continuously (polled every frame).",
+      "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+      "type": "string"
+    },
+    "move_right": {
+      "description": "Pans the camera right (WASD). The Right arrow key ALWAYS pans right too, as a fixed always-on alias outside the rebindable set. Held continuously (polled every frame).",
+      "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+      "type": "string"
+    },
+    "move_up": {
+      "description": "Pans the camera up (WASD). The Up arrow key ALWAYS pans up too, as a fixed always-on alias outside the rebindable set - the numpad/combat-speed precedent - so this binding only ever changes the primary key. Held continuously (polled every frame, not a single KEYDOWN dispatch, like the cutscene hold-to-skip keys).",
+      "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+      "type": "string"
+    },
     "quick_skip_combat": {
       "description": "Abandons the current wave straight to ROUND_END, paying no XP for the enemies skipped. Not shown on the in-game Controls screen (a testing convenience, not a player-facing control), but still dispatched through this same binding.",
       "pattern": "^(ctrl\\+)?[a-z0-9]+$",
@@ -81,6 +101,10 @@
     "combat_speed_3",
     "confirm_purchase",
     "end_turn",
+    "move_down",
+    "move_left",
+    "move_right",
+    "move_up",
     "quick_skip_combat",
     "toggle_cheat_menu",
     "toggle_drag_select",

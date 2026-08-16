@@ -613,6 +613,12 @@
           "minimum": 0.1,
           "type": "number"
         },
+        "keyboard_pan_speed": {
+          "description": "How fast W/A/S/D and the arrow keys pan the camera, in SCREEN pixels per second - zoom-independent, matching mouse-drag panning's own raw-pixel behaviour (a drag never scales by zoom either), so holding a movement key feels exactly as responsive at any zoom level.",
+          "maximum": 4096,
+          "minimum": 1,
+          "type": "number"
+        },
         "max_offset_tiles_x": {
           "description": "How far the camera may travel horizontally from the map's camera start point, in TILES (grid steps; zoom-independent, so the same distance at every zoom level). Bounds the viewport CENTRE, so roughly half a screen beyond the limit is still visible. The map bounds still apply on top of it, whichever is tighter. 0 = unlimited (the shipped default: free roam within the map).",
           "maximum": 1024,
@@ -641,6 +647,7 @@
       },
       "required": [
         "default_zoom",
+        "keyboard_pan_speed",
         "max_offset_tiles_x",
         "max_offset_tiles_y",
         "zoom_levels"

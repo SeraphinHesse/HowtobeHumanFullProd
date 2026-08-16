@@ -266,28 +266,49 @@ preset names (D5).
   `ui.json`'s `Keybindings` group + any player rebind in
   `scores/keybindings.json`, `engine.input.load_keybindings`) compared
   against `_binding_key_name(event)` — the pygame-keycode-to-neutral-string
-  translator beside `_key_name`. 14 actions: `end_turn` (Space), combat speed
+  translator beside `_key_name`. 18 actions: `end_turn` (Space), combat speed
   ×3 (`1`/`2`/`3`), `quick_skip_combat` (`P`), `toggle_cheat_menu` (Ctrl+L),
   `toggle_heatmap`/`toggle_range`/`toggle_tier_overview` (H/R/T, the same
   flip `MapOverlays.hit()` does for their pills), `toggle_drag_select` (Q,
   the same flip the DRAG SEL HUD button does), `confirm_purchase` (Enter —
   only while a construct/move preview is open, routed through the SAME
   public `panel.handle_click` a mouse click on CONFIRM uses, aimed at that
-  button's own centre, so keyboard and mouse can never disagree), and
+  button's own centre, so keyboard and mouse can never disagree),
   `zoom_level_1`/`_2`/`_3` (`4`/`5`/`6` — an ABSOLUTE jump to the data-driven
   `core.json Camera.zoom_levels[i]`, sorted ascending, via the new
   `set_zoom_level(cs, index, view_w, view_h)`, `step_zoom`'s sibling sharing
   its `_recenter_zoom` recentring body; a no-op if that index doesn't exist,
-  the combat-speed round-gate precedent). Esc, F12 and text-editing keys
+  the combat-speed round-gate precedent), and `move_up`/`_down`/`_left`/
+  `_right` (WASD — camera panning). Esc, F12 and text-editing keys
   (Backspace/arrows/Enter-while-typing-a-name) stay fixed system conventions,
   never rebindable. The in-game Settings → Controls screen
-  (`game/ui/keybinds_screen.py`, `game/ui/CLAUDE.md`) surfaces 12 of the 14
+  (`game/ui/keybinds_screen.py`, `game/ui/CLAUDE.md`) surfaces 16 of the 18
   `Keybindings` actions for player rebinding; `toggle_cheat_menu` (a hidden
   dev feature) and `quick_skip_combat` (a testing convenience) are
   deliberately excluded from that screen but keep dispatching normally.
   Rebind capture (Esc cancels, a collision flashes, otherwise the key is
   written + persisted) is host-only logic (`main.py`'s `_handle_capture_key`)
   since `game/ui` must stay pygame-free.
+- **WASD/arrow-key camera panning (feature: rebindable hotkeys)** is the ONE
+  action group that is POLLED every frame (`pygame.key.get_pressed()`, right
+  after the event loop, the `skip_held` cutscene precedent) rather than
+  KEYDOWN-dispatched — panning must happen continuously while held, not once
+  per press. `_binding_pygame_key(binding)` is the REVERSE of
+  `_binding_key_name`: a binding string -> the pygame keycode to poll (a
+  single alnum char resolves via `ord()`, a named key via the same lookup
+  table `_binding_key_name` uses); `_binding_held(binding, keys_pressed)`
+  wraps it with the `ctrl+`-modifier check. The 4 arrow keys ALWAYS pan too —
+  a fixed always-on alias outside the rebindable set, exactly like numpad
+  1/2/3 beside the rebindable combat-speed keys — so rebinding `move_up` only
+  ever changes W. Speed is `core.json Camera.keyboard_pan_speed` (SCREEN
+  pixels/second, zoom-independent — matching mouse-drag panning's own raw
+  1:1-pixel behaviour, `cs.pan(-event.rel[0], -event.rel[1])`; a drag never
+  scales by zoom either). **Gated exactly like mouse drag-panning**: only
+  while `shell.state in _WORLD_STATES` (GAMEPLAY/GAME_OVER), never while
+  `session.frozen` (LEVELUP/BOSS_CUTSCENE/ENEMY_INTRO), the cheat menu is
+  open, a construct/move preview modal has focus (which also captures typed
+  characters — WASD must not leak into a name field), or the upgrade panel's
+  rename row is capturing keys.
 - **10J host wiring**: the BUILDING click branch runs the shift multi-select
   (`update_selection` + `gp["sel"]`/`gp["sel_cat"]`); `panel.name_editing`
   routes keys to the upgrade-panel rename row before the shortcut keys;

@@ -1,8 +1,8 @@
 """Rebindable-hotkeys screen (feature: rebindable hotkeys).
 
-Lists 12 of the 14 actions in ``data/balancing/ui.json``'s ``Keybindings``
+Lists 16 of the 18 actions in ``data/balancing/ui.json``'s ``Keybindings``
 group (the designer-editable defaults) with their current key and a REBIND
-button per row, in TWO columns (12 rows in one column would run off the
+button per row, in TWO columns (16 rows in one column would run off the
 640x360 logical surface) — ``toggle_cheat_menu`` and ``quick_skip_combat`` are
 deliberately EXCLUDED from ``ACTIONS`` (cut from this screen on request): both
 keep working exactly as before, dispatched through ``key_bindings`` in
@@ -45,11 +45,15 @@ _BG = (12, 20, 14)
 #: (action name, on-screen label) — the rebindable-AND-shown gameplay
 #: actions, in display order (first `_ROWS_PER_COL` go in the left column,
 #: the rest in the right — see `layout()`). A subset of
-#: ``data/balancing/ui.json``'s ``Keybindings`` group's 14 keys (see the
+#: ``data/balancing/ui.json``'s ``Keybindings`` group's 18 keys (see the
 #: module docstring for the two deliberately-omitted ones); every action name
 #: here must still match ``engine.input``'s callers in ``game/main.py`` and a
 #: ``Keybindings`` key exactly.
 ACTIONS = [
+    ("move_up", "Move Up"),
+    ("move_down", "Move Down"),
+    ("move_left", "Move Left"),
+    ("move_right", "Move Right"),
     ("end_turn", "End Turn"),
     ("combat_speed_1", "Combat Speed 1x"),
     ("combat_speed_2", "Combat Speed 1.5x"),
