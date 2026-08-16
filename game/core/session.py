@@ -101,6 +101,9 @@ class Session:
         # Session, which is the prototype's "reset to 1x on new game".
         self.combat_speed_idx = 0
         self._prev_combat_speed_idx = 0  # remembered speed for the pause toggle
+        # Cheat menu's ``Unlock Speed`` (10H): latches True, bypassing the
+        # round gate in ``speed_unlocked`` for the rest of the run.
+        self._cheat_speeds_unlocked = False
         # -- 10H: lightning + cheat menu --------------------------------
         # How the NEXT level-up window resolves (set by _begin_levelup): the
         # natural ROUND_END path runs payday; the cheat LEVEL UP path instead
@@ -141,7 +144,10 @@ class Session:
         """Is this speed index selectable at the current round? 1× and the pause
         always are; 1.5× and 2× are round-gated by ``core.PhaseLoop`` (prototype
         gated only the HUD buttons — gating here instead means the keys and the
-        10L buttons can't drift apart)."""
+        10L buttons can't drift apart). The cheat menu's ``Unlock Speed`` bypasses
+        the round gate entirely once latched."""
+        if self._cheat_speeds_unlocked:
+            return True
         loop = self.core_balance["PhaseLoop"]
         if idx == 1:
             return self.state.round_num >= loop["speed_1_5x_min_round"]
@@ -300,6 +306,17 @@ class Session:
                 LEAF_CLASSES[bt]._resolve_tiers(self.buildings_balance))
         if self.debug is not None:
             self.debug.emit(dbg.CHEAT, action="unlock_all")
+
+    def cheat_unlock_speeds(self):
+        """``Unlock Speed``: bypasses the ``speed_1_5x_min_round``/
+        ``speed_2x_min_round`` round gate for the rest of the run, so every
+        combat speed (HUD buttons and the ``1``/``2``/``3`` keys alike) is
+        selectable immediately."""
+        if self.state.state != GameState.GAMEPLAY:
+            return
+        self._cheat_speeds_unlocked = True
+        if self.debug is not None:
+            self.debug.emit(dbg.CHEAT, action="unlock_speed")
 
     # -- /10H ---------------------------------------------------------------
 
