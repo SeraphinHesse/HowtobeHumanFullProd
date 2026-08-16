@@ -107,6 +107,8 @@
   "game_over.buildings_placed": "Buildings Placed: {count}",
   "game_over.enemies_killed": "Enemies Killed: {count}",
   "game_over.round_reached": "Round Reached: {n}",
+  "hud.boss_next_off": "No boss this round",
+  "hud.boss_next_on": "Boss round incoming!",
   "hud.income.base": "Base",
   "hud.income.meditators": "Meditators",
   "hud.income.musicians": "Musicians",

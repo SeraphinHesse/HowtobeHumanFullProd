@@ -164,7 +164,7 @@
     },
     "globals": {
       "flat_mode": false,
-      "range_shape": "plus",
+      "range_shape": "square",
       "range_tiles": 1,
       "starts_unlocked": false,
       "tier_card_explanations": [
