@@ -339,5 +339,41 @@ class TestUpgradePanelSwatches(unittest.TestCase):
                 self.assertGreaterEqual(min(w, h), 12)   # UR-5 floor
 
 
+class TestBossNextIndicatorIcon(unittest.TestCase):
+    """The top-right icon beside Pause: reflects whether ``round_num`` (the
+    round about to be fought, per ``game/core/game_state.py``'s numbering) is
+    a boss round, and draws only during ``GamePhase.BUILDING``. FIXTURE_DATA's
+    ``EnemyScaling`` ships ``rounds_per_era: 10, boss_round_in_era: 10``, so
+    round 10 is a boss round and round 1 is not."""
+
+    def test_skin_reflects_the_next_round_being_a_boss_round(self):
+        session, panel, hud = build()
+        session.state.round_num = 10
+        hud.update(0.016, 0, 0, session, panel)
+        self.assertEqual(hud._icon_boss_next.skin, "ui_icon_boss_next")
+
+    def test_skin_reflects_the_next_round_not_being_a_boss_round(self):
+        session, panel, hud = build()
+        session.state.round_num = 1
+        hud.update(0.016, 0, 0, session, panel)
+        self.assertEqual(hud._icon_boss_next.skin, "ui_icon_boss_next_off")
+
+    def test_drawn_only_during_building_phase(self):
+        session, panel, hud = build()
+        session.state.round_num = 10
+        hud.update(0.016, 0, 0, session, panel)
+        r = RecordingRenderer()
+        hud.submit(r, session, VIEW_W, VIEW_H)
+        self.assertTrue(any(getattr(i, "slot_key", None) == "ui_icon_boss_next"
+                            for i in r.items))
+
+        session.state.phase = GamePhase.ENEMY
+        hud.update(0.016, 0, 0, session, panel)
+        r2 = RecordingRenderer()
+        hud.submit(r2, session, VIEW_W, VIEW_H)
+        self.assertFalse(any(getattr(i, "slot_key", "").startswith("ui_icon_boss_next")
+                             for i in r2.items))
+
+
 if __name__ == "__main__":
     unittest.main()

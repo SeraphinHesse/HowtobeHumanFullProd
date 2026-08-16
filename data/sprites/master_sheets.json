@@ -19,6 +19,20 @@
       "file": "master/ss_fluteplayer.png",
       "frame_h": 96,
       "frame_w": 64
+    },
+    "ss_mortar": {
+      "column_width": 25,
+      "display_name": "SS_Mortar",
+      "file": "master/ss_mortar.png",
+      "frame_h": 96,
+      "frame_w": 64
+    },
+    "ss_stonethrower": {
+      "column_width": 20,
+      "display_name": "SS_Stonethrower",
+      "file": "master/ss_stonethrower.png",
+      "frame_h": 96,
+      "frame_w": 64
     }
   },
   "version": 1

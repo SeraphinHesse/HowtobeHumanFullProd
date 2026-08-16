@@ -436,6 +436,14 @@
       "description": "Game-over run-stat row. `n` is the round the run ended on.",
       "type": "string"
     },
+    "hud.boss_next_off": {
+      "description": "HUD tooltip shown hovering the top-right boss-round indicator icon when the round about to be fought is NOT a boss round. No placeholders.",
+      "type": "string"
+    },
+    "hud.boss_next_on": {
+      "description": "HUD tooltip shown hovering the top-right boss-round indicator icon when the round about to be fought IS a boss round. No placeholders.",
+      "type": "string"
+    },
     "hud.income.base": {
       "description": "HUD income-breakdown tooltip category label for the base per-round income source. No placeholders.",
       "type": "string"
@@ -702,6 +710,8 @@
     "game_over.buildings_placed",
     "game_over.enemies_killed",
     "game_over.round_reached",
+    "hud.boss_next_off",
+    "hud.boss_next_on",
     "hud.income.base",
     "hud.income.meditators",
     "hud.income.musicians",

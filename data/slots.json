@@ -221,7 +221,11 @@
             {
               "label": "Supporting Fan",
               "slots": [
-                "boost_speed_t1_lvl1",
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "boost_speed_t1_lvl1"
+                },
                 "boost_speed_t1_lvl2",
                 "boost_speed_t1_lvl3"
               ]
@@ -250,7 +254,11 @@
             {
               "label": "Supporting Fan",
               "slots": [
-                "boost_damage_t1_lvl1",
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "boost_damage_t1_lvl1"
+                },
                 "boost_damage_t1_lvl2",
                 "boost_damage_t1_lvl3"
               ]
@@ -279,7 +287,11 @@
             {
               "label": "Supporting Fan",
               "slots": [
-                "boost_hp_t1_lvl1",
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "boost_hp_t1_lvl1"
+                },
                 "boost_hp_t1_lvl2",
                 "boost_hp_t1_lvl3"
               ]
@@ -827,6 +839,23 @@
         {
           "children": [
             {
+              "label": "Boss Next",
+              "slots": [
+                "ui_icon_boss_next"
+              ]
+            },
+            {
+              "label": "No Boss Next",
+              "slots": [
+                "ui_icon_boss_next_off"
+              ]
+            }
+          ],
+          "label": "Boss Indicator"
+        },
+        {
+          "children": [
+            {
               "label": "Main Menu",
               "slots": [
                 {
@@ -1127,19 +1156,31 @@
             {
               "label": "Respawn",
               "slots": [
-                "vfx_respawn"
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "vfx_respawn"
+                }
               ]
             },
             {
               "label": "Selected tile",
               "slots": [
-                "vfx_tile_selected"
+                {
+                  "frame_h": 96,
+                  "frame_w": 128,
+                  "key": "vfx_tile_selected"
+                }
               ]
             },
             {
               "label": "2x2 section",
               "slots": [
-                "vfx_section_2x2"
+                {
+                  "frame_h": 96,
+                  "frame_w": 128,
+                  "key": "vfx_section_2x2"
+                }
               ]
             },
             {
