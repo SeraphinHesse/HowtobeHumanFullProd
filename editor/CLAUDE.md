@@ -344,6 +344,78 @@ preview LEVER of its own — `vfx_preview.py`'s `_EMIT_FAMILIES`/graceful-
 degrade placeholder for it is unchanged — this is purely what keeps the
 dataclass constructible for every OTHER family's preview.
 
+## Master-sheet column switcher (`panels/viewport.py`, MasterSheetColumnsPLAN E4)
+
+A third floating `_NoWheelComboBox` (`_column_combo`), twinned with the
+entity-preview animation combo (`_anim_combo`) — same construction / refresh /
+hide idiom, one call site each (`reload_assets`, `set_preview_slot`,
+`set_preview_draft`, `set_map_mode`'s entity branch; hidden in map and screen
+mode beside `_anim_combo`). It is driven off `currentIndexChanged`, not
+`currentTextChanged`: the INDEX is the value, and column labels carry no
+uniqueness guarantee.
+
+Visible only when the previewed slot's EFFECTIVE (draft-aware) entry links a
+master sheet (`entry.sheet` starts with `master/`, D2); labels are the sheet's
+declared `columns` names (D4) or generated `Column N` labels sized off
+`store.py`'s own clamp-ceiling formula (`sheet_width // (column_width *
+frame_w)`) — deliberately re-derived from the master-sheet registry rather than
+from any `MasterSheet` helper, so this panel owns no second notion of a sheet's
+column count. Selecting an entry rides `self.preview_column` onto the preview
+`RenderItem.column` (`int | None`) — `None` means "no live driver, use the
+entry's stored column", and `0` is a real column, never a sentinel.
+
+**It previews ANY column, in every mode — including `manual`.** The store
+resolves a `manual` entry to its own stored `column` and ignores a caller's
+live one (D3, and the game still behaves exactly that way), so passing
+`column=` on the `RenderItem` alone moved only `season`/`building_color`
+slots and left the combo visibly dead on the majority of slots, which are
+manual. `ViewportPanel._with_preview_column` closes that: for a manual entry
+the chosen column is folded into the previewed COPY of the manifest entry —
+where `manual` reads it as authoritative — inside `_build_store`, which is why
+`_on_column_index_changed` rebuilds the store instead of only setting a field.
+It touches the viewport's IN-MEMORY manifest only: `DetailsPanel.draft_entry()`
+builds the saved entry from its own state, so a previewed column can never be
+written to disk, and the store's D3 rule is untouched. (This reverses the
+earlier "if nothing moves, the combo is working" note — a preview control that
+silently does nothing was not honest about the art; "what is in column 2 of
+this sheet" is a question every mode can answer.)
+
+## Master Sheets panel (`panels/master_sheets.py`, MasterSheetColumnsPLAN E5)
+
+**A TOP-LEVEL selector item, not a leaf under a category (D9).** Timeline hangs
+off `buildings` and Theme/Strings off `ui`, and both gate a `domain_selected`
+emission on that category. A master sheet is not a `slots.json` slot and there
+is no `master_sheets` balancing domain, so this item emits
+`master_sheets_selected` **alone** — never `domain_selected` (nothing to gate
+on) and never `node_selected` (the single-document-leaf rule: the
+entity-preview machinery must not react to a selection naming no slot). Its
+payload `category_key` is the placeholder `"master_sheets"`, which matches no
+registry category and is in no domain, so `domains()` and `refresh_markers()`
+already skip it with no special case. It is the LAST top-level item, added
+outside the category loop; `right_stack` index 8.
+
+**One panel, three verbs.** `reload_sheets()` re-reads
+`master_sheet_import.master_sheets(data_dir)` — REGISTRY-driven, never a folder
+glob — on entry (`_on_master_sheets_selected`, the reload-on-entry convention).
+`save_selected()` writes only the slicing values, through `write_registry_doc`.
+`reimport_selected()` replaces the PNG through `import_master_sheet`. Those two
+are the only write paths (ED-31); the panel never calls `write_validated`
+itself and never computes a refcount — **the ONE refcount is
+`asset_import.sheet_users`, reached via `MasterSheet.users`.**
+
+**Re-import keeps the id, via `import_master_sheet(..., sheet_id=…)`.** Left
+`None` that parameter changes nothing: the id comes from `resolve_sheet_id`,
+whose never-overwrite rule mints `<slug>_2` as soon as genuinely different art
+arrives under a taken slug — right for the picker's anonymous "import a PNG"
+flow, and exactly wrong here, where forking a second id would strand every
+linking manifest entry on the stale sheet. The panel passes the SELECTED
+sheet's id verbatim because the designer named that sheet and asked to replace
+its art. D10's `GridInUseError` guard is untouched and still refuses a
+`(frame_w, frame_h, column_width)` change while slots link, before the PNG copy
+— which is why the Re-import box stays enabled even on a locked sheet (the
+refusal names the slots), while the *slicing* form is disabled with a label
+naming them.
+
 ## The VFX roster is editable (VfxAuthoringPLAN VA-6)
 `editor/registry_ops.py` could only APPEND until this phase. For the `vfx`
 category it now also removes and renames:
@@ -421,7 +493,6 @@ depth). Its import button targets `vfx_<highlight>`, so the family resolves to
 a fixed slot that depends on the sub-combo. **Respawn needed no preview path at
 all** — VA-4/D11 made it a fourth `spark` PRESET, so it rides the existing
 spark family.
-
 ## Running the tests FROM the editor (TestRunnerPLAN TR-5) — the first QThread
 
 The **"Run tests"** button on the Agents toolbar, immediately after "thats my

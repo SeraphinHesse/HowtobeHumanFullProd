@@ -27,7 +27,7 @@ engine task; if an engine change forces a caller change, tell the user
 | `core/` | `engine/core/CLAUDE.md` | GameObject/Component/Transform/Scene; serialization; `Movement`/`RangeSensor`; spatial queries |
 | `render/` | `engine/render/CLAUDE.md` | RenderItem→depth-sort→blit; backend throughput; HUD pass + fonts (G4: `flush(target, hud_target=…)` splits the HUD onto its own target + the Surface backend, for the GPU host's per-frame composite); the ground cache |
 | `physics/` | `engine/physics/CLAUDE.md` | SpatialGrid, TileOccupancy, waypoint `advance` (E-30..E-32) |
-| `assets/` | `engine/assets/CLAUDE.md` | slot registry, manifest v2, `playback_order`, grey-X placeholder |
+| `assets/` | `engine/assets/CLAUDE.md` | slot registry, manifest v2, `playback_order`, grey-X placeholder; the master-sheet registry loader (`master_registry.py` — `data/sprites/master_sheets.json`, read by game AND editor) |
 | `vfx/` | none yet (this table is its doc) | procedural particle/gold/slash/splatter emitters + `VfxSystem` (ESV-3a); beam/crater/lightning/announce param dataclasses (ESV-3b, no engine-side state — see below); `play_once` — the one-shot sprite VFX (ESV-5, no engine-side state either — see below); `FloaterParams` (ESV-6, floater colours/lifetimes — also no engine-side state); `variants` — the pure registry half of VFX variant selection (VA-2, vocabulary-free by design) |
 
 ## Top-level modules (`engine/*.py`) — this router IS their doc
@@ -88,6 +88,10 @@ engine task; if an engine change forces a caller change, tell the user
       base/deco gated by a `tall_margin`). Pair with
       `CoordinateSystem.visible_tile_window` so game AND editor viewports only
       generate on-screen tiles — the reason a 1024² map stays at full fps.
+      Optional `column=` is an **opaque** master-sheet column copied onto every
+      item it emits, exactly as opaque as `tint_for_code` — the engine stays
+      season-ignorant (D12); `None` means "no live column" and `0` is a REAL
+      column, so never truthiness-test it.
     - `band_render_items(doc, d_min, d_max, s_min, s_max, …)` — ground only,
       addressed by rotated iso coords `d = col−row`, `s = col+row`, for a thin
       diagonal on-screen strip (the ground cache's scroll-fill; a rectangular
@@ -96,6 +100,7 @@ engine task; if an engine change forces a caller change, tell the user
       `code_overrides={(col,row): code}` consults the caller's RUNTIME zone
       state before `doc.terrain` (the game's unlock/recede visuals) so the doc
       stays pristine; overrides resolve through the same legend/checker rule.
+      Optional `column=` — the same opaque pass-through as above.
 - **`era_math.py`** (pure, stdlib-only — EnemyScalingReworkPLAN D7) — the era
   clock + per-era stat/count resolvers (`era_of_round`/`round_in_era`/
   `is_boss_round`/`resolve_era_row`/`stats_at_round`/`count_at_round`/

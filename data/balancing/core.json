@@ -50,11 +50,11 @@
         "hidden_frames": [],
         "round": 1,
         "sprite_flip_h": false,
-        "sprite_h": 260,
+        "sprite_h": 130,
         "sprite_offset_x": 0,
         "sprite_offset_y": 0,
         "sprite_slot": "enemy_stage_1_v1",
-        "sprite_w": 220,
+        "sprite_w": 110,
         "title": "Walkers incoming"
       },
       {
@@ -75,11 +75,11 @@
         "hidden_frames": [],
         "round": 5,
         "sprite_flip_h": false,
-        "sprite_h": 260,
+        "sprite_h": 130,
         "sprite_offset_x": 0,
         "sprite_offset_y": 0,
         "sprite_slot": "raider_stage_1",
-        "sprite_w": 220,
+        "sprite_w": 110,
         "title": "Raiders inbound"
       },
       {
@@ -100,11 +100,11 @@
         "hidden_frames": [],
         "round": 10,
         "sprite_flip_h": false,
-        "sprite_h": 260,
+        "sprite_h": 130,
         "sprite_offset_x": 0,
         "sprite_offset_y": 0,
         "sprite_slot": "boss_era_0",
-        "sprite_w": 220,
+        "sprite_w": 110,
         "title": "A boss approaches"
       },
       {
@@ -125,11 +125,11 @@
         "hidden_frames": [],
         "round": 10,
         "sprite_flip_h": false,
-        "sprite_h": 260,
+        "sprite_h": 130,
         "sprite_offset_x": 0,
         "sprite_offset_y": 0,
         "sprite_slot": "commander_stage_1",
-        "sprite_w": 220,
+        "sprite_w": 110,
         "title": "The boss calls for backup"
       },
       {
@@ -150,11 +150,11 @@
         "hidden_frames": [],
         "round": 31,
         "sprite_flip_h": false,
-        "sprite_h": 260,
+        "sprite_h": 130,
         "sprite_offset_x": 0,
         "sprite_offset_y": 0,
         "sprite_slot": "siege_cannon_t2",
-        "sprite_w": 220,
+        "sprite_w": 110,
         "title": "Siege cannons roll in"
       },
       {
@@ -175,11 +175,11 @@
         "hidden_frames": [],
         "round": 11,
         "sprite_flip_h": false,
-        "sprite_h": 260,
+        "sprite_h": 130,
         "sprite_offset_x": 0,
         "sprite_offset_y": 0,
         "sprite_slot": "formation_stage_2",
-        "sprite_w": 220,
+        "sprite_w": 110,
         "title": "Formations march in"
       },
       {
@@ -200,11 +200,11 @@
         "hidden_frames": [],
         "round": 21,
         "sprite_flip_h": false,
-        "sprite_h": 260,
+        "sprite_h": 130,
         "sprite_offset_x": 0,
         "sprite_offset_y": 0,
         "sprite_slot": "drummer_stage_3",
-        "sprite_w": 220,
+        "sprite_w": 110,
         "title": "Drummers join the ranks"
       },
       {
@@ -225,11 +225,11 @@
         "hidden_frames": [],
         "round": 25,
         "sprite_flip_h": false,
-        "sprite_h": 260,
+        "sprite_h": 130,
         "sprite_offset_x": 0,
         "sprite_offset_y": 0,
         "sprite_slot": "sniper_stage_3",
-        "sprite_w": 220,
+        "sprite_w": 110,
         "title": "Snipers take position"
       },
       {
@@ -250,20 +250,20 @@
         "hidden_frames": [],
         "round": 15,
         "sprite_flip_h": false,
-        "sprite_h": 260,
+        "sprite_h": 130,
         "sprite_offset_x": 0,
         "sprite_offset_y": 0,
         "sprite_slot": "digger_stage_4",
-        "sprite_w": 220,
+        "sprite_w": 110,
         "title": "Diggers go underground"
       }
     ],
     "window": {
       "close_seconds": 0.4,
-      "height": 420,
+      "height": 310,
       "hold_seconds": 10.0,
       "open_seconds": 0.5,
-      "width": 320
+      "width": 160
     }
   },
   "General": {
@@ -294,6 +294,9 @@
     "round_end_delay": 1.4,
     "speed_1_5x_min_round": 10,
     "speed_2x_min_round": 20
+  },
+  "Seasons": {
+    "rounds_per_season": 10
   },
   "TheHole": {
     "base_hp": 10,

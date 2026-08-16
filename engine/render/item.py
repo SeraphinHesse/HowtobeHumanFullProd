@@ -33,6 +33,13 @@ class RenderItem:
     flip: bool = False
     fit_tiles: float = 0.0   # 0 = no fit: draw at the raw frame size
     scale: float = 1.0       # extra multiplier applied after the fit
+    # The LIVE master column this item is driven at (a season index, a
+    # building's colour), or None for "no driver — use the entry's own stored
+    # `column`". **None, not 0**: D3 promises a non-manual entry falls back to
+    # its stored column when the caller supplies none, and 0 is a legitimate
+    # live value (D7 clamps TO it), so 0 cannot double as "unset" without
+    # making the first season/first colour unaddressable.
+    column: int | None = None
     # VA-3: depth-key tie-break within this item's layer — +1 draws in front
     # of a same-tile entity, -1 behind it. 0 (every shipping caller) keeps the
     # historical ordering exactly. See CoordinateSystem.depth_key.

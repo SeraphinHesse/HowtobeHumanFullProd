@@ -4,6 +4,67 @@
   "additionalProperties": false,
   "description": "UI balancing domain (D-10), REPLAN nested tree (Phase 9A): UI timing plus FX/art tunables (the REPLAN folds FX into ui - no separate vfx domain). Values are the prototype's live tuning, verbatim. Bounds policy: seconds 0-60, pixels -4096-4096.",
   "properties": {
+    "BuildingColors": {
+      "additionalProperties": false,
+      "description": "Swatch fill RGB per master-sheet colour-column NAME (the `columns` list in data/sprites/master_sheets.json). A name with no entry here degrades to a neutral swatch rather than raising, so this map need not be exhaustive, and the whole group is optional.",
+      "properties": {
+        "pink": {
+          "description": "Swatch fill RGB for the 'pink' colour column (new — the shared widgets palette has no pink).",
+          "items": {
+            "description": "One RGB channel of the swatch fill, 0..255.",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "purple": {
+          "description": "Swatch fill RGB for the 'purple' colour column (the shared palette's C_PURPLE).",
+          "items": {
+            "description": "One RGB channel of the swatch fill, 0..255.",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "red": {
+          "description": "Swatch fill RGB for the 'red' colour column (the shared palette's C_RED).",
+          "items": {
+            "description": "One RGB channel of the swatch fill, 0..255.",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "yellow": {
+          "description": "Swatch fill RGB for the 'yellow' colour column (the shared palette's C_GOLD).",
+          "items": {
+            "description": "One RGB channel of the swatch fill, 0..255.",
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        }
+      },
+      "required": [
+        "pink",
+        "purple",
+        "red",
+        "yellow"
+      ],
+      "type": "object"
+    },
     "Debug": {
       "additionalProperties": false,
       "description": "Developer/debug visibility toggles. Off by default in shipped data.",

@@ -34,7 +34,7 @@ def make_cs(zoom=1.0):
 
 class FakeAssets:
     def frame(self, slot_key, animation="idle", anim_time_ms=0,
-              extra_hidden=None):
+              extra_hidden=None, column=None):
         from engine.assets.types import Frame
         return Frame(surface=f"SURF:{slot_key}", frame_w=64, frame_h=32,
                      offset_x=0, offset_y=0, slice=None)

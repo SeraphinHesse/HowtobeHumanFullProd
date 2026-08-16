@@ -5,12 +5,16 @@ Two branches in one dialog, because they are one question ("which master sheet
 should this slot cut from?") with two answers:
 
 * **Import new master spritesheet…** — choose a PNG, then give it a display
-  name and the frame size, all collected BEFORE anything is written. The frame
-  size cannot be deferred to a later screen: D3 makes the registry the OWNER of
-  the grid, and a linking slot inherits it. Spin ranges come from
+  name, the frame size, the COLUMN WIDTH and (optionally) the colour/season
+  names, all collected BEFORE anything is written. None of it can be deferred
+  to a later screen: D3/D1 make the registry the OWNER of the grid and of the
+  column width, and a linking slot inherits both. Spin ranges come from
   ``master_sheets.schema.json``'s own ``minimum``/``maximum`` via
-  ``master_sheet_import.frame_bounds`` (ED-30 — out-of-range input is
-  unrepresentable, and the numbers are never retyped).
+  ``master_sheet_import.frame_bounds``/``column_width_bounds`` (ED-30 —
+  out-of-range input is unrepresentable, and the numbers are never retyped);
+  the Colours field goes through ``master_sheet_import.parse_columns``, which
+  slugifies it to the schema's item pattern and rejects duplicates before the
+  write rather than after it.
 * **Use existing…** — the whole registry, each row labelled with its real pixel
   size, its grid AT ITS OWN declared frame size, and its user count, filtered by
   name and previewed read-only.
@@ -104,6 +108,7 @@ class MasterSheetDialog(QDialog):
     def _build_import_box(self):
         box = QGroupBox("Import new master spritesheet…", self)
         low, high = master_sheet_import.frame_bounds(self._data_dir)
+        cw_low, cw_high = master_sheet_import.column_width_bounds(self._data_dir)
 
         self._browse = QPushButton("Choose PNG…", box)
         self._browse.clicked.connect(self._on_browse_clicked)
@@ -122,6 +127,23 @@ class MasterSheetDialog(QDialog):
             spin.setRange(low, high)
             spin.setValue(min(max(DEFAULT_FRAME, low), high))
 
+        # The COLUMN axis (MasterSheetColumnsPLAN D1/E1). Range from the schema
+        # via `column_width_bounds`, never retyped here (ED-30).
+        self._column_width = _NoWheelSpinBox(box)
+        self._column_width.setRange(cw_low, cw_high)
+        self._column_width.setValue(cw_low)
+        self._column_width.setToolTip(
+            "How many frame-columns one colour/season column spans, measured "
+            f"in frames. The schema caps this at {cw_high} frames, so a sheet "
+            "whose columns are wider than that cannot be imported.")
+
+        self._colours = QLineEdit(box)
+        self._colours.setPlaceholderText(
+            "Comma-separated colour/season names (optional)")
+        self._colours.setToolTip(
+            "Each name is slugified to lowercase_with_underscores. Leave blank "
+            "for an unnamed sheet, whose columns are referred to by index.")
+
         self._import = QPushButton("Import", box)
         self._import.clicked.connect(self._on_import_clicked)
 
@@ -134,6 +156,8 @@ class MasterSheetDialog(QDialog):
         form.addRow("Display name", self._name)
         form.addRow("Frame width", self._frame_w)
         form.addRow("Frame height", self._frame_h)
+        form.addRow("Column width", self._column_width)
+        form.addRow("Colours", self._colours)
         form.addRow(self._import)
         self._sync_import_enabled()
         return box
@@ -186,15 +210,25 @@ class MasterSheetDialog(QDialog):
         self._sync_import_enabled()
 
     def perform_import(self):
-        """Import the queued PNG with the form's name + frame size, refresh the
-        list and select the result. Returns the sheet id, or None when there is
-        nothing queued. Re-importing the same bytes reuses the id and leaves the
-        PNG untouched (``master_sheet_import.import_master_sheet``)."""
+        """Import the queued PNG with the form's name, frame size, column width
+        and colour names, refresh the list and select the result. Returns the
+        sheet id, or None when there is nothing queued. Re-importing the same
+        bytes reuses the id and leaves the PNG untouched
+        (``master_sheet_import.import_master_sheet``).
+
+        The Colours field is parsed FIRST, before the import touches disk: a
+        duplicate or over-long name raises ``ValueError`` out of
+        ``parse_columns`` here, which ``_on_import_clicked``'s existing
+        ``except (OSError, ValueError)`` turns into a warning box — and nothing
+        has been copied or written by then."""
         if self._png_path is None:
             return None
+        columns = master_sheet_import.parse_columns(
+            self._colours.text(), self._data_dir)
         sheet_id = master_sheet_import.import_master_sheet(
             self._data_dir, self._png_path, self._name.text(),
-            self._frame_w.value(), self._frame_h.value())
+            self._frame_w.value(), self._frame_h.value(),
+            self._column_width.value(), columns=columns)
         self._sheets = master_sheet_import.master_sheets(self._data_dir)
         self._filter.clear()        # a filter that hides the new sheet is noise
         self._refill()

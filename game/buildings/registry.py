@@ -19,11 +19,23 @@ the import-boundary note in ``research.py``).
 constructor (core balance) and is attached to its pre-seeded tile via
 ``attach_base`` during bootstrap.
 """
+import random  # stdlib — pure; the default draw when no rng is injected
+
+from engine.core import SpriteAnimator
+
 from game.map.tiles import CONDITION_BLOCKS_BUILD, TileState
 from .research import LEAF_CLASSES, RESEARCH, buildable, tiers_unlocked_for
 
 # building_type -> leaf class. Only the 9D leaves; families grow in 10x.
 BUILDING_CLASSES = LEAF_CLASSES
+
+# MasterSheetColumnsPLAN B1: the `data/slots.json` category every placeable
+# building's art slot lives under. It lives HERE, with the feature that needs
+# it, for the same reason `WALL_CATEGORY` lives in `game/map/wall_render.py` —
+# and it is a bare string, so this package still imports NOTHING from the asset
+# layer (D6). The HOST (`game/main.py`) is what resolves it against the slot
+# registry + manifest and hands the result back down as `colour_columns`.
+BUILDINGS_CATEGORY = "buildings"
 
 
 class PlacementError(Exception):
@@ -73,7 +85,8 @@ def build_cost(building_type, buildings_balance, tier_idx=0, repeat_count=0):
 
 
 def place_building(tilemap, tile, building_type, love, buildings_balance,
-                   scene, occupancy, state=None):
+                   scene, occupancy, state=None, colour_columns=None,
+                   rng=None, column=None):
     """Place ``building_type`` on ``tile``. Returns ``(building, cost)``.
 
     Raises ``PlacementError`` if the tile is not BUILDABLE, the type is not yet
@@ -84,6 +97,25 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
 
     ``state`` is the ``RunState`` (duck-typed: ``unlocked_buildings`` /
     ``tiers_unlocked``); omit it in stat/logic tests that predate the run state.
+
+    MASTER-SHEET COLOUR (MasterSheetColumnsPLAN B1). The last three arguments
+    stamp the building's master-sheet colour column at placement — colour IS
+    ``SpriteAnimator.column``, and it survives every later upgrade for free
+    (``Building.apply_tier_stats`` rewrites only ``slot_key``):
+
+    * ``colour_columns`` — ``{slot_key: (colour_name, ...)}``, the capability
+      map the HOST derives once at boot (``game/main.py``). This package never
+      reaches into the asset layer itself (D6/E-37). ``None`` ⇒ no slot has
+      colours ⇒ every animator keeps its ``-1`` "no driver" sentinel, which is
+      what keeps every caller that predates this feature byte-identical.
+    * ``rng`` — the injected RNG; ``None`` ⇒ the stdlib ``random`` module (the
+      ``game/enemies/spawner.py`` shape). Only consulted when a roll actually
+      happens, so no seeded test's global draw sequence moves.
+    * ``column`` — an EXPLICIT colour, e.g. the swatch the player picked in the
+      construct modal. Wins over the roll verbatim; ``0`` is a real colour
+      index, so this is tested with ``is not None``, never for truthiness. Not
+      range-checked here — S1's D7 clamp handles an out-of-range column at cut
+      time.
     """
     if tile.state != TileState.BUILDABLE:
         raise PlacementError(
@@ -160,6 +192,26 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
     # snapshot; the full-heal inside is a no-op at placement (hp == max).
     building.apply_tier_stats()
     # -- /10I --
+    # -- B1: stamp the master-sheet colour column. AFTER ``apply_tier_stats``,
+    # because that is what writes ``anim.slot_key``, and the capability map is
+    # keyed on the slot key. The column then rides through every later upgrade
+    # untouched (``apply_tier_stats`` rewrites only ``slot_key``) — D5's
+    # accepted consequence is that a chain must author its colours in the same
+    # order across tiers. ``get_component(SpriteAnimator)`` is the same
+    # isinstance-matching accessor ``apply_tier_stats`` uses, and is None on the
+    # base building, which carries no animator at all.
+    anim = building.get_component(SpriteAnimator)
+    if anim is not None:
+        if column is not None:
+            anim.column = column          # explicit swatch — no draw at all
+        else:
+            names = (colour_columns or {}).get(anim.slot_key, ())
+            if names:
+                draw = rng if rng is not None else random
+                anim.column = draw.randrange(len(names))
+            # else: leave anim.column at its -1 "no driver" sentinel — NOT 0,
+            # which is a real colour index (engine/core/sprite_animator.py:28).
+    # -- /B1 --
     tilemap.set_tile_state(tile, TileState.BUILT)
     scene.spawn(building)
     # Only this one tile changed — update its occupancy directly instead of the

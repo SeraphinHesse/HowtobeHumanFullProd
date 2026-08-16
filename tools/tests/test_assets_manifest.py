@@ -218,6 +218,43 @@ class TestEntryFromDict(unittest.TestCase):
             with self.subTest(row_start=bad), self.assertRaises(ValueError):
                 entry_from_dict("s", raw)
 
+    def test_column_keys_absent_default(self):
+        e = entry_from_dict("s", entry_dict([row()]))
+        self.assertEqual((e.column, e.column_mode, e.column_width),
+                         (0, "manual", 0))
+
+    def test_column_keys_parsed(self):
+        raw = entry_dict([row()])
+        raw["column"] = 2
+        raw["column_mode"] = "season"
+        raw["column_width"] = 4
+        e = entry_from_dict("s", raw)
+        self.assertEqual((e.column, e.column_mode, e.column_width),
+                         (2, "season", 4))
+        # the window is a SLICING concern: row indices above it are unchanged
+        self.assertEqual(e.animations["idle"].row, 0)
+
+    def test_bad_column_raises(self):
+        for bad in (True, 3.7, "3", -1, None, [3]):
+            raw = entry_dict([row()])
+            raw["column"] = bad
+            with self.subTest(column=bad), self.assertRaises(ValueError):
+                entry_from_dict("s", raw)
+
+    def test_bad_column_width_raises(self):
+        for bad in (True, 3.7, "3", -1, None, [3], 0):
+            raw = entry_dict([row()])
+            raw["column_width"] = bad
+            with self.subTest(column_width=bad), self.assertRaises(ValueError):
+                entry_from_dict("s", raw)
+
+    def test_bad_column_mode_raises(self):
+        for bad in ("seasonal", 1, None):
+            raw = entry_dict([row()])
+            raw["column_mode"] = bad
+            with self.subTest(column_mode=bad), self.assertRaises(ValueError):
+                entry_from_dict("s", raw)
+
 
 class TestCurrentFrame(unittest.TestCase):
     def manifest(self):
@@ -385,6 +422,18 @@ class TestLoadManifestTolerance(unittest.TestCase):
             m = load_manifest(path)   # warn + skip, never raise (E-37)
         self.assertEqual(m.slots(), ("good",))
 
+    def test_corrupt_column_mode_warns_and_skips_that_entry(self):
+        bad = entry_dict([row()])
+        bad["column_mode"] = "seasonal"
+        doc = {"version": 2, "entries": {
+            "good": entry_dict([row()]),
+            "bad": bad,
+        }}
+        path = self.write(json.dumps(doc))
+        with self.assertLogs("engine.assets.manifest", level="WARNING"):
+            m = load_manifest(path)   # warn + skip, never raise (E-37)
+        self.assertEqual(m.slots(), ("good",))
+
 
 class TestMasterSheetSchemas(unittest.TestCase):
     """M1 (GpuAndMasterSheetsPLAN): the master-sheet registry + row_start.
@@ -405,7 +454,7 @@ class TestMasterSheetSchemas(unittest.TestCase):
     @staticmethod
     def sheet_entry(**over):
         e = {"file": "master/characters.png", "display_name": "Characters",
-             "frame_w": 64, "frame_h": 96}
+             "frame_w": 64, "frame_h": 96, "column_width": 4}
         e.update(over)
         return e
 
@@ -431,10 +480,33 @@ class TestMasterSheetSchemas(unittest.TestCase):
         with self.assertRaises(ValidationError):
             validate(self.registry({"characters": entry}), self.MASTER)
 
+    # --- registry columns (C1) -------------------------------------------
+    def test_column_width_without_names_validates(self):
+        # D1/D4: the width is required, the per-column names are not.
+        validate(self.registry({"characters": self.sheet_entry()}), self.MASTER)
+
+    def test_missing_column_width_rejected(self):
+        entry = self.sheet_entry()
+        del entry["column_width"]
+        with self.assertRaises(ValidationError):
+            validate(self.registry({"characters": entry}), self.MASTER)
+
+    def test_out_of_range_column_width_rejected(self):
+        for bad in (0, 257):
+            with self.subTest(column_width=bad), self.assertRaises(ValidationError):
+                validate(self.registry(
+                    {"characters": self.sheet_entry(column_width=bad)}), self.MASTER)
+
+    def test_bad_column_names_rejected(self):
+        for bad in (["red", "red"], ["Red"]):
+            with self.subTest(columns=bad), self.assertRaises(ValidationError):
+                validate(self.registry(
+                    {"characters": self.sheet_entry(columns=bad)}), self.MASTER)
+
     # --- manifest ---------------------------------------------------------
     def test_entry_without_row_start_and_master_sheet_both_validate(self):
         doc = {"version": 2, "entries": {
-            "legacy": entry_dict([row()]),                        # no row_start
+            "legacy": entry_dict([row()]),          # no row_start, no column keys
             "windowed": dict(entry_dict([row()], sheet="master/characters.png"),
                              row_start=4),
         }}
@@ -445,6 +517,14 @@ class TestMasterSheetSchemas(unittest.TestCase):
                      row_start=-1)
         with self.assertRaises(ValidationError):
             validate({"version": 2, "entries": {"windowed": entry}}, self.MANIFEST)
+
+    def test_bad_column_keys_rejected(self):
+        for bad in ({"column": -1}, {"column_mode": "seasonal"},
+                    {"column_width": 0}):
+            entry = dict(entry_dict([row()], sheet="master/characters.png"), **bad)
+            with self.subTest(**bad), self.assertRaises(ValidationError):
+                validate({"version": 2, "entries": {"windowed": entry}},
+                         self.MANIFEST)
 
 
 if __name__ == "__main__":
