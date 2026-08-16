@@ -392,6 +392,8 @@
             "trio_t3_lvl3",
             "tutorial_flute",
             "tutorial_stone",
+            "tutorial_stone_2",
+            "tutorial_unlock",
             "ui_bg_main_menu",
             "ui_button",
             "ui_button_card",
@@ -427,7 +429,6 @@
             "vfx_section_2x2",
             "vfx_shell",
             "vfx_slash",
-            "vfx_test",
             "vfx_tile_selected",
             "vfx_tutorial_highlight",
             "vfx_upgrade_batch",
@@ -876,22 +877,6 @@
       ],
       "type": "object"
     },
-    "Seasons": {
-      "additionalProperties": false,
-      "description": "Ground-art season clock: how the run's season index advances.",
-      "properties": {
-        "rounds_per_season": {
-          "description": "Number of rounds each season lasts before the season index advances (rounds; 10 = rounds 1-10 are season 0, 11-20 season 1).",
-          "maximum": 1000,
-          "minimum": 1,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "rounds_per_season"
-      ],
-      "type": "object"
-    },
     "TheHole": {
       "additionalProperties": false,
       "description": "The base ('the hole') being defended.",
@@ -1039,7 +1024,6 @@
     "General",
     "LightningStrike",
     "PhaseLoop",
-    "Seasons",
     "TheHole",
     "Tutorial",
     "XP"

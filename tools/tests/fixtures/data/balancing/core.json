@@ -12,8 +12,8 @@
   },
   "Camera": {
     "default_zoom": 1.0,
-    "max_offset_tiles_x": 30.0,
-    "max_offset_tiles_y": 30.0,
+    "max_offset_tiles_x": 50.0,
+    "max_offset_tiles_y": 50.0,
     "zoom_levels": [
       0.5,
       1.0,
@@ -21,7 +21,7 @@
     ]
   },
   "Debug": {
-    "ask_player_identity": false,
+    "ask_player_identity": true,
     "debug_mode_available": true,
     "default_level": 1,
     "default_output_csv": true,
@@ -50,11 +50,11 @@
         "hidden_frames": [],
         "round": 1,
         "sprite_flip_h": false,
-        "sprite_h": 130,
+        "sprite_h": 260,
         "sprite_offset_x": 0,
         "sprite_offset_y": 0,
         "sprite_slot": "enemy_stage_1_v1",
-        "sprite_w": 110,
+        "sprite_w": 220,
         "title": "Walkers incoming"
       },
       {
@@ -75,11 +75,11 @@
         "hidden_frames": [],
         "round": 5,
         "sprite_flip_h": false,
-        "sprite_h": 130,
+        "sprite_h": 260,
         "sprite_offset_x": 0,
         "sprite_offset_y": 0,
         "sprite_slot": "raider_stage_1",
-        "sprite_w": 110,
+        "sprite_w": 220,
         "title": "Raiders inbound"
       },
       {
@@ -100,11 +100,11 @@
         "hidden_frames": [],
         "round": 10,
         "sprite_flip_h": false,
-        "sprite_h": 130,
+        "sprite_h": 260,
         "sprite_offset_x": 0,
         "sprite_offset_y": 0,
         "sprite_slot": "boss_era_0",
-        "sprite_w": 110,
+        "sprite_w": 220,
         "title": "A boss approaches"
       },
       {
@@ -125,11 +125,11 @@
         "hidden_frames": [],
         "round": 10,
         "sprite_flip_h": false,
-        "sprite_h": 130,
+        "sprite_h": 260,
         "sprite_offset_x": 0,
         "sprite_offset_y": 0,
         "sprite_slot": "commander_stage_1",
-        "sprite_w": 110,
+        "sprite_w": 220,
         "title": "The boss calls for backup"
       },
       {
@@ -148,13 +148,13 @@
         "crop_y": 0,
         "enemy_label": "SiegeCannon",
         "hidden_frames": [],
-        "round": 31,
+        "round": 14,
         "sprite_flip_h": false,
-        "sprite_h": 130,
+        "sprite_h": 260,
         "sprite_offset_x": 0,
         "sprite_offset_y": 0,
         "sprite_slot": "siege_cannon_t2",
-        "sprite_w": 110,
+        "sprite_w": 220,
         "title": "Siege cannons roll in"
       },
       {
@@ -173,13 +173,13 @@
         "crop_y": 0,
         "enemy_label": "Formation",
         "hidden_frames": [],
-        "round": 11,
+        "round": 18,
         "sprite_flip_h": false,
-        "sprite_h": 130,
+        "sprite_h": 260,
         "sprite_offset_x": 0,
         "sprite_offset_y": 0,
         "sprite_slot": "formation_stage_2",
-        "sprite_w": 110,
+        "sprite_w": 220,
         "title": "Formations march in"
       },
       {
@@ -198,13 +198,13 @@
         "crop_y": 0,
         "enemy_label": "Drummer",
         "hidden_frames": [],
-        "round": 21,
+        "round": 22,
         "sprite_flip_h": false,
-        "sprite_h": 130,
+        "sprite_h": 260,
         "sprite_offset_x": 0,
         "sprite_offset_y": 0,
         "sprite_slot": "drummer_stage_3",
-        "sprite_w": 110,
+        "sprite_w": 220,
         "title": "Drummers join the ranks"
       },
       {
@@ -223,13 +223,13 @@
         "crop_y": 0,
         "enemy_label": "Sniper",
         "hidden_frames": [],
-        "round": 25,
+        "round": 26,
         "sprite_flip_h": false,
-        "sprite_h": 130,
+        "sprite_h": 260,
         "sprite_offset_x": 0,
         "sprite_offset_y": 0,
         "sprite_slot": "sniper_stage_3",
-        "sprite_w": 110,
+        "sprite_w": 220,
         "title": "Snipers take position"
       },
       {
@@ -248,22 +248,22 @@
         "crop_y": 0,
         "enemy_label": "Digger",
         "hidden_frames": [],
-        "round": 15,
+        "round": 32,
         "sprite_flip_h": false,
-        "sprite_h": 130,
+        "sprite_h": 260,
         "sprite_offset_x": 0,
         "sprite_offset_y": 0,
         "sprite_slot": "digger_stage_4",
-        "sprite_w": 110,
+        "sprite_w": 220,
         "title": "Diggers go underground"
       }
     ],
     "window": {
       "close_seconds": 0.4,
-      "height": 310,
+      "height": 420,
       "hold_seconds": 10.0,
       "open_seconds": 0.5,
-      "width": 160
+      "width": 320
     }
   },
   "General": {
@@ -272,7 +272,7 @@
   },
   "LightningStrike": {
     "cooldown": [
-      4,
+      5,
       3,
       2
     ],
@@ -294,9 +294,6 @@
     "speed_1_5x_min_round": 10,
     "speed_2x_min_round": 20
   },
-  "Seasons": {
-    "rounds_per_season": 10
-  },
   "TheHole": {
     "base_hp": 10,
     "base_income": 5,
@@ -309,13 +306,13 @@
   },
   "XP": {
     "base_income_per_village_level": 2,
-    "levelup_love_reward": 20,
-    "village_xp_base_threshold": 40,
-    "village_xp_threshold_inc": 20,
-    "village_xp_threshold_inc_growth": 2,
+    "levelup_love_reward": 25,
+    "village_xp_base_threshold": 50,
+    "village_xp_threshold_inc": 15,
+    "village_xp_threshold_inc_growth": 5,
     "xp_from_buildings": true,
     "xp_on_base_damage_kill": true,
-    "xp_per_boss": 20,
+    "xp_per_boss": 150,
     "xp_per_raider": 1,
     "xp_per_siege_enemy": 5,
     "xp_per_standard_enemy": 1

@@ -1,26 +1,4 @@
 {
-  "BuildingColors": {
-    "pink": [
-      255,
-      105,
-      180
-    ],
-    "purple": [
-      168,
-      105,
-      222
-    ],
-    "red": [
-      210,
-      55,
-      55
-    ],
-    "yellow": [
-      255,
-      200,
-      50
-    ]
-  },
   "Debug": {
     "show_camera_startpoint": false
   },
