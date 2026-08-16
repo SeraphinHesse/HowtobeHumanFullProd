@@ -7125,6 +7125,53 @@
         ],
         "text": "BACK",
         "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          380,
+          279,
+          90,
+          23
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          380,
+          279,
+          90,
+          23
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "sm",
+        "pos": [
+          425,
+          285
+        ],
+        "text": "CONTROLS",
+        "type": "text"
       }
     ]
   }
