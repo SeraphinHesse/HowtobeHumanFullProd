@@ -129,6 +129,22 @@ engine task; if an engine change forces a caller change, tell the user
 - **`data_io.py`** — the schema-validating JSON load/write (pure Python; used by
   coords to load geometry, by the editor/agents to write). Deterministic dumps:
   sorted keys, 2-space indent, trailing newline (D-3).
+- **`input.py`** (feature: rebindable hotkeys) — the generic rebindable-hotkey
+  capability: `load_keybindings`/`save_keybindings` (schema-validated,
+  tolerant load mirroring `game/core/highscores.py`'s "reads never raise"
+  contract for per-machine save data) and pure `find_conflict`/`rebind`
+  helpers. Vocabulary-free per D5 — action names are opaque strings the
+  caller supplies; this module never imports pygame or learns what
+  `"end_turn"` means. A binding is a plain lowercase string, optionally
+  `"ctrl+"`-prefixed (`"space"`, `"ctrl+l"`, `"h"`); translating a real
+  `pygame.KEYDOWN` into that string is `game/main.py`'s `_binding_key_name`.
+  The designer-editable DEFAULT for each action lives in
+  `data/balancing/ui.json`'s `Keybindings` group; a player's own rebind (via
+  the in-game Controls screen, `game/ui/keybinds_screen.py`) persists to the
+  gitignored `scores/keybindings.json`, both validated by the same
+  `data/schemas/keybindings.schema.json` (the `highscores.schema.json`
+  two-shape precedent — this schema pairs with no `data/` content file of its
+  own; `tools/smoke.py` never sees it).
 - **`audio.py`** — thin `pygame.mixer.music` wrapper
   (`play_music`/`stop_music`/`set_volume`). Every call **swallows ALL exceptions**
   → silent no-op when audio is unavailable (no device, missing file, mixer not

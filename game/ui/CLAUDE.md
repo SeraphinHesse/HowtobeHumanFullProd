@@ -603,6 +603,26 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
     what says the change was contained.
 - **Deferred**: the settings audio slider is inert (no audio system beyond
   music). (The pause dim landed with 10J's HUD alpha.)
+- **Controls screen (feature: rebindable hotkeys)** — `game/ui/keybinds_screen.py`
+  (`KeybindsScreen`), the `debug_settings.py` code-only-screen shape: no
+  `data/ui/screens/keybinds.json`, no `screen_defaults.json` entry, not in
+  `tools/export_ui_layouts.py`'s `SCREEN_IDS`, row labels are plain code text.
+  Reached via a new CONTROLS button on `SettingsScreen`; opened as
+  `Shell.controls_open`, an overlay flag on `GameState.SETTINGS` (the
+  `debug_settings_open`-on-`MAIN_MENU` pattern — reachable from exactly one
+  place, so no new `GameState` member). Lists 9 of the 11
+  `data/balancing/ui.json Keybindings` actions (`toggle_cheat_menu`/
+  `quick_skip_combat` deliberately excluded — see `game/CLAUDE.md`'s
+  Rebindable hotkeys section) with a REBIND button per row.
+  `KeybindsScreen.bindings` is a plain shared dict the HOST owns (the
+  `SessionSettings` precedent) — `Shell(key_bindings=...)` threads it in, and
+  the screen only tracks WHICH row is armed (`capturing`); resolving a
+  captured keypress (Esc cancels, a collision flashes red via
+  `Button.start_flash`, otherwise the binding is written + persisted to
+  `scores/keybindings.json`) is `main.py`'s job, since a disk write and a raw
+  `pygame.KEYDOWN` are both out of bounds for pygame-free `game/ui`.
+  `main.py`'s menu `KEYDOWN` routing special-cases capture mode BEFORE
+  `shell.handle_key(...)` — see `_handle_capture_key`.
 
 ## Defence FX (10B)
 `effects.py` `FloaterManager` grew `submit_beams` + `submit_craters`, drawn from

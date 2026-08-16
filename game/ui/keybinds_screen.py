@@ -1,7 +1,15 @@
 """Rebindable-hotkeys screen (feature: rebindable hotkeys).
 
-Lists the 8 rebindable gameplay actions with their current key and a REBIND
-button per row. Reached from Settings via the CONTROLS button
+Lists 9 of the 11 actions in ``data/balancing/ui.json``'s ``Keybindings``
+group (the designer-editable defaults) with their current key and a REBIND
+button per row — ``toggle_cheat_menu`` and ``quick_skip_combat`` are
+deliberately EXCLUDED from ``ACTIONS`` (cut from this screen on request): both
+keep working exactly as before, dispatched through ``key_bindings`` in
+``game/main.py`` same as any other action, they are just not surfaced as
+player-rebindable here — the same treatment Esc/F12 already get, chosen so a
+hidden dev feature (the cheat menu) and a testing convenience (quick-skip)
+don't advertise themselves in player-facing Settings. Reached from Settings
+via the CONTROLS button
 (``game/ui/settings.py``), opened as a ``Shell``-level overlay flag
 (``Shell.controls_open``) exactly like ``debug_settings_open`` — see that
 screen's docstring for why an overlay flag rather than a new ``GameState``.
@@ -33,17 +41,21 @@ from . import widgets
 
 _BG = (12, 20, 14)
 
-#: (action name, on-screen label) — the 8 rebindable gameplay actions, in
-#: display order. The action names must match ``engine.input``'s callers in
-#: ``game/main.py`` and ``data/keybindings.json``'s keys exactly.
+#: (action name, on-screen label) — the rebindable-AND-shown gameplay
+#: actions, in display order. A subset of ``data/balancing/ui.json``'s
+#: ``Keybindings`` group's 11 keys (see the module docstring for the two
+#: deliberately-omitted ones); every action name here must still match
+#: ``engine.input``'s callers in ``game/main.py`` and a ``Keybindings`` key
+#: exactly.
 ACTIONS = [
     ("end_turn", "End Turn"),
-    ("toggle_cheat_menu", "Cheat Menu"),
     ("combat_speed_1", "Combat Speed 1x"),
     ("combat_speed_2", "Combat Speed 1.5x"),
     ("combat_speed_3", "Combat Speed 2x"),
-    ("quick_skip_combat", "Quick-skip Combat"),
     ("toggle_heatmap", "Toggle Heatmap"),
+    ("toggle_range", "Toggle Range"),
+    ("toggle_tier_overview", "Toggle Tiers"),
+    ("toggle_drag_select", "Drag Select"),
     ("confirm_purchase", "Confirm Purchase"),
 ]
 

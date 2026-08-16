@@ -25,7 +25,10 @@ BINDINGS = {
     "end_turn": "space",
     "quick_skip_combat": "p",
     "toggle_cheat_menu": "ctrl+l",
+    "toggle_drag_select": "q",
     "toggle_heatmap": "h",
+    "toggle_range": "r",
+    "toggle_tier_overview": "t",
 }
 
 
@@ -38,6 +41,20 @@ class TestDisplayKey(unittest.TestCase):
     def test_uppercases_and_keeps_the_modifier_prefix(self):
         self.assertEqual(display_key("ctrl+l"), "CTRL+L")
         self.assertEqual(display_key("space"), "SPACE")
+
+
+class TestActionsScope(unittest.TestCase):
+    def test_cheat_menu_and_quick_skip_are_hidden_from_the_screen(self):
+        shown = {action for action, _label in ACTIONS}
+        self.assertNotIn("toggle_cheat_menu", shown)
+        self.assertNotIn("quick_skip_combat", shown)
+
+    def test_the_three_overlay_toggles_and_end_turn_are_shown(self):
+        shown = {action for action, _label in ACTIONS}
+        self.assertLessEqual(
+            {"end_turn", "toggle_heatmap", "toggle_range",
+             "toggle_tier_overview", "toggle_drag_select"},
+            shown)
 
 
 class TestKeybindsScreenCapture(unittest.TestCase):

@@ -753,18 +753,6 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     configure_fonts(fonts_doc, font_path=font_path)
     widgets.configure_palette(palette_doc)
     configure_strings(strings_doc)
-    # feature: rebindable hotkeys — data/keybindings.json is the shipped
-    # DEFAULT for the 8 rebindable actions (fail-loud D-2, boot config data,
-    # the fonts/palette/strings precedent above). The player's LIVE bindings
-    # (any in-Settings rebind) live in the gitignored `scores/` dir, the
-    # `highscores.json` precedent — read tolerantly (a corrupt save file
-    # falls back to the defaults, one logged warning, never crashes boot).
-    keybindings_schema_path = data_dir / "schemas" / "keybindings.schema.json"
-    keybindings_defaults = data_io.load_validated(
-        data_dir / "keybindings.json", keybindings_schema_path)
-    keybindings_path = REPO / "scores" / "keybindings.json"
-    key_bindings = key_input.load_keybindings(
-        keybindings_path, keybindings_schema_path, keybindings_defaults)
     # G4: the Renderer and the ground cache are built AFTER the presenter (the
     # GPU variants need its SDL Renderer, which needs the window, which needs
     # the shell's display mode) — see _build_render_stack below. Nothing
@@ -774,6 +762,18 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     enemies_balance = load_balance(data_dir, "enemies")
     ui_balance = load_balance(data_dir, "ui")
     vfx_balance = load_balance(data_dir, "vfx")  # ESV-3a: procedural VFX params
+    # feature: rebindable hotkeys — `ui.json`'s `Keybindings` group is the
+    # DESIGNER-EDITABLE default for every rebindable action (indexed
+    # directly, never `.get` — the schema requires the key, D-2, the
+    # `ui_balance["Debug"]` precedent just below). The player's LIVE bindings
+    # (any in-Settings rebind) live in the gitignored `scores/` dir, the
+    # `highscores.json` precedent — read tolerantly (a corrupt save file
+    # falls back to the defaults, one logged warning, never crashes boot).
+    keybindings_schema_path = data_dir / "schemas" / "keybindings.schema.json"
+    keybindings_defaults = ui_balance["Keybindings"]
+    keybindings_path = REPO / "scores" / "keybindings.json"
+    key_bindings = key_input.load_keybindings(
+        keybindings_path, keybindings_schema_path, keybindings_defaults)
     # VA-5: the seven tile highlights are effects now — colour/outline/fill and
     # their sprite bindings come from this same doc. Same fail-loud-on-mismatch
     # shape as configure_palette above, and the same boot slot, which is where
@@ -1622,6 +1622,20 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                     # feature: rebindable hotkeys — the same flip
                     # MapOverlays.hit() does for the HEATMAP pill's own click.
                     gp["overlays"].show_heatmap = not gp["overlays"].show_heatmap
+                elif _binding_key_name(event) == key_bindings["toggle_tier_overview"]:
+                    # feature: rebindable hotkeys — the same flip
+                    # MapOverlays.hit() does for the TIERS pill's own click.
+                    gp["overlays"].show_tier_overview = (
+                        not gp["overlays"].show_tier_overview)
+                elif _binding_key_name(event) == key_bindings["toggle_range"]:
+                    # feature: rebindable hotkeys — the same flip
+                    # MapOverlays.hit() does for the RANGE pill's own click.
+                    gp["overlays"].show_range = not gp["overlays"].show_range
+                elif _binding_key_name(event) == key_bindings["toggle_drag_select"]:
+                    # feature: rebindable hotkeys — the same flip
+                    # handle_world_click's "drag_select" HUD action does for
+                    # the DRAG SEL button's own click.
+                    gp["drag_select_enabled"] = not gp["drag_select_enabled"]
                 elif session.state.phase == GamePhase.ENEMY:
                     # Combat-speed shortcuts + quick-skip (10F). 1.5x/2x are
                     # round-gated inside Session, so a locked key is a no-op.

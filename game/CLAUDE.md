@@ -257,7 +257,32 @@ preset names (D5).
   above, so spawner, movement and combat never desync. Never scale the
   ROUND_END/INCOME timers. Keys (gameplay, ENEMY phase only): `1`/`2`/`3` =
   1×/1.5×/2× (round-gated inside `Session`), bare `P` = quick-skip the wave. The
-  matching HUD buttons + the lives-faces readout are **10L**.
+  matching HUD buttons + the lives-faces readout are **10L**. Both are
+  REBINDABLE (below) — numpad `1`/`2`/`3` stay a fixed always-on alias
+  alongside the rebindable primary key, since rebinding only ever changes
+  which primary key fires the action.
+- **Rebindable hotkeys (feature: rebindable hotkeys)**: every gameplay hotkey
+  dispatches through `key_bindings[action]` (a live dict built at boot from
+  `ui.json`'s `Keybindings` group + any player rebind in
+  `scores/keybindings.json`, `engine.input.load_keybindings`) compared
+  against `_binding_key_name(event)` — the pygame-keycode-to-neutral-string
+  translator beside `_key_name`. 9 actions: `end_turn` (Space), combat speed
+  ×3 (`1`/`2`/`3`), `quick_skip_combat` (`P`), `toggle_cheat_menu` (Ctrl+L),
+  `toggle_heatmap`/`toggle_range`/`toggle_tier_overview` (H/R/T, the same
+  flip `MapOverlays.hit()` does for their pills), `toggle_drag_select` (Q,
+  the same flip the DRAG SEL HUD button does), `confirm_purchase` (Enter —
+  only while a construct/move preview is open, routed through the SAME
+  public `panel.handle_click` a mouse click on CONFIRM uses, aimed at that
+  button's own centre, so keyboard and mouse can never disagree). Esc, F12
+  and text-editing keys (Backspace/arrows/Enter-while-typing-a-name) stay
+  fixed system conventions, never rebindable. The in-game Settings → Controls
+  screen (`game/ui/keybinds_screen.py`, `game/ui/CLAUDE.md`) surfaces 9 of
+  the 11 `Keybindings` actions for player rebinding; `toggle_cheat_menu` (a
+  hidden dev feature) and `quick_skip_combat` (a testing convenience) are
+  deliberately excluded from that screen but keep dispatching normally.
+  Rebind capture (Esc cancels, a collision flashes, otherwise the key is
+  written + persisted) is host-only logic (`main.py`'s `_handle_capture_key`)
+  since `game/ui` must stay pygame-free.
 - **10J host wiring**: the BUILDING click branch runs the shift multi-select
   (`update_selection` + `gp["sel"]`/`gp["sel_cat"]`); `panel.name_editing`
   routes keys to the upgrade-panel rename row before the shortcut keys;

@@ -25,7 +25,10 @@ DEFAULTS = {
     "end_turn": "space",
     "quick_skip_combat": "p",
     "toggle_cheat_menu": "ctrl+l",
+    "toggle_drag_select": "q",
     "toggle_heatmap": "h",
+    "toggle_range": "r",
+    "toggle_tier_overview": "t",
 }
 
 
