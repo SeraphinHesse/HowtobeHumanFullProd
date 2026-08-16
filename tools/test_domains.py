@@ -87,6 +87,7 @@ DOMAINS = {
     "enemies": (
         "test_boss.py",
         "test_corpse.py",
+        "test_crowd_spacing.py",
         "test_death_spawn.py",
         "test_enemies.py",
         "test_enemy_intro.py",
