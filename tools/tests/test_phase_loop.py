@@ -6,6 +6,17 @@ a synth ``TileMapDoc`` -> ``TileMap`` fixture + real balancing via
 timing: a map with NO spawn tile makes every wave empty (rounds still complete
 BUILDING -> ENEMY -> ROUND_END -> INCOME -> BUILDING), and base-breach logic is
 exercised through the same ``on_base_hit`` callback the combat sweep calls.
+
+Every payout-sequencing assertion below DERIVES its expected ``phase_timer``
+from ``PHASE["payout_stagger_interval"]`` / ``PHASE["income_phase_duration"]``
+rather than restating either as a literal — a hardcoded timing number is what
+this suite's pinned fixture exists to make impossible. The payday-split branch
+that added them also shipped a blanket ``fixture_data.py --refresh``; that
+refresh was reverted during the Development merge-down (it had captured
+unrelated designer edits to progression/enemies/XP and reddened 16 level-up
+tests), leaving the fixture carrying ONLY this feature's three new keys:
+``PhaseLoop.payout_stagger_interval``, ``FX.love_counter_anim_duration`` and
+``procedural.floaters.income_life``.
 """
 import json
 import subprocess

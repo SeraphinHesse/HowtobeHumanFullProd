@@ -465,7 +465,7 @@
     "projectile_hit": {
       "draw_in_front": true,
       "procedural": "",
-      "sprite_slot": "vfx_crater",
+      "sprite_slot": "",
       "variant_select": {
         "misc_key": "",
         "mode": "random"
@@ -490,7 +490,7 @@
       }
     },
     "tile_selected": {
-      "draw_in_front": false,
+      "draw_in_front": true,
       "procedural": "highlight",
       "sprite_slot": "",
       "variant_select": {
