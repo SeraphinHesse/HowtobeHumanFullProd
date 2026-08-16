@@ -51,7 +51,7 @@ _BG = (0, 0, 0, 150)  # prototype alpha dim (10J)
 # (98px) no longer fit — the widest label needs 105 + 4px of margin, i.e. a
 # 114px row, i.e. a 124px panel. The row HEIGHT is a separate, deliberate
 # non-fix: 13px == layout_h("md"), legible but under the 16px comfort lint.
-_PANEL_W, _PANEL_H = 124, 159
+_PANEL_W, _PANEL_H = 124, 144
 _TITLE = "CHEATS"
 _MAX_DIGITS = 4  # prototype round-field cap
 
@@ -64,9 +64,6 @@ _BUTTONS = (
     # "Unlock All Tech" needed 125px in the 114px row under the SHIPPED pixel
     # font (data/ui/active_font.json -> pixel_emulator); "Unlock Tech" needs 92.
     ("unlock_all", "Unlock Tech"),
-    # Bypasses the round gate in Session.speed_unlocked for the rest of the
-    # run, so 1.5x/2x combat speed is immediately selectable.
-    ("unlock_speed", "Unlock Speed"),
     # debug-mode-telemetry: arm/disarm the DebugRecorder mid-run. Appended
     # LAST so the five prototype rows keep their order (and their exported
     # default rects' relative positions); the panel grew 30px for it.
@@ -76,8 +73,7 @@ _BUTTONS = (
 _ACTION_IDS = {
     "add_love": "btn_add_love", "skip_round": "btn_skip_round",
     "trigger_levelup": "btn_trigger_levelup", "inf_money": "btn_inf_money",
-    "unlock_all": "btn_unlock_all", "unlock_speed": "btn_unlock_speed",
-    "toggle_debug": "btn_toggle_debug",
+    "unlock_all": "btn_unlock_all", "toggle_debug": "btn_toggle_debug",
 }
 
 SCREEN_ID = "cheat_menu"

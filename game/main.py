@@ -1024,8 +1024,6 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             session.cheat_add_love(999999)
         elif action == "unlock_all":
             session.cheat_unlock_all()
-        elif action == "unlock_speed":
-            session.cheat_unlock_speeds()
         elif action == "toggle_debug":
             if recorder is not None:
                 # Mark the point capture STOPS, then write the artifacts.

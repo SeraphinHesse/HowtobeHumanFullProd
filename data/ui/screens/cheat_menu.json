@@ -21,9 +21,6 @@
     "btn_unlock_all": {
       "skin": "ui_button_cheat"
     },
-    "btn_unlock_speed": {
-      "skin": "ui_button_cheat"
-    },
     "panel": {
       "skin": "ui_panel"
     }
