@@ -1132,6 +1132,50 @@ default each frame with no cascade.
     the recorder the hierarchy, i.e. giving the exporter a runtime notion of
     parenting, which is exactly what D2/D4 keep out.
 
+## Widget layers in the outliner (UiLayeredWidgetsPLAN UL-6)
+
+A LAYER is extra art/text drawn under or over one widget, stored as an entry in
+that widget's `layers` ARRAY in the open screen doc (schema + pure resolver
+landed in UL-3/UL-4/UL-5: `engine/ui_layers.py`'s `resolve`/`ordered`/
+`validate_offsets`). UL-6 is the authoring half — the outliner shows them and
+`ScreenDetailsPanel`'s Layers section adds/removes/reorders them.
+
+- **`layers` is an ARRAY, so a layer op cannot use a per-layer command path.**
+  `_DocFieldCommand`'s `_set_at` walks DICTS: a path ending in a layer id
+  (`widgets/<id>/layers/<layer_id>`) would silently write an OBJECT where the
+  schema demands an array, and the next `save()` would fail validation. Every
+  op therefore pushes ONE command at `("widgets", <id>, "layers")` carrying the
+  FULL old and FULL new array — the same "never a delta" contract as
+  `push_move`, and still exactly one undo step per op. An emptied array is
+  pushed as `None`, so the "None = absent" pruning removes the key (and
+  `widgets/<id>` when it was the only override) rather than leaving `[]`.
+- **The session owns all five entry points** (`editor/ui_screen_session.py`):
+  `layers(widget_id)` (a deep COPY — reading cannot mutate the doc),
+  `add_layer`, `remove_layer`, `set_layer_field(..., old, new, text=None)` and
+  `reorder_layer(..., new_z)`, which is `set_layer_field` on `z` alone. The
+  panel never touches the array itself, exactly as it never writes a rect.
+- **A layer id is the only handle** remove/reorder/inspect have, and
+  `ordered()` silently DROPS a duplicate non-empty id — so `add_layer` refuses
+  an empty or already-used id rather than creating a layer that draws but
+  cannot be edited. The panel generates `layer_1`, `layer_2`, … (first free
+  index — deterministic and readable, not a uuid), so that guard is a backstop.
+- **A layer node's `UserRole` is a `(widget_id, layer_id)` TUPLE**; widget nodes
+  keep the bare-id-string contract unchanged. `isinstance(role, tuple)` is what
+  tells them apart in `_on_widget_list_selected`, `startDrag` and
+  `_drop_parent`. `self._layer_items[(widget_id, layer_id)] -> item` is the
+  layer twin of `_tree_items`.
+- **Selecting a layer still selects its OWNER widget everywhere else** — the
+  form keeps showing the widget's controls and `widget_selected` still emits
+  the widget id (per-layer inspection is UL-8). Only the Layers buttons and the
+  read-only "Selected layer:" line change. Layers are NOT re-parentable: a drag
+  from a layer node is refused, and a drop ON one targets its owner widget.
+- **Listed in PAINT order** — `ordered(layers, "under")` then
+  `ordered(layers, "over")`, i.e. the game's own order, so the outliner cannot
+  claim a stacking the screen does not have. Up/Down set `z` to the
+  neighbour's z ∓ 1, never the neighbour's z itself: `ordered` sorts STABLY, so
+  an equal z would leave the pair in source order and the button would appear
+  to do nothing.
+
 ## Phase UT-2/UT-6 — the real screen preview + the Text-template row
 
 - **`ViewportPanel` REPLAYS a recorded draw list** (`data/ui/screen_previews

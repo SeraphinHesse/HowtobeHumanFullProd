@@ -191,6 +191,7 @@ DOMAINS = {
         "test_vfx_highlight_preview.py",
         "test_run_controls.py",
         "test_screen_honest_controls.py",
+        "test_ui_layer_ops.py",
         "test_tilemap_ops.py",
         "test_timeline_ops.py",
         "test_timeline_panel.py",

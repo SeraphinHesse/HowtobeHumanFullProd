@@ -59,6 +59,7 @@ from editor.panels._screen_rules import (
     resolved_skin,
 )
 from engine.assets import load_registry
+from engine.ui_layers import ordered as ordered_layers
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -145,18 +146,26 @@ class WidgetTreeWidget(QTreeWidget):
 
     def _drop_parent(self, event):
         """The widget id under the cursor, or None for "drop on empty space =
-        make it a root"."""
+        make it a root".
+
+        UL-6: dropping ON a LAYER node targets that layer's OWNER widget —
+        layers have no parent concept (they hang off exactly one widget by
+        construction), so the nearest sensible parent is the widget they
+        belong to rather than a refusal the designer has to decode."""
         item = self.itemAt(event.position().toPoint())
         if item is None:
             return None
-        return item.data(0, Qt.ItemDataRole.UserRole)
+        role = item.data(0, Qt.ItemDataRole.UserRole)
+        return role[0] if isinstance(role, tuple) else role
 
     def startDrag(self, _supported_actions):
         item = self.currentItem()
         if item is None:
             return
         widget_id = item.data(0, Qt.ItemDataRole.UserRole)
-        if not widget_id:
+        # UL-6: a layer node's role is a (widget_id, layer_id) TUPLE, and a
+        # layer is not re-parentable — only widgets drag.
+        if not widget_id or isinstance(widget_id, tuple):
             return
         drag = QDrag(self)
         mime = QMimeData()
@@ -251,6 +260,12 @@ class ScreenDetailsPanel(QWidget):
         # `setCurrentRow`, and walking it on every external selection sync
         # would be the only place in this panel that searches by id.
         self._tree_items = {}
+        # UL-6: (widget_id, layer_id) -> its item, the layer twin of
+        # `_tree_items`. Layer nodes hang under their owner widget's item and
+        # carry a TUPLE in UserRole (widgets keep a bare id string), which is
+        # what tells the two node kinds apart everywhere they are read.
+        self._layer_items = {}
+        self._current_layer_id = None
         layout.addWidget(self.widget_list)
 
         form = QFormLayout()
@@ -370,6 +385,8 @@ class ScreenDetailsPanel(QWidget):
         self.reset_button.clicked.connect(self._on_reset_clicked)
         layout.addWidget(self.reset_button)
 
+        layout.addWidget(self._build_layer_controls())
+
         # -- screen-level section --------------------------------------------
         bg_label_row = QWidget(self)
         bg_label_layout = QHBoxLayout(bg_label_row)
@@ -429,6 +446,7 @@ class ScreenDetailsPanel(QWidget):
         self._populate_skin_combo(self.skin_combo)
         self._populate_skin_combo(self.button_skin_combo)
         self._populate_skin_combo(self.panel_skin_combo)
+        self._populate_skin_combo(self.layer_slot_combo)   # UL-6
         self._populate_font_combo(self.font_combo)
         self._populate_font_combo(self.default_font_combo)
         self._populate_background_combo()
@@ -500,6 +518,7 @@ class ScreenDetailsPanel(QWidget):
         self._populate_skin_combo(self.skin_combo)
         self._populate_skin_combo(self.button_skin_combo)
         self._populate_skin_combo(self.panel_skin_combo)
+        self._populate_skin_combo(self.layer_slot_combo)   # UL-6
         self._populate_background_combo()
 
     # -- session / defaults binding -------------------------------------------
@@ -536,9 +555,15 @@ class ScreenDetailsPanel(QWidget):
         # just a field, so the outliner is rebuilt too. Rebuilding drops the
         # current item, so the selection is restored right after.
         selected = self._current_widget
+        # UL-6: an undone/redone layer op changes the tree's shape too, and
+        # the layer selection is restored with the widget one when the layer
+        # still exists (an undone ADD legitimately takes it away).
+        selected_layer = self._current_layer_id
         self._refresh_widget_list()
         if selected is not None:
             self.select_widget(selected)
+            if (selected, selected_layer) in self._layer_items:
+                self.select_layer(selected, selected_layer)
         self._refresh_widget_form()
         self._refresh_background()
         self._refresh_defaults_section()
@@ -587,6 +612,7 @@ class ScreenDetailsPanel(QWidget):
         self.widget_list.blockSignals(True)
         self.widget_list.clear()
         self._tree_items = {}
+        self._layer_items = {}
         widgets = self._current_screen_defaults().get("widgets", {})
         tree = widget_tree.build_tree(widgets, self._doc_widgets())
 
@@ -604,14 +630,50 @@ class ScreenDetailsPanel(QWidget):
                 add(widget_id, item)
 
         add(widget_tree.ROOT, None)
+
+        # UL-6: a widget's LAYERS hang under it, in paint order (`under` band
+        # by z, then `over` by z — `engine.ui_layers.ordered`, the same
+        # ordering the game paints by, so the outliner cannot claim a stacking
+        # the screen does not have). Layer nodes carry a
+        # (widget_id, layer_id) TUPLE in UserRole; widget nodes keep a bare id
+        # string, and `isinstance(role, tuple)` is what tells them apart.
+        for widget_id, item in self._tree_items.items():
+            for layer in self._ordered_layers(widget_id):
+                layer_id = layer.get("id") or ""
+                layer_item = QTreeWidgetItem([self._layer_node_text(layer)])
+                layer_item.setToolTip(0, layer_id or "layer with no id")
+                layer_item.setData(0, Qt.ItemDataRole.UserRole,
+                                   (widget_id, layer_id))
+                item.addChild(layer_item)
+                if layer_id:
+                    self._layer_items[(widget_id, layer_id)] = layer_item
+
         self.widget_list.expandAll()   # expanded by default (P-4)
         self.widget_list.blockSignals(False)
+        # A rebuild can drop the layer the buttons were pointing at (an undone
+        # add, a removed layer): forget it rather than leave Remove armed on
+        # something that no longer exists.
+        if (self._current_widget, self._current_layer_id) not in self._layer_items:
+            self._current_layer_id = None
+        self._refresh_layer_buttons()
 
     def _on_widget_list_selected(self, current, _previous=None):
         if current is None:
             return
-        widget_id = current.data(0, Qt.ItemDataRole.UserRole)
+        role = current.data(0, Qt.ItemDataRole.UserRole)
+        # UL-6: a layer node carries (widget_id, layer_id). Selecting one
+        # still selects its OWNER widget everywhere else — the form keeps
+        # showing the widget's controls and the viewport still follows the
+        # widget (per-layer inspection is UL-8) — only the layer buttons and
+        # the "Selected layer:" line change.
+        if isinstance(role, tuple):
+            widget_id, layer_id = role
+            self._current_layer_id = layer_id or None
+        else:
+            widget_id = role
+            self._current_layer_id = None
         self._populate_widget_form(widget_id)
+        self._refresh_layer_buttons()
         self.widget_selected.emit(widget_id)
 
     def select_widget(self, widget_id):
@@ -623,12 +685,14 @@ class ScreenDetailsPanel(QWidget):
         self.widget_list.blockSignals(True)
         self.widget_list.setCurrentItem(self._tree_items.get(widget_id))
         self.widget_list.blockSignals(False)
+        self._current_layer_id = None   # UL-6: a WIDGET is selected now
         if widget_id:
             self._populate_widget_form(widget_id)
         else:
             self._flush_live_rect()
             self._current_widget = None
             self._set_widget_form_enabled(False)
+        self._refresh_layer_buttons()
 
     # -- P-4: re-parenting (the tree drag and its combo twin) ----------------
 
@@ -704,6 +768,212 @@ class ScreenDetailsPanel(QWidget):
         combo.setCurrentIndex(max(0, combo.findData(current)))
         combo.blockSignals(False)
 
+    # -- UL-6: layers -------------------------------------------------------
+    # A layer is EXTRA art (or text) drawn under or over one widget, stored as
+    # an entry in that widget's `layers` array in the open screen doc. The
+    # outliner shows them as children of their owner; these controls add /
+    # remove / reorder them. Every one of them goes through a single undoable
+    # `UIScreenSession.*_layer*` call — this panel never touches the array
+    # itself, exactly as it never writes a rect or a skin directly.
+    #
+    # Enabled-state contract:
+    #   Add        — whenever a WIDGET is selected (a layer node counts: its
+    #                owner is the widget the new layer lands on).
+    #   Remove/Up/Down — only while a LAYER node is selected in the tree.
+
+    def _build_layer_controls(self):
+        """The "Layers" section: slot + band pickers, Add, Remove, Up/Down.
+
+        The slot picker is an inline combo rather than a modal chooser opened
+        by Add: it is the same registry-driven `ui` slot list the Skin row
+        already offers, and keeping it inline means the whole add gesture is
+        one click on a visible choice (and is drivable from a test, which a
+        modal dialog is not).
+        """
+        box = QWidget(self)
+        box_layout = QVBoxLayout(box)
+        box_layout.setContentsMargins(0, 0, 0, 0)
+        box_layout.addWidget(QLabel("Layers", self))
+
+        picker_row = QWidget(self)
+        picker_layout = QHBoxLayout(picker_row)
+        picker_layout.setContentsMargins(0, 0, 0, 0)
+        self.layer_slot_combo = _NoWheelComboBox(self)
+        self.layer_slot_combo.setToolTip(
+            "Art for the new layer (a `ui` slot). Leave blank for a layer "
+            "you will give text or a colour instead.")
+        picker_layout.addWidget(self.layer_slot_combo, 1)
+        self.layer_band_combo = _NoWheelComboBox(self)
+        self.layer_band_combo.addItem("Over", "over")
+        self.layer_band_combo.addItem("Under", "under")
+        self.layer_band_combo.setToolTip(
+            "Over draws the layer on top of its widget; Under draws it "
+            "behind everything on the screen.")
+        picker_layout.addWidget(self.layer_band_combo)
+        box_layout.addWidget(picker_row)
+
+        button_row = QWidget(self)
+        button_layout = QHBoxLayout(button_row)
+        button_layout.setContentsMargins(0, 0, 0, 0)
+        self.layer_add_button = QPushButton("Add Layer", self)
+        self.layer_add_button.clicked.connect(self._on_add_layer)
+        button_layout.addWidget(self.layer_add_button, 1)
+        self.layer_remove_button = QPushButton("Remove Layer", self)
+        self.layer_remove_button.clicked.connect(self._on_remove_layer)
+        button_layout.addWidget(self.layer_remove_button, 1)
+        self.layer_up_button = QToolButton(self)
+        self.layer_up_button.setText("▲")
+        self.layer_up_button.setToolTip("Draw this layer earlier in its band")
+        self.layer_up_button.clicked.connect(
+            lambda _checked=False: self._on_move_layer(-1))
+        button_layout.addWidget(self.layer_up_button)
+        self.layer_down_button = QToolButton(self)
+        self.layer_down_button.setText("▼")
+        self.layer_down_button.setToolTip("Draw this layer later in its band")
+        self.layer_down_button.clicked.connect(
+            lambda _checked=False: self._on_move_layer(1))
+        button_layout.addWidget(self.layer_down_button)
+        box_layout.addWidget(button_row)
+
+        # Read-only "which layer is selected" line. The FORM above stays the
+        # WIDGET's (per-layer inspection is UL-8's job), so without this the
+        # tree selection would be the only sign of what Remove would remove.
+        self.layer_selected_label = QLabel("", self)
+        self.layer_selected_label.setStyleSheet("color: #888;")
+        box_layout.addWidget(self.layer_selected_label)
+        return box
+
+    def _widget_layers(self, widget_id):
+        """The selected widget's layer array straight from the doc (`[]` when
+        it has none) — the ONE read behind both the tree and the buttons."""
+        if self._session is None or widget_id is None:
+            return []
+        return self._session.layers(widget_id)
+
+    def _ordered_layers(self, widget_id):
+        """The widget's layers in PAINT order: the `under` band (by z) then
+        the `over` band (by z), which is the order the outliner lists them
+        and the order Up/Down move within."""
+        layers = self._widget_layers(widget_id)
+        return (list(ordered_layers(layers, "under"))
+                + list(ordered_layers(layers, "over")))
+
+    def _next_layer_id(self, widget_id):
+        """`layer_1`, `layer_2`, … — the first index this widget is not
+        already using. Deterministic rather than a uuid so the id a designer
+        sees in the outliner is readable, and so a test can name it."""
+        used = {entry.get("id") for entry in self._widget_layers(widget_id)}
+        index = 1
+        while f"layer_{index}" in used:
+            index += 1
+        return f"layer_{index}"
+
+    def _layer_node_text(self, layer):
+        layer_id = layer.get("id") or ""
+        slot = layer.get("slot")
+        name = layer_id or "(unnamed layer)"
+        return f"{name} — {slot}" if slot else name
+
+    def _on_add_layer(self):
+        """Add one layer to the selected widget (its OWNER when a layer node
+        is what is selected), then re-select the new layer so Remove/Up/Down
+        act on what was just created."""
+        if self._current_widget is None or self._session is None:
+            return
+        widget_id = self._current_widget
+        layer_id = self._next_layer_id(widget_id)
+        spec = {"offset": [0, 0, 0, 0], "z": 0,
+                "band": self.layer_band_combo.currentData() or "over"}
+        slot = self.layer_slot_combo.currentData()
+        if slot:
+            spec["slot"] = slot
+        self._session.add_layer(widget_id, layer_id, spec)
+        self._refresh_widget_list()
+        self.select_layer(widget_id, layer_id)
+
+    def _on_remove_layer(self):
+        if (self._current_widget is None or self._current_layer_id is None
+                or self._session is None):
+            return
+        widget_id = self._current_widget
+        self._session.remove_layer(widget_id, self._current_layer_id)
+        self._current_layer_id = None
+        self._refresh_widget_list()
+        self.select_widget(widget_id)
+
+    def _on_move_layer(self, delta):
+        """Move the selected layer one step within its own band by rewriting
+        ONLY its `z` (the session's `reorder_layer`).
+
+        The new z is the neighbour's z ∓ 1, never the neighbour's z itself:
+        `ordered()` sorts stably, so an equal z would leave the pair in
+        source order and the button would do nothing visible.
+        """
+        if (self._current_widget is None or self._current_layer_id is None
+                or self._session is None):
+            return
+        widget_id, layer_id = self._current_widget, self._current_layer_id
+        layers = self._widget_layers(widget_id)
+        band = next((e.get("band", "over") for e in layers
+                     if e.get("id") == layer_id), None)
+        if band is None:
+            return
+        siblings = list(ordered_layers(layers, band))
+        index = next((i for i, e in enumerate(siblings)
+                      if e.get("id") == layer_id), None)
+        if index is None:
+            return
+        target = index + delta
+        if not 0 <= target < len(siblings):
+            return
+        neighbour_z = siblings[target].get("z", 0)
+        self._session.reorder_layer(widget_id, layer_id,
+                                    neighbour_z - 1 if delta < 0
+                                    else neighbour_z + 1)
+        self._refresh_widget_list()
+        self.select_layer(widget_id, layer_id)
+
+    def select_layer(self, widget_id, layer_id):
+        """Select a LAYER node in the outliner (the layer twin of
+        `select_widget`): the widget form keeps showing the owner widget —
+        per-layer inspection is UL-8 — and only the layer buttons change."""
+        item = self._layer_items.get((widget_id, layer_id))
+        self.widget_list.blockSignals(True)
+        self.widget_list.setCurrentItem(item)
+        self.widget_list.blockSignals(False)
+        self._current_layer_id = layer_id if item is not None else None
+        if item is not None:
+            self._populate_widget_form(widget_id)
+        self._refresh_layer_buttons()
+
+    def _refresh_layer_buttons(self):
+        """Add follows the WIDGET selection; Remove/Up/Down follow the LAYER
+        selection. Up/Down additionally go dead at the ends of the band —
+        a click that cannot move anything should not be offered."""
+        has_widget = self._current_widget is not None
+        self.layer_add_button.setEnabled(has_widget)
+        self.layer_slot_combo.setEnabled(has_widget)
+        self.layer_band_combo.setEnabled(has_widget)
+        layer_id = self._current_layer_id
+        has_layer = has_widget and bool(layer_id)
+        self.layer_remove_button.setEnabled(has_layer)
+        up = down = False
+        if has_layer:
+            layers = self._widget_layers(self._current_widget)
+            band = next((e.get("band", "over") for e in layers
+                         if e.get("id") == layer_id), None)
+            siblings = (list(ordered_layers(layers, band))
+                        if band is not None else [])
+            index = next((i for i, e in enumerate(siblings)
+                          if e.get("id") == layer_id), None)
+            if index is not None:
+                up = index > 0
+                down = index < len(siblings) - 1
+        self.layer_up_button.setEnabled(up)
+        self.layer_down_button.setEnabled(down)
+        self.layer_selected_label.setText(
+            f"Selected layer: {layer_id}" if has_layer else "")
+
     # -- per-widget form ---------------------------------------------------
 
     def _set_widget_form_enabled(self, enabled):
@@ -713,9 +983,19 @@ class ScreenDetailsPanel(QWidget):
                   self.color_button,
                   self.text_color_button, self.label_edit,
                   self.text_id_combo,
-                  self.visible_check, self.reset_button):
+                  self.visible_check, self.reset_button,
+                  # UL-6: adding a layer needs only a selected widget.
+                  self.layer_add_button, self.layer_slot_combo,
+                  self.layer_band_combo):
             w.setEnabled(enabled)
         if not enabled:
+            # UL-6: Remove/Up/Down need a selected LAYER, which there cannot
+            # be without a widget.
+            self._current_layer_id = None
+            for btn in (self.layer_remove_button, self.layer_up_button,
+                        self.layer_down_button):
+                btn.setEnabled(False)
+            self.layer_selected_label.setText("")
             # Per-field reset buttons get their REAL enabled state (does an
             # override exist for THIS key?) from _refresh_reset_buttons,
             # called at the end of _populate_widget_form — but with no
