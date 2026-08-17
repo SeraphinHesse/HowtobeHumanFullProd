@@ -269,7 +269,7 @@
   },
   "General": {
     "game_scale_rounds": 15,
-    "starting_currency": 25
+    "starting_currency": 32
   },
   "LightningStrike": {
     "cooldown": [
