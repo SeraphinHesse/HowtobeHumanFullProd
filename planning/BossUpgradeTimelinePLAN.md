@@ -1,10 +1,3 @@
-<!-- active-plan: BossUpgradeTimelinePLAN.md | set: 2026-08-17 -->
-> **Active plan:** BossUpgradeTimelinePLAN.md (mirror). Source of truth:
-> `planning/BossUpgradeTimelinePLAN.md`. Do **not** edit this file directly — edit the
-> source in `planning/` and re-run `/setcurrentplan`, or pick a different
-> plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
-> screen).
-
 <!-- status: IN PROGRESS -->
 <!-- plan-scale: large -->
 
@@ -176,7 +169,7 @@ were all directly read or scouted to confirm exact current shapes.
 | Phase | Scope | Status |
 |---|---|---|
 | BU-0 | Branch | done |
-| BU-1 | Data layer — schema, content, domain registration | pending |
+| BU-1 | Data layer — schema, content, domain registration | done |
 | BU-2 | RunState + effect-engine skeleton | pending |
 | BU-3 | Effect-engine hook wiring (12 upgrades + debuff arrow) | pending |
 | BU-4 | Boss cutscene UI + Session rewire; retire boss_bonuses | pending |
