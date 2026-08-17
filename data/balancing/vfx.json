@@ -371,7 +371,7 @@
   },
   "triggers": {
     "attack_range": {
-      "draw_in_front": true,
+      "draw_in_front": false,
       "procedural": "highlight",
       "sprite_slot": "",
       "variant_select": {
@@ -470,9 +470,9 @@
       }
     },
     "projectile_hit": {
-      "draw_in_front": true,
+      "draw_in_front": false,
       "procedural": "",
-      "sprite_slot": "vfx_crater",
+      "sprite_slot": "",
       "variant_select": {
         "misc_key": "",
         "mode": "random"
@@ -488,7 +488,7 @@
       }
     },
     "splash_impact": {
-      "draw_in_front": true,
+      "draw_in_front": false,
       "procedural": "crater",
       "sprite_slot": "vfx_crater",
       "variant_select": {
@@ -506,7 +506,7 @@
       }
     },
     "tutorial_highlight": {
-      "draw_in_front": true,
+      "draw_in_front": false,
       "procedural": "highlight",
       "sprite_slot": "",
       "variant_select": {

@@ -1114,7 +1114,8 @@
             {
               "label": "Projectile",
               "slots": [
-                "vfx_projectile"
+                "vfx_projectile",
+                "vfx_projectile_v2"
               ]
             },
             {

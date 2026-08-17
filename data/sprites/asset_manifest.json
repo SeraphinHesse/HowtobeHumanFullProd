@@ -8431,6 +8431,24 @@
       ],
       "sheet": "imported/vfx_projectile.png"
     },
+    "vfx_projectile_v2": {
+      "frame_h": 64,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/vfx_shell.png"
+    },
     "vfx_respawn": {
       "frame_h": 96,
       "frame_w": 64,
