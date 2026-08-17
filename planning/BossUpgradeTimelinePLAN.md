@@ -171,7 +171,7 @@ were all directly read or scouted to confirm exact current shapes.
 | BU-0 | Branch | done |
 | BU-1 | Data layer — schema, content, domain registration | done |
 | BU-2 | RunState + effect-engine skeleton | done |
-| BU-3 | Effect-engine hook wiring (12 upgrades + debuff arrow) | pending |
+| BU-3 | Effect-engine hook wiring (12 upgrades + debuff arrow) | done |
 | BU-4 | Boss cutscene UI + Session rewire; retire boss_bonuses | pending |
 | BU-5 | Editor panel | pending |
 | BU-6 | Tests | pending |
