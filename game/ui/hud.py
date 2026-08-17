@@ -35,6 +35,13 @@ _LIGHTNING_READY = (255, 240, 80)    # prototype ready-label colour
 _LIGHTNING_COOLING = (120, 120, 140)
 # -- /10H --
 
+# -- UL-11: the three life counters' death-transition duration. A hardcoded
+# module constant (the _LIGHTNING_READY precedent above), NOT a
+# data/balancing/ui.json key: there is no art to time it against yet, so this
+# is a placeholder to be promoted to a tunable once one exists. --
+_LIFE_TRANSITION_MS = 600
+# -- /UL-11 --
+
 # The phase readout's two-state copy. It used to be a six-way GamePhase ->
 # string-id map (``_PHASE_LABEL_ID``) resolved through the Phase C string
 # table; the readout moved bottom-right (above End Turn) and now says only
@@ -294,6 +301,34 @@ class Hud:
         self._icon_lives = SimpleNamespace(rect=(0, 0, 0, 0),
                                            skin="ui_icon_lives", visible=True)
         # -- /10L wave-3 --
+        # -- UL-11 (D10): the three life counters are THREE id'd widgets, not
+        # one repeated draw, so a designer positions and skins each one
+        # individually. Three separate attrs (the _icon_love/_icon_xp/
+        # _icon_lives precedent), not a list. The default skin reuses the
+        # existing lives art so an unauthored screen still shows something
+        # recognisable; per-state art arrives as a `layers` override.
+        # Each carries its own `_state` callable, which is the SAME seam
+        # ScreenSkinning.state_of/submit_layers already dispatch through for
+        # Buttons -- zero changes needed in skinning.py. --
+        self._life_1 = SimpleNamespace(rect=(0, 0, 0, 0),
+                                       skin="ui_icon_lives", visible=True)
+        self._life_2 = SimpleNamespace(rect=(0, 0, 0, 0),
+                                       skin="ui_icon_lives", visible=True)
+        self._life_3 = SimpleNamespace(rect=(0, 0, 0, 0),
+                                       skin="ui_icon_lives", visible=True)
+        # base_lives DELTA tracking, not the life_lost_events ledger: main.py
+        # runs the floaters' effects step (which DRAINS state.life_lost_events)
+        # BEFORE Hud.update() every frame, so the ledger is already empty on
+        # the exact frame the loss happened. base_lives detects the same event
+        # (same guarded `if` block in Session.on_base_hit) without the race,
+        # and adds no second ledger -- Effects keeps its sole consumer.
+        self._prev_base_lives = None
+        self._life_transition_idx = None   # 1-based; which life is mid-death
+        self._life_transition_age = 0.0
+        self._life_1._state = lambda: self._life_state_token(1)
+        self._life_2._state = lambda: self._life_state_token(2)
+        self._life_3._state = lambda: self._life_state_token(3)
+        # -- /UL-11 --
         self.ids = {}
         # -- /10L-B --
         self.layout(view_w, view_h)  # lay out now so hit() works before submit()
@@ -366,6 +401,16 @@ class Hud:
         self._icon_lives.rect = (pill[0] + 2, row0 + step, _ICON_SIZE, _ICON_SIZE)
         lives_x = self._icon_lives.rect[0] + _ICON_SIZE + _ICON_GAP
         self._lives_text.rect = (lives_x, row0 + step, 0, 0)
+        # -- UL-11: the three life counters sit in a row to the RIGHT of the
+        # lives icon + numeric readout, on the same row and the same
+        # _ICON_SIZE/_ICON_GAP grid. This becomes the new baked default in
+        # screen_defaults.json; a designer moves them wherever they like. --
+        life_x = lives_x + _ICON_SIZE + _ICON_GAP
+        life_step = _ICON_SIZE + _ICON_GAP
+        for i, holder in enumerate((self._life_1, self._life_2, self._life_3)):
+            holder.rect = (life_x + i * life_step, row0 + step,
+                           _ICON_SIZE, _ICON_SIZE)
+        # -- /UL-11 --
         self._tiles_text.rect = (pill[0] + 2, row0 + 2 * step, 0, 0)
         # The readout pill wraps the three rows above (income / lives / tiles)
         # off their DEFAULT anchors — the "no cascade" convention: a rect
@@ -402,12 +447,48 @@ class Hud:
             "icon_love": ("panel", self._icon_love),
             "icon_xp": ("panel", self._icon_xp),
             "icon_lives": ("panel", self._icon_lives),
+            # -- UL-11 (D10): three id'd life counters. lives_text/icon_lives
+            # above STAY -- these are added beside them, never in place of
+            # them (removing an id breaks the on-disk contract). --
+            "life_1": ("panel", self._life_1),
+            "life_2": ("panel", self._life_2),
+            "life_3": ("panel", self._life_3),
         })
         self.skinning.apply(self.screen_id, self.ids)
+
+    # -- UL-11 ------------------------------------------------------------
+    def _life_state_token(self, idx):
+        """One life counter's per-state key, on the pinned four-token
+        vocabulary (the schema is untouched by this phase):
+        alive -> ``idle`` (loops), dying -> ``pressed`` (plays once),
+        dead -> ``disabled`` (static). ``hover`` is never produced -- a
+        designer may author it, but nothing selects it."""
+        if idx == self._life_transition_idx:
+            return "pressed"
+        lives = self._prev_base_lives
+        if lives is None:
+            return "idle"   # before the first update(): nothing observed yet
+        return "idle" if idx <= lives else "disabled"
+
+    def _update_life_states(self, dt, base_lives):
+        """Drive the life counters off base_lives DELTAS (see __init__ on why
+        not life_lost_events). The first call only seeds: a run that STARTS
+        below full lives shows dead-and-static lives, never a transition."""
+        if self._life_transition_idx is not None:
+            self._life_transition_age += dt
+            if self._life_transition_age >= _LIFE_TRANSITION_MS / 1000.0:
+                self._life_transition_idx = None
+                self._life_transition_age = 0.0
+        if self._prev_base_lives is not None and base_lives < self._prev_base_lives:
+            self._life_transition_idx = base_lives + 1  # the life that died
+            self._life_transition_age = 0.0
+        self._prev_base_lives = base_lives
+    # -- /UL-11 -----------------------------------------------------------
 
     def update(self, dt, mx, my, session, panel, mouse_down=False):
         self._mx, self._my = mx, my  # 10H: the cursor cooldown-bar anchor
         st = session.state
+        self._update_life_states(dt, st.base_lives)  # UL-11
         self._clock += dt
         # unlock / construct / upgrade / base_info, plus the construct preview
         # modal — any of them owns the right column.
@@ -570,6 +651,15 @@ class Hud:
                         skin=self._icon_lives.skin,
                         tint=getattr(self._icon_lives, "tint", None), anim_ms=t)
         submit_label(renderer, self._lives_text, count=st.base_lives)
+        # -- UL-11: the three counters' default (unauthored) draw -- the same
+        # skinned submit_panel path icon_lives uses, one call per holder. The
+        # per-state layer stack that replaces this is authored as an override
+        # and rides Hud.submit()'s existing submit_layers calls, which already
+        # cover every id in self.ids. --
+        for _life in (self._life_1, self._life_2, self._life_3):
+            if is_visible(_life):
+                submit_panel(renderer, _life.rect, skin=_life.skin,
+                             tint=getattr(_life, "tint", None), anim_ms=t)
         built, unlocked = _tile_counts(session.tilemap)
         submit_label(renderer, self._tiles_text, built=built,
                      unlocked=unlocked)

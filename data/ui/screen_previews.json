@@ -5320,6 +5320,60 @@
         "type": "text"
       },
       {
+        "anim_time_ms": 0,
+        "animation": "idle",
+        "crop": null,
+        "dest": [
+          30,
+          41
+        ],
+        "flip": false,
+        "hidden_frames": [],
+        "size": [
+          9,
+          9
+        ],
+        "slot_key": "ui_icon_lives",
+        "tint": null,
+        "type": "sprite"
+      },
+      {
+        "anim_time_ms": 0,
+        "animation": "idle",
+        "crop": null,
+        "dest": [
+          41,
+          41
+        ],
+        "flip": false,
+        "hidden_frames": [],
+        "size": [
+          9,
+          9
+        ],
+        "slot_key": "ui_icon_lives",
+        "tint": null,
+        "type": "sprite"
+      },
+      {
+        "anim_time_ms": 0,
+        "animation": "idle",
+        "crop": null,
+        "dest": [
+          52,
+          41
+        ],
+        "flip": false,
+        "hidden_frames": [],
+        "size": [
+          9,
+          9
+        ],
+        "slot_key": "ui_icon_lives",
+        "tint": null,
+        "type": "sprite"
+      },
+      {
         "align": "left",
         "color": [
           150,
