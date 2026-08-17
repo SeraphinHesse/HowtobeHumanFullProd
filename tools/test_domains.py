@@ -125,6 +125,7 @@ DOMAINS = {
         "test_hp_bar_anchors.py",
         "test_hud_panel.py",
         "test_layout_h_invariant.py",
+        "test_life_counters.py",
         "test_names.py",
         "test_player_identity.py",
         "test_projectile_anchored_flight.py",

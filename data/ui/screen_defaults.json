@@ -5034,6 +5034,42 @@
         ],
         "text_id": "hud.income_net"
       },
+      "life_1": {
+        "display_name": "Life 1",
+        "kind": "panel",
+        "label": "",
+        "parent": "readout_panel",
+        "rect": [
+          30,
+          41,
+          9,
+          9
+        ]
+      },
+      "life_2": {
+        "display_name": "Life 2",
+        "kind": "panel",
+        "label": "",
+        "parent": "readout_panel",
+        "rect": [
+          41,
+          41,
+          9,
+          9
+        ]
+      },
+      "life_3": {
+        "display_name": "Life 3",
+        "kind": "panel",
+        "label": "",
+        "parent": "readout_panel",
+        "rect": [
+          52,
+          41,
+          9,
+          9
+        ]
+      },
       "lives_text": {
         "display_name": "Lives counter",
         "font_key": "md",
