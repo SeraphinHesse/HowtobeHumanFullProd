@@ -129,6 +129,7 @@
             "vfx_section_2x2",
             "vfx_shell",
             "vfx_slash",
+            "vfx_test",
             "vfx_tile_selected",
             "vfx_tutorial_highlight",
             "vfx_upgrade_batch",
@@ -958,6 +959,50 @@
             "radius_px"
           ],
           "type": "object"
+        },
+        "tutorial_highlight_pulse": {
+          "additionalProperties": false,
+          "description": "The tile-buying tutorial topic's stronger pulse/glow overlay on TOP of procedural.highlights.tutorial_highlight's base colour/border_width (widgets.tutorial_pulse_style): border alpha AND width both breathe on a smooth sine cycle over pulse_period_s seconds, composed onto that base colour rather than duplicating it. Applies to every tutorial highlight in the game (tile diamonds via submit_highlight's pulse_color/pulse_width override, and the card/button UI-box rings via submit_ui_box_highlight) -- never the other six procedural.highlights entries, and never the close-panel-hint text banner (submit_tutorial_banner).",
+          "properties": {
+            "alpha_max": {
+              "description": "Border alpha at the brightest point of the pulse.",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "alpha_min": {
+              "description": "Border alpha at the dimmest point of the pulse.",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "pulse_period_s": {
+              "description": "Seconds for one full dim-to-bright-to-dim (and thin-to-thick-to-thin) pulse cycle.",
+              "maximum": 60,
+              "minimum": 0.05,
+              "type": "number"
+            },
+            "width_max": {
+              "description": "Border width in pixels at the thickest point of the pulse.",
+              "maximum": 32,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "width_min": {
+              "description": "Border width in pixels at the thinnest point of the pulse.",
+              "maximum": 32,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "alpha_max",
+            "alpha_min",
+            "pulse_period_s",
+            "width_max",
+            "width_min"
+          ],
+          "type": "object"
         }
       },
       "required": [
@@ -974,7 +1019,8 @@
         "projectile",
         "slash",
         "spark",
-        "splatter"
+        "splatter",
+        "tutorial_highlight_pulse"
       ],
       "type": "object"
     },

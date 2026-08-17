@@ -20463,5 +20463,15 @@
     "col": 513,
     "row": 512,
     "slot": "tutorial_stone"
+  },
+  "tutorial_stone_2": {
+    "col": 515,
+    "row": 512,
+    "slot": "tutorial_stone_2"
+  },
+  "tutorial_unlock": {
+    "col": 514,
+    "row": 512,
+    "slot": "tutorial_unlock"
   }
 }

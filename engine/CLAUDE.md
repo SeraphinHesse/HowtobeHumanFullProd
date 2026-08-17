@@ -54,6 +54,11 @@ engine task; if an engine change forces a caller change, tell the user
   more designer-painted single-tile markers of the same never-rendered shape
   — the tutorial's forced first-placement tiles, read by the game-side
   director (TU-6+), painted by the editor's fourth map paint mode (TU-2).
+  `tutorial_unlock`/`tutorial_stone_2` (the tile-buying tutorial topic) are
+  two more of the exact same shape, on the SAME editor paint page/eye: the
+  locked tile the player is forced to click-and-buy right after the first
+  stone-thrower placement, and the far corner of that newly-bought chunk the
+  second stone-thrower placement is forced onto.
   `spawnable_background` is the same never-rendered idea taken MULTI-cell and
   numbered: a per-cell overlay of `{(col, row): stage}` marks, held as a
   DICT in memory (O(1) paint) but serialized as a list sorted by (row, col) for

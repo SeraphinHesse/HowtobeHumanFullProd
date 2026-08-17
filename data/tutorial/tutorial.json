@@ -3,7 +3,8 @@
   "messages": {
     "close_panel_hint": "right click anywhere to close",
     "economy_intro": "You need love to create. In order for you to gain Love, you need economy buildings",
-    "lives_intro": "Once the humans reach our hole the round is lost. You have only 3 lives. If economy buildings get destroyed during the human attack they don't yield resources. To defend your base you need to build defense buildings"
+    "lives_intro": "Once the humans reach our hole the round is lost. You have only 3 lives. If economy buildings get destroyed during the human attack they don't yield resources. To defend your base you need to build defense buildings",
+    "tile_buying_intro": "A defender can only hit enemies within its range. Buy the tile next to you and place a second stone thrower on its far corner - together they cover the ground between them"
   },
   "skippable": true,
   "steps": [
@@ -155,6 +156,88 @@
       "message": null,
       "revert_on": "panel_closed",
       "revert_to": "highlight_tutorial_stone_tile"
+    },
+    {
+      "advance_on": "message_dismissed:tile_buying_intro",
+      "allow": [
+        "dismiss_message"
+      ],
+      "flags": {},
+      "highlight": [],
+      "id": "tile_buying_intro_message",
+      "message": "tile_buying_intro",
+      "revert_on": null,
+      "revert_to": null
+    },
+    {
+      "advance_on": "tile_clicked:tutorial_unlock",
+      "allow": [
+        "tile_click:tutorial_unlock"
+      ],
+      "flags": {},
+      "highlight": [
+        "tile:tutorial_unlock"
+      ],
+      "id": "highlight_tutorial_unlock_tile",
+      "message": null,
+      "revert_on": null,
+      "revert_to": null
+    },
+    {
+      "advance_on": "tile_unlocked",
+      "allow": [
+        "button:unlock"
+      ],
+      "flags": {},
+      "highlight": [
+        "button:unlock"
+      ],
+      "id": "highlight_unlock_button",
+      "message": null,
+      "revert_on": "panel_closed",
+      "revert_to": "highlight_tutorial_unlock_tile"
+    },
+    {
+      "advance_on": "tile_clicked:tutorial_stone_2",
+      "allow": [
+        "tile_click:tutorial_stone_2"
+      ],
+      "flags": {},
+      "highlight": [
+        "tile:tutorial_stone_2"
+      ],
+      "id": "highlight_tutorial_stone_2_tile",
+      "message": null,
+      "revert_on": null,
+      "revert_to": null
+    },
+    {
+      "advance_on": "building_selected:defence",
+      "allow": [
+        "card_select:defence"
+      ],
+      "flags": {},
+      "highlight": [
+        "card:defence"
+      ],
+      "id": "highlight_defender_card_2",
+      "message": null,
+      "revert_on": "panel_closed",
+      "revert_to": "highlight_tutorial_stone_2_tile"
+    },
+    {
+      "advance_on": "building_placed:defence",
+      "allow": [
+        "button:confirm"
+      ],
+      "flags": {},
+      "highlight": [
+        "button:confirm"
+      ],
+      "id": "highlight_confirm_button_defence_2",
+      "message": null,
+      "revert_on": "panel_closed",
+      "revert_to": "highlight_tutorial_stone_2_tile"
     }
   ]
 }

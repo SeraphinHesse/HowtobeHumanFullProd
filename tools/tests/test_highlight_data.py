@@ -49,8 +49,10 @@ class _NoLeak(unittest.TestCase):
     def setUp(self):
         highlights = copy.deepcopy(widgets._HIGHLIGHTS)
         triggers = dict(widgets._HIGHLIGHT_TRIGGERS)
+        pulse = dict(widgets._TUTORIAL_PULSE)
         self.addCleanup(widgets._HIGHLIGHTS.update, highlights)
         self.addCleanup(widgets._HIGHLIGHT_TRIGGERS.update, triggers)
+        self.addCleanup(widgets._TUTORIAL_PULSE.update, pulse)
 
 
 class TestFallbackEqualsData(_NoLeak):
@@ -73,6 +75,37 @@ class TestFallbackEqualsData(_NoLeak):
         for name, stock in _STOCK.items():
             with self.subTest(name=name):
                 self.assertEqual(widgets._HIGHLIGHTS[name], stock)
+
+
+# The tile-buying tutorial topic's pulse/glow overlay — a SIBLING block to
+# `highlights`, not one of its seven entries (see widgets.tutorial_pulse_style).
+_PULSE_STOCK = {"alpha_min": 140, "alpha_max": 255,
+                "width_min": 2, "width_max": 4, "pulse_period_s": 0.8}
+
+
+class TestTutorialPulseFallbackEqualsData(_NoLeak):
+    def test_the_stock_value_matches_the_committed_data(self):
+        shipped = _fixture_vfx()["procedural"]["tutorial_highlight_pulse"]
+        self.assertEqual(shipped, _PULSE_STOCK)
+
+    def test_the_module_fallback_matches_the_stock_table(self):
+        self.assertEqual(widgets._TUTORIAL_PULSE, _PULSE_STOCK)
+
+    def test_a_configured_value_reaches_tutorial_pulse_style(self):
+        doc = _fixture_vfx()
+        doc["procedural"]["tutorial_highlight_pulse"]["alpha_min"] = 0
+        doc["procedural"]["tutorial_highlight_pulse"]["alpha_max"] = 0
+        widgets.configure_highlights(doc)
+        rgba, _width = widgets.tutorial_pulse_style(0.0)
+        self.assertEqual(rgba[3], 0)
+
+    def test_width_breathes_between_the_configured_bounds(self):
+        doc = _fixture_vfx()
+        doc["procedural"]["tutorial_highlight_pulse"]["width_min"] = 5
+        doc["procedural"]["tutorial_highlight_pulse"]["width_max"] = 5
+        widgets.configure_highlights(doc)
+        _rgba, width = widgets.tutorial_pulse_style(123.0)
+        self.assertEqual(width, 5)
 
 
 class TestConfigure(_NoLeak):

@@ -1196,10 +1196,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
 
     def _tutorial_allows_panel_click(mx, my):
         """True when the tutorial is inactive/finished, OR the click lands on
-        a target the current step allows (musician card / Confirm). Every
-        other click inside the panel (close, cancel, the name box, the dice
-        reroll) passes through UNGATED — only the actual whitelisted target
-        is checked (TU-6 §3.3)."""
+        a target the current step allows (musician card / Confirm / the
+        tile-buying topic's unlock button). Every other click inside the
+        panel (close, cancel, the name box, the dice reroll) passes through
+        UNGATED — only the actual whitelisted target is checked (TU-6 §3.3)."""
         tutorial = gp["tutorial"]
         if tutorial.finished:  # fast path, D6
             return True
@@ -1213,7 +1213,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 if btn.hit(mx, my):
                     return tutorial.allows(("card", btype))
             return True  # clicking the panel body/close, not a card
-        return True  # unlock/upgrade/base_info modes: untouched by TU-6
+        if panel.mode == "unlock":
+            if panel.action_btn.hit(mx, my):
+                return tutorial.allows(("unlock",))
+            return True  # clicking the panel body/close, not the action button
+        return True  # upgrade/base_info modes: untouched by TU-6
 
     def handle_world_click(mx, my):
         """The in-round click-consume priority ladder (prototype-exact order),
@@ -1323,6 +1327,9 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 world.occupancy):
             if panel.mode == "construct" and panel.preview is not None:
                 gp["tutorial"].on_card_selected(panel.preview.building_type)
+            elif panel.last_unlocked:
+                gp["tutorial"].on_tile_unlocked()
+                panel.last_unlocked = False
             elif was_visible and not panel.visible:
                 gp["tutorial"].on_panel_closed()
             return
@@ -2268,10 +2275,15 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                                   (cmin, cmax, rmin, rmax))
             # -- TU-6: the guided-chain tile highlight (0 or 1 tiles) — world
             # overlay, before buildings and before the panel's own selection
-            # highlights --
+            # highlights. Pulses/glows (tile-buying-topic ask): alpha + border
+            # width both breathe off the same deco_clock_ms wall clock. --
+            tutorial_pulse_rgba, tutorial_pulse_width = \
+                widgets.tutorial_pulse_style(deco_clock_ms)
             for col, row in gp["tutorial"].tile_highlight_targets():
-                widgets.submit_highlight(renderer, "tutorial_highlight",
-                                         col, row, assets=assets)
+                widgets.submit_highlight(
+                    renderer, "tutorial_highlight", col, row, assets=assets,
+                    pulse_color=tutorial_pulse_rgba,
+                    pulse_width=tutorial_pulse_width)
             # -- /TU-6 --
             # -- drag-select: the live rectangle, same world-overlay slot as
             # the tutorial highlight. It runs the SAME _SEL_CATEGORY filter
@@ -2369,10 +2381,14 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                              hover_cost=gp["panel"].hover_cost,
                              scene=world.scene,
                              drag_select_enabled=gp["drag_select_enabled"])
-            # -- TU-6: UI-box highlights (card/Confirm/End Turn/Close) + the
-            # message box, over the HUD --
+            # -- TU-6: UI-box highlights (card/Confirm/End Turn/Close/Unlock)
+            # + the message box, over the HUD. Same pulse/glow as the world
+            # tile highlight above, off the same deco_clock_ms wall clock. --
+            ui_pulse_rgba, ui_pulse_width = \
+                widgets.tutorial_pulse_style(deco_clock_ms)
             for rect in gp["tutorial"].ui_highlight_rects(gp["panel"], gp["hud"]):
-                widgets.submit_ui_box_highlight(renderer, rect)
+                widgets.submit_ui_box_highlight(
+                    renderer, rect, color=ui_pulse_rgba, width=ui_pulse_width)
             # -- TU-8: the non-modal close-panel-hint banner — NOT the
             # message box, so it never consumes the right-click it names --
             banner_text = gp["tutorial"].banner_text()

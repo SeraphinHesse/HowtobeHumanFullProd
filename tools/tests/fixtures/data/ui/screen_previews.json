@@ -1723,7 +1723,7 @@
               536,
               340,
               78,
-              15
+              14
             ],
             "type": "rect",
             "width": 0
@@ -1739,7 +1739,7 @@
               536,
               340,
               78,
-              15
+              14
             ],
             "type": "rect",
             "width": 1
@@ -2744,7 +2744,7 @@
               536,
               340,
               78,
-              15
+              14
             ],
             "type": "rect",
             "width": 0
@@ -2760,7 +2760,7 @@
               536,
               340,
               78,
-              15
+              14
             ],
             "type": "rect",
             "width": 1
@@ -3413,7 +3413,7 @@
               536,
               340,
               78,
-              15
+              14
             ],
             "type": "rect",
             "width": 0
@@ -3429,7 +3429,7 @@
               536,
               340,
               78,
-              15
+              14
             ],
             "type": "rect",
             "width": 1
@@ -3667,7 +3667,7 @@
               536,
               45,
               78,
-              15
+              14
             ],
             "type": "rect",
             "width": 0
@@ -3683,7 +3683,7 @@
               536,
               45,
               78,
-              15
+              14
             ],
             "type": "rect",
             "width": 1
@@ -5428,6 +5428,29 @@
         "type": "text"
       },
       {
+        "anim_time_ms": 0,
+        "animation": "idle",
+        "crop": null,
+        "dest": [
+          568,
+          6
+        ],
+        "flip": false,
+        "hidden_frames": [],
+        "size": [
+          15,
+          15
+        ],
+        "slot_key": "ui_icon_boss_next_off",
+        "tint": [
+          150,
+          150,
+          150,
+          255
+        ],
+        "type": "sprite"
+      },
+      {
         "border_radius": 3,
         "color": [
           75,
@@ -5472,163 +5495,6 @@
           7
         ],
         "text": "PAUSE",
-        "type": "text"
-      },
-      {
-        "border_radius": 3,
-        "color": [
-          75,
-          60,
-          115
-        ],
-        "rect": [
-          6,
-          76,
-          28,
-          14
-        ],
-        "type": "rect",
-        "width": 0
-      },
-      {
-        "border_radius": 3,
-        "color": [
-          80,
-          65,
-          120
-        ],
-        "rect": [
-          6,
-          76,
-          28,
-          14
-        ],
-        "type": "rect",
-        "width": 1
-      },
-      {
-        "align": "center",
-        "color": [
-          255,
-          200,
-          50
-        ],
-        "font_key": "sm",
-        "pos": [
-          20,
-          77
-        ],
-        "text": "1×",
-        "type": "text"
-      },
-      {
-        "border_radius": 3,
-        "color": [
-          255,
-          200,
-          50
-        ],
-        "rect": [
-          6,
-          76,
-          28,
-          14
-        ],
-        "type": "rect",
-        "width": 2
-      },
-      {
-        "border_radius": 3,
-        "color": [
-          50,
-          45,
-          70
-        ],
-        "rect": [
-          37,
-          76,
-          28,
-          14
-        ],
-        "type": "rect",
-        "width": 0
-      },
-      {
-        "border_radius": 3,
-        "color": [
-          80,
-          65,
-          120
-        ],
-        "rect": [
-          37,
-          76,
-          28,
-          14
-        ],
-        "type": "rect",
-        "width": 1
-      },
-      {
-        "align": "center",
-        "color": [
-          150,
-          140,
-          120
-        ],
-        "font_key": "sm",
-        "pos": [
-          51,
-          77
-        ],
-        "text": "1.5×",
-        "type": "text"
-      },
-      {
-        "border_radius": 3,
-        "color": [
-          50,
-          45,
-          70
-        ],
-        "rect": [
-          68,
-          76,
-          28,
-          14
-        ],
-        "type": "rect",
-        "width": 0
-      },
-      {
-        "border_radius": 3,
-        "color": [
-          80,
-          65,
-          120
-        ],
-        "rect": [
-          68,
-          76,
-          28,
-          14
-        ],
-        "type": "rect",
-        "width": 1
-      },
-      {
-        "align": "center",
-        "color": [
-          150,
-          140,
-          120
-        ],
-        "font_key": "sm",
-        "pos": [
-          82,
-          77
-        ],
-        "text": "2×",
         "type": "text"
       },
       {
