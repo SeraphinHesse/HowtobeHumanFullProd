@@ -71,6 +71,7 @@ TIERS = {
     "test_vfx_highlight_preview": "editor",  # VA-8: the highlights preview path
     "test_run_controls": "editor",
     "test_screen_honest_controls": "editor",
+    "test_ui_layer_ops": "editor",  # UL-6: layer ops + layers in the outliner
     "test_vfx_preview": "editor",
 
     # --- core: engine + game + data. The 800-odd fast ones ------------------

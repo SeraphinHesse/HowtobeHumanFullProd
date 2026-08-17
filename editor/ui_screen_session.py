@@ -357,3 +357,121 @@ class UIScreenSession(QObject):
             return
         self._push_doc(self.strings_doc, (text_id,), old_value, new_value,
                        f"edit text {text_id}")
+
+    # -- UL-6: layer operations ------------------------------------------------
+    # A widget's `layers` is an ARRAY of layer-spec dicts (see
+    # data/schemas/ui_screen.schema.json), NOT an id-keyed object, so a layer
+    # op cannot address one entry with a `_DocFieldCommand` path the way
+    # push_field addresses `widgets/<id>/<key>`: `_set_at` walks dicts only,
+    # and a path ending in a layer id would write an OBJECT where the schema
+    # demands an array. Every layer op therefore pushes ONE command at
+    # ("widgets", <widget_id>, "layers") carrying the FULL old array and the
+    # FULL new array — the same "never a delta" contract as every other push_*,
+    # and still exactly one undo step per op. `None` for the new value (an
+    # emptied array) prunes the key, and `widgets/<id>` with it when that was
+    # the widget's only override.
+
+    def layers(self, widget_id):
+        """The widget's layer array — a DEEP COPY, so a caller cannot edit the
+        doc by mutating what it reads back. Empty list when the widget has no
+        layers (or no override at all)."""
+        return copy.deepcopy(self._layers_raw(widget_id))
+
+    def _layers_raw(self, widget_id):
+        """The live array inside the doc (never mutated here — every op builds
+        a new list and pushes it). `[]` when absent."""
+        if self.doc is None:
+            return []
+        entry = self.doc.get("widgets", {}).get(widget_id, {})
+        value = entry.get("layers", [])
+        return value if isinstance(value, list) else []
+
+    def _layer_index(self, layers, layer_id):
+        """Index of the FIRST entry whose non-empty `id` matches, else None —
+        the same first-wins rule `engine.ui_layers.ordered` dedupes by."""
+        if not layer_id:
+            return None
+        for i, entry in enumerate(layers):
+            if isinstance(entry, dict) and entry.get("id") == layer_id:
+                return i
+        return None
+
+    def _push_layers(self, widget_id, old_layers, new_layers, text):
+        """Push ONE command replacing the whole array. An empty new array is
+        pushed as `None` so `_apply_field` prunes the key (and the widget
+        entry when nothing else is overridden) instead of leaving `[]`."""
+        old = list(old_layers) if old_layers else None
+        new = list(new_layers) if new_layers else None
+        self._push(("widgets", widget_id, "layers"), old, new, text)
+
+    def add_layer(self, widget_id, layer_id, layer_spec):
+        """Append one layer to `widget_id`, undoably.
+
+        `layer_spec` is a complete layer dict (offset/z/band/slot/... — keys
+        pinned by the schema); its `id` is forced to `layer_id` so the array
+        and the caller can never disagree about what the entry is called.
+        Ignored (no command pushed) when `layer_id` is empty or already used
+        by this widget: ids are the only handle remove/reorder/set have, and
+        `ordered()` silently drops a duplicate, so admitting one would create
+        a layer that draws but cannot be edited. The PANEL generates unique
+        ids, so this guard is a backstop, not the normal path.
+        """
+        if not layer_id or self.doc is None:
+            return
+        old = self._layers_raw(widget_id)
+        if self._layer_index(old, layer_id) is not None:
+            return
+        entry = copy.deepcopy(layer_spec) if layer_spec else {}
+        entry["id"] = layer_id
+        self._push_layers(widget_id, old, list(old) + [entry],
+                          f"add layer {layer_id} to {widget_id}")
+
+    def remove_layer(self, widget_id, layer_id):
+        """Drop one layer from `widget_id`, undoably. Removing the last layer
+        prunes the `layers` key entirely (and `widgets/<id>` when that was its
+        only override) — the same "None = absent" rule every reset follows."""
+        old = self._layers_raw(widget_id)
+        index = self._layer_index(old, layer_id)
+        if index is None:
+            return
+        new = list(old)
+        del new[index]
+        self._push_layers(widget_id, old, new,
+                          f"remove layer {layer_id} from {widget_id}")
+
+    def set_layer_field(self, widget_id, layer_id, field_key, old_value,
+                        new_value, text=None):
+        """Set (or clear, with `new_value=None`) ONE key on ONE layer.
+
+        Mirrors `push_field`'s signature — the caller passes the FULL old and
+        new values and the old==new guard refuses a no-op. `old_value` is the
+        caller's record of what the key held; it is used only for that guard
+        (the command itself stores whole arrays), so a caller that does not
+        track it may pass the current value.
+        """
+        if old_value == new_value:
+            return
+        old = self._layers_raw(widget_id)
+        index = self._layer_index(old, layer_id)
+        if index is None:
+            return
+        entry = copy.deepcopy(old[index])
+        if new_value is None:
+            entry.pop(field_key, None)
+        else:
+            entry[field_key] = copy.deepcopy(new_value)
+        new = list(old)
+        new[index] = entry
+        self._push_layers(widget_id, old, new,
+                          text or f"edit layer {layer_id}.{field_key}")
+
+    def reorder_layer(self, widget_id, layer_id, new_z):
+        """Move one layer within its band by rewriting only its `z` (D2 —
+        paint order is z within band, so nothing else needs to move)."""
+        old = self._layers_raw(widget_id)
+        index = self._layer_index(old, layer_id)
+        if index is None:
+            return
+        self.set_layer_field(widget_id, layer_id, "z",
+                             old[index].get("z", 0), new_z,
+                             text=f"reorder layer {layer_id}")
