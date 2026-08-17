@@ -33,6 +33,13 @@
       "file": "master/ss_stonethrower.png",
       "frame_h": 96,
       "frame_w": 64
+    },
+    "ts_alltiles": {
+      "column_width": 10,
+      "display_name": "TS_Alltiles",
+      "file": "master/ts_alltiles.png",
+      "frame_h": 32,
+      "frame_w": 64
     }
   },
   "version": 1
