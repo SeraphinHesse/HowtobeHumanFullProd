@@ -855,7 +855,13 @@
       "description": "Round/phase machine timing.",
       "properties": {
         "income_phase_duration": {
-          "description": "Seconds the income phase banner/floaters play before build phase.",
+          "description": "Seconds the income phase holds AFTER its last payout beat (boost/economy/upkeep) fires, before returning to the build phase. The full phase length is this plus payout_stagger_interval per beat before the last.",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        },
+        "payout_stagger_interval": {
+          "description": "Seconds paused between the payout phase's boost/economy/upkeep floater beats (game/ui/effects.py FloaterManager.begin_payout). Also read by payday.py to compute the income phase's total length.",
           "maximum": 60,
           "minimum": 0,
           "type": "number"
@@ -881,6 +887,7 @@
       },
       "required": [
         "income_phase_duration",
+        "payout_stagger_interval",
         "round_end_delay",
         "speed_1_5x_min_round",
         "speed_2x_min_round"

@@ -173,13 +173,20 @@
         "income_floaters_enabled": {
           "description": "If true income/upkeep floater numbers rise from buildings during the income phase (canonical flag; was FEATURE_INCOME_FLOATERS).",
           "type": "boolean"
+        },
+        "love_counter_anim_duration": {
+          "description": "Seconds the HUD love-pill counter takes to animate from its current displayed value to a new one, whenever state.love changes (spending, cheats, boss bonuses, and each payout beat). Fixed regardless of the size of the change.",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
         }
       },
       "required": [
         "bg_art",
         "boss_announce",
         "gore_enabled",
-        "income_floaters_enabled"
+        "income_floaters_enabled",
+        "love_counter_anim_duration"
       ],
       "type": "object"
     },

@@ -205,6 +205,102 @@ class TestConstructPreviewZOrder(unittest.TestCase):
                         "button submission")
 
 
+class TestLoveHoverCostDisplay(unittest.TestCase):
+    """The love pill: plain amount outside a hover, "current - price" while
+    hovering a buyable option — both affordable and not — replacing the old
+    plain-remainder / bare "-" display. The hover case draws as TWO
+    separately-coloured runs (current love stays gold, only " - price"
+    reads red), so it emits two HudTexts side by side instead of one."""
+
+    @staticmethod
+    def _love_text_item(renderer, hud):
+        pos = hud._love_text.rect[:2]
+        for item in renderer.items:
+            if isinstance(item, HudText) and item.pos == pos:
+                return item
+        return None
+
+    @staticmethod
+    def _love_hover_pair(renderer, hud):
+        """(current_item, price_item), left-to-right, both on the love
+        text's row — the two-segment hover draw (`Hud._submit_love_hover_
+        cost`)."""
+        y = hud._love_text.rect[1]
+        row = sorted((item for item in renderer.items
+                      if isinstance(item, HudText) and item.pos[1] == y),
+                     key=lambda item: item.pos[0])
+        return row[0], row[1]
+
+    def test_no_hover_shows_the_plain_amount(self):
+        session, panel, hud = build()
+        session.state.love = 42
+        hud.update(0.016, 0, 0, session, panel)
+        r = RecordingRenderer()
+        hud.submit(r, session, VIEW_W, VIEW_H)
+        item = self._love_text_item(r, hud)
+        self.assertEqual(item.text, "42")
+        self.assertEqual(item.color, widgets.C_GOLD)
+
+    def test_love_display_overrides_the_plain_amount_outside_hover(self):
+        """The animated counter (game/ui/effects.py FloaterManager.love_display)
+        stands in for the raw state.love outside a hover preview."""
+        session, panel, hud = build()
+        session.state.love = 42
+        hud.update(0.016, 0, 0, session, panel)
+        r = RecordingRenderer()
+        hud.submit(r, session, VIEW_W, VIEW_H, love_display=17)
+        item = self._love_text_item(r, hud)
+        self.assertEqual(item.text, "17")
+
+    def test_hover_shows_the_arithmetic_when_affordable(self):
+        session, panel, hud = build()
+        session.state.love = 30
+        hud.update(0.016, 0, 0, session, panel)
+        r = RecordingRenderer()
+        hud.submit(r, session, VIEW_W, VIEW_H, hover_cost=20)
+        current, price = self._love_hover_pair(r, hud)
+        self.assertEqual(current.text + price.text, "30 - 20")
+
+    def test_hover_colours_current_gold_and_price_red(self):
+        session, panel, hud = build()
+        session.state.love = 30
+        hud.update(0.016, 0, 0, session, panel)
+        r = RecordingRenderer()
+        hud.submit(r, session, VIEW_W, VIEW_H, hover_cost=20)
+        current, price = self._love_hover_pair(r, hud)
+        self.assertEqual(current.text, "30")
+        self.assertEqual(current.color, widgets.C_GOLD)
+        self.assertEqual(price.text, " - 20")
+        self.assertEqual(price.color, widgets.C_RED)
+        # side by side, price starting where current's glyphs end
+        self.assertGreater(price.pos[0], current.pos[0])
+
+    def test_hover_shows_the_arithmetic_when_unaffordable(self):
+        session, panel, hud = build()
+        session.state.love = 10
+        hud.update(0.016, 0, 0, session, panel)
+        r = RecordingRenderer()
+        hud.submit(r, session, VIEW_W, VIEW_H, hover_cost=40)
+        current, price = self._love_hover_pair(r, hud)
+        self.assertEqual(current.text + price.text, "10 - 40")
+        # unaffordable still colours the same way — current stays gold,
+        # only the price half turns red, even though it exceeds current
+        self.assertEqual(current.color, widgets.C_GOLD)
+        self.assertEqual(price.color, widgets.C_RED)
+
+    def test_hover_ignores_love_display_and_reads_the_real_love(self):
+        """The hover preview is a correctness question ("can I afford this
+        right now"), so it must read the real state.love, never the
+        animated counter — even if the two currently disagree."""
+        session, panel, hud = build()
+        session.state.love = 30
+        hud.update(0.016, 0, 0, session, panel)
+        r = RecordingRenderer()
+        hud.submit(r, session, VIEW_W, VIEW_H, hover_cost=20, love_display=999)
+        current, price = self._love_hover_pair(r, hud)
+        self.assertEqual(current.text + price.text, "30 - 20")
+
+
 #: MasterSheetColumnsPLAN B2 — a LITERAL capability map, never live `data/`
 #: (the root CLAUDE.md "never assert against live data" rule). Keyed on the
 #: temp building `ConstructPreview` builds for its own stats, so it matches

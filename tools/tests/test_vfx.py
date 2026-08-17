@@ -132,7 +132,7 @@ ANNOUNCE = AnnounceParams(color=(220, 40, 40), max_alpha=255)
 FLOATERS = FloaterParams(
     upkeep_color=(120, 170, 230), xp_color=(202, 140, 245), xp_life=0.9,
     painter_finished_color=(255, 255, 100), painter_lost_color=(255, 100, 100),
-    painter_life=1.5, boost_color=(255, 255, 255))
+    painter_life=1.5, boost_color=(255, 255, 255), income_life=2.6)
 
 # -- fix-anchor-offset-and-bullet-sprites "today" column (Fix 2 §2.2) -------
 PROJECTILE = ProjectileParams(
@@ -530,7 +530,9 @@ from game.core.lightning import (
 from game.enemies.combat import (
     AOE_TRAVEL_TIME, BEAM_MIN_TICK, CRATER_LIFE, Crater, CraterFade,
 )
-from game.ui.effects import FloaterManager
+from game.core.game_state import RunState
+from game.ui import widgets
+from game.ui.effects import _FLOATER_STACK_STEP, FloaterManager
 
 
 class _TagScene:
@@ -909,6 +911,194 @@ class TestLifetimeThreading(unittest.TestCase):
         for block in proc.values():
             self.assertNotIn("aoe_travel_time", block)
             self.assertNotIn("beam_min_tick", block)
+
+
+# ===========================================================================
+# Payout-phase sequencing: FloaterManager.begin_payout's beat queue + the
+# animated love counter it drives (game/ui/effects.py)
+# ===========================================================================
+class TestPayoutBeatQueue(unittest.TestCase):
+    def test_boost_beat_skipped_when_no_boost_events(self):
+        fm = make_floater_manager()
+        state = RunState()
+        state.income_events.append((0, 0, 5, "income"))
+        state.love = 5
+        state.payout_love_after_economy = 5
+
+        fm.begin_payout(state)
+
+        # Only the economy beat existed -> it released immediately and the
+        # queue is already empty; no boost-coloured floater ever appears.
+        self.assertEqual(fm._payout_queue, [])
+        self.assertTrue(all(f.color != VFX_PARAMS.floaters.boost_color
+                            for f in fm._floaters))
+
+    def test_beat_order_is_boost_then_economy_then_upkeep(self):
+        fm = make_floater_manager()
+        state = RunState()
+        state.boost_events.append((0, 0, "boost!"))
+        state.income_events.append((1, 0, 5, "income"))
+        state.income_events.append((1, 0, -2, "upkeep"))
+        state.love = 3
+        state.payout_love_after_economy = 5
+
+        fm.begin_payout(state)  # boost fires immediately
+        self.assertEqual(fm._floaters[-1].color, VFX_PARAMS.floaters.boost_color)
+        self.assertEqual(len(fm._payout_queue), 2)  # economy, upkeep still queued
+
+        fm._release_next_payout_beat()  # economy
+        self.assertEqual(fm._floaters[-1].color, widgets.C_GOLD)
+        self.assertEqual(len(fm._payout_queue), 1)
+
+        fm._release_next_payout_beat()  # upkeep
+        self.assertEqual(fm._floaters[-1].color, VFX_PARAMS.floaters.upkeep_color)
+        self.assertEqual(fm._payout_queue, [])
+
+    def test_painter_events_ride_the_economy_beat(self):
+        fm = make_floater_manager()
+        state = RunState()
+        state.boost_events.append((0, 0, "boost!"))
+        state.painter_events.append((2, 2, "painting finished!", "finished"))
+        state.love = 5
+        state.payout_love_after_economy = 5
+
+        fm.begin_payout(state)  # boost fires immediately
+        fm._release_next_payout_beat()  # economy: the painter message
+
+        self.assertEqual(fm._floaters[-1].color,
+                         VFX_PARAMS.floaters.painter_finished_color)
+
+    def test_stagger_timer_paces_beat_release_via_update(self):
+        fm = make_floater_manager()
+        state = RunState()
+        state.boost_events.append((0, 0, "boost!"))
+        state.income_events.append((1, 0, 5, "income"))
+        state.love = 5
+        state.payout_love_after_economy = 5
+        stagger = fm._core_balance["PhaseLoop"]["payout_stagger_interval"]
+
+        fm.begin_payout(state)
+        boost_count = len(fm._floaters)
+        fm.update(stagger * 0.5)               # not yet elapsed
+        self.assertEqual(len(fm._floaters), boost_count)
+        fm.update(stagger * 0.5 + 0.001)        # now elapsed -> economy fires
+        self.assertGreater(len(fm._floaters), boost_count)
+
+
+class TestFloaterStacking(unittest.TestCase):
+    """Several boost buildings buffing the same defender all land their
+    floater on that defender's tile in the same beat — FloaterManager.submit
+    must stack them vertically (the submit_enemy_hp_bars per-tile-group
+    precedent) instead of drawing them on top of each other."""
+
+    def test_floaters_sharing_an_anchor_stack_vertically(self):
+        fm = make_floater_manager()
+        state = RunState()
+        state.boost_events = [(2, 2, "+5%spd"), (2, 2, "+5%spd"),
+                              (2, 2, "+5%spd")]
+        state.love = 0
+        state.payout_love_after_economy = 0
+        fm.begin_payout(state)  # boost beat fires immediately, all 3 at once
+
+        r = FakeRenderer()
+        fm.submit(r, make_cs())
+
+        boost_items = [item for item in r.hud if item.text == "+5%spd"]
+        self.assertEqual(len(boost_items), 3)
+        self.assertEqual(len({item.pos[0] for item in boost_items}), 1,
+                         "same tile -> same horizontal position")
+        ys = sorted({item.pos[1] for item in boost_items})
+        self.assertEqual(len(ys), 3, "each must land at a distinct height")
+        self.assertEqual(ys[1] - ys[0], _FLOATER_STACK_STEP)
+        self.assertEqual(ys[2] - ys[1], _FLOATER_STACK_STEP)
+
+    def test_floaters_at_different_anchors_do_not_stack(self):
+        fm = make_floater_manager()
+        state = RunState()
+        state.boost_events = [(2, 2, "+5%spd"), (3, 3, "+5%spd")]
+        state.love = 0
+        state.payout_love_after_economy = 0
+        fm.begin_payout(state)
+
+        cs = make_cs()
+        r = FakeRenderer()
+        fm.submit(r, cs)
+
+        boost_items = [item for item in r.hud if item.text == "+5%spd"]
+        self.assertEqual(len(boost_items), 2)
+        # Different tiles project to different screen points regardless of
+        # stacking (isometric depth) — so pin against each tile's OWN "slot
+        # 0" (unstacked) expected height, not against each other's.
+        for item, (col, row) in zip(boost_items, [(2, 2), (3, 3)]):
+            _cx, cy = cs.world_to_screen(col + 0.5, row + 0.5)
+            self.assertEqual(item.pos[1], int(cy) - 20)  # frac=0, slot 0
+
+
+class TestLoveCounterAnimation(unittest.TestCase):
+    def test_payout_ramps_up_then_down_across_its_two_beats(self):
+        # With the shipped tuning (payout_stagger_interval=0.42 <
+        # love_counter_anim_duration=1.2) the beats can legitimately release
+        # before the PREVIOUS beat's ramp finishes — the counter just
+        # smoothly retargets mid-flight (test_retarget_mid_flight_* below
+        # covers that mechanic generically). This test isolates the
+        # CHECKPOINT MATH itself — that begin_payout arms the economy
+        # target and releasing the next beat re-arms the upkeep/final
+        # target — by driving the queue directly rather than racing real
+        # dt against the stagger timer (test_stagger_timer_paces_beat_
+        # release_via_update, in TestPayoutBeatQueue, covers that pacing).
+        fm = make_floater_manager()
+        state = RunState()
+        state.income_events.append((0, 0, 5, "income"))
+        state.income_events.append((0, 0, -2, "upkeep"))
+        state.love = 3                    # final, post-upkeep
+        state.payout_love_after_economy = 5
+        duration = fm._love_anim_duration
+        fm.update(0.0, state)             # seed the display at 0 (fresh mgr)
+
+        fm.begin_payout(state)            # economy beat fires first
+        self.assertEqual(fm._love_anim_target, 5)  # armed toward the economy
+                                                     # checkpoint
+
+        fm._release_next_payout_beat()    # advance straight to the upkeep
+                                           # beat (queue now empty)
+        self.assertEqual(fm._love_anim_target, 3)  # re-armed toward the
+                                                     # final, post-upkeep total
+        fm.update(duration)               # queue is empty -> safe to finish
+        self.assertEqual(fm.love_display, 3)
+
+    def test_generic_love_change_animates_instead_of_snapping(self):
+        fm = make_floater_manager()
+        state = RunState()
+        state.love = 10
+        fm.update(0.0, state)             # seed
+        self.assertEqual(fm.love_display, 10)
+
+        state.love = 40
+        fm.update(0.0, state)             # the change is noticed...
+        self.assertEqual(fm.love_display, 10)     # ...but not applied yet
+        fm.update(fm._love_anim_duration / 2)
+        self.assertGreater(fm.love_display, 10)
+        self.assertLess(fm.love_display, 40)
+        fm.update(fm._love_anim_duration / 2 + 0.001)
+        self.assertEqual(fm.love_display, 40)
+
+    def test_retarget_mid_flight_starts_from_the_current_display_not_a_jump(self):
+        fm = make_floater_manager()
+        state = RunState()
+        state.love = 0
+        fm.update(0.0, state)
+        state.love = 100
+        fm.update(0.0, state)
+        fm.update(fm._love_anim_duration / 2)     # halfway to 100
+        midpoint = fm.love_display
+        self.assertGreater(midpoint, 0)
+        self.assertLess(midpoint, 100)
+
+        state.love = 20                            # retarget mid-flight
+        fm.update(0.0, state)
+        # The new ramp starts at the CURRENT display, not back at the old
+        # target (100) or the old start (0) — so it never jumps.
+        self.assertEqual(fm.love_display, midpoint)
 
 
 if __name__ == "__main__":

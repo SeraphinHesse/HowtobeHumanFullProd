@@ -131,6 +131,86 @@ floaters, not-enough-love flash, building HP bars; input routing + click-consume
 priority in `game/main.py`. Every menu screen mirrors the `game_over.py`
 construct→layout→update→hit→submit template + `widgets.Button`.
 
+## Payout-phase sequencing + animated love counter (feature)
+The payout no longer fires every boost/economy/upkeep floater in one frame.
+`FloaterManager.begin_payout(state)` (`effects.py`) — called ONCE on the
+`INCOME` phase edge from `main.py`, replacing the old three separate
+`spawn_income_events`/`spawn_painter_events`/`spawn_boost_events` calls —
+builds three ordered BEATS (boost, economy [income-kind `income_events`
+entries + Painter's finish/lost message], upkeep) and queues them for
+staggered release by `update(dt, state)`, `core.PhaseLoop.
+payout_stagger_interval` apart — the `game/enemies/spawner.py` timed
+`_queue`/`_timer` pattern. A beat's presence in the queue mirrors
+`payday.py` step 12's `phase_timer` formula exactly (`game/core/CLAUDE.md`),
+so the phase always stays open exactly as long as the queued beats need.
+Floater LIFETIME for these three beats is `vfx.json procedural.
+floaters.income_life`, decoupled from `core.PhaseLoop.
+income_phase_duration` (now the phase's post-last-beat hold time, not a
+floater life) — Painter's own entries keep their existing, separate
+`painter_life`. `ui.FX.income_floaters_enabled` gates only the income/
+upkeep-derived floaters within a beat (unchanged from before this
+feature) — never whether the beat/pause/counter-checkpoint happens; boost
+and Painter floaters were never gated by it.
+
+**The HUD love counter animates instead of snapping**, for every love
+change anywhere in the game, not just payout — spending, cheats, boss
+bonuses, the works. `FloaterManager` owns it: `love_display` (a property,
+`round()`ed) is what `Hud.submit` draws outside a hover preview
+(`main.py` threads `love_display=gp["floaters"].love_display`); the ramp
+is LINEAR, fixed-duration (`ui.json FX.love_counter_anim_duration`,
+independent of how big the change is), and a retarget mid-flight starts
+from the counter's CURRENT displayed position, never from its old target
+— so it can never visibly jump. Two drivers into the same ramp state:
+`begin_payout`'s beat releases arm an explicit segment each (the economy
+beat's release targets `state.payout_love_after_economy`, the upkeep
+beat's targets the real final `state.love` — see `game/core/CLAUDE.md`'s
+payout-sequencing bullet for where those two checkpoints come from); a
+generic per-frame watcher in `update(dt, state)` handles every OTHER
+change, but stays quiet while a payout sequence is still queued (its
+segments already account for that round's pending change) — this is what
+lets a single synchronous `run_payday()` call's one big `state.love` jump
+still read as two separate, correctly-timed ramps instead of one.
+**Tuning note**: with the shipped defaults (`payout_stagger_interval`
+0.42s < `love_counter_anim_duration` 1.2s) the upkeep beat's retarget
+fires before the economy ramp finishes, so the counter curves toward the
+lower total mid-climb rather than fully arriving first — smooth, not a
+jump (the same mid-flight mechanic), but not two fully sequential ramps
+either. If a designer wants the ramps to fully complete before the next
+beat fires, raise `payout_stagger_interval` to >= the counter duration.
+
+**The hover-cost preview shows the arithmetic, not the remainder — in two
+colours.** `Hud.submit`'s `hover_cost` branch used to show
+`state.love - hover_cost` (what you'd be left with, all one colour); it now
+draws `"current - price"` as TWO separately-coloured `HudText` runs via the
+new `Hud._submit_love_hover_cost` — the current-love half stays the plain
+love colour (`widgets.C_GOLD`, or a designer's `love_text` `text_color`
+override), only the `" - price"` half reads `widgets.C_RED` — for both an
+affordable and an unaffordable hover alike. Two string-table ids, not one
+combined template split in code: `hud.love_hover_cost_current` (`"{current}"`)
+and `hud.love_hover_cost_price` (`" - {price}"`), each independently
+designer-editable; the second is drawn immediately after the first via a
+live `widgets.text_size` measurement (the income-tooltip/lightning-readout
+precedent for hover-only text with no stored rect). Falls back to a single
+combined (red) draw if `love_text`'s alignment is ever not `"left"` — the
+two-segment math assumes left alignment, and today it always is. Always
+reads the REAL `state.love`/`hover_cost`, never the animated `love_display`
+— affordability is a correctness question, not a payout-flavor display.
+
+**Floaters sharing one anchor point stack vertically.** Boost floaters are
+anchored at the RECEIVING building's tile, not the booster's own tile
+(`game/buildings/boost.py`'s `apply_per_turn`) — so several boost buildings
+buffing the same defender all land a floater on that ONE tile in the same
+beat, which used to draw them directly on top of each other. `FloaterManager
+.submit` now groups `self._floaters` by exact `(wx, wy)` every frame (spawn
+order preserved — the list is append-only until culled) and gives each
+floater in a group its own vertical slot, `_FLOATER_STACK_STEP` (14px, fixed
+code chrome, not balancing) apart — the exact `submit_enemy_hp_bars`
+per-tile-group precedent (`game/ui/CLAUDE.md`'s "Overhead HP bars" section)
+applied to floater text instead of bars. Generic by anchor point, not
+boost-specific — any floater kind sharing a point stacks the same way, at no
+extra cost (the grouping already has to walk every active floater to draw
+it).
+
 ## HUD submission order: panel -> button -> text
 `engine/render/CLAUDE.md` "HUD pass": the HUD layer has **no depth sort** —
 `submit_hud`/`submit_panel`/`submit_text` draw in the order they're called,
@@ -1228,7 +1308,9 @@ imports:
     NEVER read (`_params_from_balance` never touched it) — a designer
     editing it in the `vfx` balancing form saw no effect in game. The four
     floater spawn sites (`spawn_income_events`/`spawn_xp_events`/
-    `spawn_painter_events`/`spawn_boost_events`) now read
+    `spawn_painter_events`/`spawn_boost_events` — the first, third and
+    fourth are since SUPERSEDED by `begin_payout`, the payout-phase-
+    sequencing feature above; `spawn_xp_events` is untouched) now read
     `self._vfx_params.floaters` (`engine.vfx.FloaterParams`, built by
     `_params_from_balance` like every other family); the JSON already
     shipped values identical to the constants, so this is a visual no-op on

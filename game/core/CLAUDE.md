@@ -36,6 +36,25 @@ Four files beside `balance.py`:
   sweep → duck-typed `upkeep` sweep (clamp 0) → **[slot 6: Painter payout]** →
   revive sweep (`rebuild()` on non-base, base excluded) → round++ → phase=INCOME.
   **Do not reorder without the user.**
+  - **Payout-phase sequencing (feature)**: step 12 no longer assigns a flat
+    `state.phase_timer`. The UI now plays the payout as three ordered
+    BEATS (boost, then economy+painter, then upkeep —
+    `game/ui/effects.py FloaterManager.begin_payout`), each dropped when
+    it has nothing to show; step 12 computes how many beats WILL fire from
+    the ledgers this payday just built (`state.boost_events` non-empty /
+    any real `"upkeep"` entry in `state.income_events` / economy always) and
+    sets `phase_timer = (beat_count - 1) * core.PhaseLoop.
+    payout_stagger_interval + core.PhaseLoop.income_phase_duration` — the
+    latter is now "how long the phase holds after its LAST beat", not a
+    flat total. This is a pure APPEND to step 12's own computed VALUE, not
+    a reorder — nothing above it moved. Two new plain transient `RunState`
+    fields, `payout_love_start` (love at the very top of `run_payday`) and
+    `payout_love_after_economy` (`state.love + total_upkeep` at step 12,
+    i.e. before upkeep's deduction — recovers "after story+base+yield+
+    Painter" without a mid-function snapshot, since Painter's slot-6
+    payout already ran by step 12), are how the HUD love counter animates
+    in the two segments the player actually watches (up during the economy
+    beat, down during the upkeep beat) — see `game/ui/CLAUDE.md`.
   - **10G filled slot 3** (the last reserved no-op), and the boss-upgrade
     rework re-pointed it: ONE `boss_bonuses.love_bonus_income(state, tilemap,
     core_balance)` call — the Boss2A/2B story love — still AFTER the RoundStats

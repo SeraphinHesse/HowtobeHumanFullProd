@@ -290,8 +290,9 @@
     ]
   },
   "PhaseLoop": {
-    "income_phase_duration": 1.505,
-    "round_end_delay": 0.6,
+    "income_phase_duration": 1.805,
+    "payout_stagger_interval": 1.0,
+    "round_end_delay": 1.4,
     "speed_1_5x_min_round": 10,
     "speed_2x_min_round": 20
   },

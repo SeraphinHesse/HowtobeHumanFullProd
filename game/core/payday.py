@@ -146,6 +146,10 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None,
     built = _built_tiles_with_occupant(tilemap)
     buildings = [b for _, b in built]
 
+    # Payout-phase sequencing: snapshot love BEFORE anything this payday
+    # touches it, for the UI's two-segment counter animation (step 12 below).
+    love_start = state.love
+
     # 1. Reset income floaters — the per-tile ledger the 9G UI reads to spawn
     #    income/upkeep floaters (gated by ui.FX.income_floaters_enabled). Filled
     #    in steps 4 (income) + 5 (upkeep) below; the floater VFX itself is 9G.
@@ -288,6 +292,26 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None,
     # 11. round++
     state.round_num += 1
 
-    # 12. phase -> INCOME, start the payday-floater timer.
+    # 12. phase -> INCOME, start the payday-floater timer. The UI plays the
+    #     payout as three ordered beats (boost, then economy+painter, then
+    #     upkeep — game/ui/effects.py FloaterManager.begin_payout), each
+    #     boost/upkeep beat conditionally skipped when its ledger is empty
+    #     (economy always fires: step 4 unconditionally appends a
+    #     base-income entry). The phase must stay open long enough for every
+    #     beat that WILL fire to play, so its length is computed here from
+    #     the ledgers this payday just built, not a flat constant.
+    phase_loop = core_balance["PhaseLoop"]
+    beat_count = 1  # economy beat always fires
+    if state.boost_events:
+        beat_count += 1
+    if any(kind == "upkeep" for _, _, _, kind in state.income_events):
+        beat_count += 1
     state.phase = GamePhase.INCOME
-    state.phase_timer = core_balance["PhaseLoop"]["income_phase_duration"]
+    state.phase_timer = ((beat_count - 1) * phase_loop["payout_stagger_interval"]
+                          + phase_loop["income_phase_duration"])
+
+    # Payout-phase sequencing: the two counter-animation checkpoints (see
+    # RunState's docstring on these fields). `total_upkeep` is still in
+    # scope from step 5.
+    state.payout_love_start = love_start
+    state.payout_love_after_economy = state.love + total_upkeep
