@@ -839,6 +839,23 @@
         {
           "children": [
             {
+              "label": "Boss Next",
+              "slots": [
+                "ui_icon_boss_next"
+              ]
+            },
+            {
+              "label": "No Boss Next",
+              "slots": [
+                "ui_icon_boss_next_off"
+              ]
+            }
+          ],
+          "label": "Boss Indicator"
+        },
+        {
+          "children": [
+            {
               "label": "Main Menu",
               "slots": [
                 {

@@ -435,7 +435,8 @@ class ColorSwatchRow:
             btn.submit(renderer, anim_ms=anim_ms, **kwargs)
             if selected is not None and i == selected:
                 renderer.submit_hud(
-                    HudRect(btn.rect, widgets.C_HIGHLIGHT, width=1))
+                    HudRect(btn.rect, widgets.highlight_color("tile_selected"),
+                             width=1))
 
 
 class ConstructPreview:
