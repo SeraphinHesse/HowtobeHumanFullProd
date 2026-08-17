@@ -1162,12 +1162,17 @@ condition below.
   (carrying), `frozen` (pin the sprite clock at 0 when the sheet has no
   `kidnap` row — `SpriteAnimator.update` always advances its own clock
   regardless, so `Kidnap.update`'s per-frame re-pin is what actually locks the
-  frame), plus the carried building's own `slot_key`/`fit_tiles`/`scale`. It
+  frame), plus the carried building's own `slot_key`/`fit_tiles`/`scale`/
+  `column` — `column` (fix-kidnap-carried-building-colour) is the player's
+  master-sheet swatch pick (MasterSheetColumnsPLAN B1), carried along on the
+  SAME `-1` "no driver" sentinel `SpriteAnimator.column` uses, so a
+  colour-capable building's carried sprite keeps the colour it was placed in
+  rather than silently reverting to the manifest's default column. It
   goes **LAST** in `Enemy.__init__`'s component list — after `Movement` (sees
   arrival the same frame) and `SpriteAnimator` (its clock re-pin wins).
-  `Kidnap.render_items` yields ONE extra `RenderItem` for the carried sprite;
-  `Scene.render_items` picks it up generically alongside the carrier's own
-  `SpriteAnimator` item — no new GameObject, no engine change.
+  `Kidnap.render_items` yields ONE extra `RenderItem` for the carried sprite,
+  `column=` included; `Scene.render_items` picks it up generically alongside
+  the carrier's own `SpriteAnimator` item — no new GameObject, no engine change.
 - **`begin_kidnap(scene, tilemap, enemy, building)` (`kidnap.py`) is the ONE
   transition site**, called from the combat sweep's kidnap pass
   (`combat.py::_resolve_kidnaps`, placed AFTER the defender loop and BEFORE

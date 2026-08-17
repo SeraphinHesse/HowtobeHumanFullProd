@@ -368,6 +368,43 @@ class TestCarriedSpriteGeometry(unittest.TestCase):
         self.assertAlmostEqual(_sy0, sy1)  # zero vertical screen change
 
 
+class TestCarriedSpriteColour(unittest.TestCase):
+    """fix-kidnap-carried-building-colour: the carried sprite must keep the
+    player's master-sheet swatch pick (`SpriteAnimator.column`), not silently
+    fall back to the manifest's default column."""
+
+    def test_kidnap_carries_the_players_chosen_colour(self):
+        tm, scene, occ = build_board()
+        session = armed_session(tm, occ)
+        # An explicit, non-zero swatch pick — the `place_building(column=...)`
+        # seam the construct modal's swatch row uses (`registry.py`).
+        victim = place_victim(tm, scene, occ)
+        b_anim = victim.get_component(SpriteAnimator)
+        b_anim.column = 2
+
+        kidnapper = run_until_kidnapper(session, scene, tm)
+
+        k = kidnapper.get_component(Kidnap)
+        self.assertEqual(k.column, 2)
+        items = list(k.render_items(kidnapper.transform))
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].column, 2)
+
+    def test_kidnap_with_no_colour_driver_stays_none(self):
+        """The -1 'no driver' sentinel must not draw as a real colour (0)."""
+        tm, scene, occ = build_board()
+        session = armed_session(tm, occ)
+        victim = place_victim(tm, scene, occ)
+        self.assertEqual(victim.get_component(SpriteAnimator).column, -1)
+
+        kidnapper = run_until_kidnapper(session, scene, tm)
+
+        k = kidnapper.get_component(Kidnap)
+        self.assertEqual(k.column, -1)
+        items = list(k.render_items(kidnapper.transform))
+        self.assertIsNone(items[0].column)
+
+
 class TestFrozenPoseWithNoKidnapRow(unittest.TestCase):
     """Verification item #8: with no ``kidnap`` sheet row (the default this
     package ever picks without a host upgrading it — see ``game/main.py``),
