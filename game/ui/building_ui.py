@@ -65,7 +65,7 @@ from game.map.tiles import (
 
 from engine.render.fonts import layout_h
 
-from .skinning import ScreenSkinning, button_kwargs, is_visible
+from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .strings import T
 from .widgets import (
     Button, anim_ms, contains, label_holder, submit_label, submit_panel,
@@ -1645,6 +1645,24 @@ class BuildingUI:
         if is_visible(self.close_btn) and self.close_btn.hit(mx, my):
             self.close()
             return True
+        # -- UL-10: a clickable layer on THIS panel's own widgets. Consulted
+        # after the explicit close (so a stray layer can never reinterpret an
+        # X click) and before the mode dispatch. This screen's return contract
+        # is bool-consumed, not an action string, and it has no single flat
+        # action table spanning its three classes — so only the three RESERVED
+        # tokens route here, and every other target (including a widget id in
+        # this screen) swallows per Ruling 1. Widget-id RETARGET on the
+        # building panel is a deliberate follow-up, not silent scope loss. --
+        layer_action = hit_layer(
+            self.ids, self.skinning.widgets_spec(self.screen_id), mx, my,
+            self.skinning.state_of)
+        if layer_action is not None:
+            if layer_action == "close_window":
+                self.close()
+            elif layer_action == "back" and self.mode == "move_select":
+                self._back_to_upgrade(session)
+            return True   # "noop"/"back"-with-nowhere-to-go still CONSUME
+        # -- /UL-10 --
         if self.mode == "unlock":
             return self._unlock_click(mx, my, session)
         if self.mode == "construct":

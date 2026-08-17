@@ -17,7 +17,7 @@ from types import SimpleNamespace
 
 from engine.render import HudRect
 
-from .skinning import ScreenSkinning, button_kwargs, is_visible
+from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .widgets import Button, anim_ms, label_holder, submit_centered, submit_label
 from . import widgets
 
@@ -83,6 +83,11 @@ class GameOverScreen:
         self.button.update(dt)
 
     def hit(self, mx, my):
+        layer_action = hit_layer(  # UL-10: clickable layers first
+            self.ids, self.skinning.widgets_spec(self.screen_id), mx, my,
+            self.skinning.state_of, {"btn_return_to_menu": "main_menu"})
+        if layer_action is not None:
+            return layer_action
         return ("main_menu" if is_visible(self.button) and self.button.hit(mx, my)
                else None)
 

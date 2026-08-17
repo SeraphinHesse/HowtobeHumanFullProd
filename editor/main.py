@@ -300,6 +300,20 @@ class MainWindow(QMainWindow):
         self.screen_details.set_session(self.screen_session)
         self.screen_details.widget_selected.connect(self.viewport.set_selected_widget)
         self.viewport.widget_selected.connect(self.screen_details.select_widget)
+        # UL-10: the LAYER twin of the line above. One direction only —
+        # `screen_details` emits no `layer_selected`, and `select_layer`
+        # already blocks the list's own signals, so this cannot loop.
+        self.viewport.layer_selected.connect(self.screen_details.select_layer)
+        # UL-10: the inspector's preview-state dropdown and the viewport's own
+        # float both name ONE state. Both directions are loop-guarded: the
+        # viewport's `set_screen_state` early-returns when the name is
+        # unchanged, and `sync_layer_state` sets the combo with signals
+        # blocked, so neither can bounce the value back.
+        self.viewport._state_combo.currentTextChanged.connect(
+            self.screen_details.sync_layer_state)
+        self.screen_details.layer_state_combo.activated.connect(
+            lambda _i: self.viewport.set_screen_state(
+                self.screen_details.layer_state_combo.currentData()))
 
         # ESV-4: vfx preview <-> balancing staging wiring
         self.vfx_preview.set_balancing_panel(self.balancing)

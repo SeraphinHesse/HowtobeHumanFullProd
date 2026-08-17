@@ -8,6 +8,14 @@ setattr loop, **zero disk I/O per call** — so a screen whose ``submit()`` call
 re-reads a file. ``screen_background(screen_id)`` / ``submit_background(...)``
 supply the optional whole-screen background override.
 
+``hit_layer(ids, widgets_spec, mx, my, state_of, actions)`` (UL-10) is the
+click-path twin of ``submit_layers``: it asks the pure
+``engine.ui_layers.hit`` which clickable layer (if any) a point lands on and
+turns that into the SAME action value the screen's own ``hit()`` would
+return. Pure — it never mutates a widget, the spec, or module state, which is
+what lets ``Hud.hit()`` stay a pure read under ``main.py``'s two calls per
+click (D8).
+
 ``submit_layers(screen_id, ids, band, state_of)`` (UL-4) draws a widget's
 authored ``layers`` — one call per screen per band, resolved fresh each frame
 through the pure ``engine.ui_layers`` so a layer follows its owner when
@@ -67,6 +75,78 @@ def is_visible(widget) -> bool:
     is the one place every screen checks it — an invisible ``button``-kind
     widget must be neither drawn nor hit-tested (review HIGH 2)."""
     return getattr(widget, "visible", True)
+
+
+#: The three targets a clickable layer may name that are NOT a widget id in
+#: its own screen (D7 as amended). ``noop`` is also what an UNROUTABLE target
+#: resolves to — see ``hit_layer``'s Ruling 1.
+RESERVED_TARGETS = ("close_window", "back", "noop")
+
+
+def hit_layer(ids, widgets_spec, mx, my, state_of, actions=None):
+    """The action a clickable LAYER produces for this click, or ``None``.
+
+    PURE (D8). Nothing here mutates ``ids``, any widget, ``widgets_spec`` or
+    module state — call it any number of times with the same arguments for the
+    same answer. ``main.py`` calls ``Hud.hit()`` twice per click (the
+    MOUSEBUTTONDOWN pan-arming probe, then the MOUSEBUTTONUP handler) and this
+    function sits at the top of that path, so the guarantee is load-bearing.
+
+    ``ids``: the screen's ``{name: (kind, widget)}`` dict (§1.2), read only.
+    ``widgets_spec``: that screen's override ``widgets`` table, already in
+        memory (``ScreenSkinning.widgets_spec(screen_id)``) — no disk I/O
+        here, matching ``submit_layers``'s contract.
+    ``state_of``: callable ``widget -> str``, normally
+        ``ScreenSkinning.state_of``, resolved PER WIDGET (UL-5).
+    ``actions``: optional ``{widget_id: action}`` for THIS screen — the
+        screen's own action table, reversed. It is what makes a *retarget*
+        possible: a layer whose ``target`` names another widget in the same
+        screen fires that widget's own action. Screens pass the table they
+        already have (``pause._ACTION_IDS`` reversed, ``main_menu``'s
+        ``_SLOT_IDS``/``self.actions``, …) — never a second hand-rolled copy.
+
+    Resolution, once a clickable layer is hit:
+
+    * ``target`` in ``RESERVED_TARGETS`` -> that literal token; the caller
+      routes it (``close_window`` / ``back`` / ``noop``).
+    * ``target`` in ``actions`` -> that widget's own action (retarget).
+    * anything else, INCLUDING a missing/empty ``target`` -> ``"noop"``.
+
+    **Ruling 1 (UL-10): a dead target SWALLOWS the click, it does not fall
+    through.** Returning ``None`` here would mean "no layer was hit", and the
+    click would land on the widget UNDER the layer — so a typo'd target would
+    silently behave as if the layer were never clickable at all, which is the
+    exact failure the plan's risk bullet names. A swallowed click instead
+    reads honestly as "this decal does nothing", the same thing ``noop``
+    already means.
+
+    A layer whose owning widget is invisible is never hit (the
+    ``is_visible`` rule every screen's ``hit()`` already applies), and a
+    non-clickable layer is transparent to the click — both enforced upstream
+    in ``engine.ui_layers.hit``/here, never by mutating anything.
+    """
+    if not widgets_spec:
+        return None
+    actions = actions or {}
+    for name, (_kind, widget) in ids.items():
+        spec = widgets_spec.get(name)
+        layer_list = (spec or {}).get("layers") or []
+        if not layer_list or not is_visible(widget):
+            continue
+        result = ui_layers.hit(layer_list, widget.rect, mx, my,
+                               state_of(widget))
+        # A ``None`` (missed entirely) or an ``{"kind": "owner"}`` hit both
+        # mean "no clickable layer claimed this point" — keep scanning the
+        # other widgets, then fall through to the screen's normal hit path.
+        if not result or result.get("kind") != "layer":
+            continue
+        target = result.get("target")
+        if target in RESERVED_TARGETS:
+            return target
+        if target in actions:
+            return actions[target]
+        return "noop"   # Ruling 1: unroutable target swallows the click
+    return None
 
 
 def button_kwargs(btn) -> Dict[str, Any]:
@@ -202,6 +282,13 @@ class ScreenSkinning:
         spec = self._widgets_spec(screen_id).get(name)
         rect = (spec or {}).get("rect")
         return _as_tuple(rect) if rect else None
+
+    def widgets_spec(self, screen_id: str) -> Dict[str, Any]:
+        """This screen's override ``widgets`` table (``{}`` when unset) — the
+        public accessor `hit_layer`'s callers pass in, alongside the existing
+        ``defaults()``/``widget_rect()`` public readers. Already in memory, so
+        safe every frame / every click."""
+        return self._widgets_spec(screen_id)
 
     def screen_background(self, screen_id: str) -> Optional[Dict]:
         """``{"slot": ...}`` or ``{"color": (...)}`` for a submit-time
