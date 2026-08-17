@@ -11,7 +11,7 @@ module yet** (D5) — UL-4 is what wires a real caller; this phase ships only
 the schema key and this pure vocabulary.
 """
 
-__all__ = ["resolve", "ordered", "validate_offsets"]
+__all__ = ["resolve", "ordered", "validate_offsets", "hit"]
 
 _APPEARANCE_KEYS = (
     "slot", "text_id", "label", "font", "align", "color", "text_color", "tint",
@@ -202,3 +202,77 @@ def validate_offsets(layers):
             fixed["offset"] = (0, 0, 0, 0)
             out.append(fixed)
     return out
+
+
+def _contains(rect, mx, my):
+    """Point-in-rect, half-open on the far edges (pygame's Rect convention)."""
+    x, y, w, h = rect
+    return x <= mx < x + w and y <= my < y + h
+
+
+def hit(layers, owner_rect, mx, my, state="idle"):
+    """Which layer (if any) a point lands on, topmost-first (UL-9).
+
+    PURE (D8): never mutates `layers` (nor any entry in it), `owner_rect`, or
+    any module-level state -- callable any number of times with the same
+    arguments for the same result. `main.py` calls a widget's hit path twice
+    per click (arm-on-DOWN, fire-on-UP), and that guarantee rests on this.
+
+    layers: the widget's raw "layers" array (schema:
+        data/schemas/ui_screen.schema.json), UNRESOLVED -- the same shape
+        `ordered()`/`resolve()` take.
+    owner_rect: (x, y, w, h) -- the owning widget's POST-OVERRIDE rect, same
+        convention as `resolve()`.
+    mx, my: the point to test, in the same coordinate space as owner_rect.
+    state: which of the four D9 states ("idle" | "hover" | "pressed" |
+        "disabled") the OWNING widget is in. Passed straight to `resolve()`,
+        so a state-patched offset moves the hit rect exactly the way it moves
+        the paint rect, and a layer that resolves to visible=False in `state`
+        is never hit.
+
+    Search order (topmost PAINTS last, so topmost is HIT first):
+        1. the "over" band, z-DESCENDING (the reverse of `ordered()`'s paint
+           order within the band)
+        2. the owner itself (owner_rect)
+        3. the "under" band, z-descending
+
+    Only entries with ``"clickable": true`` are eligible (default False when
+    absent -- an ordinary decorative layer is never a click target). A
+    non-clickable layer is TRANSPARENT to the click: the point is tested
+    against the layers/owner beneath it as if it were not there, never
+    blocking or absorbing the click itself.
+
+    Returns:
+        {"kind": "layer", "id": str|None, "target": str|None} -- a hit on a
+            clickable layer; "id"/"target" are its RAW authored values, or
+            None when absent. An unroutable or missing target is NOT resolved
+            or validated here (D7 as amended): routing, and warning about a
+            target that names neither a widget in this screen nor one of the
+            reserved tokens close_window/back/noop, is a caller's job.
+        {"kind": "owner"} -- a hit on the owner rect, when no clickable layer
+            above it claimed the point.
+        None -- the point is outside every eligible layer's resolved rect AND
+            outside owner_rect.
+
+    The owner itself is not gated by any "clickable" flag -- it has no such
+    key; the caller decides what an "owner" hit means for its widget kind
+    (a Button is always hittable; a bare label is never wired to call this).
+    """
+    for band in ("over", None, "under"):
+        if band is None:
+            if _contains(owner_rect, mx, my):
+                return {"kind": "owner"}
+            continue
+        for entry in reversed(ordered(layers, band)):
+            if not entry.get("clickable", False):
+                continue
+            resolved = resolve(entry, owner_rect, state)
+            if not resolved["visible"]:
+                continue
+            if _contains(resolved["rect"], mx, my):
+                return {
+                    "kind": "layer",
+                    "id": entry.get("id"),
+                    "target": entry.get("target"),
+                }
+    return None
