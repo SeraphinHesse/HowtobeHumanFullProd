@@ -286,9 +286,27 @@ preset names (D5).
   `Keybindings` actions for player rebinding; `toggle_cheat_menu` (a hidden
   dev feature) and `quick_skip_combat` (a testing convenience) are
   deliberately excluded from that screen but keep dispatching normally.
-  Rebind capture (Esc cancels, a collision flashes, otherwise the key is
-  written + persisted) is host-only logic (`main.py`'s `_handle_capture_key`)
-  since `game/ui` must stay pygame-free.
+  Rebind capture (Esc cancels, a collision flashes, an unrepresentable key
+  — an arrow key, Tab, Shift, an F-key, … — ALSO flashes red rather than
+  silently doing nothing (bugfix: this used to leave the row stuck on
+  "PRESS A KEY" with zero feedback, which is what made rebinding
+  Move Up/Down/Left/Right to an arrow key look broken — the single most
+  natural key a player would try, and the one that was never a legal
+  binding target since arrows are the always-on alias below), otherwise
+  the key is written + persisted) is host-only logic (`main.py`'s
+  `_handle_capture_key`) since `game/ui` must stay pygame-free.
+  **`confirm_purchase` (Enter) is dual-purpose (feature: Enter also
+  upgrades).** While a construct/move preview modal is open it confirms
+  that modal exactly as before. While NO preview is open and the building
+  panel is showing a selected building (`panel.mode == "upgrade"`), the
+  SAME key instead clicks the UPGRADE/ADVANCE button — routed through the
+  identical "click at that button's own centre" seam (`panel.handle_click`
+  aimed at `panel.action_btn`'s centre point), so it reuses
+  `_upgrade_click`'s existing single/multi-select batch logic verbatim
+  (`game/ui/CLAUDE.md`'s Stage A/Stage B two-stage batch flow) — keyboard
+  and mouse can never disagree, and a multi-selection upgrades/advances in
+  one keypress exactly like one click would. The Controls screen's row
+  label is `"Confirm/Upgrade"` (`game/ui/keybinds_screen.py`).
 - **WASD/arrow-key camera panning (feature: rebindable hotkeys)** is the ONE
   action group that is POLLED every frame (`pygame.key.get_pressed()`, right
   after the event loop, the `skip_held` cutscene precedent) rather than

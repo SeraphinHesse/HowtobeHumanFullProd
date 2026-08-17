@@ -1108,9 +1108,14 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         new binding, through the SAME ``_binding_key_name`` hotkey dispatch
         uses, so a captured rebind and a dispatched hotkey can never
         disagree. Esc cancels with no change; a key already bound to another
-        action flashes red and drops capture; otherwise the binding is
-        written into the shared ``key_bindings`` dict (mutated in place, so
-        the screen's next frame sees it for free) and persisted to
+        action flashes red and drops capture; a key with no representable
+        binding (an arrow key, Tab, Shift, an F-key, ...) flashes red and
+        drops capture too — bugfix: this used to silently do nothing, so a
+        row a player tried to rebind with e.g. an arrow key (the most
+        natural key to try for camera movement) looked permanently stuck on
+        "PRESS A KEY" with zero feedback; otherwise the binding is written
+        into the shared ``key_bindings`` dict (mutated in place, so the
+        screen's next frame sees it for free) and persisted to
         ``scores/keybindings.json``."""
         screen = shell.controls_screen
         if event.key == pygame.K_ESCAPE:
@@ -1118,7 +1123,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             return
         new_key = _binding_key_name(event)
         if new_key is None:
-            return  # not a representable key (e.g. an arrow key) — ignored
+            screen.flash_unbindable()
+            return
         action = screen.capturing
         if key_input.find_conflict(key_bindings, action, new_key) is not None:
             screen.flash_conflict()
@@ -1671,6 +1677,24 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                         panel.handle_key(event.unicode, _key_name(event.key))
                 elif panel.name_editing:  # 10J: upgrade-panel rename capture
                     panel.handle_key(event.unicode, _key_name(event.key))
+                elif (panel.mode == "upgrade" and _binding_key_name(event)
+                      == key_bindings["confirm_purchase"]):
+                    # feature: rebindable hotkeys (Enter also upgrades) — the
+                    # SAME confirm_purchase binding that confirms an open
+                    # construct/move preview above now ALSO fires the
+                    # upgrade panel's UPGRADE/ADVANCE button when no preview
+                    # is open, through the identical "click at that button's
+                    # own centre" seam a real mouse click goes through. This
+                    # covers single AND multi-select batch upgrade/advance
+                    # for free — `_upgrade_click`'s action_btn branch already
+                    # handles both (game/ui/CLAUDE.md's Stage A/Stage B batch
+                    # flow), so keyboard and mouse can never disagree here
+                    # either.
+                    abx, aby, abw, abh = panel.action_btn.rect
+                    px, py = abx + abw // 2, aby + abh // 2
+                    if _tutorial_allows_panel_click(px, py):
+                        panel.handle_click(px, py, session, buildings_balance,
+                                           world.scene, world.occupancy)
                 elif event.key == pygame.K_ESCAPE:
                     if panel.visible:
                         panel.close()

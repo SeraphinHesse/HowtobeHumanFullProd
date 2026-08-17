@@ -114,6 +114,43 @@ class TestLoadSaveRoundTrip(unittest.TestCase):
         self.assertEqual(loaded, DEFAULTS)
 
 
+class TestBindingKeyNameUnrepresentable(unittest.TestCase):
+    """``game.main._binding_key_name`` returns ``None`` for a keypress with
+    no representable binding (an arrow key, Tab, Shift, an F-key, ...) —
+    the precondition the Controls screen's capture handler now flashes
+    ``flash_unbindable()`` for instead of silently doing nothing (bugfix:
+    the "rebind doesn't stick" report — trying an arrow key, the single
+    most natural key to try for camera movement, left the row stuck on
+    "PRESS A KEY" with no feedback at all)."""
+
+    @classmethod
+    def setUpClass(cls):
+        pygame.init()
+
+    @classmethod
+    def tearDownClass(cls):
+        pygame.quit()
+
+    class _FakeEvent:
+        def __init__(self, key, mod=0):
+            self.key = key
+            self.mod = mod
+
+    def test_arrow_keys_are_not_representable(self):
+        for key in (pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT):
+            self.assertIsNone(
+                game_main._binding_key_name(self._FakeEvent(key)))
+
+    def test_tab_and_shift_are_not_representable(self):
+        for key in (pygame.K_TAB, pygame.K_LSHIFT):
+            self.assertIsNone(
+                game_main._binding_key_name(self._FakeEvent(key)))
+
+    def test_a_bare_letter_is_still_representable(self):
+        self.assertEqual(
+            game_main._binding_key_name(self._FakeEvent(pygame.K_w)), "w")
+
+
 class TestBindingPygameKeyReverse(unittest.TestCase):
     """``game.main._binding_pygame_key``/``_binding_held`` — the reverse
     lookup the movement hotkeys poll through every frame."""
