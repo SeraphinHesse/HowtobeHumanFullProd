@@ -34,7 +34,9 @@ from game.anchors import anchor_world_point, projectile_point
 from game.buildings.components import (
     Attacker, BeamAttacker, RoundStats, SplashAttacker,
 )
-from .components import EnemyCombat, Kidnap, PathAgent, apply_slow
+from .components import (
+    EnemyCombat, Kidnap, PathAgent, apply_slow, on_non_grass_condition,
+)
 from .kidnap import begin_kidnap
 
 # AOE_TRAVEL_TIME / BEAM_MIN_TICK are SIMULATION TIMING, not balancing (NOT
@@ -63,6 +65,53 @@ CRATER_SLOT = "vfx_crater"
 # slow, or a bombardment would stack into a full stop. Repeat PICKS still
 # stack, additively (D4), inside the fraction `_mortar_slow_spec` computes.
 MORTAR_SLOW_SOURCE = "boss_upgrade:mortar_slow"
+
+
+def _condition_bonus_dmg(dmg, enemy, run_state, boss_upgrades_balance):
+    """``dmg`` after boss upgrade #11 ``condition_dmg_bonus`` (BU-3 3.5).
+
+    D15: the bonus applies when the **TARGET** enemy is standing on any
+    non-Grass tile condition (Mountain / Pond / Forest) — its OWN tile, never
+    the shooting building's. Multiplier is ``1 + dmg_bonus_pct/100 * stacks``,
+    additive per repeat pick (D4) through the standard ``hook_stacks`` reader.
+
+    **Applied EXACTLY ONCE per hit, and this is where that is provable.** This
+    module finalises damage at exactly THREE sites, and they are disjoint —
+    every shot reaches one and only one of them:
+
+    1. ``ProjectileHoming._impact`` — one target, the homing shot's own.
+    2. ``ProjectileArc._impact`` — the mortar splash, once per enemy inside the
+       radius (each enemy is visited once by that loop, and each reads its OWN
+       tile, which is the whole point of resolving this per-enemy at IMPACT
+       rather than per-shot at fire time).
+    3. ``_update_beam`` — instant hitscan, one target.
+
+    ``_fire``/``_fire_splash`` apply no damage at all: they only LOAD a
+    projectile with the shooter's base damage, so a splash hit cannot also be
+    counted through the homing path (nor vice versa) — there is no shared
+    downstream applier for the multiplier to run twice through. Each site calls
+    this once, immediately before its single ``Health.damage`` call, and then
+    uses the RETURNED value for the ``RoundStats`` credit and the ``on_damage``
+    telemetry too, so the number reported is always the number dealt.
+
+    Lightning (``game/core/lightning.py``) is a separate damage source with its
+    own hook (#7) and is deliberately not covered here.
+
+    ``game.core`` is imported LAZILY, inside the body, exactly as
+    ``_mortar_slow_spec`` does it. Returns ``dmg`` unchanged whenever the hook
+    is inert, so every pre-BU-3 caller stays byte-identical.
+    """
+    if run_state is None or boss_upgrades_balance is None:
+        return dmg
+    if not on_non_grass_condition(enemy):
+        return dmg
+    from game.core import boss_upgrades
+
+    n, params = boss_upgrades.hook_stacks(run_state, boss_upgrades_balance,
+                                          "condition_dmg_bonus")
+    if not n:
+        return dmg
+    return int(dmg * (1.0 + n * params.get("dmg_bonus_pct", 20) / 100.0))
 
 
 class ProjectileHoming(Component):
@@ -95,6 +144,13 @@ class ProjectileHoming(Component):
         # unanchored-target fallback point the SAME way _fire resolves its
         # unanchored-spawn fallback. Never read by launch()'s timer math (D4).
         self._lift_frac = 0.0
+        # BU-3 3.5 (#11 condition_dmg_bonus): the standard BU-3 hook pair,
+        # carried as transient refs (E-11, the `_on_damage`/`_assets` shape)
+        # so `_impact` can resolve the multiplier against the TARGET's own
+        # tile AT IMPACT — the enemy walks while the shot is in flight, so
+        # resolving it at fire time would read the wrong tile. Set by `_fire`.
+        self._run_state = None
+        self._boss_upgrades_balance = None
 
     def launch(self, target, shooter, scene, origin=None):
         """``origin`` (ESV-1, D4): the point flight time is measured FROM —
@@ -149,12 +205,19 @@ class ProjectileHoming(Component):
         # first" rule, extended to "or became untouchable first".
         if (target is not None and getattr(target, "alive", False)
                 and getattr(target, "targetable", True)):
+            # BU-3 3.5 (#11): resolved ONCE here, against the target's own
+            # tile, and reused by the RoundStats credit + the telemetry below
+            # so all three report the same number (see _condition_bonus_dmg).
+            dmg = _condition_bonus_dmg(self.dmg, target,
+                                       getattr(self, "_run_state", None),
+                                       getattr(self, "_boss_upgrades_balance",
+                                               None))
             health = target.get_component(Health)
-            health.damage(self.dmg)
+            health.damage(dmg)
             if shooter is not None:
                 rs = shooter.get_component(RoundStats)
                 if rs is not None:
-                    rs.dmg_dealt_this_round += self.dmg
+                    rs.dmg_dealt_this_round += dmg
             # debug-mode-telemetry (Phase 3, level 2 only): fired at exactly
             # the RoundStats credit site above. attacker is None when the
             # shooter is gone (e.g. despawned mid-flight) — the null case is
@@ -163,7 +226,7 @@ class ProjectileHoming(Component):
             if on_dmg is not None:
                 on_dmg(getattr(shooter, "building_type", None)
                        if shooter is not None else None,
-                       getattr(target, "ETYPE", None), self.dmg, health.hp)
+                       getattr(target, "ETYPE", None), dmg, health.hp)
         # ESV-6: the projectile_hit trigger, at the TARGET's impact anchor.
         # Purely visual (D4) — reads nothing the damage block above wrote.
         # Fires whether or not the target is STILL alive this frame (a hit
@@ -243,6 +306,12 @@ class ProjectileArc(Component):
         # pick-time slow from now on". Transient (E-11), same shape as
         # `_on_damage`/`_assets` above.
         self._slow = None
+        # BU-3 3.5 (#11 condition_dmg_bonus): the standard BU-3 hook pair,
+        # carried as transient refs (E-11) and resolved PER ENEMY at impact —
+        # a splash covers several tiles, so each enemy it catches reads its own
+        # condition. Set by `_fire_splash`.
+        self._run_state = None
+        self._boss_upgrades_balance = None
 
     def launch(self, gx, gy, shooter, scene, travel_time):
         self._gx, self._gy = gx, gy
@@ -267,6 +336,10 @@ class ProjectileArc(Component):
         rs = shooter.get_component(RoundStats) if shooter is not None else None
         on_dmg = getattr(self, "_on_damage", None)
         slow = getattr(self, "_slow", None)
+        # BU-3 3.5 (#11): the pair is read once; the MULTIPLIER itself is
+        # resolved per enemy inside the loop, off that enemy's own tile.
+        run_state = getattr(self, "_run_state", None)
+        bu_balance = getattr(self, "_boss_upgrades_balance", None)
         for enemy in scene.by_tag("enemy"):
             # BR-3/D2: splash passes over an untargetable second-phase boss.
             if (not getattr(enemy, "alive", False)
@@ -274,17 +347,19 @@ class ProjectileArc(Component):
                 continue
             ex, ey = _enemy_center_world(enemy)   # the body's centre (ER-2)
             if math.hypot(ex - self._gx, ey - self._gy) <= self.radius:
+                dmg = _condition_bonus_dmg(self.dmg, enemy, run_state,
+                                           bu_balance)
                 health = enemy.get_component(Health)
-                health.damage(self.dmg)
+                health.damage(dmg)
                 if rs is not None:
-                    rs.dmg_dealt_this_round += self.dmg
+                    rs.dmg_dealt_this_round += dmg
                 # debug-mode-telemetry (Phase 3, level 2 only): fired at
                 # exactly the RoundStats credit site above, once per enemy
                 # actually hit by the splash.
                 if on_dmg is not None:
                     on_dmg(getattr(shooter, "building_type", None)
                            if shooter is not None else None,
-                           getattr(enemy, "ETYPE", None), self.dmg, health.hp)
+                           getattr(enemy, "ETYPE", None), dmg, health.hp)
                 # BU-3 3.3 (#3 mortar_slow): the slow lands on every enemy the
                 # splash hit, at the same site the damage did — never on the
                 # ones it missed. `None` (every shell fired without the
@@ -575,10 +650,14 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
     before adding another. Both default ``None`` and BOTH must be present for
     anything to happen, so every pre-BU-3 caller, test and headless tool is
     byte-identical; the host spells them ``run_state=session.state,
-    boss_upgrades_balance=session.boss_upgrades_balance``. They are threaded
-    down to ``_fire_splash`` only — the mortar's ``mortar_slow`` (#3) is the one
-    upgrade with a hook in this module — and this package still imports
-    ``game.core`` LAZILY, inside the function body that needs it."""
+    boss_upgrades_balance=session.boss_upgrades_balance``. TWO upgrades hook
+    into this module and the pair reaches all three firing paths: ``#3
+    mortar_slow`` (``_fire_splash`` only — resolved at FIRE time, since its
+    D16 snapshot is about the firing building) and ``#11
+    condition_dmg_bonus`` (all three DAMAGE sites — resolved at IMPACT, since
+    it is about the target enemy's own tile; see ``_condition_bonus_dmg``).
+    This package still imports ``game.core`` LAZILY, inside the function bodies
+    that need it."""
     globals_ = buildings_balance["DefenceBuildings"]["globals"]
     min_atk = globals_["min_attack_speed"]
     proj_speed = globals_["projectile_speed_tiles"]
@@ -656,16 +735,18 @@ def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
     (feat-projectile-anchored-flight) passes only to ``_fire`` too — see
     that module-level function's docstring. ``on_damage`` (debug-mode-
     telemetry) passes to BOTH firing paths and to ``_update_beam``.
-    ``run_state``/``boss_upgrades_balance`` (BU-3 3.3) pass only to
-    ``_fire_splash`` — ``mortar_slow`` (#3) is scoped to the mortar, and the
-    homing/beam paths have no boss-upgrade hook of their own."""
+    ``run_state``/``boss_upgrades_balance`` (BU-3 3.3 + 3.5) pass to ALL THREE
+    firing paths: ``mortar_slow`` (#3) is scoped to the mortar, but
+    ``condition_dmg_bonus`` (#11) applies to every hit this module lands, so
+    the homing and beam paths carry the pair too."""
     attacker = defender.get_component(Attacker)
     if attacker is None or not getattr(defender, "alive", True):
         return
     # Beam buildings have their OWN acquisition (highest-HP, death cooldown) and
     # tick model — handle them wholesale, then bail.
     if defender.get_component(BeamAttacker) is not None:
-        _update_beam(defender, targets, dt, dmg_bonus, on_damage)
+        _update_beam(defender, targets, dt, dmg_bonus, on_damage, run_state,
+                     boss_upgrades_balance)
         return
 
     center = (defender.col, defender.row)
@@ -701,15 +782,22 @@ def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
                         boss_upgrades_balance)
         else:
             _fire(defender, target, scene, proj_speed, dmg_bonus, assets, cs,
-                 on_defender_fire, on_projectile_hit, lift_frac, on_damage)
+                 on_defender_fire, on_projectile_hit, lift_frac, on_damage,
+                 run_state, boss_upgrades_balance)
         attacker.cooldown = attack_interval(defender, min_atk)
 
 
-def _update_beam(defender, targets, dt, dmg_bonus=0, on_damage=None):
+def _update_beam(defender, targets, dt, dmg_bonus=0, on_damage=None,
+                 run_state=None, boss_upgrades_balance=None):
     """The Sun Scorcher beam (prototype ``SunScorcherBuilding.update``): lock the
     highest-HP enemy in range, ramp damage while focused, reset the ramp on any
     target change, and pause re-acquiring for ``target_death_cooldown`` after a
-    kill. Instant hitscan — no projectile."""
+    kill. Instant hitscan — no projectile.
+
+    ``run_state``/``boss_upgrades_balance`` (BU-3 3.5): the standard hook pair,
+    for #11 ``condition_dmg_bonus`` only. The beam is hitscan, so its damage
+    site IS its fire site — there is no in-flight object to carry the pair on,
+    unlike the two projectile paths."""
     attacker = defender.get_component(Attacker)
     beam = defender.get_component(BeamAttacker)
     center = (defender.col, defender.row)
@@ -749,6 +837,9 @@ def _update_beam(defender, targets, dt, dmg_bonus=0, on_damage=None):
         beam.ramp = 0.0
         beam._ramp_target = target
     dmg = defender.damage() + int(beam.ramp) + dmg_bonus  # story bonus (10G)
+    # BU-3 3.5 (#11): the one damage site of the beam path — applied after the
+    # ramp + story bonus, off the TARGET's own tile condition.
+    dmg = _condition_bonus_dmg(dmg, target, run_state, boss_upgrades_balance)
     health = target.get_component(Health)
     health.damage(dmg)
     rs = defender.get_component(RoundStats)
@@ -777,7 +868,12 @@ def _set_defender_anim(defender, name):
 
 def _fire(defender, target, scene, proj_speed, dmg_bonus=0, assets=None,
          cs=None, on_defender_fire=None, on_projectile_hit=None,
-         lift_frac=0.0, on_damage=None):
+         lift_frac=0.0, on_damage=None, run_state=None,
+         boss_upgrades_balance=None):
+    """``run_state``/``boss_upgrades_balance`` (BU-3 3.5): the standard hook
+    pair, stashed on the shell's ``ProjectileHoming`` (never consumed here) so
+    #11 ``condition_dmg_bonus`` can be resolved at IMPACT against the target's
+    tile at that moment — the enemy walks while the shot is in flight."""
     bx, by = defender.transform.world_pos
     # ESV-1 D4: the spawn point is COSMETIC (the muzzle anchor, art). Flight
     # time is computed by `launch(origin=...)` below from the UNMODIFIED
@@ -800,6 +896,8 @@ def _fire(defender, target, scene, proj_speed, dmg_bonus=0, assets=None,
     hom._assets, hom._cs, hom._on_hit = assets, cs, on_projectile_hit
     hom._lift_frac = lift_frac
     hom._on_damage = on_damage
+    hom._run_state = run_state
+    hom._boss_upgrades_balance = boss_upgrades_balance
     hom.launch(target, defender, scene, origin=(bx, by))
     scene.spawn(proj)
 
@@ -908,6 +1006,12 @@ def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
     arc._on_damage = on_damage
     arc._assets = assets
     arc._slow = _mortar_slow_spec(defender, run_state, boss_upgrades_balance)
+    # BU-3 3.5 (#11): the pair itself rides along, UNRESOLVED — unlike #3's
+    # snapshot check above (which is about the FIRING building and so must be
+    # answered here), #11 is about each enemy the splash catches and can only
+    # be answered at impact.
+    arc._run_state = run_state
+    arc._boss_upgrades_balance = boss_upgrades_balance
     arc.launch(gx, gy, defender, scene, AOE_TRAVEL_TIME)
     scene.spawn(shell)
 

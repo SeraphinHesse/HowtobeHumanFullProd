@@ -81,6 +81,18 @@ Four files beside `balance.py`:
     `run_payday`'s signature did NOT grow (the module-level
     `from game.buildings.movement import process_moves` is as safe as the
     `game.buildings.components` import already beside it; verified no cycle).
+  - **BU-3 3.6 (#10 `boost_double_trigger`) rides INSIDE slot 7, and moves
+    nothing.** `run_payday` grew an optional trailing `boss_upgrades_balance=
+    None` (the BALANCE half of the standard BU-3 pair only — `state` already
+    IS the `RunState`, the documented `place_building` exception), threaded
+    from `Session` exactly like `occupancy`/`scene`/`debug` at all three of
+    its call sites. `_process_boosts` reads it through `_boost_extra_triggers`
+    (the standard `hook_stacks` reader) and runs a live ramp-mode booster's
+    `apply_per_turn()` `extra_triggers` ADDITIONAL times **within the same
+    slot** — the param IS the count, so repeat picks do not multiply it (D18
+    makes it a permanent global rule covering boosters placed before and after
+    the pick). Each repeat pushes its own `boost_events` entries so the UI
+    shows every trigger. `None` ⇒ zero extra passes ⇒ byte-identical.
   - **10D filled slot 7**: `_process_boosts` sweeps every `"boost"`-tagged building
     on a built tile BEFORE revive. Alive boosters (ramp mode) accumulate their
     per-turn `boost_value` onto cardinal-adjacent combat neighbours' `BoostReceiver`

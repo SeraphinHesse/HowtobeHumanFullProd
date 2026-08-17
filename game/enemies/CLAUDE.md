@@ -952,6 +952,51 @@ per-source keying, additive stacking and per-source decay applies unchanged.
   from `game/enemies` and that rule is not relaxed for a status effect. See
   `game/core/CLAUDE.md`.
 
+## Two more boss-upgrade hooks live here (BU-3 3.4 + 3.5)
+The threading contract is stated ONCE, in `game/core/boss_upgrades.py`'s
+module docstring ("THE BU-3 HOOK THREADING PATTERN") — read it there. Both
+hooks below use its standard `hook_stacks` reader and its lazy
+`game.core.boss_upgrades` import; what is worth writing down here is the two
+places this package's shape forced a variation.
+- **#8 `thorns` (`components.py`) is the ONE BU-3 hook that CANNOT take the
+  pair as a parameter, so it takes it as a SEAM.** Its hook site is
+  `EnemyCombat.update()`, which `Scene.update`'s generic component sweep calls
+  with `dt` alone — the identical constraint that already forced
+  `set_damage_hook`/`set_wall_damage_hook` into this module, for the identical
+  reason (that sweep runs BEFORE `resolve_combat`, so `resolve_combat`'s own
+  parameters physically cannot reach it). Hence a module-level
+  `_boss_upgrade_pair` + **`set_boss_upgrade_pair(run_state,
+  boss_upgrades_balance)`**, installed once per run by `game/main.py`'s
+  `build_gameplay()` (spelled off the Session, like every other hook site) and
+  CLEARED by `teardown_gameplay()` so a dead run's ledger can never leak into
+  the next one. Unset by default ⇒ every headless test is byte-identical.
+  `_apply_thorns(attacker, dmg)` is called from BOTH damage branches (D13:
+  buildings AND edge walls), at the site each branch already spends the
+  victim's HP, off the SAME `dmg` — a wall carries no `Health`, so its reflect
+  is measured from the blow, not from the wall's remaining HP. Reflected
+  damage lands on the ATTACKER's own `Health`; `int()` truncation, no floor.
+- **#11 `condition_dmg_bonus` (`combat.py`) is resolved at IMPACT, not at
+  fire time** — the opposite of #3 `mortar_slow` above, and for a stated
+  reason: #3 asks about the FIRING building (D16's snapshot), while #11 asks
+  about the TARGET enemy's own tile (D15: any non-Grass condition), which
+  changes as the enemy walks and differs per enemy inside one splash. So the
+  pair rides UNRESOLVED on `ProjectileHoming`/`ProjectileArc` transients
+  (the `_slow`/`_on_damage` shape) and `_condition_bonus_dmg` runs at each
+  damage site. **"Exactly once per hit" is provable by the call graph, not by
+  a guard**: this module finalises damage at exactly three DISJOINT sites —
+  `ProjectileHoming._impact`, `ProjectileArc._impact` (once per enemy in the
+  radius) and `_update_beam` — and `_fire`/`_fire_splash` apply no damage at
+  all, they only load a projectile. There is no shared downstream applier for
+  the multiplier to run through twice. Each site multiplies once, immediately
+  before its single `Health.damage`, and reuses the returned value for the
+  `RoundStats` credit and the `on_damage` telemetry so all three report the
+  number actually dealt. `on_non_grass_condition(enemy)` (`components.py`,
+  beside `_condition_mods`) is the ONE definition of "is this enemy on
+  non-Grass", reading `PathAgent._current_condition` — the same value
+  `_condition_speed`/`_effective_dmg` already treat as the enemy's current
+  tile. Lightning is a separate damage source with its own hook (#7) and is
+  deliberately NOT covered.
+
 ## Prey hunting + per-type terrain weights (Chunk 3 + Chunk 4)
 Two independent per-type balancing knobs, both threaded through `PathAgent`
 transients set once by `Enemy.__init__` (E-11: a dict/str resolved from

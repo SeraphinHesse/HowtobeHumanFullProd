@@ -31,6 +31,15 @@ never imports ``game.debug`` — the caller hands over an object with the three
 known methods (duck-typed, the ``occupancy``/``scene`` precedent) and this file
 just calls them at the right ordinal position. See ``game/debug/recorder.py``'s
 docstring for what each hook captures and why it must sit exactly there.
+
+``boss_upgrades_balance`` (BossUpgradeTimelinePLAN BU-3 3.6) is the BALANCE
+half of the standard BU-3 hook pair — ``state`` already IS the ``RunState``, so
+only one half travels (the documented ``place_building`` exception in
+``game/core/boss_upgrades.py``'s threading-pattern section). Optional and
+``None`` by default, threaded from ``Session`` exactly like ``occupancy`` /
+``scene`` / ``debug``, and read at ONE place: slot 7's ``_process_boosts``, for
+#10 ``boost_double_trigger``. It adds repeats INSIDE that slot; it moves
+nothing.
 """
 from game.buildings.components import (
     BoostEmitter, PainterProgress, RoundStats, TierState,
@@ -38,6 +47,7 @@ from game.buildings.components import (
 from game.buildings.movement import process_moves
 from game.map.tiles import TileState
 from .boss_bonuses import love_bonus_income
+from .boss_upgrades import hook_stacks
 from .phases import GamePhase
 from .xp import scaled_base_income
 
@@ -97,7 +107,30 @@ def _process_painters(state, tilemap, occupancy, scene):
         _free_tile(tilemap, tile, occupancy, scene)
 
 
-def _process_boosts(state, tilemap):
+def _boost_extra_triggers(state, boss_upgrades_balance):
+    """How many EXTRA ``apply_per_turn()`` passes boost upgrade #10
+    (``boost_double_trigger``) adds to payday slot 7 — ``0`` when it has never
+    been picked (BossUpgradeTimelinePLAN BU-3 3.6).
+
+    D18 makes this a permanent GLOBAL rule: it applies to boosters placed
+    before AND after the pick, which is why nothing about the booster itself is
+    consulted here. Unlike the %-based passives, the param IS the count, so
+    repeat picks do NOT multiply it — ``hook_stacks`` is read purely for the
+    "is it on / what did the designer author" answer (the standard BU-3
+    reader; ``state`` is the ``RunState``, so only the BALANCE half of the pair
+    had to be threaded — the documented ``place_building`` exception).
+
+    Clamped at 0 so a designer authoring a negative can never remove the
+    booster's own base trigger.
+    """
+    n, params = hook_stacks(state, boss_upgrades_balance,
+                            "boost_double_trigger")
+    if not n:
+        return 0
+    return max(0, int(params.get("extra_triggers", 1)))
+
+
+def _process_boosts(state, tilemap, boss_upgrades_balance=None):
     """Reserved payday slot 7 (prototype ``Game._process_boosts`` + the death half
     of ``_on_boost_destroyed``): sweep every boost building on a built tile.
 
@@ -107,7 +140,17 @@ def _process_boosts(state, tilemap):
     DIED this round (seen here BEFORE the revive step, exactly like painters) stamps
     its one-shot explosion debuff on those neighbours — guarded by ``BoostEmitter``
     so a single death explodes once; flat mode also reverses its 10× contribution
-    here. The revive step then rebuilds it and clears the guard."""
+    here. The revive step then rebuilds it and clears the guard.
+
+    ``boss_upgrades_balance`` (BU-3 3.6, #10 ``boost_double_trigger``): with the
+    upgrade picked, ``apply_per_turn()`` runs ``extra_triggers`` ADDITIONAL
+    times **inside this same slot-7 step** — the payday ordering is sacrosanct,
+    so a second trigger is a repeat of this step's own work, never a new step
+    somewhere else. Each repeat pushes its own ``boost_events`` entries, so the
+    UI shows every trigger rather than one floater for N times the stat.
+    ``None`` (every pre-BU-3 caller, every logic test) resolves to zero extra
+    passes, i.e. exactly one — byte-identical to before."""
+    extra = _boost_extra_triggers(state, boss_upgrades_balance)
     for tile in list(tilemap.built_tiles()):
         b = tile.occupant
         if b is None or "boost" not in getattr(b, "tags", ()):
@@ -115,8 +158,9 @@ def _process_boosts(state, tilemap):
         emitter = b.get_component(BoostEmitter)
         if getattr(b, "alive", False):
             if not b.flat_mode():
-                for col, row, text in b.apply_per_turn(tilemap):
-                    state.boost_events.append((col, row, text))
+                for _ in range(1 + extra):
+                    for col, row, text in b.apply_per_turn(tilemap):
+                        state.boost_events.append((col, row, text))
         elif not emitter.exploded:
             if b.flat_mode() and emitter.flat_applied:
                 b.remove_flat(tilemap)
@@ -141,7 +185,7 @@ def _process_wall_teardown(tilemap):
 
 
 def run_payday(state, tilemap, core_balance, occupancy=None, scene=None,
-               debug=None):
+               debug=None, boss_upgrades_balance=None):
     hole = core_balance["TheHole"]
     built = _built_tiles_with_occupant(tilemap)
     buildings = [b for _, b in built]
@@ -239,7 +283,9 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None,
 
     # 7. Boost sweep — BEFORE revive (10D): alive boosters accumulate their
     #    per-turn buff, dead boosters explode their debuff onto neighbours.
-    _process_boosts(state, tilemap)
+    #    BU-3 3.6 (#10): the boss upgrade adds EXTRA per-turn triggers INSIDE
+    #    this slot — the ordinal position of the step is untouched.
+    _process_boosts(state, tilemap, boss_upgrades_balance)
     # 8. Wall-teardown for dead wall-builders — BEFORE revive (10E): a builder
     #    that died this round loses its perimeter walls now; a revived one gets
     #    them back in slot 10.

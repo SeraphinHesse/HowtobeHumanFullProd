@@ -105,6 +105,9 @@ from game.enemies.components import (  # debug-mode-telemetry Phase 3 + 5
     set_damage_hook, set_wall_damage_hook,
 )
 from game.enemies.components import apply_slow  # BU-3 3.3: the slow primitive
+from game.enemies.components import (  # BU-3 3.4: the thorns hook pair seam
+    set_boss_upgrade_pair,
+)
 from game.map import (
     TileMap, condition_render_items, spawn_deco_render_items,
     spawn_tree_slots, tile_at_screen, wall_render_items,
@@ -1077,6 +1080,16 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         gp["floaters"].cs = cs
         # -- /ESV-5/6 --
         gp["prev_phase"] = gp["world"].session.state.phase
+        # BU-3 3.4 (#8 thorns): the standard BU-3 hook pair, spelled off the
+        # fresh run's Session exactly like every other hook site — but
+        # installed through a module-level seam, because its ONE hook site
+        # (`EnemyCombat.update`) is called by `Scene.update`'s generic
+        # component sweep, whose signature is `dt` alone. Same reason and same
+        # shape as `set_damage_hook`/`set_wall_damage_hook` beside it; see
+        # `game/enemies/components.py::set_boss_upgrade_pair`. Re-installed per
+        # run so it always points at the CURRENT RunState.
+        set_boss_upgrade_pair(gp["world"].session.state,
+                              gp["world"].session.boss_upgrades_balance)
         frame_camera()  # re-centre on the startpoint / map for the fresh run
         freeze_static()  # exclude the fresh tile grid from GC scans
         shell.enter_gameplay()
@@ -1091,6 +1104,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         if recorder is not None:
             recorder.close(outcome="quit_to_menu")
             recorder = None
+        # BU-3 3.4: drop the torn-down run's RunState out of the thorns seam,
+        # so a quit-to-menu can never leave a dead run's ledger wired into the
+        # next one (the `recorder = None` rule above, applied to the pair).
+        set_boss_upgrade_pair()
         if tune_gc:
             gc.unfreeze()  # let the old world's tile grid become collectable
         for k in ("world", "hud", "panel", "floaters", "game_over", "levelup",

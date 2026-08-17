@@ -93,6 +93,98 @@ def set_wall_damage_hook(fn):
     _wall_damage_hook = fn
 
 
+# BossUpgradeTimelinePLAN BU-3 3.4 (#8 ``thorns``): the standard BU-3 hook
+# PAIR (``run_state``, ``boss_upgrades_balance``) — same contract, same
+# both-or-nothing rule, same ``hook_stacks`` reader as every other hook site
+# (``game/core/boss_upgrades.py``'s "THE BU-3 HOOK THREADING PATTERN") — but
+# delivered through a module-level seam instead of an optional trailing
+# parameter, for EXACTLY the reason ``_damage_hook`` above needs one:
+# ``EnemyCombat.update(dt)`` is called by ``Scene.update``'s generic component
+# sweep, whose signature is fixed at ``dt`` alone. There is no call site to
+# thread a pair through — the host cannot reach this method any more than it
+# can reach ``on_damage`` here. So the pair is installed ONCE per run by
+# ``game/main.py``'s ``build_gameplay()`` (and cleared by
+# ``teardown_gameplay()``), the ``set_damage_hook`` / ``lightning.
+# set_slow_hook`` precedent.
+#
+# Unset by default, so a bare ``EnemyCombat.update()`` — every headless test,
+# every logic-only ``Session`` — is byte-identical to pre-BU-3: one tuple
+# unpack and two ``is None`` tests per attack tick, and the lazy
+# ``game.core.boss_upgrades`` import is never even reached.
+_boss_upgrade_pair = (None, None)
+
+
+def set_boss_upgrade_pair(run_state=None, boss_upgrades_balance=None):
+    """Install (or clear, with no arguments) the BU-3 hook pair the one
+    boss-upgrade hook site inside ``Scene.update`` reads — see the comment
+    above for why this is a seam and not a parameter.
+
+    Spelled off the ``Session`` at the call site exactly like every other BU-3
+    hook: ``set_boss_upgrade_pair(session.state,
+    session.boss_upgrades_balance)``.
+    """
+    global _boss_upgrade_pair
+    _boss_upgrade_pair = (run_state, boss_upgrades_balance)
+
+
+def _apply_thorns(attacker, dmg):
+    """#8 ``thorns`` — reflect part of a landed blow back onto its ATTACKER.
+
+    Called from BOTH damage branches of ``EnemyCombat.update`` (D13: a hit on
+    a building AND a hit on an edge wall reflect alike), at exactly the site
+    each branch already spends the victim's HP — so the reflected amount can
+    never disagree with the amount actually dealt.
+
+    Magnitude is ``dmg * reflect_pct/100 * stacks``: a repeat pick stacks
+    ADDITIVELY (D4), through the standard ``hook_stacks`` reader. Truncated
+    with a plain ``int()`` and skipped when that rounds to 0 — thorns are a
+    proportion of a real blow, never a flat chip.
+
+    ``game.core`` is imported LAZILY, inside the body, exactly as every other
+    BU-3 hook site does it: a module-level import from ``game.enemies`` would
+    close a real cycle through ``game.core.__init__`` -> ``payday``.
+
+    Returns the reflected damage (0 when inert), so a caller can stay silent
+    rather than guess.
+    """
+    run_state, balance = _boss_upgrade_pair
+    if run_state is None or balance is None or dmg <= 0 or attacker is None:
+        return 0
+    from game.core import boss_upgrades
+
+    n, params = boss_upgrades.hook_stacks(run_state, balance, "thorns")
+    if not n:
+        return 0
+    reflect = int(dmg * n * params.get("reflect_pct", 10) / 100.0)
+    if reflect <= 0:
+        return 0
+    health = attacker.get_component(Health)
+    if health is None:
+        return 0
+    health.damage(reflect)
+    return reflect
+
+
+def on_non_grass_condition(enemy):
+    """True iff ``enemy`` currently stands on a NON-Grass tile condition —
+    Mountain / Pond / Forest (BU-3 3.5, D15; Grass never counts).
+
+    The one place that question is answered, so ``game/enemies/combat.py``'s
+    ``condition_dmg_bonus`` (#11) hook and this module read the same
+    definition. It reuses ``PathAgent._current_condition`` — the tile the unit
+    last ARRIVED at, which is already the game's own model of "the condition
+    this enemy is standing in" (``_condition_speed`` and ``_effective_dmg``
+    both read it) rather than a second, subtly different tile lookup.
+
+    Fully guarded: a stub enemy with no ``PathAgent`` (the combat tests build
+    those) reads as Grass, i.e. no bonus, never a crash.
+    """
+    get = getattr(enemy, "get_component", None)
+    pa = get(PathAgent) if get is not None else None
+    cond = getattr(pa, "_current_condition", None)
+    return cond is not None and cond != TileCondition.GRASS
+
+
 # NE-3 (Drummer): how long ONE source's contribution survives after the
 # Drummer stops sustaining it — the D7 "4 seconds after leaving the radius"
 # decay. A cosmetic-tier module constant (the CARRY_OFFSET_TILES /
@@ -789,6 +881,11 @@ class EnemyCombat(Component):
                         _wall_damage_hook(getattr(owner, "ETYPE", None), wall,
                                          dmg, 0 if edge is None else edge.hp,
                                          bool(broke))
+                    # BU-3 3.4 (#8 thorns, D13): a WALL reflects exactly like a
+                    # building does. Reflected off `dmg` — the blow this swing
+                    # actually spent — never off a wall's remaining HP, which
+                    # this branch cannot see (walls carry no Health).
+                    _apply_thorns(owner, dmg)
                 self.cooldown = self.buffed_attack_speed   # NE-3
             return
         target = pa._target
@@ -817,6 +914,10 @@ class EnemyCombat(Component):
                 _damage_hook(getattr(owner, "ETYPE", None),
                             getattr(target, "building_type", None),
                             dmg, health.hp)
+            # BU-3 3.4 (#8 thorns, D13): the BUILDING branch of the same
+            # reflection — same site, same `dmg`, same helper as the wall
+            # branch above.
+            _apply_thorns(owner, dmg)
             self.cooldown = self.buffed_attack_speed   # NE-3
             # Kidnapping (Art/enemies): a killing blow on a kidnap-capable
             # type ARMS the transition here; this component never touches the

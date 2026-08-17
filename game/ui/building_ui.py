@@ -2070,6 +2070,16 @@ class BuildingUI:
                 for tile, chunk_cost in chunks:
                     if tm.do_unlock(tile):
                         st.spend_love(chunk_cost)
+                        # BossUpgradeTimelinePLAN BU-3 3.1: the accumulator
+                        # boss upgrade #12 (`tile_refund`) pays back. It is
+                        # incremented HERE, beside the spend and with the SAME
+                        # number, because this is the one place love actually
+                        # leaves the player's pocket for a tile — the price
+                        # `_unlock_chunks` quotes has already been through
+                        # `TileMap.unlock_cost`'s own #6 `tile_discount`, so
+                        # the refund pays back what was charged, never the
+                        # undiscounted list price.
+                        st.love_spent_on_tiles += chunk_cost
                         unlocked_any = True
                 self.close()
                 self.last_unlocked = unlocked_any  # TU-6: signal a real unlock
