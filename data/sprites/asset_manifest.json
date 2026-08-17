@@ -4357,15 +4357,15 @@
       "sheet": "imported/laser_beam_t3_lvl3.png"
     },
     "main_menu_bg": {
-      "frame_h": 270,
-      "frame_w": 480,
+      "frame_h": 360,
+      "frame_w": 640,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 12,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -7716,22 +7716,22 @@
       "sheet": "master/ss_fluteplayer.png"
     },
     "ui_bg_main_menu": {
-      "frame_h": 270,
-      "frame_w": 480,
+      "frame_h": 360,
+      "frame_w": 640,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 12,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/main_menu_bg.png"
+      "sheet": "imported/ui_bg_main_menu.png"
     },
     "ui_button": {
       "frame_h": 64,
@@ -8081,6 +8081,50 @@
         }
       ],
       "sheet": "imported/ui_button_panel_v3.png"
+    },
+    "ui_button_panel_v4": {
+      "frame_h": 100,
+      "frame_w": 245,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 13,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hover",
+          "fps": 6,
+          "frames": 13,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "pressed",
+          "fps": 6,
+          "frames": 13,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/ui_button_panel_v4.png"
     },
     "ui_button_pause": {
       "frame_h": 49,
