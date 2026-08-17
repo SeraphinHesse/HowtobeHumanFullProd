@@ -58,7 +58,7 @@ ACTIONS = [
     ("combat_speed_1", "Combat Speed 1x"),
     ("combat_speed_2", "Combat Speed 1.5x"),
     ("combat_speed_3", "Combat Speed 2x"),
-    ("confirm_purchase", "Confirm Purchase"),
+    ("confirm_purchase", "Confirm/Upgrade"),
     ("toggle_heatmap", "Toggle Heatmap"),
     ("toggle_range", "Toggle Range"),
     ("toggle_tier_overview", "Toggle Tiers"),
@@ -176,9 +176,23 @@ class KeybindsScreen:
         """The host calls this when the just-captured key is already bound to
         another action — flashes the armed row's REBIND button red and drops
         capture (the player tries again from a fresh click)."""
+        self._flash_armed_row("IN USE")
+
+    def flash_unbindable(self):
+        """The host calls this when the just-pressed key has no representable
+        binding (an arrow key, Tab, Shift, an F-key, ...) — previously a
+        silent no-op that left the row stuck showing "PRESS A KEY" forever
+        with no feedback at all (bug: the WASD rows looked broken to a player
+        who instinctively tried an arrow key, since arrow keys are reserved
+        as the always-on panning alias and were never a legal binding target
+        — see ``game/CLAUDE.md``'s WASD section). Same flash-and-drop-capture
+        shape as ``flash_conflict``, distinct message."""
+        self._flash_armed_row("CAN'T BIND THAT KEY")
+
+    def _flash_armed_row(self, message):
         for action, _label, btn in self.rows:
             if action == self.capturing:
-                btn.start_flash(_FLASH_DUR, "IN USE")
+                btn.start_flash(_FLASH_DUR, message)
                 break
         self.capturing = None
 

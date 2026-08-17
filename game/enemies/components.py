@@ -1371,8 +1371,11 @@ class Kidnap(Component):
     * ``active`` — carrying, walking home.
     * ``frozen`` — pin the sprite clock at frame 0 (the sheet has no
       ``kidnap`` row, so there is nothing to actually animate).
-    * ``slot_key``/``fit_tiles``/``scale`` — the carried building's own
-      ``SpriteAnimator`` fields, copied once at the transition.
+    * ``slot_key``/``fit_tiles``/``scale``/``column`` — the carried building's
+      own ``SpriteAnimator`` fields, copied once at the transition. ``column``
+      follows the same ``-1`` "no driver" sentinel as ``SpriteAnimator.column``
+      (MasterSheetColumnsPLAN B1) so a colour-capable building's carried
+      sprite keeps the colour the player picked.
     """
 
     enabled: bool = False
@@ -1382,6 +1385,7 @@ class Kidnap(Component):
     slot_key: str = ""
     fit_tiles: float = 0.0
     scale: float = 1.0
+    column: int = -1
 
     def on_added(self, owner):
         self._owner = owner
@@ -1425,6 +1429,7 @@ class Kidnap(Component):
             anim_time_ms=0,
             fit_tiles=self.fit_tiles,
             scale=self.scale,
+            column=self.column if self.column >= 0 else None,
         )
 
 
