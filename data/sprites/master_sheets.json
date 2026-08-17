@@ -34,6 +34,20 @@
       "frame_h": 96,
       "frame_w": 64
     },
+    "ss_wallbuilder": {
+      "column_width": 1,
+      "display_name": "SS_Wallbuilder",
+      "file": "master/ss_wallbuilder.png",
+      "frame_h": 96,
+      "frame_w": 64
+    },
+    "ss_walls": {
+      "column_width": 9,
+      "display_name": "SS_Walls",
+      "file": "master/ss_walls.png",
+      "frame_h": 96,
+      "frame_w": 64
+    },
     "ts_alltiles": {
       "column_width": 10,
       "display_name": "TS_Alltiles",

@@ -8564,6 +8564,8 @@
           -24
         ]
       },
+      "column_mode": "season",
+      "column_width": 1,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -8571,7 +8573,79 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
           "frames": 1,
           "hidden": [],
           "loop_count": 1,
@@ -8579,9 +8653,11 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/wall_builder.png"
+      "sheet": "master/ss_wallbuilder.png"
     },
     "wall_t1_lvl1": {
+      "column_mode": "building_color",
+      "column_width": 9,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -8589,35 +8665,17 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 3,
+          "fps": 6,
+          "frames": 9,
           "hidden": [
             1,
-            2
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "edge_nw",
-          "fps": 8,
-          "frames": 3,
-          "hidden": [
-            1,
-            2
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "edge_ne",
-          "fps": 8,
-          "frames": 3,
-          "hidden": [
-            1,
-            2
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -8625,11 +8683,17 @@
         },
         {
           "animation": "edge_se",
-          "fps": 8,
-          "frames": 3,
+          "fps": 6,
+          "frames": 9,
           "hidden": [
             1,
-            2
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -8638,19 +8702,63 @@
         {
           "animation": "edge_sw",
           "fps": 6,
-          "frames": 3,
+          "frames": 9,
           "hidden": [
             1,
-            2
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_nw",
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_ne",
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/wall_t1_lvl1.png"
+      "sheet": "master/ss_walls.png"
     },
     "wall_t1_lvl2": {
+      "column_mode": "building_color",
+      "column_width": 9,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -8658,53 +8766,100 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         },
         {
           "animation": "edge_se",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         },
         {
           "animation": "edge_sw",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         },
         {
           "animation": "edge_nw",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         },
         {
           "animation": "edge_ne",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/wall_t1_lvl2.png"
+      "sheet": "master/ss_walls.png"
     },
     "wall_t1_lvl3": {
+      "column_mode": "building_color",
+      "column_width": 9,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -8712,53 +8867,100 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         },
         {
           "animation": "edge_se",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         },
         {
           "animation": "edge_sw",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         },
         {
           "animation": "edge_nw",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         },
         {
           "animation": "edge_ne",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/wall_t1_lvl3.png"
+      "sheet": "master/ss_walls.png"
     },
     "wall_t2_lvl1": {
+      "column_mode": "building_color",
+      "column_width": 9,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -8766,35 +8968,17 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 3,
+          "fps": 6,
+          "frames": 9,
           "hidden": [
-            0,
-            2
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "edge_nw",
-          "fps": 8,
-          "frames": 3,
-          "hidden": [
-            0,
-            2
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "edge_ne",
-          "fps": 8,
-          "frames": 3,
-          "hidden": [
-            0,
-            2
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -8802,11 +8986,17 @@
         },
         {
           "animation": "edge_se",
-          "fps": 8,
-          "frames": 3,
+          "fps": 6,
+          "frames": 9,
           "hidden": [
             0,
-            2
+            1,
+            2,
+            4,
+            5,
+            6,
+            7,
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -8815,19 +9005,62 @@
         {
           "animation": "edge_sw",
           "fps": 6,
-          "frames": 3,
+          "frames": 9,
           "hidden": [
             0,
-            2
+            1,
+            2,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_nw",
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            2,
+            4,
+            5,
+            6,
+            7,
+            8
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_ne",
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            2,
+            4,
+            5,
+            6,
+            7,
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/wall_t1_lvl1.png"
+      "sheet": "master/ss_walls.png"
     },
     "wall_t2_lvl2": {
+      "column_width": 9,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -8835,53 +9068,99 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            5,
+            6,
+            7,
+            8
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         },
         {
           "animation": "edge_se",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            5,
+            6,
+            7,
+            8
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         },
         {
           "animation": "edge_sw",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            5,
+            6,
+            7,
+            8
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         },
         {
           "animation": "edge_nw",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            5,
+            6,
+            7,
+            8
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         },
         {
           "animation": "edge_ne",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            5,
+            6,
+            7,
+            8
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/wall_t2_lvl2.png"
+      "sheet": "master/ss_walls.png"
     },
     "wall_t2_lvl3": {
+      "column_width": 9,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -8889,53 +9168,99 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            6,
+            7,
+            8
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         },
         {
           "animation": "edge_se",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            6,
+            7,
+            8
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         },
         {
           "animation": "edge_sw",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            6,
+            7,
+            8
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         },
         {
           "animation": "edge_nw",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            6,
+            7,
+            8
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         },
         {
           "animation": "edge_ne",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            6,
+            7,
+            8
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/wall_t2_lvl3.png"
+      "sheet": "master/ss_walls.png"
     },
     "wall_t3_lvl1": {
+      "column_width": 9,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -8943,35 +9268,17 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 3,
+          "fps": 6,
+          "frames": 9,
           "hidden": [
+            0,
             1,
-            2
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "edge_nw",
-          "fps": 8,
-          "frames": 3,
-          "hidden": [
-            1,
-            2
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "edge_ne",
-          "fps": 8,
-          "frames": 3,
-          "hidden": [
-            1,
-            2
+            2,
+            3,
+            4,
+            5,
+            7,
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -8979,11 +9286,17 @@
         },
         {
           "animation": "edge_se",
-          "fps": 8,
-          "frames": 3,
+          "fps": 6,
+          "frames": 9,
           "hidden": [
+            0,
             1,
-            2
+            2,
+            3,
+            4,
+            5,
+            7,
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -8992,19 +9305,62 @@
         {
           "animation": "edge_sw",
           "fps": 6,
-          "frames": 3,
+          "frames": 9,
           "hidden": [
+            0,
             1,
-            2
+            2,
+            3,
+            4,
+            5,
+            7,
+            8
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_nw",
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            7,
+            8
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_ne",
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            7,
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/wall_t1_lvl1.png"
+      "sheet": "master/ss_walls.png"
     },
     "wall_t3_lvl2": {
+      "column_width": 9,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -9012,35 +9368,17 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 3,
+          "fps": 6,
+          "frames": 9,
           "hidden": [
             0,
-            2
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "edge_nw",
-          "fps": 8,
-          "frames": 3,
-          "hidden": [
-            0,
-            2
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "edge_ne",
-          "fps": 8,
-          "frames": 3,
-          "hidden": [
-            0,
-            2
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -9048,11 +9386,17 @@
         },
         {
           "animation": "edge_se",
-          "fps": 8,
-          "frames": 3,
+          "fps": 6,
+          "frames": 9,
           "hidden": [
             0,
-            2
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -9061,19 +9405,62 @@
         {
           "animation": "edge_sw",
           "fps": 6,
-          "frames": 3,
+          "frames": 9,
           "hidden": [
             0,
-            2
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            8
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_nw",
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            8
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_ne",
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/wall_t1_lvl1.png"
+      "sheet": "master/ss_walls.png"
     },
     "wall_t3_lvl3": {
+      "column_width": 9,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -9081,35 +9468,17 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 3,
+          "fps": 6,
+          "frames": 9,
           "hidden": [
             0,
-            1
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "edge_nw",
-          "fps": 8,
-          "frames": 3,
-          "hidden": [
-            0,
-            1
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "edge_ne",
-          "fps": 8,
-          "frames": 3,
-          "hidden": [
-            0,
-            1
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -9117,11 +9486,17 @@
         },
         {
           "animation": "edge_se",
-          "fps": 8,
-          "frames": 3,
+          "fps": 6,
+          "frames": 9,
           "hidden": [
             0,
-            1
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -9130,17 +9505,59 @@
         {
           "animation": "edge_sw",
           "fps": 6,
-          "frames": 3,
+          "frames": 9,
           "hidden": [
             0,
-            1
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_nw",
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_ne",
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/wall_t1_lvl1.png"
+      "sheet": "master/ss_walls.png"
     }
   },
   "version": 2
