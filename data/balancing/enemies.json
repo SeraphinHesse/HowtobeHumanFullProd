@@ -190,11 +190,11 @@
         {
           "attack_range_tiles": 2,
           "attack_speed": 1.4,
-          "dmg": 320,
+          "dmg": 360,
           "footprint": 2,
-          "hp": 3000,
+          "hp": 4500,
           "loss_love_reward": 60,
-          "move_speed": 0.58,
+          "move_speed": 0.62,
           "name": "Cannon Fortress",
           "shake": {
             "interval": 0.12,
@@ -437,7 +437,7 @@
           }
         },
         {
-          "count_per_round": 0.75,
+          "count_per_round": 0.5,
           "count_start": 1.0,
           "footprint": 1,
           "per_round": {
@@ -639,7 +639,7 @@
           {
             "commander": 0,
             "raiders": 0,
-            "regular": 4,
+            "regular": 3,
             "siege": 0
           },
           {
