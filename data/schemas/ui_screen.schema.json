@@ -446,6 +446,15 @@
                   },
                   "visible": {
                     "type": "boolean"
+                  },
+                  "clickable": {
+                    "description": "Is this layer a click target (UL-9)? Absent means false -- an ordinary decorative layer is never hit, and is TRANSPARENT to a click rather than blocking it. Static per layer, never per state: D9's four states govern appearance only.",
+                    "type": "boolean"
+                  },
+                  "target": {
+                    "description": "What a click on this layer MEANS (UL-9, D7 as amended): a widget id in the same screen, or one of the reserved tokens close_window / back / noop. Deliberately NOT a closed enum -- an id-shaped string matching neither still validates and saves; the editor WARNS about an unroutable target instead of failing validation.",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "type": "string"
                   }
                 },
                 "type": "object"

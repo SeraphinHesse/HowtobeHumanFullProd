@@ -5,9 +5,10 @@ key present) is covered by ``tools/smoke.py::validate_data``, already part of
 the exit gate, so it is not duplicated here. Purity (no pygame leak) is
 covered by ``tools/tests/test_render.py::TestPurity`` (this module was added
 to its subprocess-import line), not duplicated here either."""
+import copy
 import unittest
 
-from engine.ui_layers import ordered, resolve, validate_offsets
+from engine.ui_layers import hit, ordered, resolve, validate_offsets
 
 
 class TestResolve(unittest.TestCase):
@@ -170,6 +171,70 @@ class TestValidateOffsets(unittest.TestCase):
     def test_non_dict_entry_skipped_unchanged(self):
         out = validate_offsets(["not a dict", 5, None])
         self.assertEqual(out, ["not a dict", 5, None])
+
+
+class TestHit(unittest.TestCase):
+    OWNER = (100, 100, 50, 50)
+
+    def test_topmost_wins_within_a_band(self):
+        layers = [
+            {"id": "low", "z": 1, "clickable": True, "target": "a",
+             "offset": [0, 0, 40, 40]},
+            {"id": "high", "z": 9, "clickable": True, "target": "b",
+             "offset": [0, 0, 40, 40]},
+        ]
+        out = hit(layers, self.OWNER, 110, 110)
+        self.assertEqual(out, {"kind": "layer", "id": "high", "target": "b"})
+
+    def test_over_layer_beats_the_owner(self):
+        layers = [{"id": "top", "band": "over", "clickable": True,
+                   "target": "close_window", "offset": [0, 0, 0, 0]}]
+        out = hit(layers, self.OWNER, 110, 110)
+        self.assertEqual(
+            out, {"kind": "layer", "id": "top", "target": "close_window"})
+
+    def test_non_clickable_layer_is_transparent(self):
+        layers = [
+            {"id": "decor", "offset": [0, 0, 0, 0]},           # no clickable
+            {"id": "decor2", "clickable": False, "offset": [0, 0, 0, 0]},
+        ]
+        self.assertEqual(hit(layers, self.OWNER, 110, 110), {"kind": "owner"})
+
+    def test_invisible_clickable_layer_is_skipped(self):
+        layers = [{"id": "ghost", "clickable": True, "target": "a",
+                   "visible": False, "offset": [0, 0, 0, 0]}]
+        self.assertEqual(hit(layers, self.OWNER, 110, 110), {"kind": "owner"})
+
+    def test_out_of_bounds_returns_none(self):
+        layers = [{"id": "a", "clickable": True, "offset": [0, 0, 10, 10]}]
+        self.assertIsNone(hit(layers, self.OWNER, 900, 900))
+
+    def test_under_layer_hit_outside_the_owner_rect(self):
+        layers = [{"id": "wing", "band": "under", "clickable": True,
+                   "target": "back", "offset": [-30, 0, 20, 20]}]
+        out = hit(layers, self.OWNER, 75, 105)
+        self.assertEqual(out, {"kind": "layer", "id": "wing", "target": "back"})
+
+    def test_missing_id_and_target_return_none_fields(self):
+        layers = [{"clickable": True, "offset": [0, 0, 0, 0]}]
+        out = hit(layers, self.OWNER, 110, 110)
+        self.assertEqual(out, {"kind": "layer", "id": None, "target": None})
+
+    def test_pure_twice_same_result_and_no_mutation(self):
+        layers = [
+            {"id": "a", "z": 1, "clickable": True, "target": "x",
+             "offset": [0, 0, 20, 20],
+             "states": {"pressed": {"offset": [5, 5]}}},
+            {"id": "b", "band": "under", "offset": [0, 0, 0, 0]},
+        ]
+        before = copy.deepcopy(layers)
+        first = hit(layers, self.OWNER, 110, 110, state="pressed")
+        second = hit(layers, self.OWNER, 110, 110, state="pressed")
+        self.assertEqual(first, second)
+        self.assertEqual(layers, before)
+        miss = hit(layers, self.OWNER, 900, 900)
+        self.assertEqual(miss, hit(layers, self.OWNER, 900, 900))
+        self.assertEqual(layers, before)
 
 
 if __name__ == "__main__":
