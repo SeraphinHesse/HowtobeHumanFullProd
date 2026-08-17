@@ -4973,6 +4973,8 @@
           -16
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -4981,21 +4983,106 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 7,
+          "frames": 20,
           "hidden": [
             1,
             2,
             3,
             4,
             5,
-            6
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
           ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/meditator_t1_lvl1.png"
+      "sheet": "master/ss_meditator.png"
     },
     "meditator_t1_lvl2": {
       "anchors": {
@@ -5008,6 +5095,8 @@
           -16
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -5016,21 +5105,106 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 7,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 20,
           "hidden": [
-            0,
+            1,
             2,
             3,
             4,
             5,
-            6
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
           ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/meditator_t1_lvl1.png"
+      "sheet": "master/ss_meditator.png"
     },
     "meditator_t1_lvl3": {
       "anchors": {
@@ -5043,6 +5217,8 @@
           -17
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -5051,21 +5227,106 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 7,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 20,
           "hidden": [
-            0,
             1,
+            2,
             3,
             4,
             5,
-            6
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
           ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/meditator_t1_lvl1.png"
+      "sheet": "master/ss_meditator.png"
     },
     "moving_sign": {
       "frame_h": 96,
@@ -5824,29 +6085,100 @@
           -22
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 3,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 7,
+          "frames": 20,
           "hidden": [
-            0,
-            1,
-            2,
-            4,
-            5,
-            6
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
           ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/meditator_t1_lvl1.png"
+      "sheet": "master/ss_meditator.png"
     },
     "shaman_t2_lvl2": {
       "anchors": {
@@ -5859,29 +6191,85 @@
           -24
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 3,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 7,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 20,
           "hidden": [
-            0,
-            1,
-            2,
-            3,
-            5,
-            6
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
           ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/meditator_t1_lvl1.png"
+      "sheet": "master/ss_meditator.png"
     },
     "shaman_t2_lvl3": {
       "anchors": {
@@ -5894,29 +6282,67 @@
           -22
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 5,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 7,
+          "frames": 20,
           "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            6
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
           ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/meditator_t1_lvl1.png"
+      "sheet": "master/ss_meditator.png"
     },
     "siege_cannon": {
       "anchors": {
@@ -6940,29 +7366,82 @@
           -25
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 5,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 7,
+          "frames": 20,
           "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
           ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/meditator_t1_lvl1.png"
+      "sheet": "master/ss_meditator.png"
     },
     "sun_priest_t3_lvl2": {
       "anchors": {
@@ -6975,29 +7454,40 @@
           -24
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 7,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 7,
+          "frames": 20,
           "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5
+            15,
+            16,
+            17,
+            18,
+            19
           ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/meditator_t1_lvl1.png"
+      "sheet": "master/ss_meditator.png"
     },
     "sun_priest_t3_lvl3": {
       "anchors": {
@@ -7010,29 +7500,25 @@
           -26
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 8,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 7,
-          "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5
-          ],
+          "frames": 20,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/meditator_t1_lvl1.png"
+      "sheet": "master/ss_meditator.png"
     },
     "sun_scorcher_t1_lvl1": {
       "anchors": {

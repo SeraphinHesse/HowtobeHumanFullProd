@@ -20,6 +20,13 @@
       "frame_h": 96,
       "frame_w": 64
     },
+    "ss_meditator": {
+      "column_width": 20,
+      "display_name": "SS_Meditator",
+      "file": "master/ss_meditator.png",
+      "frame_h": 96,
+      "frame_w": 64
+    },
     "ss_mortar": {
       "column_width": 25,
       "display_name": "SS_Mortar",
