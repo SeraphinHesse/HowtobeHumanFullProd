@@ -1203,10 +1203,18 @@ per layer key, on B4's per-field immediate-undoable-push convention
   `label` per-state keys are inert" is about the WIDGET-level `states` patch
   (`widgets.py Button.submit` wires only `text_color`/`offset`). A LAYER's state
   patch goes through `engine.ui_layers.resolve`, which merges every appearance
-  key, so nothing is hidden here. What IS honest-controlled is precedence: a
-  layer carrying a `slot` draws the sprite and ignores `color` outright
-  (`skinning._submit_one_layer`, first match wins), so the Color row is disabled
-  with `TOOLTIP_LAYER_COLOR_INERT`.
+  key, so nothing is hidden here.
+- **What IS honest-controlled is PRECEDENCE, and it is the whole chain.**
+  `skinning._submit_one_layer` draws ONE primitive and returns: `slot` →
+  `HudSprite` (reads `tint`, nothing else), else `text_id`/`label` → `HudText`
+  (reads `font`/`align`/`text_color`), else `color` → `HudRect`. So, computed
+  from the SELECTED state's effective values in `_refresh_layer_inspector`:
+  Tint is live only with a slot; Text dies behind a slot (and stays editable
+  otherwise — typing in it is how the text branch is created); Text Color is
+  live only with no slot AND some text; Color is live only with no slot AND no
+  text. Each dead row carries its own reason (`TOOLTIP_LAYER_*`). Disabling
+  only the Color-behind-a-slot case was a HIGH review finding on this phase —
+  the other three rows silently accepted values the game never reads.
 - **`TOOLTIP_LAYER_BAND` (D4) is on BOTH band controls** — the add-picker and
   the per-layer row: `under` is behind the whole SCREEN, not behind the owner
   widget, and that has to be met in the editor rather than in a bug report.

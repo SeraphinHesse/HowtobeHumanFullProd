@@ -113,13 +113,30 @@ TOOLTIP_STATE_BUTTON_ONLY = (
     "Hover, Pressed, and Disabled states are only available for Button "
     "widgets; this holder always appears in the Idle state.")
 
-# UL-8: a layer draws exactly ONE primitive, first match wins
-# (game/ui/skinning.py `_submit_one_layer`: slot -> text -> colour). So Color
-# is inert for as long as the layer carries a slot — the same
-# disabled-never-lying rule the widget form's Color row already follows (D3).
+# UL-8: a layer draws exactly ONE primitive, FIRST MATCH WINS
+# (game/ui/skinning.py `_submit_one_layer`, each branch returning once it
+# draws):
+#     slot -> HudSprite   (reads `tint`; nothing else)
+#     text -> HudText     (reads `text_id`/`label`, `font`, `align`,
+#                          `text_color`; never `tint` or `color`)
+#     color -> HudRect    (reads `color` alone)
+# Every row belonging to a branch this layer cannot reach is disabled and says
+# why — the same disabled-never-lying rule the widget form's Color row already
+# follows (D3).
 TOOLTIP_LAYER_COLOR_INERT = (
     "This layer draws its slot art, so Color is ignored. Clear the Slot to "
     "draw a flat colour instead.")
+TOOLTIP_LAYER_SLOT_WINS = (
+    "This layer draws its slot art, so its text is never drawn. Clear the "
+    "Slot to draw text instead.")
+TOOLTIP_LAYER_TEXT_WINS = (
+    "This layer draws text, so Color is ignored — a flat colour is only "
+    "drawn by a layer with no slot and no text.")
+TOOLTIP_LAYER_TEXT_COLOR_NEEDS_TEXT = (
+    "Nothing to colour: give this layer some Text first.")
+TOOLTIP_LAYER_TINT_NEEDS_SLOT = (
+    "Tint multiplies a sprite sheet, so it only applies to a layer with a "
+    "Slot.")
 
 # The four D9 states, in the order the state selector offers them. Populated
 # from the registry's `ui` animations when that is available (the same
@@ -1341,6 +1358,12 @@ class ScreenDetailsPanel(QWidget):
                 "z": self.layer_z_reset_button,
                 "band": self.layer_band_reset_button}
 
+    def _set_honest(self, control, live, dead_tooltip, live_tooltip=""):
+        """Enable `control` iff the draw path actually reads its key, and give
+        it the reason as a tooltip when it does not (D3)."""
+        control.setEnabled(live)
+        control.setToolTip(live_tooltip if live else dead_tooltip)
+
     def _refresh_layer_inspector(self):
         """Repopulate every inspector row from the selected layer, in the
         selected state. Called from `_refresh_layer_buttons`, i.e. after every
@@ -1408,12 +1431,31 @@ class ScreenDetailsPanel(QWidget):
                 entry.get("band", "over"))))
         self._populating = was_populating
 
-        # D3/honest controls: a layer with a slot draws the sprite and ignores
-        # `color` outright (first-match precedence in `_submit_one_layer`).
+        # D3/honest controls, the FULL precedence chain (see the tooltip block
+        # at the top of this module): `_submit_one_layer` draws ONE primitive,
+        # first match wins — slot, else text, else colour. Whichever branch
+        # this layer's effective values land in, the rows of the OTHER two are
+        # dead, so they are disabled with the reason rather than silently
+        # accepting a value the game will never read.
         has_slot = bool(self._layer_effective_value(entry, state, "slot"))
-        self.layer_color_button.setEnabled(not has_slot)
-        self.layer_color_button.setToolTip(
-            TOOLTIP_LAYER_COLOR_INERT if has_slot else "")
+        has_text = bool(self._layer_effective_value(entry, state, "text_id")
+                        or self._layer_effective_value(entry, state, "label"))
+        # Tint rides the HudSprite call and nothing else.
+        self._set_honest(self.layer_tint_button, has_slot,
+                         TOOLTIP_LAYER_TINT_NEEDS_SLOT, TOOLTIP_TINT_SKINNED)
+        # Text is unreachable behind a slot. With no slot and no text it stays
+        # EDITABLE — typing in it is how the text branch gets created.
+        self._set_honest(self.layer_label_edit, not has_slot,
+                         TOOLTIP_LAYER_SLOT_WINS)
+        # Text colour lives inside the text branch only.
+        self._set_honest(
+            self.layer_text_color_button, not has_slot and has_text,
+            TOOLTIP_LAYER_SLOT_WINS if has_slot
+            else TOOLTIP_LAYER_TEXT_COLOR_NEEDS_TEXT)
+        # Colour is the LAST branch: it loses to a slot and to text alike.
+        self._set_honest(
+            self.layer_color_button, not has_slot and not has_text,
+            TOOLTIP_LAYER_COLOR_INERT if has_slot else TOOLTIP_LAYER_TEXT_WINS)
 
         buttons = self._layer_reset_buttons()
         for key in ("offset", "slot", "label", "color", "tint", "text_color",

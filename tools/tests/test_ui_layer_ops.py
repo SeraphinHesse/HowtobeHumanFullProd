@@ -475,3 +475,53 @@ class TestLayerStateInspector(_LayerCase):
         self.assertFalse(self.panel.layer_color_button.isEnabled())
         self.assertIn("Color is ignored",
                       self.panel.layer_color_button.toolTip())
+
+    # -- the FULL slot -> text -> colour precedence chain (review round 1) ---
+    # `_submit_one_layer` draws ONE primitive and returns; every row of a
+    # branch this layer cannot reach must be dead, not merely the Color row.
+
+    def test_a_slotted_layer_kills_both_text_rows_and_keeps_tint(self):
+        self.add_layer_on(slot="ui_panel", z=0)
+        self.assertFalse(self.panel.layer_label_edit.isEnabled())
+        self.assertIn("never drawn", self.panel.layer_label_edit.toolTip())
+        self.assertFalse(self.panel.layer_text_color_button.isEnabled())
+        # Tint IS the sprite branch's one appearance key.
+        self.assertTrue(self.panel.layer_tint_button.isEnabled())
+
+    def test_text_beats_color_when_there_is_no_slot(self):
+        self.add_layer_on(label="hello", z=0)
+        self.assertFalse(self.panel.layer_color_button.isEnabled())
+        self.assertIn("draws text", self.panel.layer_color_button.toolTip())
+        self.assertTrue(self.panel.layer_text_color_button.isEnabled())
+        self.assertTrue(self.panel.layer_label_edit.isEnabled())
+
+    def test_a_bare_layer_kills_tint_and_text_color_but_not_text(self):
+        self.add_layer_on(z=0)
+        self.assertFalse(self.panel.layer_tint_button.isEnabled())
+        self.assertIn("only applies to a layer with a Slot",
+                      self.panel.layer_tint_button.toolTip())
+        self.assertFalse(self.panel.layer_text_color_button.isEnabled())
+        self.assertIn("give this layer some Text",
+                      self.panel.layer_text_color_button.toolTip())
+        # Typing in the Text row is how the text branch gets created, so it
+        # stays editable; Color is the branch this bare layer actually lands
+        # in, so it stays live too.
+        self.assertTrue(self.panel.layer_label_edit.isEnabled())
+        self.assertTrue(self.panel.layer_color_button.isEnabled())
+
+    def test_a_text_id_counts_as_text_for_precedence(self):
+        self.add_layer_on(text_id="hud_love", z=0)
+        self.assertFalse(self.panel.layer_color_button.isEnabled())
+        self.assertTrue(self.panel.layer_text_color_button.isEnabled())
+
+    def test_precedence_follows_the_SELECTED_state(self):
+        # The branch that wins is the one the CURRENT state resolves to, not
+        # the base entry's: a hover patch that adds a slot flips the whole
+        # chain for hover alone.
+        self.add_layer_on(label="hello", z=0)
+        self.assertTrue(self.panel.layer_label_edit.isEnabled())
+        self.select_state("hover")
+        self.panel._push_layer_field("slot", "ui_panel")
+        self.assertFalse(self.panel.layer_label_edit.isEnabled())
+        self.select_state("idle")
+        self.assertTrue(self.panel.layer_label_edit.isEnabled())
