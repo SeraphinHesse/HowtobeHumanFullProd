@@ -34,6 +34,13 @@
       "frame_h": 96,
       "frame_w": 64
     },
+    "ss_painter": {
+      "column_width": 37,
+      "display_name": "SS_Painter",
+      "file": "master/ss_painter.png",
+      "frame_h": 96,
+      "frame_w": 64
+    },
     "ss_stonethrower": {
       "column_width": 20,
       "display_name": "SS_Stonethrower",

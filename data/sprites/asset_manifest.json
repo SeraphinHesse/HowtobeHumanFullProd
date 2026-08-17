@@ -5357,6 +5357,8 @@
           -20
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 37,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -5364,15 +5366,63 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 37,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 37,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/painter_t1_lvl1.png"
+      "sheet": "master/ss_painter.png"
     },
     "painter_t1_lvl2": {
       "anchors": {
@@ -5385,22 +5435,117 @@
           -22
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 37,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 1,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 37,
+          "hidden": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 37,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/painter_t1_lvl2.png"
+      "sheet": "master/ss_painter.png"
     },
     "painter_t1_lvl3": {
       "anchors": {
@@ -5413,22 +5558,109 @@
           -24
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 37,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 2,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 37,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 37,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/painter_t1_lvl3.png"
+      "sheet": "master/ss_painter.png"
     },
     "painter_t2_lvl1": {
       "anchors": {
@@ -5441,22 +5673,70 @@
           -27
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 37,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 3,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 37,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/painter_t2_lvl1.png"
+      "sheet": "master/ss_painter.png"
     },
     "painter_t2_lvl2": {
       "anchors": {
@@ -5469,22 +5749,61 @@
           -30
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 37,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 4,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 37,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/painter_t2_lvl2.png"
+      "sheet": "master/ss_painter.png"
     },
     "painter_t2_lvl3": {
       "anchors": {
@@ -5497,22 +5816,52 @@
           -32
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 37,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 5,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 37,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/painter_t2_lvl3.png"
+      "sheet": "master/ss_painter.png"
     },
     "painter_t3_lvl1": {
       "anchors": {
@@ -5525,22 +5874,57 @@
           -33
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 37,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 6,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 37,
+          "hidden": [
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 37,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 37,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/painter_t3_lvl1.png"
+      "sheet": "master/ss_painter.png"
     },
     "painter_t3_lvl2": {
       "anchors": {
@@ -5553,22 +5937,48 @@
           -35
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 37,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 7,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 37,
+          "hidden": [
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 37,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/painter_t3_lvl2.png"
+      "sheet": "master/ss_painter.png"
     },
     "painter_t3_lvl3": {
       "anchors": {
@@ -5581,22 +5991,39 @@
           -38
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 37,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 8,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 37,
+          "hidden": [
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/painter_t3_lvl3.png"
+      "sheet": "master/ss_painter.png"
     },
     "pistoleer_t3_lvl1": {
       "anchors": {
