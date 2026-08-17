@@ -575,7 +575,7 @@ class _World:
     ``_World`` is a fresh game (the base is re-attached to its pre-seeded tile)."""
 
     def __init__(self, map_doc, map_bal, enemies_bal, core_bal, buildings_bal,
-                 registry, progression_bal=None):
+                 registry, progression_bal=None, boss_upgrades_bal=None):
         # -- 10I: the live run rolls tile conditions (rng=None would keep the
         # all-GRASS fixture mode the headless tests rely on). `registry` also
         # rolls each tile's condition ART slot (the `terrain` draw layer). --
@@ -593,7 +593,8 @@ class _World:
         self.session = Session.create(self.spawner, self.tile_map, enemies_bal,
                                       core_bal, buildings_bal, registry=registry,
                                       occupancy=self.occupancy,
-                                      progression_balance=progression_bal)
+                                      progression_balance=progression_bal,
+                                      boss_upgrades_balance=boss_upgrades_bal)
         # -- 10I: defence coverage feeds enemy path weights (pre-query refresh
         # in the pathfinder reads the injected callable) --
         wire_defence_coverage(self.tile_map, buildings_bal)
@@ -835,6 +836,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     widgets.configure_highlights(vfx_balance)
     # TimelinePLAN T4: the sole source of unlock timing (game/core/levelup.py).
     progression_balance = load_balance(data_dir, "progression")
+    # BossUpgradeTimelinePLAN BU-1: the boss upgrade catalog + milestone
+    # timeline (game/core/boss_upgrades.py), threaded onto the Session beside
+    # progression_balance.
+    boss_upgrades_balance = load_balance(data_dir, "boss_upgrades")
     # debug: draw the camera-startpoint marker in-game (default off)
     show_camera_start = ui_balance["Debug"]["show_camera_startpoint"]
 
@@ -929,7 +934,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         nonlocal score_recorded
         score_recorded = False
         gp["world"] = _World(map_doc, map_bal, enemies_balance, core_balance,
-                             buildings_balance, registry, progression_balance)
+                             buildings_balance, registry, progression_balance,
+                             boss_upgrades_balance)
         # Ground follows runtime zone changes: unlock/recede invalidates the
         # cached ground surface (repainted next ensure). Fresh game -> fresh
         # TileMap with empty overrides; invalidate drops the previous run's

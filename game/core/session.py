@@ -47,7 +47,7 @@ PAUSE_SPEED_IDX = 3
 class Session:
     def __init__(self, state, spawner, tilemap, enemies_balance, core_balance,
                  buildings_balance, registry=None, rng=None, occupancy=None,
-                 progression_balance=None):
+                 progression_balance=None, boss_upgrades_balance=None):
         self.state = state
         self.spawner = spawner
         self.tilemap = tilemap
@@ -65,6 +65,12 @@ class Session:
         state.scripted_leveling = bool(
             progression_balance is not None
             and progression_balance["Timeline"]["scripted_leveling"])
+        # BossUpgradeTimelinePLAN BU-1: data/balancing/boss_upgrades.json —
+        # the 12-upgrade catalog + the 4-milestone timeline (which 3 cards a
+        # bossfight offers, and the retaliation love a LOST one pays, D7/D8).
+        # Optional, host-set, None-safe — the progression_balance shape
+        # exactly: a bare Session a logic test builds is untouched.
+        self.boss_upgrades_balance = boss_upgrades_balance
         self.registry = registry
         self.rng = rng if rng is not None else random
         # Occupancy handle so the payday Painter slot can free a completed
@@ -115,12 +121,12 @@ class Session:
     @classmethod
     def create(cls, spawner, tilemap, enemies_balance, core_balance,
                buildings_balance, registry=None, rng=None, occupancy=None,
-               progression_balance=None):
+               progression_balance=None, boss_upgrades_balance=None):
         """Fresh session with a run-state seeded from the ``core`` balance."""
         return cls(RunState.from_balance(core_balance, buildings_balance),
                    spawner, tilemap, enemies_balance, core_balance,
                    buildings_balance, registry, rng, occupancy,
-                   progression_balance)
+                   progression_balance, boss_upgrades_balance)
 
     @property
     def frozen(self):

@@ -132,6 +132,11 @@ class SimWorld:
         # simulated run's level-up roll would offer nothing but the love
         # fallback, defeating the point of a balance-sweep host.
         self.progression_bal = load_balance(data_dir, "progression")
+        # BossUpgradeTimelinePLAN BU-1: the boss upgrade catalog + milestone
+        # timeline, loaded beside progression for the same reason — a
+        # simulated run must resolve the same boss-cutscene options and
+        # retaliation love a played one does.
+        self.boss_upgrades_bal = load_balance(data_dir, "boss_upgrades")
         self.map_doc = tilemap.load_active_map(data_dir)
         # `registry=None`: slot art is display-only. `rng` is what rolls the
         # tile conditions, which DO change balance (speed/damage/yield mods).
@@ -148,7 +153,8 @@ class SimWorld:
         self.session = Session.create(
             self.spawner, self.tile_map, self.enemies_bal, self.core_bal,
             self.buildings_bal, registry=None, rng=rng,
-            occupancy=self.occupancy, progression_balance=self.progression_bal)
+            occupancy=self.occupancy, progression_balance=self.progression_bal,
+            boss_upgrades_balance=self.boss_upgrades_bal)
         wire_defence_coverage(self.tile_map, self.buildings_bal)
 
 
