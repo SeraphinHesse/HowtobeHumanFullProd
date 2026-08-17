@@ -311,6 +311,15 @@ _HIGHLIGHTS = {
 # event -> (sprite_slot, draw_in_front), from the same doc's `triggers`.
 _HIGHLIGHT_TRIGGERS = {name: ("", True) for name in _HIGHLIGHTS}
 
+# The tile-buying tutorial topic's pulse/glow overlay on TOP of
+# _HIGHLIGHTS["tutorial_highlight"]'s base colour/width (VfxAuthoringPLAN
+# VA-5's configure/fallback shape, applied to a second, independent block —
+# see tutorial_pulse_style below). The literals are the UNCONFIGURED
+# FALLBACK, equal to the committed `procedural.tutorial_highlight_pulse`;
+# `test_highlight_data.py` pins them against it.
+_TUTORIAL_PULSE = {"alpha_min": 140, "alpha_max": 255,
+                   "width_min": 2, "width_max": 4, "pulse_period_s": 0.8}
+
 
 def configure_highlights(vfx_doc):
     """Rebind the highlight params + their trigger bindings from a loaded,
@@ -338,6 +347,12 @@ def configure_highlights(vfx_doc):
         if row is not None:
             _HIGHLIGHT_TRIGGERS[name] = (row["sprite_slot"],
                                          row["draw_in_front"])
+    pulse = vfx_doc["procedural"]["tutorial_highlight_pulse"]
+    _TUTORIAL_PULSE["alpha_min"] = pulse["alpha_min"]
+    _TUTORIAL_PULSE["alpha_max"] = pulse["alpha_max"]
+    _TUTORIAL_PULSE["width_min"] = pulse["width_min"]
+    _TUTORIAL_PULSE["width_max"] = pulse["width_max"]
+    _TUTORIAL_PULSE["pulse_period_s"] = pulse["pulse_period_s"]
 
 
 def highlight_color(event):
@@ -358,7 +373,8 @@ def highlight_params(event):
     return _HIGHLIGHTS[event]
 
 
-def submit_highlight(renderer, event, col, row, assets=None, anim_time_ms=0):
+def submit_highlight(renderer, event, col, row, assets=None, anim_time_ms=0,
+                     pulse_color=None, pulse_width=None):
     """Draw one continuous tile highlight for ``event`` at ``(col, row)``.
 
     The sibling of ``FloaterManager._play`` for effects that are NOT one-shots
@@ -375,6 +391,11 @@ def submit_highlight(renderer, event, col, row, assets=None, anim_time_ms=0):
 
     ``draw_in_front`` becomes the depth rank (VA-3): +1 draws over a
     same-tile building, -1 behind it.
+
+    ``pulse_color``/``pulse_width`` (the tile-buying tutorial topic's pulse,
+    ``tutorial_pulse_style`` below) override the static border colour/width
+    ONLY on the procedural-diamond fallback below — imported art still wins
+    exactly as it does for every other event, unaffected by either.
     """
     slot, in_front = _HIGHLIGHT_TRIGGERS.get(event, ("", True))
     rank = 1 if in_front else -1
@@ -388,12 +409,36 @@ def submit_highlight(renderer, event, col, row, assets=None, anim_time_ms=0):
     if params is None:
         return                      # unknown event: a silent no-op (E-37)
     color, width = params["color"], params["border_width"]
+    border_color = pulse_color if pulse_color is not None else color
+    border_width = pulse_width if pulse_width is not None else width
     alpha = params["fill_alpha"]
     if alpha:
         submit_tile_diamond_fill(renderer, col, row, color + (alpha,),
-                                 border=color, border_width=width, rank=rank)
+                                 border=border_color,
+                                 border_width=border_width, rank=rank)
     else:
-        submit_tile_diamond(renderer, col, row, color, width=width, rank=rank)
+        submit_tile_diamond(renderer, col, row, border_color,
+                            width=border_width, rank=rank)
+
+
+def tutorial_pulse_style(clock_ms):
+    """``(rgba, width)`` for the pulsing/glowing tutorial highlight at
+    wall-clock time ``clock_ms`` milliseconds — border alpha AND width both
+    breathe on a smooth sine cycle over ``procedural.tutorial_highlight_
+    pulse``'s ``pulse_period_s`` seconds (``data/balancing/vfx.json``, the
+    Drummer aura's alpha-breathe precedent, ``game/ui/CLAUDE.md``), composed
+    onto ``highlight_color("tutorial_highlight")`` rather than a second
+    colour home. Feeds every tutorial highlight draw call: the tile diamonds
+    (``submit_highlight``'s ``pulse_color``/``pulse_width``) and the card/
+    button UI-box rings (``submit_ui_box_highlight``'s ``color``/``width``).
+    """
+    p = _TUTORIAL_PULSE
+    phase = (math.sin(2 * math.pi * (clock_ms / 1000.0)
+                      / p["pulse_period_s"]) + 1) / 2
+    alpha = round(p["alpha_min"] + phase * (p["alpha_max"] - p["alpha_min"]))
+    width = round(p["width_min"] + phase * (p["width_max"] - p["width_min"]))
+    color = highlight_color("tutorial_highlight") + (alpha,)
+    return color, width
 
 
 def submit_tile_diamond(renderer, col, row, color, width=2, rank=0):

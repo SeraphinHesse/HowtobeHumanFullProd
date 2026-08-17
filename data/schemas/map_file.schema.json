@@ -471,6 +471,72 @@
           "type": "object"
         }
       ]
+    },
+    "tutorial_stone_2": {
+      "description": "The tile-buying tutorial topic's designer-painted second stone-thrower placement tile - a single movable map object, click-placed or dragged in the editor (Game tiles mode), just like tutorial_stone. Must be the corner of the chunk tutorial_unlock buys that is farthest from the base - the tutorial forces the player's second defence-building placement onto this tile right after that chunk is bought. MAY BE null; the key is always present. Bounds (col < cols, row < rows) are cross-checked by engine.tilemap.load_map. Never rendered by the game or the editor's normal render pipeline (the editor draws its own overlay).",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "col": {
+              "description": "Second tutorial stone tile column, 0-based; must be < cols.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "row": {
+              "description": "Second tutorial stone tile row, 0-based; must be < rows.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "slot": {
+              "const": "tutorial_stone_2",
+              "description": "Marker id (const-pinned; the slot registry's core/Tutorial Stone 2 slot). Not a real sprite - the editor draws the marker as an outline."
+            }
+          },
+          "required": [
+            "col",
+            "row",
+            "slot"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "tutorial_unlock": {
+      "description": "The tile-buying tutorial topic's designer-painted locked tile the player is forced to click and buy - a single movable map object, click-placed or dragged in the editor (Game tiles mode), just like tutorial_stone. Must sit on a COMBAT tile edge-adjacent to the starting owned area, in the same 2x2 unlock chunk as tutorial_stone_2. Fires right after the player's first defence-building placement. MAY BE null; the key is always present. Bounds (col < cols, row < rows) are cross-checked by engine.tilemap.load_map. Never rendered by the game or the editor's normal render pipeline (the editor draws its own overlay).",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "col": {
+              "description": "Tutorial unlock tile column, 0-based; must be < cols.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "row": {
+              "description": "Tutorial unlock tile row, 0-based; must be < rows.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "slot": {
+              "const": "tutorial_unlock",
+              "description": "Marker id (const-pinned; the slot registry's core/Tutorial Unlock slot). Not a real sprite - the editor draws the marker as an outline."
+            }
+          },
+          "required": [
+            "col",
+            "row",
+            "slot"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "required": [
@@ -490,7 +556,9 @@
     "terrain",
     "tile_conditions",
     "tutorial_flute",
-    "tutorial_stone"
+    "tutorial_stone",
+    "tutorial_stone_2",
+    "tutorial_unlock"
   ],
   "title": "map_file",
   "type": "object"

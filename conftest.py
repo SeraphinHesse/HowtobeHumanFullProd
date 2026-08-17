@@ -100,6 +100,7 @@ TIERS = {
     "test_coords": "core",
     "test_core": "core",
     "test_corpse": "core",
+    "test_crowd_spacing": "core",  # feature: tile-crowding visual offset
     "test_cutscene_player": "core",  # TU-5: CutscenePlayer + registry loader
     "test_cutscene_session": "core",  # TU-5: end_turn() pending_cutscene request
     "test_death_spawn": "core",
@@ -121,6 +122,8 @@ TIERS = {
     "test_hud_items": "core",
     "test_hud_panel": "core",
     "test_hud_render": "core",
+    "test_input_bindings": "core",  # feature: rebindable hotkeys — engine/input.py
+    "test_keybinds_screen": "core",  # feature: rebindable hotkeys — the Controls screen
     "test_kidnap": "core",  # Art/enemies: kidnapping
     "test_layout_h_invariant": "core",  # Fix 1 (phase-10L wave3): layout_h pin
     "test_levelup": "core",

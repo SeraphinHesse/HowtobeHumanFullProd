@@ -208,6 +208,23 @@ class RunState:
     # queue drains.
     pending_enemy_intros: list = field(default_factory=list)
     # -- /feature-enemy-intro-dialogue --
+    # -- Payout-phase sequencing: love-counter checkpoints ------------------
+    # Two transient values `run_payday` stamps at its step 12 (never
+    # serialized, the `pending_boss_cutscene` precedent), so the UI's payout
+    # beat queue (`FloaterManager.begin_payout`) can animate the HUD love
+    # counter in the two segments the player actually sees: up while the
+    # economy beat's floaters show, down while the upkeep beat's do.
+    # `payout_love_start` is `love` at the very top of `run_payday` (before
+    # story/base/yield/upkeep/painter all ran this round);
+    # `payout_love_after_economy` is what `love` was right after story +
+    # base income + economy yield + the Painter payout, i.e. before upkeep
+    # was deducted — recovered as `love + total_upkeep` since upkeep runs
+    # before this snapshot is taken. The real, final total stays plain
+    # `love` — these two are read-only checkpoints, nothing else in the game
+    # consults them.
+    payout_love_start: float = 0.0
+    payout_love_after_economy: float = 0.0
+    # -- /Payout-phase sequencing --
 
     @classmethod
     def from_balance(cls, core_balance, buildings_balance):

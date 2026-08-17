@@ -203,6 +203,15 @@ _BOSS_HUD_BAR_LIFT = 55                      # y = view_h - 55
 # only the gap above its head.
 _ENEMY_BAR_STACK = 4       # px between stacked bars (prototype `bar_slot * 4`)
 _ENEMY_BAR_FALLBACK = (14, 2, 4)   # a stub enemy with no HP_BAR_* attrs
+# Several floaters can share one anchor point — most commonly several boost
+# buildings buffing the same defender, all landing on that defender's tile in
+# the same payout beat. `FloaterManager.submit` STACKS them vertically at
+# spawn height (the `submit_enemy_hp_bars` per-tile-group precedent above,
+# applied to text instead of bars) rather than letting them draw on top of
+# each other. Fixed screen-pixel code chrome, not balancing, like every other
+# bar/arrow geometry constant in this file — sized to the "md" floater font's
+# line height so stacked rows never overlap.
+_FLOATER_STACK_STEP = 14
 # -- 10H: lightning + cheat menu --
 # Bolt colour ramp, jitter, segment count, flash + ground-marker params are
 # now in data/balancing/vfx.json procedural.lightning (ESV-3b) — see
@@ -361,7 +370,7 @@ def _params_from_balance(vfx):
         painter_finished_color=_color(fl["painter_finished_color"]),
         painter_lost_color=_color(fl["painter_lost_color"]),
         painter_life=fl["painter_life"],
-        boost_color=_color(fl["boost_color"]))
+        boost_color=_color(fl["boost_color"]), income_life=fl["income_life"])
     # -- /ESV-6 --------------------------------------------------------------
 
     # -- fix-anchor-offset-and-bullet-sprites Fix 2: projectile fallback dot -
@@ -484,19 +493,49 @@ class _Floater:
 class FloaterManager:
     """Income/upkeep floaters spawned at payday + per-building/per-enemy HP bars.
 
-    ``spawn_income_events`` is called once when the phase enters INCOME; it reads
-    ``state.income_events`` (filled by ``run_payday``) so it never re-derives the
-    payday math. Gated by ``ui.FX.income_floaters_enabled``; floater lifetime is
-    the income phase duration (``core.PhaseLoop.income_phase_duration``).
+    ``begin_payout`` is called once when the phase enters INCOME; it reads
+    ``state.income_events``/``state.painter_events``/``state.boost_events``
+    (filled by ``run_payday``) so it never re-derives the payday math, and
+    queues them as three ordered beats — boost, economy(+painter), upkeep —
+    released one at a time by ``update(dt)``, ``core.PhaseLoop.
+    payout_stagger_interval`` apart, each beat dropped when it has nothing to
+    show (only boost/upkeep legitimately can). The income/upkeep floaters
+    (not boost/painter) are gated by ``ui.FX.income_floaters_enabled``;
+    lifetime is ``vfx.json procedural.floaters.income_life`` — independent of
+    ``core.PhaseLoop.income_phase_duration``, which is the payout phase's own
+    hold time after its last beat, not a floater's lifetime. The HUD love
+    counter (``love_display``) rides the same beat queue for its two-segment
+    animation — see ``begin_payout``/``update``.
     """
 
     def __init__(self, ui_balance, core_balance, vfx_balance):
         self._enabled = ui_balance["FX"]["income_floaters_enabled"]
-        self._life = core_balance["PhaseLoop"]["income_phase_duration"]
         # feature-storm-acolyte-multi-build: submit_lightning_charge_bars
         # reads each caster's own tier cooldown ceiling straight off core.
         self._core_balance = core_balance
         self._floaters = []
+        # -- Payout-phase sequencing: the boost/economy(+painter)/upkeep
+        # beat queue `begin_payout` fills, drained one beat at a time by
+        # `update(dt)` — the game/enemies/spawner.py `_queue`/`_timer`
+        # pattern. Each queued entry is `(floaters, love_target_or_None)`;
+        # `_payout_timer` counts down `core.PhaseLoop.payout_stagger_interval`
+        # between releases.
+        self._payout_queue = []
+        self._payout_timer = 0.0
+        # -- Animated love counter: a linear ramp from whatever is currently
+        # DISPLAYED toward a target, `love_counter_anim_duration` seconds.
+        # Two drivers: begin_payout's two beat releases (an explicit
+        # segment each), and the generic per-frame watcher in update() for
+        # every other love change. `_love_known` is the last value the
+        # animator has either reached or already been told to head toward —
+        # while a payout sequence is queued the generic watcher stays quiet,
+        # since the queued segments already account for the pending change.
+        self._love_display = None
+        self._love_known = None
+        self._love_anim_start = 0.0
+        self._love_anim_target = None
+        self._love_anim_elapsed = 0.0
+        self._love_anim_duration = ui_balance["FX"]["love_counter_anim_duration"]
         # -- 10G boss announcement: timings from ui.FX.boss_announce; the age
         # clock is None while no announcement runs.
         self._announce = ui_balance["FX"]["boss_announce"]
@@ -547,16 +586,110 @@ class FloaterManager:
         # sine breathe (submit_drummer_auras) — accumulated in update(dt).
         self._clock = 0.0
 
-    def spawn_income_events(self, state):
-        if not self._enabled:
+    def begin_payout(self, state):
+        """Called once on the INCOME phase edge (``main.py``), replacing the
+        old three separate ``spawn_income_events``/``spawn_painter_events``/
+        ``spawn_boost_events`` calls. Builds three ordered payout beats —
+        boost, economy (income-kind ``income_events`` entries + Painter's
+        finish/lost message), upkeep (upkeep-kind ``income_events``
+        entries) — and queues them for staggered release by ``update(dt)``.
+
+        A beat's PRESENCE in the queue mirrors ``payday.py`` step 12's
+        ``phase_timer`` formula exactly (boost iff ``state.boost_events`` was
+        non-empty, upkeep iff any real upkeep entry exists, economy always) —
+        so the queue's shape agrees with how long ``run_payday`` already
+        decided the phase should stay open, independent of
+        ``ui.FX.income_floaters_enabled``. That flag only decides whether the
+        income/upkeep-derived floaters *within* a beat are built — never
+        whether the beat/pause/counter-checkpoint happens — matching
+        ``spawn_income_events``'s old gating (boost/painter were never
+        gated by it either).
+        """
+        fl = self._vfx_params.floaters
+        boost_has_events = bool(state.boost_events)
+        upkeep_has_events = any(kind == "upkeep"
+                                 for _, _, _, kind in state.income_events)
+
+        boost_beat = []
+        for col, row, text in state.boost_events:
+            boost_beat.append(_Floater(
+                col + 0.5, row + 0.5, text, fl.boost_color, fl.income_life))
+        state.boost_events.clear()
+
+        economy_beat = []
+        if self._enabled:
+            for col, row, amount, kind in state.income_events:
+                if kind == "income":
+                    economy_beat.append(_Floater(
+                        col + 0.5, row + 0.5,
+                        T("effects.floater_gain", amount=amount),
+                        widgets.C_GOLD, fl.income_life))
+        for col, row, text, kind in state.painter_events:
+            color = (fl.painter_finished_color if kind == "finished"
+                     else fl.painter_lost_color)
+            economy_beat.append(
+                _Floater(col + 0.5, row + 0.5, text, color, fl.painter_life))
+            if self.log is not None:  # 10J game log
+                self.log.post(text)
+        state.painter_events.clear()
+
+        upkeep_beat = []
+        if self._enabled:
+            for col, row, amount, kind in state.income_events:
+                if kind == "upkeep":
+                    upkeep_beat.append(_Floater(
+                        col + 0.5, row + 0.5,
+                        T("effects.floater_loss", amount=amount),
+                        fl.upkeep_color, fl.income_life))
+
+        beats = []
+        if boost_has_events:
+            beats.append((boost_beat, None))
+        beats.append((economy_beat, state.payout_love_after_economy))
+        if upkeep_has_events:
+            beats.append((upkeep_beat, state.love))
+
+        self._payout_queue = beats
+        self._release_next_payout_beat()
+
+    def _release_next_payout_beat(self):
+        """Pop and spawn the next queued payout beat (the ``game/enemies/
+        spawner.py`` timed-``_queue`` pattern) — called once immediately from
+        ``begin_payout`` and again from ``update(dt)`` each time the stagger
+        pause elapses. A beat carrying a love target arms the counter
+        animation toward it (``_start_love_anim``); ``None`` (the boost
+        beat) leaves the counter alone."""
+        if not self._payout_queue:
             return
-        for col, row, amount, kind in state.income_events:
-            color = (widgets.C_GOLD if kind == "income"
-                     else self._vfx_params.floaters.upkeep_color)
-            text = (T("effects.floater_gain", amount=amount) if amount >= 0
-                    else T("effects.floater_loss", amount=amount))
-            self._floaters.append(
-                _Floater(col + 0.5, row + 0.5, text, color, self._life))
+        floaters, love_target = self._payout_queue.pop(0)
+        self._floaters.extend(floaters)
+        if love_target is not None:
+            self._start_love_anim(love_target)
+        if self._payout_queue:
+            self._payout_timer = (
+                self._core_balance["PhaseLoop"]["payout_stagger_interval"])
+
+    def _start_love_anim(self, target):
+        """Arm a new linear ramp on the displayed love counter, from
+        wherever it currently sits (never from its old TARGET — a retarget
+        mid-flight must not jump) to ``target``, over
+        ``love_counter_anim_duration``. ``_love_known`` records that this
+        target is now accounted for, so ``update``'s generic watcher doesn't
+        also fire for the same change."""
+        if self._love_display is None:
+            self._love_display = target        # fresh game: no count-from-0
+        else:
+            self._love_anim_start = self._love_display
+        self._love_anim_target = target
+        self._love_anim_elapsed = 0.0
+        self._love_known = target
+
+    @property
+    def love_display(self):
+        """The HUD's animated love counter — ``int`` when unset (before the
+        first ``update(dt, state)`` call, which should never actually be
+        observed in the running game)."""
+        return 0 if self._love_display is None else round(self._love_display)
 
     def spawn_xp_events(self, state):
         """Drain ``state.xp_events`` (filled by the Session's XP award sites)
@@ -569,24 +702,6 @@ class FloaterManager:
                 _Floater(wx, wy, T("effects.floater_xp", amount=amount),
                          fl.xp_color, fl.xp_life))
         state.xp_events.clear()
-
-    def spawn_painter_events(self, state):
-        """Drain ``state.painter_events`` (filled by the payday Painter slot +
-        revive) into 1.5s message floaters — gold "painting finished!", red
-        "painting lost!" — AND a game-log line for both, so a completed
-        payout is not just a fleeting floater the player can miss (the tile
-        greys out in the construct panel from then on; this is the one-time
-        notice that it just happened). Called on the INCOME edge beside the
-        income floaters."""
-        fl = self._vfx_params.floaters
-        for col, row, text, kind in state.painter_events:
-            color = (fl.painter_finished_color if kind == "finished"
-                     else fl.painter_lost_color)
-            self._floaters.append(
-                _Floater(col + 0.5, row + 0.5, text, color, fl.painter_life))
-            if self.log is not None:  # 10J game log
-                self.log.post(text)
-        state.painter_events.clear()
 
     def spawn_building_respawn_events(self, state):
         """Drain ``state.building_respawn_events`` (filled by the payday
@@ -606,16 +721,6 @@ class FloaterManager:
                        preset=self._spark_presets.get(
                            "respawn", self._spark_presets["place"]))
         state.building_respawn_events.clear()
-
-    def spawn_boost_events(self, state):
-        """Drain ``state.boost_events`` (filled by the payday boost slot) into white
-        per-turn boost floaters over each buffed defender — prototype white text.
-        Called on the INCOME edge beside the income floaters."""
-        for col, row, text in state.boost_events:
-            self._floaters.append(
-                _Floater(col + 0.5, row + 0.5, text,
-                         self._vfx_params.floaters.boost_color, self._life))
-        state.boost_events.clear()
 
     # -- 10J FX: sparks, gold highlights, death bursts, muzzle/slash, blood --
 
@@ -854,8 +959,13 @@ class FloaterManager:
         self._announce_age = None
         self._life_lost_age = None
         self._vfx.clear()  # -- 10J: particles / gold / slashes / splatters
+        self._payout_queue = []
+        self._payout_timer = 0.0
+        self._love_display = None
+        self._love_known = None
+        self._love_anim_target = None
 
-    def update(self, dt):
+    def update(self, dt, state=None):
         self._clock += dt
         for f in self._floaters:
             f.age += dt
@@ -875,22 +985,58 @@ class FloaterManager:
         self._vfx.update(dt)  # -- 10J: particles / gold / slashes --
         # vfx-projectile-spritesheets: the beam's has-art HudSprite anim clock.
         self._beam_clock_ms += dt * 1000.0
+        # -- Payout-phase sequencing: release the next queued beat once the
+        # stagger pause elapses.
+        if self._payout_queue:
+            self._payout_timer -= dt
+            if self._payout_timer <= 0:
+                self._release_next_payout_beat()
+        # -- Animated love counter: advance the current segment, then (only
+        # once no payout beats remain queued, so we don't fight the segments
+        # begin_payout already armed) watch for any other love change and
+        # animate to it. `state=None` (a bare test construction) skips the
+        # watcher entirely — no caller relies on love_display then. --
+        if self._love_anim_target is not None:
+            self._love_anim_elapsed += dt
+            frac = (1.0 if self._love_anim_duration <= 0 else
+                    min(1.0, self._love_anim_elapsed / self._love_anim_duration))
+            self._love_display = (self._love_anim_start + frac * (
+                self._love_anim_target - self._love_anim_start))
+            if frac >= 1.0:
+                self._love_anim_target = None
+        if state is not None:
+            if self._love_display is None:
+                self._love_display = state.love
+                self._love_known = state.love
+            elif not self._payout_queue and state.love != self._love_known:
+                self._start_love_anim(state.love)
 
     @property
     def active(self):
         return len(self._floaters)
 
     def submit(self, renderer, cs):
+        # Several floaters can share one exact anchor point — most commonly
+        # several boost buildings buffing the same defender, all landing on
+        # its tile in the same payout beat. Group by anchor (spawn order
+        # preserved, `self._floaters` is append-only until culled) and give
+        # each one in a group its own vertical slot, the `submit_enemy_hp_
+        # bars` per-tile-group precedent applied to floater text.
+        groups = {}
         for f in self._floaters:
-            frac = f.age / f.life if f.life else 1.0
-            cx, cy = cs.world_to_screen(f.wx, f.wy)
-            y = int(cy) - 20 - int(36 * frac)  # rise over its lifetime
-            # 10J: alpha fade over the last third (prototype fade = life/3)
-            color = f.color
-            if frac > 2 / 3:
-                color = tuple(color[:3]) + (
-                    int(255 * max(0.0, (1.0 - frac) * 3)),)
-            submit_centered(renderer, f.text, int(cx), y, "md", color)
+            groups.setdefault((f.wx, f.wy), []).append(f)
+        for group in groups.values():
+            for slot, f in enumerate(group):
+                frac = f.age / f.life if f.life else 1.0
+                cx, cy = cs.world_to_screen(f.wx, f.wy)
+                y = (int(cy) - 20 - int(36 * frac)   # rise over its lifetime
+                     - slot * _FLOATER_STACK_STEP)   # stack above its group
+                # 10J: alpha fade over the last third (prototype fade = life/3)
+                color = f.color
+                if frac > 2 / 3:
+                    color = tuple(color[:3]) + (
+                        int(255 * max(0.0, (1.0 - frac) * 3)),)
+                submit_centered(renderer, f.text, int(cx), y, "md", color)
 
     # -- 10J FX draw --------------------------------------------------------
 

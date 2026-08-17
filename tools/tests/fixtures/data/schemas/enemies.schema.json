@@ -218,6 +218,43 @@
       ],
       "type": "object"
     },
+    "crowd_spacing_group": {
+      "additionalProperties": false,
+      "description": "One enemy type's own tile-crowding visual-offset tunables. Each type carrying CrowdSpacing (Enemy.extra_components, game/enemies/crowd_spacing.py) groups ONLY with other live members of its OWN type sharing a tile -- a Raider and a Standard on the same tile never share a slot layout, even though both may be crowding independently at once.",
+      "properties": {
+        "dwell_threshold_seconds": {
+          "description": "How long (seconds) an enemy must continuously hold its current rounded tile before it counts toward crowding with other same-type enemies on that tile. Standard walkers cross a tile in roughly 0.7-0.85s even at full speed, so this should stay well under that to filter only momentary tile-sharing at a boundary, not require enemies to be physically stuck.",
+          "maximum": 5,
+          "minimum": 0,
+          "type": "number"
+        },
+        "max_offset_tiles": {
+          "description": "Maximum visual offset radius, in world tile units, applied to spread this type's crowded enemies apart on a shared tile. LOAD-BEARING UPPER BOUND: a tile owns wx/wy in [c-0.5, c+0.5), and no crowd anchor-layout direction vector exceeds magnitude 1.0 per axis, so this maximum structurally guarantees an offset enemy can never round into a neighboring tile. Do not raise it without re-deriving that bound.",
+          "maximum": 0.4,
+          "minimum": 0,
+          "type": "number"
+        },
+        "max_slots": {
+          "description": "The largest occupant count this type gets its own dedicated anchor layout for (2-6, the range game/enemies/crowd_spacing.py's ANCHOR_TABLE defines). A (max_slots + 1)th same-type occupant on one tile reuses the last slot rather than getting a wider layout.",
+          "maximum": 6,
+          "minimum": 2,
+          "type": "integer"
+        },
+        "offset_ease_seconds": {
+          "description": "Exponential-smoothing time constant (seconds) for how quickly one of this type's enemies' visual offset glides toward its target position when the crowd layout changes (an occupant arrives, leaves, or the group re-sorts).",
+          "maximum": 2,
+          "minimum": 0.05,
+          "type": "number"
+        }
+      },
+      "required": [
+        "dwell_threshold_seconds",
+        "max_offset_tiles",
+        "max_slots",
+        "offset_ease_seconds"
+      ],
+      "type": "object"
+    },
     "death_spawn": {
       "additionalProperties": false,
       "description": "Optional-mechanic block (ER-3, D4): when this unit's HP falls to or below at_hp_fraction of its max it DIES (one code path - breaking formation is dying) and, if enabled, bursts the spawns row for its era at the tile it died on. at_hp_fraction 0.0 + enabled false is an inert unit that dies at zero HP and leaves nothing.",
@@ -562,6 +599,23 @@
   "additionalProperties": false,
   "description": "Enemies balancing domain (D-10), REPLAN nested tree (Phase 9A). Values are the prototype's live tuning, verbatim. HP/DMG use the x10 combat scale (D-12). Bounds policy: fractions 0-1, HP/DMG 0-100000, costs/counts 0-10000, rounds/levels 0-1000, seconds 0-60, pixels 1-4096; footprint tiles 1-8; sprite_scale multiplier 0.1-8.",
   "properties": {
+    "CrowdSpacing": {
+      "additionalProperties": false,
+      "description": "Per-type tunables for the tile-crowding visual offset: when 2+ SAME-TYPE enemies genuinely share a tile (not just briefly passing through it) they ease into small evenly-spread positions instead of drawing stacked on top of each other. Each enemy type carrying the mechanism (Enemy.extra_components) gets its own independent group here -- not nested under EnemyTypes.<Type> so a future footprint-aware (multi-tile Formation) extension can reuse this shape without touching that tree.",
+      "properties": {
+        "Raider": {
+          "$ref": "#/$defs/crowd_spacing_group"
+        },
+        "Standard": {
+          "$ref": "#/$defs/crowd_spacing_group"
+        }
+      },
+      "required": [
+        "Raider",
+        "Standard"
+      ],
+      "type": "object"
+    },
     "EnemyScaling": {
       "additionalProperties": false,
       "description": "The global era clock and per-era wave pacing. One clock drives enemy scaling AND the boss round: era = (round - 1) // rounds_per_era, round_in_era = (round - 1) % rounds_per_era + 1, and a round is a boss round iff round_in_era == boss_round_in_era. Round 0 (the tutorial) is era 0 and is never a boss round.",
@@ -1346,6 +1400,7 @@
     }
   },
   "required": [
+    "CrowdSpacing",
     "EnemyScaling",
     "EnemyTypes",
     "MortarTargeting"

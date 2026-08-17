@@ -392,6 +392,8 @@
             "trio_t3_lvl3",
             "tutorial_flute",
             "tutorial_stone",
+            "tutorial_stone_2",
+            "tutorial_unlock",
             "ui_bg_main_menu",
             "ui_button",
             "ui_button_card",
@@ -615,6 +617,12 @@
           "minimum": 0.1,
           "type": "number"
         },
+        "keyboard_pan_speed": {
+          "description": "How fast W/A/S/D and the arrow keys pan the camera, in SCREEN pixels per second - zoom-independent, matching mouse-drag panning's own raw-pixel behaviour (a drag never scales by zoom either), so holding a movement key feels exactly as responsive at any zoom level.",
+          "maximum": 4096,
+          "minimum": 1,
+          "type": "number"
+        },
         "max_offset_tiles_x": {
           "description": "How far the camera may travel horizontally from the map's camera start point, in TILES (grid steps; zoom-independent, so the same distance at every zoom level). Bounds the viewport CENTRE, so roughly half a screen beyond the limit is still visible. The map bounds still apply on top of it, whichever is tighter. 0 = unlimited (the shipped default: free roam within the map).",
           "maximum": 1024,
@@ -643,6 +651,7 @@
       },
       "required": [
         "default_zoom",
+        "keyboard_pan_speed",
         "max_offset_tiles_x",
         "max_offset_tiles_y",
         "zoom_levels"
@@ -846,7 +855,13 @@
       "description": "Round/phase machine timing.",
       "properties": {
         "income_phase_duration": {
-          "description": "Seconds the income phase banner/floaters play before build phase.",
+          "description": "Seconds the income phase holds AFTER its last payout beat (boost/economy/upkeep) fires, before returning to the build phase. The full phase length is this plus payout_stagger_interval per beat before the last.",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        },
+        "payout_stagger_interval": {
+          "description": "Seconds paused between the payout phase's boost/economy/upkeep floater beats (game/ui/effects.py FloaterManager.begin_payout). Also read by payday.py to compute the income phase's total length.",
           "maximum": 60,
           "minimum": 0,
           "type": "number"
@@ -872,6 +887,7 @@
       },
       "required": [
         "income_phase_duration",
+        "payout_stagger_interval",
         "round_end_delay",
         "speed_1_5x_min_round",
         "speed_2x_min_round"

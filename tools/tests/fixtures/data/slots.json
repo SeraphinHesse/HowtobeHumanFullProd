@@ -1012,6 +1012,18 @@
           ]
         },
         {
+          "label": "Tutorial Unlock",
+          "slots": [
+            "tutorial_unlock"
+          ]
+        },
+        {
+          "label": "Tutorial Stone 2",
+          "slots": [
+            "tutorial_stone_2"
+          ]
+        },
+        {
           "label": "Moving Sign",
           "slots": [
             "moving_sign"
@@ -1158,6 +1170,12 @@
               "label": "Tutorial tile",
               "slots": [
                 "vfx_tutorial_highlight"
+              ]
+            },
+            {
+              "label": "Test",
+              "slots": [
+                "vfx_test"
               ]
             }
           ],

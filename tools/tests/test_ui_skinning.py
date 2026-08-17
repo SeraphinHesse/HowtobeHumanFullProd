@@ -218,19 +218,29 @@ def _screen_captures():
 #: entry between END TURN and Pause — nothing already there moved, and every
 #: other screen's entry is byte-identical, which is what says the change was
 #: contained.
-#: Regenerated a THIRTEENTH time (cheat menu Unlock Speed): the cheat menu
+#: Regenerated a THIRTEENTH time (feature: rebindable hotkeys): ``settings``
+#: gained a CONTROLS button (opens the new Controls/rebind screen) beside
+#: BACK. Three primitives are APPENDED to that entry; nothing already in it
+#: moved, and every other screen's entry is byte-identical — which is what
+#: says the change was contained. This entry and the TWELFTH above touch
+#: disjoint screens (``settings`` vs ``hud``), so the merge of the two
+#: features is the union of their two contained additions, not a
+#: re-baseline: both are present below, unmodified.
+#: Regenerated a FOURTEENTH time (cheat menu Unlock Speed): the cheat menu
 #: gained an ``unlock_speed`` row (bypasses the combat-speed round gate for
 #: the rest of the run) between ``Unlock Tech`` and ``Debug Log``, so the
 #: panel grew one row step (15px) and every row from ``Debug Log`` downward
 #: shifts. Only ``cheat_menu``'s entry moved; every other screen's entry is
 #: byte-identical, which is what says the change was contained.
-#: The TWELFTH and THIRTEENTH regenerations landed on separate branches and
-#: met here at a merge. They are independent: one rewrites only ``hud``'s
-#: entry, the other only ``cheat_menu``'s, so neither supersedes the other
-#: and the merged baseline carries BOTH. That disjointness is the merge's
-#: containment signal — if a future merge of two UI branches touches the SAME
-#: entry, the resolution is to re-capture from ``_screen_captures()``, never
-#: to pick a side.
+#: The TWELFTH, THIRTEENTH and FOURTEENTH regenerations landed on separate
+#: branches and met here at merges. They are independent: they rewrite only
+#: ``hud``'s, only ``settings``'s and only ``cheat_menu``'s entry
+#: respectively, so none supersedes another and the merged baseline carries
+#: ALL THREE. That disjointness is the merge's containment signal — if a
+#: future merge of two UI branches touches the SAME entry, the resolution is
+#: to re-capture from ``_screen_captures()``, never to pick a side.
+
+
 _BASELINE = {
     "main_menu": [
         HudRect(rect=(0, 0, 640, 360), color=(18, 30, 20), border_radius=0, width=0),
@@ -310,6 +320,9 @@ _BASELINE = {
         HudRect(rect=(270, 279, 100, 23), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(270, 279, 100, 23), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='BACK', pos=(320, 283), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(380, 279, 90, 23), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(380, 279, 90, 23), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='CONTROLS', pos=(425, 285), font_key='sm', color=(235, 225, 195), align='center'),
     ],
     "credits": [
         HudRect(rect=(0, 0, 640, 360), color=(12, 20, 14), border_radius=0, width=0),

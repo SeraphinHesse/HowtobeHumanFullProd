@@ -222,6 +222,11 @@ class FloaterParams:
     painter_lost_color: tuple
     painter_life: float
     boost_color: tuple
+    # Payout-phase sequencing: the boost/economy/upkeep beat floaters'
+    # lifetime (game/ui/effects.py FloaterManager.begin_payout) — decoupled
+    # from core.PhaseLoop.income_phase_duration, which is now the payout
+    # phase's own post-last-beat hold time, not a floater lifetime.
+    income_life: float
 
 
 @dataclass(frozen=True)

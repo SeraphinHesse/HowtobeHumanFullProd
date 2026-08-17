@@ -10,6 +10,7 @@ from .components import (
     EnemyCombat, Kidnap, PathAgent, buff_total,
 )
 from .corpse import DEATH_ANIM, Corpse, spawn_corpse
+from .crowd_spacing import CrowdSpacing, apply_crowd_spacing, restore_crowd_positions
 from .dirt_pile import DIRT_PILE_SLOT, DirtPile, spawn_dirt_pile
 from .enemy import (
     Boss, Commander, Digger, Drummer, Enemy, Formation, Raider, SiegeCannon,
@@ -29,6 +30,7 @@ __all__ = [
     "CARRY_OFFSET_TILES",
     "Commander",
     "Corpse",
+    "CrowdSpacing",
     "DEATH_ANIM",
     "DIRT_PILE_SLOT",
     "DeathSpawn",
@@ -48,11 +50,13 @@ __all__ = [
     "SiegeCannon",
     "Sniper",
     "Spawner",
+    "apply_crowd_spacing",
     "attack_interval",
     "begin_kidnap",
     "buff_total",
     "create_enemy",
     "resolve_combat",
+    "restore_crowd_positions",
     "set_kidnap_pose",
     "spawn_corpse",
     "spawn_dirt_pile",

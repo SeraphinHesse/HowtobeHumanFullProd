@@ -5579,6 +5579,18 @@
           23
         ]
       },
+      "btn_controls": {
+        "font_key": "sm",
+        "kind": "button",
+        "label": "CONTROLS",
+        "parent": "backdrop",
+        "rect": [
+          380,
+          279,
+          90,
+          23
+        ]
+      },
       "btn_dm_left": {
         "display_name": "Display mode left button",
         "font_key": "lg",

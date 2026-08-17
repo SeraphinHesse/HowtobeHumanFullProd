@@ -710,10 +710,12 @@ class TestPainterUpgradePanelPaysIn(unittest.TestCase):
 
 
 class TestPainterPayoutNotice(unittest.TestCase):
-    """The one-time payout notice: `spawn_painter_events`
+    """The one-time payout notice: `FloaterManager.begin_payout`
     (`game/ui/effects.py`) posts to the game log on EVERY payout completion,
-    not just the loss case — a completed payout is otherwise only a 1.5s
-    floater the player can easily miss."""
+    not just the loss case — a completed payout is otherwise only a floater
+    the player can easily miss. Painter's message rides the payout
+    sequence's economy beat, which — with no boost events queued — fires
+    immediately on `begin_payout`."""
 
     def test_completed_payout_posts_to_the_game_log(self):
         fm = FloaterManager(UI_BAL, CORE_BAL, VFX_BAL)
@@ -721,7 +723,7 @@ class TestPainterPayoutNotice(unittest.TestCase):
         fm.log = log
         state = RunState()
         state.painter_events.append((0, 0, "painting finished!", "finished"))
-        fm.spawn_painter_events(state)
+        fm.begin_payout(state)
         self.assertEqual([m[0] for m in log._messages], ["painting finished!"])
 
     def test_lost_payout_still_posts_to_the_game_log(self):
@@ -730,7 +732,7 @@ class TestPainterPayoutNotice(unittest.TestCase):
         fm.log = log
         state = RunState()
         state.painter_events.append((0, 0, "painting lost!", "lost"))
-        fm.spawn_painter_events(state)
+        fm.begin_payout(state)
         self.assertEqual([m[0] for m in log._messages], ["painting lost!"])
 
 
