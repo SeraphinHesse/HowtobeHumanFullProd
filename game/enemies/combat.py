@@ -34,7 +34,7 @@ from game.anchors import anchor_world_point, projectile_point
 from game.buildings.components import (
     Attacker, BeamAttacker, RoundStats, SplashAttacker,
 )
-from .components import EnemyCombat, Kidnap, PathAgent
+from .components import EnemyCombat, Kidnap, PathAgent, apply_slow
 from .kidnap import begin_kidnap
 
 # AOE_TRAVEL_TIME / BEAM_MIN_TICK are SIMULATION TIMING, not balancing (NOT
@@ -56,6 +56,13 @@ CRATER_LIFE = 1.0        # seconds a spent-shell crater lingers before fading ou
 # swap the procedural Crater for a one-shot PlayOnceVfx at impact (the same
 # "shared slot, never per-building" rule vfx_projectile/vfx_shell follow).
 CRATER_SLOT = "vfx_crater"
+# BossUpgradeTimelinePLAN BU-3 3.3 (#3 mortar_slow): the opaque BuffState
+# source key every mortar's slow is written under. ONE key for the whole
+# UPGRADE, never one per firing building — see `apply_slow`'s docstring
+# (`game/enemies/components.py`): N mortars hitting one enemy must read as one
+# slow, or a bombardment would stack into a full stop. Repeat PICKS still
+# stack, additively (D4), inside the fraction `_mortar_slow_spec` computes.
+MORTAR_SLOW_SOURCE = "boss_upgrade:mortar_slow"
 
 
 class ProjectileHoming(Component):
@@ -227,6 +234,15 @@ class ProjectileArc(Component):
         # submit_projectiles/spawn_play_once already use). Set by
         # _fire_splash, transient (E-11).
         self._assets = None
+        # BU-3 3.3 (#3 mortar_slow): `(source, fraction, duration)` or None —
+        # resolved at FIRE time by `_fire_splash` (that is where the firing
+        # building, and therefore the D16 pick-time snapshot check, is in
+        # hand) and applied here to every enemy the splash actually hits. A
+        # shell already in flight when the upgrade is picked carries None and
+        # slows nothing, which is the correct reading of "the mortars alive at
+        # pick-time slow from now on". Transient (E-11), same shape as
+        # `_on_damage`/`_assets` above.
+        self._slow = None
 
     def launch(self, gx, gy, shooter, scene, travel_time):
         self._gx, self._gy = gx, gy
@@ -250,6 +266,7 @@ class ProjectileArc(Component):
         shooter = getattr(self, "_shooter", None)
         rs = shooter.get_component(RoundStats) if shooter is not None else None
         on_dmg = getattr(self, "_on_damage", None)
+        slow = getattr(self, "_slow", None)
         for enemy in scene.by_tag("enemy"):
             # BR-3/D2: splash passes over an untargetable second-phase boss.
             if (not getattr(enemy, "alive", False)
@@ -268,6 +285,12 @@ class ProjectileArc(Component):
                     on_dmg(getattr(shooter, "building_type", None)
                            if shooter is not None else None,
                            getattr(enemy, "ETYPE", None), self.dmg, health.hp)
+                # BU-3 3.3 (#3 mortar_slow): the slow lands on every enemy the
+                # splash hit, at the same site the damage did — never on the
+                # ones it missed. `None` (every shell fired without the
+                # upgrade, and every pre-BU-3 caller) skips it entirely.
+                if slow is not None:
+                    apply_slow(enemy, *slow)
         # vfx-projectile-spritesheets: a designer-imported CRATER_SLOT sheet
         # swaps the procedural Crater (a scaled, alpha-faded ring) for a
         # fixed-size one-shot PlayOnceVfx — the same has_art signal
@@ -481,7 +504,8 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
                    on_base_hit=None, on_enemy_death=None, dmg_bonus=0,
                    assets=None, cs=None, on_splash_impact=None,
                    on_defender_fire=None, on_projectile_hit=None,
-                   on_kidnap=None, on_damage=None):
+                   on_kidnap=None, on_damage=None,
+                   run_state=None, boss_upgrades_balance=None):
     """``dmg_bonus`` (10G): a flat per-shot damage bonus every defender adds at
     fire time — the boss-bonus story damage (Boss1A/3A) crossing the package
     boundary as a plain int (the host computes it per frame from
@@ -543,7 +567,18 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
     blocking building, lives in ``game/enemies/components.py`` — it runs
     inside ``Scene.update`` (BEFORE this function is even called each frame),
     so it cannot be reached through this parameter; see
-    ``components.set_damage_hook``."""
+    ``components.set_damage_hook``.
+
+    ``run_state``/``boss_upgrades_balance`` (BossUpgradeTimelinePLAN BU-3 3.3):
+    THE standard BU-3 hook pair, in the fixed order every hook site uses — read
+    ``game/core/boss_upgrades.py``'s "THE BU-3 HOOK THREADING PATTERN" section
+    before adding another. Both default ``None`` and BOTH must be present for
+    anything to happen, so every pre-BU-3 caller, test and headless tool is
+    byte-identical; the host spells them ``run_state=session.state,
+    boss_upgrades_balance=session.boss_upgrades_balance``. They are threaded
+    down to ``_fire_splash`` only — the mortar's ``mortar_slow`` (#3) is the one
+    upgrade with a hook in this module — and this package still imports
+    ``game.core`` LAZILY, inside the function body that needs it."""
     globals_ = buildings_balance["DefenceBuildings"]["globals"]
     min_atk = globals_["min_attack_speed"]
     proj_speed = globals_["projectile_speed_tiles"]
@@ -567,7 +602,7 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
         _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
                          crater_life, dmg_bonus, assets, cs, on_splash_impact,
                          on_defender_fire, on_projectile_hit, lift_frac,
-                         on_damage)
+                         on_damage, run_state, boss_upgrades_balance)
 
     _resolve_kidnaps(scene, tilemap, on_kidnap)
 
@@ -606,7 +641,8 @@ def _resolve_kidnaps(scene, tilemap, on_kidnap=None):
 def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
                      crater_life, dmg_bonus=0, assets=None, cs=None,
                      on_splash_impact=None, on_defender_fire=None,
-                     on_projectile_hit=None, lift_frac=0.0, on_damage=None):
+                     on_projectile_hit=None, lift_frac=0.0, on_damage=None,
+                     run_state=None, boss_upgrades_balance=None):
     """``targets`` is ``[(enemy, footprint_offset), ...]`` — the offsets are
     resolved once per frame by ``resolve_combat`` (ER-2). ``assets``/``cs``
     (ESV-1) pass straight through to ``_fire``/``_fire_splash``; the beam
@@ -619,7 +655,10 @@ def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
     mortar's splash already has its own impact event. ``lift_frac``
     (feat-projectile-anchored-flight) passes only to ``_fire`` too — see
     that module-level function's docstring. ``on_damage`` (debug-mode-
-    telemetry) passes to BOTH firing paths and to ``_update_beam``."""
+    telemetry) passes to BOTH firing paths and to ``_update_beam``.
+    ``run_state``/``boss_upgrades_balance`` (BU-3 3.3) pass only to
+    ``_fire_splash`` — ``mortar_slow`` (#3) is scoped to the mortar, and the
+    homing/beam paths have no boss-upgrade hook of their own."""
     attacker = defender.get_component(Attacker)
     if attacker is None or not getattr(defender, "alive", True):
         return
@@ -658,7 +697,8 @@ def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
         if defender.get_component(SplashAttacker) is not None:
             _fire_splash(defender, target, scene, crater_life, dmg_bonus,
                         assets, cs, on_splash_impact, on_defender_fire,
-                        lift_frac, on_damage)
+                        lift_frac, on_damage, run_state,
+                        boss_upgrades_balance)
         else:
             _fire(defender, target, scene, proj_speed, dmg_bonus, assets, cs,
                  on_defender_fire, on_projectile_hit, lift_frac, on_damage)
@@ -764,9 +804,49 @@ def _fire(defender, target, scene, proj_speed, dmg_bonus=0, assets=None,
     scene.spawn(proj)
 
 
+def _mortar_slow_spec(defender, run_state, boss_upgrades_balance):
+    """``(source, slow_fraction, duration_seconds)`` for boss upgrade #3
+    ``mortar_slow`` on THIS firing building, or ``None`` when it is inert.
+
+    Two gates, both required, and both answered HERE — at fire time, where the
+    firing building is in hand — rather than at impact:
+
+    1. **The D16 snapshot.** Only a mortar that was already on the board when
+       the upgrade was picked ever slows. ``RunState.mortar_slow_snapshot_ids``
+       is stamped once, at pick time, by the host-installed
+       ``set_one_time_hook("mortar_slow", …)`` snapshot; membership is by
+       ``id()``, so a mortar built afterwards — or one that was removed and
+       replaced — is simply not in it. ``getattr`` with an empty default keeps
+       a headless ``RunState`` stub inert rather than raising.
+    2. **``hook_stacks``** — the standard BU-3 reader, so a repeat pick stacks
+       ADDITIVELY (D4): picked twice slows twice as hard. The DURATION is not
+       multiplied — a second pick makes the slow deeper, not longer, which is
+       what keeps a bombardment from pinning a unit indefinitely.
+
+    ``game.core`` is imported LAZILY, inside the body, exactly as every other
+    BU-3 hook site does it (see ``game/core/boss_upgrades.py``'s threading
+    pattern) — a module-level import from ``game.enemies`` would close a real
+    cycle through ``game.core.__init__`` -> ``payday``.
+    """
+    if run_state is None or boss_upgrades_balance is None:
+        return None
+    if id(defender) not in getattr(run_state, "mortar_slow_snapshot_ids", ()):
+        return None
+    from game.core import boss_upgrades
+
+    n, params = boss_upgrades.hook_stacks(run_state, boss_upgrades_balance,
+                                          "mortar_slow")
+    if not n:
+        return None
+    return (MORTAR_SLOW_SOURCE,
+            n * params.get("slow_pct", 20) / 100.0,
+            params.get("duration_seconds", 2.5))
+
+
 def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
                  assets=None, cs=None, on_splash_impact=None,
-                 on_defender_fire=None, lift_frac=0.0, on_damage=None):
+                 on_defender_fire=None, lift_frac=0.0, on_damage=None,
+                 run_state=None, boss_upgrades_balance=None):
     """Launch an arcing shell (prototype ``AOEDefenceBuilding._shoot``): aim a
     fixed ground point via predictive lead, load it with the current damage +
     splash radius, and let ``ProjectileArc`` resolve the splash on impact.
@@ -806,7 +886,14 @@ def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
     (only its timer ticks), so its spawn point IS its drawn point for the
     whole flight, and the removed draw lift has to come back here or the
     mortar visibly drops. Byte-identical to pre-change for an un-anchored
-    shooter; an authored ``muzzle`` anchor wins outright, as everywhere."""
+    shooter; an authored ``muzzle`` anchor wins outright, as everywhere.
+
+    ``run_state``/``boss_upgrades_balance`` (BU-3 3.3): the standard BU-3 hook
+    pair, resolved ONCE here through ``_mortar_slow_spec`` into a
+    ``(source, fraction, duration)`` tuple carried on the shell and applied at
+    impact. It is resolved at FIRE time on purpose — the D16 snapshot check is
+    about the FIRING building, which impact has no guaranteed live reference to
+    (the shooter may have died mid-flight)."""
     bx, by = defender.transform.world_pos
     point = projectile_point(assets, cs, defender, "muzzle", lift_frac)
     if point is not None:
@@ -820,6 +907,7 @@ def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
     arc._on_impact = on_splash_impact
     arc._on_damage = on_damage
     arc._assets = assets
+    arc._slow = _mortar_slow_spec(defender, run_state, boss_upgrades_balance)
     arc.launch(gx, gy, defender, scene, AOE_TRAVEL_TIME)
     scene.spawn(shell)
 

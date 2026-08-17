@@ -207,7 +207,14 @@ class Session:
         ``vfx.json`` dict, passed straight through to ``lightning.strike``
         for the FX marker's cosmetic fade lifetimes. Not stored on
         ``Session`` — the host already holds it and passes it per call, the
-        same way it passes ``scene``/``cs``."""
+        same way it passes ``scene``/``cs``.
+
+        BossUpgradeTimelinePLAN BU-3 3.3: the strike also carries
+        ``self.boss_upgrades_balance`` for upgrade #7 ``stormpriest_slow``.
+        Only the BALANCE half of the standard hook pair travels — ``st`` is
+        already the ``RunState`` ``strike``'s first argument, the documented
+        ``place_building`` exception. ``None`` on a bare ``Session`` a logic
+        test builds, which keeps the strike byte-identical there."""
         st = self.state
         if st.state != GameState.GAMEPLAY or st.phase != GamePhase.ENEMY:
             return False
@@ -218,7 +225,8 @@ class Session:
         hits = []
         on_hit = (lambda dmg: hits.append(dmg)) if self.debug is not None else None
         fired = lt.strike(st, self.core_balance, vfx_balance, scene, cs, wx, wy,
-                          on_hit=on_hit)
+                          on_hit=on_hit,
+                          boss_upgrades_balance=self.boss_upgrades_balance)
         if self.debug is not None and fired:
             total = sum(hits)
             n = len(hits)

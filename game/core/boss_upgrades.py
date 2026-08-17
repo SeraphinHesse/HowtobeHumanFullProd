@@ -69,9 +69,36 @@ the host from the buildings package.
   ``scene`` are non-``None`` (``apply_pick``'s two optional trailing params).
   A pick resolved without a world in hand — a headless test, ``tools/simrun``
   before its scene exists — is a silent no-op, never a crash.
-- The table is keyed by upgrade id, so it generalises if a later one-time
-  effect needs the same treatment; today ``stone_thrower_sync`` is its only
-  intended user.
+- The table is keyed by upgrade id, so it generalises if a later effect needs
+  the same treatment — see the next section, which is exactly that.
+
+A PERSISTENT upgrade may ALSO need a one-time PICK-TIME action (BU-3 3.3)
+---------------------------------------------------------------------------
+``_ONE_TIME_HOOKS`` is looked up by ``apply_pick`` **independently of**
+``ONE_TIME_IDS``/``_ONE_TIME_EFFECTS`` — the hook table does not ask, and does
+not care, whether the id it is holding a callback for is a one-time upgrade.
+That is deliberate, and it is the whole mechanism for the second category:
+
+    a PERSISTENT passive whose effect lives at a hook site, but which needs a
+    single SETUP/SNAPSHOT step at the moment it is picked.
+
+Today's one member is ``mortar_slow`` (#3), whose D16 SNAPSHOT semantics mean
+only the mortars alive at pick-time ever slow: the host installs a snapshot
+function through the SAME call every one-time effect uses —
+
+    boss_upgrades.set_one_time_hook("mortar_slow", snapshot_fn)
+
+— and it stamps ``RunState.mortar_slow_snapshot_ids`` with the ``id()`` of
+every placed mortar. The upgrade's actual EFFECT is still an ordinary BU-3 hook
+site (``game/enemies/combat.py``'s ``_fire_splash``) reading ``hook_stacks`` and
+checking membership of that set; the pick-time hook only fills it.
+
+**No parallel mechanism was added for this, on purpose.** A second table would
+be a second answer to "what runs at pick time", with the same signature, the
+same host-installs-it rule and the same tilemap/scene guard — so the two
+categories share one seam and are told apart by ``ONE_TIME_IDS``, which is
+already the authority on which is which. If a future upgrade needs the same
+thing, register it here and say so in this section; do not add a third table.
 
 THE BU-3 HOOK THREADING PATTERN (read this before wiring a new hook)
 ---------------------------------------------------------------------------
@@ -114,19 +141,25 @@ this fixed order, and nothing else:**
 #: lives entirely at its BU-3 hook site, read through ``stack_count``.
 ONE_TIME_IDS = ("restock_lives", "stone_thrower_sync", "tile_refund")
 
-#: ``{upgrade_id: fn(state, tilemap, scene)}`` — the injected impure half of a
-#: one-time effect (see the module docstring). Host-installed via
-#: ``set_one_time_hook``; empty by default.
+#: ``{upgrade_id: fn(state, tilemap, scene)}`` — the injected impure half of
+#: whatever an upgrade has to do AT PICK TIME (see the module docstring's two
+#: seam sections). Host-installed via ``set_one_time_hook``; empty by default.
+#: Looked up by id alone, so it serves BOTH a one-time effect
+#: (``stone_thrower_sync``) and a persistent passive's one-time setup step
+#: (``mortar_slow``'s D16 snapshot).
 _ONE_TIME_HOOKS = {}
 
 
 def set_one_time_hook(upgrade_id, fn):
-    """Install (or clear, with ``fn=None``) the injected side of a ONE-TIME
+    """Install (or clear, with ``fn=None``) the injected PICK-TIME side of an
     upgrade's effect — the seam for work this pure module may not do itself.
 
-    See the module docstring for the full contract. Today the ONE intended
-    caller is BU-3 installing ``stone_thrower_sync``'s building sweep from the
-    host.
+    See the module docstring for the full contract. Two intended callers, both
+    installed by the host at boot: ``stone_thrower_sync`` (#9), whose whole
+    effect is one-time, and ``mortar_slow`` (#3), a persistent passive that
+    needs a one-time SNAPSHOT here (D16). The name says "one-time" because
+    what it installs always runs exactly once per pick — not because the
+    upgrade behind it has to be one of ``ONE_TIME_IDS``.
     """
     if fn is None:
         _ONE_TIME_HOOKS.pop(upgrade_id, None)
@@ -288,6 +321,11 @@ def apply_pick(state, upgrade_id, boss_upgrades_balance, core_balance,
     ``set_one_time_hook`` callback for anything that needs ``game.buildings``
     knowledge (``stone_thrower_sync``). ``tilemap``/``scene`` default to
     ``None`` — a pick resolved without a world in hand skips the hook silently.
+
+    **The hook lookup below is NOT gated on ``ONE_TIME_IDS``**, and that is
+    load-bearing rather than incidental: it is what lets a PERSISTENT passive
+    register a one-time pick-time setup step through the same seam
+    (``mortar_slow``'s D16 snapshot — see the module docstring).
     """
     state.boss_upgrade_stacks[upgrade_id] = stack_count(state, upgrade_id) + 1
 

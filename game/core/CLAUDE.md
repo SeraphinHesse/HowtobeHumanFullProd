@@ -644,6 +644,49 @@ unlike LEVELUP/BOSS_CUTSCENE, which both sit AFTER ROUND_END.
   behavior change there. Mid-ENEMY the cheat only arms `levelup_pending`; the
   window then fires at ROUND_END on the normal payday path.
 
+### `lightning.set_slow_hook` — the boss-upgrade slow seam (BU-3 3.3, #7)
+`strike()` grew an optional trailing **`boss_upgrades_balance`** — the BALANCE
+half of the standard BU-3 hook pair only, because `state` already IS the
+`RunState` (the documented `place_building` exception in
+`game/core/boss_upgrades.py`'s threading-pattern section; never a second,
+duplicate reference to the same object). `Session.lightning_strike` spells it
+`boss_upgrades_balance=self.boss_upgrades_balance`; `main.py`'s click handler
+needed no change at all, since the pair travels off the `Session` it already
+calls through. `None` (a bare `Session` a logic test builds, every pre-BU-3
+caller) keeps the strike byte-identical.
+- With `stormpriest_slow` (#7) picked, every enemy a bolt DAMAGES gets a timed
+  move-speed slow — **live, no snapshot** (unlike the mortar's #3, D16): once
+  picked it applies to every acolyte, whenever it was built. `_slow_spec`
+  resolves `(source, fraction, duration)` ONCE per click, before the caster
+  loop — the answer cannot change inside one strike — so the per-enemy inner
+  loop costs one `is not None` test. Repeat picks stack additively (D4) in the
+  fraction; the DURATION is not multiplied.
+- **The applier arrives through a SEAM, never an import.** The debuff
+  primitive is `game.enemies.components.apply_slow` (D19 — one slow mechanism,
+  living with `BuffState`), and **`game/core` imports NOTHING from
+  `game/enemies`** — the same hard rule the ER-3 death-spawn handshake and
+  `on_enemy_death`'s callbacks exist to honour. So `lightning.py` carries an
+  unset-by-default `_SLOW_HOOK` + `set_slow_hook(fn)`, installed once by the
+  HOST (`game/main.py`'s boot, beside `boss_upgrades.set_one_time_hook`): the
+  `components.set_damage_hook` / `widgets.set_skin_hit_test` precedent. No
+  hook installed is as inert as an unpicked upgrade.
+- `STORMPRIEST_SLOW_SOURCE` is a module constant — ONE `BuffState` source key
+  for the whole upgrade, never one per firing acolyte, so several casters
+  landing on one enemy in a single click read as one slow.
+
+### `boss_upgrades.set_one_time_hook` also serves a PERSISTENT upgrade (BU-3 3.3)
+`_ONE_TIME_HOOKS` is looked up by upgrade id **independently of**
+`ONE_TIME_IDS`, which is what lets a persistent passive register a one-time
+SETUP step at pick time through the same seam. Today's one user is
+`mortar_slow` (#3): the host installs a snapshot that stamps
+`RunState.mortar_slow_snapshot_ids` with every placed mortar (selected by the
+`SplashAttacker` capability marker — the same marker `_update_defender`
+dispatches the splash path on, so snapshot and application can never disagree),
+freezing D16's "only the mortars alive at pick-time ever slow". The upgrade's
+actual EFFECT is still an ordinary BU-3 hook site in `game/enemies/combat.py`.
+**No parallel mechanism was added for this** — see that module's docstring
+before adding a third table.
+
 ## Kidnapping (Art/enemies)
 `resolve_combat(on_kidnap=…)` — the fourth layering-trick callback beside
 `on_base_hit`/`on_enemy_death`/the ER-3 death-spawn handshake, fired from

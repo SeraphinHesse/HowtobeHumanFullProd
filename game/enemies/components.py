@@ -101,6 +101,57 @@ def set_wall_damage_hook(fn):
 BUFF_DECAY_SECONDS = 4.0
 
 
+# BossUpgradeTimelinePLAN BU-3 3.3 (D19): the lowest speed MULTIPLIER a
+# ``move_speed`` contribution may leave a unit at. A slow is a DEBUFF, i.e. a
+# NEGATIVE fraction, and additive stacking (D4/D7) can drive the sum past -1.0
+# — at which point `_condition_speed` would return 0 (or a negative), and a
+# unit at speed 0 never advances `Movement.index`, which is the ONLY thing that
+# refreshes `_current_condition`: the exact LATCH BP-1's own floor was added to
+# kill (see `_condition_speed`'s docstring). Provably a no-op for every
+# POSITIVE bonus and for any negative sum above -0.9, i.e. for everything the
+# game ships today. A cosmetic-tier module constant like `BUFF_DECAY_SECONDS`
+# beside it — a slow that stops a unit dead is a bug, not a designer lever.
+MIN_SPEED_MULTIPLIER = 0.1
+
+
+def apply_slow(owner, source, slow_fraction, duration):
+    """Apply (or REFRESH) a timed move-speed SLOW on ``owner`` — the shared
+    debuff seam BU-3's ``mortar_slow`` (#3) and ``stormpriest_slow`` (#7) both
+    land through (plan D19).
+
+    It is deliberately ``BuffState``, not a parallel mechanism: that ledger is
+    already per-source, additive and self-expiring, and its ``move_speed``
+    contribution is already read at the ONE right site
+    (``PathAgent._condition_speed``). A slow is simply a NEGATIVE fraction —
+    ``slow_fraction`` is taken as a magnitude and negated here, so no caller
+    can accidentally speed an enemy up through this door.
+
+    ``source`` is an opaque key, exactly as it is for the Drummer's aura. Every
+    contribution today is keyed by a buffing ``GameObject.id`` (a uuid hex);
+    these two are keyed by a plain SLOT STRING (``"boss_upgrade:mortar_slow"``,
+    …) — which the ledger supports with zero changes, and which keeps
+    ``BuffState.sources`` JSON-safe (E-11) exactly as before. One key per
+    UPGRADE (never per firing mortar) is what stops N mortars hitting one enemy
+    from stacking into a full stop; the upgrade's own repeat picks still stack,
+    additively, inside the fraction the caller computes.
+
+    ``duration`` re-pins that source's decay clock on every application, so a
+    sustained bombardment keeps the slow alive on the same "the fourth second
+    after the last frame anything re-pinned it" rule the aura uses.
+
+    Returns True when a contribution was actually written (False for an owner
+    with no ``BuffState`` — a stub, a building — or an inert magnitude), so a
+    caller can stay silent rather than guess.
+    """
+    if owner is None or not slow_fraction or duration <= 0:
+        return False
+    buffs = owner.get_component(BuffState)
+    if buffs is None:
+        return False
+    buffs.apply(source, 0.0, 0.0, -abs(slow_fraction), 0.0, decay=duration)
+    return True
+
+
 def buff_total(owner, key):
     """The summed ACTIVE buff bonus ``key`` on ``owner`` (NE-3).
 
@@ -578,11 +629,17 @@ class PathAgent(Component):
         floor are applied, so a buffed unit keeps the same relationship to
         both. Writing a bonus into ``Movement.speed`` directly would be
         overwritten by this method on the very next walking frame — this is
-        the only durable place to put it."""
+        the only durable place to put it.
+
+        BossUpgradeTimelinePLAN BU-3 3.3 (D19): the same multiplier now also
+        carries SLOWS (a negative ``move_speed`` contribution, written by
+        ``apply_slow``), which is why it is clamped at ``MIN_SPEED_MULTIPLIER``
+        — see that constant's own comment. Provably a no-op for every positive
+        bonus and for any negative sum above -0.9."""
         real = self._real_speed
         bonus = buff_total(getattr(self, "_owner", None), "move_speed")
         if bonus:
-            real *= (1.0 + bonus)
+            real *= max(MIN_SPEED_MULTIPLIER, 1.0 + bonus)
         mods = _condition_mods(getattr(self, "_tilemap", None),
                                self._current_condition)
         penalised = real - mods.get("enemy_speed_penalty", 0)

@@ -410,6 +410,31 @@ Two new `FloaterManager` methods (`game/ui/effects.py`), both wired in
   constant beside `HP_BAR_W`/`HP_BAR_H`, not balancing — only the swappable
   ART is a designer lever here, not the placeholder's own shape/colour).
 
+## The RED debuff arrow, and the narrowed gold one (BossUpgradeTimelinePLAN D20)
+`submit_debuff_arrows` (`effects.py`, wired in `game/main.py` immediately after
+`submit_buff_arrows`) is the gold arrow's twin in `_DEBUFF_ARROW_RED`, over any
+ALIVE enemy carrying an active SLOW. Same anchor, same geometry constants, same
+swappable-art rule (E-37) — a new `vfx` slot, `vfx_debuff_arrow`, drawing as a
+`HudSprite` once imported and a small procedural red triangle until then.
+- **The two arrows are the two SIGNS of ONE number**, `buff_total(enemy,
+  "move_speed")`: gold fires at `> 0`, red at `< 0`. They are keyed on the
+  STAT, never on the source — today's slows come from the boss upgrades
+  `mortar_slow`/`stormpriest_slow` via `game.enemies.components.apply_slow`
+  (D19), but anything that ever slows an enemy gets the indicator for free.
+- **`submit_buff_arrows` NARROWED, and that is a real, approved behaviour
+  change.** It used to fire on `BuffState.sources` non-empty — "any active
+  buff". Once a slow became a `BuffState` contribution too, that gate painted a
+  SLOWED enemy gold. The consequence to accept: a Drummer aura that only lifts
+  dmg/hp/attack_speed now shows no arrow at all. An aggregate of exactly `0`
+  (a buff and a slow cancelling) shows neither, per D20's own wording.
+- **No stacking offset exists between the two, on purpose.** One aggregate
+  cannot be both positive and negative, so they can never overlap — a
+  structural guarantee, not a coincidence, and an offset constant for the
+  impossible case would be dead chrome. The constants block says what to do if
+  a future mechanic ever splits the gates apart.
+- Two small private helpers, `_arrow_anchor_y` and `_submit_arrow`, hold the
+  shared anchor maths and the art/no-art branch so the pair cannot drift.
+
 ## Digger underground telegraph (digger-hop-rework)
 The player-feedback fix that came with the Digger's stand-and-erupt-in-place +
 knight-hop rework (`game/enemies/CLAUDE.md`'s Digger section): while the

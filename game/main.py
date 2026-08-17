@@ -86,9 +86,11 @@ from game.buildings.movement import (
 # `stone_thrower_sync` upgrade, installed into game/core's injected hook seam
 # below (the host is the one layer that may import both packages) --
 from game.buildings.boss_upgrade_effects import sync_stone_throwers
+from game.buildings.components import SplashAttacker  # BU-3 3.3: the mortar
 from game.core import Session, append_random_name, load_balance
 from game.core import boss_upgrades  # BU-3: the one-time-hook seam
 from game.core import highscores  # player-identity: the run-history document
+from game.core import lightning  # BU-3 3.3: the stormpriest_slow hook seam
 from game.core.boss_bonuses import story_damage_bonus
 from game.core.phases import GamePhase, GameState
 from game.debug import (  # debug-mode-telemetry
@@ -102,6 +104,7 @@ from game.enemies import (
 from game.enemies.components import (  # debug-mode-telemetry Phase 3 + 5
     set_damage_hook, set_wall_damage_hook,
 )
+from game.enemies.components import apply_slow  # BU-3 3.3: the slow primitive
 from game.map import (
     TileMap, condition_render_items, spawn_deco_render_items,
     spawn_tree_slots, tile_at_screen, wall_render_items,
@@ -852,6 +855,37 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # process, at boot, beside the other host wiring; `apply_pick` calls it
     # only when it has a tilemap AND a scene in hand.
     boss_upgrades.set_one_time_hook("stone_thrower_sync", sync_stone_throwers)
+
+    # BU-3 3.3: `mortar_slow` (#3) is a PERSISTENT passive that still needs one
+    # action at PICK time — D16's snapshot: only the mortars ALIVE when the
+    # upgrade was picked ever slow, so the set of eligible mortars is frozen
+    # here and read back at fire time (`game/enemies/combat.py`'s
+    # `_mortar_slow_spec`). It rides the SAME `set_one_time_hook` seam
+    # `stone_thrower_sync` uses — the table is keyed by upgrade id and does not
+    # care which category the id belongs to (see `boss_upgrades.py`'s docstring).
+    def _snapshot_mortar_slow(state, tilemap, scene):
+        """Stamp `RunState.mortar_slow_snapshot_ids` with every placed mortar.
+
+        Selected by the `SplashAttacker` CAPABILITY MARKER, never a class or a
+        `building_type` string (G-3) — and specifically because that is the
+        exact same marker `_update_defender` dispatches the splash-fire path
+        on, so the snapshot and the application site can never disagree about
+        what "a mortar" is. Walks `built_tiles()` (the `_by_state` index, i.e.
+        O(built tiles), never a full-map scan — the large-map invariant), the
+        same enumeration `boss_upgrade_effects.placed_buildings` uses. A DEAD
+        mortar counts: it is not a freed slot, payday's revive brings it back.
+        `scene` is part of the fixed hook signature and is unused here.
+        """
+        state.mortar_slow_snapshot_ids = {
+            id(t.occupant) for t in tilemap.built_tiles()
+            if t.occupant is not None
+            and t.occupant.get_component(SplashAttacker) is not None}
+
+    boss_upgrades.set_one_time_hook("mortar_slow", _snapshot_mortar_slow)
+    # BU-3 3.3: `stormpriest_slow` (#7) applies the shared slow primitive from
+    # inside `game/core/lightning.py`, which may not import `game/enemies` —
+    # so the host hands it over, exactly like the one-time hook above.
+    lightning.set_slow_hook(apply_slow)
     # debug: draw the camera-startpoint marker in-game (default off)
     show_camera_start = ui_balance["Debug"]["show_camera_startpoint"]
 
@@ -2054,7 +2088,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                                    on_defender_fire=_on_defender_fire,
                                    on_projectile_hit=_on_projectile_hit,
                                    on_kidnap=_on_kidnap,
-                                   on_damage=_debug_on_damage)
+                                   on_damage=_debug_on_damage,
+                                   # BU-3: the standard hook pair, spelled off
+                                   # the Session (#3 mortar_slow).
+                                   run_state=session.state,
+                                   boss_upgrades_balance=(
+                                       session.boss_upgrades_balance))
                     if debug_l2:  # armed this frame -> cleared this frame
                         set_damage_hook(None)
                         set_wall_damage_hook(None)
@@ -2416,8 +2455,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             gp["floaters"].submit_beams(renderer, cs, world.scene)    # 10B: HUD
             gp["floaters"].submit_hp_bars(renderer, cs, world.scene)
             gp["floaters"].submit_enemy_hp_bars(renderer, cs, world.scene)
-            # Golden arrow above any enemy carrying an active buff.
+            # Golden arrow above any enemy whose move speed is BUFFED, red
+            # arrow above any enemy that is SLOWED (BossUpgradeTimelinePLAN
+            # D20 — the two signs of one aggregate, so at most one fires).
             gp["floaters"].submit_buff_arrows(renderer, cs, world.scene)
+            gp["floaters"].submit_debuff_arrows(renderer, cs, world.scene)
             # Digger underground telegraph: entry-tile marker + heading arrow.
             gp["floaters"].submit_digger_telegraphs(renderer, cs, world.scene)
             gp["floaters"].submit(renderer, cs)
