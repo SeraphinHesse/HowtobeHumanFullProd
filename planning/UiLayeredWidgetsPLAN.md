@@ -91,14 +91,26 @@ Read `game/ui/CLAUDE.md`, `data/CLAUDE.md`'s "UI screen data" section and
     `configure_fonts` and stored**, never measured live at each call site — the
     pinned-heights invariant exists because SysFont measures ±1px differently
     per platform and every stored rect must be reproducible on any machine.
-- **D7 — A clickable layer either RETARGETS an existing widget or names one of a
-  RESERVED enum of new action tokens** (user decision). Free text is rejected:
-  the schema's enum is closed, so a mistyped or not-yet-coded action fails
-  validation in the editor instead of shipping a silently dead button
-  (ED-30, "invalid input unrepresentable"). Retarget = the layer fires the named
-  widget id's own action, so the Munchkin can drive the Pause button — or a
-  *different* button. The reserved-token list is an open item (§5) and must be
-  named before UL-9.
+- **D7 — A clickable layer either RETARGETS an existing widget or names one of
+  three RESERVED action tokens; an unroutable target WARNS but is allowed**
+  (user decision, 2026-08-17 — this AMENDS the original ruling, see below).
+  Retarget = the layer fires the named widget id's own action, so the Munchkin
+  can drive the Pause button — or a *different* button.
+  - **The reserved tokens are `close_window`, `back`, `noop`** (named by the
+    user at the W2→W3 boundary; UL-9 is no longer blocked). `noop` is the
+    explicit do-nothing: a decorative layer that must swallow its click rather
+    than let it fall through to the button behind it.
+  - **Amendment — dead buttons warn, they do not fail validation.** The original
+    D7 made the schema enum CLOSED and cited ED-30 ("invalid input
+    unrepresentable") so that a mistyped or not-yet-coded action would fail
+    validation in the editor. The user has ruled the other way: `target` accepts
+    any id-shaped string, and a target that resolves to **neither** a widget id
+    present in this screen **nor** one of the three tokens is surfaced as a
+    **warning in the editor** and still saves. Rationale: a designer authoring
+    against a widget that does not exist yet should not be blocked by the
+    schema. Consequence to accept: an unroutable `target` CAN ship, so the
+    warning is the only thing standing between a typo and a dead button — it
+    must be visible in the inspector, not buried in a log.
 - **D8 — The hit resolver is PURE, and every screen consults it BEFORE its own
   hit logic.** `main.py` calls `Hud.hit()` **twice per click** (the pan-arming
   probe on MOUSEBUTTONDOWN, the real handler on MOUSEBUTTONUP), which is why
@@ -122,7 +134,7 @@ Read `game/ui/CLAUDE.md`, `data/CLAUDE.md`'s "UI screen data" section and
 |---|---|---|---|---|
 | S1 | Quick wins — alignment and fonts | UL-1, UL-2 | — | **LANDED** — `ul-section-S1`, merged to umbrella |
 | S2 | The layer model | UL-3, UL-4, UL-5 | — | **LANDED** — `ul-section-S2`, merged to umbrella |
-| S3 | Layers in the editor | UL-6, UL-7, UL-8 | S2 | **LANDED** — `ul-section-S3`, pending umbrella merge |
+| S3 | Layers in the editor | UL-6, UL-7, UL-8 | S2 | **LANDED** — `ul-section-S3`, merged to umbrella |
 | S4 | Clickable layers + life counters | UL-9, UL-10, UL-11, UL-12 | S2, S3 | not started |
 
 **Waves:** W1 = **S1 + S2** (concurrent). W2 = **S3**. W3 = **S4**.
@@ -460,8 +472,14 @@ the button behind it), and the three life counters become real widgets with
 alive / transition / dead states.
 
 **Publishes.**
-- `clickable` + `target` on a layer entry, where `target` is either a widget id
-  in the same screen or one of a closed enum of reserved action tokens (D7).
+- `clickable` + `target` on a layer entry, where `target` is a widget id in the
+  same screen or one of the three reserved tokens `close_window` / `back` /
+  `noop`; an id-shaped string matching neither WARNS in the editor and still
+  saves (D7, as amended).
+- The two editor-wiring items S3 scoped out, folded into UL-10 by user decision:
+  connect `viewport.layer_selected` so a viewport click selects the layer in the
+  inspector, and link the inspector's state combo to the viewport's
+  preview-state dropdown.
 - `engine.ui_layers.hit(...)` — pure, topmost-first (D8) — and
   `ScreenSkinning.hit_layer(screen_id, ids, mx, my)`.
 - `hud.life_1` / `life_2` / `life_3` as id'd widgets with a per-life state fed
@@ -482,14 +500,16 @@ alive / transition / dead states.
 **Goal.** Decide, purely, which layer a click lands on and what it means.
 Nothing routes it yet.
 
-**Blocked on one input:** the reserved action-token enum must be named before
-this phase starts (§5). Retarget-an-existing-widget works without it.
+**UNBLOCKED** (2026-08-17): the reserved tokens are **`close_window`, `back`,
+`noop`**, and an unroutable target warns rather than failing validation — see the
+amended D7. Retarget-an-existing-widget works as before.
 
 **Files.**
 - Modified: `data/schemas/ui_screen.schema.json` — `clickable` (bool) and
-  `target` (string) on a layer entry; `target` validates as either a widget-id
-  pattern or a member of the reserved enum, so an unroutable action is
-  unrepresentable (D7).
+  `target` (string) on a layer entry. `target` accepts any id-shaped string
+  (`^[a-z][a-z0-9_]*$`); it is **not** a closed enum. Routability is an EDITOR
+  warning, not a schema constraint (D7 as amended) — so the schema stays
+  permissive and the editor is what tells the designer a target is dead.
 - Modified: `engine/ui_layers.py` — `hit(layers, owner_rect, mx, my, state)`,
   topmost-first within `over`, then the owner, then `under`. Pure (D8).
 
@@ -612,10 +632,16 @@ deliberately rather than half-promised. Each is its own future plan.
 
 ## 5. Risks and open items
 
-- **The reserved action-token enum is unnamed** (D7). UL-9 is blocked on it.
-  Retargeting an existing widget covers most of the designer's document; the
-  tokens are for actions no widget has yet (e.g. "close this window"). Name them
-  before W3.
+- ~~**The reserved action-token enum is unnamed** (D7).~~ **RESOLVED 2026-08-17
+  at the W2→W3 boundary**: the tokens are `close_window`, `back`, `noop`, and an
+  unroutable target warns instead of failing validation (amended D7). UL-9 is
+  unblocked.
+  - **New risk this creates.** Because the schema no longer rejects an
+    unroutable `target`, a dead button can ship. The editor warning is the ONLY
+    guard, so it has to be visible where the designer is working. UL-10 must
+    also decide what a dead target does at RUNTIME — swallow the click, or fall
+    through to the widget behind the layer. Falling through silently is the
+    worse failure: it looks like the layer was never clickable.
 - **D4's band limitation is real.** An `under` layer sits behind everything on
   its screen, not just behind its owner. If a designer needs a background
   between two stacked panels, the answer is a third band or a per-widget
