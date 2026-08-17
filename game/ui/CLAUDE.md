@@ -699,11 +699,17 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
   `SessionSettings` precedent) — `Shell(key_bindings=...)` threads it in, and
   the screen only tracks WHICH row is armed (`capturing`); resolving a
   captured keypress (Esc cancels, a collision flashes red via
-  `Button.start_flash`, otherwise the binding is written + persisted to
+  `flash_conflict`, otherwise the binding is written + persisted to
   `scores/keybindings.json`) is `main.py`'s job, since a disk write and a raw
   `pygame.KEYDOWN` are both out of bounds for pygame-free `game/ui`.
   `main.py`'s menu `KEYDOWN` routing special-cases capture mode BEFORE
-  `shell.handle_key(...)` — see `_handle_capture_key`.
+  `shell.handle_key(...)` — see `_handle_capture_key`. **A key with no
+  representable binding (an arrow key, Tab, Shift, an F-key, …) flashes red
+  via a sibling method, `flash_unbindable`, instead of the previous silent
+  no-op** — the bug that made rebinding a WASD row to an arrow key look
+  permanently stuck on "PRESS A KEY". Both flash methods share one private
+  `_flash_armed_row(message)` helper; the label the flash overwrites is the
+  armed row's `REBIND` button text via `start_flash`, not a separate widget.
 
 ## Defence FX (10B)
 `effects.py` `FloaterManager` grew `submit_beams` + `submit_craters`, drawn from
