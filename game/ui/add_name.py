@@ -17,7 +17,7 @@ from types import SimpleNamespace
 
 from engine.render import HudRect
 
-from .skinning import ScreenSkinning, button_kwargs, is_visible
+from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .widgets import (
     Button, anim_ms, contains, label_holder, submit_centered, submit_label,
     submit_panel, submit_text
@@ -127,6 +127,11 @@ class AddNameScreen:
     def hit(self, mx, my):
         """Return ``"back"`` / ``"add"`` / ``"name"`` (box focus) / ``None``.
         An invisible button is never hit (10L-B)."""
+        layer_action = hit_layer(  # UL-10: clickable layers first
+            self.ids, self.skinning.widgets_spec(self.screen_id), mx, my,
+            self.skinning.state_of, {"btn_back": "back", "btn_add": "add"})
+        if layer_action is not None:
+            return layer_action
         if is_visible(self.back_btn) and self.back_btn.hit(mx, my):
             return "back"
         if is_visible(self.add_btn) and self.add_btn.hit(mx, my):

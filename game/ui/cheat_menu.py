@@ -38,7 +38,7 @@ from types import SimpleNamespace
 
 from engine.render import HudRect
 
-from .skinning import ScreenSkinning, button_kwargs, is_visible
+from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .widgets import (
     Button, anim_ms, contains, submit_label, submit_panel, submit_text
 )
@@ -216,6 +216,16 @@ class CheatMenu:
         """The clicked action, or None (every click on/off the panel is
         swallowed by the host while the menu is open). An invisible button
         is never hit (10L-B)."""
+        # UL-10: clickable layers first. ``_ACTION_IDS`` reversed plus the
+        # close button; ``btn_goto`` is left out on purpose — its branch
+        # COMMITS the typed round field, which is not a pure lookup.
+        layer_actions = {wid: action for action, wid in _ACTION_IDS.items()}
+        layer_actions["btn_close"] = "close"
+        layer_action = hit_layer(
+            self.ids, self.skinning.widgets_spec(self.screen_id), mx, my,
+            self.skinning.state_of, layer_actions)
+        if layer_action is not None:
+            return layer_action
         if is_visible(self.close_btn) and self.close_btn.hit(mx, my):
             return "close"
         for action, btn in self.buttons:

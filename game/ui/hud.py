@@ -22,7 +22,7 @@ from game.core.lightning import LightningCaster
 from game.core.phases import GamePhase, GameState
 from game.core.xp import scaled_base_income
 
-from .skinning import ScreenSkinning, button_kwargs, is_visible
+from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .widgets import (
     Button, anim_ms, contains, label_holder, submit_bar, submit_centered,
     submit_label, submit_panel, submit_text, text_h, text_size
@@ -451,9 +451,30 @@ class Hud:
         self.drag_select_btn.update(dt)
         # -- /drag-select --
 
+    #: UL-10 retarget table: widget id -> the action THIS screen's own hit()
+    #: returns for it. One source of truth with the branches below — a
+    #: clickable layer targeting `btn_end_turn` fires exactly "end_turn".
+    _LAYER_ACTIONS = {
+        "btn_pause": "pause",
+        "btn_end_turn": "end_turn",
+        "btn_speed_1x": ("speed", 0),
+        "btn_speed_1_5x": ("speed", 1),
+        "btn_speed_2x": ("speed", 2),
+        "btn_drag_select": "drag_select",
+    }
+
     def hit(self, mx, my):
         if self._panel_open:
             return None
+        # -- UL-10: a clickable LAYER wins over the widget under it. Still a
+        # PURE READ (see the drag-select note below) — hit_layer never
+        # mutates, so main.py's two calls per click stay identical. --
+        layer_action = hit_layer(
+            self.ids, self.skinning.widgets_spec(self.screen_id), mx, my,
+            self.skinning.state_of, self._LAYER_ACTIONS)
+        if layer_action is not None:
+            return layer_action
+        # -- /UL-10 --
         if is_visible(self.pause) and self.pause.hit(mx, my):
             return "pause"
         # -- 10L: speed buttons — hidden in build mode, see update() --

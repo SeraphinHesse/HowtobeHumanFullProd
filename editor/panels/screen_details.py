@@ -144,6 +144,22 @@ TOOLTIP_LAYER_TINT_NEEDS_SLOT = (
 # fallback for a registry with no `ui` category.
 _LAYER_STATES = ("idle", "hover", "pressed", "disabled")
 
+# UL-10: the three targets a clickable layer may name that are NOT a widget id
+# in its own screen (D7 as amended). Restated here rather than imported from
+# `game.ui.skinning.RESERVED_TARGETS` because `editor/` may never import
+# `game/` (D5) — the game module's docstring names this file as the twin.
+RESERVED_TARGETS = ("close_window", "back", "noop")
+
+TOOLTIP_LAYER_CLICKABLE = (
+    "Make this layer a click target. An ordinary decorative layer is "
+    "transparent to clicks — the widget underneath it gets them.")
+
+TOOLTIP_LAYER_TARGET = (
+    "What clicking this layer does: another widget id in THIS screen (fires "
+    "that widget's own action), or one of close_window / back / noop. "
+    "Anything else still saves, but the click is swallowed — it never falls "
+    "through to the widget underneath.")
+
 _RECT_MIN, _RECT_MAX = -4096, 4096
 
 # One custom MIME type carrying the dragged widget's code id.
@@ -1165,8 +1181,104 @@ class ScreenDetailsPanel(QWidget):
             lambda: self._on_reset_layer_base_field("band"))
         form.addRow("Band", band_row)
 
+        # UL-10: clickable + target. BASE-ONLY like Z/Band — neither is a
+        # state-patch key in the schema, and a layer that is a click target in
+        # one state but not another is not a thing the resolver expresses.
+        self.layer_clickable_check = QCheckBox("Clickable", self)
+        self.layer_clickable_check.setToolTip(TOOLTIP_LAYER_CLICKABLE)
+        self.layer_clickable_check.toggled.connect(
+            self._on_layer_clickable_toggled)
+        clickable_row, self.layer_clickable_reset_button = self._field_row(
+            (self.layer_clickable_check,), "clickable",
+            lambda: self._on_reset_layer_base_field("clickable"))
+        form.addRow("", clickable_row)
+
+        # Editable: D7 as amended allows an id-shaped target naming neither a
+        # widget in this screen nor a reserved token. It SAVES; it warns.
+        self.layer_target_combo = _NoWheelComboBox(self)
+        self.layer_target_combo.setEditable(True)
+        self.layer_target_combo.setToolTip(TOOLTIP_LAYER_TARGET)
+        self.layer_target_combo.activated.connect(
+            lambda _i: self._on_layer_target_changed())
+        self.layer_target_combo.editTextChanged.connect(
+            self._on_layer_target_edited)
+        # Free text commits on focus-out/Enter, the `label_edit` rule — an
+        # unroutable id must still be SAVABLE (D7 amended), not just typeable.
+        self.layer_target_combo.lineEdit().editingFinished.connect(
+            self._on_layer_target_changed)
+        target_row, self.layer_target_reset_button = self._field_row(
+            (self.layer_target_combo,), "target",
+            lambda: self._on_reset_layer_base_field("target"))
+        form.addRow("Target", target_row)
+
+        self.layer_target_warning = QLabel("", self)
+        self.layer_target_warning.setWordWrap(True)
+        self.layer_target_warning.setStyleSheet("color: #d08820;")
+        form.addRow("", self.layer_target_warning)
+
         box_layout.addLayout(form)
         return box
+
+    # -- UL-10: clickable / target -------------------------------------------
+
+    def _target_choices(self):
+        """Every value the target picker offers: the widget ids of the OPEN
+        screen (the same source `_refresh_parent_combo` reads) followed by the
+        three reserved tokens. The combo is EDITABLE, so this is a
+        convenience list, never a closed enum."""
+        widgets = self._current_screen_defaults().get("widgets", {})
+        return list(widgets) + list(RESERVED_TARGETS)
+
+    def _target_is_routable(self, target):
+        """Whether `target` names something `game.ui.skinning.hit_layer` can
+        actually route: a widget id in THIS screen, or a reserved token. An
+        empty target is not "unroutable" — it is simply unset, so it gets no
+        warning (it swallows the click at runtime, which is `noop`)."""
+        if not target:
+            return True
+        return (target in RESERVED_TARGETS
+                or target in self._current_screen_defaults().get("widgets", {}))
+
+    def _refresh_target_warning(self, target):
+        """D7 amended's REQUIRED visible warning. Never gates the write —
+        an unroutable target still saves, by design."""
+        self.layer_target_warning.setText(
+            "" if self._target_is_routable(target)
+            else f"“{target}” names no widget in this screen and is not a "
+                 "reserved token — clicking this layer will do nothing "
+                 "(the click is swallowed, not passed through).")
+
+    def _on_layer_clickable_toggled(self, checked):
+        if self._populating:
+            return
+        # False is the schema default, so only an explicit True is stored.
+        self._push_layer_base_field("clickable", True if checked else None)
+
+    def _on_layer_target_changed(self):
+        text = self.layer_target_combo.currentText().strip()
+        self._refresh_target_warning(text)
+        if self._populating:
+            return
+        self._push_layer_base_field("target", text or None)
+
+    def _on_layer_target_edited(self, text):
+        """Live warning as the designer types. Deliberately does NOT write —
+        the value commits on `activated` (a picked item) or on the line
+        edit's own `editingFinished`, matching `label_edit`'s rule."""
+        self._refresh_target_warning((text or "").strip())
+
+    def sync_layer_state(self, name):
+        """Follow the VIEWPORT's preview-state dropdown (UL-10). Sets the
+        combo with signals blocked and re-reads the inspector, so the rows
+        show the state the viewport is drawing. A name this combo does not
+        carry is ignored rather than snapping the selector to Idle."""
+        index = self.layer_state_combo.findData(name)
+        if index < 0:
+            return
+        self.layer_state_combo.blockSignals(True)
+        self.layer_state_combo.setCurrentIndex(index)
+        self.layer_state_combo.blockSignals(False)
+        self._refresh_layer_inspector()
 
     def _state_names(self):
         """The state vocabulary, from the registry's `ui` category (the same
@@ -1345,7 +1457,8 @@ class ScreenDetailsPanel(QWidget):
                 self.layer_label_edit, self.layer_color_button,
                 self.layer_tint_button, self.layer_text_color_button,
                 self.layer_visible_check, self.layer_z_spin,
-                self.layer_field_band_combo)
+                self.layer_field_band_combo,
+                self.layer_clickable_check, self.layer_target_combo)
 
     def _layer_reset_buttons(self):
         return {"offset": self.layer_offset_reset_button,
@@ -1356,7 +1469,9 @@ class ScreenDetailsPanel(QWidget):
                 "text_color": self.layer_text_color_reset_button,
                 "visible": self.layer_visible_reset_button,
                 "z": self.layer_z_reset_button,
-                "band": self.layer_band_reset_button}
+                "band": self.layer_band_reset_button,
+                "clickable": self.layer_clickable_reset_button,
+                "target": self.layer_target_reset_button}
 
     def _set_honest(self, control, live, dead_tooltip, live_tooltip=""):
         """Enable `control` iff the draw path actually reads its key, and give
@@ -1392,6 +1507,7 @@ class ScreenDetailsPanel(QWidget):
             control.setEnabled(has_layer)
         if not has_layer:
             self.layer_state_note.setText("")
+            self.layer_target_warning.setText("")   # UL-10
             for button in self._layer_reset_buttons().values():
                 button.setEnabled(False)
             return
@@ -1429,6 +1545,15 @@ class ScreenDetailsPanel(QWidget):
         self.layer_field_band_combo.setCurrentIndex(
             max(0, self.layer_field_band_combo.findData(
                 entry.get("band", "over"))))
+        # UL-10: base-only, like z/band. The picker is repopulated here (the
+        # open screen's widget ids can change under an undo/rebuild) and the
+        # warning recomputed from the stored value.
+        self.layer_clickable_check.setChecked(bool(entry.get("clickable")))
+        target = entry.get("target") or ""
+        self.layer_target_combo.clear()
+        self.layer_target_combo.addItems(self._target_choices())
+        self.layer_target_combo.setCurrentText(target)
+        self._refresh_target_warning(target)
         self._populating = was_populating
 
         # D3/honest controls, the FULL precedence chain (see the tooltip block
@@ -1464,6 +1589,8 @@ class ScreenDetailsPanel(QWidget):
                 self._layer_raw_value(entry, state, key) is not None)
         buttons["z"].setEnabled("z" in entry)
         buttons["band"].setEnabled("band" in entry)
+        buttons["clickable"].setEnabled("clickable" in entry)   # UL-10
+        buttons["target"].setEnabled("target" in entry)
 
     # -- per-widget form ---------------------------------------------------
 
