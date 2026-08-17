@@ -57,6 +57,11 @@ def begin_kidnap(scene, tilemap, enemy, building):
         kidnap.slot_key = b_anim.slot_key
         kidnap.fit_tiles = b_anim.fit_tiles
         kidnap.scale = b_anim.scale
+        # MasterSheetColumnsPLAN B1: the player's swatch pick lives on the
+        # building's own animator (`SpriteAnimator.column`, -1 = "no driver")
+        # and must ride along too, or the carried sprite silently falls back
+        # to the manifest's default colour instead of the one the player chose.
+        kidnap.column = b_anim.column
     kidnap.active = True
     kidnap.pending = False
     kidnap._scene = scene
