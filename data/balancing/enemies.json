@@ -7,10 +7,10 @@
       "offset_ease_seconds": 0.25
     },
     "Standard": {
-      "dwell_threshold_seconds": 0.3,
+      "dwell_threshold_seconds": 0.4,
       "max_offset_tiles": 0.22,
       "max_slots": 6,
-      "offset_ease_seconds": 0.25
+      "offset_ease_seconds": 0.4
     }
   },
   "EnemyScaling": {
