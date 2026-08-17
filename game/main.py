@@ -91,8 +91,8 @@ from game.debug import (  # debug-mode-telemetry
 )
 from game.debug import events as dbg
 from game.enemies import (
-    DEATH_ANIM, KIDNAP_ANIM, Spawner, resolve_combat, set_kidnap_pose,
-    spawn_corpse,
+    DEATH_ANIM, KIDNAP_ANIM, Spawner, apply_crowd_spacing, resolve_combat,
+    restore_crowd_positions, set_kidnap_pose, spawn_corpse,
 )
 from game.enemies.components import (  # debug-mode-telemetry Phase 3 + 5
     set_damage_hook, set_wall_damage_hook,
@@ -1920,7 +1920,16 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                         # A wall carries no Health and no RoundStats, so its
                         # damage is invisible to `on_damage` — its own seam.
                         set_wall_damage_hook(_debug_on_wall_damage)
+                    # Tile-crowding visual offset (feature): undo last
+                    # frame's offset BEFORE Movement runs (inside
+                    # scene.update) so it steps from the clean path
+                    # position, then re-apply the offset AFTER — see
+                    # game/enemies/crowd_spacing.py's module docstring for
+                    # why this can't be a single per-enemy Component.update().
+                    restore_crowd_positions(world.scene)
                     world.scene.update(sim_dt)
+                    apply_crowd_spacing(world.scene, sim_dt,
+                                        enemies_balance["CrowdSpacing"])
                     # The flat boss-bonus story damage (Boss1A/1B/3A/3B),
                     # computed once per frame and threaded as a plain int.
                     dmg_bonus = story_damage_bonus(session.state, world.tile_map,
