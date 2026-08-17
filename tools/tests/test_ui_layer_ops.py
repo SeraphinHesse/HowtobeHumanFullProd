@@ -24,10 +24,14 @@ EXPLICIT INSERTION POINTS FOR FUTURE PHASES:
 # PySide6, which reads those vars at import time.
 from tools.tests.qt_harness import APP as _APP  # noqa: F401
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPoint, Qt
+from PySide6.QtTest import QTest
 
 from editor.panels.screen_details import ScreenDetailsPanel
+from editor.panels.viewport import SCREEN_H, SCREEN_W, ViewportPanel
 from editor.ui_screen_session import UIScreenSession
+from engine import ui_layers
+from engine.render import HudLines, HudRect, HudText
 from tools.tests.test_editor_panels import TempDataCase
 
 FIXTURE_DEFAULTS = {
@@ -302,3 +306,198 @@ class TestLayerOutliner(_LayerCase):
         self.assertFalse(self.panel.layer_remove_button.isEnabled())
         self.assertFalse(self.panel.layer_up_button.isEnabled())
         self.assertFalse(self.panel.layer_down_button.isEnabled())
+
+
+class TestLayerViewportGeometry(_LayerCase):
+    """UL-7: the viewport draws, hit-tests and drags layers.
+
+    Geometry comes ONLY from `engine.ui_layers.resolve`/`ordered` (D3) — these
+    tests assert the viewport's numbers AGAINST that resolver rather than
+    against literals wherever the resolver is what defines them.
+
+    The panel is sized to exactly SCREEN_W x SCREEN_H, so the fit scale is 1.0
+    with zero letterbox offset and logical pixels ARE widget pixels — the same
+    trick `test_editor_viewport.TestViewportScreenMode` uses to keep the mouse
+    coordinates in these tests readable.
+    """
+
+    PANEL_RECT = (20, 10, 200, 40)      # FIXTURE_DEFAULTS' love_panel
+
+    def setUp(self):
+        super().setUp()
+        self.viewport = self.track(ViewportPanel(data_dir=self.data_dir))
+        self.viewport.resize(SCREEN_W, SCREEN_H)
+        self.viewport.show()
+        _APP.processEvents()
+        # previews=None -> no recorded draw list for `hud`, so the viewport
+        # takes its own widget+layer submission path (deterministic counts).
+        self.viewport.set_screen_mode(self.session, FIXTURE_DEFAULTS)
+
+    def add_layer(self, layer_id, spec, widget_id="love_panel"):
+        self.session.add_layer(widget_id, layer_id, spec)
+        return self.session.doc["widgets"][widget_id]["layers"][-1]
+
+    def defaults(self):
+        return self.viewport._current_screen_defaults()
+
+    def record_hud(self):
+        calls = []
+        original = self.viewport._renderer.submit_hud
+
+        def wrapper(item):
+            calls.append(item)
+            return original(item)
+
+        self.viewport._renderer.submit_hud = wrapper
+        return calls
+
+    def test_a_layer_draws_at_the_rect_the_resolver_returns(self):
+        entry = self.add_layer("layer_1", {"offset": [5, 5, 20, 10], "z": 0,
+                                           "band": "over",
+                                           "color": [10, 20, 30]})
+        calls = self.record_hud()
+        self.viewport.render_frame()
+        drawn = [c for c in calls
+                 if isinstance(c, HudRect) and tuple(c.color) == (10, 20, 30)]
+        self.assertEqual(len(drawn), 1)
+        expected = ui_layers.resolve(entry, self.PANEL_RECT, "idle")["rect"]
+        self.assertEqual(tuple(drawn[0].rect), tuple(expected))
+
+    def test_bands_draw_under_before_the_widget_before_over(self):
+        self.add_layer("under_1", {"offset": [0, 0, 4, 4], "band": "under",
+                                   "color": [1, 1, 1]})
+        self.add_layer("over_1", {"offset": [0, 0, 4, 4], "band": "over",
+                                  "color": [2, 2, 2]})
+        calls = self.record_hud()
+        self.viewport.render_frame()
+        colors = [tuple(c.color) for c in calls if isinstance(c, HudRect)]
+        under_at = colors.index((1, 1, 1))
+        over_at = colors.index((2, 2, 2))
+        owner_at = [i for i, c in enumerate(colors)
+                    if c not in ((1, 1, 1), (2, 2, 2))]
+        self.assertLess(under_at, over_at)
+        self.assertTrue(any(under_at < i < over_at for i in owner_at))
+
+    def test_a_zero_extent_layer_grows_to_a_grabbable_interaction_rect(self):
+        """love_text is a position-only anchor ([40, 19, 0, 0]), so a layer
+        offset of 0 INHERITS a zero extent — drawn as-is, but grown for the
+        editor's own hit box exactly like the widget anchor case."""
+        entry = self.add_layer("layer_1", {"offset": [0, 0, 0, 0]},
+                               widget_id="love_text")
+        resolved = ui_layers.resolve(entry, [40, 19, 0, 0], "idle")
+        self.assertEqual(tuple(resolved["rect"]), (40, 19, 0, 0))
+        boxes = self.viewport._layer_boxes("love_text", self.defaults())
+        self.assertEqual(len(boxes), 1)
+        _layer_id, _resolved, rect = boxes[0]
+        self.assertEqual(rect[0], 40)
+        self.assertGreater(rect[2], 0)
+        self.assertGreater(rect[3], 0)
+
+    def test_click_selects_the_layer_not_its_widget(self):
+        self.add_layer("layer_1", {"offset": [5, 5, 20, 10], "band": "over",
+                                   "color": [10, 20, 30]})
+        QTest.mouseClick(self.viewport, Qt.MouseButton.LeftButton,
+                         pos=QPoint(30, 20))
+        self.assertEqual(self.viewport._selected_widget, "love_panel")
+        self.assertEqual(self.viewport._selected_layer, "layer_1")
+
+    def test_the_highest_z_layer_wins_a_tie(self):
+        self.add_layer("layer_low", {"offset": [5, 5, 20, 10], "z": 0,
+                                     "band": "over"})
+        self.add_layer("layer_high", {"offset": [5, 5, 20, 10], "z": 5,
+                                      "band": "over"})
+        hit = self.viewport._hit_layer(QPoint(30, 20), self.defaults())
+        self.assertEqual(hit, ("love_panel", "layer_high"))
+
+    def test_the_smaller_layer_wins_over_a_bigger_one(self):
+        self.add_layer("big", {"offset": [0, 0, 60, 30], "z": 9,
+                               "band": "over"})
+        self.add_layer("small", {"offset": [5, 5, 10, 8], "z": 0,
+                                 "band": "over"})
+        hit = self.viewport._hit_layer(QPoint(28, 18), self.defaults())
+        self.assertEqual(hit, ("love_panel", "small"))
+
+    def test_a_click_off_every_layer_still_selects_the_widget(self):
+        self.add_layer("layer_1", {"offset": [5, 5, 20, 10], "band": "over"})
+        QTest.mouseClick(self.viewport, Qt.MouseButton.LeftButton,
+                         pos=QPoint(180, 40))
+        self.assertEqual(self.viewport._selected_widget, "love_panel")
+        self.assertIsNone(self.viewport._selected_layer)
+
+    def test_an_invisible_layer_neither_draws_nor_hit_tests(self):
+        self.add_layer("layer_1", {"offset": [5, 5, 20, 10], "band": "over",
+                                   "color": [10, 20, 30], "visible": False})
+        calls = self.record_hud()
+        self.viewport.render_frame()
+        self.assertFalse([c for c in calls if isinstance(c, HudRect)
+                          and tuple(c.color) == (10, 20, 30)])
+        self.assertIsNone(self.viewport._hit_layer(QPoint(30, 20),
+                                                   self.defaults()))
+
+    def test_drag_moves_the_offset_live_and_commits_one_command(self):
+        self.add_layer("layer_1", {"offset": [5, 5, 20, 10], "band": "over"})
+        before = self.session.undo_stack.count()
+        QTest.mousePress(self.viewport, Qt.MouseButton.LeftButton,
+                         pos=QPoint(30, 20))
+        QTest.mouseMove(self.viewport, QPoint(40, 24))
+        self.assertEqual(self.doc_layers("love_panel")[0]["offset"],
+                         [15, 9, 20, 10])          # LIVE, before any command
+        self.assertEqual(self.session.undo_stack.count(), before)
+        QTest.mouseRelease(self.viewport, Qt.MouseButton.LeftButton,
+                           pos=QPoint(40, 24))
+        self.assertEqual(self.session.undo_stack.count(), before + 1)
+        self.assertEqual(self.doc_layers("love_panel")[0]["offset"],
+                         [15, 9, 20, 10])
+        self.session.undo_stack.undo()
+        self.assertEqual(self.doc_layers("love_panel")[0]["offset"],
+                         [5, 5, 20, 10])
+
+    def test_a_drag_that_moves_nothing_pushes_no_command(self):
+        self.add_layer("layer_1", {"offset": [5, 5, 20, 10], "band": "over"})
+        before = self.session.undo_stack.count()
+        QTest.mouseClick(self.viewport, Qt.MouseButton.LeftButton,
+                         pos=QPoint(30, 20))
+        self.assertEqual(self.session.undo_stack.count(), before)
+
+    def test_resize_writes_w_h_and_anchors_the_opposite_corner(self):
+        self.add_layer("layer_1", {"offset": [5, 5, 20, 10], "band": "over"})
+        QTest.mouseClick(self.viewport, Qt.MouseButton.LeftButton,
+                         pos=QPoint(30, 20))
+        # bottom-right corner of the resolved rect (25, 15, 20, 10)
+        QTest.mousePress(self.viewport, Qt.MouseButton.LeftButton,
+                         pos=QPoint(45, 25))
+        QTest.mouseMove(self.viewport, QPoint(51, 29))
+        QTest.mouseRelease(self.viewport, Qt.MouseButton.LeftButton,
+                           pos=QPoint(51, 29))
+        self.assertEqual(self.doc_layers("love_panel")[0]["offset"],
+                         [5, 5, 26, 14])
+        self.assertEqual(
+            tuple(ui_layers.resolve(self.doc_layers("love_panel")[0],
+                                    self.PANEL_RECT, "idle")["rect"]),
+            (25, 15, 26, 14))          # top-left stayed put
+
+    def test_the_selected_layer_gets_an_outline_and_a_caption(self):
+        self.add_layer("layer_1", {"offset": [5, 5, 20, 10], "band": "over"})
+        QTest.mouseClick(self.viewport, Qt.MouseButton.LeftButton,
+                         pos=QPoint(30, 20))
+        calls = self.record_hud()
+        self.viewport.render_frame()
+        self.assertTrue([c for c in calls if isinstance(c, HudLines)])
+        self.assertIn("layer_1", [c.text for c in calls
+                                  if isinstance(c, HudText)])
+
+    def test_the_state_combo_drives_layer_geometry(self):
+        """UL-5's per-state patch resolves through the SAME state value the
+        widget preview animates at, so switching it re-lays-out layers."""
+        entry = self.add_layer("layer_1", {
+            "offset": [5, 5, 20, 10], "band": "over", "color": [10, 20, 30],
+            "states": {"hover": {"offset": [30, 30]}}})
+        self.viewport.set_screen_state("hover")
+        calls = self.record_hud()
+        self.viewport.render_frame()
+        drawn = [c for c in calls
+                 if isinstance(c, HudRect) and tuple(c.color) == (10, 20, 30)]
+        self.assertEqual(len(drawn), 1)
+        self.assertEqual(
+            tuple(drawn[0].rect),
+            tuple(ui_layers.resolve(entry, self.PANEL_RECT, "hover")["rect"]))

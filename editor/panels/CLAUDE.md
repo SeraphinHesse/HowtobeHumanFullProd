@@ -1176,6 +1176,48 @@ landed in UL-3/UL-4/UL-5: `engine/ui_layers.py`'s `resolve`/`ordered`/
   an equal z would leave the pair in source order and the button would appear
   to do nothing.
 
+## Layers in the viewport (UiLayeredWidgetsPLAN UL-7)
+
+UL-6 authors layers in the outliner; UL-7 is the direct-manipulation half —
+`panels/viewport.py` draws every layer where the game will draw it, hit-tests
+it and drags/resizes it, through `panels/_screen_primitives.
+layer_interaction_rect`.
+
+- **Selection has TWO LEVELS, not two selections.** `_selected_widget` is
+  ALWAYS the owner widget; `_selected_layer` is the layer id within it, or
+  `None`. So the caption, the P-3 subtree outline, the details form and the
+  existing `widget_selected` signal keep working untouched while the mouse is
+  actually holding a layer. The new `layer_selected(widget_id, layer_id|None)`
+  signal is emitted ALONGSIDE (never instead of) `widget_selected` — UL-8's
+  per-layer inspector is its intended consumer.
+- **Hit-test order: the selected widget's layers, then every other widget's
+  layers, then the widgets** (`_hit_layer`, falling through to `_hit_widget`).
+  Within a tier the SMALLEST candidate wins — `_hit_widget`'s own rule for its
+  own reason — and an area tie goes to the highest `z`, i.e. the one painted
+  last. Consequence, deliberate: a widget fully covered by its own `over` layer
+  is only selectable from the outliner.
+- **All geometry goes through `engine.ui_layers` (D3).** `resolve` is the only
+  place `owner + dx` happens, and `layer_interaction_rect` therefore takes the
+  RESOLVED rect rather than the raw offset + owner rect. It adds exactly one
+  thing: the zero-extent growth `interaction_rect` already gives a widget
+  anchor (a layer inherits its owner's w/h from a `0`, so it is zero-extent
+  precisely when its owner is an anchor).
+- **Release restores the pre-drag offset BEFORE pushing.** The drag
+  live-mutates `doc[...]["layers"][i]["offset"]` (the layer twin of a widget
+  drag writing `rect`), but UL-6's `set_layer_field` builds its command's OLD
+  value from the array AS IT IS AT PUSH TIME — so without the restore, undo
+  would "restore" the dragged value. A widget drag dodges the same trap by
+  handing `push_move` an explicitly captured `old_rect`.
+- **Handles are exclusive**: a layer selection owns them, and
+  `_hit_resize_handle` refuses the widget's while `_selected_layer` is set —
+  two handle sets on one corner would be a coin flip. A zero-extent layer gets
+  a single anchor-point marker and no handles, like an anchor widget.
+- **`screen_previews.json` is override-free by design**, so a layer can never
+  be in the replay: on the preview path both bands composite ON TOP of it
+  (`under` still before `over`, so their relative order is honest even though
+  neither can get behind a recorded widget). Only the no-preview path can put
+  `under` genuinely behind its widget. Never bake layers into that file.
+
 ## Phase UT-2/UT-6 — the real screen preview + the Text-template row
 
 - **`ViewportPanel` REPLAYS a recorded draw list** (`data/ui/screen_previews
