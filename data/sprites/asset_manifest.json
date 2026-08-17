@@ -9595,7 +9595,7 @@
           "loop_start": 0
         },
         {
-          "animation": "edge_se",
+          "animation": "edge_sw",
           "fps": 6,
           "frames": 9,
           "hidden": [
@@ -9613,7 +9613,7 @@
           "loop_start": 0
         },
         {
-          "animation": "edge_sw",
+          "animation": "edge_se",
           "fps": 6,
           "frames": 9,
           "hidden": [
@@ -9696,7 +9696,7 @@
           "loop_start": 0
         },
         {
-          "animation": "edge_se",
+          "animation": "edge_sw",
           "fps": 6,
           "frames": 9,
           "hidden": [
@@ -9714,7 +9714,7 @@
           "loop_start": 0
         },
         {
-          "animation": "edge_sw",
+          "animation": "edge_se",
           "fps": 6,
           "frames": 9,
           "hidden": [
@@ -9797,7 +9797,7 @@
           "loop_start": 0
         },
         {
-          "animation": "edge_se",
+          "animation": "edge_sw",
           "fps": 6,
           "frames": 9,
           "hidden": [
@@ -9815,7 +9815,7 @@
           "loop_start": 0
         },
         {
-          "animation": "edge_sw",
+          "animation": "edge_se",
           "fps": 6,
           "frames": 9,
           "hidden": [
@@ -9898,7 +9898,7 @@
           "loop_start": 0
         },
         {
-          "animation": "edge_se",
+          "animation": "edge_sw",
           "fps": 6,
           "frames": 9,
           "hidden": [
@@ -9916,7 +9916,7 @@
           "loop_start": 0
         },
         {
-          "animation": "edge_sw",
+          "animation": "edge_se",
           "fps": 6,
           "frames": 9,
           "hidden": [
@@ -9973,6 +9973,7 @@
       "sheet": "master/ss_walls.png"
     },
     "wall_t2_lvl2": {
+      "column_mode": "building_color",
       "column_width": 9,
       "frame_h": 96,
       "frame_w": 64,
@@ -9998,7 +9999,7 @@
           "loop_start": 0
         },
         {
-          "animation": "edge_se",
+          "animation": "edge_sw",
           "fps": 6,
           "frames": 9,
           "hidden": [
@@ -10016,7 +10017,7 @@
           "loop_start": 0
         },
         {
-          "animation": "edge_sw",
+          "animation": "edge_se",
           "fps": 6,
           "frames": 9,
           "hidden": [
@@ -10073,6 +10074,7 @@
       "sheet": "master/ss_walls.png"
     },
     "wall_t2_lvl3": {
+      "column_mode": "building_color",
       "column_width": 9,
       "frame_h": 96,
       "frame_w": 64,
@@ -10098,7 +10100,7 @@
           "loop_start": 0
         },
         {
-          "animation": "edge_se",
+          "animation": "edge_sw",
           "fps": 6,
           "frames": 9,
           "hidden": [
@@ -10116,7 +10118,7 @@
           "loop_start": 0
         },
         {
-          "animation": "edge_sw",
+          "animation": "edge_se",
           "fps": 6,
           "frames": 9,
           "hidden": [
@@ -10173,6 +10175,7 @@
       "sheet": "master/ss_walls.png"
     },
     "wall_t3_lvl1": {
+      "column_mode": "building_color",
       "column_width": 9,
       "frame_h": 96,
       "frame_w": 64,
@@ -10198,7 +10201,7 @@
           "loop_start": 0
         },
         {
-          "animation": "edge_se",
+          "animation": "edge_sw",
           "fps": 6,
           "frames": 9,
           "hidden": [
@@ -10216,7 +10219,7 @@
           "loop_start": 0
         },
         {
-          "animation": "edge_sw",
+          "animation": "edge_se",
           "fps": 6,
           "frames": 9,
           "hidden": [
@@ -10273,6 +10276,7 @@
       "sheet": "master/ss_walls.png"
     },
     "wall_t3_lvl2": {
+      "column_mode": "building_color",
       "column_width": 9,
       "frame_h": 96,
       "frame_w": 64,
@@ -10298,7 +10302,7 @@
           "loop_start": 0
         },
         {
-          "animation": "edge_se",
+          "animation": "edge_sw",
           "fps": 6,
           "frames": 9,
           "hidden": [
@@ -10316,7 +10320,7 @@
           "loop_start": 0
         },
         {
-          "animation": "edge_sw",
+          "animation": "edge_se",
           "fps": 6,
           "frames": 9,
           "hidden": [
@@ -10373,6 +10377,7 @@
       "sheet": "master/ss_walls.png"
     },
     "wall_t3_lvl3": {
+      "column_mode": "building_color",
       "column_width": 9,
       "frame_h": 96,
       "frame_w": 64,
@@ -10398,7 +10403,7 @@
           "loop_start": 0
         },
         {
-          "animation": "edge_se",
+          "animation": "edge_sw",
           "fps": 6,
           "frames": 9,
           "hidden": [
@@ -10416,7 +10421,7 @@
           "loop_start": 0
         },
         {
-          "animation": "edge_sw",
+          "animation": "edge_se",
           "fps": 6,
           "frames": 9,
           "hidden": [
