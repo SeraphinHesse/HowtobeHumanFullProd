@@ -7149,6 +7149,8 @@
       "sheet": "imported/sun_scorcher_t1_lvl3.png"
     },
     "tile_background_1": {
+      "column_mode": "season",
+      "column_width": 10,
       "frame_h": 32,
       "frame_w": 64,
       "offset_x": 0,
@@ -7156,8 +7158,8 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 13,
+          "fps": 6,
+          "frames": 10,
           "hidden": [
             0,
             1,
@@ -7167,19 +7169,18 @@
             5,
             7,
             8,
-            9,
-            10,
-            11,
-            12
+            9
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_forest.png"
+      "sheet": "master/ts_alltiles.png"
     },
     "tile_background_2": {
+      "column_mode": "season",
+      "column_width": 10,
       "frame_h": 32,
       "frame_w": 64,
       "offset_x": 0,
@@ -7187,8 +7188,8 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 13,
+          "fps": 6,
+          "frames": 10,
           "hidden": [
             0,
             1,
@@ -7198,19 +7199,18 @@
             5,
             6,
             8,
-            9,
-            10,
-            11,
-            12
+            9
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_forest.png"
+      "sheet": "master/ts_alltiles.png"
     },
     "tile_background_3": {
+      "column_mode": "season",
+      "column_width": 10,
       "frame_h": 32,
       "frame_w": 64,
       "offset_x": 0,
@@ -7218,8 +7218,8 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 13,
+          "fps": 6,
+          "frames": 10,
           "hidden": [
             0,
             1,
@@ -7229,19 +7229,18 @@
             5,
             6,
             7,
-            9,
-            10,
-            11,
-            12
+            9
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_forest.png"
+      "sheet": "master/ts_alltiles.png"
     },
     "tile_background_4": {
+      "column_mode": "season",
+      "column_width": 10,
       "frame_h": 32,
       "frame_w": 64,
       "offset_x": 0,
@@ -7249,8 +7248,8 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 13,
+          "fps": 6,
+          "frames": 10,
           "hidden": [
             0,
             1,
@@ -7260,17 +7259,14 @@
             5,
             6,
             7,
-            8,
-            10,
-            11,
-            12
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_forest.png"
+      "sheet": "master/ts_alltiles.png"
     },
     "tile_background_5": {
       "frame_h": 32,
@@ -7366,6 +7362,8 @@
       "sheet": "imported/tile_forest.png"
     },
     "tile_buildable": {
+      "column_mode": "season",
+      "column_width": 10,
       "frame_h": 32,
       "frame_w": 64,
       "offset_x": 0,
@@ -7373,8 +7371,8 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 13,
+          "fps": 6,
+          "frames": 10,
           "hidden": [
             1,
             2,
@@ -7384,19 +7382,18 @@
             6,
             7,
             8,
-            9,
-            10,
-            11,
-            12
+            9
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_buildable.png"
+      "sheet": "master/ts_alltiles.png"
     },
     "tile_buildable_b": {
+      "column_mode": "season",
+      "column_width": 10,
       "frame_h": 32,
       "frame_w": 64,
       "offset_x": 0,
@@ -7404,8 +7401,8 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 13,
+          "fps": 6,
+          "frames": 10,
           "hidden": [
             1,
             2,
@@ -7415,19 +7412,18 @@
             6,
             7,
             8,
-            9,
-            10,
-            11,
-            12
+            9
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_buildable.png"
+      "sheet": "master/ts_alltiles.png"
     },
     "tile_cliff": {
+      "column_mode": "season",
+      "column_width": 10,
       "frame_h": 32,
       "frame_w": 64,
       "offset_x": 0,
@@ -7435,8 +7431,8 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 13,
+          "fps": 6,
+          "frames": 10,
           "hidden": [
             0,
             1,
@@ -7446,19 +7442,18 @@
             6,
             7,
             8,
-            9,
-            10,
-            11,
-            12
+            9
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_forest.png"
+      "sheet": "master/ts_alltiles.png"
     },
     "tile_combat": {
+      "column_mode": "season",
+      "column_width": 10,
       "frame_h": 32,
       "frame_w": 64,
       "offset_x": 0,
@@ -7466,8 +7461,8 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 13,
+          "fps": 6,
+          "frames": 10,
           "hidden": [
             0,
             2,
@@ -7477,19 +7472,18 @@
             6,
             7,
             8,
-            9,
-            10,
-            11,
-            12
+            9
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_buildable.png"
+      "sheet": "master/ts_alltiles.png"
     },
     "tile_combat_b": {
+      "column_mode": "season",
+      "column_width": 10,
       "frame_h": 32,
       "frame_w": 64,
       "offset_x": 0,
@@ -7497,8 +7491,8 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 13,
+          "fps": 6,
+          "frames": 10,
           "hidden": [
             0,
             2,
@@ -7508,19 +7502,18 @@
             6,
             7,
             8,
-            9,
-            10,
-            11,
-            12
+            9
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_buildable.png"
+      "sheet": "master/ts_alltiles.png"
     },
     "tile_forest": {
+      "column_mode": "season",
+      "column_width": 10,
       "frame_h": 32,
       "frame_w": 64,
       "offset_x": 0,
@@ -7528,8 +7521,8 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 13,
+          "fps": 6,
+          "frames": 10,
           "hidden": [
             0,
             1,
@@ -7539,19 +7532,18 @@
             6,
             7,
             8,
-            9,
-            10,
-            11,
-            12
+            9
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_forest.png"
+      "sheet": "master/ts_alltiles.png"
     },
     "tile_ocean": {
+      "column_mode": "season",
+      "column_width": 10,
       "frame_h": 32,
       "frame_w": 64,
       "offset_x": 0,
@@ -7559,8 +7551,8 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 13,
+          "fps": 6,
+          "frames": 10,
           "hidden": [
             0,
             1,
@@ -7570,19 +7562,18 @@
             6,
             7,
             8,
-            9,
-            10,
-            11,
-            12
+            9
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_forest.png"
+      "sheet": "master/ts_alltiles.png"
     },
     "tile_spawning": {
+      "column_mode": "season",
+      "column_width": 10,
       "frame_h": 32,
       "frame_w": 64,
       "offset_x": 0,
@@ -7590,8 +7581,8 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 13,
+          "fps": 6,
+          "frames": 10,
           "hidden": [
             0,
             1,
@@ -7601,17 +7592,14 @@
             6,
             7,
             8,
-            9,
-            10,
-            11,
-            12
+            9
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_forest.png"
+      "sheet": "master/ts_alltiles.png"
     },
     "tile_spawning_b": {
       "frame_h": 32,
