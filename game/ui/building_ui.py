@@ -191,7 +191,8 @@ def _row_step(font_key, leading=1):
     return layout_h(font_key) + leading
 
 
-def _batch_cost(building_type, buildings_balance, tier_idx, repeat_count, count):
+def _batch_cost(building_type, buildings_balance, tier_idx, repeat_count, count,
+                run_state=None, boss_upgrades_balance=None):
     """The escalating BATCH total for ``count`` fresh placements of
     ``building_type`` (feature-storm-acolyte-multi-build), each tile priced
     at its own escalation step — ``repeat_count``, ``repeat_count + 1``, …,
@@ -201,9 +202,14 @@ def _batch_cost(building_type, buildings_balance, tier_idx, repeat_count, count)
     before the next tile is priced), so this total always agrees with what
     will actually be charged. A type with no ``repeat_cost_multiplier``
     collapses to the familiar flat ``build_cost(...) * count`` (every step
-    prices identically)."""
+    prices identically).
+
+    ``run_state``/``boss_upgrades_balance`` are BU-3's standard optional
+    trailing pair, forwarded per step so a Blocker/WallBuilder batch quotes
+    the ``wall_cost_discount`` price ``place_building`` will actually charge."""
     return sum(build_cost(building_type, buildings_balance, tier_idx,
-                          repeat_count + i)
+                          repeat_count + i, run_state=run_state,
+                          boss_upgrades_balance=boss_upgrades_balance)
               for i in range(count))
 
 
@@ -446,7 +452,8 @@ class ConstructPreview:
 
     def __init__(self, building_type, cost, buildings_balance, ui_balance,
                  view_w, view_h, count=1, tier_idx=0, repeat_count=0,
-                 skinning=None, *, building_colors=None):
+                 skinning=None, *, building_colors=None, run_state=None,
+                 boss_upgrades_balance=None):
         self.screen_id = SCREEN_ID
         self.skinning = skinning or ScreenSkinning.empty()
         self.building_type = building_type
@@ -458,6 +465,11 @@ class ConstructPreview:
         # `LIGHTNING_SOURCE_TAG`-tagged occupants at the moment this preview
         # opened — the escalation baseline `total_cost` sums from.
         self._repeat_count = repeat_count
+        # BU-3's standard optional trailing pair, held for `total_cost` — the
+        # batch figure CONFIRM charges, which must carry the same
+        # `wall_cost_discount` reduction the card's own price already showed.
+        self._run_state = run_state
+        self._boss_upgrades_balance = boss_upgrades_balance
         self.view_w = view_w
         self.view_h = view_h
         self._names = _random_names(buildings_balance)
@@ -561,7 +573,8 @@ class ConstructPreview:
         actually charge tile by tile as ``_do_place`` walks the batch. A
         type with no multiplier collapses to the familiar flat total."""
         return _batch_cost(self.building_type, self._buildings_balance,
-                           self._tier_idx, self._repeat_count, self.count)
+                           self._tier_idx, self._repeat_count, self.count,
+                           self._run_state, self._boss_upgrades_balance)
 
     @property
     def chosen_name(self):
@@ -1293,7 +1306,14 @@ class BuildingUI:
         for t in self.selected_tiles:
             key = frozenset((c.col, c.row) for c in tm.get_chunk_for_tile(t))
             if key not in chunks:
-                chunks[key] = (t, tm.unlock_cost(t))
+                # BU-3 #6 tile_discount: the standard optional trailing pair,
+                # off the Session (which holds both halves). This is the ONE
+                # place the panel prices a tile unlock — the UNLOCK button's
+                # label, its affordability gate and `_unlock_click`'s actual
+                # `spend_love` all read this list — so the discount cannot
+                # show in one and not the other.
+                chunks[key] = (t, tm.unlock_cost(
+                    t, session.state, session.boss_upgrades_balance))
         return list(chunks.values())
 
     def _build_unlock(self, session):
@@ -1456,8 +1476,10 @@ class BuildingUI:
             if not buildable(state, btype):
                 continue  # type not unlocked / tier 1 not researched (10A)
             tier_idx = tiers_unlocked_for(state, btype) - 1
-            cost = build_cost(btype, self._buildings_balance, tier_idx,
-                              repeat_count)
+            cost = build_cost(
+                btype, self._buildings_balance, tier_idx, repeat_count,
+                run_state=state,
+                boss_upgrades_balance=self._session.boss_upgrades_balance)
             tier_name = BUILDING_CLASSES[btype]._resolve_tiers(
                 self._buildings_balance)[tier_idx]["name"]
             # The card body: the parent, and (unless `price_is_click_target`
@@ -1592,7 +1614,8 @@ class BuildingUI:
                 continue
             eligible, cost, levels_needed = advance_batch_plan(
                 self._session.state, b, self._buildings_balance,
-                self._session.progression_balance)
+                self._session.progression_balance,
+                self._session.boss_upgrades_balance)  # BU-3 #2
             if eligible:
                 out.append((b, cost, levels_needed))
         return out
@@ -1791,7 +1814,8 @@ class BuildingUI:
         it has no Timeline placement at all."""
         mode, next_name, cost = upgrade_gate(
             self._session.state, b, self._buildings_balance,
-            self._session.progression_balance)
+            self._session.progression_balance,
+            self._session.boss_upgrades_balance)  # BU-3 #2 wall_cost_discount
         if mode == "in_tier":
             return mode, cost, T("building.action.upgrade", cost=cost), None
         if mode == "tier_upgrade":
@@ -1930,7 +1954,8 @@ class BuildingUI:
                     tier_idx = tiers_unlocked_for(state, btype) - 1
                     self._hover_cost = _batch_cost(
                         btype, self._buildings_balance, tier_idx,
-                        repeat_count, count)
+                        repeat_count, count, state,
+                        self._session.boss_upgrades_balance)
         elif self.mode in ("unlock", "upgrade"):
             self.action_btn.hover(mx, my, mouse_down)
             self.action_btn.hovered = (self.action_btn.hovered
@@ -2071,15 +2096,18 @@ class BuildingUI:
                 # feature-storm-acolyte-multi-build: the same already-placed
                 # count `_build_construct` priced the card off.
                 repeat_count = count_tag(session.tilemap, LIGHTNING_SOURCE_TAG)
+                # BU-3: the standard optional trailing pair, off the Session.
+                bub = session.boss_upgrades_balance
                 cost = build_cost(btype, buildings_balance, tier_idx,
-                                  repeat_count)
+                                  repeat_count, run_state=session.state,
+                                  boss_upgrades_balance=bub)
                 count = max(1, len(self.selected_tiles))
                 # 10J batch: the whole batch must be affordable up front
                 # (prototype building_ui.py:704-708) — the ESCALATING total,
                 # not a flat cost x count, so this gate agrees with what
                 # ConstructPreview.total_cost/_do_place will actually charge.
                 total = _batch_cost(btype, buildings_balance, tier_idx,
-                                    repeat_count, count)
+                                    repeat_count, count, session.state, bub)
                 if session.state.love < total:
                     # Always flash the CARD, never the price pill, whichever
                     # was clicked: the message is a sentence and the card body
@@ -2091,7 +2119,9 @@ class BuildingUI:
                         btype, cost, buildings_balance, self._ui_balance,
                         self.view_w, self.view_h, count=count, tier_idx=tier_idx,
                         repeat_count=repeat_count, skinning=self.skinning,
-                        building_colors=self.colour_columns)  # B2
+                        building_colors=self.colour_columns,  # B2
+                        run_state=session.state,             # BU-3 #2
+                        boss_upgrades_balance=bub)
                 return True
         return contains(self.panel_rect, mx, my)
 
@@ -2282,7 +2312,12 @@ class BuildingUI:
             cost, rounds = start_move(
                 session.tilemap, self._selected, p.dest_tile,
                 buildings_balance["BuildingsGlobal"]["Movement"], st.love,
-                occupancy, scene)
+                occupancy, scene,
+                # BU-3 #4 move_time_cap: the same pair `_pick_move_destination`
+                # quoted the modal's round count with, so the rounds charged
+                # here can never exceed the capped figure shown.
+                run_state=st,
+                boss_upgrades_balance=session.boss_upgrades_balance)
         except MoveError:
             # A race since the modal opened (the destination got built on, or
             # another move claimed it) — flash and leave the player in
@@ -2324,7 +2359,11 @@ class BuildingUI:
                     # own path, which leaves the -1 "no driver" sentinel;
                     # `0` is a real colour and must never be read as "unset".
                     colour_columns=self.colour_columns,
-                    column=getattr(p, "chosen_column", None))
+                    column=getattr(p, "chosen_column", None),
+                    # BU-3: `state=st` above is already the RunState half of
+                    # the pair; this is the other half (#2 wall_cost_discount
+                    # on the charged price, #5 musician_auto_level).
+                    boss_upgrades_balance=session.boss_upgrades_balance)
             except PlacementError:
                 if not (p.building_type == "painter"
                         and (tile.col, tile.row) in

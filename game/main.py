@@ -82,7 +82,12 @@ from game.buildings.registry import BUILDINGS_CATEGORY
 from game.buildings.movement import (
     MOVING_SIGN_SLOT, move_cost, move_distance, move_time,
 )
+# -- BossUpgradeTimelinePLAN BU-3 3.1: the building-sweep half of the ONE-TIME
+# `stone_thrower_sync` upgrade, installed into game/core's injected hook seam
+# below (the host is the one layer that may import both packages) --
+from game.buildings.boss_upgrade_effects import sync_stone_throwers
 from game.core import Session, append_random_name, load_balance
+from game.core import boss_upgrades  # BU-3: the one-time-hook seam
 from game.core import highscores  # player-identity: the run-history document
 from game.core.boss_bonuses import story_damage_bonus
 from game.core.phases import GamePhase, GameState
@@ -840,6 +845,13 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # timeline (game/core/boss_upgrades.py), threaded onto the Session beside
     # progression_balance.
     boss_upgrades_balance = load_balance(data_dir, "boss_upgrades")
+    # BU-3 3.1: install the injected half of the ONE-TIME `stone_thrower_sync`
+    # upgrade (#9). `game/core/boss_upgrades.py` may never import
+    # `game.buildings`, so the building sweep arrives through this seam — and
+    # the HOST is the one layer allowed to import both packages. Once per
+    # process, at boot, beside the other host wiring; `apply_pick` calls it
+    # only when it has a tilemap AND a scene in hand.
+    boss_upgrades.set_one_time_hook("stone_thrower_sync", sync_stone_throwers)
     # debug: draw the camera-startpoint marker in-game (default off)
     show_camera_start = ui_balance["Debug"]["show_camera_startpoint"]
 
@@ -1398,7 +1410,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                                  tile.col, tile.row)
         panel.preview = MovePreview(
             building, tile, move_cost(distance, movement),
-            move_time(distance, movement), movement["warning_text"],
+            # BU-3 #4 move_time_cap: the standard optional trailing pair, off
+            # the Session — `_do_move` passes the same one into `start_move`,
+            # so the quoted round count and the charged one agree.
+            move_time(distance, movement, session.state,
+                      session.boss_upgrades_balance),
+            movement["warning_text"],
             ui_balance, view_w, view_h, skinning=shell.skinning)
 
     def handle_world_right_click(mx, my):

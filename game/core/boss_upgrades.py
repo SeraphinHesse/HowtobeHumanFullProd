@@ -72,6 +72,41 @@ the host from the buildings package.
 - The table is keyed by upgrade id, so it generalises if a later one-time
   effect needs the same treatment; today ``stone_thrower_sync`` is its only
   intended user.
+
+THE BU-3 HOOK THREADING PATTERN (read this before wiring a new hook)
+---------------------------------------------------------------------------
+A persistent passive's whole implementation is a HOOK SITE somewhere else in
+the game reading ``stack_count`` plus its own magnitude out of the catalog.
+Those sites (``Building.build_cost``, ``TileMap.unlock_cost``,
+``movement.move_time``, ``registry.place_building``, …) are pure functions that
+have never seen a ``RunState``, and none of them can reach the balancing
+document either. **Every BU-3 hook threads the same optional trailing PAIR, in
+this fixed order, and nothing else:**
+
+    def some_hook(…existing args…, run_state=None, boss_upgrades_balance=None):
+
+- Both default ``None`` and the effect applies only when BOTH are non-``None``
+  — so every pre-existing caller, every test and every headless tool that does
+  not pass them is **byte-identical** to before BU-3. This is the
+  ``progression_balance=None`` shape ``game/core/levelup.py`` already uses.
+- ``place_building`` is the ONE exception, and only because it already carries
+  the RunState under the name ``state``: it grows ``boss_upgrades_balance``
+  alone rather than a second, duplicate reference to the same object.
+- **At the call site the pair is always spelled off the ``Session``**, which
+  holds both:  ``run_state=session.state,
+  boss_upgrades_balance=session.boss_upgrades_balance``. ``RunState`` itself
+  deliberately does NOT carry a balance reference — it is seeded from balance,
+  not a view onto it — so the pair travels together rather than one fetching
+  the other.
+- **The hook body is one call to** ``hook_stacks`` (or, for a %-off-a-price
+  effect, ``discounted``, which wraps it). Never index
+  ``state.boss_upgrade_stacks`` or the catalog dict inline: those two readers
+  are where the "is it on / how big is it" question is answered, once.
+- ``game/buildings/**`` and ``game/map/**`` must import this module **LAZILY,
+  inside the function body** — ``game.core.__init__`` imports ``payday``, which
+  imports ``game.buildings.movement``, so a module-level import from either
+  package closes a real cycle. Same discipline (and same reason) as
+  ``Building._condition_mod``'s deferred ``game.map.tiles`` import.
 """
 
 #: The three upgrade ids whose whole effect fires ONCE, at pick time (plan §2:
@@ -146,6 +181,58 @@ def stack_count(state, upgrade_id):
     this, never by indexing ``state.boss_upgrade_stacks`` itself.
     """
     return state.boss_upgrade_stacks.get(upgrade_id, 0)
+
+
+def catalog_params(boss_upgrades_balance, upgrade_id):
+    """The designer-authored ``params`` dict for one catalog upgrade.
+
+    ``{}`` when no balance is loaded (the ``timeline_level_for`` tolerance) or
+    the id carries no params — so a hook site's ``params.get(key, default)``
+    always has something to read. THE param accessor: like ``stack_count``, no
+    hook site walks ``["BossUpgrades"]["Catalog"]`` itself.
+    """
+    if boss_upgrades_balance is None:
+        return {}
+    catalog = boss_upgrades_balance["BossUpgrades"]["Catalog"]
+    return catalog.get(upgrade_id, {}).get("params", {})
+
+
+def hook_stacks(run_state, boss_upgrades_balance, upgrade_id):
+    """``(stacks, params)`` for a BU-3 hook site's optional trailing pair.
+
+    THE one call every hook site opens with (see the module docstring's
+    threading-pattern section). Returns ``(0, {})`` — the "this hook is inert"
+    answer — whenever the pair is absent (a pre-BU-3 caller, a headless test,
+    a bare ``Session`` with no balance wired) or the upgrade has never been
+    picked, so the branch a hook site writes is simply ``if n:``.
+    """
+    if run_state is None or boss_upgrades_balance is None:
+        return 0, {}
+    n = stack_count(run_state, upgrade_id)
+    if n <= 0:
+        return 0, {}
+    return n, catalog_params(boss_upgrades_balance, upgrade_id)
+
+
+def discounted(cost, run_state, boss_upgrades_balance, upgrade_id,
+               param_key, default_pct, floor=0):
+    """``cost`` after ``upgrade_id``'s ADDITIVE per-pick %-reduction (D4).
+
+    The shared reducer behind the two price-cutting passives —
+    ``wall_cost_discount`` (#2, ``floor=1``: never free, never negative) and
+    ``tile_discount`` (#6, ``floor=0``). Picking an upgrade twice subtracts
+    twice the percentage, which is what "stacks additively" means; the floor is
+    what keeps a big enough stack from inverting the price.
+
+    ``default_pct`` is the §2 default the shipped catalog seeds, used only if a
+    designer has deleted the param key outright. Returns ``cost`` UNCHANGED
+    whenever ``hook_stacks`` says the hook is inert.
+    """
+    n, params = hook_stacks(run_state, boss_upgrades_balance, upgrade_id)
+    if not n:
+        return cost
+    pct = params.get(param_key, default_pct)
+    return max(floor, int(cost * (1.0 - n * pct / 100.0)))
 
 
 def _apply_restock_lives(state, upgrade_id, boss_upgrades_balance,

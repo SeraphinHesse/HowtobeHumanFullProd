@@ -431,6 +431,42 @@ Moving an ALREADY-PLACED building to another unbuilt buildable tile.
   host draws on both endpoints) lives here, with the feature, so the host has
   one place to import it from.
 
+## Boss-upgrade hooks (BossUpgradeTimelinePLAN BU-3, sub-tasks 3.1 + 3.2)
+Three of the twelve boss upgrades land in this package. **The threading
+contract is stated ONCE, in `game/core/boss_upgrades.py`'s module docstring
+("THE BU-3 HOOK THREADING PATTERN") — read it there, not here**; the short
+version is an optional trailing pair `run_state=None,
+boss_upgrades_balance=None` that both have to be present for anything to
+happen, spelled off the `Session` at every call site, with the
+`game.core.boss_upgrades` import made LAZILY inside the function body (a
+module-level one closes the `game.core.__init__` → `payday` →
+`game.buildings.movement` cycle).
+- **`build_cost` / `upgrade_cost` (#2 `wall_cost_discount`)** — both the
+  instance methods on `Building` and the module-level `registry.build_cost`
+  (the one a fresh placement and the tier-advance button actually charge) run
+  the price through `boss_upgrades.discounted(...)`, floored at 1.
+  **Tag-gated on `"structure"`**, never an isinstance/type-string test, so it
+  covers `Blocker` + `WallBuilder` and nothing else. `game/core/levelup.py`'s
+  `_next_tier_gate`/`advance_batch_plan` read the tier table directly rather
+  than through these methods, so they carry their own `_wall_discounted` call
+  onto the SAME reducer — miss one and a wall is discounted at some price
+  points and not others.
+- **`move_time` (#4 `move_time_cap`)** — clamps the rounds a move costs. The
+  clamp sits in `move_time`, NOT in the shared `_stepped` helper, because
+  `move_cost` calls that helper too and D14 caps the TIME dial only. A cap
+  does not stack per pick (two ceilings are the lower one).
+- **`boss_upgrade_effects.py` is the ONE place a building is advanced for
+  FREE** — `sync_stone_throwers` (#9, the injected half of the one-time hook
+  `game/main.py` installs at boot) and `apply_musician_auto_level` (#5, called
+  by `place_building` right after `on_placed`). It goes through
+  `upgrade()`/`advance_tier()` — the same methods the upgrade panel calls, so
+  `apply_tier_stats()` still fires — and NEVER writes `TierState` directly.
+  Read its module docstring before adding a caller: it explains why the
+  panel's two side-hooks (`lightning.sync_level_from_tier`,
+  `wall_era.sync_wall_art_era`) are deliberately not called (provable no-ops
+  for the Defender and Musician lines) and when a future upgrade would have
+  to add them.
+
 ## Research / gating seam (10A, regated in the Joel-Balancing pass; TimelinePLAN T4)
 - **`game/buildings/research.py`** is the extension seam: `LEAF_CLASSES` + a
   `RESEARCH` table of `ResearchSpec` rows (`gate_kind`/`gate_path`,
