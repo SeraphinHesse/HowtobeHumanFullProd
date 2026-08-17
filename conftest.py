@@ -121,6 +121,8 @@ TIERS = {
     "test_hud_items": "core",
     "test_hud_panel": "core",
     "test_hud_render": "core",
+    "test_input_bindings": "core",  # feature: rebindable hotkeys — engine/input.py
+    "test_keybinds_screen": "core",  # feature: rebindable hotkeys — the Controls screen
     "test_kidnap": "core",  # Art/enemies: kidnapping
     "test_layout_h_invariant": "core",  # Fix 1 (phase-10L wave3): layout_h pin
     "test_levelup": "core",

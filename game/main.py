@@ -60,6 +60,7 @@ sys.path.insert(0, str(REPO))
 import pygame
 
 from engine import data_io, tilemap
+from engine import input as key_input  # feature: rebindable hotkeys
 from engine.assets import load_manifest, load_registry
 from engine.assets import master_registry  # B1: the colour-column registry
 from engine.assets.store import AssetStore
@@ -182,6 +183,78 @@ def _key_name(key):
             pygame.K_DOWN: "down",
         }
     return _KEY_NAMES.get(key)
+
+
+#: Keys `_binding_key_name` names explicitly, beyond bare letters/digits
+#: (pygame's keycodes for the basic ASCII range equal the character's
+#: ordinal, so `chr(event.key)` already gives "a".."z"/"0".."9" for those).
+_BINDING_KEY_NAMES = None  # lazily built (needs pygame constants)
+
+
+def _binding_key_names_table():
+    """The pygame-keycode -> neutral-name table `_binding_key_name` and its
+    reverse, `_binding_pygame_key`, both share — built once (needs pygame
+    constants)."""
+    global _BINDING_KEY_NAMES
+    if _BINDING_KEY_NAMES is None:
+        _BINDING_KEY_NAMES = {
+            pygame.K_SPACE: "space",
+            pygame.K_RETURN: "return",
+            pygame.K_KP_ENTER: "return",
+            pygame.K_ESCAPE: "escape",
+            pygame.K_BACKSPACE: "backspace",
+        }
+    return _BINDING_KEY_NAMES
+
+
+def _binding_key_name(event):
+    """A KEYDOWN event's NEUTRAL binding string — "space", "ctrl+l", "h",
+    "1", "return" — the vocabulary ``engine.input``'s bindings dict and
+    ``data/keybindings.json`` use (feature: rebindable hotkeys). ``None`` for
+    a key with no binding representation (arrow keys, function keys, …).
+
+    ``game/ui`` never sees this (D5/G6): only this module's hotkey dispatch
+    and the Controls screen's rebind-capture routing resolve a keypress
+    through it, so a captured rebind and a dispatched hotkey can never
+    disagree about what a key means. Numpad digits are deliberately NOT
+    named here — they stay a fixed always-on alias in the combat-speed
+    dispatch, outside the rebindable set (rebinding only ever changes the
+    primary key)."""
+    name = _binding_key_names_table().get(event.key)
+    if name is None and 0 < event.key < 128 and chr(event.key).isalnum():
+        name = chr(event.key)
+    if name is None:
+        return None
+    if event.mod & pygame.KMOD_CTRL:
+        return f"ctrl+{name}"
+    return name
+
+
+def _binding_pygame_key(binding):
+    """Reverse of `_binding_key_name`: a binding string ("w", "ctrl+l") -> the
+    base pygame keycode to poll, or `None` if it can't be resolved. The
+    movement hotkeys are POLLED every frame via `pygame.key.get_pressed()`
+    (held-down panning), not KEYDOWN-dispatched like every other action, so
+    they need this reverse lookup instead of a live event's `.key`."""
+    name = binding[len("ctrl+"):] if binding.startswith("ctrl+") else binding
+    if len(name) == 1 and name.isalnum():
+        return ord(name)
+    for key, mapped in _binding_key_names_table().items():
+        if mapped == name:
+            return key
+    return None
+
+
+def _binding_held(binding, keys_pressed):
+    """True while the (possibly rebound) key for `binding` is currently held
+    down — the `keys[pygame.K_SPACE]` cutscene-hold-to-skip precedent,
+    generalized to any binding string for the movement hotkeys."""
+    base = _binding_pygame_key(binding)
+    if base is None or not keys_pressed[base]:
+        return False
+    if binding.startswith("ctrl+"):
+        return bool(pygame.key.get_mods() & pygame.KMOD_CTRL)
+    return True
 
 
 def _apply_display_mode(mode, view_w, view_h, caption):
@@ -527,19 +600,39 @@ class _World:
         # -- /10I --
 
 
+def _recenter_zoom(cs, new_zoom, view_w, view_h):
+    """Apply `new_zoom`, keeping the world point at the viewport centre fixed
+    (coords authority only, E-5) — the shared body of `step_zoom` (a relative
+    step) and `set_zoom_level` (an absolute jump, feature: rebindable
+    hotkeys)."""
+    cx, cy = view_w / 2, view_h / 2
+    anchor = cs.screen_to_world(cx, cy)
+    cs.set_zoom(new_zoom)
+    px, py = cs.world_to_screen(*anchor)
+    cs.pan(px - cx, py - cy)
+    cs.clamp(view_w, view_h)
+
+
 def step_zoom(cs, direction, view_w, view_h):
     """Move one step through the data-driven zoom levels, keeping the world
-    point at the viewport centre fixed (coords authority only, E-5)."""
+    point at the viewport centre fixed."""
     levels = sorted(cs.geometry.zoom_levels)
     i = levels.index(cs.camera.zoom) + direction
     if not 0 <= i < len(levels):
         return
-    cx, cy = view_w / 2, view_h / 2
-    anchor = cs.screen_to_world(cx, cy)
-    cs.set_zoom(levels[i])
-    px, py = cs.world_to_screen(*anchor)
-    cs.pan(px - cx, py - cy)
-    cs.clamp(view_w, view_h)
+    _recenter_zoom(cs, levels[i], view_w, view_h)
+
+
+def set_zoom_level(cs, index, view_w, view_h):
+    """Jump straight to the zoom level at `index` (0-based, sorted ascending)
+    — `step_zoom`'s ABSOLUTE-jump sibling for the zoom-level hotkeys (feature:
+    rebindable hotkeys). A silent no-op if that index doesn't exist (fewer
+    zoom levels authored than hotkeys) — the combat-speed round-gate
+    precedent."""
+    levels = sorted(cs.geometry.zoom_levels)
+    if not 0 <= index < len(levels):
+        return
+    _recenter_zoom(cs, levels[index], view_w, view_h)
 
 
 def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
@@ -723,6 +816,18 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     enemies_balance = load_balance(data_dir, "enemies")
     ui_balance = load_balance(data_dir, "ui")
     vfx_balance = load_balance(data_dir, "vfx")  # ESV-3a: procedural VFX params
+    # feature: rebindable hotkeys — `ui.json`'s `Keybindings` group is the
+    # DESIGNER-EDITABLE default for every rebindable action (indexed
+    # directly, never `.get` — the schema requires the key, D-2, the
+    # `ui_balance["Debug"]` precedent just below). The player's LIVE bindings
+    # (any in-Settings rebind) live in the gitignored `scores/` dir, the
+    # `highscores.json` precedent — read tolerantly (a corrupt save file
+    # falls back to the defaults, one logged warning, never crashes boot).
+    keybindings_schema_path = data_dir / "schemas" / "keybindings.schema.json"
+    keybindings_defaults = ui_balance["Keybindings"]
+    keybindings_path = REPO / "scores" / "keybindings.json"
+    key_bindings = key_input.load_keybindings(
+        keybindings_path, keybindings_schema_path, keybindings_defaults)
     # VA-5: the seven tile highlights are effects now — colour/outline/fill and
     # their sprite bindings come from this same doc. Same fail-loud-on-mismatch
     # shape as configure_palette above, and the same boot slot, which is where
@@ -753,7 +858,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # launcher rows and the identity prompt. Indexed directly, never `.get` —
     # the schema requires the key, so missing data must fail LOUD (D-2).
     shell = Shell(view_w, view_h, ui_balance, start_state=start,
-                 skinning=skinning, debug_balance=core_balance["Debug"])
+                 skinning=skinning, debug_balance=core_balance["Debug"],
+                 key_bindings=key_bindings)
     shell.set_pool_count(len(buildings_balance["BuildingsGlobal"]["random_names"]))
     # player-identity: the run history lives in the gitignored `scores/` dir at
     # the repo root, NOT in `data/` — it is per-machine play history. Read once
@@ -994,6 +1100,36 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             doc = highscores.load_highscores(scores_path, data_dir)
             shell.set_highscores(doc)
             shell.prefill_identity(*highscores.last_player(doc))
+
+    # -- feature: rebindable hotkeys ----------------------------------------
+    def _handle_capture_key(event):
+        """The Controls screen is armed (``shell.controls_screen.capturing``
+        names the action awaiting a keypress) — resolve THIS keydown as the
+        new binding, through the SAME ``_binding_key_name`` hotkey dispatch
+        uses, so a captured rebind and a dispatched hotkey can never
+        disagree. Esc cancels with no change; a key already bound to another
+        action flashes red and drops capture; otherwise the binding is
+        written into the shared ``key_bindings`` dict (mutated in place, so
+        the screen's next frame sees it for free) and persisted to
+        ``scores/keybindings.json``."""
+        screen = shell.controls_screen
+        if event.key == pygame.K_ESCAPE:
+            screen.stop_capture()
+            return
+        new_key = _binding_key_name(event)
+        if new_key is None:
+            return  # not a representable key (e.g. an arrow key) — ignored
+        action = screen.capturing
+        if key_input.find_conflict(key_bindings, action, new_key) is not None:
+            screen.flash_conflict()
+            return
+        updated = key_input.rebind(key_bindings, action, new_key)
+        key_bindings.clear()
+        key_bindings.update(updated)
+        key_input.save_keybindings(keybindings_path, keybindings_schema_path,
+                                   key_bindings)
+        screen.stop_capture()
+    # -- /feature: rebindable hotkeys ----------------------------------------
 
     # -- 10H: lightning + cheat menu --------------------------------------
     def _execute_cheat(action):
@@ -1439,7 +1575,14 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 continue
             if shell.in_menu or st == GameState.PAUSED:
                 if event.type == pygame.KEYDOWN:
-                    execute(shell.handle_key(event.unicode, _key_name(event.key)))
+                    # feature: rebindable hotkeys — while the Controls screen
+                    # is waiting for a keypress, THIS key is the rebind
+                    # capture, not a menu navigation key.
+                    if (shell.state == GameState.SETTINGS and shell.controls_open
+                            and shell.controls_screen.capturing is not None):
+                        _handle_capture_key(event)
+                    else:
+                        execute(shell.handle_key(event.unicode, _key_name(event.key)))
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == _LEFT:
                     execute(shell.handle_click(*event.pos))
                 elif event.type == pygame.MOUSEWHEEL and event.y:
@@ -1472,8 +1615,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 # prototype's Ctrl+P — bare P is the quick-skip key here);
                 # while open the menu consumes ALL keys. --
                 if session.state.state == GameState.GAMEPLAY:
-                    if (event.key == pygame.K_l
-                            and pygame.key.get_mods() & pygame.KMOD_CTRL):
+                    if _binding_key_name(event) == key_bindings["toggle_cheat_menu"]:
                         gp["cheat"].toggle()
                         continue
                     if gp["cheat"].visible:
@@ -1497,6 +1639,25 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                     if event.key == pygame.K_ESCAPE and not panel.preview.editing:
                         panel.preview = None
                         gp["tutorial"].on_panel_closed()  # TU-8 Fix 1
+                    elif (not panel.preview.editing and _binding_key_name(event)
+                          == key_bindings["confirm_purchase"]):
+                        # feature: rebindable hotkeys — Enter confirms the
+                        # open preview exactly like clicking CONFIRM: the
+                        # SAME public entry point (and TU-6/TU-8 gate) a real
+                        # mouse click on that button goes through, aimed at
+                        # the button's own centre point.
+                        cbx, cby, cbw, cbh = panel.preview.confirm_btn.rect
+                        px, py = cbx + cbw // 2, cby + cbh // 2
+                        if (_tutorial_allows_panel_click(px, py)
+                                and panel.handle_click(
+                                    px, py, session, buildings_balance,
+                                    world.scene, world.occupancy)):
+                            if panel.last_placed_type is not None:
+                                gp["tutorial"].on_building_placed(
+                                    panel.last_placed_type)
+                                panel.last_placed_type = None
+                            elif panel.preview is None:  # cancel/close
+                                gp["tutorial"].on_panel_closed()
                     else:
                         panel.handle_key(event.unicode, _key_name(event.key))
                 elif panel.name_editing:  # 10J: upgrade-panel rename capture
@@ -1507,21 +1668,51 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                         gp["tutorial"].on_panel_closed()  # TU-8 Fix 1
                     else:
                         shell.state = GameState.PAUSED  # Esc opens pause
-                elif event.key == pygame.K_SPACE:
+                elif _binding_key_name(event) == key_bindings["end_turn"]:
                     session.end_turn()  # dev convenience beside the button
                     gp["overlays"].path_heatmap.clear()  # fix/highlight-render-order
                     gp["tutorial"].on_end_turn()  # TU-6: no-op unless gated step
+                elif _binding_key_name(event) == key_bindings["toggle_heatmap"]:
+                    # feature: rebindable hotkeys — the same flip
+                    # MapOverlays.hit() does for the HEATMAP pill's own click.
+                    gp["overlays"].show_heatmap = not gp["overlays"].show_heatmap
+                elif _binding_key_name(event) == key_bindings["toggle_tier_overview"]:
+                    # feature: rebindable hotkeys — the same flip
+                    # MapOverlays.hit() does for the TIERS pill's own click.
+                    gp["overlays"].show_tier_overview = (
+                        not gp["overlays"].show_tier_overview)
+                elif _binding_key_name(event) == key_bindings["toggle_range"]:
+                    # feature: rebindable hotkeys — the same flip
+                    # MapOverlays.hit() does for the RANGE pill's own click.
+                    gp["overlays"].show_range = not gp["overlays"].show_range
+                elif _binding_key_name(event) == key_bindings["toggle_drag_select"]:
+                    # feature: rebindable hotkeys — the same flip
+                    # handle_world_click's "drag_select" HUD action does for
+                    # the DRAG SEL button's own click.
+                    gp["drag_select_enabled"] = not gp["drag_select_enabled"]
+                elif _binding_key_name(event) == key_bindings["zoom_level_1"]:
+                    set_zoom_level(cs, 0, view_w, view_h)
+                elif _binding_key_name(event) == key_bindings["zoom_level_2"]:
+                    set_zoom_level(cs, 1, view_w, view_h)
+                elif _binding_key_name(event) == key_bindings["zoom_level_3"]:
+                    set_zoom_level(cs, 2, view_w, view_h)
                 elif session.state.phase == GamePhase.ENEMY:
                     # Combat-speed shortcuts + quick-skip (10F). 1.5x/2x are
                     # round-gated inside Session, so a locked key is a no-op.
-                    # The 1x/1.5x/2x/pause BUTTONS are 10L.
-                    if event.key in (pygame.K_1, pygame.K_KP1):
+                    # The 1x/1.5x/2x/pause BUTTONS are 10L. Numpad 1/2/3 stay
+                    # a fixed always-on alias, outside the rebindable set —
+                    # rebinding only ever changes the primary key.
+                    key_name = _binding_key_name(event)
+                    if (event.key == pygame.K_KP1
+                            or key_name == key_bindings["combat_speed_1"]):
                         session.set_combat_speed(0)
-                    elif event.key in (pygame.K_2, pygame.K_KP2):
+                    elif (event.key == pygame.K_KP2
+                          or key_name == key_bindings["combat_speed_2"]):
                         session.set_combat_speed(1)   # 1.5x
-                    elif event.key in (pygame.K_3, pygame.K_KP3):
+                    elif (event.key == pygame.K_KP3
+                          or key_name == key_bindings["combat_speed_3"]):
                         session.set_combat_speed(2)   # 2x
-                    elif event.key == pygame.K_p:
+                    elif key_name == key_bindings["quick_skip_combat"]:
                         session.quick_skip_combat(world.scene)
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == _LEFT:
                 mouse_down = event.pos
@@ -1614,6 +1805,35 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         keys = pygame.key.get_pressed()
         # cutscene hold-to-skip: left click, space, or esc held continuously
         skip_held = held or keys[pygame.K_SPACE] or keys[pygame.K_ESCAPE]
+
+        # feature: rebindable hotkeys — WASD/arrow-key camera panning, held
+        # continuously (polled every frame via `keys`, the skip_held pattern
+        # above, not a single KEYDOWN dispatch like every other hotkey).
+        # Gated the same way mouse drag-panning already is: only while a
+        # world state is live, never while the sim is frozen (LEVELUP/
+        # BOSS_CUTSCENE/ENEMY_INTRO), the cheat menu is open, a construct/
+        # move preview modal has focus (which also captures typed characters
+        # — WASD must not leak into a name field), or the upgrade panel's
+        # rename row is capturing keys. Arrow keys ALWAYS pan too, a fixed
+        # always-on alias outside the rebindable set (the numpad precedent).
+        world = gp["world"]
+        if (world is not None and shell.state in _WORLD_STATES
+                and not world.session.frozen and not gp["cheat"].visible
+                and gp["panel"].preview is None
+                and not gp["panel"].name_editing):
+            pan_speed = core_balance["Camera"]["keyboard_pan_speed"]
+            dx = dy = 0.0
+            if _binding_held(key_bindings["move_left"], keys) or keys[pygame.K_LEFT]:
+                dx -= pan_speed * dt
+            if _binding_held(key_bindings["move_right"], keys) or keys[pygame.K_RIGHT]:
+                dx += pan_speed * dt
+            if _binding_held(key_bindings["move_up"], keys) or keys[pygame.K_UP]:
+                dy -= pan_speed * dt
+            if _binding_held(key_bindings["move_down"], keys) or keys[pygame.K_DOWN]:
+                dy += pan_speed * dt
+            if dx or dy:
+                cs.pan(dx, dy)
+                cs.clamp(view_w, view_h)
 
         # 2. simulate / update — per state
         _t_sim0 = time.perf_counter()

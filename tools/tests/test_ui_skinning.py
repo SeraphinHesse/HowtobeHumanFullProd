@@ -218,6 +218,15 @@ def _screen_captures():
 #: entry between END TURN and Pause — nothing already there moved, and every
 #: other screen's entry is byte-identical, which is what says the change was
 #: contained.
+#: Regenerated a THIRTEENTH time (feature: rebindable hotkeys): ``settings``
+#: gained a CONTROLS button (opens the new Controls/rebind screen) beside
+#: BACK. Three primitives are APPENDED to that entry; nothing already in it
+#: moved, and every other screen's entry is byte-identical — which is what
+#: says the change was contained. This entry and the TWELFTH above touch
+#: disjoint screens (``settings`` vs ``hud``), so the merge of the two
+#: features is the union of their two contained additions, not a
+#: re-baseline: both are present below, unmodified.
+
 _BASELINE = {
     "main_menu": [
         HudRect(rect=(0, 0, 640, 360), color=(18, 30, 20), border_radius=0, width=0),
@@ -297,6 +306,9 @@ _BASELINE = {
         HudRect(rect=(270, 279, 100, 23), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(270, 279, 100, 23), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='BACK', pos=(320, 283), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(380, 279, 90, 23), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(380, 279, 90, 23), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='CONTROLS', pos=(425, 285), font_key='sm', color=(235, 225, 195), align='center'),
     ],
     "credits": [
         HudRect(rect=(0, 0, 640, 360), color=(12, 20, 14), border_radius=0, width=0),

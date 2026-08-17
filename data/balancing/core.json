@@ -12,6 +12,7 @@
   },
   "Camera": {
     "default_zoom": 1.0,
+    "keyboard_pan_speed": 300,
     "max_offset_tiles_x": 30.0,
     "max_offset_tiles_y": 30.0,
     "zoom_levels": [

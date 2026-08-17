@@ -10,13 +10,19 @@ validating writer; don't hand-edit the JSON.
 
 ## What lives here
 - `schemas/` — one JSON Schema per file type.
-  `dispatch_handoff.schema.json` and `highscores.schema.json` are the TWO
-  schemas with no `data/` content file at all (handoffs are written to the
-  gitignored `.claude/dispatch/`, high scores to the gitignored `scores/`, both
-  still through `write_validated` — the single write path holds), which is
-  legal: `tools/smoke.py::validate_data` skips `data/schemas/` entirely. When a
-  schema governs per-machine runtime state rather than designer content, this
-  is the shape to copy. Three others
+  `dispatch_handoff.schema.json`, `highscores.schema.json` and
+  `keybindings.schema.json` are the THREE schemas with no `data/` content
+  file at all (handoffs are written to the gitignored `.claude/dispatch/`,
+  high scores AND a player's rebind overrides to the gitignored `scores/`,
+  all still through `write_validated` — the single write path holds), which
+  is legal: `tools/smoke.py::validate_data` skips `data/schemas/` entirely.
+  When a schema governs per-machine runtime state rather than designer
+  content, this is the shape to copy — `keybindings.schema.json` validates
+  `scores/keybindings.json` (feature: rebindable hotkeys, `engine/input.py`);
+  the DESIGNER-editable default for the same action set is a normal `data/`
+  content group instead, `balancing/ui.json`'s `Keybindings` (below), which
+  must declare the identical property set by hand (no cross-file `$ref` — see
+  the Schema shape rule). Three others
   (`map_file`, `balancing_history`, `agent_form`) pair with a whole **directory**
   rather than a stem-mate — see the directory rule below.
 - `slots.json` — the slot registry (which asset slots exist per category,
