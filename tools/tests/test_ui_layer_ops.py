@@ -302,3 +302,176 @@ class TestLayerOutliner(_LayerCase):
         self.assertFalse(self.panel.layer_remove_button.isEnabled())
         self.assertFalse(self.panel.layer_up_button.isEnabled())
         self.assertFalse(self.panel.layer_down_button.isEnabled())
+
+
+class TestLayerStateInspector(_LayerCase):
+    """UL-8: the per-layer, per-state inspector (state selector + the rows
+    below it). The two rulings this phase carries are pinned here:
+
+    1. hover/pressed/disabled are greyed on a NON-Button holder — `state_of`
+       resolves such a widget to "idle" forever, so per-state values on it
+       would be unreachable.
+    2. `z`/`band` are NOT state-patch keys, so those rows always write the
+       base entry whatever the selector says.
+    """
+
+    # Its OWN fixture (UL-6's has no `button`, and ruling 1 turns on the
+    # widget KIND) — never a mutation of the shared FIXTURE_DEFAULTS above.
+    DEFAULTS = {
+        "hud": {
+            "widgets": {
+                "love_text": {"rect": [40, 19, 0, 0], "kind": "label",
+                              "label": ""},
+                "btn_go": {"rect": [10, 60, 90, 30], "kind": "button",
+                           "label": "Go"},
+            },
+            "mock_note": "UL-8 fixture",
+        },
+    }
+
+    def setUp(self):
+        super().setUp()
+        self.panel = self.track(ScreenDetailsPanel(data_dir=self.data_dir))
+        self.panel.set_session(self.session, self.DEFAULTS)
+
+    def select_state(self, state):
+        combo = self.panel.layer_state_combo
+        combo.setCurrentIndex(combo.findData(state))
+        self.panel._refresh_layer_inspector()
+
+    def add_layer_on(self, widget_id="btn_go", **spec):
+        self.panel.select_widget(widget_id)
+        self.session.add_layer(widget_id, "layer_1", spec or {"z": 0})
+        self.panel._refresh_widget_list()
+        self.panel.select_layer(widget_id, "layer_1")
+
+    def entry(self, widget_id="btn_go"):
+        return self.doc_layers(widget_id)[0]
+
+    # -- per-state writes ---------------------------------------------------
+
+    def test_a_hover_edit_lands_under_states_and_leaves_the_base_alone(self):
+        self.add_layer_on(offset=[1, 2, 0, 0], z=0)
+        self.select_state("hover")
+        self.panel._push_layer_field("offset", [5, 6, 0, 0])
+        self.assertEqual(self.entry(), {
+            "id": "layer_1", "offset": [1, 2, 0, 0], "z": 0,
+            "states": {"hover": {"offset": [5, 6, 0, 0]}}})
+        self.assert_doc_validates()
+
+    def test_an_idle_edit_writes_the_base_entry(self):
+        self.add_layer_on(z=0)
+        self.select_state("idle")
+        self.panel._push_layer_field("offset", [3, 4, 0, 0])
+        self.assertEqual(self.entry(),
+                         {"id": "layer_1", "z": 0, "offset": [3, 4, 0, 0]})
+
+    def test_a_second_state_does_not_disturb_the_first(self):
+        self.add_layer_on(z=0)
+        self.select_state("hover")
+        self.panel._push_layer_field("text_color", [1, 2, 3])
+        self.select_state("pressed")
+        self.panel._push_layer_field("offset", [0, 1, 0, 0])
+        self.assertEqual(self.entry()["states"],
+                         {"hover": {"text_color": [1, 2, 3]},
+                          "pressed": {"offset": [0, 1, 0, 0]}})
+
+    def test_each_per_state_edit_is_exactly_one_undo_command(self):
+        self.add_layer_on(z=0)
+        self.select_state("hover")
+        before = self.session.undo_stack.count()
+        self.panel._push_layer_field("offset", [5, 0, 0, 0])
+        self.assertEqual(self.session.undo_stack.count(), before + 1)
+        self.session.undo_stack.undo()
+        self.assertNotIn("states", self.entry())
+
+    # -- per-state resets ---------------------------------------------------
+
+    def test_reset_clears_only_that_key_of_that_state(self):
+        self.add_layer_on(z=0)
+        self.select_state("hover")
+        self.panel._push_layer_field("offset", [5, 0, 0, 0])
+        self.panel._push_layer_field("tint", [9, 9, 9])
+        self.panel._on_reset_layer_field("offset")
+        self.assertEqual(self.entry()["states"], {"hover": {"tint": [9, 9, 9]}})
+
+    def test_resetting_the_last_key_removes_the_state_not_leaves_it_empty(self):
+        # An explicit `{}` is PRESENT and would pin hover to the base
+        # appearance (engine.ui_layers._state_patch) — not what reset means.
+        self.add_layer_on(z=0)
+        self.select_state("hover")
+        self.panel._push_layer_field("offset", [5, 0, 0, 0])
+        self.panel._on_reset_layer_field("offset")
+        self.assertEqual(self.entry(), {"id": "layer_1", "z": 0})
+
+    def test_a_reset_button_is_dead_when_that_state_has_no_such_key(self):
+        self.add_layer_on(offset=[1, 2, 0, 0], z=0)
+        self.select_state("hover")
+        # The base HAS an offset; the hover patch does not, so hover's own
+        # reset has nothing to clear.
+        self.assertFalse(self.panel.layer_offset_reset_button.isEnabled())
+        self.select_state("idle")
+        self.assertTrue(self.panel.layer_offset_reset_button.isEnabled())
+
+    # -- what the rows SHOW -------------------------------------------------
+
+    def test_a_state_with_no_patch_shows_the_base_values(self):
+        self.add_layer_on(offset=[7, 8, 0, 0], z=0)
+        self.select_state("hover")
+        self.assertEqual(self.panel.layer_off_x.value(), 7)
+        self.panel._push_layer_field("offset", [1, 1, 0, 0])
+        self.assertEqual(self.panel.layer_off_x.value(), 1)
+        self.select_state("idle")
+        self.assertEqual(self.panel.layer_off_x.value(), 7)
+
+    # -- ruling 1: non-Button holders ---------------------------------------
+
+    def test_state_selector_is_greyed_and_pinned_to_idle_on_a_non_button(self):
+        self.add_layer_on("love_text", z=0)
+        self.assertFalse(self.panel.layer_state_combo.isEnabled())
+        self.assertIn("only available for Button",
+                      self.panel.layer_state_combo.toolTip())
+        self.assertIn("only available for Button",
+                      self.panel.layer_state_note.text())
+        # Even asked for hover, the edit lands on the BASE entry — the state a
+        # label holder is forever in.
+        self.select_state("hover")
+        self.panel._push_layer_field("offset", [4, 0, 0, 0])
+        self.assertEqual(self.entry("love_text"),
+                         {"id": "layer_1", "z": 0, "offset": [4, 0, 0, 0]})
+
+    def test_state_selector_is_live_on_a_button(self):
+        self.add_layer_on("btn_go", z=0)
+        self.assertTrue(self.panel.layer_state_combo.isEnabled())
+        self.assertEqual(self.panel.layer_state_combo.toolTip(), "")
+
+    # -- ruling 2's neighbours: z/band are base-only, and the D4 tooltip ------
+
+    def test_z_and_band_write_the_base_entry_even_in_a_state(self):
+        self.add_layer_on(z=0)
+        self.select_state("hover")
+        self.panel.layer_z_spin.setValue(3)
+        self.assertEqual(self.entry()["z"], 3)
+        self.assertNotIn("states", self.entry())
+
+    def test_band_rows_carry_the_d4_warning(self):
+        from editor.panels.screen_details import TOOLTIP_LAYER_BAND
+        self.assertIn("behind EVERYTHING on this screen", TOOLTIP_LAYER_BAND)
+        self.assertEqual(self.panel.layer_field_band_combo.toolTip(),
+                         TOOLTIP_LAYER_BAND)
+        self.assertEqual(self.panel.layer_band_combo.toolTip(),
+                         TOOLTIP_LAYER_BAND)
+
+    # -- enabled state -------------------------------------------------------
+
+    def test_inspector_is_dead_with_no_layer_selected(self):
+        self.panel.select_widget("love_text")
+        self.assertFalse(self.panel.layer_off_x.isEnabled())
+        self.assertFalse(self.panel.layer_field_slot_combo.isEnabled())
+        self.assertFalse(self.panel.layer_offset_reset_button.isEnabled())
+
+    def test_a_slotted_layer_says_color_is_ignored(self):
+        self.add_layer_on(slot="ui_panel", z=0)
+        self.assertFalse(self.panel.layer_color_button.isEnabled())
+        self.assertIn("Color is ignored",
+                      self.panel.layer_color_button.toolTip())

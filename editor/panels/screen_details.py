@@ -23,6 +23,7 @@ The rect spinboxes and combo boxes are imported FROM editor.panels.balancing
 (their home — never copied, never moved; the root router's rule for the
 _NoWheel* widgets).
 """
+import copy
 from pathlib import Path
 
 from PySide6.QtCore import QMimeData, Qt, QTimer, Signal
@@ -93,6 +94,38 @@ TOOLTIP_HIDDEN_BY_PARENT = (
     "Not drawn in the preview because its parent \"{name}\" is hidden. "
     "Visibility inherits in the EDITOR only — this widget's own Visible flag "
     "is unchanged, and the game still resolves each widget's flag on its own.")
+
+# UL-8/D4: the band control's HONEST label. `under` does not mean "behind my
+# own widget" — it means behind everything the screen draws, which is the one
+# consequence of D4 a designer cannot discover from the two-word combo. It has
+# to be met in the editor, not in a bug report.
+TOOLTIP_LAYER_BAND = (
+    "Under layers sit behind EVERYTHING on this screen, not just behind "
+    "their owner widget. Use Over for backgrounds between stacked panels.")
+
+# UL-8 ruling 1: `ScreenSkinning.state_of` (game/ui/skinning.py) answers
+# "idle" for anything that is not a `Button` — a panel/label/backdrop holder
+# is a plain namespace with no state machine at all. Per-state values on such
+# a layer are schema-valid and permanently unreachable, so the inspector greys
+# the state selector rather than accepting them (ED-30: invalid input
+# unrepresentable).
+TOOLTIP_STATE_BUTTON_ONLY = (
+    "Hover, Pressed, and Disabled states are only available for Button "
+    "widgets; this holder always appears in the Idle state.")
+
+# UL-8: a layer draws exactly ONE primitive, first match wins
+# (game/ui/skinning.py `_submit_one_layer`: slot -> text -> colour). So Color
+# is inert for as long as the layer carries a slot — the same
+# disabled-never-lying rule the widget form's Color row already follows (D3).
+TOOLTIP_LAYER_COLOR_INERT = (
+    "This layer draws its slot art, so Color is ignored. Clear the Slot to "
+    "draw a flat colour instead.")
+
+# The four D9 states, in the order the state selector offers them. Populated
+# from the registry's `ui` animations when that is available (the same
+# data-driven list viewport.py's own state dropdown uses); this is the
+# fallback for a registry with no `ui` category.
+_LAYER_STATES = ("idle", "hover", "pressed", "disabled")
 
 _RECT_MIN, _RECT_MAX = -4096, 4096
 
@@ -447,6 +480,7 @@ class ScreenDetailsPanel(QWidget):
         self._populate_skin_combo(self.button_skin_combo)
         self._populate_skin_combo(self.panel_skin_combo)
         self._populate_skin_combo(self.layer_slot_combo)   # UL-6
+        self._populate_skin_combo(self.layer_field_slot_combo)   # UL-8
         self._populate_font_combo(self.font_combo)
         self._populate_font_combo(self.default_font_combo)
         self._populate_background_combo()
@@ -519,6 +553,7 @@ class ScreenDetailsPanel(QWidget):
         self._populate_skin_combo(self.button_skin_combo)
         self._populate_skin_combo(self.panel_skin_combo)
         self._populate_skin_combo(self.layer_slot_combo)   # UL-6
+        self._populate_skin_combo(self.layer_field_slot_combo)   # UL-8
         self._populate_background_combo()
 
     # -- session / defaults binding -------------------------------------------
@@ -806,9 +841,9 @@ class ScreenDetailsPanel(QWidget):
         self.layer_band_combo = _NoWheelComboBox(self)
         self.layer_band_combo.addItem("Over", "over")
         self.layer_band_combo.addItem("Under", "under")
-        self.layer_band_combo.setToolTip(
-            "Over draws the layer on top of its widget; Under draws it "
-            "behind everything on the screen.")
+        # UL-8/D4: the same wording as the per-layer Band row below, so the
+        # band's real reach is stated wherever a band is chosen.
+        self.layer_band_combo.setToolTip(TOOLTIP_LAYER_BAND)
         picker_layout.addWidget(self.layer_band_combo)
         box_layout.addWidget(picker_row)
 
@@ -841,6 +876,10 @@ class ScreenDetailsPanel(QWidget):
         self.layer_selected_label = QLabel("", self)
         self.layer_selected_label.setStyleSheet("color: #888;")
         box_layout.addWidget(self.layer_selected_label)
+
+        # UL-8: the per-layer inspector hangs BELOW the layer-ops controls, as
+        # the second subsection of the same "Layers" box.
+        box_layout.addWidget(self._build_layer_inspector())
         return box
 
     def _widget_layers(self, widget_id):
@@ -973,6 +1012,416 @@ class ScreenDetailsPanel(QWidget):
         self.layer_down_button.setEnabled(down)
         self.layer_selected_label.setText(
             f"Selected layer: {layer_id}" if has_layer else "")
+        self._refresh_layer_inspector()   # UL-8
+
+    # -- UL-8: the per-layer, per-state inspector ---------------------------
+    # The form the selected LAYER's own values are edited in, one row per doc
+    # key, following B4's per-field immediate-undoable-push convention
+    # (`_field_row` + `_make_reset_button`) exactly as the widget form above —
+    # never balancing.py's staged edits.
+    #
+    # SCOPE of a row, which the state selector decides:
+    #   "idle"                      -> the layer entry itself (`layers[i][key]`)
+    #   "hover"/"pressed"/"disabled"-> `layers[i].states[<state>][key]`, leaving
+    #                                  every other state's patch untouched
+    # so a per-state edit is additive and a per-state reset removes exactly one
+    # key. Emptying a state's patch removes the state key itself rather than
+    # leaving `{}` behind: `{}` is PRESENT and therefore means "this state
+    # looks like the base" (engine.ui_layers._state_patch — presence drives the
+    # fallback, not truthiness), which is not what "reset" was asked for.
+    #
+    # `z` and `band` are deliberately NOT per-state: neither is a state-patch
+    # key in the schema, so both rows always write the base entry whatever the
+    # selector says.
+    #
+    # KNOWN GAP (deliberate): a hand-authored `states.idle` patch is legal and
+    # this form never writes one — the Idle rows edit the base entry. Such a
+    # doc's Idle rows therefore show the base values, not the patch.
+
+    def _build_layer_inspector(self):
+        box = QWidget(self)
+        box_layout = QVBoxLayout(box)
+        box_layout.setContentsMargins(0, 0, 0, 0)
+
+        state_row = QWidget(self)
+        state_layout = QHBoxLayout(state_row)
+        state_layout.setContentsMargins(0, 0, 0, 0)
+        state_layout.addWidget(QLabel("State", self))
+        self.layer_state_combo = _NoWheelComboBox(self)
+        for state in self._state_names():
+            self.layer_state_combo.addItem(state.capitalize(), state)
+        self.layer_state_combo.activated.connect(
+            lambda _i: self._refresh_layer_inspector())
+        state_layout.addWidget(self.layer_state_combo, 1)
+        box_layout.addWidget(state_row)
+
+        self.layer_state_note = QLabel("", self)
+        self.layer_state_note.setWordWrap(True)
+        self.layer_state_note.setStyleSheet("color: #888;")
+        box_layout.addWidget(self.layer_state_note)
+
+        form = QFormLayout()
+
+        self.layer_off_x = _NoWheelSpinBox(self)
+        self.layer_off_y = _NoWheelSpinBox(self)
+        self.layer_off_w = _NoWheelSpinBox(self)
+        self.layer_off_h = _NoWheelSpinBox(self)
+        for spin in (self.layer_off_x, self.layer_off_y,
+                     self.layer_off_w, self.layer_off_h):
+            spin.setRange(_RECT_MIN, _RECT_MAX)
+            spin.valueChanged.connect(self._on_layer_offset_changed)
+        self.layer_off_w.setToolTip("0 inherits the owner widget's width")
+        self.layer_off_h.setToolTip("0 inherits the owner widget's height")
+        offset_row, self.layer_offset_reset_button = self._field_row(
+            (self.layer_off_x, self.layer_off_y,
+             self.layer_off_w, self.layer_off_h),
+            "offset", lambda: self._on_reset_layer_field("offset"))
+        form.addRow("Offset (dX dY W H)", offset_row)
+
+        self.layer_field_slot_combo = _NoWheelComboBox(self)
+        self.layer_field_slot_combo.activated.connect(
+            lambda _i: self._push_layer_field(
+                "slot", self.layer_field_slot_combo.currentData()))
+        slot_row, self.layer_slot_reset_button = self._field_row(
+            (self.layer_field_slot_combo,), "slot",
+            lambda: self._on_reset_layer_field("slot"))
+        form.addRow("Slot", slot_row)
+
+        self.layer_label_edit = QLineEdit(self)
+        self.layer_label_edit.editingFinished.connect(self._on_layer_label_edited)
+        label_row, self.layer_label_reset_button = self._field_row(
+            (self.layer_label_edit,), "label",
+            lambda: self._on_reset_layer_field("label"))
+        form.addRow("Text", label_row)
+
+        self.layer_color_button = QPushButton("Color…", self)
+        self.layer_color_button.clicked.connect(
+            lambda: self._on_layer_color_clicked("color"))
+        color_row, self.layer_color_reset_button = self._field_row(
+            (self.layer_color_button,), "color",
+            lambda: self._on_reset_layer_field("color"))
+        form.addRow("Color", color_row)
+
+        self.layer_tint_button = QPushButton("Tint…", self)
+        self.layer_tint_button.setToolTip(TOOLTIP_TINT_SKINNED)
+        self.layer_tint_button.clicked.connect(
+            lambda: self._on_layer_color_clicked("tint"))
+        tint_row, self.layer_tint_reset_button = self._field_row(
+            (self.layer_tint_button,), "tint",
+            lambda: self._on_reset_layer_field("tint"))
+        form.addRow("Tint", tint_row)
+
+        self.layer_text_color_button = QPushButton("Text Color…", self)
+        self.layer_text_color_button.clicked.connect(
+            lambda: self._on_layer_color_clicked("text_color"))
+        text_color_row, self.layer_text_color_reset_button = self._field_row(
+            (self.layer_text_color_button,), "text_color",
+            lambda: self._on_reset_layer_field("text_color"))
+        form.addRow("Text Color", text_color_row)
+
+        self.layer_visible_check = QCheckBox("Visible", self)
+        self.layer_visible_check.toggled.connect(self._on_layer_visible_toggled)
+        visible_row, self.layer_visible_reset_button = self._field_row(
+            (self.layer_visible_check,), "visible",
+            lambda: self._on_reset_layer_field("visible"))
+        form.addRow("", visible_row)
+
+        # Base-only rows (not state-patch keys — see the section comment).
+        self.layer_z_spin = _NoWheelSpinBox(self)
+        self.layer_z_spin.setRange(_RECT_MIN, _RECT_MAX)
+        self.layer_z_spin.setToolTip(
+            "Paint order WITHIN this layer's band. The same in every state.")
+        self.layer_z_spin.valueChanged.connect(self._on_layer_z_changed)
+        z_row, self.layer_z_reset_button = self._field_row(
+            (self.layer_z_spin,), "z",
+            lambda: self._on_reset_layer_base_field("z"))
+        form.addRow("Z", z_row)
+
+        self.layer_field_band_combo = _NoWheelComboBox(self)
+        self.layer_field_band_combo.addItem("Over", "over")
+        self.layer_field_band_combo.addItem("Under", "under")
+        self.layer_field_band_combo.setToolTip(TOOLTIP_LAYER_BAND)
+        self.layer_field_band_combo.activated.connect(
+            lambda _i: self._on_layer_band_changed())
+        band_row, self.layer_band_reset_button = self._field_row(
+            (self.layer_field_band_combo,), "band",
+            lambda: self._on_reset_layer_base_field("band"))
+        form.addRow("Band", band_row)
+
+        box_layout.addLayout(form)
+        return box
+
+    def _state_names(self):
+        """The state vocabulary, from the registry's `ui` category (the same
+        data-driven list viewport.py's own state dropdown reads), falling back
+        to the four D9 names when there is no `ui` category."""
+        try:
+            animations = tuple(self._registry.category("ui").animations)
+        except (KeyError, AttributeError):
+            animations = ()
+        return animations or _LAYER_STATES
+
+    # -- UL-8: reading the selected layer ------------------------------------
+
+    def _selected_layer_entry(self):
+        """A COPY of the selected layer's entry, or None when no layer node is
+        selected (the session hands back a deep copy, so mutating what this
+        returns cannot reach the doc)."""
+        if self._current_widget is None or not self._current_layer_id:
+            return None
+        for entry in self._widget_layers(self._current_widget):
+            if entry.get("id") == self._current_layer_id:
+                return entry
+        return None
+
+    def _owner_is_button(self):
+        """Whether the selected layer's OWNER is a Button — the one widget
+        kind `state_of` ever resolves to something other than "idle"."""
+        return self._current_spec().get("kind") == "button"
+
+    def _layer_state(self):
+        """The state the inspector's rows currently edit: the selector's value
+        on a Button-owned layer, always "idle" otherwise (ruling 1)."""
+        if not self._owner_is_button():
+            return "idle"
+        return self.layer_state_combo.currentData() or "idle"
+
+    def _layer_state_patch(self, entry, state):
+        """`entry`'s patch for `state` — engine.ui_layers._state_patch's rule,
+        restated here so the form shows what the game would draw: a PRESENT
+        key wins (an explicit `{}` means "looks like the base"), an absent one
+        falls back to `idle`, and no `states` at all means no patch."""
+        states = entry.get("states") or {}
+        if not isinstance(states, dict):
+            return {}
+        if state in states:
+            return states[state] or {}
+        return states.get("idle") or {}
+
+    def _layer_raw_value(self, entry, state, key):
+        """What THIS row would reset: the value stored in the row's own scope,
+        `None` when the key is absent there (push_field's sentinel)."""
+        if state == "idle":
+            return entry.get(key)
+        patch = (entry.get("states") or {}).get(state)
+        return patch.get(key) if isinstance(patch, dict) else None
+
+    def _layer_effective_value(self, entry, state, key, default=None):
+        """What the game would draw for `key` in `state` — the patch's value
+        when it sets one, else the layer's own."""
+        if state != "idle":
+            patch = self._layer_state_patch(entry, state)
+            if key in patch:
+                value = patch[key]
+                return default if value is None else value
+        value = entry.get(key)
+        return default if value is None else value
+
+    # -- UL-8: writing (one immediate undoable push per field) ---------------
+
+    def _push_layer_field(self, key, new_value):
+        """Set (or clear, with `new_value=None`) ONE per-state key on the
+        selected layer, in the scope the state selector names."""
+        entry = self._selected_layer_entry()
+        if entry is None or self._populating or self._session is None:
+            return
+        widget_id, layer_id = self._current_widget, self._current_layer_id
+        state = self._layer_state()
+        if self._layer_raw_value(entry, state, key) == new_value:
+            return
+        if state == "idle":
+            self._session.set_layer_field(
+                widget_id, layer_id, key,
+                entry.get(key), new_value)
+        else:
+            old_states = entry.get("states") or None
+            states = copy.deepcopy(old_states) or {}
+            patch = dict(states.get(state) or {})
+            if new_value is None:
+                patch.pop(key, None)
+            else:
+                patch[key] = new_value
+            if patch:
+                states[state] = patch
+            else:
+                # An emptied patch is REMOVED, not left as `{}` — `{}` is
+                # present and would pin the state to the base appearance
+                # instead of restoring the idle fallback.
+                states.pop(state, None)
+            self._session.set_layer_field(
+                widget_id, layer_id, "states", old_states, states or None,
+                text=f"edit layer {layer_id}.{state}.{key}")
+        self._after_layer_edit(widget_id, layer_id)
+
+    def _push_layer_base_field(self, key, new_value):
+        """`z`/`band`: always the base entry, never a state patch."""
+        entry = self._selected_layer_entry()
+        if entry is None or self._populating or self._session is None:
+            return
+        widget_id, layer_id = self._current_widget, self._current_layer_id
+        self._session.set_layer_field(widget_id, layer_id, key,
+                                      entry.get(key), new_value)
+        self._after_layer_edit(widget_id, layer_id)
+
+    def _after_layer_edit(self, widget_id, layer_id):
+        """Redraw the outliner (a slot/z/band edit changes a node's text or
+        its place in paint order) and keep the edited layer selected."""
+        self._refresh_widget_list()
+        self.select_layer(widget_id, layer_id)
+
+    def _on_reset_layer_field(self, key):
+        self._push_layer_field(key, None)
+
+    def _on_reset_layer_base_field(self, key):
+        entry = self._selected_layer_entry()
+        if entry is None or key not in entry:
+            return
+        self._push_layer_base_field(key, None)
+
+    def _on_layer_offset_changed(self, _value=None):
+        self._push_layer_field("offset", [
+            self.layer_off_x.value(), self.layer_off_y.value(),
+            self.layer_off_w.value(), self.layer_off_h.value()])
+
+    def _on_layer_label_edited(self):
+        text = self.layer_label_edit.text()
+        self._push_layer_field("label", text or None)
+
+    def _on_layer_color_clicked(self, key):
+        entry = self._selected_layer_entry()
+        if entry is None:
+            return
+        current = self._layer_effective_value(entry, self._layer_state(), key)
+        new_color = self._pick_color(list(current) if current else None)
+        if new_color is None:
+            return
+        self._push_layer_field(key, new_color)
+
+    def _on_layer_visible_toggled(self, checked):
+        entry = self._selected_layer_entry()
+        if entry is None or self._populating:
+            return
+        state = self._layer_state()
+        if state == "idle":
+            # True is the schema default, so only an explicit False is stored.
+            self._push_layer_field("visible", None if checked else False)
+        else:
+            # In a state patch an explicit True is meaningful (a layer hidden
+            # at rest can still show on hover), so the value is stored unless
+            # it agrees with the base, in which case the key is cleared.
+            base = entry.get("visible", True)
+            self._push_layer_field("visible",
+                                   None if checked == base else checked)
+
+    def _on_layer_z_changed(self, value):
+        self._push_layer_base_field("z", value)
+
+    def _on_layer_band_changed(self):
+        self._push_layer_base_field(
+            "band", self.layer_field_band_combo.currentData())
+
+    # -- UL-8: refresh -------------------------------------------------------
+
+    def _layer_inspector_controls(self):
+        return (self.layer_off_x, self.layer_off_y, self.layer_off_w,
+                self.layer_off_h, self.layer_field_slot_combo,
+                self.layer_label_edit, self.layer_color_button,
+                self.layer_tint_button, self.layer_text_color_button,
+                self.layer_visible_check, self.layer_z_spin,
+                self.layer_field_band_combo)
+
+    def _layer_reset_buttons(self):
+        return {"offset": self.layer_offset_reset_button,
+                "slot": self.layer_slot_reset_button,
+                "label": self.layer_label_reset_button,
+                "color": self.layer_color_reset_button,
+                "tint": self.layer_tint_reset_button,
+                "text_color": self.layer_text_color_reset_button,
+                "visible": self.layer_visible_reset_button,
+                "z": self.layer_z_reset_button,
+                "band": self.layer_band_reset_button}
+
+    def _refresh_layer_inspector(self):
+        """Repopulate every inspector row from the selected layer, in the
+        selected state. Called from `_refresh_layer_buttons`, i.e. after every
+        selection change, tree rebuild and undo/redo."""
+        entry = self._selected_layer_entry()
+        has_layer = entry is not None
+        is_button = has_layer and self._owner_is_button()
+
+        # Ruling 1: hover/pressed/disabled are unreachable on a non-Button
+        # holder, so the selector is greyed and pinned to Idle there rather
+        # than accepting values the game will never read.
+        self.layer_state_combo.setEnabled(has_layer and is_button)
+        self.layer_state_combo.setToolTip(
+            "" if not has_layer or is_button else TOOLTIP_STATE_BUTTON_ONLY)
+        # Pinned to Idle only when a NON-Button layer is actually selected —
+        # with no selection the combo keeps whatever the designer last chose
+        # (a tree rebuild runs this on every edit, and stealing the state back
+        # to Idle mid-gesture would send the NEXT edit to the wrong scope).
+        if has_layer and not is_button:
+            self.layer_state_combo.blockSignals(True)
+            self.layer_state_combo.setCurrentIndex(
+                max(0, self.layer_state_combo.findData("idle")))
+            self.layer_state_combo.blockSignals(False)
+
+        for control in self._layer_inspector_controls():
+            control.setEnabled(has_layer)
+        if not has_layer:
+            self.layer_state_note.setText("")
+            for button in self._layer_reset_buttons().values():
+                button.setEnabled(False)
+            return
+
+        state = self._layer_state()
+        if not is_button:
+            self.layer_state_note.setText(TOOLTIP_STATE_BUTTON_ONLY)
+        elif state != "idle":
+            self.layer_state_note.setText(
+                f"Editing the {state} state. A row you never touch falls "
+                "back to Idle.")
+        else:
+            self.layer_state_note.setText("")
+
+        was_populating = self._populating
+        self._populating = True
+        offset = self._layer_effective_value(entry, state, "offset",
+                                             [0, 0, 0, 0])
+        if not isinstance(offset, (list, tuple)) or len(offset) not in (2, 4):
+            offset = [0, 0, 0, 0]
+        if len(offset) == 2:   # the [dx, dy] patch form keeps the base's w/h
+            base = entry.get("offset") or [0, 0, 0, 0]
+            offset = [offset[0], offset[1], base[2], base[3]]
+        for spin, value in zip((self.layer_off_x, self.layer_off_y,
+                                self.layer_off_w, self.layer_off_h), offset):
+            spin.setValue(int(value))
+        slot = self._layer_effective_value(entry, state, "slot")
+        self.layer_field_slot_combo.setCurrentIndex(
+            max(0, self.layer_field_slot_combo.findData(slot)))
+        self.layer_label_edit.setText(
+            self._layer_effective_value(entry, state, "label", ""))
+        self.layer_visible_check.setChecked(
+            bool(self._layer_effective_value(entry, state, "visible", True)))
+        self.layer_z_spin.setValue(int(entry.get("z", 0) or 0))
+        self.layer_field_band_combo.setCurrentIndex(
+            max(0, self.layer_field_band_combo.findData(
+                entry.get("band", "over"))))
+        self._populating = was_populating
+
+        # D3/honest controls: a layer with a slot draws the sprite and ignores
+        # `color` outright (first-match precedence in `_submit_one_layer`).
+        has_slot = bool(self._layer_effective_value(entry, state, "slot"))
+        self.layer_color_button.setEnabled(not has_slot)
+        self.layer_color_button.setToolTip(
+            TOOLTIP_LAYER_COLOR_INERT if has_slot else "")
+
+        buttons = self._layer_reset_buttons()
+        for key in ("offset", "slot", "label", "color", "tint", "text_color",
+                    "visible"):
+            buttons[key].setEnabled(
+                self._layer_raw_value(entry, state, key) is not None)
+        buttons["z"].setEnabled("z" in entry)
+        buttons["band"].setEnabled("band" in entry)
 
     # -- per-widget form ---------------------------------------------------
 
@@ -996,6 +1445,8 @@ class ScreenDetailsPanel(QWidget):
                         self.layer_down_button):
                 btn.setEnabled(False)
             self.layer_selected_label.setText("")
+            # UL-8: and with no layer there is nothing to inspect either.
+            self._refresh_layer_inspector()
             # Per-field reset buttons get their REAL enabled state (does an
             # override exist for THIS key?) from _refresh_reset_buttons,
             # called at the end of _populate_widget_form — but with no
