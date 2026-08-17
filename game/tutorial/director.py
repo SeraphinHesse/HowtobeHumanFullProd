@@ -32,6 +32,19 @@ TU-8 adds two independent fixes riding the same sequencer:
   match the CURRENT step, so ``on_panel_closed()`` simply tries both. End
   Turn stays gated (not in this step's ``allow``) for free, the same
   whitelist mechanism every other step already uses.
+
+**The tile-buying topic** appends a third chain to the same script, right
+after round-2's stone-thrower placement: a message, a forced click on the
+map doc's ``tutorial_unlock`` marker (a locked COMBAT tile), a forced click
+on the panel's unlock action button (the ONE genuinely new gated action —
+buying a tile was previously ungated by the tutorial, ``game/main.py``'s
+``_tutorial_allows_panel_click``), then the existing flute/stone chain
+pattern again pointed at ``tutorial_stone_2`` (the far corner of the
+newly-bought chunk). ``on_tile_unlocked()`` is the new event-feed method;
+``_action_id``'s ``"unlock"`` kind and ``ui_highlight_rects``'s
+``"button:unlock"`` resolution (via ``panel.action_rect()``) are the new
+vocabulary. This becomes the script's new terminal chain — same "past the
+last step" semantics TU-7 relies on, no new engine code needed.
 """
 import json
 import logging
@@ -78,6 +91,11 @@ class TutorialDirector:
     def __init__(self, data_dir, map_doc, tutorial_balance):
         self._flute = map_doc.tutorial_flute  # nullable {"col", "row"}
         self._stone = map_doc.tutorial_stone  # nullable {"col", "row"} (TU-7)
+        # nullable {"col", "row"} — the tile-buying topic's two markers: the
+        # locked tile forced to be bought, and the far corner of that newly
+        # unlocked chunk the second stone thrower is forced onto.
+        self._unlock = map_doc.tutorial_unlock
+        self._stone_2 = map_doc.tutorial_stone_2
         self._messages = {}
         self._required = 0
         self._economy_placed = 0
@@ -121,19 +139,28 @@ class TutorialDirector:
             if self._stone is not None and (
                     col, row) == (self._stone["col"], self._stone["row"]):
                 return "tile_click:tutorial_stone"
+            if self._unlock is not None and (
+                    col, row) == (self._unlock["col"], self._unlock["row"]):
+                return "tile_click:tutorial_unlock"
+            if self._stone_2 is not None and (
+                    col, row) == (self._stone_2["col"], self._stone_2["row"]):
+                return "tile_click:tutorial_stone_2"
             return "tile_click:other"
         if kind == "card":
             return f"card_select:{action[1]}"
         if kind == "confirm":
             return "button:confirm"
+        if kind == "unlock":
+            return "button:unlock"
         if kind == "end_turn":
             return "button:end_turn"
         return "other"
 
     def allows(self, action):
         """``action``: ``("tile", col, row) | ("card", building_type) |
-        ("confirm",) | ("end_turn",) | ("other",)``. True immediately when
-        the sequencer is finished (D6 zero-overhead path)."""
+        ("confirm",) | ("unlock",) | ("end_turn",) | ("other",)``. True
+        immediately when the sequencer is finished (D6 zero-overhead
+        path)."""
         if self.sequencer.finished:
             return True
         return self.sequencer.allows(self._action_id(action))
@@ -166,6 +193,23 @@ class TutorialDirector:
         if self._stone is not None and (
                 col, row) == (self._stone["col"], self._stone["row"]):
             self.sequencer.advance("tile_clicked:tutorial_stone")
+            return
+        if self._unlock is not None and (
+                col, row) == (self._unlock["col"], self._unlock["row"]):
+            self.sequencer.advance("tile_clicked:tutorial_unlock")
+            return
+        if self._stone_2 is not None and (
+                col, row) == (self._stone_2["col"], self._stone_2["row"]):
+            self.sequencer.advance("tile_clicked:tutorial_stone_2")
+
+    def on_tile_unlocked(self):
+        """The tile-buying topic's buy step: fired once a chunk unlock
+        actually completes (``BuildingUI.last_unlocked``, the
+        ``last_placed_type`` read/clear pattern). No marker-name
+        parameterization needed — the script's ``allow`` whitelist on the
+        step already guarantees only the correct chunk's unlock button can
+        be clicked while it holds."""
+        self.sequencer.advance("tile_unlocked")
 
     def on_card_selected(self, building_type):
         self.sequencer.advance(f"building_selected:{building_type}")
@@ -249,13 +293,19 @@ class TutorialDirector:
     def tile_highlight_targets(self):
         """``(col, row)`` pairs for the current step's tile highlights (0 or
         1 entries) — resolves ``"tile:tutorial_flute"``/``"tile:
-        tutorial_stone"`` (TU-7) against their bound markers."""
+        tutorial_stone"`` (TU-7) / ``"tile:tutorial_unlock"``/``"tile:
+        tutorial_stone_2"`` (the tile-buying topic) against their bound
+        markers."""
         out = []
         for hid in self.highlight_targets():
             if hid == "tile:tutorial_flute" and self._flute is not None:
                 out.append((self._flute["col"], self._flute["row"]))
             elif hid == "tile:tutorial_stone" and self._stone is not None:
                 out.append((self._stone["col"], self._stone["row"]))
+            elif hid == "tile:tutorial_unlock" and self._unlock is not None:
+                out.append((self._unlock["col"], self._unlock["row"]))
+            elif hid == "tile:tutorial_stone_2" and self._stone_2 is not None:
+                out.append((self._stone_2["col"], self._stone_2["row"]))
         return out
 
     def ui_highlight_rects(self, panel, hud):
@@ -274,6 +324,8 @@ class TutorialDirector:
                 rect = hud.end_turn.rect
             elif hid == "button:close":
                 rect = panel.close_rect()
+            elif hid == "button:unlock":
+                rect = panel.action_rect()
             if rect is not None:
                 out.append(rect)
         return out

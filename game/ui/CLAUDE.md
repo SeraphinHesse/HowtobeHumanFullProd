@@ -131,6 +131,86 @@ floaters, not-enough-love flash, building HP bars; input routing + click-consume
 priority in `game/main.py`. Every menu screen mirrors the `game_over.py`
 construct→layout→update→hit→submit template + `widgets.Button`.
 
+## Payout-phase sequencing + animated love counter (feature)
+The payout no longer fires every boost/economy/upkeep floater in one frame.
+`FloaterManager.begin_payout(state)` (`effects.py`) — called ONCE on the
+`INCOME` phase edge from `main.py`, replacing the old three separate
+`spawn_income_events`/`spawn_painter_events`/`spawn_boost_events` calls —
+builds three ordered BEATS (boost, economy [income-kind `income_events`
+entries + Painter's finish/lost message], upkeep) and queues them for
+staggered release by `update(dt, state)`, `core.PhaseLoop.
+payout_stagger_interval` apart — the `game/enemies/spawner.py` timed
+`_queue`/`_timer` pattern. A beat's presence in the queue mirrors
+`payday.py` step 12's `phase_timer` formula exactly (`game/core/CLAUDE.md`),
+so the phase always stays open exactly as long as the queued beats need.
+Floater LIFETIME for these three beats is `vfx.json procedural.
+floaters.income_life`, decoupled from `core.PhaseLoop.
+income_phase_duration` (now the phase's post-last-beat hold time, not a
+floater life) — Painter's own entries keep their existing, separate
+`painter_life`. `ui.FX.income_floaters_enabled` gates only the income/
+upkeep-derived floaters within a beat (unchanged from before this
+feature) — never whether the beat/pause/counter-checkpoint happens; boost
+and Painter floaters were never gated by it.
+
+**The HUD love counter animates instead of snapping**, for every love
+change anywhere in the game, not just payout — spending, cheats, boss
+bonuses, the works. `FloaterManager` owns it: `love_display` (a property,
+`round()`ed) is what `Hud.submit` draws outside a hover preview
+(`main.py` threads `love_display=gp["floaters"].love_display`); the ramp
+is LINEAR, fixed-duration (`ui.json FX.love_counter_anim_duration`,
+independent of how big the change is), and a retarget mid-flight starts
+from the counter's CURRENT displayed position, never from its old target
+— so it can never visibly jump. Two drivers into the same ramp state:
+`begin_payout`'s beat releases arm an explicit segment each (the economy
+beat's release targets `state.payout_love_after_economy`, the upkeep
+beat's targets the real final `state.love` — see `game/core/CLAUDE.md`'s
+payout-sequencing bullet for where those two checkpoints come from); a
+generic per-frame watcher in `update(dt, state)` handles every OTHER
+change, but stays quiet while a payout sequence is still queued (its
+segments already account for that round's pending change) — this is what
+lets a single synchronous `run_payday()` call's one big `state.love` jump
+still read as two separate, correctly-timed ramps instead of one.
+**Tuning note**: with the shipped defaults (`payout_stagger_interval`
+0.42s < `love_counter_anim_duration` 1.2s) the upkeep beat's retarget
+fires before the economy ramp finishes, so the counter curves toward the
+lower total mid-climb rather than fully arriving first — smooth, not a
+jump (the same mid-flight mechanic), but not two fully sequential ramps
+either. If a designer wants the ramps to fully complete before the next
+beat fires, raise `payout_stagger_interval` to >= the counter duration.
+
+**The hover-cost preview shows the arithmetic, not the remainder — in two
+colours.** `Hud.submit`'s `hover_cost` branch used to show
+`state.love - hover_cost` (what you'd be left with, all one colour); it now
+draws `"current - price"` as TWO separately-coloured `HudText` runs via the
+new `Hud._submit_love_hover_cost` — the current-love half stays the plain
+love colour (`widgets.C_GOLD`, or a designer's `love_text` `text_color`
+override), only the `" - price"` half reads `widgets.C_RED` — for both an
+affordable and an unaffordable hover alike. Two string-table ids, not one
+combined template split in code: `hud.love_hover_cost_current` (`"{current}"`)
+and `hud.love_hover_cost_price` (`" - {price}"`), each independently
+designer-editable; the second is drawn immediately after the first via a
+live `widgets.text_size` measurement (the income-tooltip/lightning-readout
+precedent for hover-only text with no stored rect). Falls back to a single
+combined (red) draw if `love_text`'s alignment is ever not `"left"` — the
+two-segment math assumes left alignment, and today it always is. Always
+reads the REAL `state.love`/`hover_cost`, never the animated `love_display`
+— affordability is a correctness question, not a payout-flavor display.
+
+**Floaters sharing one anchor point stack vertically.** Boost floaters are
+anchored at the RECEIVING building's tile, not the booster's own tile
+(`game/buildings/boost.py`'s `apply_per_turn`) — so several boost buildings
+buffing the same defender all land a floater on that ONE tile in the same
+beat, which used to draw them directly on top of each other. `FloaterManager
+.submit` now groups `self._floaters` by exact `(wx, wy)` every frame (spawn
+order preserved — the list is append-only until culled) and gives each
+floater in a group its own vertical slot, `_FLOATER_STACK_STEP` (14px, fixed
+code chrome, not balancing) apart — the exact `submit_enemy_hp_bars`
+per-tile-group precedent (`game/ui/CLAUDE.md`'s "Overhead HP bars" section)
+applied to floater text instead of bars. Generic by anchor point, not
+boost-specific — any floater kind sharing a point stacks the same way, at no
+extra cost (the grouping already has to walk every active floater to draw
+it).
+
 ## HUD submission order: panel -> button -> text
 `engine/render/CLAUDE.md` "HUD pass": the HUD layer has **no depth sort** —
 `submit_hud`/`submit_panel`/`submit_text` draw in the order they're called,
@@ -603,6 +683,27 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
     what says the change was contained.
 - **Deferred**: the settings audio slider is inert (no audio system beyond
   music). (The pause dim landed with 10J's HUD alpha.)
+- **Controls screen (feature: rebindable hotkeys)** — `game/ui/keybinds_screen.py`
+  (`KeybindsScreen`), the `debug_settings.py` code-only-screen shape: no
+  `data/ui/screens/keybinds.json`, no `screen_defaults.json` entry, not in
+  `tools/export_ui_layouts.py`'s `SCREEN_IDS`, row labels are plain code text.
+  Reached via a new CONTROLS button on `SettingsScreen`; opened as
+  `Shell.controls_open`, an overlay flag on `GameState.SETTINGS` (the
+  `debug_settings_open`-on-`MAIN_MENU` pattern — reachable from exactly one
+  place, so no new `GameState` member). Lists 16 of the 18
+  `data/balancing/ui.json Keybindings` actions in TWO columns (16 rows in one
+  column overflows the 640x360 logical surface — `_ROWS_PER_COL`)
+  (`toggle_cheat_menu`/`quick_skip_combat` deliberately excluded — see
+  `game/CLAUDE.md`'s Rebindable hotkeys section) with a REBIND button per row.
+  `KeybindsScreen.bindings` is a plain shared dict the HOST owns (the
+  `SessionSettings` precedent) — `Shell(key_bindings=...)` threads it in, and
+  the screen only tracks WHICH row is armed (`capturing`); resolving a
+  captured keypress (Esc cancels, a collision flashes red via
+  `Button.start_flash`, otherwise the binding is written + persisted to
+  `scores/keybindings.json`) is `main.py`'s job, since a disk write and a raw
+  `pygame.KEYDOWN` are both out of bounds for pygame-free `game/ui`.
+  `main.py`'s menu `KEYDOWN` routing special-cases capture mode BEFORE
+  `shell.handle_key(...)` — see `_handle_capture_key`.
 
 ## Defence FX (10B)
 `effects.py` `FloaterManager` grew `submit_beams` + `submit_craters`, drawn from
@@ -1207,7 +1308,9 @@ imports:
     NEVER read (`_params_from_balance` never touched it) — a designer
     editing it in the `vfx` balancing form saw no effect in game. The four
     floater spawn sites (`spawn_income_events`/`spawn_xp_events`/
-    `spawn_painter_events`/`spawn_boost_events`) now read
+    `spawn_painter_events`/`spawn_boost_events` — the first, third and
+    fourth are since SUPERSEDED by `begin_payout`, the payout-phase-
+    sequencing feature above; `spawn_xp_events` is untouched) now read
     `self._vfx_params.floaters` (`engine.vfx.FloaterParams`, built by
     `_params_from_balance` like every other family); the JSON already
     shipped values identical to the constants, so this is a visual no-op on
@@ -1486,7 +1589,13 @@ building — like every other effect.
   path line read `move_target`; the drag-select rectangle's fill and the two
   name-field focus rings read `tile_selected`. Each of those IS the highlight's
   colour seen somewhere else, which is why sharing is correct here and a
-  second key would not be.
+  second key would not be. **One consumer was missed by this migration and
+  shipped a live `AttributeError`** (found the hard way, live-testing the
+  tile-buying tutorial topic below): `ColorSwatchRow.submit`'s selection ring
+  (`building_ui.py`, the construct-preview building-colour picker) still read
+  the deleted `widgets.C_HIGHLIGHT` directly. Fixed the same way as the other
+  four — `highlight_color("tile_selected")`, the same "ring around the
+  selected thing" reading the two name-field focus rings already use.
 - `wall_edge` draws a LINE, not a diamond, so its `border_width` is the line
   width and its `fill_alpha` is unused — the one non-uniform member of an
   otherwise uniform block, documented in the schema.
@@ -2016,11 +2125,22 @@ trigger call sites in `main.py`, never unified into one state machine:
   sharing `shell.skinning` like the other seven gameplay screens;
   `data/ui/screens/tutorial_message.json` is the 14th screen override file,
   started `{}` like every other.
-- **`widgets.C_TUTORIAL_HIGHLIGHT`** (white, a plain code constant — NOT
-  palette-data-backed, unlike every other `C_*`) + **`submit_ui_box_highlight
+- **`widgets.highlight_color("tutorial_highlight")`** (white; VA-5 moved this
+  off the old `C_TUTORIAL_HIGHLIGHT` bare constant into
+  `procedural.highlights.tutorial_highlight` data — see this file's "seven
+  tile highlights are EFFECTS" section) + **`submit_ui_box_highlight
   (renderer, rect, color=None, width=3)`** (a highlight ring around a card /
-  Confirm / End Turn button, plain HUD-space `HudRect`) are the two new D8
-  primitives the guided chain draws with; no new render-backend work.
+  Confirm / End Turn / Unlock button, plain HUD-space `HudRect`) are the two
+  D8 primitives the guided chain draws with; no new render-backend work.
+  **Feature addition**: every guided-chain highlight (this ring AND the world
+  tile diamond, `submit_highlight("tutorial_highlight", …)`) now pulses/glows
+  — alpha and border width both breathe on a sine cycle, off a new sibling
+  `procedural.tutorial_highlight_pulse` block and `widgets.
+  tutorial_pulse_style(clock_ms)`. The two `main.py` call sites compute it
+  once per frame off the existing `deco_clock_ms` wall clock and pass it as
+  `pulse_color`/`pulse_width` (tile diamond) or `color`/`width` (UI box ring)
+  — no new per-frame state, no change to either primitive's default
+  behaviour for its six other, still-static, callers.
 - **`building_ui.py` gained three small, additive, read-only members** (no
   change to `_construct_click`/`open_for_tile`/any existing control flow):
   `card_rect(building_type)` (the construct-mode card's rect, or `None`),
@@ -2034,17 +2154,27 @@ trigger call sites in `main.py`, never unified into one state machine:
   from "the preview was merely cancelled" (both clear `panel.preview` the
   same way) and clears it back to `None` itself. TU-8 added a FOURTH:
   `close_rect()` (the panel's own CLOSE/X rect, or `None` when the panel
-  isn't open — same additive shape).
+  isn't open — same additive shape). The tile-buying tutorial topic added a
+  FIFTH pair: `action_rect()` (mirrors `close_rect()`, gated on `self.mode
+  == "unlock"` since `action_btn` is reused across unlock/construct-advance/
+  upgrade modes) and `self.last_unlocked` (the `last_placed_type` shape
+  exactly — set `True` in `_unlock_click` on a real `tm.do_unlock` success,
+  read/cleared once by `main.py` right after a successful
+  `panel.handle_click()`, never reset by `close()`).
 - **TU-8 added a second widgets primitive, `submit_tutorial_banner(renderer,
   text, view_w, view_h)`** — the `submit_ui_box_highlight` sibling for a
-  full-text hint rather than a ring: a big `C_TUTORIAL_HIGHLIGHT`-filled,
-  screen-centred box sized to the text, drawn with **no hit-test and no
-  input consumption** (unlike `TutorialMessageScreen`, which must never be
-  used for a hint instructing a right-click — that modal swallows every
-  click while visible, `main.py` `handle_world_click`'s top branch). Reads
-  its text from `TutorialDirector.banner_text()`, submitted independently of
-  (and alongside) `ui_highlight_rects`'s Close-button ring — see
+  full-text hint rather than a ring: a big
+  `highlight_color("tutorial_highlight")`-filled, screen-centred box sized to
+  the text, drawn with **no hit-test and no input consumption** (unlike
+  `TutorialMessageScreen`, which must never be used for a hint instructing a
+  right-click — that modal swallows every click while visible, `main.py`
+  `handle_world_click`'s top branch). Reads its text from
+  `TutorialDirector.banner_text()`, submitted independently of (and
+  alongside) `ui_highlight_rects`'s Close-button ring — see
   `game/CLAUDE.md`'s "Un-stick on panel close + close-panel hint" section.
+  **Deliberately excluded from the pulse above** — an instructional text box,
+  not a click-target border; pulsing a filled banner would read as
+  distracting rather than clarifying.
 - **Detail on the director/host wiring** (the three choke points, the event
   feed, the D6 zero-overhead contract, TU-8's revert/close-panel-hint
   additions) → `game/CLAUDE.md`'s Tutorial director section.

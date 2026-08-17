@@ -87,6 +87,7 @@ DOMAINS = {
     "enemies": (
         "test_boss.py",
         "test_corpse.py",
+        "test_crowd_spacing.py",
         "test_death_spawn.py",
         "test_enemies.py",
         "test_enemy_intro.py",
@@ -124,6 +125,7 @@ DOMAINS = {
         "test_game_boot.py",
         "test_hp_bar_anchors.py",
         "test_hud_panel.py",
+        "test_keybinds_screen.py",
         "test_layout_h_invariant.py",
         "test_names.py",
         "test_player_identity.py",
@@ -155,6 +157,7 @@ DOMAINS = {
         "test_ground_cache.py",
         "test_hud_items.py",
         "test_hud_render.py",
+        "test_input_bindings.py",
         "test_movement.py",
         "test_nine_slice.py",
         "test_physics_grid.py",

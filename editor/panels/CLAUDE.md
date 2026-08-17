@@ -626,12 +626,15 @@ import list.**
   the same call the two tutorial markers' shared eye makes).
   `map_requirement_warnings` gains a `"camera limit center"` label when the
   marker is absent.
-- **Tutorial markers (2 single-tile brushes)**: a FOURTH mode page
-  (`palette.MODES` gains `"tutorial"`, registry `core`/`Tutorial Flute`
-  and `core`/`Tutorial Stone`, slots `tutorial_flute`/`tutorial_stone`) with
-  two exclusive sub-brushes, "First Flute" and "First Stone", in the SAME
+- **Tutorial markers (4 single-tile brushes)**: a FOURTH mode page
+  (`palette.MODES` gains `"tutorial"`, registry `core`/`Tutorial Flute`,
+  `core`/`Tutorial Stone`, `core`/`Tutorial Unlock`, `core`/`Tutorial Stone 2`,
+  slots `tutorial_flute`/`tutorial_stone`/`tutorial_unlock`/
+  `tutorial_stone_2`) with four exclusive sub-brushes, "First Flute",
+  "First Stone", "Unlock Tile" and "Second Stone" (the tile-buying tutorial
+  topic's two markers, added after the round-1/round-2 pair), in the SAME
   exclusive brush group as every other mode's brushes — arming one disarms
-  the sibling marker and everything else. Paint/move/erase mirrors the
+  every sibling marker and everything else. Paint/move/erase mirrors the
   Camera Start pattern exactly (single tile, no clamp, unlike Start Area's
   2×2): paint places the marker if absent or moves it to the clicked cell
   (one undoable command either way), erase clears it from any cell, and a
@@ -639,11 +642,11 @@ import list.**
   into a drag whose release cell re-places it. **Renders as a labeled white
   diamond OUTLINE through `submit_overlay_lines` (E-24) — never a sprite**,
   the same ED-22-clean idiom as Starting Area's 2×2 outline but a single-tile
-  square, plus a `HudText` caption ("First Flute"/"First Stone") above it via
+  square, plus a `HudText` caption (its brush label) above it via
   `world_to_screen(col + 0.5, row + 0.5)` (the screen-mode selection-caption
-  idiom). ONE `tutorial` layer eye gates both markers together (an
-  implementer's call — a designer hiding tutorial markers wants both gone at
-  once, unlike Start Area/Camera which are independent features with
+  idiom). ONE `tutorial` layer eye gates all four markers together (an
+  implementer's call — a designer hiding tutorial markers wants them all gone
+  at once, unlike Start Area/Camera which are independent features with
   independent eyes).
 - **Spawnable Background / spawn reserve (1 brush + a number)**: a FIFTH mode
   page (`palette.MODES`/`EYES` gain `"spawn_reserve"`, labelled "Spawnable

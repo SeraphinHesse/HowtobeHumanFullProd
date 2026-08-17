@@ -236,6 +236,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None  # the Start Area slot when armed
         self._armed_tutorial_flute = None  # the First Flute slot when armed
         self._armed_tutorial_stone = None  # the First Stone slot when armed
+        self._armed_tutorial_unlock = None  # the Unlock Tile slot when armed
+        self._armed_tutorial_stone_2 = None  # the Second Stone slot when armed
         # the Spawnable Background brush: True when armed (it has no slot —
         # a mark is an invisible overlay, not a sprite)
         self._armed_spawn_reserve = None
@@ -280,6 +282,8 @@ class ViewportPanel(QWidget):
         self._start_area_drag = False
         self._tutorial_flute_drag = False
         self._tutorial_stone_drag = False
+        self._tutorial_unlock_drag = False
+        self._tutorial_stone_2_drag = False
 
         # ED-21 animation dropdown: floating child pinned to the corner so
         # the paint surface keeps filling the whole widget.
@@ -583,6 +587,8 @@ class ViewportPanel(QWidget):
         self._start_area_drag = False
         self._tutorial_flute_drag = False
         self._tutorial_stone_drag = False
+        self._tutorial_unlock_drag = False
+        self._tutorial_stone_2_drag = False
         if self.in_map_mode():
             doc = self._map_session.doc
             self._coords = self._load_coords(map_cols=doc.cols, map_rows=doc.rows)
@@ -1131,6 +1137,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
@@ -1145,6 +1153,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
@@ -1161,6 +1171,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
@@ -1177,6 +1189,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
@@ -1195,6 +1209,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
@@ -1211,6 +1227,8 @@ class ViewportPanel(QWidget):
         self._armed_camera_limit_center = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
@@ -1228,6 +1246,8 @@ class ViewportPanel(QWidget):
         self._armed_camera_limit_center = None
         self._armed_start_area = None
         self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
@@ -1245,6 +1265,48 @@ class ViewportPanel(QWidget):
         self._armed_camera_limit_center = None
         self._armed_start_area = None
         self._armed_tutorial_flute = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
+        self._armed_spawn_reserve = None
+        self._armed_despawn = None
+        self._armed_stage = None
+        self._armed_condition = None
+
+    def arm_tutorial_unlock(self, slot):
+        """Arm the Unlock Tile brush (paint = place/move the tile-buying
+        topic's "tile to unlock" marker, erase = remove it). Mirrors
+        arm_base; clears any other armed brush, including the sibling
+        Second Stone brush."""
+        self._armed_tutorial_unlock = slot
+        self._armed_code = None
+        self._armed_deco = None
+        self._armed_base = None
+        self._armed_camera = None
+        self._armed_camera_limit_center = None
+        self._armed_start_area = None
+        self._armed_tutorial_flute = None
+        self._armed_tutorial_stone = None
+        self._armed_tutorial_stone_2 = None
+        self._armed_spawn_reserve = None
+        self._armed_despawn = None
+        self._armed_stage = None
+        self._armed_condition = None
+
+    def arm_tutorial_stone_2(self, slot):
+        """Arm the Second Stone brush (paint = place/move the tile-buying
+        topic's second stone-thrower marker, erase = remove it). Mirrors
+        arm_base; clears any other armed brush, including the sibling
+        Unlock Tile brush."""
+        self._armed_tutorial_stone_2 = slot
+        self._armed_code = None
+        self._armed_deco = None
+        self._armed_base = None
+        self._armed_camera = None
+        self._armed_camera_limit_center = None
+        self._armed_start_area = None
+        self._armed_tutorial_flute = None
+        self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
@@ -1264,6 +1326,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
         self._armed_despawn = None
         self._armed_stage = None
         self._armed_condition = None
@@ -1285,6 +1349,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
         self._armed_spawn_reserve = None
         self._armed_stage = None
         self._armed_condition = None
@@ -1307,6 +1373,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_condition = None
@@ -1331,6 +1399,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
@@ -1416,6 +1486,22 @@ class ViewportPanel(QWidget):
             elif self._tool == "erase":
                 self._map_session.push_tutorial_stone_remove()
             return
+        if self._armed_tutorial_unlock is not None:
+            # the tile-buying topic's "tile to unlock" marker is placed like
+            # the Hole (single object, single tile, no clamp)
+            if self._tool == "paint":
+                self._map_session.push_tutorial_unlock_place(cell[0], cell[1])
+            elif self._tool == "erase":
+                self._map_session.push_tutorial_unlock_remove()
+            return
+        if self._armed_tutorial_stone_2 is not None:
+            # the tile-buying topic's second stone-thrower marker is placed
+            # like the Hole (single object, single tile, no clamp)
+            if self._tool == "paint":
+                self._map_session.push_tutorial_stone_2_place(cell[0], cell[1])
+            elif self._tool == "erase":
+                self._map_session.push_tutorial_stone_2_remove()
+            return
         if self._eyes["base"] and doc.base is not None \
                 and cell == (doc.base["col"], doc.base["row"]):
             self._base_drag = True   # the single draggable map object;
@@ -1442,6 +1528,15 @@ class ViewportPanel(QWidget):
                 and cell == (doc.tutorial_stone["col"], doc.tutorial_stone["row"]):
             self._tutorial_stone_drag = True   # single tile, no brush armed;
             return                             # hide the eye to paint under it
+        if self._eyes["tutorial"] and doc.tutorial_unlock is not None \
+                and cell == (doc.tutorial_unlock["col"], doc.tutorial_unlock["row"]):
+            self._tutorial_unlock_drag = True  # single tile, no brush armed;
+            return                             # hide the eye to paint under it
+        if self._eyes["tutorial"] and doc.tutorial_stone_2 is not None \
+                and cell == (doc.tutorial_stone_2["col"],
+                             doc.tutorial_stone_2["row"]):
+            self._tutorial_stone_2_drag = True  # single tile, no brush armed;
+            return                              # hide the eye to paint under it
         if self._armed_deco is not None:
             if self._tool == "paint":
                 self._map_session.push_deco_place(
@@ -1626,6 +1721,14 @@ class ViewportPanel(QWidget):
             if cell is not None:
                 self._map_session.push_tutorial_stone_place(cell[0], cell[1])
             self._tutorial_stone_drag = False
+        elif self._tutorial_unlock_drag:
+            if cell is not None:
+                self._map_session.push_tutorial_unlock_place(cell[0], cell[1])
+            self._tutorial_unlock_drag = False
+        elif self._tutorial_stone_2_drag:
+            if cell is not None:
+                self._map_session.push_tutorial_stone_2_place(cell[0], cell[1])
+            self._tutorial_stone_2_drag = False
         elif self._reserve_stroke is not None:
             self._map_session.push_reserve_stroke(
                 self._reserve_stroke, "spawn reserve stroke")
@@ -1704,8 +1807,11 @@ class ViewportPanel(QWidget):
         if self._start_area_drag or self._armed_start_area is not None:
             return   # its ghost is an OUTLINE, drawn by _submit_map_items
         if (self._tutorial_flute_drag or self._tutorial_stone_drag
+                or self._tutorial_unlock_drag or self._tutorial_stone_2_drag
                 or self._armed_tutorial_flute is not None
-                or self._armed_tutorial_stone is not None):
+                or self._armed_tutorial_stone is not None
+                or self._armed_tutorial_unlock is not None
+                or self._armed_tutorial_stone_2 is not None):
             return   # its ghost is an OUTLINE, drawn by _submit_map_items
         if self._armed_spawn_reserve is not None:
             return   # its ghost is the OUTLINE drawn by the reserve overlay
@@ -2143,7 +2249,11 @@ class ViewportPanel(QWidget):
                 (doc.tutorial_flute, "First Flute",
                  self._tutorial_flute_drag, self._armed_tutorial_flute),
                 (doc.tutorial_stone, "First Stone",
-                 self._tutorial_stone_drag, self._armed_tutorial_stone)):
+                 self._tutorial_stone_drag, self._armed_tutorial_stone),
+                (doc.tutorial_unlock, "Unlock Tile",
+                 self._tutorial_unlock_drag, self._armed_tutorial_unlock),
+                (doc.tutorial_stone_2, "Second Stone",
+                 self._tutorial_stone_2_drag, self._armed_tutorial_stone_2)):
             if self._eyes["tutorial"] and marker is not None and not dragging:
                 outline(marker["col"], marker["row"], TUTORIAL_COLOR)
                 caption(marker["col"], marker["row"], label, TUTORIAL_COLOR)
@@ -2520,7 +2630,9 @@ class ViewportPanel(QWidget):
                 if self._tool == "none" and not self._base_drag \
                         and not self._start_area_drag \
                         and not self._tutorial_flute_drag \
-                        and not self._tutorial_stone_drag:
+                        and not self._tutorial_stone_drag \
+                        and not self._tutorial_unlock_drag \
+                        and not self._tutorial_stone_2_drag:
                     self._drag_pos = event.position()
             elif event.button() == Qt.MouseButton.RightButton:
                 self._drag_pos = event.position()

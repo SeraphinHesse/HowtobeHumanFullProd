@@ -211,6 +211,42 @@ class _TutorialStoneSetCommand(QUndoCommand):
         self._doc.tutorial_stone = dict(self._old) if self._old is not None else None
 
 
+class _TutorialUnlockSetCommand(QUndoCommand):
+    """Place / move / remove the single tile-buying-topic "tile to unlock"
+    marker. ``old`` and ``new`` are full dicts (``{'col','row','slot'}``) or
+    None — mirrors _TutorialStoneSetCommand."""
+
+    def __init__(self, doc, old, new, text):
+        super().__init__(text)
+        self._doc = doc
+        self._old = dict(old) if old is not None else None
+        self._new = dict(new) if new is not None else None
+
+    def redo(self):
+        self._doc.tutorial_unlock = dict(self._new) if self._new is not None else None
+
+    def undo(self):
+        self._doc.tutorial_unlock = dict(self._old) if self._old is not None else None
+
+
+class _TutorialStone2SetCommand(QUndoCommand):
+    """Place / move / remove the single tile-buying-topic "second stone"
+    marker. ``old`` and ``new`` are full dicts (``{'col','row','slot'}``) or
+    None — mirrors _TutorialStoneSetCommand."""
+
+    def __init__(self, doc, old, new, text):
+        super().__init__(text)
+        self._doc = doc
+        self._old = dict(old) if old is not None else None
+        self._new = dict(new) if new is not None else None
+
+    def redo(self):
+        self._doc.tutorial_stone_2 = dict(self._new) if self._new is not None else None
+
+    def undo(self):
+        self._doc.tutorial_stone_2 = dict(self._old) if self._old is not None else None
+
+
 class _AddBackgroundCommand(QUndoCommand):
     """Add a new BACKGROUND legend entry (code -> slot) to the open map — the
     palette's '+ Level' button. Undo drops the code again (paint commands that
@@ -562,6 +598,66 @@ class MapSession(QObject):
         command as click-placement."""
         if old is not None and new is not None:
             self.push_tutorial_stone_place(new[0], new[1])
+
+    def _tutorial_unlock_slot(self):
+        schema = data_io.load_json(tilemap.map_schema_path(self._data_dir))
+        return tilemap.tutorial_unlock_slot_from_schema(schema)
+
+    def push_tutorial_unlock_place(self, col, row):
+        """Place the tile-buying topic's "tile to unlock" marker (if the map
+        has none) or move the single marker to a new cell — ONE undoable
+        command either way. Single-tile, no clamp. Mirrors
+        push_tutorial_stone_place."""
+        old = self.doc.tutorial_unlock
+        slot = old["slot"] if old is not None else self._tutorial_unlock_slot()
+        new = {"col": col, "row": row, "slot": slot}
+        if old == new:
+            return
+        text = ("move tutorial unlock marker" if old is not None
+                else "place tutorial unlock marker")
+        self.undo_stack.push(_TutorialUnlockSetCommand(self.doc, old, new, text))
+
+    def push_tutorial_unlock_remove(self):
+        if self.doc.tutorial_unlock is not None:
+            self.undo_stack.push(_TutorialUnlockSetCommand(
+                self.doc, self.doc.tutorial_unlock, None,
+                "remove tutorial unlock marker"))
+
+    def push_tutorial_unlock_move(self, old, new):
+        """Drag path (mirrors push_tutorial_stone_move): routes through the
+        same set command as click-placement."""
+        if old is not None and new is not None:
+            self.push_tutorial_unlock_place(new[0], new[1])
+
+    def _tutorial_stone_2_slot(self):
+        schema = data_io.load_json(tilemap.map_schema_path(self._data_dir))
+        return tilemap.tutorial_stone_2_slot_from_schema(schema)
+
+    def push_tutorial_stone_2_place(self, col, row):
+        """Place the tile-buying topic's "second stone" marker (if the map
+        has none) or move the single marker to a new cell — ONE undoable
+        command either way. Single-tile, no clamp. Mirrors
+        push_tutorial_stone_place."""
+        old = self.doc.tutorial_stone_2
+        slot = old["slot"] if old is not None else self._tutorial_stone_2_slot()
+        new = {"col": col, "row": row, "slot": slot}
+        if old == new:
+            return
+        text = ("move second tutorial stone marker" if old is not None
+                else "place second tutorial stone marker")
+        self.undo_stack.push(_TutorialStone2SetCommand(self.doc, old, new, text))
+
+    def push_tutorial_stone_2_remove(self):
+        if self.doc.tutorial_stone_2 is not None:
+            self.undo_stack.push(_TutorialStone2SetCommand(
+                self.doc, self.doc.tutorial_stone_2, None,
+                "remove second tutorial stone marker"))
+
+    def push_tutorial_stone_2_move(self, old, new):
+        """Drag path (mirrors push_tutorial_stone_move): routes through the
+        same set command as click-placement."""
+        if old is not None and new is not None:
+            self.push_tutorial_stone_2_place(new[0], new[1])
 
     def push_add_background(self, slot):
         """'+ Level': claim the next free legend code for a new background type
