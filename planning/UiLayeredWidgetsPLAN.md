@@ -1,5 +1,5 @@
 <!-- plan-scale: large -->
-<!-- status: 0/4 sections, 3/12 phases (S2 landed on ul-section-S2, pending umbrella merge) -->
+<!-- status: 0/4 sections, 6/12 phases (S1+S2 merged to umbrella; S3 landed on ul-section-S3, pending umbrella merge) -->
 
 # UiLayeredWidgetsPLAN.md — a widget is a stack
 
@@ -122,7 +122,7 @@ Read `game/ui/CLAUDE.md`, `data/CLAUDE.md`'s "UI screen data" section and
 |---|---|---|---|---|
 | S1 | Quick wins — alignment and fonts | UL-1, UL-2 | — | **LANDED** — `ul-section-S1`, merged to umbrella |
 | S2 | The layer model | UL-3, UL-4, UL-5 | — | **LANDED** — `ul-section-S2`, merged to umbrella |
-| S3 | Layers in the editor | UL-6, UL-7, UL-8 | S2 | not started |
+| S3 | Layers in the editor | UL-6, UL-7, UL-8 | S2 | **LANDED** — `ul-section-S3`, pending umbrella merge |
 | S4 | Clickable layers + life counters | UL-9, UL-10, UL-11, UL-12 | S2, S3 | not started |
 
 **Waves:** W1 = **S1 + S2** (concurrent). W2 = **S3**. W3 = **S4**.
@@ -372,9 +372,9 @@ per-state work visible.
 
 | Phase | Scope (package) | Status |
 |---|---|---|
-| UL-6 | Layers in the outliner + undoable ops (editor) | not started |
-| UL-7 | Layers in the viewport (editor) | not started |
-| UL-8 | State selector + layer inspector (editor) | not started |
+| UL-6 | Layers in the outliner + undoable ops (editor) | *(LANDED)* — `ul-phase-UL-6-layer-ops`, merged to `ul-section-S3` |
+| UL-7 | Layers in the viewport (editor) | *(LANDED)* — `ul-phase-UL-7-layer-viewport`, merged to `ul-section-S3` |
+| UL-8 | State selector + layer inspector (editor) | *(LANDED)* — `ul-phase-UL-8-state-inspector`, merged to `ul-section-S3` (1 fix round) |
 
 #### Phase UL-6 — Layers in the outliner
 
