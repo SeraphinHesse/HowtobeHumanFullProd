@@ -586,8 +586,8 @@ unlike LEVELUP/BOSS_CUTSCENE, which both sit AFTER ROUND_END.
   designer-authored list, each `{enemy_label, round, title, body,
   sprite_slot, sprite_w, sprite_h, animation, anim_speed, hidden_frames,
   crop_x, crop_y, crop_w, crop_h, sprite_offset_x, sprite_offset_y,
-  sprite_flip_h, background_tint}` — `round` is fully independent of that
-  enemy's own `start_round` in `enemies.json`). Ships with
+  sprite_flip_h, background_tint, show_on_tutorial_round}` — `round` is fully
+  independent of that enemy's own `start_round` in `enemies.json`). Ships with
   `entries: []` — nothing pops up until the user authors rows through the
   editor's generic balancing panel (array-of-object blocks render/edit for
   free, the `eras[]`/`death_spawn.spawns[]` precedent; `hidden_frames` is the
@@ -618,6 +618,19 @@ unlike LEVELUP/BOSS_CUTSCENE, which both sit AFTER ROUND_END.
   wave queue outside `GamePhase.ENEMY` — nothing spawns while frozen. No
   match (true on a fresh `entries: []`) is byte-identical to before this
   feature.
+  - **`show_on_tutorial_round` (per entry) pairs the feature with TU-9.** An
+    ACTIVE tutorial run's own combat round is **round 0** (`game/main.py`
+    seeds it), and real rounds start at 1 — so an entry authored at `round: 1`
+    fired AFTER the tutorial fight, not during it. A ticked
+    `show_on_tutorial_round` moves that entry onto round 0 and latches
+    `RunState.tutorial_intros_shown`, which suppresses the same entry on its
+    authored round immediately after — the intro shows once, in the fight it
+    describes. A run that skipped the tutorial never has a round 0 (Skip
+    rewrites `round_num` 0 → 1 before the first End Turn), so the flag costs
+    the entry nothing: it lands on its authored round as an unflagged one
+    would. Live data ticks it on the Walker/`Standard` entry only. Matching
+    reads the key with `.get(..., False)`, so bare-dict fixtures predating
+    the field stay valid.
 - **`Session.frozen`** covers `ENEMY_INTRO` alongside LEVELUP/BOSS_CUTSCENE —
   `pre_sim` skips the whole sim (no combat, no movement, no spawns) for as
   long as any queued dialogue is showing.
