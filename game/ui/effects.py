@@ -1204,6 +1204,16 @@ class FloaterManager:
         clamp to ``len(colors) - 1`` is geometry (the ramp is a fixed 3-stop
         shape), not itself a tunable. Draws no random numbers.
 
+        **The owning building must be checked for ``alive`` too, not just the
+        target (fix: lingering beam after Sun Scorcher destroyed).**
+        ``_update_defender`` (``game/enemies/combat.py``) bails out before
+        ``_update_beam`` runs at all once the defender itself is dead, so a
+        killed Sun Scorcher's ``BeamAttacker._target`` is never cleared — it
+        stays frozen on whatever it last locked. Dead buildings are not
+        despawned (they revive at payday) and keep their ``"combat"`` tag, so
+        without this guard the beam kept drawing from the destroyed
+        building's tile for as long as its last target stayed alive.
+
         vfx-projectile-spritesheets: a designer-imported ``vfx_beam`` sheet
         REPLACES the line with a looping ``HudSprite`` at the target's screen
         point — the same has-art signal ``submit_projectiles`` already uses
@@ -1222,6 +1232,8 @@ class FloaterManager:
         for b in scene.by_tag("combat"):
             beam = b.get_component(BeamAttacker)
             if beam is None:
+                continue
+            if not getattr(b, "alive", True):
                 continue
             target = getattr(beam, "_target", None)
             if target is None or not getattr(target, "alive", False):
