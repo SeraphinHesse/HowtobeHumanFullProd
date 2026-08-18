@@ -76,6 +76,38 @@ class TestPurity(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, msg=result.stderr)
 
+    def test_module_getattr_resolves_submodules_without_regressing_purity(self):
+        """PEP 562 fix: `engine.audio.sfx` / `.music` must resolve as
+        attributes even with NO prior facade call (the SD-7 MusicDirector
+        default-argument case, `music=audio.music` evaluated at `def`
+        time) — and `import engine.audio.bank` alone must still never pull
+        pygame in, i.e. `__getattr__` must not be triggered by that path."""
+        code = (
+            "import sys; "
+            "import engine.audio as audio; "
+            "assert audio.music is not None; "
+            "assert audio.sfx is not None; "
+            "assert 'pygame' in sys.modules, "
+            "'expected pygame to load via the sfx/music attribute resolution'"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", code], cwd=REPO, capture_output=True, text=True
+        )
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+
+        # Second, separate process: `import engine.audio.bank` alone (no
+        # attribute lookup on .sfx/.music) must stay pygame-free.
+        code2 = (
+            "import sys; "
+            "import engine.audio.bank; "
+            "assert 'pygame' not in sys.modules, "
+            "'pygame leaked into engine.audio.bank via bare submodule import'"
+        )
+        result2 = subprocess.run(
+            [sys.executable, "-c", code2], cwd=REPO, capture_output=True, text=True
+        )
+        self.assertEqual(result2.returncode, 0, msg=result2.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

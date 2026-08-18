@@ -68,6 +68,22 @@ __all__ = [
 ]
 
 
+def __getattr__(name):
+    """PEP 562: resolves `engine.audio.sfx` / `engine.audio.music` as
+    attributes even when nothing has triggered their lazy import yet (e.g.
+    a caller's own `def __init__(self, music=audio.music, ...)` default
+    argument, evaluated at ITS module's import time). `import
+    engine.audio.bank` alone never triggers this — it imports `bank`
+    directly, never looks up `.sfx`/`.music` as attributes of this package
+    — so the purity guarantee (`tools/tests/test_audio_bank.py`) is
+    unaffected."""
+    if name in ("sfx", "music"):
+        import importlib
+
+        return importlib.import_module(f"{__name__}.{name}")
+    raise AttributeError(name)
+
+
 # ── Legacy surface — UNCHANGED. Return type FROZEN at None — never bool. ───
 # game/main.py:67, game/ui/cutscene_player.py:16, tools/tests/test_audio.py:13
 def play_music(path, loop=True, volume=None):

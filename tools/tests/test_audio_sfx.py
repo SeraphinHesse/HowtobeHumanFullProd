@@ -173,6 +173,31 @@ class TestFakeMixerCacheCooldownCap(unittest.TestCase):
         self.assertAlmostEqual(channel.played.volume, 0.25)
 
 
+class TestNumpyAbsentEndOnlyTrim(unittest.TestCase):
+    """SD-2 Fix 2: with no numpy, start is NOT baked in (playback begins at
+    file position 0), so the end-only maxtime must equal `end` itself, not
+    `end - start` — that arithmetic both played the wrong segment and cut
+    it short."""
+
+    def setUp(self):
+        sfx.clear_cache()
+        self.fake = FakePygame()
+        self._sfx_patch = patch.object(sfx, "pygame", self.fake)
+        self._numpy_patch = patch.object(sfx, "_numpy", lambda: None)
+        self._sfx_patch.start()
+        self._numpy_patch.start()
+        self.addCleanup(self._sfx_patch.stop)
+        self.addCleanup(self._numpy_patch.stop)
+        sfx.init(REAL_AUDIO_ROOT)
+
+    def test_maxtime_is_end_not_end_minus_start(self):
+        clip = {"file": "trim.wav", "volume": 1.0, "start": 2.0, "end": 5.0}
+        self.assertFalse(sfx.start_trim_available())
+        sfx.play(clip, key=None)
+        channel = self.fake.mixer.channels[-1]
+        self.assertEqual(channel.maxtime, int(5.0 * 1000))
+
+
 class TestMusic(unittest.TestCase):
     def setUp(self):
         sfx.clear_cache()

@@ -114,7 +114,11 @@ def _load_sound(path, start, end):
         sound = pygame.mixer.Sound(str(path))
         if end is None:
             return sound, 0
-        maxtime_ms = max(0, int((end - (start or 0.0)) * 1000))
+        # No numpy => start is NOT applied (playback begins at file
+        # position 0, per the module docstring above), so the maxtime
+        # duration is `end` itself, not `end - start` — using `start` here
+        # would both play the wrong segment and truncate it early.
+        maxtime_ms = max(0, int(end * 1000))
         return sound, maxtime_ms
     except Exception:
         return None, 0
