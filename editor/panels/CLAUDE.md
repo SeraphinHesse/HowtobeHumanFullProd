@@ -982,6 +982,55 @@ import list.**
   JSON, so a manifest-resolution regression here had no test that could
   have caught it).
 
+### The details panel scrolls; the dirty label and Save do not
+
+`ScreenDetailsPanel`'s body (outliner → per-widget form → Layers box → the
+per-layer/per-state inspector → Background → Defaults) is roughly 2k lines of
+controls deep and used to be a bare `QVBoxLayout`, so on any normal right-pane
+height the bottom of it simply fell off the panel. The body now lives in a
+`QScrollArea` — `balancing.py`'s pattern verbatim (`setWidgetResizable(True)`,
+`NoFrame`), with everything that used to be added to the panel layout going
+into one inner `QWidget` handed to `setWidget`.
+
+- **The dirty label stays pinned at the top and Save at the bottom, OUTSIDE
+  the scroll area.** A Save you have to scroll to find is the original
+  complaint in a new place.
+- **Every value control in this panel is a `_NoWheel*` from
+  `editor.panels.balancing`** — and that is not a style rule here, it is what
+  makes the scroll area usable: they ignore `wheelEvent`, so a scroll over a
+  spinbox reaches the scroll area instead of silently nudging a rect. A plain
+  `QSpinBox`/`QComboBox` added to this panel is a bug.
+- `widget_list` carries a minimum height (`_OUTLINER_MIN_HEIGHT`): under
+  `setWidgetResizable(True)` a tree with no floor collapses to nothing.
+
+### Screen-mode ZOOM (`_zoom_combo`) + middle-drag pan
+
+A fourth floating combo in `viewport.py`, built/placed/shown exactly like
+`_state_combo`/`_anim_combo`/`_column_combo` and the **inverse** of the last
+two: it is visible ONLY in screen mode (they hide there). Entries are the
+literal `_SCREEN_ZOOM_LEVELS` — `Fit`, `100%`, `200%`, `300%`, `400%` — and
+screen-mode entry always re-parks it on `Fit` (`_refresh_zoom_combo`).
+
+- **The zoom feeds `_screen_scale_offset()` and NOTHING else.** That helper is
+  the one `(scale, ox, oy)` triple the blit, the hit-test and every drag read;
+  applying a zoom at the blit in `_render_screen_frame` instead is precisely
+  the disagreement the UR-3 snap was moved into that helper to prevent.
+  `Fit` is the old behaviour unchanged (`min(w/SCREEN_W, h/SCREEN_H)`, floored
+  to a whole multiple at or above 1.0); an explicit percentage is used verbatim
+  as the scale. Offsets stay floored and centred.
+- **`wheelEvent` still early-returns in screen mode** — the picker is the
+  chosen affordance, deliberately not the wheel.
+- **Middle-drag pans** (map mode's gesture, on a button screen editing never
+  uses). The pan is folded into the same `(ox, oy)`, so hit-testing follows for
+  free, and it is CLAMPED by `_screen_offset_bounds`: a canvas bigger than the
+  widget can never show a gap at an edge, a smaller one stays wholly inside —
+  either way it cannot be dragged off-screen. It resets to centred on every
+  zoom change and every screen-mode entry.
+- Unchanged: chrome (selection outline, handles, caption, the E-37 placeholder,
+  the canvas-edge frame in `_submit_screen_chrome`) is submitted in SCREEN
+  pixels AFTER the blit and stays UNSCALED; `NUDGE_STEP` is still 1 LOGICAL px;
+  the blit is still `pygame.transform.scale`, never `smoothscale`.
+
 ## Editable buy options + reachable text anchors (editable-ui-widgets)
 
 The complaint this answers: "the UI editor can't replace many pieces of info

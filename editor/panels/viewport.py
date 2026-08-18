@@ -168,6 +168,11 @@ HANDLE_PX = 8          # resize-handle hit box, half-width in SCREEN pixels
 # same accepted drift `_screen_primitives` documents for the flat-rect look.
 LAYER_TEXT_COLOR = (235, 225, 195)
 NUDGE_STEP = 1         # arrow-key nudge, in ONE LOGICAL pixel of the canvas
+# Screen-mode zoom picker entries: (label, scale | None). None = "Fit", the
+# scale-to-fit behaviour that was the only option before the picker existed.
+_SCREEN_ZOOM_LEVELS = (
+    ("Fit", None), ("100%", 1.0), ("200%", 2.0), ("300%", 3.0), ("400%", 4.0),
+)
 _CORNERS = ("tl", "tr", "bl", "br")
 
 
@@ -363,6 +368,26 @@ class ViewportPanel(QWidget):
         self._state_combo.move(8, 8)
         self._state_combo.hide()
         self._state_combo.currentTextChanged.connect(self.set_screen_state)
+        # Screen-mode ZOOM picker — the fourth floating combo, twinned with
+        # the state/animation/column ones and the INVERSE of the last two
+        # (they hide in screen mode; this one is the only one that shows).
+        # A picker rather than wheel zoom: `wheelEvent` stays a deliberate
+        # early-return in screen mode.
+        self._zoom_combo = _NoWheelComboBox(self)
+        self._zoom_combo.move(8, 40)   # stacked clear of the state combo
+        self._zoom_combo.hide()
+        for label, value in _SCREEN_ZOOM_LEVELS:
+            self._zoom_combo.addItem(label, value)
+        self._zoom_combo.currentIndexChanged.connect(
+            self._on_screen_zoom_changed)
+        # None = Fit (scale-to-fit, the pre-zoom behaviour); a float = that
+        # explicit multiple, used verbatim as the scale.
+        self._screen_zoom = None
+        # Middle-drag pan, in SCREEN pixels, folded into
+        # `_screen_scale_offset`'s (ox, oy) — so hit-testing follows for
+        # free. Reset to centred on every zoom change / screen-mode entry.
+        self._screen_pan = [0.0, 0.0]
+        self._screen_pan_drag = None    # QPointF while middle-dragging
 
         self._surface = None
         self._qimage = None
@@ -666,8 +691,11 @@ class ViewportPanel(QWidget):
             self._column_combo.hide()
             self._refresh_state_combo()
             self._state_combo.show()
+            self._refresh_zoom_combo()
+            self._zoom_combo.show()
         else:
             self._state_combo.hide()
+            self._zoom_combo.hide()
         self._resize_surface()
 
     def in_screen_mode(self):
@@ -780,6 +808,18 @@ class ViewportPanel(QWidget):
         combo.setCurrentText(self._screen_state)
         combo.blockSignals(False)
 
+    def _refresh_zoom_combo(self):
+        """`_refresh_state_combo`'s twin for the zoom picker: every entry is a
+        fixed literal (`_SCREEN_ZOOM_LEVELS`, filled once at construction), so
+        this only re-parks the selection on `Fit` and re-centres the pan —
+        entering a screen always starts whole-canvas-visible."""
+        combo = self._zoom_combo
+        combo.blockSignals(True)
+        combo.setCurrentIndex(0)
+        combo.blockSignals(False)
+        self._screen_zoom = None
+        self._reset_screen_pan()
+
     def _current_screen_defaults(self):
         """The open screen's own {widgets, mock_note} sub-dict, or None when
         absent (no defaults file, or this screen isn't in it yet) — the ONE
@@ -803,10 +843,27 @@ class ViewportPanel(QWidget):
             return views[view]
         return entry
 
+    @staticmethod
+    def _screen_offset_bounds(extent, avail):
+        """The legal range for one axis of the canvas offset: the canvas may
+        never be dragged fully off-screen. Bigger than the widget → the offset
+        lives in [avail - extent, 0] (no gap at either edge); smaller → in
+        [0, avail - extent] (it stays wholly inside). One expression covers
+        both."""
+        return (min(0.0, avail - extent), max(0.0, avail - extent))
+
     def _screen_scale_offset(self):
-        """Uniform scale + letterbox offset fitting the SCREEN_W x SCREEN_H
-        logical canvas inside the current widget size (screen mode never
-        zooms).
+        """Uniform scale + letterbox offset placing the SCREEN_W x SCREEN_H
+        logical canvas inside the current widget size.
+
+        This is the ONE triple the blit, the hit-test and every drag read, so
+        the ZOOM PICKER (`_zoom_combo`) and the middle-drag PAN are applied
+        HERE and nowhere else — a zoom applied at the blit in
+        `_render_screen_frame` would make the drawn image and the hit-test
+        disagree, which is the exact bug the UR-3 snap was moved in here to
+        avoid. `Fit` is the pre-picker behaviour, unchanged; an explicit
+        percentage is used verbatim as the scale. The pan rides on the
+        centred offsets and is clamped by `_screen_offset_bounds`.
 
         UR-3: a fitted scale of 1.0 or more is snapped DOWN to a whole number
         (1x, 2x, 3x). The preview is pixel art blitted through one
@@ -819,13 +876,46 @@ class ViewportPanel(QWidget):
         lives HERE and not at the blit: hit-testing, dragging and the blit all
         read this one triple, so they cannot disagree."""
         w, h = max(1, self.width()), max(1, self.height())
-        scale = min(w / SCREEN_W, h / SCREEN_H)
-        if scale >= 1.0:
-            scale = float(math.floor(scale))
+        if self._screen_zoom is None:
+            scale = min(w / SCREEN_W, h / SCREEN_H)
+            if scale >= 1.0:
+                scale = float(math.floor(scale))
+        else:
+            scale = float(self._screen_zoom)
         scaled_w, scaled_h = SCREEN_W * scale, SCREEN_H * scale
+        ox = math.floor((w - scaled_w) / 2) + self._screen_pan[0]
+        oy = math.floor((h - scaled_h) / 2) + self._screen_pan[1]
+        lo_x, hi_x = self._screen_offset_bounds(scaled_w, w)
+        lo_y, hi_y = self._screen_offset_bounds(scaled_h, h)
         return (scale,
-                float(math.floor((w - scaled_w) / 2)),
-                float(math.floor((h - scaled_h) / 2)))
+                float(math.floor(min(max(ox, lo_x), hi_x))),
+                float(math.floor(min(max(oy, lo_y), hi_y))))
+
+    def _reset_screen_pan(self):
+        """Back to centred — on every zoom change and every screen-mode
+        entry, so a zoom never lands you looking at empty letterbox."""
+        self._screen_pan = [0.0, 0.0]
+        self._screen_pan_drag = None
+
+    def _on_screen_zoom_changed(self, index):
+        self._screen_zoom = self._zoom_combo.itemData(index)
+        self._reset_screen_pan()
+
+    def _pan_screen(self, dx, dy):
+        """Middle-drag delta, in SCREEN pixels. Clamped immediately (against
+        the CURRENT scale) so the stored pan can never run away past the
+        edge and then have to be dragged all the way back."""
+        w, h = max(1, self.width()), max(1, self.height())
+        scale, _ox, _oy = self._screen_scale_offset()
+        scaled_w, scaled_h = SCREEN_W * scale, SCREEN_H * scale
+        base_x = math.floor((w - scaled_w) / 2)
+        base_y = math.floor((h - scaled_h) / 2)
+        lo_x, hi_x = self._screen_offset_bounds(scaled_w, w)
+        lo_y, hi_y = self._screen_offset_bounds(scaled_h, h)
+        self._screen_pan = [
+            min(max(base_x + self._screen_pan[0] + dx, lo_x), hi_x) - base_x,
+            min(max(base_y + self._screen_pan[1] + dy, lo_y), hi_y) - base_y,
+        ]
 
     def _to_screen_rect(self, rect, scale, ox, oy):
         x, y, w, h = rect
@@ -3054,6 +3144,11 @@ class ViewportPanel(QWidget):
                 self._drag_pos = event.position()
             return
         if self.in_screen_mode():
+            # Middle-drag pans the zoomed canvas (map mode's pan gesture,
+            # on a button widget editing never uses).
+            if event.button() == Qt.MouseButton.MiddleButton:
+                self._screen_pan_drag = event.position()
+                return
             self._screen_press(event)
             return
         # ESV-2: a LEFT-press on a handle grabs it (drag + select) and
@@ -3082,6 +3177,11 @@ class ViewportPanel(QWidget):
                 self._tool_move(pos)
             return
         if self.in_screen_mode():
+            if self._screen_pan_drag is not None and                     (event.buttons() & Qt.MouseButton.MiddleButton):
+                self._pan_screen(pos.x() - self._screen_pan_drag.x(),
+                                 pos.y() - self._screen_pan_drag.y())
+                self._screen_pan_drag = pos
+                return
             self._screen_move(event)
             return
         if self._anchor_drag is not None:
@@ -3102,6 +3202,9 @@ class ViewportPanel(QWidget):
                 self._drag_pos = None
             return
         if self.in_screen_mode():
+            if event.button() == Qt.MouseButton.MiddleButton:
+                self._screen_pan_drag = None
+                return
             self._screen_release(event)
             return
         if event.button() == Qt.MouseButton.LeftButton and self._anchor_drag is not None:

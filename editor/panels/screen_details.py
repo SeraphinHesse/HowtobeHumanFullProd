@@ -19,6 +19,12 @@ just push_field(..., old, None) — `_DocFieldCommand`'s "None = absent"
 pruning is what makes it a clean removal rather than writing null. Save just
 calls session.save() (engine.data_io.write_validated under the hood).
 
+The whole body sits in a QScrollArea (balancing.py's pattern) — it is ~2k
+lines of controls deep — with the dirty label pinned above it and Save pinned
+below it, outside the scroll. That is also why every value control here must
+stay a `_NoWheel*`: they ignore wheelEvent, so a scroll over a spinbox reaches
+the scroll area instead of nudging the value.
+
 The rect spinboxes and combo boxes are imported FROM editor.panels.balancing
 (their home — never copied, never moved; the root router's rule for the
 _NoWheel* widgets).
@@ -37,6 +43,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QScrollArea,
     QToolButton,
     QTreeWidget,
     QTreeWidgetItem,
@@ -271,6 +278,10 @@ class WidgetTreeWidget(QTreeWidget):
 # undoes that nudge.
 _LIVE_COMMIT_MS = 400
 
+# Floor for the outliner inside the scroll area (it would otherwise collapse
+# to nothing under a QScrollArea with setWidgetResizable(True)).
+_OUTLINER_MIN_HEIGHT = 220
+
 
 class ScreenDetailsPanel(QWidget):
     widget_selected = Signal(object)   # str widget_id | None — viewport follows
@@ -312,9 +323,20 @@ class ScreenDetailsPanel(QWidget):
         self._text_id_baseline = None    # UT-1/UT-3
         self._visible_baseline = None
 
-        layout = QVBoxLayout(self)
+        # The panel is ~2k lines of controls deep (outliner → per-widget form
+        # → Layers → per-layer inspector → Background → Defaults), so the body
+        # lives in a QScrollArea — the balancing.py pattern, verbatim. The
+        # dirty label and Save stay OUTSIDE it, pinned top and bottom: a Save
+        # you have to scroll to find is the same complaint in a new place.
+        outer = QVBoxLayout(self)
         self._dirty_label = QLabel("", self)
-        layout.addWidget(self._dirty_label)
+        outer.addWidget(self._dirty_label)
+
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QScrollArea.NoFrame)
+        self._scroll_body = QWidget()
+        layout = QVBoxLayout(self._scroll_body)
 
         layout.addWidget(QLabel("Widgets", self))
         # P-4/D6: a TREE, not a list — same `UserRole` = code id contract.
@@ -332,6 +354,9 @@ class ScreenDetailsPanel(QWidget):
         # what tells the two node kinds apart everywhere they are read.
         self._layer_items = {}
         self._current_layer_id = None
+        # Inside a resizable scroll area a tree happily shrinks to nothing;
+        # the outliner needs a floor to stay usable.
+        self.widget_list.setMinimumHeight(_OUTLINER_MIN_HEIGHT)
         layout.addWidget(self.widget_list)
 
         form = QFormLayout()
@@ -504,10 +529,14 @@ class ScreenDetailsPanel(QWidget):
         self.defaults_section.content_layout.addLayout(defaults_form)
         layout.addWidget(self.defaults_section)
 
+        layout.addStretch(1)
+        self._scroll.setWidget(self._scroll_body)
+        outer.addWidget(self._scroll, 1)
+
+        # Pinned below the scroll area, always reachable.
         self.save_button = QPushButton("Save", self)
         self.save_button.clicked.connect(self._on_save)
-        layout.addWidget(self.save_button)
-        layout.addStretch(1)
+        outer.addWidget(self.save_button)
 
         self._populate_skin_combo(self.skin_combo)
         self._populate_skin_combo(self.button_skin_combo)
