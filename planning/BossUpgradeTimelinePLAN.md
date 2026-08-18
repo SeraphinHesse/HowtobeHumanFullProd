@@ -1,4 +1,4 @@
-<!-- status: IN PROGRESS -->
+<!-- status: COMPLETE — all phases BU-0..BU-7 landed on feature/boss-upgrade-timeline, 2026-08-18 -->
 <!-- plan-scale: large -->
 
 # BossUpgradeTimelinePLAN.md — boss-fight upgrade choice, timeline-authored
@@ -104,8 +104,17 @@ effect" engine touching ~10 files across `game/buildings/`, `game/enemies/`,
   `BUFF_ARROW_SLOT = "vfx_buff_arrow"`, a small procedural gold triangle
   drawn above any alive enemy with `BuffState.sources` non-empty, swappable
   via imported art), add a parallel **red debuff arrow** for any enemy
-  carrying an active negative (slowing) `BuffState` contribution. New
-  `DEBUFF_ARROW_SLOT = "vfx_debuff_arrow"` + `_DEBUFF_ARROW_RED` color
+  carrying an active negative (slowing) `BuffState` contribution.
+  **SUPERSEDED post-BU-5**: a live-tested follow-up changed both the gating
+  and the position from what this decision originally specified — the gold
+  and red arrows now gate INDEPENDENTLY per source (`buff_signs`, not one
+  netted aggregate sign), so a unit that is simultaneously buffed AND
+  slowed shows BOTH arrows; and the red arrow sits to the LEFT of the hp
+  bar, vertically centred on it, rather than sharing the gold arrow's
+  above-the-bar anchor. See `game/ui/CLAUDE.md`'s "The RED debuff arrow"
+  section for the final, accurate shape — the paragraph below is the
+  ORIGINAL (superseded) design text, kept for history:
+  New `DEBUFF_ARROW_SLOT = "vfx_debuff_arrow"` + `_DEBUFF_ARROW_RED` color
   constant beside `_BUFF_ARROW_GOLD`; new `submit_debuff_arrows` method
   mirroring `submit_buff_arrows`'s structure exactly (same anchor-point
   logic, same art-vs-procedural-triangle fallback) but keyed on a
@@ -175,7 +184,7 @@ were all directly read or scouted to confirm exact current shapes.
 | BU-4 | Boss cutscene UI + Session rewire; retire boss_bonuses | done |
 | BU-5 | Editor panel | done |
 | BU-6 | Tests | done |
-| BU-7 | Docs | pending |
+| BU-7 | Docs | done |
 
 ---
 
@@ -304,7 +313,11 @@ retaliation field.
   `validate_uniqueness`.
 - `editor/panels/boss_upgrades.py` (new, `BossUpgradesPanel`) — browse list
   of 12 catalog cards, inline edit form, drag-drop onto 4×3 grid, text-only
-  cards.
+  cards. **Follow-up**: card dragging originally tried to start from a bare
+  header `QLabel` relying on the mouse press propagating to the parent card
+  — this does not work in Qt (mouse press/move do not auto-bubble to a
+  parent the way wheel/context-menu events do). Fixed with a dedicated
+  `_DragHandle` grip widget to the LEFT of each card.
 - `editor/panels/selector.py` — new top-level "Bosses" category, one leaf,
   `boss_upgrades_selected` signal.
 - `editor/main.py` — wire panel into `right_stack`, connect signal,
@@ -320,18 +333,28 @@ tools/smoke.py`.
 **Goal.** Cover the new domain, engine, hooks, UI, editor ops; replace the
 test pinning the retired `enemies.json` loss-reward mechanism.
 
-**Files.** `tools/tests/test_boss.py` (rework
-`test_loss_pays_this_eras_consolation_love`), new
-`tools/tests/test_boss_upgrades.py`, extend hook-site test files (building
-cost, movement, registry, tile_map, combat/components incl. debuff arrow,
-payday, building_ui), rework whatever covers `boss_cutscene.py`'s old A/B
-behavior, new `tools/tests/test_editor_boss_upgrades.py` + `TestPurity`
-append, remove/retarget the old `boss_bonuses.py` test coverage.
+**Files.** `tools/tests/test_boss.py` (reworked), new
+`tools/tests/test_boss_upgrades.py`, `tools/tests/test_buff_debuff_arrows.py`,
+`tools/tests/test_editor_boss_upgrades.py`, plus extensions to
+`test_tile_unlock.py`, `test_structure.py`, `test_building_movement.py`,
+`test_boost.py`, `test_lightning.py`, `test_10j_qol.py`, and the D-12 sweep
+(`test_balancing_data.py`'s `DOMAINS` tuple). No `boss_bonuses.py` test
+coverage existed to remove (BU-4 had already retired it cleanly).
 
 **Verify (role-scoped).** Targeted `py -m pytest tools/tests/test_boss*.py
 tools/tests/test_editor_boss_upgrades.py -q` + `py tools/smoke.py`. The
 single full `py tools/testgate.py check` is the MAIN SESSION's job at
 `/commitpushpr` handoff — never mid-task.
+
+**Known, deliberately-deferred gaps** (flagged, not blocking): the
+`tools/tests/fixtures/data/` pinned snapshot does not yet carry the
+`boss_upgrades` domain (every test hand-pins its own balance dict instead —
+the established `test_boss.py` precedent for exactly this situation, since
+refreshing the fixture mid-feature would pull unrelated `Development` drift
+into the diff and require a full-suite run outside the "once, at handoff"
+policy); `game/enemies/components.py`'s `_apply_thorns` has a latent,
+currently-unreachable `AttributeError` risk if ever called with a
+non-`GameObject` attacker.
 
 ### BU-7 — Docs
 
@@ -339,7 +362,9 @@ single full `py tools/testgate.py check` is the MAIN SESSION's job at
 
 **Files.** `data/CLAUDE.md`, `game/core/CLAUDE.md`, `game/buildings/CLAUDE.md`,
 `game/enemies/CLAUDE.md`, `game/ui/CLAUDE.md`, `editor/CLAUDE.md`,
-`editor/panels/CLAUDE.md`.
+`editor/panels/CLAUDE.md`, `game/map/CLAUDE.md` (the `tile_discount` hook
+site), `game/CLAUDE.md` (a host-wiring index section for the four boot-time
+seam installs `main.py` owns).
 
 **Verify.** Re-read each touched section against the final implementation.
 
@@ -360,14 +385,16 @@ single full `py tools/testgate.py check` is the MAIN SESSION's job at
 
 ## 5. Verification (whole feature)
 
-- `py tools/smoke.py` after every phase.
+- `py tools/smoke.py` after every phase — **done, every phase, always green**.
 - Targeted `py -m pytest tools/tests/test_boss*.py
-  tools/tests/test_editor_boss_upgrades.py -q` once BU-6 exists.
+  tools/tests/test_editor_boss_upgrades.py -q` — **done, BU-6, all passing**.
 - Live `py game/main.py`: reach a boss fight, confirm 3 text-only cards
   show, pick one, confirm its effect is visibly active; reach a repeat
   (boss 5) and confirm the same 3 options reappear; lose a boss fight and
-  confirm the retaliation-love banner + payout.
+  confirm the retaliation-love banner + payout. **Live-tested by the user
+  during BU-5/D20 follow-ups** (the drag-handle fix and the independent
+  arrow-gating fix both came from live play feedback).
 - Live `py editor/main.py`: Bosses ▸ Boss Upgrade Timeline — edit, drag,
-  save, reload.
+  save, reload. **Live-tested** (same follow-ups).
 - Full `py tools/testgate.py check` — main session only, once, at
-  `/commitpushpr` handoff.
+  `/commitpushpr` handoff. **Still pending — the next step.**
