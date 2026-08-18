@@ -29,6 +29,12 @@ ALLOWED = {
                               "the real imported/main_menu_bg.png binary the "
                               "ui_bg_main_menu entry shares, not in the JSON fixture",
     "test_balancing_data.py": "validates the live schema/content pairs (D-12)",
+    "test_boss_upgrades.py": "ONE class (TestShippedContent) pins the D1/D2/D3 "
+                             "authoring invariants JSON Schema cannot express "
+                             "on the LIVE boss_upgrades.json — same live-data "
+                             "subject as test_balancing_data.py; every "
+                             "behavioural assertion in the module reads a "
+                             "hand-pinned balance dict instead",
     "test_construct_card.py": "the card tree it pins must agree with the "
                               "committed screen_defaults.json, which is "
                               "exported from the LIVE tree (same subject as "
