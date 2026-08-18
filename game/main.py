@@ -119,6 +119,19 @@ from game.ui.strings import configure_strings  # Phase C: global string table
 BACKGROUND = (24, 20, 32)
 _LEFT, _RIGHT = 1, 3
 _DRAG_THRESHOLD_SQ = 4 * 4  # a left-press that moves less than this is a click
+# cutscene skip prompt: fully visible for this many idle seconds, then fades
+# to invisible over the following duration; any mouse movement snaps it back.
+_SKIP_FADE_DELAY = 2.5
+_SKIP_FADE_DURATION = 0.5
+# HudLines points round to whole screen pixels (engine/render/item.py's
+# round_half_up), so a small ring's growing tip only advances a rounded
+# pixel every couple of frames and hops when it does — reads as jitter
+# regardless of arc segment count, since the arc's endpoint is already an
+# exact float angle. A wider stroke (_SKIP_RING_WIDTH) softens that hop
+# instead — a 1px position jump reads as much less abrupt against a 3px-wide
+# line than a 2px one, so the radius can stay small.
+_SKIP_RING_RADIUS = 13
+_SKIP_RING_WIDTH = 3
 _WORLD_STATES = (GameState.GAMEPLAY, GameState.GAME_OVER)
 _KEY_NAMES = None  # lazily built (needs pygame constants)
 
@@ -633,6 +646,48 @@ def set_zoom_level(cs, index, view_w, view_h):
     if not 0 <= index < len(levels):
         return
     _recenter_zoom(cs, levels[index], view_w, view_h)
+
+
+def _cutscene_skip_alpha(idle_t):
+    """255 for the first ``_SKIP_FADE_DELAY`` idle seconds, then ramps to 0
+    over the following ``_SKIP_FADE_DURATION`` — the cutscene skip prompt's
+    idle fade (feature: cutscene skip UI polish)."""
+    if idle_t <= _SKIP_FADE_DELAY:
+        return 255
+    k = (idle_t - _SKIP_FADE_DELAY) / _SKIP_FADE_DURATION
+    return max(0, round(255 * (1.0 - min(1.0, k))))
+
+
+def _submit_cutscene_skip(renderer, view_w, view_h, skip_progress, idle_t):
+    """The "hold to skip" ring + text, bottom-right, fading together after
+    ``_SKIP_FADE_DELAY`` idle seconds (feature: cutscene skip UI polish).
+    ``HudLines`` (what the ring is built from) carries no per-pixel alpha
+    (`game/ui/CLAUDE.md`'s beam-FX note), so the ring's fade is approximated
+    by lerping its line colors toward black by the same fraction the text's
+    real alpha is fading by — the same color-ramp technique the lightning
+    charge bar uses where true alpha isn't available."""
+    alpha = _cutscene_skip_alpha(idle_t)
+    if alpha <= 0:
+        return
+    k = alpha / 255.0
+
+    def _dim(c):
+        return tuple(round(v * k) for v in c)
+
+    text = "hold to skip"
+    tw, th = widgets.text_size(text, "md")
+    text_x, text_y = view_w - 8, view_h - 8 - th
+    # Ring stacks ABOVE the text (not beside it) so its diameter never
+    # overflows the row when placed this close to the bottom edge.
+    ring_cx = text_x - tw // 2
+    ring_cy = text_y - 4 - _SKIP_RING_RADIUS
+    widgets.submit_progress_ring(
+        renderer, ring_cx, ring_cy, _SKIP_RING_RADIUS, skip_progress,
+        bg=_dim(widgets.C_UI_TEXT_DIM), fill=_dim(widgets.C_GOLD),
+        width=_SKIP_RING_WIDTH)
+    renderer.submit_hud(HudText(
+        text, (text_x, text_y), "md", _dim((210, 210, 210)) + (alpha,),
+        align="right"))
 
 
 def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
@@ -1559,6 +1614,9 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     drag_select_from = None
     drag_select_current = None
     deco_clock_ms = 0.0  # wall-clock accumulator for deco idle animation
+    # cutscene skip-prompt idle fade: seconds the mouse has sat still
+    mouse_idle_t = 0.0
+    last_mouse_pos = None
     running = True
     while running:
         dt = clock.tick(display["fps"]) / 1000.0
@@ -1834,6 +1892,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 step_zoom(cs, 1 if event.y > 0 else -1, view_w, view_h)
 
         mx, my = presenter.mouse_pos()
+        # cutscene skip-prompt idle fade: reset on any movement, else accrue
+        if (mx, my) != last_mouse_pos:
+            mouse_idle_t = 0.0
+            last_mouse_pos = (mx, my)
+        else:
+            mouse_idle_t += dt
         held = pygame.mouse.get_pressed()[0]   # 10L-A: skinned pressed state
         keys = pygame.key.get_pressed()
         # cutscene hold-to-skip: left click, space, or esc held continuously
@@ -1891,6 +1955,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 if requested is not None and requested.enabled:
                     requested.start()
                     gp["cutscene"] = requested
+                    mouse_idle_t = 0.0  # skip prompt starts fully visible
             if gp["cutscene"] is not None:
                 gp["cutscene"].update(dt)
                 gp["cutscene"].update_skip_hold(dt, skip_held)
@@ -2179,12 +2244,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             surf = intro_player.frame_surface()
             if surf is not None:
                 presenter.blit_fullscreen(surf)
-            widgets.submit_progress_ring(
-                renderer, view_w // 2, view_h - 60, 10,
-                intro_player.skip_progress)
-            renderer.submit_hud(HudText(
-                "hold to skip", (view_w // 2, view_h - 40),
-                "md", (210, 210, 210), align="center"))
+            _submit_cutscene_skip(renderer, view_w, view_h,
+                                  intro_player.skip_progress, mouse_idle_t)
             _t_flush_start = time.perf_counter()
             flush_frame()
         elif st in _WORLD_STATES or st == GameState.PAUSED:
@@ -2452,12 +2513,9 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 surf = gp["cutscene"].frame_surface()
                 if surf is not None:
                     presenter.blit_fullscreen(surf)
-                widgets.submit_progress_ring(
-                    renderer, view_w // 2, view_h - 60, 10,
-                    gp["cutscene"].skip_progress)
-                renderer.submit_hud(HudText(
-                    "hold to skip", (view_w // 2, view_h - 40),
-                    "md", (210, 210, 210), align="center"))
+                _submit_cutscene_skip(renderer, view_w, view_h,
+                                      gp["cutscene"].skip_progress,
+                                      mouse_idle_t)
                 flush_frame()
             # -- 10G boss: undo the shake pan exactly (no clamp in between) --
             if shake_ox or shake_oy:

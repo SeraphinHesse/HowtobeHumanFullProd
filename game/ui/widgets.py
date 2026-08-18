@@ -511,7 +511,7 @@ def submit_bar(renderer, x, y, w, h, ratio, *, bg, fill, border=None):
 
 
 def submit_progress_ring(renderer, cx, cy, radius, ratio, *,
-                          bg=None, fill=None, width=2, segments=32):
+                          bg=None, fill=None, width=2, segments=96):
     """A small circular hold-progress indicator (cutscene hold-to-skip): a
     dim full ring plus a bright arc from 12 o'clock clockwise proportional
     to ``ratio`` (clamped to [0, 1]). Composed from ``HudLines`` — no arc/pie
@@ -519,7 +519,18 @@ def submit_progress_ring(renderer, cx, cy, radius, ratio, *,
     ``submit_ui_box_highlight``/``submit_tutorial_banner`` above compose
     from existing primitives instead of adding a new engine one. Colors
     default to ``None`` and resolve here, not at def time — the UH-6
-    rebind-safety convention every helper in this file follows."""
+    rebind-safety convention every helper in this file follows.
+
+    The arc's points sit on a FIXED angular grid (``i * (2*pi/segments)``,
+    independent of ``ratio``) rather than being re-subdivided every frame —
+    a point's screen position is therefore identical every frame from the
+    moment it first appears; only one trailing fractional point (the exact
+    tip) is recomputed each call. The previous version divided the arc into
+    ``round(segments * ratio)`` steps, i.e. it re-subdivided the WHOLE arc
+    on every call — since that step count changes every frame as ``ratio``
+    grows, every already-drawn point's angle shifted slightly too, not just
+    the tip, so the whole curve visibly "re-flowed" frame to frame. That,
+    not the segment count, was the actual cause of the reported jitter."""
     if bg is None:
         bg = C_UI_TEXT_DIM
     if fill is None:
@@ -531,12 +542,18 @@ def submit_progress_ring(renderer, cx, cy, radius, ratio, *,
         for i in range(segments + 1))
     renderer.submit_hud(HudLines(bg_pts, bg, width=width, closed=True))
     if ratio > 0:
-        n = max(1, round(segments * ratio))
-        arc_pts = tuple(
-            (cx + radius * math.sin(2 * math.pi * ratio * i / n),
-             cy - radius * math.cos(2 * math.pi * ratio * i / n))
-            for i in range(n + 1))
-        renderer.submit_hud(HudLines(arc_pts, fill, width=width))
+        step = 2 * math.pi / segments
+        target_angle = 2 * math.pi * ratio
+        full = int(target_angle / step)
+        arc_pts = [
+            (cx + radius * math.sin(i * step),
+             cy - radius * math.cos(i * step))
+            for i in range(full + 1)
+        ]
+        if target_angle > full * step + 1e-9:
+            arc_pts.append((cx + radius * math.sin(target_angle),
+                            cy - radius * math.cos(target_angle)))
+        renderer.submit_hud(HudLines(tuple(arc_pts), fill, width=width))
 
 
 class Button:
