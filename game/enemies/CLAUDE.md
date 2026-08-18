@@ -49,6 +49,22 @@ package (D7).
   `value × factor ** N`. All factors ship 1.0, so today this is exactly a
   clamp — and the old "past tier 5 stats freeze while counts climb forever"
   cliff is gone.
+  - **A `0.0` factor is NOT a clamp — it is a kill switch, and this has
+    shipped broken before.** `factor ** N` for `N ≥ 1` makes `0.0` zero the
+    stat outright the moment the round crosses past the authored table, not
+    "stop growing it." A 2026-08-10 balancing edit set `move_speed` (and
+    several `hp`/`dmg`/`count` factors) to `0.0` on most live enemy types,
+    which meant every enemy spawning from round 51 onward (round 51 = the
+    first round whose era, 5, falls past the 5-row authored table at
+    `rounds_per_era=10`) got `Movement(speed=0.0)` and froze on its spawn
+    tile forever — no exception, since `resolve_era_row`/`engine/era_math.py`
+    compute a perfectly well-typed zero. Fixed by restoring every factor to
+    `1.0` and adding `exclusiveMinimum: 0` to all three `*_endgame_scaling`
+    schema defs (`boss_endgame_scaling`/`pacing_endgame_scaling`/
+    `type_endgame_scaling` in `data/schemas/enemies.schema.json`) so `0.0`
+    can no longer be saved for a compounding factor. If a design ever truly
+    wants "stat hits zero past round 50," it must clamp the base stat to 0
+    directly in the last authored era row, not lean on this multiplier.
 - **D10 — `hunts` and `condition_path_weights` are PER-TYPE, NOT per-era**, and
   so are `kidnapping`, `death_spawn`, `registry_group`, `start_round`,
   `mix_ratio`, `queue_lead_count`. The
