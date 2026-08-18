@@ -24,8 +24,19 @@ MODES = (RANDOM, LEVEL, MISC)
 def source_level(obj):
     """``obj``'s 0-indexed level for ``LEVEL`` mode, or None.
 
-    A building answers with its ``TierState.current_tier`` (already
-    0-indexed); an enemy with its ``_enemy_era``. Reading that transient
+    A building answers with its GLOBAL level — ``Building.level``, the sum of
+    every earlier tier's ``levels`` plus the in-tier level — turned 0-indexed
+    here. So variant 1 is tier 1 level 1, variant 2 is tier 1 level 2, …, and
+    the first variant past tier 1's last level is tier 2 level 1. **This used
+    to read ``TierState.current_tier``**, which meant the art only ever
+    changed on a TIER-UP: a designer levelling a building watched three
+    level-ups do nothing and reasonably concluded the mode was broken (found
+    live, feat-projectile-variant-select). ``Building.level`` is the same
+    number the level-up UI shows, so "variant N" now means "level N".
+
+    ``TierState.current_tier`` remains the fallback for an object that
+    carries a tier cursor but is not a ``Building`` (a hand-built test
+    double); an enemy answers with its ``_enemy_era``. Reading that transient
     (E-11 underscore) is deliberate: it is set on EVERY enemy at construction
     — including the boss, whose public ``era`` property is a different number
     off ``DeathSpawn`` — and the alternative is widening
@@ -37,6 +48,13 @@ def source_level(obj):
     """
     if obj is None:
         return None
+    # `Building.level` is 1-indexed and GLOBAL (it already composes tier +
+    # in-tier level); variants are 0-indexed. Read by duck type rather than
+    # isinstance so this module keeps importing only `components` — and an
+    # enemy has no `level`, so this branch is buildings-only in practice.
+    level = getattr(obj, "level", None)
+    if isinstance(level, int) and not isinstance(level, bool):
+        return level - 1
     from game.buildings.components import TierState
     getter = getattr(obj, "get_component", None)
     if getter is not None:

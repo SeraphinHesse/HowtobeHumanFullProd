@@ -37,6 +37,56 @@
       ],
       "type": "object"
     },
+    "custom_widgets": {
+      "additionalProperties": false,
+      "description": "Designer-AUTHORED widgets that exist only in this file: a hand-written twin of ONE screen_defaults.json widget entry, for decoration a designer wants and no code owns. This entry is the widget's DEFAULT GEOMETRY ONLY. Everything paintable -- skin, color, label, text_id, font, text_color, tint, align, visible, parent, layers, states -- is an ORDINARY override under widgets/<the same id>, exactly as for a code-owned widget; there is no second styling vocabulary here. The game draws these at the tail of the two submit_layers calls every screen already makes, so a screen with no custom_widgets emits not one extra primitive. Custom widgets are NEVER click targets: neither the widget nor its layers are hit-tested, and a click passes straight through to the real UI underneath. parent on a custom widget is authoring-only metadata the game never reads.",
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "additionalProperties": false,
+          "properties": {
+            "band": {
+              "description": "Which of the screen's two layer passes draws it: \"under\" (behind EVERYTHING on the screen -- the HUD pass has no depth sort) or \"over\" (in front of everything). Absent means \"over\".",
+              "enum": [
+                "under",
+                "over"
+              ]
+            },
+            "display_name": {
+              "description": "Authoring-only label for the editor's outliner, so a designer reads something friendlier than a raw id. The game never reads it.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "kind": {
+              "description": "What the widget draws before its own layers. \"panel\": skin (falling back to this screen's defaults.panel_skin) as a sprite, else color as a rect -- and THEN a centred label/text_id on top when one is set, so a panel may emit two primitives. \"backdrop\": the same box, no text and no kind-matched default (its own skin only). \"label\": text only, no box. An empty resolved string draws nothing, never a blank text item.",
+              "enum": [
+                "panel",
+                "label",
+                "backdrop"
+              ]
+            },
+            "rect": {
+              "description": "The widget's DEFAULT [x, y, w, h] in screen pixels -- its creation geometry, standing in for what screen_defaults.json holds for a code-owned widget. A rect under widgets/<the same id> still wins over it, so a designer moves a custom widget down the ordinary override path like every other widget.",
+              "items": {
+                "type": "integer"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            "z": {
+              "description": "Paint order among the custom widgets of the SAME band, ascending; absent means 0. It orders custom widgets against each other only -- never against the screen's own code-owned widgets, which the band alone decides.",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "rect"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
     "defaults": {
       "additionalProperties": false,
       "properties": {

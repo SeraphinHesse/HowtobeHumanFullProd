@@ -1165,18 +1165,28 @@ class FloaterManager:
             shell = p.name == "shell"
             slot = self._projectile_slot(p, shell)
             color = pr.shell_color if shell else pr.stone_color
-            size = max(2, int((pr.shell_size if shell else pr.stone_size)
-                              * zoom))
-            dest = (int(cx - size / 2), int(cy - size / 2))
+            dot = max(2, int((pr.shell_size if shell else pr.stone_size)
+                             * zoom))
             has_art = (self.assets is not None
                       and self.assets.animation_total_ms(slot, "idle")
                       is not None)
             if has_art:
-                renderer.submit_hud(HudSprite(slot, dest, (size, size)))
+                # Imported art draws at ITS OWN authored frame size, not at
+                # the dot's — `stone_size`/`shell_size` describe the
+                # procedural fallback below and were tuned for it, so reusing
+                # them here silently downscaled every imported bullet (a
+                # 64x64 sheet drew at 32 px; found live). Same
+                # `assets.frame_size` sizing `submit_beams` uses for an
+                # imported `vfx_beam`, and the same reason: no new balancing
+                # key for a size the manifest already states.
+                fw, fh = self.assets.frame_size(slot)
+                w, h = max(2, int(fw * zoom)), max(2, int(fh * zoom))
+                renderer.submit_hud(HudSprite(
+                    slot, (int(cx - w / 2), int(cy - h / 2)), (w, h)))
             else:
                 renderer.submit_hud(HudRect(
-                    (dest[0], dest[1], size, size),
-                    color, border_radius=size // 2))
+                    (int(cx - dot / 2), int(cy - dot / 2), dot, dot),
+                    color, border_radius=dot // 2))
 
     def submit_fx(self, renderer, cs):
         """Screen-space particle FX: sparks / death shards / muzzle motes as

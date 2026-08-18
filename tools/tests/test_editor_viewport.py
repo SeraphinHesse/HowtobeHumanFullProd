@@ -1687,5 +1687,81 @@ class TestColumnSwitcher(TempDataCase):
         self.assertTrue(panel._column_combo.isHidden())
 
 
+class TestScreenDetailsScrollArea(TempDataCase):
+    """Part C: the ~2k-line panel body lives in a QScrollArea (balancing.py's
+    pattern) while the dirty label and Save stay pinned OUTSIDE it."""
+
+    def test_body_scrolls_but_save_is_pinned(self):
+        panel = self.track(ScreenDetailsPanel(data_dir=self.data_dir))
+        body = panel._scroll.widget()
+        self.assertIsNotNone(body)
+        self.assertTrue(panel._scroll.widgetResizable())
+        # outliner + per-widget form live inside the scrolled body
+        self.assertTrue(body.isAncestorOf(panel.widget_list))
+        self.assertTrue(body.isAncestorOf(panel.x_spin))
+        self.assertGreater(panel.widget_list.minimumHeight(), 0)
+        # Save (and the dirty label) do not — always reachable
+        self.assertFalse(body.isAncestorOf(panel.save_button))
+        self.assertFalse(body.isAncestorOf(panel._dirty_label))
+
+
+class TestScreenZoomAndPan(TempDataCase):
+    """Part D: the zoom picker and the middle-drag pan feed
+    `_screen_scale_offset` and nothing else, so the blit and the hit-test
+    cannot disagree."""
+
+    def setUp(self):
+        super().setUp()
+        # Pin the fixture: a live override in data/ui/screens/main_menu.json
+        # would move the widget the hit-test below aims at.
+        self.empty_screens("main_menu")
+
+    def make_viewport(self):
+        panel = self.track(ViewportPanel(data_dir=self.data_dir))
+        panel.resize(SCREEN_W, SCREEN_H)
+        panel.show()
+        _APP.processEvents()
+        return panel
+
+    def make_screen_viewport(self):
+        panel = self.make_viewport()
+        session = self.track(UIScreenSession(data_dir=self.data_dir))
+        session.open("main_menu")
+        panel.set_screen_mode(session, FIXTURE_DEFAULTS)
+        return panel
+
+    def test_fit_and_explicit_percentage(self):
+        panel = self.make_screen_viewport()
+        self.assertEqual(panel._zoom_combo.currentText(), "Fit")
+        self.assertEqual(panel._screen_scale_offset(), (1.0, 0.0, 0.0))
+        panel._zoom_combo.setCurrentText("300%")
+        scale, _ox, _oy = panel._screen_scale_offset()
+        self.assertEqual(scale, 3.0)
+
+    def test_zoom_change_recentres_and_pan_is_clamped(self):
+        panel = self.make_screen_viewport()
+        panel._zoom_combo.setCurrentText("300%")
+        panel._pan_screen(100_000, 100_000)     # yank it far off to one side
+        scale, ox, oy = panel._screen_scale_offset()
+        # canvas is bigger than the widget: no gap at either edge
+        self.assertLessEqual(ox, 0.0)
+        self.assertGreaterEqual(ox + SCREEN_W * scale, panel.width())
+        self.assertLessEqual(oy, 0.0)
+        self.assertGreaterEqual(oy + SCREEN_H * scale, panel.height())
+        panel._zoom_combo.setCurrentText("200%")
+        self.assertEqual(panel._screen_pan, [0.0, 0.0])
+        scale, ox, _oy = panel._screen_scale_offset()
+        self.assertEqual(ox, float((panel.width() - SCREEN_W * scale) // 2))
+
+    def test_hit_test_follows_the_zoom(self):
+        panel = self.make_screen_viewport()
+        panel._zoom_combo.setCurrentText("300%")
+        scale, ox, oy = panel._screen_scale_offset()
+        x, y, w, h = FIXTURE_DEFAULTS["main_menu"]["widgets"]["btn_new_game"]["rect"]
+        pos = QPoint(int(ox + (x + w / 2) * scale), int(oy + (y + h / 2) * scale))
+        QTest.mouseClick(panel, Qt.MouseButton.LeftButton, pos=pos)
+        self.assertEqual(panel._selected_widget, "btn_new_game")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -92,7 +92,7 @@
           "type": "boolean"
         },
         "procedural": {
-          "description": "The procedural VFX kind to run when sprite_slot is empty or has no imported art yet, or \"\" for a silent no-op. spark_place/spark_level/spark_tier all resolve through the same emit_burst call, keyed by the caller's kind argument - the three names exist so each of the three building-vfx events can be independently retuned/disabled without collapsing to one shared string. \"crater\" names the mortar shell's OWN continuous fade mark (game/enemies/combat.py's Crater/CraterFade), which always spawns unconditionally regardless of this table - naming it here is documentation, not a second spawn. \"highlight\" (VA-5) means \"draw this event's own procedural.highlights entry\" - the seven continuous tile highlights all name it, and each is tuned by its OWN block, so unlike the spark_* trio they need no separate kind each. The `projectile` row ships \"\" because an in-flight shot has no one-shot procedural kind: its fallback is the continuous `procedural.projectile` dot submit_projectiles already draws whenever the shot's slot has no imported art, chosen there rather than named here.",
+          "description": "The procedural VFX kind to run when sprite_slot is empty or has no imported art yet, or \"\" for a silent no-op. spark_place/spark_level/spark_tier all resolve through the same emit_burst call, keyed by the caller's kind argument - the three names exist so each of the three building-vfx events can be independently retuned/disabled without collapsing to one shared string. \"crater\" names the mortar shell's OWN continuous fade mark (game/enemies/combat.py's Crater/CraterFade), which always spawns unconditionally regardless of this table - naming it here is documentation, not a second spawn. \"highlight\" (VA-5) means \"draw this event's own procedural.highlights entry\" - the seven continuous tile highlights all name it, and each is tuned by its OWN block, so unlike the spark_* trio they need no separate kind each. \"projectile\" is the SAME kind of documentation-only name \"crater\" is: it names the continuous `procedural.projectile` dot that submit_projectiles draws for an in-flight shot whose slot has no imported art, which happens unconditionally right there and is not dispatched through _run_procedural's ladder. The projectile row ships it so the editor shows the row pointing at the procedural family a designer can actually see and tune, instead of an empty box next to a visibly-live `projectile` effect (found live).",
           "enum": [
             "",
             "spark_place",
@@ -104,7 +104,8 @@
             "splatter",
             "crater",
             "spark_respawn",
-            "highlight"
+            "highlight",
+            "projectile"
           ],
           "type": "string"
         },
@@ -148,7 +149,7 @@
               "type": "string"
             },
             "mode": {
-              "description": "\"random\" picks uniformly per spawn through the caller's injected rng (the game/enemies/enemy.py variant_slot shape - never the stdlib random module, so seeded-parity tests stay possible). \"level\" indexes by the SOURCE's level, clamped to the variant count: a building's 0-indexed tier, an enemy's era. Five of the ten events carry only a world point and no source object, so \"level\" resolves to variant 0 there (D4) - deliberate, not a bug. \"misc\" indexes by misc_key's registered provider, clamped the same way.",
+              "description": "\"random\" picks uniformly per spawn through the caller's injected rng (the game/enemies/enemy.py variant_slot shape - never the stdlib random module, so seeded-parity tests stay possible). \"level\" indexes by the SOURCE's level, clamped to the variant count: a building's GLOBAL level (earlier tiers' levels summed plus the in-tier level, 1-indexed in the UI and turned 0-indexed here, so variant 1 is tier 1 level 1, variant 2 is tier 1 level 2, and the first variant past tier 1's last level is tier 2 level 1), an enemy's era. It read the building's TIER until feat-projectile-variant-select, which meant every level-up inside a tier changed nothing and the mode read as broken. Five of the ten events carry only a world point and no source object, so \"level\" resolves to variant 0 there (D4) - deliberate, not a bug. \"misc\" indexes by misc_key's registered provider, clamped the same way.",
               "enum": [
                 "random",
                 "level",
