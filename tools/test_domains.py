@@ -217,6 +217,7 @@ DOMAINS = {
         "test_font_presets.py",
         "test_master_registry.py",
         "test_schema_slot_sync.py",
+        "test_sound_slots_data.py",
         "test_strings_data.py",
         "test_theme_data.py",
         "test_tutorial_data.py",
