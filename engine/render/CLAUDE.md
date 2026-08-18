@@ -477,12 +477,25 @@ case. `None` (default) is a no-op; the grey-X placeholder never carries one.
       (`addApplicationFontFromData`, see `editor/panels/CLAUDE.md`). Reading
       eagerly also moves a bad file's failure to config time, where the host
       is already validating, instead of the first draw.
-  - **`_LAYOUT_H`/`layout_h` are NEVER touched by `configure_fonts`** — the
-    pinned cross-platform layout invariant (below) stays authoritative
-    regardless of a designer's font-size edits; only DRAWN glyphs move, never
-    stored layout rects. `tools/tests/test_theme_data.py`'s
+  - **The 7 PINNED `_LAYOUT_H`/`layout_h` entries are never touched by
+    `configure_fonts`** — the pinned cross-platform layout invariant (below)
+    stays authoritative regardless of a designer's font-size edits; only DRAWN
+    glyphs move, never stored layout rects. `tools/tests/test_theme_data.py`'s
     `TestLayoutHAuthority` proves a `configure_fonts` call that changes every
     size does not move the exporter's `screen_defaults.json` output one bit.
+    - **It DOES write `_LAYOUT_H` for a DESIGNER-DEFINED key (UL-2/D6).** This
+      bullet used to say `_LAYOUT_H` was never touched at all, full stop; that
+      became false the moment `fonts.json` opened to custom presets. The
+      distinction is which half of the table: `_PINNED_LAYOUT_KEYS` (the 7
+      shipped keys, frozen at import) is skipped outright by `_derive_layout_h`
+      and can never be overwritten by a measurement, so the invariant the
+      sentence above protects is intact. A key OUTSIDE that set has no pinned
+      value to protect and no committed golden artifact to diverge from, so it
+      gets one DERIVED — `get_font(key).size("Ag")[1]`, taken once at the end
+      of `configure_fonts` and stored, never re-measured at a layout call site.
+      That last part is the whole point: `SysFont` measures ±1px differently
+      per platform, so a live measurement at a call site would make a stored
+      rect irreproducible on another machine.
 
 ## Ground layer cache (`render/ground_cache.py`, perf) — the panning fix
 Windowed culling bounds the ground submit to O(visible), but that is still ~2.6k
