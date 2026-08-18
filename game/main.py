@@ -1047,7 +1047,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         ground_cache.invalidate()
         # 10L-B: every gameplay screen shares the shell's ScreenSkinning (the
         # shell owns no world, so it cannot construct these itself).
-        gp["hud"] = Hud(view_w, view_h, skinning=shell.skinning)
+        gp["hud"] = Hud(view_w, view_h, skinning=shell.skinning,
+                        ui_balance=ui_balance)
         gp["panel"] = BuildingUI(view_w, view_h, ui_balance,
                                  skinning=shell.skinning)
         # -- TU-6: the round-1 guided-chain director + its message box. Reads
@@ -1121,6 +1122,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         # building's own tier sprite (the `floaters.assets` precedent below;
         # None-safe, so a bare BuildingUI in a test needs no store).
         gp["panel"].assets = assets
+        # The HUD asks the store the same kind of question: whether the life
+        # icon slot really carries a `disabled` (dead) row, and how long its
+        # `pressed` (dying) row runs for. Pure manifest metadata, None-safe.
+        gp["hud"].assets = assets
         # B1: the colour-capability map, published to the construct flow the
         # same host-sets-an-attribute way `assets` above and
         # `overlays.condition_art` are. B2 is what READS it (swatches in the

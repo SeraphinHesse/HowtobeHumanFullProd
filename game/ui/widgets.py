@@ -179,12 +179,15 @@ def contains(rect, mx, my):
 
 
 def submit_panel(renderer, rect, *, fill=None, border=None, skin=None,
-                 tint=None, anim_ms=0):
+                 tint=None, anim_ms=0, animation="idle"):
     """A filled, bordered panel body. With ``skin`` (a slot key, 10L-A) the
     two flat rects are replaced by one nine-sliced HudSprite covering the same
     rect; ``fill``/``border`` are then ignored and ``tint`` (D6/UH-6 — the
     sheet-multiply color, ``None`` = unchanged) rides along instead. Panels
-    carry no interaction state, so they always animate the ``idle`` row.
+    carry no interaction state, so they animate the ``idle`` row unless the
+    caller names another: a panel holder that owns a ``_state()`` (the three
+    HUD life counters) passes its own row in, which is the ONLY way a
+    panel-kind widget reaches the ``pressed``/``disabled`` sheet rows.
     Panels are not click targets — no hit-test wiring.
 
     ``fill``/``border`` default to ``None`` and resolve to the CURRENT
@@ -199,11 +202,30 @@ def submit_panel(renderer, rect, *, fill=None, border=None, skin=None,
     if skin:
         x, y, w, h = rect
         renderer.submit_hud(HudSprite(skin, (x, y), (w, h),
-                                      animation="idle", anim_time_ms=anim_ms,
+                                      animation=animation,
+                                      anim_time_ms=anim_ms,
                                       tint=tint))
         return
     renderer.submit_hud(HudRect(rect, fill))
     renderer.submit_hud(HudRect(rect, border, width=1))
+
+
+def announce_top_y(view_h):
+    """Screen y of the TOP of the centred announce banner's first line
+    (``effects.submit_announce``'s two ``xl`` lines: the boss banner and the
+    "YOU / LOST 1 LIFE" banner). ONE home for that geometry, so the HUD's
+    centred life icon cannot drift away from the text it hangs under.
+
+    ``layout_h``, never a live measurement — this reaches a drawn position on
+    every frame of the lost-life flight (game/ui/CLAUDE.md)."""
+    return view_h // 2 - layout_h("xl") - 6
+
+
+def announce_bottom_y(view_h):
+    """Screen y of the BOTTOM of that banner's SECOND line — i.e. the first
+    free row under the announce text. ``announce_top_y``'s companion; the two
+    are the only places the banner's vertical layout is stated."""
+    return announce_top_y(view_h) + 2 * layout_h("xl") + 8
 
 
 def submit_text(renderer, text, pos, font_key, color, align="left"):

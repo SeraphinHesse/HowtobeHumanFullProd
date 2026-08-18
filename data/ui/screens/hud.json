@@ -207,7 +207,8 @@
         287,
         13,
         11
-      ]
+      ],
+      "visible": false
     },
     "icon_love": {
       "parent": "love_text",
@@ -271,7 +272,8 @@
         285,
         0,
         0
-      ]
+      ],
+      "visible": false
     },
     "love_panel": {
       "rect": [

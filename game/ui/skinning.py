@@ -323,7 +323,7 @@ class ScreenSkinning:
             renderer.submit_hud(HudRect((0, 0, view_w, view_h), bg["color"]))
 
     def submit_layers(self, renderer, screen_id: str, ids: Dict[str, Any],
-                      band: str, state_of) -> None:
+                      band: str, state_of, anim_ms: int = 0) -> None:
         """Draw every widget's ``band``-side layer stack — ONE call per screen
         per band (UL-4 D4), at the top (``"under"``) or the end (``"over"``)
         of a screen's ``submit()``. The HUD pass has no depth sort, so draw
@@ -333,6 +333,11 @@ class ScreenSkinning:
         builds (§1.2). ``state_of``: a CALLABLE ``widget -> str`` — normally
         ``self.state_of``, passed by reference and resolved PER WIDGET, not
         once per screen, because UL-5 makes it vary per widget.
+
+        ``anim_ms``: the owning screen's animation clock, threaded into every
+        layer sprite so an authored MULTI-FRAME row actually plays. A screen
+        that omits it draws frame 0 forever, which is what every layer did
+        before the lost-life flight needed a moving dying row.
 
         A widget with no ``layers`` entry in this screen's override produces
         ZERO calls — the golden parity case (D5), and the overwhelmingly
@@ -350,12 +355,12 @@ class ScreenSkinning:
             layer_list = (spec or {}).get("layers") or []
             if not layer_list:
                 continue
+            state = state_of(widget)
             for entry in ui_layers.ordered(layer_list, band):
-                resolved = ui_layers.resolve(entry, widget.rect,
-                                             state_of(widget))
+                resolved = ui_layers.resolve(entry, widget.rect, state)
                 if resolved.get("visible") is False:
                     continue
-                self._submit_one_layer(renderer, resolved)
+                self._submit_one_layer(renderer, resolved, state, anim_ms)
         for name, entry in customs:
             self._submit_custom_widget(renderer, screen_id, name, entry, band)
 
@@ -491,8 +496,14 @@ class ScreenSkinning:
         renderer.submit_hud(HudText(text, (x, y), font, color,
                                     align=spec.get("align") or "left"))
 
-    def _submit_one_layer(self, renderer, resolved) -> None:
+    def _submit_one_layer(self, renderer, resolved, state: str = "idle",
+                          anim_ms: int = 0) -> None:
         """Emit the ONE primitive a resolved layer describes.
+
+        ``state``/``anim_ms`` reach the sprite branch only: a layer sheet is
+        addressed by the SAME four-state row vocabulary its owner resolves
+        through, on the owning screen's clock. The manifest falls back to
+        ``idle`` for a row a sheet does not carry, so a partial sheet is fine.
 
         A layer picks ONE role — this precedence is a design decision, not an
         accident of iteration order. Checked in this exact order, FIRST MATCH
@@ -509,6 +520,8 @@ class ScreenSkinning:
         slot = resolved.get("slot")
         if slot:
             renderer.submit_hud(HudSprite(slot, (x, y), (w, h),
+                                          animation=state,
+                                          anim_time_ms=anim_ms,
                                           tint=resolved.get("tint")))
             return
         text_id = resolved.get("text_id")

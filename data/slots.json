@@ -783,6 +783,7 @@
                   "key": "ui_button_panel_v6"
                 },
                 {
+                  "display_name": "Panel Button 64 x24",
                   "frame_h": 24,
                   "frame_w": 64,
                   "key": "ui_button_panel_v7"
@@ -958,6 +959,12 @@
               "label": "Lives",
               "slots": [
                 "ui_icon_lives"
+              ]
+            },
+            {
+              "label": "Life",
+              "slots": [
+                "ui_icon_life"
               ]
             }
           ],

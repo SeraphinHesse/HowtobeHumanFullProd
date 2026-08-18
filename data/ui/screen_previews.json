@@ -3355,7 +3355,7 @@
               516,
               112,
               118,
-              57
+              74
             ],
             "type": "rect",
             "width": 0
@@ -3371,10 +3371,28 @@
               516,
               112,
               118,
-              57
+              74
             ],
             "type": "rect",
             "width": 1
+          },
+          {
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              543,
+              115
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              64,
+              32
+            ],
+            "slot_key": "tile_buildable",
+            "tint": null,
+            "type": "sprite"
           },
           {
             "align": "left",
@@ -3385,8 +3403,8 @@
             ],
             "font_key": "sm",
             "pos": [
-              540,
-              115
+              519,
+              147
             ],
             "text": "Grass",
             "type": "text"
@@ -3401,7 +3419,7 @@
             "font_key": "sm",
             "pos": [
               631,
-              115
+              147
             ],
             "text": "×1",
             "type": "text"
@@ -3416,7 +3434,7 @@
             "font_key": "sm",
             "pos": [
               519,
-              142
+              159
             ],
             "text": "No terrain effect",
             "type": "text"
@@ -3430,9 +3448,9 @@
             ],
             "rect": [
               516,
-              173,
+              190,
               118,
-              57
+              138
             ],
             "type": "rect",
             "width": 0
@@ -3446,9 +3464,9 @@
             ],
             "rect": [
               516,
-              173,
+              190,
               118,
-              57
+              138
             ],
             "type": "rect",
             "width": 1
@@ -3462,8 +3480,8 @@
             ],
             "font_key": "sm",
             "pos": [
-              540,
-              176
+              519,
+              289
             ],
             "text": "Mountain",
             "type": "text"
@@ -3478,7 +3496,7 @@
             "font_key": "sm",
             "pos": [
               631,
-              176
+              289
             ],
             "text": "×1",
             "type": "text"
@@ -3493,163 +3511,9 @@
             "font_key": "sm",
             "pos": [
               519,
-              203
+              301
             ],
             "text": "+1 range for defenders",
-            "type": "text"
-          },
-          {
-            "border_radius": 0,
-            "color": [
-              40,
-              32,
-              58
-            ],
-            "rect": [
-              516,
-              234,
-              118,
-              57
-            ],
-            "type": "rect",
-            "width": 0
-          },
-          {
-            "border_radius": 0,
-            "color": [
-              80,
-              160,
-              220
-            ],
-            "rect": [
-              516,
-              234,
-              118,
-              57
-            ],
-            "type": "rect",
-            "width": 1
-          },
-          {
-            "align": "left",
-            "color": [
-              80,
-              160,
-              220
-            ],
-            "font_key": "sm",
-            "pos": [
-              540,
-              237
-            ],
-            "text": "Pond",
-            "type": "text"
-          },
-          {
-            "align": "right",
-            "color": [
-              150,
-              140,
-              120
-            ],
-            "font_key": "sm",
-            "pos": [
-              631,
-              237
-            ],
-            "text": "×1",
-            "type": "text"
-          },
-          {
-            "align": "left",
-            "color": [
-              235,
-              225,
-              195
-            ],
-            "font_key": "sm",
-            "pos": [
-              519,
-              264
-            ],
-            "text": "Unbuildable tile",
-            "type": "text"
-          },
-          {
-            "border_radius": 0,
-            "color": [
-              40,
-              32,
-              58
-            ],
-            "rect": [
-              516,
-              295,
-              118,
-              57
-            ],
-            "type": "rect",
-            "width": 0
-          },
-          {
-            "border_radius": 0,
-            "color": [
-              70,
-              160,
-              70
-            ],
-            "rect": [
-              516,
-              295,
-              118,
-              57
-            ],
-            "type": "rect",
-            "width": 1
-          },
-          {
-            "align": "left",
-            "color": [
-              70,
-              160,
-              70
-            ],
-            "font_key": "sm",
-            "pos": [
-              540,
-              298
-            ],
-            "text": "Forest",
-            "type": "text"
-          },
-          {
-            "align": "right",
-            "color": [
-              150,
-              140,
-              120
-            ],
-            "font_key": "sm",
-            "pos": [
-              631,
-              298
-            ],
-            "text": "×1",
-            "type": "text"
-          },
-          {
-            "align": "left",
-            "color": [
-              235,
-              225,
-              195
-            ],
-            "font_key": "sm",
-            "pos": [
-              519,
-              325
-            ],
-            "text": "+10%/round for economy",
             "type": "text"
           }
         ]
@@ -5583,7 +5447,7 @@
           9,
           9
         ],
-        "slot_key": "ui_icon_lives",
+        "slot_key": "ui_icon_life",
         "tint": null,
         "type": "sprite"
       },
@@ -5601,7 +5465,7 @@
           9,
           9
         ],
-        "slot_key": "ui_icon_lives",
+        "slot_key": "ui_icon_life",
         "tint": null,
         "type": "sprite"
       },
@@ -5619,7 +5483,7 @@
           9,
           9
         ],
-        "slot_key": "ui_icon_lives",
+        "slot_key": "ui_icon_life",
         "tint": null,
         "type": "sprite"
       },

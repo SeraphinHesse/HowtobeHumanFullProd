@@ -262,6 +262,16 @@ def _screen_captures():
 #: This is also the ONE sanctioned D5 exception in section S4:
 #: ``data/ui/screen_defaults.json``/``screen_previews.json`` legitimately gain
 #: the same three widgets, because this phase adds real default geometry.
+#: Regenerated a THIRTEENTH time (the lost-life flight): the three life
+#: counters now default to their OWN slot, ``ui_icon_life``, whose three
+#: sheet rows are alive/dying/dead (idle/pressed/disabled) — so exactly
+#: three ``slot_key`` values change here and nothing moves. ``icon_lives``
+#: at dest (8, 41) deliberately KEEPS its own slot: it is hidden by a
+#: ``visible: false`` override in ``data/ui/screens/hud.json``, which this
+#: harness never sees (it captures through ``ScreenSkinning.empty()``), so
+#: it and the ``LIVES 3`` text both still appear in this baseline. Every
+#: other screen's entry is byte-identical. Regenerated mechanically from
+#: ``_screen_captures()``.
 _BASELINE = {
     "main_menu": [
         HudRect(rect=(0, 0, 640, 360), color=(18, 30, 20), border_radius=0, width=0),
@@ -437,9 +447,9 @@ _BASELINE = {
         HudText(text='+5/round', pos=(8, 25), font_key='sm', color=(214, 96, 136), align='left'),
         HudSprite(slot_key='ui_icon_lives', dest=(8, 41), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
         HudText(text='LIVES 3', pos=(19, 41), font_key='md', color=(200, 55, 55), align='left'),
-        HudSprite(slot_key='ui_icon_lives', dest=(30, 41), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
-        HudSprite(slot_key='ui_icon_lives', dest=(41, 41), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
-        HudSprite(slot_key='ui_icon_lives', dest=(52, 41), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
+        HudSprite(slot_key='ui_icon_life', dest=(30, 41), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
+        HudSprite(slot_key='ui_icon_life', dest=(41, 41), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
+        HudSprite(slot_key='ui_icon_life', dest=(52, 41), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
         HudText(text='0/4 tiles', pos=(8, 57), font_key='md', color=(150, 140, 120), align='left'),
         HudText(text='Building Phase', pos=(552, 287), font_key='hud_phase', color=(150, 140, 120), align='left'),
         HudText(text='ROUND 1', pos=(592, 307), font_key='md', color=(150, 140, 120), align='center'),
