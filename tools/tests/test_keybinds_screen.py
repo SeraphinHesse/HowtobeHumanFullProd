@@ -104,6 +104,19 @@ class TestKeybindsScreenCapture(unittest.TestCase):
         self.assertIsNone(screen.capturing)
         self.assertGreater(btn.flash, 0)
 
+    def test_flash_unbindable_clears_capturing_and_flashes_the_row(self):
+        # bugfix (feature: rebindable hotkeys): an unrepresentable key (an
+        # arrow key, Tab, Shift, ...) used to leave `capturing` armed with no
+        # feedback at all, indistinguishable from a hang. It now drops
+        # capture and flashes the row exactly like a conflict does.
+        screen = self._screen()
+        _action, _label, btn = screen.rows[0]
+        screen.capturing = screen.rows[0][0]
+        screen.flash_unbindable()
+        self.assertIsNone(screen.capturing)
+        self.assertGreater(btn.flash, 0)
+        self.assertEqual(btn.flash_label, "CAN'T BIND THAT KEY")
+
     def test_update_shows_press_a_key_only_for_the_armed_row(self):
         screen = self._screen()
         armed_action, _label, armed_btn = screen.rows[0]
