@@ -932,6 +932,16 @@
                   "key": "ui_bg_main_menu"
                 }
               ]
+            },
+            {
+              "label": "Loading Screen",
+              "slots": [
+                {
+                  "frame_h": 360,
+                  "frame_w": 640,
+                  "key": "ui_bg_loading"
+                }
+              ]
             }
           ],
           "label": "Backgrounds"

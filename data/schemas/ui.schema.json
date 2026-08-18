@@ -377,6 +377,22 @@
       ],
       "type": "object"
     },
+    "LoadingScreen": {
+      "additionalProperties": false,
+      "description": "Post-\"Start Game\" loading-screen timing (feature: loading screen).",
+      "properties": {
+        "min_display_seconds": {
+          "description": "Minimum seconds the post-\"Start Game\" loading screen stays visible even if build_gameplay() finishes its checkpointed steps faster, so it never just flickers.",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "min_display_seconds"
+      ],
+      "type": "object"
+    },
     "Menu": {
       "additionalProperties": false,
       "description": "Top-level shell/menu tunables (Phase 9H): the intro-cutscene timing.",
@@ -443,6 +459,7 @@
     "Debug",
     "FX",
     "Keybindings",
+    "LoadingScreen",
     "Menu",
     "Sounds",
     "Timing"

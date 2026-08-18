@@ -775,6 +775,42 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
     exactly one place; a full SCREEN off the menu, with its own back
     navigation and its own place in `in_menu`/`_MENU_STATES`, earns the enum
     member instead. That is the line: overlay ⇒ flag, full screen ⇒ state.
+  - **`GameState.LOADING` (feature: loading screen) is the second state added
+    since 9H, and it BREAKS the "full screen ⇒ `Shell`-driven" half of that
+    line on purpose.** It is a real full screen (the `ui_bg_loading`
+    background + a white progress ring, `game/ui/loading_screen.py`'s
+    `LoadingScreen`, the `debug_settings.py` code-only-screen shape — no
+    `data/ui/screens/loading.json`, no `screen_defaults.json` entry), but
+    `Shell` never constructs or dispatches it: `main.py` owns `loading_screen`
+    directly and drives it from the frame loop, exactly like
+    `GAMEPLAY`/`GAME_OVER` (which are also full screens `Shell` doesn't own).
+    The reason is that driving it needs host-only things `Shell` structurally
+    cannot have — `assets` (the E-37 "is `ui_bg_loading` imported yet" check)
+    and the queued `build_gameplay()` checkpoints only `main.py` knows about.
+    `main.py`'s "new_game"/"new_game_debug" intents no longer call
+    `build_gameplay()` synchronously; they set `shell.state =
+    GameState.LOADING` and arm the checkpoint queue (`_build_gameplay_steps()`
+    — `build_gameplay()` itself is now a thin wrapper that just runs every
+    step in one shot, kept for the headless autostart seam and any other
+    direct caller). The frame loop's `LOADING` branch runs one queued step
+    per frame, submits `loading_screen` at `completed/total` progress, and —
+    once the queue drains AND a minimum-duration timer (accumulated real
+    frame `dt`, never `time.time()`; `ui.json LoadingScreen
+    .min_display_seconds`) has also elapsed — calls `shell.enter_gameplay()`.
+    Both gates matter: `build_gameplay()`'s work is genuinely fast today (no
+    asset I/O happens there — everything is already loaded at boot), so
+    without the duration floor the screen would flicker for a frame or two;
+    without the real-checkpoint half it would be a fake spinner, not a
+    progress indicator. The PRE-BOOT loading screen (`main.py`'s
+    `_submit_loading_frame`, shown before the `Shell` even exists — see
+    `game/CLAUDE.md`'s Host conventions section) shares the exact same
+    background slot and ring style by importing them from
+    `game/ui/loading_screen.py` rather than re-declaring them, so the two
+    screens cannot visually drift apart; it is a SEPARATE mechanism (its own
+    throwaway presenter/renderer pair, since no real window exists yet) and
+    was also given more, smaller real checkpoints (15 instead of 5) so its
+    ring's motion reads as smooth rather than jumpy — not an eased/faked
+    animation, just finer-grained real boot sub-steps.
   - **`Shell.handle_scroll(dy)` is a duck-typed forwarder, not a generic
     ScrollView.** It calls the active screen's `scroll` attribute when it is
     callable (only the high-score table has one), so every other screen and

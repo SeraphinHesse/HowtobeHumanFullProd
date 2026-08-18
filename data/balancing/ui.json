@@ -63,6 +63,9 @@
     "zoom_level_2": "5",
     "zoom_level_3": "6"
   },
+  "LoadingScreen": {
+    "min_display_seconds": 0.8
+  },
   "Menu": {
     "cutscene_length": 44.2
   },
