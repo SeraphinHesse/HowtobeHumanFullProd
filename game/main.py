@@ -703,6 +703,27 @@ def _submit_cutscene_skip(renderer, view_w, view_h, skip_progress, idle_t):
         align="right"))
 
 
+_LOADING_BG_SLOT = "ui_bg_loading"
+_LOADING_RING_RADIUS = 24
+_LOADING_RING_WIDTH = 4
+
+
+def _submit_loading_frame(renderer, assets, view_w, view_h, progress):
+    """The pre-boot loading screen (feature: loading screen). Background is
+    the editor-adjustable ``ui_bg_loading`` slot (E-37: a flat fallback fill
+    — ``presenter.begin_frame()`` already painted ``BACKGROUND`` — until a
+    designer imports art), plus the skip-cutscene hold-ring widget
+    (`widgets.submit_progress_ring`) reused here in WHITE rather than its
+    default gold, so it never reads as the cutscene skip prompt."""
+    if assets.animation_total_ms(_LOADING_BG_SLOT, "idle") is not None:
+        renderer.submit_hud(HudSprite(
+            _LOADING_BG_SLOT, (0, 0), (view_w, view_h)))
+    cx, cy = view_w // 2, view_h // 2
+    widgets.submit_progress_ring(
+        renderer, cx, cy, _LOADING_RING_RADIUS, progress,
+        bg=(90, 90, 90), fill=(255, 255, 255), width=_LOADING_RING_WIDTH)
+
+
 def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
          backend=None):
     """``autostart=True`` skips the shell (cutscene/menu) and boots straight into
@@ -797,6 +818,31 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         registry=registry,
         sprites_dir=data_dir / "sprites",
     )
+
+    # Pre-boot loading screen (feature: loading screen): a real window comes
+    # up now, right after the asset store exists, and pumps frames through
+    # the remaining (slower) boot steps below — discarded in favor of the
+    # real render stack (`_build_render_stack`) once boot finishes. A
+    # headless run (`max_frames is not None`, tools/smoke.py) still opens
+    # this window; it costs one extra `set_mode` call, no extra window.
+    loading_presenter = _SurfacePresenter(view_w, view_h, caption, "windowed")
+    loading_renderer = Renderer(cs, assets)
+    _loading_steps_total = 5
+    _loading_step = 0
+
+    def _flush_loading():
+        nonlocal _loading_step
+        _loading_step += 1
+        pygame.event.pump()
+        loading_presenter.begin_frame()
+        _submit_loading_frame(loading_renderer, assets, view_w, view_h,
+                              _loading_step / _loading_steps_total)
+        loading_renderer.flush(loading_presenter.world_target,
+                               hud_target=loading_presenter.hud_target)
+        loading_presenter.end_frame()
+
+    _flush_loading()
+
     # Tile-condition art: {slot key -> tint_overlay} over the condition slots
     # that actually have an imported sheet. THE one map both consumers read —
     # the `terrain`-layer emitter (sprite iff the slot is in here) and the
@@ -907,6 +953,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     configure_fonts(fonts_doc, font_path=font_path)
     widgets.configure_palette(palette_doc)
     configure_strings(strings_doc)
+    _flush_loading()
     # G4: the Renderer and the ground cache are built AFTER the presenter (the
     # GPU variants need its SDL Renderer, which needs the window, which needs
     # the shell's display mode) — see _build_render_stack below. Nothing
@@ -943,6 +990,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # timeline (game/core/boss_upgrades.py), threaded onto the Session beside
     # progression_balance.
     boss_upgrades_balance = load_balance(data_dir, "boss_upgrades")
+    _flush_loading()
     # BU-3 3.1: install the injected half of the ONE-TIME `stone_thrower_sync`
     # upgrade (#9). `game/core/boss_upgrades.py` may never import
     # `game.buildings`, so the building sweep arrives through this seam — and
@@ -1028,6 +1076,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     hs_doc = highscores.load_highscores(scores_path, data_dir)
     shell.set_highscores(hs_doc)
     shell.prefill_identity(*highscores.last_player(hs_doc))
+    _flush_loading()
 
     # G4 (D6/D8): pick the frame target, and with it the render backend and the
     # ground cache — one stack, chosen once, falling back whole. `auto` tries
@@ -1037,6 +1086,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     choice = backend if backend is not None else "auto"
     if choice == "auto" and max_frames is not None:
         choice = "surface"
+    _flush_loading()
+    loading_presenter.close()
     presenter, renderer, ground_cache, backend_log = _build_render_stack(
         choice, view_w, view_h, caption, shell.settings.display_mode, cs,
         assets)
