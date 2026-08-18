@@ -42,6 +42,7 @@ from engine.core import Health
 from game.map.pathfinder import block_tiles
 
 from .enemy import ENEMY_CLASSES, SWARM_TYPES, create_enemy
+from .sounds import SPAWN, play_enemy_sound
 
 # Raiders + siege went live in 10F; the boss in 10G; the formation in ER-4.
 ENABLE_RAIDERS = True
@@ -533,6 +534,11 @@ class Spawner:
                 era, self._registry, self._rng, self._round_in_era)
             self._attach_scene(enemy, scene)
             scene.spawn(enemy)
+            # SD-5: the spawn sound, for EVERY popped enemy, resolved through
+            # the same per-type machinery — a type with no authored `spawn`
+            # clips is a silent no-op, so only the Boss is audible today. This
+            # is also the boss-spawn row: no boss-specific call site exists.
+            play_enemy_sound(enemy, SPAWN)
             if delay is None:
                 ramp_off = True
         if ramp_off:
@@ -585,7 +591,13 @@ class Spawner:
         """Construct ONE death-spawn / second-phase child at ``(col, row)``.
         The single per-child path both the one-frame burst above and BR-3's
         delayed phase go through, so the two can never drift on era,
-        registry/rng variant picks or the HP seeding."""
+        registry/rng variant picks or the HP seeding.
+
+        **No spawn sound here, deliberately (SD-5).** This is the death-swarm /
+        second-phase child path, and an era-4 burst is 55 children in ONE
+        frame — the channel-exhaustion load case. The plan authors no
+        child-spawn row; only the wave pop in ``update`` is audible. Do not
+        "fix" this by adding a ``play_enemy_sound`` call below."""
         enemy = create_enemy(
             etype, col, row, self._balance, self._tilemap,
             self._era, self._registry, self._rng, self._round_in_era)
