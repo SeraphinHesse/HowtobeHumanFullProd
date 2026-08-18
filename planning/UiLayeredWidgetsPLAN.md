@@ -1,5 +1,5 @@
 <!-- plan-scale: large -->
-<!-- status: 0/4 sections, 6/12 phases (S1+S2 merged to umbrella; S3 landed on ul-section-S3, pending umbrella merge) -->
+<!-- status: 3/4 sections complete, 11/12 phases (S1+S2+S3 landed; S4 partial -- UL-9/10/11 landed, UL-12 outstanding). All merged to plan-uilayeredwidgets-umbrella. NOT pushed, no PR. -->
 
 # UiLayeredWidgetsPLAN.md — a widget is a stack
 
