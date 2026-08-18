@@ -85,6 +85,8 @@ DOMAINS = {
         "test_levelup.py",
         "test_lightning.py",
         "test_painter_meditator.py",
+        # SD-4: the building/map sound trigger dispatcher (game/sounds.py)
+        "test_sound_triggers_buildings.py",
         "test_structure.py",
         "test_xp_curve.py",
     ),
@@ -99,6 +101,7 @@ DOMAINS = {
         "test_phase_loop.py",
         "test_prey_hunting.py",
         "test_scenarios.py",
+        "test_sound_triggers_enemies.py",
     ),
     "map": (
         "test_condition_art.py",
@@ -139,6 +142,8 @@ DOMAINS = {
         "test_projectile_sprites.py",
         "test_right_click_dismiss.py",
         "test_shell.py",
+        "test_sound_triggers_ui.py",
+        "test_sound_music.py",  # SD-7: music arbitration + game stings
         "test_tutorial_director.py",
         "test_ui_align.py",
         "test_ui_custom_widgets.py",
@@ -160,6 +165,8 @@ DOMAINS = {
         "test_asset_store.py",
         "test_assets_manifest.py",
         "test_audio.py",
+        "test_audio_bank.py",
+        "test_audio_sfx.py",
         "test_components.py",
         "test_coords.py",
         "test_core.py",
@@ -211,6 +218,8 @@ DOMAINS = {
         "test_ui_text_binding.py",
         "test_vfx_preview.py",
         "test_widget_tree.py",
+        "test_sound_import.py",
+        "test_sound_slot_widget.py",
     ),
     "data": (
         "test_assets_registry.py",
@@ -218,6 +227,7 @@ DOMAINS = {
         "test_font_presets.py",
         "test_master_registry.py",
         "test_schema_slot_sync.py",
+        "test_sound_slots_data.py",
         "test_strings_data.py",
         "test_theme_data.py",
         "test_tutorial_data.py",

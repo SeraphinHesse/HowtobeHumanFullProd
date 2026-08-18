@@ -1895,6 +1895,58 @@ phase adding more hunting types or higher counts should re-measure rather
 than assume. Nothing in this package invalidates the field directly — all
 mutations route through `TileMap`. Detail → `game/PERF.md`.
 
+## Sounds (SD-5) — `sounds.py` is the ONE audio seam
+
+Every enemy sound in the game goes through `game/enemies/sounds.py`
+(`play_enemy_sound(enemy, kind)` + the pure `slot_for(enemy, kind)`); nothing
+in this package touches pygame or names an audio file. `sounds.py` hands
+SD-2's `engine.audio` two slot dicts and lets it resolve/pick/play.
+
+**The four call sites — there are no others, and no type-name branch anywhere:**
+
+| Slot | Site |
+|---|---|
+| `death`  | `combat.py`, the death sweep, BEFORE `scene.despawn(enemy)` |
+| `attack` | `components.py`, `EnemyCombat.update` WALL branch, where the cooldown is re-armed |
+| `attack` | `components.py`, `EnemyCombat.update` BUILDING branch (melee AND the NE-1 ranged stand-off — the same swing), same spot |
+| `attack` | `components.py`, `BurrowAgent._strike` (the Digger eruption IS an attack) |
+| `spawn`  | `spawner.py`, after `scene.spawn(enemy)` in the wave pop |
+
+Consequences that are deliberate, not gaps:
+
+- **The boss needs no site of its own.** `EnemyTypes.Boss.sounds.{death,attack,
+  spawn}` are per-type OVERRIDES resolved at the four sites above. Same for
+  `SiegeCannon.sounds.attack`.
+- **A base arrival is silent.** `_resolve_base_arrivals` despawns it before the
+  death sweep can see it — the same reasoning as the no-double-award note there.
+- **The boss's second phase is silent.** It stays `alive` until
+  `phase_complete`, so the death sound fires once, at its real death.
+- **A kidnapper carrying a building home is silent** — `begin_kidnap` retags it
+  out of `by_tag("enemy")`.
+- **`_spawn_child` makes NO spawn sound** (death swarm / second phase). An
+  era-4 burst is 55 children in one frame; the plan authors no child-spawn row.
+  Do not "fix" this.
+- **No throttle lives here.** SD-2's per-key cooldown and max-concurrent cap
+  are the whole mechanism; a 40-enemy wipe calls `play_enemy_sound` 40 times on
+  purpose and lets the engine clamp.
+
+**The lookup key is `STAT_SUBTREE[0]`, never `ETYPE` and never
+`REGISTRY_GROUP`.** `EnemyTypes` is keyed by the stat subtree; the registry
+label differs (`Standard -> "Walker"`, `SiegeCannon -> "Siege Cannon"`, and
+Tutorial shares `"Walker"` with Standard while owning its own subtree) and
+`ETYPE` is lowercase and differs again. The two layers are
+`enemies.EnemySounds.<kind>` (global default) and
+`enemies.EnemyTypes.<Type>.sounds.<kind>` (override) — the case split is SD-1's
+and is deliberate. `clips: []` on the default = silence; `clips: []` on the
+override = inherit. That rule is `engine.audio.bank.resolve`'s; never re-derive
+it here.
+
+`sounds.sfx` is bound LAZILY (first play), because `engine/audio/sfx.py`
+imports pygame at its module top and `import game.enemies` is pygame-free —
+tests monkeypatch `game.enemies.sounds.sfx` with a recorder, which is the only
+seam this feature has. With SD-4's `sfx.init()` absent, no audio device, or
+`SDL_AUDIODRIVER=dummy`, every trigger degrades to a silent no-op.
+
 ## Verify
 Scripted round asserts HP ledger matches hand-computed prototype values:
 `py -m pytest tools/tests/test_<area>.py -q`.
