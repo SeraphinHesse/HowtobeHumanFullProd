@@ -20,7 +20,9 @@ rounding in the mouse remap at non-integer monitor scales
 (``planning/UiResolutionPLAN.md`` §5). So only the 12px floor fails the build.
 ``test_report_small_click_targets`` prints the under-16 roster as an eyeball
 worklist and never fails — do NOT convert it into an assertion without a
-playtest saying a specific control is hard to hit.
+playtest saying a specific control is hard to hit. **UL-10 widened that lint
+to CLICKABLE LAYERS**, and deliberately not the hard floor: see
+``_clickable_layers``.
 
 **This module measures the REAL SHIPPED FONT, on purpose.** Every pixel
 constant in ``game/ui`` was authored against ``SysFont("monospace")`` metrics,
@@ -39,6 +41,7 @@ import json
 import unittest
 from pathlib import Path
 
+from engine import ui_layers
 from engine.render import fonts as _fonts
 from engine.render.fonts import configure_fonts, layout_h
 from game.ui import widgets
@@ -157,6 +160,51 @@ def _buttons():
     return out
 
 
+def _clickable_layers():
+    """``(screen_id, "<widget>.<layer>", rect)`` for every CLICKABLE layer
+    authored in the pinned screen docs (UL-10).
+
+    A layer is never an entry in a screen's ``ids`` — it is a sub-rect
+    authored inside an EXISTING widget's ``layers`` array and only exists once
+    ``engine.ui_layers.resolve`` has been applied to its owner's rect. So this
+    walks the SAME captured ids for the owner geometry and the pinned screen
+    doc for the layer array, and resolves the pair.
+
+    Resolved in the ``idle`` state only: a state patch that shrinks a layer on
+    hover is a transient, not a click target the designer aims at.
+
+    **These join the NON-BLOCKING lint below, never ``TestButtonMinSize``.**
+    A clickable layer is very often decorative art retargeted onto an existing
+    button that already clears the floor, so a hard failure on the decal's own
+    size would be a false positive on an already-accessible control — and
+    ``game/ui/CLAUDE.md``'s standing rule forbids resizing designer art to
+    silence a lint.
+    """
+    captured, _view_w, _view_h = _capture_screen_ids()
+    screens_dir = DATA / "ui" / "screens"
+    out = []
+    for screen_id, ids in sorted(captured.items()):
+        path = screens_dir / f"{screen_id}.json"
+        if not path.is_file():
+            continue
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8")) or {}
+        except (OSError, ValueError):
+            continue
+        widgets_spec = doc.get("widgets") or {}
+        for name, (_kind, widget) in sorted(ids.items()):
+            layers = (widgets_spec.get(name) or {}).get("layers") or []
+            owner_rect = getattr(widget, "rect", (0, 0, 0, 0))
+            for index, entry in enumerate(layers):
+                if not isinstance(entry, dict) or not entry.get("clickable"):
+                    continue
+                resolved = ui_layers.resolve(entry, owner_rect, "idle")
+                out.append((screen_id,
+                            f"{name}.{entry.get('id') or index}",
+                            tuple(resolved["rect"])))
+    return out
+
+
 class TestButtonMinSize(unittest.TestCase):
     """UR-5 §1(c): no click target below the logical-pixel floor."""
 
@@ -171,11 +219,20 @@ class TestButtonMinSize(unittest.TestCase):
             f"button(s) under the {MIN_HARD}px logical click-target floor")
 
     def test_report_small_click_targets(self):
-        """NON-BLOCKING lint: print the under-16 roster, assert nothing."""
+        """NON-BLOCKING lint: print the under-16 roster, assert nothing.
+
+        UL-10 widened the roster to CLICKABLE LAYERS as well as buttons —
+        same prefix, same never-fails contract, and deliberately NOT the hard
+        floor above (see `_clickable_layers`). Layers report from 0px up,
+        since they are not subject to `MIN_HARD` at all.
+        """
         small = sorted(
-            (min(rect[2], rect[3]), f"{sid}.{name}", rect)
-            for sid, name, rect, _label, _font in _buttons()
-            if MIN_HARD <= min(rect[2], rect[3]) < MIN_LINT)
+            [(min(rect[2], rect[3]), f"{sid}.{name}", rect)
+             for sid, name, rect, _label, _font in _buttons()
+             if MIN_HARD <= min(rect[2], rect[3]) < MIN_LINT]
+            + [(min(rect[2], rect[3]), f"{sid}.{name} (layer)", rect)
+               for sid, name, rect in _clickable_layers()
+               if min(rect[2], rect[3]) < MIN_LINT])
         if small:
             print(f"\n[UR-5 lint] {len(small)} click target(s) between "
                   f"{MIN_HARD} and {MIN_LINT} logical px — eyeball, do not "

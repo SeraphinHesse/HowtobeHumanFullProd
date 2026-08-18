@@ -90,6 +90,24 @@ def is_anchor_rect(rect):
     return rect[2] <= 0 or rect[3] <= 0
 
 
+def resolve_align(spec, override):
+    """The alignment `interaction_rect` should measure against (UL-1).
+
+    The designer's OVERRIDE `align` if set (`data/ui/screens/<id>.json`'s
+    `widgets.<id>.align`, which the game reads back through
+    `widgets.submit_label`), else the DEFAULT recorded in
+    `screen_defaults.json` (an editor-only measuring hint the exporter took
+    off the code holder), else "left" — `submit_label`'s own fallback.
+
+    `spec` is the widget's `screen_defaults.json` entry, `override` is the
+    screen doc's per-widget override dict; both may be `{}`. Without this the
+    editor's hit box for a re-aligned position-only anchor lands beside the
+    glyphs instead of on them (the `hud.round_label` failure in
+    `game/ui/CLAUDE.md`, now reachable from the doc rather than only from
+    code)."""
+    return (override or {}).get("align") or (spec or {}).get("align", "left")
+
+
 def interaction_rect(rect, *, text=None, font_key="md", align="left"):
     """The box the editor hit-tests and outlines for a widget at `rect`.
 
@@ -118,6 +136,27 @@ def interaction_rect(rect, *, text=None, font_key="md", align="left"):
     elif align == "right":
         x -= w
     return (x, y, w, h)
+
+
+def layer_interaction_rect(resolved_rect, *, text=None, font_key="md",
+                           align="left"):
+    """The box the editor hit-tests and outlines for ONE LAYER (UL-7).
+
+    `resolved_rect` is what `engine.ui_layers.resolve(...)["rect"]` returned
+    for this layer — ALREADY absolute, already carrying the D2 offset math and
+    the UL-5 state patch. This function deliberately takes the RESOLVED rect
+    rather than the raw `offset` + owner rect the brief sketched: D3 pins the
+    offset math to `engine.ui_layers` as its single home, and re-deriving
+    `owner + dx` here would be a second copy of it that can drift.
+
+    All this adds on top is the same zero-extent growth `interaction_rect`
+    gives a position-only widget anchor. A layer whose `offset` w/h is 0
+    INHERITS its owner's w/h, so it is zero-extent only when its owner is
+    itself an anchor — and then the layer would be an ungrabbable dot without
+    this, exactly like the widget case.
+    """
+    return interaction_rect(resolved_rect, text=text, font_key=font_key,
+                            align=align)
 
 
 def widget_display_name(widget_id, spec):

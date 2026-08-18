@@ -1,453 +1,643 @@
-<!-- active-plan: VfxAuthoringPLAN.md | set: 2026-08-13 -->
-> **Active plan:** VfxAuthoringPLAN.md (mirror). Source of truth:
-> `planning/VfxAuthoringPLAN.md`. Do **not** edit this file directly — edit the
+<!-- active-plan: UiLayeredWidgetsPLAN.md | set: 2026-08-14 -->
+> **Active plan:** UiLayeredWidgetsPLAN.md (mirror). Source of truth:
+> `planning/UiLayeredWidgetsPLAN.md`. Do **not** edit this file directly — edit the
 > source in `planning/` and re-run `/setcurrentplan`, or pick a different
 > plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
 > screen).
 
-<!-- status: COMPLETE — 8/8 phases (VA-1–VA-8), authored + completed 2026-08-13 -->
-<!-- plan-scale: medium -->
+<!-- plan-scale: large -->
+<!-- status: 0/4 sections, 0/12 phases -->
 
-# VfxAuthoringPLAN.md — Authoring the VFX roster
+# UiLayeredWidgetsPLAN.md — a widget is a stack
 
-Phased, agent-executable plan (same family as `EntitySceneVfxPLAN.md` /
-`AgentDispatchPLAN.md`). Base branch: `Development`; work branch
-`vfx-authoring`. Runnable via `/execute-plan-phases planning/VfxAuthoringPLAN.md
-VA-1-VA-8` or phase-by-phase. Four packages: **data · engine · game · editor**.
+Phased, agent-executable plan (same family as `UiTextBindingPLAN.md` /
+`UiEditorParentingPLAN.md`). Base branch: `Development`. Runnable via
+`/execute-plan-phases planning/UiLayeredWidgetsPLAN.md` (section mode — see
+line 1) or section by section.
 
-Direct successor to `planning/completed plans/EntitySceneVfxPLAN.md`. Read that
-plan's §7 (post-plan live-testing follow-ups) before touching anchors or draw
-order — it records four bugs this area has already produced.
+## 1. Context
 
-## 1. Vision
+The designer's `UI Document.md` describes every screen as **folders of pieces**.
+A button is not one thing: it is a Munchkin, an icon, the button art and a
+background, each with its own position, its own colour, and its own look for
+hover and click. The HUD's love counter is a folder holding an icon, a number
+and a widget background.
 
-ESV gave the designer control over how each effect *looks*: procedural params in
-`data/balancing/vfx.json`, a live preview panel, a `triggers` table binding ten
-game events to a `vfx_*` spritesheet or a procedural kind.
+The game does not see it that way. A widget is ONE picture in ONE box: a
+`Button` or a label holder in a screen's `ids: {name: (kind, widget)}` dict,
+mutated in place by `ScreenSkinning.apply()`'s flat setattr loop
+(`game/ui/skinning.py`). Per-state ART already works — `slots.json`'s `ui`
+category vocabulary is `["idle", "hover", "pressed", "disabled"]`, one manifest
+row per state — but there is only ever one picture, so there is nothing to move
+independently and nothing to give a separate colour to. Adding a background
+behind the love counter is a code change today.
 
-It gave no control over the **roster**. You cannot add an effect, remove one,
-rename one, or give one alternate art. Three things the designer wants are not
-in the system at all — the building respawn, the tile-selection outline, and the
-2×2 section outline. And no effect can say whether it draws over or under the
-things on the map.
+**Outcome.** A widget becomes a **stack**: on top of (and behind) its own art it
+carries as many layers as the designer adds, each with its own offset, art,
+tint, colour, visibility and per-state appearance — authored entirely in the
+editor, saved into `data/ui/screens/<id>.json`, drawn by the game. Layers may
+also be their own click targets.
 
-After this plan a designer can, without an agent:
+### What already landed (do NOT redo)
 
-- **Add, remove and rename** VFX effects and their variants from the editor,
-  with the imported art, the manifest entry and the trigger bindings following
-  the rename.
-- **Give an effect alternate art** and choose how a variant is picked at play
-  time — at random, by the source's level (era for enemies, tier for buildings),
-  or by a named misc value that code hooks up later.
-- **Author the respawn effect and all seven tile highlights** the same way as
-  every other effect: tunable, previewable, replaceable by a spritesheet.
-- **Say whether an effect draws in front of or behind** the buildings and
-  enemies, per effect.
-
-## 2. Architecture
-
-```
-data/                              engine/                        game/ + editor/
-─────                              ───────                        ───────────────
-slots.json  vfx category           coords/system.py               game/vfx_misc.py   (NEW)
-  Effects ▸ per-effect leaf          depth_key(..., rank)  ◄──┐     misc provider registry
-  groups  (RESTRUCTURE, VA-1)                                 │
-    └─ variants <stem>_v<k>        render/item.py             ├─► game/ui/effects.py
-                                     WorldRect (NEW)          │     _play  (one-shot)
-schemas/vfx.schema.json              screen-px size,          │     _submit_highlight (NEW,
-  trigger_row                        world depth, rank        │        continuous)
-    + variant_select {mode,        vfx/system.py              │     variant resolve site
-        misc_key}                    submit_world (NEW) ──────┘
-    + draw_in_front                                             editor/registry_ops.py
-    sprite_slot enum: GENERATED    vfx/params.py                  add_vfx_effect (NEW)
-                                     +8 param dataclasses         remove_slot    (NEW)
-balancing/vfx.json                                                rename_slot    (NEW)
-  procedural.respawn      (NEW)                                 editor/panels/vfx_preview.py
-  procedural.highlights.* (NEW ×7)                                roster strip, trigger bind,
-  triggers +8 rows                                                variant-select, layer bool
-ui/palette.json
-  −highlight −highlight2 −range_highlight   (move to vfx.json)
-```
-
-### Decisions (with rationale)
-
-- **D1 — The `vfx` slot category becomes one leaf child group per effect.**
-  Variants in this repo are `<stem>_v<k>` slots inside a leaf *child* group;
-  `selection.variant_target()` returns `None` for a flat `slots` list, so
-  `registry_ops.add_variant` is unreachable and "+ Variant" silently dies.
-  `data/CLAUDE.md` already states this as the reason every `ui` group is a
-  parent-with-children. `walls` and `conditions` set the same precedent. **Zero
-  schema change** — `$defs/group_node` already recurses.
-
-- **D2 — `vfx.schema.json`'s `sprite_slot` enum becomes generated.** It is
-  hand-typed and already stale: six keys against thirteen real slots. Add,
-  remove and rename each break it, silently, in the direction that matters
-  (a valid binding rejected, or a dangling one accepted). `tools/
-  gen_sprite_slot_enum.py` already regenerates `core.schema.json`'s slot enum
-  from the live `SlotRegistry`, with `tools/tests/test_schema_slot_sync.py` as
-  the CI drift gate. Extend both rather than growing a second mechanism.
-  **`trigger_row.procedural` is NOT generated** — a correction made during
-  VA-1, which had planned to generate both. Its values name game-code kinds
-  (`game/ui/effects.py::_run_procedural`'s if/elif ladder), not `procedural.*`
-  balancing keys: `spark_place`/`spark_level`/`spark_tier` are spark PRESETS
-  with no key of their own, and several `procedural.*` blocks (`floaters`,
-  `projectile`, `drummer_aura`, …) are not one-shot kinds at all. Generating
-  it from the balancing doc would rewrite the enum into something the shipped
-  trigger rows fail against. The kind vocabulary is code-owned (D9); only the
-  slot list is data.
-
-- **D3 — Variants are spritesheet-only** (user's call). A procedural effect
-  keeps its single param block. A "procedural variant" would mean N param sets
-  per family, which multiplies the schema, the dataclasses and the preview by
-  the variant count for a lever the designer did not ask for.
-
-- **D4 — Level mode resolves to variant 0 where no source object is in hand**
-  (user's call). Five of the ten events carry only a world point; only
-  `building_destroyed`, `enemy_attack_melee` and `enemy_attack_ranged` hold the
-  object (`watch_buildings`/`watch_enemies`). Widening `RunState.*_events` and
-  the `resolve_combat` callbacks to thread a tier through is a real cost for a
-  cosmetic lever, and the fallback is visible and explainable in the editor.
-
-- **D5 — ONE `draw_in_front` bool, implemented as a depth-key rank, not a
-  layer switch.** Buildings and enemies share the `entities` layer and sort by
-  iso depth, so no layer choice can express "in front of buildings but behind
-  enemies" — which is why there is one bool and not two. `depth_key` gains a
-  fourth element: `(layer_index, wx+wy, wy, rank)`. Entities keep rank 0; an
-  effect submits ±1. The effect stays on `entities`, so real iso depth survives
-  — an effect on a near tile still draws over a building on a far one — and the
-  bool decides only the same-tile tie, which is where front/behind is actually
-  visible. Switching the effect to `deco`/`terrain` instead would discard iso
-  depth entirely. The layer-primary invariant the ground cache depends on is
-  untouched: layer is still element 0.
-
-- **D6 — Procedural effects need a screen-pixel-sized, world-depth-sorted
-  primitive: `WorldRect`.** Sparks, slashes and muzzle motes are `HudRect`s
-  drawn dead last, so they cannot participate in D5 at all. `submit_world_fill`
-  is the existing depth-sorted primitive but its polygon is world-space and
-  scales with zoom — wrong for a particle, which is a fixed pixel size.
-  `WorldRect` is `WorldFill`'s shape with a pixel rect instead of world points.
-
-- **D7 — The tile highlights are CONTINUOUS, so they get their own dispatcher.**
-  `_play` spawns a `PlayOnceVfx` with a despawn clock; a selection outline is
-  drawn every frame for as long as the tile is selected. `_submit_highlight
-  (event, col, row)` is its sibling: the bound slot's sheet as a looping
-  `RenderItem` when it has art (the same `animation_total_ms(...) is not None`
-  test every art-tolerant site uses), else the existing `submit_tile_diamond`.
-  Forcing a highlight through `PlayOnceVfx` would respawn it every frame.
-
-- **D8 — The three palette highlight colours MOVE to `vfx.json`; they are not
-  copied.** `highlight`, `highlight2` and `range_highlight` are in
-  `data/ui/palette.json` today. Leaving them there and adding them to `vfx.json`
-  is two homes for one value (G-7) — the exact dead-data gap ESV-3a opened with
-  `procedural.floaters` and ESV-6 had to close. `configure_palette` raises on a
-  key-set mismatch, so removing them from `_PALETTE_KEYS` is loud, never silent.
-  `C_MOVE_HIGHLIGHT`/`C_TUTORIAL_HIGHLIGHT` are bare code constants and move the
-  same way.
-
-- **D9 — The event vocabulary stays code-owned; bindings are open** (user's
-  call). `triggers` keeps its closed, all-required schema; this plan adds eight
-  keys to it and no mechanism for a designer to invent a ninth. An open registry
-  would let a designer author a row nothing ever fires — inert data that looks
-  live. `/add-vfx`'s `triggers_by_type` proposal is explicitly NOT adopted here.
-
-- **D11 — `building_respawn` is a fourth `spark` PRESET, not a new
-  `procedural.respawn` block** (corrected during VA-4, on reading the data).
-  `spark_place`/`spark_level`/`spark_tier` already prove the shape for
-  "another one-shot burst at a tile, independently tunable": three names, ONE
-  emitter, one shared velocity/ramp/size block, differing only by a `presets`
-  entry — and `_params_from_balance` builds that dict generically from
-  `spark["presets"].items()`. So a fourth preset costs a schema entry and zero
-  code, where a new block costs a dataclass, a required `VfxParams` field
-  (breaking every direct construction), an `editor/vfx_params.py` mirror and a
-  preview path. It also shrinks VA-8 by one family: respawn previews for free
-  as a spark preset. The row ships DOING something rather than inert —
-  a respawn effect that plays nothing is the feature not being there.
-
-- **D10 — Every trigger row ships `draw_in_front: true`.** That reproduces
-  today's always-on-top behaviour exactly, so VA-3 is a visual no-op and nothing
-  moves until a designer unticks a box. Same doctrine as ESV-1/ESV-3 landing
-  byte-identical.
-
-## 3. Package routing (read the ONE doc per phase)
-
-| Phase touches | Read |
+| Landed | Where |
 |---|---|
-| `slots.json` restructure, vfx schema, balancing rows | `data/CLAUDE.md` |
-| `depth_key`, `WorldRect`, `VfxSystem` | `engine/CLAUDE.md`, `engine/render/CLAUDE.md` |
-| respawn ledger, highlight dispatcher, palette move | `game/CLAUDE.md`, `game/ui/CLAUDE.md` |
-| registry ops, VFX panel | `editor/CLAUDE.md`, `editor/panels/CLAUDE.md` |
+| Every stat/string is an id'd, movable, re-textable widget (`text_id`, `submit_label`) | `UiTextBindingPLAN.md` UT-1..UT-7 — **done** |
+| One 640×360 logical UI space | `UiResolutionPLAN.md` UR-1..UR-3 — **done** |
+| Widget parent tree, outliner as a `QTreeWidget`, edit-time move cascade, `editor/widget_tree.py` | `UiEditorParentingPLAN.md` P-1..P-5 — **landed** |
+| Position-only text anchors are selectable/draggable; live X/Y/W/H spinboxes | `editor/panels/_screen_primitives.py`, `editor/panels/screen_details.py` |
+| `align` + `font_key` recorded per widget as editor DRAW HINTS | `data/schemas/screen_defaults.schema.json`, `tools/export_ui_layouts.py::_widget_entry` |
+| Custom font import + a game-wide active face | `data/fonts/font_manifest.json`, `data/ui/active_font.json` — fonts already import and work |
+| The whole draw list of every screen, replayed behind the editor's widget boxes | `data/ui/screen_previews.json` (UT-2) |
 
-VA-2, VA-4 and VA-5 are cross-package — tell the user; they decide whether the
-executing agent reads both docs.
+Read `game/ui/CLAUDE.md`, `data/CLAUDE.md`'s "UI screen data" section and
+`editor/panels/CLAUDE.md` before touching a phase. Test policy is the root
+`CLAUDE.md` §"Test Suite Policy" — this doc states no rule of its own.
 
-## 4. Build order
+## 2. Decisions (with rationale)
 
-| Phase | Scope | Package | Depends on | Status |
-|-------|-------|---------|------------|--------|
-| VA-1 | vfx slot restructure + generated schema enums | data + tools | — | **done** |
-| VA-2 | `variant_select`/`draw_in_front` schema; resolver; `vfx_misc` | data + game | VA-1 | **done** |
-| VA-3 | `depth_key` rank; `WorldRect`; `submit_world` | engine | — | **done** (also `WorldLines` — a slash is lines, so the world submit needed both) |
-| VA-4 | `building_respawn` trigger | game + data | VA-2 | **done** (a 4th `spark` PRESET, not a new `procedural.respawn` block — see D11) |
-| VA-5 | seven highlights → trigger-driven; palette move | game + data | VA-2, VA-3 | **done** |
-| VA-6 | `registry_ops` add/remove/rename; vfx variants | editor | VA-1 | **done** (+ the ops resync the generated enum) |
-| VA-7 | VFX panel roster/binding/variant/layer UI | editor | VA-6, VA-2 | **done** |
-| VA-8 | preview paths for the new families | editor | VA-4, VA-5, VA-7 | **done** (ONE family, not eight — respawn rides `spark` per D11) |
+- **D1 — Layers live in the OVERRIDE doc, never in `screen_defaults.json`.**
+  A new optional `layers` array on `ui_screen.schema.json`'s per-widget override
+  object. The designer's whole ask is "no programmer involved":
+  `screen_defaults.json` is generated by `tools/export_ui_layouts.py` from what
+  the CODE lays out, so a layer authored there would need a code change to
+  exist. The override doc is the designer's file.
+- **D2 — A layer's geometry is an OFFSET from its owner's post-override rect,
+  never an absolute rect.** Every screen's `layout()` recomputes widget rects
+  each frame, and `UiEditorParentingPLAN` D2 deliberately kept saved rects
+  ABSOLUTE with **no runtime cascade**. An absolute layer would detach the
+  instant `layout()` moved its owner (the HUD readouts, which are computed off
+  `love_panel`'s live rect, would break first). Offsets are `[dx, dy, w, h]`; a
+  `w`/`h` of `0` means "match the owner's".
+- **D3 — The pure geometry/state resolver lives in `engine/`, not `game/` or
+  `editor/`.** Both the game (drawing) and the editor (previewing) must resolve
+  a layer to the SAME rect, and `editor/` may never import `game/` (strict
+  layering). `editor/widget_tree.py` could be an editor-only duplicate because
+  parenting is authoring-only; layer geometry is not. New module
+  `engine/ui_layers.py`, pygame-free, in `TestPurity`.
+- **D4 — Two submission BANDS, `under` and `over`, one call each.** The HUD pass
+  has no depth sort — draw order IS submission order (`game/ui/CLAUDE.md`,
+  "HUD submission order") — so a z-index is meaningless without a real call
+  site. Each screen's `submit()` calls the layer submitter once at the top
+  (`under`) and once at the end (`over`); `z` orders layers WITHIN a band.
+  - Consequence to accept and document: an `under` layer sits behind
+    everything on that screen, not just behind its own owner. That is exactly
+    right for "Widget Bg" and wrong for "a background between two stacked
+    panels". Say so in the editor's tooltip.
+- **D5 — Golden parity is the landing condition of every runtime phase.** With
+  no `layers` authored the submitter emits nothing, so
+  `tools/tests/test_ui_skinning.py`'s baselines and `data/ui/screen_previews.json`
+  stay byte-identical. A phase that moves either has done something wrong.
+- **D6 — The seven shipped font presets stay REQUIRED and PINNED; custom presets
+  are additive** (user decision). `fonts.schema.json` opens to extra
+  `^[a-z][a-z0-9_]*$` keys; `configure_fonts`'s key-set check relaxes from
+  "exact match" to "the seven must be present, extras allowed". `game/ui/CLAUDE.md`'s
+  rule — presets are global, widening `md` overflows containers everywhere —
+  is preserved by construction: a designer adds `title_big`, never resizes `md`.
+  - A custom preset needs a `_LAYOUT_H` value. It is **derived once inside
+    `configure_fonts` and stored**, never measured live at each call site — the
+    pinned-heights invariant exists because SysFont measures ±1px differently
+    per platform and every stored rect must be reproducible on any machine.
+- **D7 — A clickable layer either RETARGETS an existing widget or names one of a
+  RESERVED enum of new action tokens** (user decision). Free text is rejected:
+  the schema's enum is closed, so a mistyped or not-yet-coded action fails
+  validation in the editor instead of shipping a silently dead button
+  (ED-30, "invalid input unrepresentable"). Retarget = the layer fires the named
+  widget id's own action, so the Munchkin can drive the Pause button — or a
+  *different* button. The reserved-token list is an open item (§5) and must be
+  named before UL-9.
+- **D8 — The hit resolver is PURE, and every screen consults it BEFORE its own
+  hit logic.** `main.py` calls `Hud.hit()` **twice per click** (the pan-arming
+  probe on MOUSEBUTTONDOWN, the real handler on MOUSEBUTTONUP), which is why
+  `Hud.hit()` is documented as a pure read and why `MapOverlays.hit()`'s
+  self-toggling pattern must never be copied into it. A resolver that mutated
+  state would double-fire and cancel itself.
+- **D9 — Per-state appearance reuses the EXISTING four-state vocabulary**
+  (`idle`/`hover`/`pressed`/`disabled`), not a new one. It is already
+  `slots.json`'s `ui` animation vocabulary, already one manifest row each, and
+  already what a `Button` tracks internally — so per-state colour and position
+  ride the same state the per-state art already resolves through.
+- **D10 — The three life counters are three id'd widgets, not one repeated
+  draw.** `life_1`/`life_2`/`life_3` join `hud.py`'s `ids` dict as ordinary
+  holders, each carrying its own layer stack, so the designer positions and
+  skins them individually. `lives_text`/`icon_lives` stay (a numeric readout is
+  still useful and removing an id breaks the on-disk contract).
 
-Ordering rule, inherited: **nothing changes visible behaviour until the piece
-behind it is real.** VA-1 through VA-4 land as visual no-ops.
+## 3. Section map
 
----
+| Section | Title | Phases | Depends on | Status |
+|---|---|---|---|---|
+| S1 | Quick wins — alignment and fonts | UL-1, UL-2 | — | not started |
+| S2 | The layer model | UL-3, UL-4, UL-5 | — | not started |
+| S3 | Layers in the editor | UL-6, UL-7, UL-8 | S2 | not started |
+| S4 | Clickable layers + life counters | UL-9, UL-10, UL-11, UL-12 | S2, S3 | not started |
 
-## VA-1 — Slot restructure + generated enums
-
-**Goal.** The `vfx` category can host variants, and the schema's slot enum stops
-being a hand-typed list that add/remove/rename would silently break.
-
-**Files.** Modified: `data/slots.json` (the `vfx` category's `Effects` group
-gains `children`, one leaf per effect, replacing the flat `slots` list — the
-`vfx_crater` frame-size override rides along);
-`tools/gen_sprite_slot_enum.py` (also regenerate `vfx.schema.json`'s
-`$defs/trigger_row.sprite_slot` enum, plus the `procedural` enum from the live
-`procedural.*` keys); `data/schemas/vfx.schema.json` (enums become generated
-output); `tools/tests/test_schema_slot_sync.py`.
-
-**Tests.** The registry still resolves all 13 slots and their frame sizes after
-the restructure; `selection.variant_target()` now returns a target for a vfx
-node; the generated `sprite_slot` enum equals the live vfx slot key set; the
-drift gate fails on a hand-edited enum.
-
-**Exit gate.** `py tools/smoke.py` ·
-`py -m pytest tools/tests/test_registry.py tools/tests/test_schema_slot_sync.py -q` ·
-Quick Test: `py editor/main.py`, open the VFX node — every effect still lists and
-its art still resolves.
-
----
-
-## VA-2 — Variant selection + the layering bool
-
-**Goal.** A trigger row can say how to pick among a slot's variants, and whether
-its effect draws in front of or behind the entities. Nothing reads the bool yet
-(VA-3 does); the resolver picks variant 0 for every un-varianted slot, so this
-lands as a no-op.
-
-**Files.** Modified: `data/schemas/vfx.schema.json` (`$defs/trigger_row` gains
-`variant_select` — `{mode: "random"|"level"|"misc", misc_key: string}` — and
-`draw_in_front: boolean`, both required, D9's closed-object style);
-`data/balancing/vfx.json` (all ten rows get `{"mode":"random","misc_key":""}`
-and `draw_in_front: true`, D10); `game/ui/effects.py` (`_triggers_from_balance`
-carries the two new fields; resolve the variant before `spawn_play_once`).
-New: `game/vfx_misc.py` (`register(key, fn)` / `resolve(key) -> int`, unregistered
-→ 0); a pure variant resolver beside it.
-
-**Tests.** A slot with no variants resolves to itself under every mode; random
-mode with an injected seeded rng picks deterministically from the family; level
-mode clamps an out-of-range tier and returns variant 0 at an object-less event
-(D4); an unregistered misc key returns 0 and never raises; the ten shipped rows
-validate.
-
-**Exit gate.** `py tools/smoke.py` ·
-`py -m pytest tools/tests/test_vfx.py -q` ·
-Quick Test: `py game/main.py` — every effect plays exactly as before.
-
----
-
-## VA-3 — Depth rank + `WorldRect`
-
-**Goal.** The render layer can express "this draws behind the thing on its tile"
-for a fixed-pixel-size item. Byte-identical output until something passes a
-non-zero rank.
-
-**Files.** Modified: `engine/coords/system.py` (`depth_key(wx, wy,
-layer_index=0, rank=0)` → 4-tuple); `engine/render/item.py` (`WorldRect`
-beside `WorldFill`; `rank` field on the depth-participating items);
-`engine/render/renderer.py` (`submit_world_rect`; the `flush` sort passes
-`rank`); `engine/vfx/system.py` (`submit_world` beside `submit_hud`).
-
-**Re-read `engine/render/` before starting** — `Development` gained
-`backend_gpu.py`, `ground_cache_gpu.py`, `backend_api.py` and a
-`flush(target, hud_target=…)` split since this plan's exploration. Both backends
-must draw a `WorldRect`.
-
-**Tests.** `depth_key` with default rank sorts identically to the 3-tuple on a
-representative queue; equal-depth items order by rank; a rank never outranks the
-layer (the ground-cache invariant); a `WorldRect` renders through both backends;
-`VfxSystem.submit_world` emits the same rects `submit_hud` does, at the same
-screen positions.
-
-**Exit gate.** `py tools/smoke.py` ·
-`py -m pytest tools/tests/test_render.py tools/tests/test_coords.py tools/tests/test_vfx.py -q` ·
-Quick Test: `py game/main.py` — sparks, slashes and muzzle motes look unchanged.
+**Waves:** W1 = **S1 + S2** (concurrent — S1 touches fonts/align only, S2 touches
+the layer schema and the draw path; no shared file). W2 = **S3**. W3 = **S4**.
 
 ---
 
-## VA-4 — `building_respawn`
+### Section S1 — Quick wins: alignment and fonts
 
-**Goal.** A building revived by payday plays an effect at its tile.
+**Purpose.** The two asks from the designer's opening list that depend on
+nothing else: text alignment editable per piece of text, and font sizes the
+designer defines. Independent of layers, so it ships first and gives the
+designer something usable in the first week. Fonts already import and work —
+this section makes the SIZES authorable, not the faces.
 
-**Files.** Modified: `game/core/payday.py` (the slot-9 `b.rebuild()` loop
-appends to a new ledger — the building and its tile are both already in scope);
-`game/core/run_state.py` (`building_respawn_events`, the `painter_events` shape);
-`game/main.py` (drain on the INCOME phase edge, beside `spawn_painter_events`);
-`game/ui/effects.py` (`spawn_building_respawn_events` + the `_play` call);
-`data/schemas/vfx.schema.json` + `data/balancing/vfx.json` (the trigger row and
-a `procedural.respawn` block); `engine/vfx/params.py` (its dataclass — APPEND
-only, and every direct `VfxParams(...)` construction needs the new argument:
-`editor/vfx_params.py` and `tools/tests/test_vfx.py`'s `VFX_PARAMS`);
-`data/slots.json` (a `vfx_respawn` effect group).
+**Publishes.**
+- `align` as a real per-widget key in `ui_screen.schema.json` (`"left" |
+  "center" | "right"`), honoured by the game at draw time — not just the
+  editor draw hint it is today.
+- `data/ui/fonts.json` accepts arbitrary extra preset keys beside the seven
+  required ones; `engine.render.fonts.configure_fonts` accepts them and derives
+  a `layout_h` for each; any `font_key` override may name a custom preset.
+- The editor's per-widget Alignment control and the Theme panel's
+  add/remove-preset rows.
 
-**Tests.** A payday that revives a building fills the ledger once per building;
-a payday with `building_revive` off fills nothing; the drain plays the effect at
-the building's tile and clears the ledger; with no art the procedural fallback
-runs (E-37).
+**Depends on.** —
 
-**Exit gate.** `py tools/smoke.py` ·
-`py -m pytest tools/tests/test_payday.py tools/tests/test_vfx.py -q` ·
-Quick Test: `py game/main.py`, lose a building, reach a payday with revive
-unlocked — the effect plays where it comes back.
+| Phase | Scope (package) | Status |
+|---|---|---|
+| UL-1 | Alignment as a real override (data + game + editor) | not started |
+| UL-2 | Designer-defined font presets (data + engine + editor) | not started |
 
----
+#### Phase UL-1 — Text alignment becomes editable
 
-## VA-5 — The seven tile highlights
+**Goal.** A designer picks Left / Centre / Right for any text widget in the
+editor and the game draws it that way. Today `align` is recorded into
+`screen_defaults.json` as an editor-only measuring hint and the game reads
+alignment off a code-set holder attribute (`hud.round_label` is the one widget
+that declares `align="center"`).
 
-**Goal.** `tile_selected`, `section_2x2`, `attack_range`, `move_target`,
-`wall_edge`, `upgrade_batch` and `tutorial_highlight` become effects: tunable,
-bindable to a spritesheet, and subject to the layering bool.
+**Files.**
+- Modified: `data/schemas/ui_screen.schema.json` (optional `align` enum on the
+  per-widget override object — no `game/ui/skinning.py` change needed, its
+  generic setattr loop already threads any key onto the widget, the same way
+  `tint` and `text_id` ride for free).
+- Modified: `game/ui/widgets.py` — confirm `submit_label`'s
+  `getattr(holder, "align", "left")` path covers every converted call site, and
+  convert any remaining bare `submit_text(...)` that a designer would expect to
+  align.
+- Modified: `editor/panels/screen_details.py` — an Alignment combo beside the
+  X/Y/W/H spinboxes, on the existing live-commit/undo path.
+- Modified: `editor/panels/_screen_primitives.py` — the interaction rect for a
+  position-only anchor must follow the OVERRIDE's align, not only the default's.
 
-**Files.** Modified: `game/ui/effects.py` (`_submit_highlight`, D7);
-`game/ui/building_ui.py` (`_highlight_tiles` entries carry the event name, not a
-colour — the five fill sites and the `submit()` draw loop);
-`game/main.py` (the tutorial and drag-select highlight sites);
-`game/ui/widgets.py` (drop `C_MOVE_HIGHLIGHT`/`C_TUTORIAL_HIGHLIGHT` and the
-three palette-backed keys from `_PALETTE_KEYS`, D8);
-`data/ui/palette.json` (remove the three keys);
-`data/schemas/palette.schema.json`; `data/schemas/vfx.schema.json` +
-`data/balancing/vfx.json` (seven trigger rows + `procedural.highlights.*`);
-`engine/vfx/params.py`; `editor/vfx_params.py`; `data/slots.json` (seven slots).
+**Tests.** New `tools/tests/test_ui_align.py` (override applies; each of the
+three values measures its anchor box the right way; an absent key is `left`).
+Existing `tools/tests/test_ui_skinning.py` must not move.
 
-**Tests.** Each highlight draws with the colour from `vfx.json`, not a constant;
-`configure_palette` still raises on a mismatched key set (the removal is
-coordinated, not silent); a highlight with imported art draws the sheet and
-without it draws the diamond; the 2×2 section still highlights the clicked tile
-plus its three chunk siblings; `draw_in_front: false` puts a highlight behind a
-same-tile building **asserted against the depth queue, not by reordering submits**
-(reordering an overlay submit is a documented no-op).
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_ui_align.py tools/tests/test_ui_skinning.py -q
+```
+**Quick Test (in game):** set `hud.love_text`'s `align` to `right` in
+`data/ui/screens/hud.json`, run `py game/main.py`, confirm the love number
+spreads leftward from its stored x and the icon does not move.
 
-**Exit gate.** `py tools/smoke.py` ·
-`py -m pytest tools/tests/test_vfx.py tools/tests/test_building_ui.py -q` ·
-Quick Test: `py editor/main.py` retint the selection outline; `py game/main.py`
-select a tile and a 2×2 section and see it.
+#### Phase UL-2 — Designer-defined font presets
 
----
+**Goal.** The designer adds their own preset (name + size + bold) in the editor's
+Theme panel and assigns it to any widget. The seven shipped presets stay exactly
+as they are (D6).
 
-## VA-6 — Add, remove, rename
+**Files.**
+- Modified: `data/schemas/fonts.schema.json` — the seven keys stay `required`;
+  `additionalProperties` becomes the same `{size, bold}` object shape under a
+  `^[a-z][a-z0-9_]*$` pattern.
+- Modified: `engine/render/fonts.py` — `configure_fonts` accepts extras
+  (missing-key check stays loud, unknown-key check goes); `_LAYOUT_H` gains a
+  derived entry per custom preset, computed once at configure time (D6).
+- Modified: `editor/panels/game_theme.py` + `editor/theme_ops.py` — add/rename/
+  remove a custom preset, staged through the existing `write_validated` path.
+- Modified: `editor/panels/screen_details.py` — the font combo lists custom
+  presets alongside the seven.
 
-**Goal.** The three verbs exist as pure ops, tested, before any UI calls them.
+**Tests.** New `tools/tests/test_font_presets.py` (a custom preset configures,
+gets a `layout_h`, and survives a reconfigure; dropping one of the seven still
+fails loud). Existing `tools/tests/test_theme_data.py` parity must not move.
 
-**Files.** Modified: `editor/registry_ops.py` — `add_vfx_effect(data_dir,
-name)` (the `add_button_family` stack: slug derivation, validate-before-any-write,
-`_append_child_group`), `remove_slot(data_dir, slot_key)` (refuse while bound in
-any `triggers` row; drop the manifest entry; drop the leaf group when it empties;
-unlink the PNG **only** when `asset_import.unreferenced_sheets` clears it),
-`rename_slot(data_dir, old_key, new_key)` (rekey `slots.json` and the manifest
-entry, rename `data/sprites/imported/<old>.png` and rewrite `sheet`, rewrite every
-matching `triggers[*].sprite_slot`; validate the new key is free across the whole
-registry first). `editor/main.py` (`"vfx"` into `_VARIANT_TARGETS`).
-
-**Tests.** Add produces a schema-valid `slots.json` and a reachable variant
-target; a duplicate name and a name that slugs to nothing both raise before any
-write; remove refuses a bound slot; remove leaves a PNG that another slot links;
-rename migrates all four references and is a no-op on a free-standing slot;
-every op leaves the tree schema-valid; new modules join `TestPurity`.
-
-**Exit gate.** `py tools/smoke.py` ·
-`py -m pytest tools/tests/test_registry_ops.py -q` ·
-Quick Test: drive the three ops from `py -c` against a temp data dir and diff the
-JSON.
-
----
-
-## VA-7 — The panel
-
-**Goal.** The feature, visible: roster controls, trigger binding, variant-select,
-layering bool.
-
-**Files.** Modified: `editor/panels/vfx_preview.py` (roster strip with the
-live-slug dialog and confirm-before-delete — **wrap the delete connect in a
-lambda**, `clicked(bool)` lands in `confirm=` and skips the dialog; a
-trigger-binding row; mode combo + misc key field + misc value scrubber; the
-`draw_in_front` checkbox); `editor/main.py` (wiring + `_reload_registries()`
-after each registry op); `tools/tests/test_vfx_preview.py`.
-
-**Re-read `vfx_preview.py` first** — it gained 205 lines on `Development` since
-this plan's exploration.
-
-**Tests** (offscreen Qt, temp data dir): each roster control calls its op with
-the right arguments and refreshes the tree; delete asks first; a mode change
-stages into `vfx.json` and does not write; the misc scrubber changes the preview
-without touching data; `TestPurity` covers every new module.
-
-**Exit gate.** `py tools/smoke.py` ·
-`py -m pytest tools/tests/test_vfx_preview.py -q` ·
-Quick Test: the five live steps in §6.
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_font_presets.py tools/tests/test_theme_data.py -q
+```
+**Quick Test (in game):** add a `title_big` preset (size 34, bold) in the Theme
+panel, point `main_menu`'s title at it, run `py game/main.py` and confirm the
+title draws larger while every other screen is unchanged.
 
 ---
 
-## VA-8 — Preview the new families
+### Section S2 — The layer model
 
-**Goal.** Respawn and the seven highlights render live in the preview instead of
-the E-37 placeholder.
+**Purpose.** Teach the game what a layer is, then make it draw one. Nothing
+visible changes until a designer authors a layer — every existing screen must
+look exactly as it does today, and that is how we know it works. This is the
+section every later one is built on.
 
-**Files.** Modified: `editor/panels/vfx_preview.py` (preview paths beside
-`_EMIT_FAMILIES`/`_POINT_FX_FAMILIES`); `tools/tests/test_vfx_preview.py`.
+**Publishes.**
+- `ui_screen.schema.json`'s per-widget optional **`layers`** array. Each entry:
+  `id`, `offset` `[dx, dy, w, h]` (D2), `z` (int, order within a band), `band`
+  (`"under" | "over"`), and the appearance keys `slot`, `text_id`, `label`,
+  `font`, `align`, `color`, `text_color`, `tint`, `visible` — plus an optional
+  `states` object keyed `idle`/`hover`/`pressed`/`disabled`, each holding the
+  same appearance keys plus its own `offset` (D9).
+- **`engine/ui_layers.py`** (pure, pygame-free, `TestPurity`) — the ONE resolver
+  both packages consume (D3): `resolve(layer_spec, owner_rect, state) -> rect +
+  resolved appearance`, `ordered(layers, band)`, `validate_offsets(...)`.
+- **`ScreenSkinning.submit_layers(renderer, screen_id, ids, band, state_of)`** —
+  the single seam every screen calls twice (D4).
+- The per-widget `states` object on the OWNER widget itself, so a button's own
+  text colour and position can differ per state (the designer's item 4).
 
-**Tests.** Each of the eight families selects without the placeholder and
-requests the engine emitter/primitive with the staged params (assert the params,
-never pixels); an unknown family still degrades to the placeholder.
+**Depends on.** —
 
-**Exit gate.** `py tools/smoke.py` ·
-`py -m pytest tools/tests/test_vfx_preview.py -q` ·
-Quick Test: `py editor/main.py`, step the family combo through all eight.
+| Phase | Scope (package) | Status |
+|---|---|---|
+| UL-3 | Layer schema + the pure resolver (data + engine) | not started |
+| UL-4 | The game draws layers (game) | not started |
+| UL-5 | Per-state appearance, layer and owner (data + engine + game) | not started |
+
+#### Phase UL-3 — The layer schema and a pure resolver
+
+**Goal.** Define the shape of a layer and resolve it, with nothing calling the
+resolver yet. Landing condition: **no behaviour change anywhere.**
+
+**Files.**
+- Modified: `data/schemas/ui_screen.schema.json` — the `layers` array above,
+  `additionalProperties: false` throughout, every key optional (a layer override
+  is a partial patch, like every other widget key).
+- New: `engine/ui_layers.py` — pure geometry + appearance resolution. A `w`/`h`
+  of `0` inherits the owner's; a dangling/duplicate layer id resolves to
+  "skip this layer" rather than raising (the `editor/widget_tree.py` D5
+  precedent — a hand-edited doc must never hang a paint handler).
+- Modified: `tools/tests/test_purity.py` fixture list — add `engine/ui_layers.py`.
+
+**Tests.** New `tools/tests/test_ui_layers.py` — offset resolution including the
+`0`-inherits case, band/z ordering stability, state fallback to `idle`, the
+degrade paths.
+
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_ui_layers.py tools/tests/test_purity.py -q
+```
+**Quick Test (in game):** `py game/main.py` boots and every screen is
+byte-for-byte what it was — this phase adds a vocabulary, not a pixel.
+
+#### Phase UL-4 — The game draws layers
+
+**Goal.** A layer authored in `data/ui/screens/<id>.json` appears in the game, in
+the right band, at the right offset, following its owner when `layout()` moves
+it.
+
+**Files.**
+- Modified: `game/ui/skinning.py` — `submit_layers(...)`, emitting `HudSprite` /
+  `HudRect` / `HudText` through `engine.ui_layers` (pure; the same sanctioned
+  HUD-primitive import `skinning.py` already makes).
+- Modified: all 14 exported screens' `submit()` — two calls each, `under` first
+  and `over` last: `add_name`, `boss_cutscene`, `building_panel`, `cheat_menu`,
+  `credits`, `enemy_intro`, `game_log`, `game_over`, `hud`, `levelup`,
+  `main_menu`, `overlays`, `pause`, `settings` (`tools/export_ui_layouts.py`'s
+  `SCREEN_IDS` is the list).
+
+**Tests.** New `tools/tests/test_ui_layer_draw.py` — a fixture screen doc with
+one `under` and one `over` layer produces the expected primitives in the
+expected order; an owner moved by a `rect` override carries its layers.
+`tools/tests/test_ui_skinning.py` golden baselines must be **unchanged** (D5).
+
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_ui_layer_draw.py tools/tests/test_ui_skinning.py -q
+```
+**Quick Test (in game):** hand-author one `under` layer on `hud.love_text`
+pointing at an imported `ui` slot, run `py game/main.py`, confirm the background
+sits behind the love number and moves with it when the widget's `rect` override
+is changed.
+
+#### Phase UL-5 — Per-state appearance
+
+**Goal.** The designer's item 4: a different colour AND position for text and
+icons in each button state — on a layer, and on the owner widget itself.
+
+**Files.**
+- Modified: `data/schemas/ui_screen.schema.json` — the `states` object on both
+  the layer entry and the per-widget override object.
+- Modified: `engine/ui_layers.py` — state resolution with `idle` fallback.
+- Modified: `game/ui/widgets.py` — `Button.submit` resolves its own per-state
+  `text_color`/offset through the same resolver; `submit_label` likewise for a
+  holder that carries one.
+- Modified: `game/ui/skinning.py` — `state_of(widget)` (the pure read of a
+  widget's current state) threaded into `submit_layers`.
+
+**Tests.** Extend `tools/tests/test_ui_layer_draw.py` with a per-state case per
+state; a widget with no `states` key must draw exactly as it does today.
+
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_ui_layer_draw.py tools/tests/test_hud_panel.py -q
+```
+**Quick Test (in game):** give `hud.btn_end_turn` a `hover` state with a
+different `text_color` and a 1px offset; run `py game/main.py` and confirm the
+label recolours and nudges on hover and returns on mouse-out.
 
 ---
 
-## 5. Risks / open items
+### Section S3 — Layers in the editor
 
-- **The palette split (D8)** removes three colours from the editor's theme
-  screen. The alternative — leave them in `palette.json` and have the VFX panel
-  write palette values — is a cross-domain write from a panel that today has
-  zero writers. Flagged to the user at plan time; revisit only if they ask.
-- **Moving particles into the depth queue (D6)** is the largest visual-regression
-  risk here. D10's `draw_in_front: true` default is the guard: nothing moves
-  until a box is unticked.
-- **`VfxParams` is append-only with no defaults.** Eight new families is eight
-  coordinated edits across `engine/vfx/params.py`, `editor/vfx_params.py` and
-  `tools/tests/test_vfx.py`'s fixture. It breaks loudly at construction, which
-  is the design — but ESV-6 and two later features each hit it, so expect it.
-- **The 2×2 "outline" is four diamonds**, not a perimeter. Nothing in the game
-  draws a true 2×2 perimeter (only the editor does, for `start_area`, via raw
-  `submit_overlay_lines`). If the designer wants a real perimeter that is a new
-  primitive and a new phase.
-- **Editor-tier tests are flaky under the gate's parallel workers** — an ESV
-  open item, not caused here, but VA-7/VA-8 land in exactly those modules.
-- **`tools/tests/fixtures/data/` is stale** (an ESV open item). VA-1 changes
-  `slots.json`'s shape, so the vfx part of the fixture must be mirrored
-  deliberately.
+**Purpose.** Make layers a designer feature instead of a JSON feature. Layers
+appear under their widget in the outliner — the "button folder" the designer
+asked for — with add, remove, reorder and undo; the viewport draws them so what
+you see while editing is what the game shows; a state selector makes the
+per-state work visible.
 
-Test policy for every phase is root `CLAUDE.md` §"Test Suite Policy" and nothing
-else. The single full `py tools/testgate.py check` happens ONCE, in the main
-session, at `/commitpushpr` stage 5 — after the PR is up and after `Development`
-has been merged down.
+**Publishes.**
+- Layers as child nodes of their widget in `ScreenDetailsPanel`'s
+  `WidgetTreeWidget`, on the same `Qt.ItemDataRole.UserRole` contract (a layer
+  node carries a `(widget_id, layer_id)` pair, so `widget_selected` /
+  `select_widget` keep working unchanged).
+- Layer add / remove / reorder / edit as undoable commands on the existing
+  `editor/ui_screen_session.py` stack.
+- A viewport layer overlay, draggable and resizable with the existing handles,
+  composited over the replayed `screen_previews.json`.
+- A preview **state selector** (idle / hover / pressed / disabled) driving both
+  the viewport and the inspector.
 
-## 6. Live acceptance (the whole plan, end to end)
+**Depends on.** S2.
 
-1. `py editor/main.py` → VFX node → **Add effect** "Shockwave" → `vfx_shockwave`
-   appears in `slots.json` and the tree. **Add variant** → `_v2`.
-2. Import a sheet into it; **Rename** to `vfx_ripple`; confirm the PNG, the
-   manifest entry and the trigger binding all followed.
-3. Bind `building_respawn` to it, set **random**, untick **draw in front**.
-4. `py game/main.py` → let a payday revive a building → the effect plays at its
-   tile and passes **behind** the building.
-5. Select a tile and a 2×2 section → both outlines render from `vfx.json`.
-   Retint them in the editor and see it in game.
-6. Delete `vfx_ripple` while still bound → refused with a message. Unbind,
-   delete → gone, and a shared PNG survives if another slot links it.
+| Phase | Scope (package) | Status |
+|---|---|---|
+| UL-6 | Layers in the outliner + undoable ops (editor) | not started |
+| UL-7 | Layers in the viewport (editor) | not started |
+| UL-8 | State selector + layer inspector (editor) | not started |
+
+#### Phase UL-6 — Layers in the outliner
+
+**Goal.** Select a widget, click **Add layer**, pick art, and it exists — no
+programmer involved. Remove, reorder within a band, and undo all of it.
+
+**Files.**
+- Modified: `editor/ui_screen_session.py` — `layers(widget_id)`,
+  `add_layer` / `remove_layer` / `reorder_layer` / `set_layer_field`, each one
+  undo command.
+- Modified: `editor/panels/screen_details.py` — layer child nodes under their
+  widget; the Add/Remove/Reorder controls; the slot picker reused from the
+  existing asset flow.
+
+**Tests.** New `tools/tests/test_ui_layer_ops.py` (pure session ops: add/remove/
+reorder/undo round-trips, ids stay unique, the doc validates after every op).
+Marked `editor` where Qt is involved.
+
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_ui_layer_ops.py -q
+```
+**Quick Test (in editor):** `py editor/main.py` → screen mode → `hud` → select
+Love counter → Add layer → pick a `ui` slot → save → confirm
+`data/ui/screens/hud.json` gained a `layers` entry and Ctrl+Z removes it.
+
+#### Phase UL-7 — Layers in the viewport
+
+**Goal.** The viewport draws every layer where the game will draw it, and the
+designer drags it into place.
+
+**Files.**
+- Modified: `editor/panels/viewport.py` — layer draw via `engine.ui_layers`
+  (D3), hit-testing that picks the smallest candidate (the existing
+  `_hit_widget` rule), drag/resize writing back through UL-6's commands.
+- Modified: `editor/panels/_screen_primitives.py` — the layer interaction rect.
+
+**Note.** `data/ui/screen_previews.json` is recorded **override-free** by design,
+so a layer can never appear in that artifact. The editor composites layers
+itself, on top of the replay — do not try to bake them into the preview file.
+
+**Tests.** Extend `tools/tests/test_ui_layer_ops.py` with the viewport geometry
+cases (a layer's screen rect equals `engine.ui_layers.resolve`'s answer for the
+same owner rect).
+
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_ui_layer_ops.py -q
+```
+**Quick Test (in editor + game):** drag a layer into place in the editor, save,
+then `py game/main.py` and confirm it sits exactly where the editor showed it.
+
+#### Phase UL-8 — State selector and layer inspector
+
+**Goal.** See and edit each button state. The inspector exposes a layer's slot,
+offset, z, band, tint, colour, text and visibility, per state.
+
+**Files.**
+- Modified: `editor/panels/screen_details.py` — the state combo + the per-state
+  inspector fields; the D4 band tooltip.
+- Modified: `editor/panels/viewport.py` — draw the selected state.
+
+**Tests.** Extend `tools/tests/test_ui_layer_ops.py` (editing a `hover` field
+writes under `states.hover` and leaves `idle` untouched).
+
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_ui_layer_ops.py -q
+```
+**Quick Test (in editor):** switch the state selector to Pressed, move a layer,
+switch back to Idle, and confirm the idle position did not move.
+
+---
+
+### Section S4 — Clickable layers and life counters
+
+**Purpose.** The two pieces that need everything above to exist first. A layer
+becomes its own click target (so the Munchkin can do something different from
+the button behind it), and the three life counters become real widgets with
+alive / transition / dead states.
+
+**Publishes.**
+- `clickable` + `target` on a layer entry, where `target` is either a widget id
+  in the same screen or one of a closed enum of reserved action tokens (D7).
+- `engine.ui_layers.hit(...)` — pure, topmost-first (D8) — and
+  `ScreenSkinning.hit_layer(screen_id, ids, mx, my)`.
+- `hud.life_1` / `life_2` / `life_3` as id'd widgets with a per-life state fed
+  from the run's life-lost signal (D10).
+- Updated `game/ui/CLAUDE.md`, `data/CLAUDE.md`, `editor/panels/CLAUDE.md`.
+
+**Depends on.** S2, S3.
+
+| Phase | Scope (package) | Status |
+|---|---|---|
+| UL-9 | The pure hit resolver + the action contract (data + engine) | not started |
+| UL-10 | Wire clickable layers into every screen + the host (game + editor) | not started |
+| UL-11 | Three life counters with real states (game + data) | not started |
+| UL-12 | Docs and designer handover (docs) | not started |
+
+#### Phase UL-9 — The pure hit resolver and the action contract
+
+**Goal.** Decide, purely, which layer a click lands on and what it means.
+Nothing routes it yet.
+
+**Blocked on one input:** the reserved action-token enum must be named before
+this phase starts (§5). Retarget-an-existing-widget works without it.
+
+**Files.**
+- Modified: `data/schemas/ui_screen.schema.json` — `clickable` (bool) and
+  `target` (string) on a layer entry; `target` validates as either a widget-id
+  pattern or a member of the reserved enum, so an unroutable action is
+  unrepresentable (D7).
+- Modified: `engine/ui_layers.py` — `hit(layers, owner_rect, mx, my, state)`,
+  topmost-first within `over`, then the owner, then `under`. Pure (D8).
+
+**Tests.** Extend `tools/tests/test_ui_layers.py` — topmost wins; a
+non-`clickable` layer is transparent to the click; an out-of-bounds click
+returns `None`.
+
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_ui_layers.py -q
+```
+**Quick Test (in game):** none — this phase is pure and routes nothing. Confirm
+`py game/main.py` boots and clicks behave exactly as before.
+
+#### Phase UL-10 — Wire clickable layers into the click path
+
+**Goal.** A click on the Munchkin fires the action the designer pointed it at.
+
+**Files.**
+- Modified: `game/ui/skinning.py` — `hit_layer(...)`, pure.
+- Modified: each screen's hit path (`Hud.hit`, `BuildingUI.handle_click`,
+  `widgets.Button`-based menu screens) — consult `hit_layer` first, fall through
+  unchanged when it returns `None`. **`Hud.hit()` stays a pure read** (D8).
+- Modified: `game/main.py` — route the reserved tokens; a retarget resolves to
+  the existing widget's own action and needs no new host branch.
+- Modified: `editor/panels/screen_details.py` — the Clickable checkbox + the
+  target picker (widget ids in this screen + the reserved enum).
+
+**Tests.** New `tools/tests/test_ui_layer_click.py` — a retargeting layer
+produces the target widget's action; `Hud.hit` called twice returns the same
+answer and mutates nothing; a screen with no clickable layers routes exactly as
+today.
+
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_ui_layer_click.py tools/tests/test_hud_panel.py -q
+```
+**Quick Test (in game):** make a Munchkin layer on `hud.btn_pause` clickable and
+retarget it at `btn_end_turn`; run `py game/main.py`, click the Munchkin, and
+confirm the turn ends while clicking the rest of the pause button still pauses.
+
+#### Phase UL-11 — Three life counters with real states
+
+**Goal.** Three individually placeable, individually skinnable life counters:
+State 1 alive (looping animation), State 2 transition (the death animation),
+State 3 dead (static).
+
+**Scope note.** This phase builds the death STATE. The screen that pops up on
+losing a life — where the counters fly to the centre and scale up — is
+deliberately **not** in this plan (§4).
+
+**Files.**
+- Modified: `game/ui/hud.py` — `life_1`/`life_2`/`life_3` holders in `ids`, laid
+  out beside the existing `icon_lives`; each resolves its own state from
+  `RunState.base_lives` plus the existing `life_lost_events` ledger
+  (`game/ui/effects.py` already drains it for the "YOU / LOST 1 LIFE" banner —
+  read the same signal, do not add a second one).
+- Modified: `tools/export_ui_layouts.py` — `_DISPLAY_NAMES` and `_PARENTS` rows
+  for the three; regenerate `data/ui/screen_defaults.json` and
+  `data/ui/screen_previews.json` (the sanctioned "a screen's default geometry
+  changed on purpose" path).
+- Modified: `tools/tests/test_ui_skinning.py`'s `hud` baseline — regenerated on
+  purpose; **never relax the pin.**
+
+**Tests.** New `tools/tests/test_life_counters.py` — three lives resolve
+alive/alive/alive at full health, transition on the frame a life is lost, dead
+thereafter; the transition has a finite duration and settles.
+
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_life_counters.py tools/tests/test_ui_skinning.py -q
+```
+**Quick Test (in game):** `py game/main.py`, let an enemy reach the hole, and
+confirm counter 3 plays its transition once and then holds the dead frame while
+1 and 2 keep looping.
+
+#### Phase UL-12 — Docs and designer handover
+
+**Goal.** The next agent and the designer both know how this works.
+
+**Files.**
+- Modified: `game/ui/CLAUDE.md` — the layer model, the two bands and D4's
+  consequence, per-state resolution, the life counters.
+- Modified: `data/CLAUDE.md` — the `layers` key in the "UI screen data" section,
+  the opened `fonts.json`.
+- Modified: `editor/panels/CLAUDE.md` — the outliner's layer nodes, the state
+  selector, the override-free-preview note from UL-7.
+- New: `docs/ui-layers-for-designers.md` — the short walkthrough (add a layer,
+  give it a state, make it clickable).
+
+**Tests.** `py -m pytest tools/tests/test_meta_docs.py -q` (doc-shape checks) if
+present for the touched docs; otherwise none.
+
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_ui_layers.py -q
+```
+**Quick Test:** a reader who has not seen this plan can add a layer with a hover
+colour from the doc alone.
+
+---
+
+## 4. Not in scope (and what each needs first)
+
+Four things in `UI Document.md` are **new screens**, not editor features. They
+need game-design decisions before anyone writes code, so they are left out
+deliberately rather than half-promised. Each is its own future plan.
+
+| Left out | Why | Needed first |
+|---|---|---|
+| **Buy Tile** (the four-tile chooser) | Does not exist. Unlocking a tile today is a single confirmation, not a choice of four. | What the four options are, how they are rolled, what a re-roll costs |
+| **Single Tile** window | Terrain information is a hover tooltip today, not a window. | Whether the tooltip becomes a window, and what opens/closes it |
+| **Build Tile** tabs + slider | The game filters construct cards by category but draws no tabs. The document's tab states are a nine-way model against a four-way system. | Which categories are tabs, and what the nine states collapse to |
+| **Building colour picker** | Buildings have no colour to pick — no per-building tint exists in the data model. | Whether colour is cosmetic-only, and where it is stored per building |
+| **The life-loss centre screen** | The counters flying to the centre at 2× with the death animation. | Its own screen design; UL-11 builds the death STATE it would show |
+
+## 5. Risks and open items
+
+- **The reserved action-token enum is unnamed** (D7). UL-9 is blocked on it.
+  Retargeting an existing widget covers most of the designer's document; the
+  tokens are for actions no widget has yet (e.g. "close this window"). Name them
+  before W3.
+- **D4's band limitation is real.** An `under` layer sits behind everything on
+  its screen, not just behind its owner. If a designer needs a background
+  between two stacked panels, the answer is a third band or a per-widget
+  submission seam — a design change, not a bug fix. Flag it in the tooltip so it
+  is discovered in the editor, not in game.
+- **`test_ui_min_targets.py` and clickable layers.** That test asserts every
+  `kind == "button"` is ≥12 logical px and that its static label fits. A
+  clickable LAYER is a new click target it does not know about. UL-10 must
+  decide whether layers join the assertion or the 12–16px non-blocking lint —
+  and `game/ui/CLAUDE.md`'s standing rule holds either way: do not mass-resize
+  controls to silence a lint.
+- **Golden-pin churn.** UL-11 regenerates `screen_defaults.json`,
+  `screen_previews.json` and one `test_ui_skinning.py` baseline on purpose. Every
+  other phase must leave all three byte-identical (D5). A phase that moves them
+  unexpectedly has a bug, not a stale artifact.
+- **Concurrency.** S1 and S2 run in the same wave and must be **worktree-isolated**
+  (root `CLAUDE.md`, hard rule: two or more implementation agents at the same
+  time each get `isolation: "worktree"`). They share no file today; the worktree
+  is what guarantees it stays true.
+- **`UiResolutionPLAN` UR-4/UR-5 are still open** (art recut, playtest sign-off).
+  Nothing here depends on them, but a designer eyeballing layer positions is
+  eyeballing a surface that may still move.
+- **Closing step (main session, once).** After every section has landed and
+  `Development` has been merged down, the single full
+  `py tools/testgate.py check` runs at handoff — see root `CLAUDE.md`
+  §"Test Suite Policy". Never per phase, never from a subagent.

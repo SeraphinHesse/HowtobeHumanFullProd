@@ -71,6 +71,7 @@ TIERS = {
     "test_vfx_highlight_preview": "editor",  # VA-8: the highlights preview path
     "test_run_controls": "editor",
     "test_screen_honest_controls": "editor",
+    "test_ui_layer_ops": "editor",  # UL-6: layer ops + layers in the outliner
     "test_vfx_preview": "editor",
 
     # --- core: engine + game + data. The 800-odd fast ones ------------------
@@ -115,6 +116,7 @@ TIERS = {
     "test_era_math": "core",  # ES-1: pure era clock / per-era stat + count math
     "test_esv6_converge": "core",  # ESV-6: anchored impact/muzzle VFX (D4 guardrail)
     "test_flow_field": "core",
+    "test_font_presets": "core",  # UL-2: designer-defined font presets (schema + derived layout_h)
     "test_footprint_path": "core",
     "test_game_boot": "core",
     "test_ground_cache": "core",
@@ -127,6 +129,7 @@ TIERS = {
     "test_kidnap": "core",  # Art/enemies: kidnapping
     "test_layout_h_invariant": "core",  # Fix 1 (phase-10L wave3): layout_h pin
     "test_levelup": "core",
+    "test_life_counters": "core",  # UL-11: the three id'd life counters + death state
     "test_lightning": "core",
     "test_map_overlays": "core",  # MapOverlays: the TIER OVERVIEW toggle pill
     "test_master_registry": "core",   # MasterSheetColumnsPLAN C3
@@ -172,6 +175,13 @@ TIERS = {
     "test_tutorial_data": "core",  # TU-1: tutorial script + cutscene registry data
     "test_tutorial_director": "core",  # TU-6: TutorialDirector fake-event chain
     "test_tutorial_engine": "core",  # TU-6: engine.tutorial step-sequencer
+    # UL-1: designer-authorable per-widget `align`. `core` despite importing
+    # editor.panels._screen_primitives — that module is Qt-free and
+    # editor/panels/__init__.py is empty, so no PySide6 is pulled.
+    "test_ui_align": "core",
+    "test_ui_layer_click": "core",  # UL-10: clickable-layer routing (pure game path)
+    "test_ui_layer_draw": "core",  # UL-4: ScreenSkinning.submit_layers (the caller)
+    "test_ui_layers": "core",  # UL-3: engine.ui_layers pure resolver (unused until UL-4)
     "test_ui_layout_export": "core",  # 10L-B phase B3: layout exporter staleness gate
     "test_ui_min_targets": "core",  # UR-5: click-target floor + static label fit
     "test_ui_skinning": "core",  # 10L-B phase B2: skinning + parity pin

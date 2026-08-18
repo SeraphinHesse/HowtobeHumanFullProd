@@ -147,10 +147,29 @@ validating writer; don't hand-edit the JSON.
   and two new `vfx` category slots in `slots.json`'s `Effects` group,
   `vfx_projectile`/`vfx_shell` (shared across every defender/every mortar
   respectively, never per-building art), both bare strings inheriting the
-  category's 64×64/`["idle"]` shape like every other `vfx_*` slot. It is
-  NOT a `triggers` row — a projectile is a continuous in-flight object, like
-  a beam or a lightning bolt, not a one-shot sprite. The same follow-up fixed
-  a Fix-1 anchor/offset composition bug (`engine/assets/store.py`'s new
+  category's 64×64/`["idle"]` shape like every other `vfx_*` slot. It shipped
+  with NO `triggers` row — a projectile is a continuous in-flight object, like
+  a beam or a lightning bolt, not a one-shot sprite — which meant a designer
+  could author a `vfx_projectile_v2` variant and nothing would ever draw it.
+  **feat-projectile-variant-select** added the row, `triggers.projectile`,
+  on the VA-5 tile-highlight precedent (continuous effects that take a
+  `triggers` row anyway and bypass `_play`/`PlayOnceVfx`). It ships
+  `{sprite_slot: "", procedural: "", draw_in_front: true, variant_select:
+  {mode: "random", misc_key: ""}}` and contributes **only `variant_select`**:
+  the slot still comes from the shot's own kind (`vfx_projectile` vs
+  `vfx_shell`, independent by design), the fallback is still the continuous
+  `procedural.projectile` dot, and `draw_in_front` cannot bite because
+  `submit_projectiles` emits on the HUD pass, which has no depth sort. All
+  three inert keys say so in `$defs/trigger_row`'s own descriptions rather
+  than sitting in the editor looking live. A `triggers` property (not a new
+  key under `procedural.projectile`) because the VFX panel's Binding strip is
+  generated from the schema — `editor/panels/vfx_preview.py::_trigger_events`
+  — so the row buys the whole Event/Pick-mode/misc-key UI with zero editor
+  code. The resolved variant is cached on the projectile GameObject at first
+  draw, so `"random"` costs one rng draw per shot and is stable for the
+  flight; `"level"` indexes by the firing building's tier through the
+  components' existing `_shooter`. The fix-anchor-offset-and-bullet-sprites
+  follow-up also fixed a Fix-1 anchor/offset composition bug (`engine/assets/store.py`'s new
   `offset()` accessor, `game/anchors.py`, `editor/panels/viewport.py`) that
   touches no schema. **The Drummer buff-range telegraph feature** added a
   sibling `procedural.drummer_aura` block (`color`/`alpha_min`/`alpha_max`/
@@ -505,14 +524,16 @@ validating writer; don't hand-edit the JSON.
   either a bare key string (inherits the category's `frame_w`/`frame_h`) or
   `{key, frame_w, frame_h}` overriding it for that ONE slot. Bare is the norm; the
   object form exists for art whose sheet is cut at a different size than its
-  category — `ui_bg_main_menu` (480×270, a whole-sheet background in the 64×64
-  `ui` category) is the one committed user, and without the override the importer
-  would grid-slice that one frame into a 7×4 grid. It describes **slicing, not
+  category — `ui_bg_main_menu` (640×360, a whole-sheet background in the 64×64
+  `ui` category) is the headline user, and without the override the importer
+  would grid-slice that one frame into a grid of 64×64 cells. (`main_menu_bg`
+  overrides too, to the same 640×360, against its own category's 480×270
+  default — the two describe the same painting and move together.) It describes **slicing, not
   drawing** — on-screen size comes from the render fit
   (`engine/render/CLAUDE.md`).
   - **The override DOES propagate to "+ Variant"** (A7): `registry_ops.add_variant`
     now inherits the family stem's frame-size override on creation, so
-    `ui_bg_main_menu_v2` inherits the `ui_bg_main_menu` 480×270 override.
+    `ui_bg_main_menu_v2` inherits the `ui_bg_main_menu` 640×360 override.
     Bare stems stay bare (regression pin for enemies/deco); independently
     resizable afterwards via the Frame W/H spinboxes.
   - **`uniqueItems` no longer implies key uniqueness**: it compares whole values,
@@ -584,8 +605,9 @@ validating writer; don't hand-edit the JSON.
   type. Deco types are added as whole leaf subgroups (`Prop <n>` holding
   `deco_prop_<n>`), never appended to a flat list.
 - **Frame sizes (SPEC §9.1 resolved)**: buildings / enemies / deco / core
-  64×96; map tiles 64×32; ui / vfx 64×64 (except `ui_bg_main_menu`, 480×270 by
-  per-slot override); backgrounds 480×270 (10K full-frame menu art, drawn as a
+  64×96; map tiles 64×32; ui / vfx 64×64 (except `ui_bg_main_menu`, 640×360 by
+  per-slot override); backgrounds 480×270 by default, with its one slot
+  `main_menu_bg` overridden to 640×360 (10K full-frame menu art, drawn as a
   screen-space `HudSprite` — not a world sprite). All data — edit `slots.json`.
 - **`ui` → "Card Portraits" (construct-card-widget-tree)**: twelve leaf
   children, one per building type, each holding a single

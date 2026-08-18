@@ -209,6 +209,10 @@ _DISPLAY_NAMES = {
         "icon_love": "Love icon",
         "icon_xp": "XP icon",
         "icon_lives": "Lives icon",
+        # UL-11: three individually placeable/skinnable life counters.
+        "life_1": "Life 1",
+        "life_2": "Life 2",
+        "life_3": "Life 3",
     },
     "levelup": {
         "backdrop": "Background backdrop",
@@ -248,6 +252,10 @@ _PARENTS = {
         "income_text": "readout_panel",
         "lives_text": "readout_panel",
         "icon_lives": "readout_panel",
+        # UL-11: laid out on the lives row, inside the readout pill's group.
+        "life_1": "readout_panel",
+        "life_2": "readout_panel",
+        "life_3": "readout_panel",
         "tiles_text": "readout_panel",
         "round_label": "btn_end_turn",
     },
