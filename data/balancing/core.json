@@ -39,7 +39,7 @@
         "enemy_label": "Standard",
         "hidden_frames": [],
         "round": 1,
-        "show_on_tutorial_round": true,
+        "show_on_tutorial_round": false,
         "sprite_flip_h": false,
         "sprite_h": 130,
         "sprite_offset_x": 0,
