@@ -7,6 +7,44 @@ extra pieces are called **layers**.
 
 This is the walkthrough. No code, no JSON.
 
+## Adding a piece of your own
+
+Layers hang off something that already exists. Sometimes there is nothing to
+hang off — you want a plaque, a border, a bit of text that no part of the game
+puts there. Under the outliner there are three buttons for exactly that:
+
+- **+ Panel** — a box. Give it a colour, or give it art, and it will show a
+  caption in the middle if you type one.
+- **+ Text** — text and nothing else. No box behind it.
+- **+ Image** — a box with no caption. Give it art, or a flat colour.
+
+Click one and the new piece appears in the outliner, marked **(custom)** so you
+can tell your own pieces from the ones the game made, and already visible in the
+middle of the screen with a starting colour or a starting word in it. Drag it
+where you want it. Everything else about it — colour, art, text, font, hiding
+it, and layers of its own — works exactly like any other widget in the list,
+including the little ↺ buttons that put a value back.
+
+**Remove** deletes the selected piece, and only works on your own: the game's
+own widgets can't be deleted. One undo brings it back whole, layers and all.
+
+Two extra controls appear when one of your pieces is selected:
+
+- **Band** — Under or Over, and it means the same thing here as it does for a
+  layer, warning and all. Read *Under vs Over* below before you touch it.
+- **Z** — the order your own pieces draw in against *each other*, low to high.
+  It has no say over the game's own widgets; the band decides that.
+
+Two things to know before you lean on this:
+
+- **Your pieces are decoration. They are never clickable.** A click goes
+  straight through them to the real interface underneath, and that includes any
+  layers you put on them.
+- **On the building panel, a piece you add shows up in every view** — unlock,
+  construct, upgrade, base info, preview. The editor splits that panel into
+  views for your convenience; the game has no such idea. The editor says so on
+  screen, next to the buttons.
+
 ## Adding a layer
 
 1. Open the editor (`py editor/main.py`) and go to the screen you want.
@@ -108,3 +146,8 @@ fix the spelling before you hand the screen over.
 - Layer doesn't follow its widget → it can't not. If it looks detached, its
   offset is just large; the numbers are distances *from* the widget, not
   positions on the screen.
+- A piece you added yourself doesn't react to clicks → it never will; those are
+  decoration only. Put the thing you want clickable on a real button instead.
+- A piece you added yourself is invisible in the game but fine in the editor →
+  you cleared its colour and gave it no art. The editor draws a grey placeholder
+  box where the game draws nothing.

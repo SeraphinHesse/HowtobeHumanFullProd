@@ -63,7 +63,12 @@ from editor.panels._screen_rules import (
     TOOLTIP_COLOR_CODE_OWNED,
     TOOLTIP_LABEL_CODE_OWNED,
     color_is_code_owned,
+    custom_color_is_code_owned,
+    custom_label_is_code_owned,
+    custom_tint_applies,
+    is_custom,
     label_is_code_owned,
+    merge_custom_widgets,
     resolved_skin,
 )
 from engine.assets import load_registry
@@ -109,6 +114,21 @@ TOOLTIP_HIDDEN_BY_PARENT = (
 TOOLTIP_LAYER_BAND = (
     "Under layers sit behind EVERYTHING on this screen, not just behind "
     "their owner widget. Use Over for backgrounds between stacked panels.")
+
+# UL-13: the SAME warning, on a custom widget's own Band control. A custom
+# widget rides the screen's two layer passes, so `under` means behind
+# everything the screen draws — the identical surprise the layer band carries,
+# met in the editor rather than in a bug report.
+TOOLTIP_CUSTOM_BAND = TOOLTIP_LAYER_BAND
+
+# UL-13: widget ids are GLOBAL to a screen (D2) and the runtime has no notion
+# of building_panel's editor-only views, so a custom widget authored while one
+# view is showing is drawn in every one of them. Stated inline on that screen,
+# where it is the only place the surprise can bite.
+CUSTOM_EVERY_VIEW_NOTE = (
+    "A custom widget you add here appears in EVERY view of this panel "
+    "(unlock, construct, upgrade, base info, preview) — the game has no "
+    "view concept, and widget ids are shared across them.")
 
 # UL-8 ruling 1: `ScreenSkinning.state_of` (game/ui/skinning.py) answers
 # "idle" for anything that is not a `Button` — a panel/label/backdrop holder
@@ -358,6 +378,7 @@ class ScreenDetailsPanel(QWidget):
         # the outliner needs a floor to stay usable.
         self.widget_list.setMinimumHeight(_OUTLINER_MIN_HEIGHT)
         layout.addWidget(self.widget_list)
+        layout.addWidget(self._build_custom_widget_controls())
 
         form = QFormLayout()
         self.x_spin = _NoWheelSpinBox(self)
@@ -682,13 +703,53 @@ class ScreenDetailsPanel(QWidget):
         views = entry.get("views")
         view = self._session.view
         if views and view in views:
-            return views[view]
-        return entry
+            entry = views[view]
+        customs = self._custom_widgets()
+        if not customs:
+            return entry
+        merged = dict(entry)
+        merged["widgets"] = merge_custom_widgets(entry.get("widgets", {}),
+                                                 customs)
+        return merged
+
+    # -- UL-13: designer-authored custom widgets ----------------------------
+    # The doc's `custom_widgets` table is folded into the code-owned defaults
+    # by the ONE merge above (`_screen_rules.merge_custom_widgets`, shared
+    # with the viewport), so the outliner, the per-field form, its reset
+    # buttons, `widget_tree` parenting and the whole Layers section already
+    # work on a custom widget with no code of their own. What is left is this
+    # section: creating one, deleting one, and the two AUTHORING keys that
+    # live in `custom_widgets/<id>` rather than in `widgets/<id>` (band, z).
+
+    def _custom_widgets(self):
+        """The open doc's `custom_widgets` table (a copy — the session hands
+        one out), `{}` when the screen authors none."""
+        if self._session is None or self._session.doc is None:
+            return {}
+        return self._session.custom_widgets()
+
+    def _is_custom(self, widget_id):
+        return is_custom(widget_id, self._custom_widgets())
+
+    def _code_owned_ids(self):
+        """Every CODE-OWNED widget id on this screen — the union across ALL
+        views, not just the active one. `add_custom_widget` refuses a
+        collision with one, and an id is global to the screen (D2), so a
+        custom `panel` created while the `unlock` view is showing must still
+        be refused against `upgrade`'s ids."""
+        entry = self._all_defaults.get(
+            self._session.screen_id, {}) if self._session else {}
+        ids = set(entry.get("widgets", {}))
+        for view in (entry.get("views") or {}).values():
+            ids |= set(view.get("widgets", {}))
+        return ids
 
     def _on_screen_opened(self):
         self._current_widget = None
+        self._current_layer_id = None
         self._set_widget_form_enabled(False)
         self._refresh_widget_list()
+        self._refresh_custom_controls()   # UL-13
         self._refresh_background()
         self._refresh_defaults_section()
         self._refresh_dirty()
@@ -711,12 +772,21 @@ class ScreenDetailsPanel(QWidget):
         self._tree_items = {}
         self._layer_items = {}
         widgets = self._current_screen_defaults().get("widgets", {})
+        customs = self._custom_widgets()
         tree = widget_tree.build_tree(widgets, self._doc_widgets())
 
         def add(parent_id, parent_item):
             for widget_id in tree.get(parent_id, ()):
                 spec = widgets.get(widget_id) or {}
-                item = QTreeWidgetItem([widget_display_name(widget_id, spec)])
+                name = widget_display_name(widget_id, spec)
+                # UL-13: a designer-authored widget reads differently from an
+                # exporter-owned one, so a designer can tell at a glance what
+                # they own (and what Remove will act on). The UserRole stays
+                # the BARE ID — the layer nodes' (widget_id, layer_id) tuple
+                # contract, and `isinstance(role, tuple)`, are untouched.
+                if widget_id in customs:
+                    name = f"{name}  (custom)"
+                item = QTreeWidgetItem([name])
                 item.setToolTip(0, widget_id)
                 item.setData(0, Qt.ItemDataRole.UserRole, widget_id)
                 if parent_item is None:
@@ -877,6 +947,156 @@ class ScreenDetailsPanel(QWidget):
     #   Add        — whenever a WIDGET is selected (a layer node counts: its
     #                owner is the widget the new layer lands on).
     #   Remove/Up/Down — only while a LAYER node is selected in the tree.
+
+    def _build_custom_widget_controls(self):
+        """The "Custom widgets" strip under the outliner: three Add buttons,
+        Remove, and the two AUTHORING keys a custom widget owns.
+
+        Built like `_build_layer_controls` (its neighbour in the same panel):
+        every value control is a `_NoWheel*` imported from
+        `editor.panels.balancing` (the panel lives in a QScrollArea — a plain
+        spinbox would eat the scroll), and Remove's `clicked` is
+        LAMBDA-WRAPPED so an unchecked button's `clicked(False)` cannot land
+        in a keyword argument (the `details.clear_entry` footgun).
+
+        Enabled-state contract: the three Add buttons whenever a screen is
+        open; Remove, Band and Z only while the selection is a CUSTOM widget
+        — a code-owned widget belongs to the exporter and can never be
+        deleted or re-banded from here.
+        """
+        box = QWidget(self)
+        box_layout = QVBoxLayout(box)
+        box_layout.setContentsMargins(0, 0, 0, 0)
+        box_layout.addWidget(QLabel("Custom widgets", self))
+
+        button_row = QWidget(self)
+        button_layout = QHBoxLayout(button_row)
+        button_layout.setContentsMargins(0, 0, 0, 0)
+        self.custom_add_panel_button = QPushButton("+ Panel", self)
+        self.custom_add_panel_button.setToolTip(
+            "A box: its skin (or the screen's panel skin) if you assign one, "
+            "else its colour — with a centred caption when you give it text.")
+        self.custom_add_panel_button.clicked.connect(
+            lambda _checked=False: self._on_add_custom_widget("panel"))
+        button_layout.addWidget(self.custom_add_panel_button)
+        self.custom_add_text_button = QPushButton("+ Text", self)
+        self.custom_add_text_button.setToolTip("Text only — no box.")
+        self.custom_add_text_button.clicked.connect(
+            lambda _checked=False: self._on_add_custom_widget("label"))
+        button_layout.addWidget(self.custom_add_text_button)
+        self.custom_add_image_button = QPushButton("+ Image", self)
+        self.custom_add_image_button.setToolTip(
+            "A box with no text: its own skin if you assign one, else its "
+            "colour. Unlike a panel it never picks up the screen's default "
+            "panel skin.")
+        self.custom_add_image_button.clicked.connect(
+            lambda _checked=False: self._on_add_custom_widget("backdrop"))
+        button_layout.addWidget(self.custom_add_image_button)
+        self.custom_remove_button = QPushButton("Remove", self)
+        self.custom_remove_button.setToolTip(
+            "Delete the selected custom widget, its overrides and its layers "
+            "(one undo step). Only your own widgets can be removed.")
+        self.custom_remove_button.clicked.connect(
+            lambda _checked=False: self._on_remove_custom_widget())
+        button_layout.addWidget(self.custom_remove_button)
+        box_layout.addWidget(button_row)
+
+        # UH-2's views are an EDITOR-only split; the runtime has none.
+        self.custom_view_note = QLabel(CUSTOM_EVERY_VIEW_NOTE, self)
+        self.custom_view_note.setWordWrap(True)
+        self.custom_view_note.setStyleSheet("color: #888;")
+        self.custom_view_note.setVisible(False)
+        box_layout.addWidget(self.custom_view_note)
+
+        form = QFormLayout()
+        self.custom_band_combo = _NoWheelComboBox(self)
+        self.custom_band_combo.addItem("Over", "over")
+        self.custom_band_combo.addItem("Under", "under")
+        self.custom_band_combo.setToolTip(TOOLTIP_CUSTOM_BAND)
+        self.custom_band_combo.activated.connect(self._on_custom_band_changed)
+        self.custom_band_row_label = QLabel("Band", self)
+        form.addRow(self.custom_band_row_label, self.custom_band_combo)
+        self.custom_z_spin = _NoWheelSpinBox(self)
+        self.custom_z_spin.setRange(-999, 999)
+        self.custom_z_spin.setToolTip(
+            "Paint order among the CUSTOM widgets of the same band, "
+            "ascending. It never orders them against the screen's own "
+            "widgets — the band alone decides that.")
+        self.custom_z_spin.editingFinished.connect(self._on_custom_z_changed)
+        self.custom_z_row_label = QLabel("Z", self)
+        form.addRow(self.custom_z_row_label, self.custom_z_spin)
+        box_layout.addLayout(form)
+        return box
+
+    def _on_add_custom_widget(self, kind):
+        """Create one custom widget and select it. The session generates the
+        id (first free index) and writes the starter appearance override that
+        makes it visible in the game as well as here."""
+        if self._session is None or self._session.doc is None:
+            return
+        widget_id = self._session.add_custom_widget(
+            kind, code_owned_ids=self._code_owned_ids())
+        if widget_id is None:
+            return
+        self._refresh_widget_list()
+        self.select_widget(widget_id)
+        self.widget_selected.emit(widget_id)
+
+    def _on_remove_custom_widget(self):
+        if self._session is None or not self._is_custom(self._current_widget):
+            return
+        self._session.remove_custom_widget(self._current_widget)
+        self._current_widget = None
+        self._current_layer_id = None
+        self._refresh_widget_list()
+        self.select_widget(None)
+
+    def _on_custom_band_changed(self, index):
+        if self._populating or not self._is_custom(self._current_widget):
+            return
+        entry = self._custom_widgets().get(self._current_widget, {})
+        self._session.set_custom_field(
+            self._current_widget, "band", entry.get("band"),
+            self.custom_band_combo.itemData(index))
+        self._refresh_custom_controls()
+
+    def _on_custom_z_changed(self):
+        if self._populating or not self._is_custom(self._current_widget):
+            return
+        entry = self._custom_widgets().get(self._current_widget, {})
+        value = self.custom_z_spin.value()
+        self._session.set_custom_field(
+            self._current_widget, "z", entry.get("z"),
+            value if value else None)
+        self._refresh_custom_controls()
+
+    def _refresh_custom_controls(self):
+        """Add follows the open SCREEN; Remove/Band/Z follow a CUSTOM
+        selection. Populating the two value controls blocks their signals —
+        merely looking at a widget must never dirty the doc."""
+        open_screen = (self._session is not None
+                       and self._session.doc is not None)
+        for button in (self.custom_add_panel_button,
+                       self.custom_add_text_button,
+                       self.custom_add_image_button):
+            button.setEnabled(open_screen)
+        self.custom_view_note.setVisible(
+            open_screen and bool((self._all_defaults.get(
+                self._session.screen_id, {}) or {}).get("views")))
+        custom = open_screen and self._is_custom(self._current_widget)
+        self.custom_remove_button.setEnabled(bool(custom))
+        self.custom_band_combo.setEnabled(bool(custom))
+        self.custom_z_spin.setEnabled(bool(custom))
+        entry = (self._custom_widgets().get(self._current_widget, {})
+                 if custom else {})
+        self.custom_band_combo.blockSignals(True)
+        self.custom_band_combo.setCurrentIndex(
+            max(0, self.custom_band_combo.findData(
+                entry.get("band") or "over")))
+        self.custom_band_combo.blockSignals(False)
+        self.custom_z_spin.blockSignals(True)
+        self.custom_z_spin.setValue(entry.get("z") or 0)
+        self.custom_z_spin.blockSignals(False)
 
     def _build_layer_controls(self):
         """The "Layers" section: slot + band pickers, Add, Remove, Up/Down.
@@ -1075,6 +1295,7 @@ class ScreenDetailsPanel(QWidget):
         self.layer_selected_label.setText(
             f"Selected layer: {layer_id}" if has_layer else "")
         self._refresh_layer_inspector()   # UL-8
+        self._refresh_custom_controls()   # UL-13
 
     # -- UL-8: the per-layer, per-state inspector ---------------------------
     # The form the selected LAYER's own values are edited in, one row per doc
@@ -1708,7 +1929,15 @@ class ScreenDetailsPanel(QWidget):
         """
         screen_id = self._session.screen_id if self._session is not None else None
         kind = spec.get("kind")
-        code_owned_fill = color_is_code_owned(kind)
+        # UL-13: a CUSTOM widget has no game-code draw site to cite, so the
+        # two "is this control dead?" questions get their own (much smaller)
+        # answers, straight off `skinning._submit_custom_widget`'s fixed
+        # precedence: a panel/backdrop falls back to `color` whenever no skin
+        # resolves, a label draws no box; a panel/label draw text, a backdrop
+        # never does.
+        custom = self._is_custom(self._current_widget)
+        code_owned_fill = (custom_color_is_code_owned(kind) if custom
+                           else color_is_code_owned(kind))
         skinned = resolved_skin(spec, override, style) is not None
         # Tint (UH-6/D6) is the honest repurposing of a skinned widget's Color
         # control for the kinds whose draw path threads `tint` into the sheet:
@@ -1733,7 +1962,8 @@ class ScreenDetailsPanel(QWidget):
         # override forced onto it would show Tint that no-ops. That requires
         # the same skin-on-a-non-skinnable-widget quirk that also affects
         # backdrop/bar; it is out of scope here and tracked separately.
-        tintable = skinned and kind in ("button", "panel")
+        tintable = skinned and (custom_tint_applies(kind) if custom
+                                else kind in ("button", "panel"))
         self._color_is_tint = tintable
         if tintable:
             self.color_row_label.setText("Tint")
@@ -1753,8 +1983,9 @@ class ScreenDetailsPanel(QWidget):
         # UT-1/UT-3: a widget bound to a string id shows its TEMPLATE here,
         # editable, instead of the old "edit it in game code" disablement.
         text_id = self._effective_text_id(spec, override)
-        code_owned = label_is_code_owned(screen_id, self._current_widget, kind,
-                                         text_id)
+        code_owned = (custom_label_is_code_owned(kind) if custom
+                      else label_is_code_owned(screen_id, self._current_widget,
+                                               kind, text_id))
         self.label_edit.setEnabled(not code_owned)
         self.label_edit.setToolTip(
             TOOLTIP_TEXT_TEMPLATE if text_id

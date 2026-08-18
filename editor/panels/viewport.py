@@ -51,7 +51,7 @@ from editor import (
     vfx_params,
     widget_tree,
 )
-from editor.panels import _screen_primitives
+from editor.panels import _screen_primitives, _screen_rules
 from editor.panels.balancing import _NoWheelComboBox
 from editor.sprite_fit import slot_draw_fit
 from engine import data_io, tilemap, ui_layers
@@ -840,8 +840,34 @@ class ViewportPanel(QWidget):
         views = entry.get("views")
         view = self._screen_session.view
         if views and view in views:
-            return views[view]
-        return entry
+            entry = views[view]
+        return self._with_custom_widgets(entry)
+
+    def _custom_widgets(self):
+        """The open doc's `custom_widgets` table (UL-13) — the LIVE dict, read
+        every frame, so never mutated here."""
+        if self._screen_session is None or self._screen_session.doc is None:
+            return {}
+        table = self._screen_session.doc.get("custom_widgets")
+        return table if isinstance(table, dict) else {}
+
+    def _with_custom_widgets(self, entry):
+        """`entry` with the open doc's designer-authored custom widgets folded
+        into its `widgets` map as synthetic default entries (B1 —
+        `_screen_rules.merge_custom_widgets`, the ONE merge the details panel
+        reads too). That single fold IS the whole viewport half of UL-13's
+        authoring: the outliner, the hit-test, the drag/resize commands
+        (`push_move`/`push_resize` still write `widgets/<id>/rect`) and the
+        selection chrome need no further change. Returns `entry` untouched
+        when the screen authors none."""
+        customs = self._custom_widgets()
+        if not customs:
+            return entry
+        widgets = _screen_rules.merge_custom_widgets(
+            entry.get("widgets", {}), customs)
+        merged = dict(entry)
+        merged["widgets"] = widgets
+        return merged
 
     @staticmethod
     def _screen_offset_bounds(extent, avail):
@@ -2805,6 +2831,13 @@ class ViewportPanel(QWidget):
         doc = self._screen_session.doc
         # P-5: resolved ONCE per frame and threaded into every submit below.
         hidden = self._hidden_subtrees(defaults)
+        # UL-13: custom widgets are drawn by the band passes below, in
+        # band/z order, never by the plain widget loops — `screen_previews
+        # .json` is override-free by design, so a custom widget can never be
+        # in the recording and must composite ON TOP of it (the same
+        # treatment, and the same reason, as layers). Never bake one into
+        # that file.
+        customs = self._custom_widgets()
         preview = self._current_screen_preview()
         if preview is not None:
             # UT-2: the recorded game draw list — real background, real fonts,
@@ -2825,6 +2858,8 @@ class ViewportPanel(QWidget):
                 self._submit_screen_layers(defaults, scale, ox, oy, hidden)
                 return
             for widget_id, spec in defaults.get("widgets", {}).items():
+                if widget_id in customs:
+                    continue    # UL-13: composited by _submit_screen_layers
                 self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy,
                                            hidden)
             self._submit_screen_layers(defaults, scale, ox, oy, hidden)
@@ -2834,6 +2869,8 @@ class ViewportPanel(QWidget):
         # their widgets here, because this path draws the widgets itself.
         self._submit_screen_layer_band(defaults, "under", scale, ox, oy, hidden)
         for widget_id, spec in defaults.get("widgets", {}).items():
+            if widget_id in customs:
+                continue        # UL-13: drawn by its own band pass
             self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy,
                                        hidden)
         self._submit_screen_layer_band(defaults, "over", scale, ox, oy, hidden)
@@ -2944,7 +2981,11 @@ class ViewportPanel(QWidget):
         is honest even where their relation to the widget is not. (Baking
         layers into the recording instead would mean regenerating a file this
         phase is explicitly forbidden to touch — and the recording describes
-        the SHIPPED screen, not the doc being edited.)"""
+        the SHIPPED screen, not the doc being edited.)
+
+        UL-13: the same argument, verbatim, for CUSTOM widgets — they live in
+        the override doc, so the recording cannot know them either, and each
+        band pass draws its own customs at its tail."""
         self._submit_screen_layer_band(defaults, "under", scale, ox, oy, hidden)
         self._submit_screen_layer_band(defaults, "over", scale, ox, oy, hidden)
 
@@ -2956,19 +2997,43 @@ class ViewportPanel(QWidget):
         Widgets are walked in `screen_defaults.json` key order, the same order
         `_submit_screen_items` submits them in."""
         doc = self._screen_session.doc
+        customs = self._custom_widgets()
         for widget_id in defaults.get("widgets", {}):
-            override = doc.get("widgets", {}).get(widget_id, {})
-            if override.get("visible") is False or widget_id in hidden:
+            if widget_id in customs:
+                continue    # UL-13: drawn (box AND layers) by the pass below
+            self._submit_widget_band_layers(widget_id, defaults, band, scale,
+                                            ox, oy, hidden)
+        # UL-13: this screen's designer-authored widgets, at the TAIL of the
+        # band — the same place `skinning.submit_layers` draws them, after
+        # every code-owned widget's layers of the same band. Each draws its
+        # own box and then its own layers, so its `under` layer really does
+        # sit under it.
+        for widget_id, _entry in _screen_rules.custom_widgets_in_band(customs,
+                                                                     band):
+            spec = defaults.get("widgets", {}).get(widget_id)
+            if spec is None:
                 continue
-            layers = self._widget_layers(widget_id)
-            if not layers:
-                continue        # D5 golden-parity path: no layers, no calls
-            owner_rect = self._effective_rect(widget_id, defaults)
-            for entry in ui_layers.ordered(layers, band):
-                resolved = self._resolved_layer(entry, owner_rect)
-                if resolved.get("visible") is False:
-                    continue
-                self._submit_one_layer(resolved, scale, ox, oy)
+            self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy,
+                                       hidden)
+            self._submit_widget_band_layers(widget_id, defaults, band, scale,
+                                            ox, oy, hidden)
+
+    def _submit_widget_band_layers(self, widget_id, defaults, band, scale, ox,
+                                   oy, hidden=()):
+        """ONE widget's `band`-side layer stack, in `ui_layers.ordered` order."""
+        doc = self._screen_session.doc
+        override = doc.get("widgets", {}).get(widget_id, {})
+        if override.get("visible") is False or widget_id in hidden:
+            return
+        layers = self._widget_layers(widget_id)
+        if not layers:
+            return              # D5 golden-parity path: no layers, no calls
+        owner_rect = self._effective_rect(widget_id, defaults)
+        for entry in ui_layers.ordered(layers, band):
+            resolved = self._resolved_layer(entry, owner_rect)
+            if resolved.get("visible") is False:
+                continue
+            self._submit_one_layer(resolved, scale, ox, oy)
 
     def _submit_one_layer(self, resolved, scale, ox, oy):
         """The ONE primitive a resolved layer describes, in the game's own
