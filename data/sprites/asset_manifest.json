@@ -1785,7 +1785,7 @@
     },
     "deco_bush": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -1839,7 +1839,7 @@
     },
     "deco_bush_v2": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -1893,7 +1893,7 @@
     },
     "deco_bush_v3": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -1948,7 +1948,7 @@
     "deco_bush_v4": {
       "column": 1,
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2002,7 +2002,7 @@
     },
     "deco_bush_v5": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2056,7 +2056,7 @@
     },
     "deco_bush_v6": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2272,7 +2272,7 @@
     },
     "deco_prop_2": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2326,7 +2326,7 @@
     },
     "deco_prop_2_v10": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2380,7 +2380,7 @@
     },
     "deco_prop_2_v2": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2434,7 +2434,7 @@
     },
     "deco_prop_2_v3": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2488,7 +2488,7 @@
     },
     "deco_prop_2_v4": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2542,7 +2542,7 @@
     },
     "deco_prop_2_v5": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2596,7 +2596,7 @@
     },
     "deco_prop_2_v6": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2650,7 +2650,7 @@
     },
     "deco_prop_2_v7": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2704,7 +2704,7 @@
     },
     "deco_prop_2_v8": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2758,7 +2758,7 @@
     },
     "deco_prop_2_v9": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2812,7 +2812,7 @@
     },
     "deco_prop_3": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2866,7 +2866,7 @@
     },
     "deco_prop_3_v2": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2938,7 +2938,7 @@
     },
     "deco_prop_4_v2": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2992,7 +2992,7 @@
     },
     "deco_prop_4_v3": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3046,7 +3046,7 @@
     },
     "deco_prop_4_v4": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3100,7 +3100,7 @@
     },
     "deco_prop_4_v5": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3154,7 +3154,7 @@
     },
     "deco_prop_4_v6": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3208,7 +3208,7 @@
     },
     "deco_rock": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3217,7 +3217,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 34,
+          "frames": 35,
           "hidden": [
             0,
             1,
@@ -3251,7 +3251,8 @@
             30,
             31,
             32,
-            33
+            33,
+            34
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -3262,7 +3263,7 @@
     },
     "deco_rock_v2": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3271,7 +3272,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 34,
+          "frames": 35,
           "hidden": [
             0,
             1,
@@ -3305,7 +3306,8 @@
             30,
             31,
             32,
-            33
+            33,
+            34
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -3316,7 +3318,7 @@
     },
     "deco_rock_v3": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3325,7 +3327,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 34,
+          "frames": 35,
           "hidden": [
             0,
             1,
@@ -3359,7 +3361,8 @@
             30,
             31,
             32,
-            33
+            33,
+            34
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -3370,7 +3373,7 @@
     },
     "deco_tree": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3424,7 +3427,7 @@
     },
     "deco_tree_v2": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3478,7 +3481,7 @@
     },
     "deco_tree_v3": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3532,7 +3535,7 @@
     },
     "deco_tree_v4": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3586,7 +3589,7 @@
     },
     "deco_tree_v5": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3640,7 +3643,7 @@
     },
     "deco_tree_v6": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3694,7 +3697,7 @@
     },
     "deco_tree_v7": {
       "column_mode": "season",
-      "column_width": 34,
+      "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
