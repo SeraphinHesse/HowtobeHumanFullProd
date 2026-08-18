@@ -1,6 +1,2131 @@
 [
   {
     "description": "",
+    "id": "85786fb9-da54-4a7d-b2e9-faf88688e5ad",
+    "name": "core sound",
+    "snapshot": {
+      "Camera": {
+        "default_zoom": 1.0,
+        "keyboard_pan_speed": 300,
+        "max_offset_tiles_x": 30.0,
+        "max_offset_tiles_y": 30.0,
+        "zoom_levels": [
+          0.5,
+          1.0,
+          2.0
+        ]
+      },
+      "Debug": {
+        "ask_player_identity": false,
+        "debug_mode_available": true,
+        "default_level": 1,
+        "default_output_csv": true,
+        "default_output_html": true,
+        "default_output_jsonl": true,
+        "default_output_md": true,
+        "regular_mode_available": true
+      },
+      "EnemyIntro": {
+        "entries": [
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Slow, steady grunts that march straight for the hole. Individually weak, but they keep coming — and they can kidnap an undefended building along the way.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Standard",
+            "hidden_frames": [],
+            "round": 1,
+            "show_on_tutorial_round": true,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "enemy_stage_1_v1",
+            "sprite_w": 110,
+            "title": "Walkers incoming"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Fast, fragile flankers that hunt your economy buildings. Kill them before they reach an unguarded tile — or before they carry one off.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Raider",
+            "hidden_frames": [],
+            "round": 5,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "raider_stage_1",
+            "sprite_w": 110,
+            "title": "Raiders inbound"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Something big is coming. It doesn't care what's in its way, and it hits far harder than anything you've faced so far.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Boss",
+            "hidden_frames": [],
+            "round": 10,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "boss_era_0",
+            "sprite_w": 110,
+            "title": "A boss approaches"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "A Commander only ever shows up at a boss's side, summoned partway through the fight. It rallies whatever's left on the field — expect the fight to get harder, not easier, from here.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Commander",
+            "hidden_frames": [],
+            "round": 10,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "commander_stage_1",
+            "sprite_w": 110,
+            "title": "The boss calls for backup"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Slow, heavily armored, and built to knock out your defenders at range. They'll ignore everything else to get a shot at your guns.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "SiegeCannon",
+            "hidden_frames": [],
+            "round": 31,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "siege_cannon_t2",
+            "sprite_w": 110,
+            "title": "Siege cannons roll in"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Enemies that move and fight in a tight group. They hit harder together than any one of them could alone — thin out the group before it reaches the hole.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Formation",
+            "hidden_frames": [],
+            "round": 11,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "formation_stage_2",
+            "sprite_w": 110,
+            "title": "Formations march in"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "They barely fight themselves, but every enemy nearby gets stronger while a Drummer is alive. Kill the Drummer first, or the whole group outpaces you.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Drummer",
+            "hidden_frames": [],
+            "round": 21,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "drummer_stage_3",
+            "sprite_w": 110,
+            "title": "Drummers join the ranks"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "The first enemy that fights at range. It'll stand off and pick apart your defenders from a distance instead of walking into them — close the gap or out-range it first.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Sniper",
+            "hidden_frames": [],
+            "round": 25,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "sniper_stage_3",
+            "sprite_w": 110,
+            "title": "Snipers take position"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "They burrow in near a building, dig for a while, then surface to strike — and they're untargetable while buried. Watch for the dirt pile and hit them the moment they emerge.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Digger",
+            "hidden_frames": [],
+            "round": 15,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "digger_stage_4",
+            "sprite_w": 110,
+            "title": "Diggers go underground"
+          }
+        ],
+        "window": {
+          "close_seconds": 0.4,
+          "height": 310,
+          "hold_seconds": 10.0,
+          "open_seconds": 0.5,
+          "width": 160
+        }
+      },
+      "General": {
+        "game_scale_rounds": 15,
+        "starting_currency": 32
+      },
+      "LightningStrike": {
+        "cooldown": [
+          4,
+          3,
+          2
+        ],
+        "damage": [
+          12,
+          18,
+          38
+        ],
+        "max_level": 3,
+        "radius": [
+          1,
+          2,
+          3
+        ]
+      },
+      "PhaseLoop": {
+        "income_phase_duration": 1.805,
+        "payout_stagger_interval": 1.0,
+        "round_end_delay": 1.4,
+        "speed_1_5x_min_round": 10,
+        "speed_2x_min_round": 20
+      },
+      "Seasons": {
+        "rounds_per_season": 10
+      },
+      "Sounds": {
+        "Ambient": {
+          "default": {
+            "clips": [
+              {
+                "end": 0.0,
+                "file": "imported/4.wav",
+                "start": 0.0,
+                "volume": 0.1
+              }
+            ],
+            "loop": true,
+            "pick": "random"
+          }
+        },
+        "Game": {
+          "game_over": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          },
+          "game_start": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          },
+          "level_up": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          },
+          "round_loss": {
+            "clips": [
+              {
+                "end": 0.0,
+                "file": "imported/loss.mp3",
+                "start": 0.0,
+                "volume": 1.0
+              }
+            ],
+            "loop": false,
+            "pick": "random"
+          },
+          "round_start": {
+            "clips": [
+              {
+                "end": 0.0,
+                "file": "imported/screamsv2.mp3",
+                "start": 0.0,
+                "volume": 0.1
+              }
+            ],
+            "loop": false,
+            "pick": "random"
+          },
+          "round_win": {
+            "clips": [
+              {
+                "end": 0.0,
+                "file": "imported/round win.mp3",
+                "start": 0.0,
+                "volume": 0.7
+              }
+            ],
+            "loop": false,
+            "pick": "random"
+          }
+        },
+        "Music": {
+          "building_phase": {
+            "clips": [],
+            "loop": true,
+            "pick": "random"
+          },
+          "combat_phase": {
+            "clips": [],
+            "loop": true,
+            "pick": "random"
+          },
+          "cutscene": {
+            "clips": [],
+            "loop": true,
+            "pick": "random"
+          },
+          "default": {
+            "clips": [
+              {
+                "end": 0.0,
+                "file": "Bass_and_drum_Duo.wav",
+                "start": 0.0,
+                "volume": 1.0
+              }
+            ],
+            "loop": true,
+            "pick": "random"
+          },
+          "menu": {
+            "clips": [
+              {
+                "end": 0.0,
+                "file": "imported/HtbH-ensamble turned down.mp3",
+                "start": 0.0,
+                "volume": 0.8
+              }
+            ],
+            "loop": true,
+            "pick": "random"
+          }
+        }
+      },
+      "TheHole": {
+        "base_hp": 10,
+        "base_income": 5,
+        "base_kills_enemies": true,
+        "base_lives": 3,
+        "building_revive": true
+      },
+      "Tutorial": {
+        "economy_buildings_required": 1
+      },
+      "XP": {
+        "base_income_per_village_level": 2,
+        "levelup_love_reward": 20,
+        "village_xp_base_threshold": 40,
+        "village_xp_threshold_inc": 20,
+        "village_xp_threshold_inc_growth": 2,
+        "xp_from_buildings": true,
+        "xp_on_base_damage_kill": true,
+        "xp_per_boss": 20,
+        "xp_per_raider": 1,
+        "xp_per_siege_enemy": 5,
+        "xp_per_standard_enemy": 1
+      }
+    },
+    "timestamp": "2026-08-18T18:30:23"
+  },
+  {
+    "description": "",
+    "id": "2c4b7193-6e65-49e6-8c0b-903314176c63",
+    "name": "core v2",
+    "snapshot": {
+      "Camera": {
+        "default_zoom": 1.0,
+        "keyboard_pan_speed": 300,
+        "max_offset_tiles_x": 30.0,
+        "max_offset_tiles_y": 30.0,
+        "zoom_levels": [
+          0.5,
+          1.0,
+          2.0
+        ]
+      },
+      "Debug": {
+        "ask_player_identity": false,
+        "debug_mode_available": true,
+        "default_level": 1,
+        "default_output_csv": true,
+        "default_output_html": true,
+        "default_output_jsonl": true,
+        "default_output_md": true,
+        "regular_mode_available": true
+      },
+      "EnemyIntro": {
+        "entries": [
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Slow, steady grunts that march straight for the hole. Individually weak, but they keep coming — and they can kidnap an undefended building along the way.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Standard",
+            "hidden_frames": [],
+            "round": 1,
+            "show_on_tutorial_round": true,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "enemy_stage_1_v1",
+            "sprite_w": 110,
+            "title": "Walkers incoming"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Fast, fragile flankers that hunt your economy buildings. Kill them before they reach an unguarded tile — or before they carry one off.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Raider",
+            "hidden_frames": [],
+            "round": 5,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "raider_stage_1",
+            "sprite_w": 110,
+            "title": "Raiders inbound"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Something big is coming. It doesn't care what's in its way, and it hits far harder than anything you've faced so far.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Boss",
+            "hidden_frames": [],
+            "round": 10,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "boss_era_0",
+            "sprite_w": 110,
+            "title": "A boss approaches"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "A Commander only ever shows up at a boss's side, summoned partway through the fight. It rallies whatever's left on the field — expect the fight to get harder, not easier, from here.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Commander",
+            "hidden_frames": [],
+            "round": 10,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "commander_stage_1",
+            "sprite_w": 110,
+            "title": "The boss calls for backup"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Slow, heavily armored, and built to knock out your defenders at range. They'll ignore everything else to get a shot at your guns.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "SiegeCannon",
+            "hidden_frames": [],
+            "round": 31,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "siege_cannon_t2",
+            "sprite_w": 110,
+            "title": "Siege cannons roll in"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Enemies that move and fight in a tight group. They hit harder together than any one of them could alone — thin out the group before it reaches the hole.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Formation",
+            "hidden_frames": [],
+            "round": 11,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "formation_stage_2",
+            "sprite_w": 110,
+            "title": "Formations march in"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "They barely fight themselves, but every enemy nearby gets stronger while a Drummer is alive. Kill the Drummer first, or the whole group outpaces you.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Drummer",
+            "hidden_frames": [],
+            "round": 21,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "drummer_stage_3",
+            "sprite_w": 110,
+            "title": "Drummers join the ranks"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "The first enemy that fights at range. It'll stand off and pick apart your defenders from a distance instead of walking into them — close the gap or out-range it first.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Sniper",
+            "hidden_frames": [],
+            "round": 25,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "sniper_stage_3",
+            "sprite_w": 110,
+            "title": "Snipers take position"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "They burrow in near a building, dig for a while, then surface to strike — and they're untargetable while buried. Watch for the dirt pile and hit them the moment they emerge.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Digger",
+            "hidden_frames": [],
+            "round": 15,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "digger_stage_4",
+            "sprite_w": 110,
+            "title": "Diggers go underground"
+          }
+        ],
+        "window": {
+          "close_seconds": 0.4,
+          "height": 310,
+          "hold_seconds": 10.0,
+          "open_seconds": 0.5,
+          "width": 160
+        }
+      },
+      "General": {
+        "game_scale_rounds": 15,
+        "starting_currency": 32
+      },
+      "LightningStrike": {
+        "cooldown": [
+          4,
+          3,
+          2
+        ],
+        "damage": [
+          12,
+          18,
+          38
+        ],
+        "max_level": 3,
+        "radius": [
+          1,
+          2,
+          3
+        ]
+      },
+      "PhaseLoop": {
+        "income_phase_duration": 1.805,
+        "payout_stagger_interval": 1.0,
+        "round_end_delay": 1.4,
+        "speed_1_5x_min_round": 10,
+        "speed_2x_min_round": 20
+      },
+      "Seasons": {
+        "rounds_per_season": 10
+      },
+      "Sounds": {
+        "Ambient": {
+          "default": {
+            "clips": [
+              {
+                "end": 0.0,
+                "file": "imported/4.wav",
+                "start": 0.0,
+                "volume": 0.1
+              }
+            ],
+            "loop": true,
+            "pick": "random"
+          }
+        },
+        "Game": {
+          "game_over": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          },
+          "game_start": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          },
+          "level_up": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          },
+          "round_loss": {
+            "clips": [
+              {
+                "end": 0.0,
+                "file": "imported/loss.mp3",
+                "start": 0.0,
+                "volume": 1.0
+              }
+            ],
+            "loop": false,
+            "pick": "random"
+          },
+          "round_start": {
+            "clips": [
+              {
+                "end": 0.0,
+                "file": "imported/screamsv2.mp3",
+                "start": 0.0,
+                "volume": 0.1
+              }
+            ],
+            "loop": false,
+            "pick": "random"
+          },
+          "round_win": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          }
+        },
+        "Music": {
+          "building_phase": {
+            "clips": [],
+            "loop": true,
+            "pick": "random"
+          },
+          "combat_phase": {
+            "clips": [],
+            "loop": true,
+            "pick": "random"
+          },
+          "cutscene": {
+            "clips": [],
+            "loop": true,
+            "pick": "random"
+          },
+          "default": {
+            "clips": [
+              {
+                "end": 0.0,
+                "file": "Bass_and_drum_Duo.wav",
+                "start": 0.0,
+                "volume": 1.0
+              }
+            ],
+            "loop": true,
+            "pick": "random"
+          },
+          "menu": {
+            "clips": [
+              {
+                "end": 0.0,
+                "file": "imported/HtbH-ensamble turned down.mp3",
+                "start": 0.0,
+                "volume": 0.8
+              }
+            ],
+            "loop": true,
+            "pick": "random"
+          }
+        }
+      },
+      "TheHole": {
+        "base_hp": 10,
+        "base_income": 5,
+        "base_kills_enemies": true,
+        "base_lives": 3,
+        "building_revive": true
+      },
+      "Tutorial": {
+        "economy_buildings_required": 1
+      },
+      "XP": {
+        "base_income_per_village_level": 2,
+        "levelup_love_reward": 20,
+        "village_xp_base_threshold": 40,
+        "village_xp_threshold_inc": 20,
+        "village_xp_threshold_inc_growth": 2,
+        "xp_from_buildings": true,
+        "xp_on_base_damage_kill": true,
+        "xp_per_boss": 20,
+        "xp_per_raider": 1,
+        "xp_per_siege_enemy": 5,
+        "xp_per_standard_enemy": 1
+      }
+    },
+    "timestamp": "2026-08-18T18:17:20"
+  },
+  {
+    "description": "",
+    "id": "4f5e211b-ab3f-4442-b662-b36818a8deff",
+    "name": "core done",
+    "snapshot": {
+      "Camera": {
+        "default_zoom": 1.0,
+        "keyboard_pan_speed": 300,
+        "max_offset_tiles_x": 30.0,
+        "max_offset_tiles_y": 30.0,
+        "zoom_levels": [
+          0.5,
+          1.0,
+          2.0
+        ]
+      },
+      "Debug": {
+        "ask_player_identity": false,
+        "debug_mode_available": true,
+        "default_level": 1,
+        "default_output_csv": true,
+        "default_output_html": true,
+        "default_output_jsonl": true,
+        "default_output_md": true,
+        "regular_mode_available": true
+      },
+      "EnemyIntro": {
+        "entries": [
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Slow, steady grunts that march straight for the hole. Individually weak, but they keep coming — and they can kidnap an undefended building along the way.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Standard",
+            "hidden_frames": [],
+            "round": 1,
+            "show_on_tutorial_round": true,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "enemy_stage_1_v1",
+            "sprite_w": 110,
+            "title": "Walkers incoming"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Fast, fragile flankers that hunt your economy buildings. Kill them before they reach an unguarded tile — or before they carry one off.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Raider",
+            "hidden_frames": [],
+            "round": 5,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "raider_stage_1",
+            "sprite_w": 110,
+            "title": "Raiders inbound"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Something big is coming. It doesn't care what's in its way, and it hits far harder than anything you've faced so far.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Boss",
+            "hidden_frames": [],
+            "round": 10,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "boss_era_0",
+            "sprite_w": 110,
+            "title": "A boss approaches"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "A Commander only ever shows up at a boss's side, summoned partway through the fight. It rallies whatever's left on the field — expect the fight to get harder, not easier, from here.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Commander",
+            "hidden_frames": [],
+            "round": 10,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "commander_stage_1",
+            "sprite_w": 110,
+            "title": "The boss calls for backup"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Slow, heavily armored, and built to knock out your defenders at range. They'll ignore everything else to get a shot at your guns.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "SiegeCannon",
+            "hidden_frames": [],
+            "round": 31,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "siege_cannon_t2",
+            "sprite_w": 110,
+            "title": "Siege cannons roll in"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Enemies that move and fight in a tight group. They hit harder together than any one of them could alone — thin out the group before it reaches the hole.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Formation",
+            "hidden_frames": [],
+            "round": 11,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "formation_stage_2",
+            "sprite_w": 110,
+            "title": "Formations march in"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "They barely fight themselves, but every enemy nearby gets stronger while a Drummer is alive. Kill the Drummer first, or the whole group outpaces you.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Drummer",
+            "hidden_frames": [],
+            "round": 21,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "drummer_stage_3",
+            "sprite_w": 110,
+            "title": "Drummers join the ranks"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "The first enemy that fights at range. It'll stand off and pick apart your defenders from a distance instead of walking into them — close the gap or out-range it first.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Sniper",
+            "hidden_frames": [],
+            "round": 25,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "sniper_stage_3",
+            "sprite_w": 110,
+            "title": "Snipers take position"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "They burrow in near a building, dig for a while, then surface to strike — and they're untargetable while buried. Watch for the dirt pile and hit them the moment they emerge.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Digger",
+            "hidden_frames": [],
+            "round": 15,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "digger_stage_4",
+            "sprite_w": 110,
+            "title": "Diggers go underground"
+          }
+        ],
+        "window": {
+          "close_seconds": 0.4,
+          "height": 310,
+          "hold_seconds": 10.0,
+          "open_seconds": 0.5,
+          "width": 160
+        }
+      },
+      "General": {
+        "game_scale_rounds": 15,
+        "starting_currency": 32
+      },
+      "LightningStrike": {
+        "cooldown": [
+          4,
+          3,
+          2
+        ],
+        "damage": [
+          12,
+          18,
+          38
+        ],
+        "max_level": 3,
+        "radius": [
+          1,
+          2,
+          3
+        ]
+      },
+      "PhaseLoop": {
+        "income_phase_duration": 1.805,
+        "payout_stagger_interval": 1.0,
+        "round_end_delay": 1.4,
+        "speed_1_5x_min_round": 10,
+        "speed_2x_min_round": 20
+      },
+      "Seasons": {
+        "rounds_per_season": 10
+      },
+      "Sounds": {
+        "Ambient": {
+          "default": {
+            "clips": [
+              {
+                "end": 0.0,
+                "file": "imported/4.wav",
+                "start": 0.0,
+                "volume": 0.1
+              }
+            ],
+            "loop": true,
+            "pick": "random"
+          }
+        },
+        "Game": {
+          "game_over": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          },
+          "game_start": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          },
+          "level_up": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          },
+          "round_loss": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          },
+          "round_start": {
+            "clips": [
+              {
+                "end": 0.0,
+                "file": "imported/screamsv2.mp3",
+                "start": 0.0,
+                "volume": 0.1
+              }
+            ],
+            "loop": false,
+            "pick": "random"
+          },
+          "round_win": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          }
+        },
+        "Music": {
+          "building_phase": {
+            "clips": [],
+            "loop": true,
+            "pick": "random"
+          },
+          "combat_phase": {
+            "clips": [],
+            "loop": true,
+            "pick": "random"
+          },
+          "cutscene": {
+            "clips": [],
+            "loop": true,
+            "pick": "random"
+          },
+          "default": {
+            "clips": [
+              {
+                "end": 0.0,
+                "file": "Bass_and_drum_Duo.wav",
+                "start": 0.0,
+                "volume": 1.0
+              }
+            ],
+            "loop": true,
+            "pick": "random"
+          },
+          "menu": {
+            "clips": [
+              {
+                "end": 0.0,
+                "file": "imported/HtbH-ensamble turned down.mp3",
+                "start": 0.0,
+                "volume": 0.8
+              }
+            ],
+            "loop": true,
+            "pick": "random"
+          }
+        }
+      },
+      "TheHole": {
+        "base_hp": 10,
+        "base_income": 5,
+        "base_kills_enemies": true,
+        "base_lives": 3,
+        "building_revive": true
+      },
+      "Tutorial": {
+        "economy_buildings_required": 1
+      },
+      "XP": {
+        "base_income_per_village_level": 2,
+        "levelup_love_reward": 20,
+        "village_xp_base_threshold": 40,
+        "village_xp_threshold_inc": 20,
+        "village_xp_threshold_inc_growth": 2,
+        "xp_from_buildings": true,
+        "xp_on_base_damage_kill": true,
+        "xp_per_boss": 20,
+        "xp_per_raider": 1,
+        "xp_per_siege_enemy": 5,
+        "xp_per_standard_enemy": 1
+      }
+    },
+    "timestamp": "2026-08-18T18:08:55"
+  },
+  {
+    "description": "",
+    "id": "213c3a29-5198-4cba-be8a-76fb660f4206",
+    "name": "menu done",
+    "snapshot": {
+      "Camera": {
+        "default_zoom": 1.0,
+        "keyboard_pan_speed": 300,
+        "max_offset_tiles_x": 30.0,
+        "max_offset_tiles_y": 30.0,
+        "zoom_levels": [
+          0.5,
+          1.0,
+          2.0
+        ]
+      },
+      "Debug": {
+        "ask_player_identity": false,
+        "debug_mode_available": true,
+        "default_level": 1,
+        "default_output_csv": true,
+        "default_output_html": true,
+        "default_output_jsonl": true,
+        "default_output_md": true,
+        "regular_mode_available": true
+      },
+      "EnemyIntro": {
+        "entries": [
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Slow, steady grunts that march straight for the hole. Individually weak, but they keep coming — and they can kidnap an undefended building along the way.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Standard",
+            "hidden_frames": [],
+            "round": 1,
+            "show_on_tutorial_round": true,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "enemy_stage_1_v1",
+            "sprite_w": 110,
+            "title": "Walkers incoming"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Fast, fragile flankers that hunt your economy buildings. Kill them before they reach an unguarded tile — or before they carry one off.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Raider",
+            "hidden_frames": [],
+            "round": 5,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "raider_stage_1",
+            "sprite_w": 110,
+            "title": "Raiders inbound"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Something big is coming. It doesn't care what's in its way, and it hits far harder than anything you've faced so far.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Boss",
+            "hidden_frames": [],
+            "round": 10,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "boss_era_0",
+            "sprite_w": 110,
+            "title": "A boss approaches"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "A Commander only ever shows up at a boss's side, summoned partway through the fight. It rallies whatever's left on the field — expect the fight to get harder, not easier, from here.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Commander",
+            "hidden_frames": [],
+            "round": 10,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "commander_stage_1",
+            "sprite_w": 110,
+            "title": "The boss calls for backup"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Slow, heavily armored, and built to knock out your defenders at range. They'll ignore everything else to get a shot at your guns.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "SiegeCannon",
+            "hidden_frames": [],
+            "round": 31,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "siege_cannon_t2",
+            "sprite_w": 110,
+            "title": "Siege cannons roll in"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Enemies that move and fight in a tight group. They hit harder together than any one of them could alone — thin out the group before it reaches the hole.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Formation",
+            "hidden_frames": [],
+            "round": 11,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "formation_stage_2",
+            "sprite_w": 110,
+            "title": "Formations march in"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "They barely fight themselves, but every enemy nearby gets stronger while a Drummer is alive. Kill the Drummer first, or the whole group outpaces you.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Drummer",
+            "hidden_frames": [],
+            "round": 21,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "drummer_stage_3",
+            "sprite_w": 110,
+            "title": "Drummers join the ranks"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "The first enemy that fights at range. It'll stand off and pick apart your defenders from a distance instead of walking into them — close the gap or out-range it first.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Sniper",
+            "hidden_frames": [],
+            "round": 25,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "sniper_stage_3",
+            "sprite_w": 110,
+            "title": "Snipers take position"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "They burrow in near a building, dig for a while, then surface to strike — and they're untargetable while buried. Watch for the dirt pile and hit them the moment they emerge.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Digger",
+            "hidden_frames": [],
+            "round": 15,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "digger_stage_4",
+            "sprite_w": 110,
+            "title": "Diggers go underground"
+          }
+        ],
+        "window": {
+          "close_seconds": 0.4,
+          "height": 310,
+          "hold_seconds": 10.0,
+          "open_seconds": 0.5,
+          "width": 160
+        }
+      },
+      "General": {
+        "game_scale_rounds": 15,
+        "starting_currency": 32
+      },
+      "LightningStrike": {
+        "cooldown": [
+          4,
+          3,
+          2
+        ],
+        "damage": [
+          12,
+          18,
+          38
+        ],
+        "max_level": 3,
+        "radius": [
+          1,
+          2,
+          3
+        ]
+      },
+      "PhaseLoop": {
+        "income_phase_duration": 1.805,
+        "payout_stagger_interval": 1.0,
+        "round_end_delay": 1.4,
+        "speed_1_5x_min_round": 10,
+        "speed_2x_min_round": 20
+      },
+      "Seasons": {
+        "rounds_per_season": 10
+      },
+      "Sounds": {
+        "Ambient": {
+          "default": {
+            "clips": [
+              {
+                "end": 0.0,
+                "file": "imported/4.wav",
+                "start": 0.0,
+                "volume": 0.1
+              }
+            ],
+            "loop": true,
+            "pick": "random"
+          }
+        },
+        "Game": {
+          "game_over": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          },
+          "game_start": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          },
+          "level_up": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          },
+          "round_loss": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          },
+          "round_start": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          },
+          "round_win": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          }
+        },
+        "Music": {
+          "building_phase": {
+            "clips": [],
+            "loop": true,
+            "pick": "random"
+          },
+          "combat_phase": {
+            "clips": [],
+            "loop": true,
+            "pick": "random"
+          },
+          "cutscene": {
+            "clips": [],
+            "loop": true,
+            "pick": "random"
+          },
+          "default": {
+            "clips": [
+              {
+                "end": 0.0,
+                "file": "Bass_and_drum_Duo.wav",
+                "start": 0.0,
+                "volume": 1.0
+              }
+            ],
+            "loop": true,
+            "pick": "random"
+          },
+          "menu": {
+            "clips": [
+              {
+                "end": 0.0,
+                "file": "imported/HtbH-ensamble turned down.mp3",
+                "start": 0.0,
+                "volume": 0.8
+              }
+            ],
+            "loop": true,
+            "pick": "random"
+          }
+        }
+      },
+      "TheHole": {
+        "base_hp": 10,
+        "base_income": 5,
+        "base_kills_enemies": true,
+        "base_lives": 3,
+        "building_revive": true
+      },
+      "Tutorial": {
+        "economy_buildings_required": 1
+      },
+      "XP": {
+        "base_income_per_village_level": 2,
+        "levelup_love_reward": 20,
+        "village_xp_base_threshold": 40,
+        "village_xp_threshold_inc": 20,
+        "village_xp_threshold_inc_growth": 2,
+        "xp_from_buildings": true,
+        "xp_on_base_damage_kill": true,
+        "xp_per_boss": 20,
+        "xp_per_raider": 1,
+        "xp_per_siege_enemy": 5,
+        "xp_per_standard_enemy": 1
+      }
+    },
+    "timestamp": "2026-08-18T18:05:18"
+  },
+  {
+    "description": "",
+    "id": "61f8c6c6-283b-4856-b3b1-8ae0495a7894",
+    "name": "ambience",
+    "snapshot": {
+      "Camera": {
+        "default_zoom": 1.0,
+        "keyboard_pan_speed": 300,
+        "max_offset_tiles_x": 30.0,
+        "max_offset_tiles_y": 30.0,
+        "zoom_levels": [
+          0.5,
+          1.0,
+          2.0
+        ]
+      },
+      "Debug": {
+        "ask_player_identity": false,
+        "debug_mode_available": true,
+        "default_level": 1,
+        "default_output_csv": true,
+        "default_output_html": true,
+        "default_output_jsonl": true,
+        "default_output_md": true,
+        "regular_mode_available": true
+      },
+      "EnemyIntro": {
+        "entries": [
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Slow, steady grunts that march straight for the hole. Individually weak, but they keep coming — and they can kidnap an undefended building along the way.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Standard",
+            "hidden_frames": [],
+            "round": 1,
+            "show_on_tutorial_round": true,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "enemy_stage_1_v1",
+            "sprite_w": 110,
+            "title": "Walkers incoming"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Fast, fragile flankers that hunt your economy buildings. Kill them before they reach an unguarded tile — or before they carry one off.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Raider",
+            "hidden_frames": [],
+            "round": 5,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "raider_stage_1",
+            "sprite_w": 110,
+            "title": "Raiders inbound"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Something big is coming. It doesn't care what's in its way, and it hits far harder than anything you've faced so far.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Boss",
+            "hidden_frames": [],
+            "round": 10,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "boss_era_0",
+            "sprite_w": 110,
+            "title": "A boss approaches"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "A Commander only ever shows up at a boss's side, summoned partway through the fight. It rallies whatever's left on the field — expect the fight to get harder, not easier, from here.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Commander",
+            "hidden_frames": [],
+            "round": 10,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "commander_stage_1",
+            "sprite_w": 110,
+            "title": "The boss calls for backup"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Slow, heavily armored, and built to knock out your defenders at range. They'll ignore everything else to get a shot at your guns.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "SiegeCannon",
+            "hidden_frames": [],
+            "round": 31,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "siege_cannon_t2",
+            "sprite_w": 110,
+            "title": "Siege cannons roll in"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Enemies that move and fight in a tight group. They hit harder together than any one of them could alone — thin out the group before it reaches the hole.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Formation",
+            "hidden_frames": [],
+            "round": 11,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "formation_stage_2",
+            "sprite_w": 110,
+            "title": "Formations march in"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "They barely fight themselves, but every enemy nearby gets stronger while a Drummer is alive. Kill the Drummer first, or the whole group outpaces you.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Drummer",
+            "hidden_frames": [],
+            "round": 21,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "drummer_stage_3",
+            "sprite_w": 110,
+            "title": "Drummers join the ranks"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "The first enemy that fights at range. It'll stand off and pick apart your defenders from a distance instead of walking into them — close the gap or out-range it first.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Sniper",
+            "hidden_frames": [],
+            "round": 25,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "sniper_stage_3",
+            "sprite_w": 110,
+            "title": "Snipers take position"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "They burrow in near a building, dig for a while, then surface to strike — and they're untargetable while buried. Watch for the dirt pile and hit them the moment they emerge.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Digger",
+            "hidden_frames": [],
+            "round": 15,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "digger_stage_4",
+            "sprite_w": 110,
+            "title": "Diggers go underground"
+          }
+        ],
+        "window": {
+          "close_seconds": 0.4,
+          "height": 310,
+          "hold_seconds": 10.0,
+          "open_seconds": 0.5,
+          "width": 160
+        }
+      },
+      "General": {
+        "game_scale_rounds": 15,
+        "starting_currency": 32
+      },
+      "LightningStrike": {
+        "cooldown": [
+          4,
+          3,
+          2
+        ],
+        "damage": [
+          12,
+          18,
+          38
+        ],
+        "max_level": 3,
+        "radius": [
+          1,
+          2,
+          3
+        ]
+      },
+      "PhaseLoop": {
+        "income_phase_duration": 1.805,
+        "payout_stagger_interval": 1.0,
+        "round_end_delay": 1.4,
+        "speed_1_5x_min_round": 10,
+        "speed_2x_min_round": 20
+      },
+      "Seasons": {
+        "rounds_per_season": 10
+      },
+      "Sounds": {
+        "Ambient": {
+          "default": {
+            "clips": [
+              {
+                "end": 0.0,
+                "file": "imported/4.wav",
+                "start": 0.0,
+                "volume": 0.1
+              }
+            ],
+            "loop": true,
+            "pick": "random"
+          }
+        },
+        "Game": {
+          "game_over": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          },
+          "game_start": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          },
+          "level_up": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          },
+          "round_loss": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          },
+          "round_start": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          },
+          "round_win": {
+            "clips": [],
+            "loop": false,
+            "pick": "random"
+          }
+        },
+        "Music": {
+          "building_phase": {
+            "clips": [],
+            "loop": true,
+            "pick": "random"
+          },
+          "combat_phase": {
+            "clips": [],
+            "loop": true,
+            "pick": "random"
+          },
+          "cutscene": {
+            "clips": [],
+            "loop": true,
+            "pick": "random"
+          },
+          "default": {
+            "clips": [
+              {
+                "end": 0.0,
+                "file": "Bass_and_drum_Duo.wav",
+                "start": 0.0,
+                "volume": 1.0
+              }
+            ],
+            "loop": true,
+            "pick": "random"
+          },
+          "menu": {
+            "clips": [],
+            "loop": true,
+            "pick": "random"
+          }
+        }
+      },
+      "TheHole": {
+        "base_hp": 10,
+        "base_income": 5,
+        "base_kills_enemies": true,
+        "base_lives": 3,
+        "building_revive": true
+      },
+      "Tutorial": {
+        "economy_buildings_required": 1
+      },
+      "XP": {
+        "base_income_per_village_level": 2,
+        "levelup_love_reward": 20,
+        "village_xp_base_threshold": 40,
+        "village_xp_threshold_inc": 20,
+        "village_xp_threshold_inc_growth": 2,
+        "xp_from_buildings": true,
+        "xp_on_base_damage_kill": true,
+        "xp_per_boss": 20,
+        "xp_per_raider": 1,
+        "xp_per_siege_enemy": 5,
+        "xp_per_standard_enemy": 1
+      }
+    },
+    "timestamp": "2026-08-18T17:56:45"
+  },
+  {
+    "description": "",
     "id": "967ea6af-ff47-4833-b6b0-e1dd250bebb5",
     "name": "Tutorial update",
     "snapshot": {
