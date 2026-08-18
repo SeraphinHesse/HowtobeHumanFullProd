@@ -366,6 +366,28 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   stored column wins, so swatches on it would do nothing). Only
   `BUILDINGS_CATEGORY` (the bare `"buildings"` slots.json key) lives here,
   beside the feature, exactly as `WALL_CATEGORY` lives in `game/map`.
+- **Booster buildings never recolour (feature: boost buildings excluded from
+  colour).** `place_building`'s colour stamp above is gated on `"boost" not in
+  building.tags` — a booster (`game/buildings/boost.py`'s `EXTRA_TAGS =
+  ("boost",)`) skips BOTH the roll and an explicit `column` override, so it
+  always sits at its inherited `-1` sentinel regardless of what its master
+  sheet declares. `game/ui/building_ui.py`'s `ConstructPreview` and
+  `BuildingUI._build_colour_row` apply the identical tag check so a
+  booster's swatch row is never built in the first place — the registry
+  guard is the enforcement, the UI guards are what keep a player from ever
+  seeing a swatch that would do nothing.
+- **A freshly-placed building's sprite is hidden for a short, purely
+  cosmetic reveal delay** (feature: placement reveal delay).
+  `BuildingsGlobal.placement_reveal_delay_seconds` (`data/balancing/
+  buildings.json`, default 0.3s) is stamped onto the new
+  `BuildingSprite.reveal_delay` field right after the colour stamp, still
+  inside `place_building` — occupancy, stats and combat are all live the
+  instant `place_building` returns; only the SPRITE stays undrawn until the
+  countdown reaches zero (`components.BuildingSprite.update`/
+  `render_items`, `game/buildings/components.py`), giving the
+  `triggers.building_placed` VFX (`data/CLAUDE.md`'s vfx domain entry) a
+  moment to play before the building's own art pops in. `0` disables the
+  delay outright (pre-feature behaviour, building appears instantly).
 
 ## Building Movement (`movement.py`)
 Moving an ALREADY-PLACED building to another unbuilt buildable tile.

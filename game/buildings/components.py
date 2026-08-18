@@ -29,14 +29,35 @@ class BuildingSprite(SpriteAnimator):
     the sprite fields onto the carrier (which redraws them in its arms) and
     leaves the dead victim standing on its tile, so this is what hides it until
     payday revives it.
+
+    ``reveal_delay`` (feature: placement reveal delay) is a PURELY COSMETIC
+    countdown, seconds remaining until this sprite starts drawing —
+    ``registry.place_building`` stamps it from
+    ``BuildingsGlobal.placement_reveal_delay_seconds`` right after placement,
+    so the building's occupancy/stats/combat are all live immediately while
+    only its VISUAL appearance is held back a beat (giving the placement VFX,
+    ``triggers.building_placed``, a moment to play before the sprite itself
+    pops in). It counts down every frame in ``update`` alongside the existing
+    animation clock — no host wiring needed, the same "component renders
+    conditionally" shape the dead-building guard above already uses; it is
+    just a second condition on the same early-return.
     """
+
+    reveal_delay: float = 0.0
 
     def on_added(self, owner):
         self._owner = owner  # transient back-ref (never serialized)
 
+    def update(self, dt):
+        if self.reveal_delay > 0.0:
+            self.reveal_delay = max(0.0, self.reveal_delay - dt)
+        super().update(dt)
+
     def render_items(self, transform):
         owner = getattr(self, "_owner", None)
         if owner is not None and not getattr(owner, "alive", True):
+            return
+        if self.reveal_delay > 0.0:
             return
         yield from super().render_items(transform)
 

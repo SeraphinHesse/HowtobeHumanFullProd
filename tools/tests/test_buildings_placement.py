@@ -185,9 +185,79 @@ class TestColourColumn(unittest.TestCase):
     def test_submitted_render_item_carries_the_column(self):
         building, scene = self._place(colour_columns=self.COLOURS, column=1)
         scene.update(0.0)  # queued -> live
+        # Clear the placement reveal delay (a separate, purely cosmetic
+        # feature) so this test's own concern -- the column reaching the
+        # RenderItem -- isn't entangled with that unrelated countdown.
+        building.update(BAL["BuildingsGlobal"]["placement_reveal_delay_seconds"])
         items = [i for i in scene.render_items() if i.slot_key == self.SLOT]
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0].column, 1)
+
+
+class TestBoosterColourExclusion(unittest.TestCase):
+    """feature: boost buildings excluded from colour. A booster's animator
+    stays at the -1 sentinel no matter what the capability map offers, and
+    even an explicit swatch pick (which the UI never actually offers a
+    booster) is ignored."""
+
+    SLOT = "boost_speed_t1_lvl1"
+    COLOURS = {SLOT: ("red", "green", "blue")}
+
+    def _place_booster(self, **kwargs):
+        tm = synth(["bbb", "bbb", "bbb"])
+        scene, occ = Scene(), TileOccupancy()
+        building, _cost = place_building(
+            tm, tm.get(1, 1), "boost_speed", 9999, BAL, scene, occ, **kwargs)
+        return building
+
+    def test_no_roll_even_with_colours_offered(self):
+        building = self._place_booster(colour_columns=self.COLOURS,
+                                       rng=random.Random(1234))
+        anim = building.get_component(SpriteAnimator)
+        self.assertEqual(anim.slot_key, self.SLOT)
+        self.assertEqual(anim.column, -1)
+
+    def test_explicit_column_is_ignored_too(self):
+        building = self._place_booster(colour_columns=self.COLOURS, column=2)
+        self.assertEqual(building.get_component(SpriteAnimator).column, -1)
+
+
+class TestPlacementRevealDelay(unittest.TestCase):
+    """feature: placement reveal delay. Purely cosmetic — occupancy/state are
+    unaffected; only BuildingSprite.render_items is gated."""
+
+    def _place(self, buildings_balance=BAL):
+        tm = synth(["bbb", "bbb", "bbb"])
+        scene, occ = Scene(), TileOccupancy()
+        building, _cost = place_building(
+            tm, tm.get(1, 1), "defence", 9999, buildings_balance, scene, occ)
+        return building, scene
+
+    def test_stamped_from_balance_and_gates_render(self):
+        building, scene = self._place()
+        anim = building.get_component(SpriteAnimator)
+        delay = BAL["BuildingsGlobal"]["placement_reveal_delay_seconds"]
+        self.assertEqual(anim.reveal_delay, delay)
+        # Gameplay is live immediately (unaffected by the delay).
+        self.assertTrue(building.alive)
+
+        scene.update(0.0)  # queued -> live
+        self.assertEqual(list(scene.render_items()), [])
+
+        building.update(delay)  # let the countdown expire
+        self.assertEqual(anim.reveal_delay, 0.0)
+        items = [i for i in scene.render_items() if i.slot_key == anim.slot_key]
+        self.assertEqual(len(items), 1)
+
+    def test_zero_delay_is_the_pre_feature_behaviour(self):
+        bal = dict(BAL)
+        bal["BuildingsGlobal"] = dict(BAL["BuildingsGlobal"],
+                                      placement_reveal_delay_seconds=0.0)
+        building, scene = self._place(buildings_balance=bal)
+        self.assertEqual(
+            building.get_component(SpriteAnimator).reveal_delay, 0.0)
+        scene.update(0.0)
+        self.assertEqual(len(list(scene.render_items())), 1)
 
 
 if __name__ == "__main__":

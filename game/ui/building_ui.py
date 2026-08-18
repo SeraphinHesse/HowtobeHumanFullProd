@@ -530,7 +530,13 @@ class ConstructPreview:
         #   `data/ui/screen_defaults.json` needs no regeneration.
         # 12 is the UR-5 click-target floor exactly and the largest square the
         # 13px band holds (11 would fail the floor, 13 would hit the name box).
-        colors = (building_colors or {}).get(temp.slot_key(), ())
+        # Booster exclusion (feature: boost buildings never recolour): a
+        # booster (the "boost" tag, `game/buildings/boost.py` EXTRA_TAGS) is
+        # excluded from colour ENTIRELY, even on a colour-capable sheet — no
+        # swatch row is ever built for one, matching `registry.place_building`
+        # (`game/buildings/registry.py`)'s own "boost" tag guard on the roll.
+        colors = ((building_colors or {}).get(temp.slot_key(), ())
+                  if "boost" not in temp.tags else ())
         if len(colors) < 2:
             colors = ()
         self.swatches = ColorSwatchRow(
@@ -1813,6 +1819,12 @@ class BuildingUI:
         self._clear_colour_ids()
         b = self._selected
         if b is None or len(self.selected_tiles) != 1:
+            return
+        # Booster exclusion (feature: boost buildings never recolour) — the
+        # SAME "boost" tag guard `ConstructPreview` and `registry
+        # .place_building` apply; a booster's row stays inert regardless of
+        # what its sheet declares.
+        if "boost" in b.tags:
             return
         # The LIVE animator's slot key, not `b.slot_key()`: it is the key the
         # host's map is built on (`registry.place_building` stamps the column

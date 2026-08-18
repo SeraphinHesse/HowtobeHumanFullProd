@@ -232,8 +232,17 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
     # order across tiers. ``get_component(SpriteAnimator)`` is the same
     # isinstance-matching accessor ``apply_tier_stats`` uses, and is None on the
     # base building, which carries no animator at all.
+    #
+    # Booster exclusion (feature: boost buildings never recolour): a booster
+    # (the "boost" tag, `game/buildings/boost.py`'s `EXTRA_TAGS`) is excluded
+    # from colour ENTIRELY — no roll AND no explicit swatch pick, so it always
+    # renders at its single default appearance. `game/ui/building_ui.py` never
+    # offers a booster's swatch row in the first place (ConstructPreview /
+    # `_build_colour_row`), so `column` is never non-None for one in practice;
+    # the tag check here is what makes the exclusion hold even if a caller
+    # (a test, `tools/simrun.py`) passes one explicitly.
     anim = building.get_component(SpriteAnimator)
-    if anim is not None:
+    if anim is not None and "boost" not in building.tags:
         if column is not None:
             anim.column = column          # explicit swatch — no draw at all
         else:
@@ -244,6 +253,13 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
             # else: leave anim.column at its -1 "no driver" sentinel — NOT 0,
             # which is a real colour index (engine/core/sprite_animator.py:28).
     # -- /B1 --
+    # A freshly-placed building's sprite stays hidden for
+    # `BuildingsGlobal.placement_reveal_delay_seconds` (purely cosmetic — see
+    # `BuildingSprite.reveal_delay`, `game/buildings/components.py`; gameplay
+    # — occupancy/stats/combat, all below and above this line — is unaffected).
+    if anim is not None:
+        anim.reveal_delay = buildings_balance["BuildingsGlobal"][
+            "placement_reveal_delay_seconds"]
     tilemap.set_tile_state(tile, TileState.BUILT)
     scene.spawn(building)
     # Only this one tile changed — update its occupancy directly instead of the
