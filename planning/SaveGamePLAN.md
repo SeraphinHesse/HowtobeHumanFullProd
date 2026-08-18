@@ -1,4 +1,4 @@
-<!-- status: NOT STARTED — 0/7 phases -->
+<!-- status: IN PROGRESS — 1/7 phases (SG-1 done) -->
 
 # SaveGamePLAN.md — Save-Game System
 
@@ -127,7 +127,7 @@ twelve types.
 
 | Phase | Scope | Status |
 |-------|-------|--------|
-| SG-1 | Data schema + slot storage primitives (`game/core/savegame.py`) | not started |
+| SG-1 | Data schema + slot storage primitives (`game/core/savegame.py`) | done |
 | SG-2 | `RunState` + `Session` serialization | not started |
 | SG-3 | `Building`/`GameObject` rehydration helper | not started |
 | SG-4 | `TileMap` state serialization | not started |

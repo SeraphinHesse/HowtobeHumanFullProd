@@ -141,6 +141,11 @@ DOMAINS = {
         "test_projectile_anchored_flight.py",
         "test_projectile_sprites.py",
         "test_right_click_dismiss.py",
+        # SaveGamePLAN: save-slot storage is backend-only in SG-1, but the
+        # feature it serves (Save Files screen, minimap) is UI-facing — the
+        # test_player_identity.py/test_names.py precedent for persistence
+        # modules that exist for a menu feature.
+        "test_savegame.py",
         "test_shell.py",
         "test_sound_triggers_ui.py",
         "test_sound_music.py",  # SD-7: music arbitration + game stings

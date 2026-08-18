@@ -1,0 +1,93 @@
+{
+  "$id": "savegame.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "scores/saves/<slot_id>.json (gitignored runtime save-slot body; no data/ content file pairs with this schema - validate_data skips data/schemas/). Written ONLY by game/core/savegame.py through engine.data_io.write_validated. The 'run_state', 'session', 'tile_map' and 'buildings' sub-objects are intentionally loose placeholders as of SaveGamePLAN SG-1 - SG-2/SG-3/SG-4 each tighten their own node in place as they land, per that plan's phased build order.",
+  "properties": {
+    "buildings": {
+      "description": "One entry per live building at save time, via game/buildings/registry.py::save_building. Placeholder item shape as of SG-1 - SG-3 defines the real item schema here.",
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "created_at": {
+      "description": "ISO-8601 timestamp this slot was created (the autosave that wrote it).",
+      "type": "string"
+    },
+    "map_id": {
+      "description": "The active map this run was played on.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "pinned": {
+      "description": "True if this slot is exempt from FIFO eviction.",
+      "type": "boolean"
+    },
+    "round_num": {
+      "description": "The round this save was taken at - always a multiple of 5 in practice (the autosave cadence). Duplicated from run_state.round_num so the index can show it without loading the full body.",
+      "maximum": 100000,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "run_state": {
+      "description": "RunState.to_dict() output. Placeholder shape as of SG-1 - SG-2 defines its real properties/required list here.",
+      "type": "object"
+    },
+    "session": {
+      "description": "Session-level save fields (e.g. combat_speed_idx). Placeholder shape as of SG-1 - SG-2 defines its real properties/required list here.",
+      "type": "object"
+    },
+    "slot_id": {
+      "description": "Unique id; also the stem of this file's own path, scores/saves/<slot_id>.json.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "tile_map": {
+      "description": "TileMap.save_state() output. Placeholder shape as of SG-1 - SG-4 defines its real properties/required list here.",
+      "type": "object"
+    },
+    "unlocked_tiles": {
+      "description": "Every unlocked (BUILDABLE or BUILT) tile's [col, row] at save time - the minimap source (D4: no image bytes stored). Duplicated from tile_map for the same reason as round_num.",
+      "items": {
+        "items": {
+          "maximum": 1023,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maxItems": 2,
+        "minItems": 2,
+        "type": "array"
+      },
+      "type": "array"
+    },
+    "updated_at": {
+      "description": "ISO-8601 timestamp of the last write - equals created_at, since a slot is never overwritten by a later autosave (D3: every autosave creates a new slot).",
+      "type": "string"
+    },
+    "version": {
+      "description": "Document format version. Only 1 exists; a future bump is a schema change.",
+      "enum": [
+        1
+      ],
+      "minimum": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "buildings",
+    "created_at",
+    "map_id",
+    "pinned",
+    "round_num",
+    "run_state",
+    "session",
+    "slot_id",
+    "tile_map",
+    "unlocked_tiles",
+    "updated_at",
+    "version"
+  ],
+  "title": "savegame",
+  "type": "object"
+}

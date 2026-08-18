@@ -163,6 +163,7 @@ TIERS = {
     "test_render": "core",
     "test_render_backend_parity": "core",
     "test_right_click_dismiss": "core",
+    "test_savegame": "core",  # SaveGamePLAN SG-1: save-slot storage primitives
     "test_scenarios": "core",
     "test_scene_query": "core",
     "test_schema_slot_sync": "core",  # feature-enemy-intro-dialogue: sprite_slot/animation enum drift
