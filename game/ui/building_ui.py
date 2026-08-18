@@ -67,6 +67,7 @@ from game.map.tiles import (
 from engine.render.fonts import layout_h
 
 from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
+from . import sound  # SD-6: the not-enough-love refusal sound
 from .strings import T
 from .widgets import (
     Button, anim_ms, contains, label_holder, submit_label, submit_panel,
@@ -2132,6 +2133,7 @@ class BuildingUI:
             elif st.love < cost:
                 self.action_btn.start_flash(self._flash_dur,
                                         T("building.flash.not_enough_love"))
+                sound.play_not_enough_love()
             else:
                 unlocked_any = False
                 for tile, chunk_cost in chunks:
@@ -2191,6 +2193,7 @@ class BuildingUI:
                     # is the only part of the tree wide enough to read it.
                     btn.start_flash(self._flash_dur,
                                         T("building.flash.not_enough_love"))
+                    sound.play_not_enough_love()
                 else:
                     self.preview = ConstructPreview(
                         btype, cost, buildings_balance, self._ui_balance,
@@ -2278,6 +2281,7 @@ class BuildingUI:
                 if st.love < total:
                     self.action_btn.start_flash(self._flash_dur,
                                                 T("building.flash.not_enough_love"))
+                    sound.play_not_enough_love()
                     return True
                 st.spend_love(total)
                 for tb, _c in upgrade_targets:
@@ -2321,6 +2325,7 @@ class BuildingUI:
                 if st.love < cost:
                     self.action_btn.start_flash(self._flash_dur,
                                                 T("building.flash.not_enough_love"))
+                    sound.play_not_enough_love()
                     return True
                 st.spend_love(cost)
                 b.advance_tier()
@@ -2343,6 +2348,7 @@ class BuildingUI:
                 if st.love < total:
                     self.action_btn.start_flash(self._flash_dur,
                                                 T("building.flash.not_enough_love"))
+                    sound.play_not_enough_love()
                     return True
                 st.spend_love(total)
                 for tb, _c in targets:
@@ -2384,6 +2390,7 @@ class BuildingUI:
         if st.love < p.cost:
             p.confirm_btn.start_flash(self._flash_dur,
                                         T("building.flash.not_enough_love"))
+            sound.play_not_enough_love()
             return
         try:
             cost, rounds = start_move(
@@ -2420,6 +2427,7 @@ class BuildingUI:
         if st.love < p.total_cost:
             p.confirm_btn.start_flash(self._flash_dur,
                                         T("building.flash.not_enough_love"))
+            sound.play_not_enough_love()
             return
         placed_any = False
         painter_blocked = True  # stays True only if EVERY tile hit the bar
@@ -2466,6 +2474,10 @@ class BuildingUI:
             msg = (T("building.flash.painter_tile_used") if painter_blocked
                    else T("building.flash.not_enough_love"))
             p.confirm_btn.start_flash(self._flash_dur, msg)
+            # SD-6: only the not-enough-love BRANCH is that sound; the
+            # painter-tile-used refusal is a different message.
+            if not painter_blocked:
+                sound.play_not_enough_love()
             return
         self.last_placed_type = p.building_type  # TU-6: signal a real placement
         self.preview = None
