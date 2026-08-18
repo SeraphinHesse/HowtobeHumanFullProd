@@ -982,6 +982,55 @@ import list.**
   JSON, so a manifest-resolution regression here had no test that could
   have caught it).
 
+### The details panel scrolls; the dirty label and Save do not
+
+`ScreenDetailsPanel`'s body (outliner → per-widget form → Layers box → the
+per-layer/per-state inspector → Background → Defaults) is roughly 2k lines of
+controls deep and used to be a bare `QVBoxLayout`, so on any normal right-pane
+height the bottom of it simply fell off the panel. The body now lives in a
+`QScrollArea` — `balancing.py`'s pattern verbatim (`setWidgetResizable(True)`,
+`NoFrame`), with everything that used to be added to the panel layout going
+into one inner `QWidget` handed to `setWidget`.
+
+- **The dirty label stays pinned at the top and Save at the bottom, OUTSIDE
+  the scroll area.** A Save you have to scroll to find is the original
+  complaint in a new place.
+- **Every value control in this panel is a `_NoWheel*` from
+  `editor.panels.balancing`** — and that is not a style rule here, it is what
+  makes the scroll area usable: they ignore `wheelEvent`, so a scroll over a
+  spinbox reaches the scroll area instead of silently nudging a rect. A plain
+  `QSpinBox`/`QComboBox` added to this panel is a bug.
+- `widget_list` carries a minimum height (`_OUTLINER_MIN_HEIGHT`): under
+  `setWidgetResizable(True)` a tree with no floor collapses to nothing.
+
+### Screen-mode ZOOM (`_zoom_combo`) + middle-drag pan
+
+A fourth floating combo in `viewport.py`, built/placed/shown exactly like
+`_state_combo`/`_anim_combo`/`_column_combo` and the **inverse** of the last
+two: it is visible ONLY in screen mode (they hide there). Entries are the
+literal `_SCREEN_ZOOM_LEVELS` — `Fit`, `100%`, `200%`, `300%`, `400%` — and
+screen-mode entry always re-parks it on `Fit` (`_refresh_zoom_combo`).
+
+- **The zoom feeds `_screen_scale_offset()` and NOTHING else.** That helper is
+  the one `(scale, ox, oy)` triple the blit, the hit-test and every drag read;
+  applying a zoom at the blit in `_render_screen_frame` instead is precisely
+  the disagreement the UR-3 snap was moved into that helper to prevent.
+  `Fit` is the old behaviour unchanged (`min(w/SCREEN_W, h/SCREEN_H)`, floored
+  to a whole multiple at or above 1.0); an explicit percentage is used verbatim
+  as the scale. Offsets stay floored and centred.
+- **`wheelEvent` still early-returns in screen mode** — the picker is the
+  chosen affordance, deliberately not the wheel.
+- **Middle-drag pans** (map mode's gesture, on a button screen editing never
+  uses). The pan is folded into the same `(ox, oy)`, so hit-testing follows for
+  free, and it is CLAMPED by `_screen_offset_bounds`: a canvas bigger than the
+  widget can never show a gap at an edge, a smaller one stays wholly inside —
+  either way it cannot be dragged off-screen. It resets to centred on every
+  zoom change and every screen-mode entry.
+- Unchanged: chrome (selection outline, handles, caption, the E-37 placeholder,
+  the canvas-edge frame in `_submit_screen_chrome`) is submitted in SCREEN
+  pixels AFTER the blit and stays UNSCALED; `NUDGE_STEP` is still 1 LOGICAL px;
+  the blit is still `pygame.transform.scale`, never `smoothscale`.
+
 ## Editable buy options + reachable text anchors (editable-ui-widgets)
 
 The complaint this answers: "the UI editor can't replace many pieces of info
@@ -1303,6 +1352,117 @@ something the resolver expresses), plus an inline warning label.
   `_push_layer_base_field`, so undo/dirty need no special case, and both join
   `_layer_inspector_controls()`/`_layer_reset_buttons()` so they enable,
   disable and reset with every other row.
+
+### UL-12 — the designer-facing half
+
+`docs/ui-layers-for-designers.md` is the walkthrough a DESIGNER reads: add a
+layer, give it a hover colour, the Under/Over gotcha, and what the amber target
+warning means. It is deliberately written without schema key names, file:line
+citations or decision IDs — it is the only layers document that assumes no
+knowledge of this repo. **If you change the layer inspector's controls,
+wording or gating, change that file too**; it describes the same UI in the same
+order (outliner → state selector → band → clickable/target), so a rename here
+silently makes it wrong. The agent-facing counterparts stay where they are:
+this file for the editor, `game/ui/CLAUDE.md` for the runtime, `data/CLAUDE.md`
+for the schema.
+
+### UL-13 — designer-authored CUSTOM widgets (the editor half)
+
+A CUSTOM widget is one the designer invented: it has no code owner and no
+`screen_defaults.json` entry, only a row in the open screen doc's optional
+`custom_widgets` table. `game/ui/skinning.py` draws them at the tail of the two
+`submit_layers` passes every screen already makes (see `game/ui/CLAUDE.md`);
+this section is the authoring half.
+
+- **The data split is the whole trick, and it is what makes this cheap.** A
+  `custom_widgets/<id>` entry is the widget's DEFAULT GEOMETRY AND NOTHING ELSE
+  — `kind` + `rect`, plus the authoring-only `band`/`z`/`display_name`. It is
+  the designer-authored twin of ONE `screen_defaults.json` widget entry.
+  Everything paintable (`skin`, `color`, `label`, `text_id`, `font`,
+  `text_color`, `tint`, `align`, `visible`, `parent`, `layers`, `states`) is an
+  ORDINARY override under `widgets/<the same id>`, exactly as for a code-owned
+  widget. There is no second styling vocabulary anywhere in the editor.
+- **ONE merge, two consumers.** `_screen_rules.merge_custom_widgets(
+  defaults_widgets, custom_widgets)` folds the table into the code-owned widget
+  map as synthetic default entries (`{kind, rect, label: ""}`, `display_name`
+  when set), and BOTH `ViewportPanel._current_screen_defaults()` and
+  `ScreenDetailsPanel._current_screen_defaults()` return that. That single fold
+  buys the existing outliner rows, the drag/hit-test (`push_move`/`push_resize`
+  keep writing `widgets/<id>/rect`), the per-field form with its ↺ reset
+  buttons, `widget_tree` parenting and the whole Layers section with **no
+  further change**. A CODE-OWNED id wins a collision (the session's add guard
+  refuses to create one, so only a hand-edited doc can get there — shadowing
+  the widget the game really draws is the worse lie). `_screen_rules.is_custom`
+  is the companion predicate the panel's gating asks; no call site re-derives
+  it.
+- **Four session entry points** (`editor/ui_screen_session.py`), on the layer
+  ops' contract — full old/new values, never a delta, EXACTLY ONE undo step per
+  op: `custom_widgets()` (a deep COPY — reading cannot mutate the doc),
+  `add_custom_widget(kind, widget_id=None, code_owned_ids=())`,
+  `remove_custom_widget(id)` and `set_custom_field(id, key, old, new)` for the
+  base-only `band`/`z`/`display_name` (the layer inspector's `Z`/`Band`
+  precedent: authoring metadata, never a state-patch key).
+  - Ids are `custom_panel_1` / `custom_text_1` / `custom_image_1`, FIRST FREE
+    INDEX (`_next_layer_id`'s rule — deterministic and readable, never a uuid),
+    numbered off the words the three BUTTONS say rather than the schema's
+    `kind` enum so the outliner matches what was clicked.
+  - **Creation writes a STARTER APPEARANCE OVERRIDE** (a `color` for
+    `panel`/`backdrop`, a `label` string for `label`) in the same command.
+    Without it a fresh custom panel draws the editor's flat placeholder box and
+    NOTHING in the game — a preview that lies.
+  - **Deletion is ONE undo step covering three things**: the `custom_widgets`
+    entry, the `widgets/<id>` overrides (its whole `layers` array with them),
+    and any OTHER widget's `parent` override naming it (its children are
+    re-rooted rather than left dangling). It uses `_DocFieldsCommand` — the
+    multi-field full-old/new command the parenting cascade already had — not a
+    `beginMacro` of three pushes: the contract that matters is "full old/new,
+    never a delta", and one command states it directly.
+  - The starting rect is centred on the logical canvas read from
+    `data/display.json`. That file is re-read here rather than imported from
+    `viewport.logical_resolution`, because `viewport.py` sets the SDL dummy
+    env vars and imports pygame at module scope and this session is Qt-only
+    (`TestPurity`). An unreadable file degrades to 640x360 — it is a starting
+    rect the designer immediately drags, not data.
+- **The panel controls sit under the outliner** (`_build_custom_widget_controls`,
+  built like `_build_layer_controls` next door): `+ Panel` / `+ Text` /
+  `+ Image` / `Remove`, then a Band combo and a Z spin. Gating: Add follows the
+  open SCREEN, **Remove/Band/Z follow the selection being CUSTOM** — a
+  code-owned widget belongs to the exporter and can never be deleted or
+  re-banded from here. Remove's `clicked` is lambda-wrapped (the `clicked(False)`
+  footgun), every value control is a `_NoWheel*` imported from
+  `editor.panels.balancing` (the panel is inside a `QScrollArea`), and all of it
+  goes into `self._scroll_body`, never the outer layout (which holds only the
+  dirty label and Save).
+- **Outliner rows carry a `(custom)` suffix** so a designer sees what they own.
+  **`UserRole` stays the BARE id string** for widget nodes — the layer nodes'
+  `(widget_id, layer_id)` tuple contract and `isinstance(role, tuple)` are
+  untouched.
+- **`TOOLTIP_CUSTOM_BAND` is `TOOLTIP_LAYER_BAND`**, deliberately the same
+  words: `under` means behind EVERYTHING on the screen, not behind the widget,
+  and that has to be met in the editor for exactly the reason UL-8 met it there.
+- **Ruling: a custom widget appears in EVERY view of `building_panel`.** Ids
+  are global to the screen (D2) and the runtime has no view concept, so
+  `CUSTOM_EVERY_VIEW_NOTE` states it inline beside the Add buttons on any screen
+  that has views. `_code_owned_ids()` accordingly unions the ids of ALL views,
+  not just the active one, before the add guard runs.
+- **Honest controls get a custom branch, not a special case inside the existing
+  rules.** `color_is_code_owned`/`label_is_code_owned` answer by citing what
+  game code does at a specific holder's draw site; a custom widget has no such
+  site, only `skinning._submit_custom_widget`'s fixed precedence. So
+  `_screen_rules` gained three small twins — `custom_color_is_code_owned`
+  (only `label`, which draws no box), `custom_label_is_code_owned` (only
+  `backdrop`, which draws no text) and `custom_tint_applies`
+  (`panel`/`backdrop`, the two kinds that emit a `HudSprite`). Without them a
+  custom panel's Color picker would be disabled as "hardcoded in game code",
+  which is exactly backwards — its `color` is the only thing the game has to
+  draw it with.
+- **Viewport draw order respects `band`/`z`, and custom widgets composite ON
+  TOP of the `screen_previews.json` replay.** `_submit_screen_layer_band` draws
+  its band's customs (box, then that widget's own layers) at the TAIL of the
+  band, mirroring `skinning.submit_layers`; the plain widget loops SKIP custom
+  ids so nothing is drawn twice. That file is override-free by design, so a
+  custom widget can never be in the recording — **never bake one into it**, the
+  same rule and the same reason as layers.
 
 ## Phase UT-2/UT-6 — the real screen preview + the Text-template row
 

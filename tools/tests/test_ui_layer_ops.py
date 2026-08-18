@@ -724,3 +724,117 @@ class TestLayerStateInspector(_LayerCase):
         self.assertFalse(self.panel.layer_label_edit.isEnabled())
         self.select_state("idle")
         self.assertTrue(self.panel.layer_label_edit.isEnabled())
+
+
+# -- UL-13: designer-authored CUSTOM widgets (Part B, the editor half) -------
+# The five facts worth pinning, deliberately no more: id generation + the
+# collision guard + the starter override, the ONE merge both panels read, the
+# one-undo-step deletion, band/z landing in `custom_widgets` (never in
+# `widgets`), and a saved doc still validating.
+
+
+class TestCustomWidgetOps(_LayerCase):
+    def setUp(self):
+        super().setUp()
+        self.code_owned = set(FIXTURE_DEFAULTS["hud"]["widgets"])
+
+    def add(self, kind="panel", **kwargs):
+        kwargs.setdefault("code_owned_ids", self.code_owned)
+        return self.session.add_custom_widget(kind, **kwargs)
+
+    def test_ids_are_the_first_free_index_per_kind(self):
+        self.assertEqual(self.add("panel"), "custom_panel_1")
+        self.assertEqual(self.add("panel"), "custom_panel_2")
+        self.assertEqual(self.add("label"), "custom_text_1")
+        self.assertEqual(self.add("backdrop"), "custom_image_1")
+
+    def test_refuses_a_code_owned_id(self):
+        self.assertIsNone(self.add("panel", widget_id="love_panel"))
+        self.assertNotIn("love_panel", self.session.custom_widgets())
+        self.assertNotIn("custom_widgets", self.session.doc)
+
+    def test_creation_writes_a_starter_appearance_override(self):
+        panel = self.add("panel")
+        text = self.add("label")
+        widgets = self.session.doc["widgets"]
+        self.assertEqual(len(widgets[panel]["color"]), 3)
+        self.assertTrue(widgets[text]["label"])
+        # ...and the geometry entry plus its starter override are ONE step.
+        self.session.undo_stack.undo()
+        self.assertNotIn(text, self.session.doc.get("widgets", {}))
+        self.assertNotIn(text, self.session.custom_widgets())
+
+    def test_custom_widgets_reads_back_a_copy(self):
+        widget_id = self.add("panel")
+        self.session.custom_widgets()[widget_id]["rect"] = [0, 0, 1, 1]
+        self.assertNotEqual(self.session.custom_widgets()[widget_id]["rect"],
+                            [0, 0, 1, 1])
+
+    def test_band_and_z_write_to_custom_widgets_not_widgets(self):
+        widget_id = self.add("panel")
+        self.session.set_custom_field(widget_id, "band", None, "under")
+        self.session.set_custom_field(widget_id, "z", None, 3)
+        entry = self.session.custom_widgets()[widget_id]
+        self.assertEqual((entry["band"], entry["z"]), ("under", 3))
+        # The paintable override half is untouched — band/z are authoring
+        # metadata, not overrides.
+        self.assertEqual(set(self.session.doc["widgets"][widget_id]),
+                         {"color"})
+
+    def test_delete_drops_all_three_things_in_ONE_undo_step(self):
+        widget_id = self.add("panel")
+        self.session.add_layer(widget_id, "layer_1", {"offset": [0, 0, 0, 0]})
+        self.session.push_field("love_text", "parent", None, widget_id)
+        before = self.session.undo_stack.index()
+
+        self.session.remove_custom_widget(widget_id)
+        self.assertNotIn(widget_id, self.session.custom_widgets())
+        self.assertNotIn(widget_id, self.session.doc.get("widgets", {}))
+        self.assertNotIn(
+            "parent",
+            self.session.doc.get("widgets", {}).get("love_text", {}))
+        self.assertEqual(self.session.undo_stack.index(), before + 1)
+
+        self.session.undo_stack.undo()
+        self.assertIn(widget_id, self.session.custom_widgets())
+        self.assertEqual(len(self.session.layers(widget_id)), 1)
+        self.assertEqual(self.session.doc["widgets"]["love_text"]["parent"],
+                         widget_id)
+
+    def test_saved_doc_with_a_custom_widget_validates(self):
+        widget_id = self.add("panel")
+        self.session.set_custom_field(widget_id, "band", None, "under")
+        self.session.set_custom_field(widget_id, "z", None, 2)
+        reopened = self.assert_doc_validates()
+        self.assertEqual(reopened["custom_widgets"][widget_id]["kind"],
+                         "panel")
+
+
+class TestCustomWidgetsInTheOutliner(_LayerCase):
+    def setUp(self):
+        super().setUp()
+        self.panel = self.track(ScreenDetailsPanel(data_dir=self.data_dir))
+        self.panel.set_session(self.session, FIXTURE_DEFAULTS)
+
+    def test_merge_returns_code_owned_plus_custom_and_the_tree_lists_both(self):
+        self.panel._on_add_custom_widget("panel")
+        widgets = self.panel._current_screen_defaults()["widgets"]
+        self.assertEqual(set(widgets),
+                         {"love_panel", "love_text", "custom_panel_1"})
+        self.assertEqual(widgets["custom_panel_1"]["kind"], "panel")
+        self.assertIn("custom_panel_1", self.panel._tree_items)
+        self.assertIn("love_panel", self.panel._tree_items)
+        # UserRole stays the BARE id for a widget node (the layer nodes' tuple
+        # contract is what tells the two apart).
+        item = self.panel._tree_items["custom_panel_1"]
+        self.assertEqual(item.data(0, Qt.ItemDataRole.UserRole),
+                         "custom_panel_1")
+        self.assertIn("custom", item.text(0))
+
+    def test_remove_is_gated_on_the_selection_being_custom(self):
+        self.panel._on_add_custom_widget("panel")
+        self.assertTrue(self.panel.custom_remove_button.isEnabled())
+        self.panel.select_widget("love_panel")
+        self.assertFalse(self.panel.custom_remove_button.isEnabled())
+        self.panel._on_remove_custom_widget()      # a no-op on a code-owned id
+        self.assertIn("custom_panel_1", self.session.custom_widgets())

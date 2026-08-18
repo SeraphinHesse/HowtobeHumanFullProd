@@ -141,6 +141,7 @@ DOMAINS = {
         "test_shell.py",
         "test_tutorial_director.py",
         "test_ui_align.py",
+        "test_ui_custom_widgets.py",
         "test_ui_layer_click.py",
         "test_ui_layer_draw.py",
         "test_ui_layers.py",
