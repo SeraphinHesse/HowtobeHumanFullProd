@@ -1,5 +1,12 @@
 {
   "entries": {
+    "alldeco": {
+      "column_width": 1,
+      "display_name": "Alldeco",
+      "file": "master/alldeco.png",
+      "frame_h": 96,
+      "frame_w": 64
+    },
     "slinger_t2_lvl3": {
       "column_width": 15,
       "display_name": "slinger_t2_lvl3",

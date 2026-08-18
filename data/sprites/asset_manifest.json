@@ -2558,14 +2558,15 @@
       "sheet": "imported/deco_prop_4_v6.png"
     },
     "deco_rock": {
+      "column_width": 1,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
+          "fps": 6,
           "frames": 1,
           "hidden": [],
           "loop_count": 1,
@@ -2573,17 +2574,20 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/deco_rock.png"
+      "sheet": "master/alldeco.png"
     },
     "deco_rock_v2": {
+      "column": 1,
+      "column_mode": "season",
+      "column_width": 1,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
+          "fps": 6,
           "frames": 1,
           "hidden": [],
           "loop_count": 1,
@@ -2591,7 +2595,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/deco_rock_v2.png"
+      "sheet": "master/alldeco.png"
     },
     "deco_rock_v3": {
       "frame_h": 96,
