@@ -1,4 +1,8 @@
 {
+  "defaults": {
+    "button_skin": "ui_panel_v3",
+    "panel_skin": "ui_panel_v3"
+  },
   "widgets": {
     "btn_drag_select": {
       "rect": [

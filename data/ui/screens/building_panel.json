@@ -1,17 +1,29 @@
 {
+  "custom_widgets": {
+    "custom_text_1": {
+      "kind": "label",
+      "rect": [
+        240,
+        168,
+        160,
+        24
+      ]
+    }
+  },
   "defaults": {
-    "button_skin": "ui_button_card",
-    "panel_skin": "ui_button_panel_v3"
+    "button_skin": "ui_button_panel_v5",
+    "panel_skin": "ui_button_panel_v5"
   },
   "widgets": {
     "action_btn": {
+      "label": "",
       "rect": [
         510,
         278,
-        103,
-        30
+        112,
+        32
       ],
-      "skin": "ui_button_panel_v3"
+      "skin": "ui_button_panel_v5"
     },
     "base_info_title": {
       "rect": [
@@ -48,6 +60,16 @@
         55
       ],
       "skin": "ui_button_panel_v2"
+    },
+    "custom_text_1": {
+      "label": "Buy Tile",
+      "parent": "action_btn",
+      "rect": [
+        488,
+        285,
+        160,
+        24
+      ]
     },
     "died_last_round": {
       "rect": [
@@ -553,8 +575,8 @@
     },
     "unlock_title": {
       "rect": [
-        500,
-        24,
+        501,
+        42,
         0,
         0
       ]

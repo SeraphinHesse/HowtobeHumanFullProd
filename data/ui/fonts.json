@@ -15,6 +15,10 @@
     "bold": false,
     "size": 11
   },
+  "pixel_azure": {
+    "bold": false,
+    "size": 11
+  },
   "sm": {
     "bold": false,
     "size": 9
