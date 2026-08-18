@@ -1,4 +1,4 @@
-<!-- active-plan: UiLayeredWidgetsPLAN.md | set: 2026-08-14 -->
+<!-- active-plan: UiLayeredWidgetsPLAN.md | set: 2026-08-18 -->
 > **Active plan:** UiLayeredWidgetsPLAN.md (mirror). Source of truth:
 > `planning/UiLayeredWidgetsPLAN.md`. Do **not** edit this file directly — edit the
 > source in `planning/` and re-run `/setcurrentplan`, or pick a different
@@ -6,7 +6,7 @@
 > screen).
 
 <!-- plan-scale: large -->
-<!-- status: 0/4 sections, 0/12 phases -->
+<!-- status: COMPLETE -- 4/4 sections, 12/12 phases (S1+S2+S3+S4 all landed). All merged to plan-uilayeredwidgets-umbrella. NOT pushed, no PR; the full gate has never run against this work and belongs to /commitpushpr stage 5. -->
 
 # UiLayeredWidgetsPLAN.md — a widget is a stack
 
@@ -98,14 +98,26 @@ Read `game/ui/CLAUDE.md`, `data/CLAUDE.md`'s "UI screen data" section and
     `configure_fonts` and stored**, never measured live at each call site — the
     pinned-heights invariant exists because SysFont measures ±1px differently
     per platform and every stored rect must be reproducible on any machine.
-- **D7 — A clickable layer either RETARGETS an existing widget or names one of a
-  RESERVED enum of new action tokens** (user decision). Free text is rejected:
-  the schema's enum is closed, so a mistyped or not-yet-coded action fails
-  validation in the editor instead of shipping a silently dead button
-  (ED-30, "invalid input unrepresentable"). Retarget = the layer fires the named
-  widget id's own action, so the Munchkin can drive the Pause button — or a
-  *different* button. The reserved-token list is an open item (§5) and must be
-  named before UL-9.
+- **D7 — A clickable layer either RETARGETS an existing widget or names one of
+  three RESERVED action tokens; an unroutable target WARNS but is allowed**
+  (user decision, 2026-08-17 — this AMENDS the original ruling, see below).
+  Retarget = the layer fires the named widget id's own action, so the Munchkin
+  can drive the Pause button — or a *different* button.
+  - **The reserved tokens are `close_window`, `back`, `noop`** (named by the
+    user at the W2→W3 boundary; UL-9 is no longer blocked). `noop` is the
+    explicit do-nothing: a decorative layer that must swallow its click rather
+    than let it fall through to the button behind it.
+  - **Amendment — dead buttons warn, they do not fail validation.** The original
+    D7 made the schema enum CLOSED and cited ED-30 ("invalid input
+    unrepresentable") so that a mistyped or not-yet-coded action would fail
+    validation in the editor. The user has ruled the other way: `target` accepts
+    any id-shaped string, and a target that resolves to **neither** a widget id
+    present in this screen **nor** one of the three tokens is surfaced as a
+    **warning in the editor** and still saves. Rationale: a designer authoring
+    against a widget that does not exist yet should not be blocked by the
+    schema. Consequence to accept: an unroutable `target` CAN ship, so the
+    warning is the only thing standing between a typo and a dead button — it
+    must be visible in the inspector, not buried in a log.
 - **D8 — The hit resolver is PURE, and every screen consults it BEFORE its own
   hit logic.** `main.py` calls `Hud.hit()` **twice per click** (the pan-arming
   probe on MOUSEBUTTONDOWN, the real handler on MOUSEBUTTONUP), which is why
@@ -127,13 +139,21 @@ Read `game/ui/CLAUDE.md`, `data/CLAUDE.md`'s "UI screen data" section and
 
 | Section | Title | Phases | Depends on | Status |
 |---|---|---|---|---|
-| S1 | Quick wins — alignment and fonts | UL-1, UL-2 | — | not started |
-| S2 | The layer model | UL-3, UL-4, UL-5 | — | not started |
-| S3 | Layers in the editor | UL-6, UL-7, UL-8 | S2 | not started |
-| S4 | Clickable layers + life counters | UL-9, UL-10, UL-11, UL-12 | S2, S3 | not started |
+| S1 | Quick wins — alignment and fonts | UL-1, UL-2 | — | **LANDED** — `ul-section-S1`, merged to umbrella |
+| S2 | The layer model | UL-3, UL-4, UL-5 | — | **LANDED** — `ul-section-S2`, merged to umbrella |
+| S3 | Layers in the editor | UL-6, UL-7, UL-8 | S2 | **LANDED** — `ul-section-S3`, merged to umbrella |
+| S4 | Clickable layers + life counters | UL-9, UL-10, UL-11, UL-12 | S2, S3 | **LANDED** — `ul-section-S4`, merged to umbrella. Section review run late by the main session (clean, 2 LOW accepted); handoff `docs/handoffs/uilayeredwidgets-S4.md` |
 
-**Waves:** W1 = **S1 + S2** (concurrent — S1 touches fonts/align only, S2 touches
-the layer schema and the draw path; no shared file). W2 = **S3**. W3 = **S4**.
+**Waves:** W1 = **S1 + S2** (concurrent). W2 = **S3**. W3 = **S4**.
+
+> **Correction (W1 close).** This line originally claimed S1 and S2 share **no
+> file**. They do: both add a key to the per-widget override object in
+> `data/schemas/ui_screen.schema.json` (S1 `align`, S2 `layers` + `states`).
+> The wave was run with an explicit shared-file contract — surgical additions
+> only, neither section referencing the other's key — and the file auto-merged
+> without conflict. The three real conflicts at the umbrella merge were
+> additive registration lists (`conftest.py`, `tools/test_domains.py`) and this
+> plan doc's own status table, all resolved by union.
 
 ---
 
@@ -159,8 +179,8 @@ this section makes the SIZES authorable, not the faces.
 
 | Phase | Scope (package) | Status |
 |---|---|---|
-| UL-1 | Alignment as a real override (data + game + editor) | not started |
-| UL-2 | Designer-defined font presets (data + engine + editor) | not started |
+| UL-1 | Alignment as a real override (data + game + editor) | *(LANDED)* — `ul-phase-UL-1-align`, review clean |
+| UL-2 | Designer-defined font presets (data + engine + editor) | *(LANDED)* — `ul-phase-UL-2-fonts`, review clean |
 
 #### Phase UL-1 — Text alignment becomes editable
 
@@ -256,9 +276,9 @@ section every later one is built on.
 
 | Phase | Scope (package) | Status |
 |---|---|---|
-| UL-3 | Layer schema + the pure resolver (data + engine) | not started |
-| UL-4 | The game draws layers (game) | not started |
-| UL-5 | Per-state appearance, layer and owner (data + engine + game) | not started |
+| UL-3 | Layer schema + the pure resolver (data + engine) | *(LANDED)* |
+| UL-4 | The game draws layers (game) | *(LANDED)* |
+| UL-5 | Per-state appearance, layer and owner (data + engine + game) | *(LANDED)* |
 
 #### Phase UL-3 — The layer schema and a pure resolver
 
@@ -371,9 +391,9 @@ per-state work visible.
 
 | Phase | Scope (package) | Status |
 |---|---|---|
-| UL-6 | Layers in the outliner + undoable ops (editor) | not started |
-| UL-7 | Layers in the viewport (editor) | not started |
-| UL-8 | State selector + layer inspector (editor) | not started |
+| UL-6 | Layers in the outliner + undoable ops (editor) | *(LANDED)* — `ul-phase-UL-6-layer-ops`, merged to `ul-section-S3` |
+| UL-7 | Layers in the viewport (editor) | *(LANDED)* — `ul-phase-UL-7-layer-viewport`, merged to `ul-section-S3` |
+| UL-8 | State selector + layer inspector (editor) | *(LANDED)* — `ul-phase-UL-8-state-inspector`, merged to `ul-section-S3` (1 fix round) |
 
 #### Phase UL-6 — Layers in the outliner
 
@@ -459,36 +479,49 @@ the button behind it), and the three life counters become real widgets with
 alive / transition / dead states.
 
 **Publishes.**
-- `clickable` + `target` on a layer entry, where `target` is either a widget id
-  in the same screen or one of a closed enum of reserved action tokens (D7).
+- `clickable` + `target` on a layer entry, where `target` is a widget id in the
+  same screen or one of the three reserved tokens `close_window` / `back` /
+  `noop`; an id-shaped string matching neither WARNS in the editor and still
+  saves (D7, as amended).
+- The two editor-wiring items S3 scoped out, folded into UL-10 by user decision:
+  connect `viewport.layer_selected` so a viewport click selects the layer in the
+  inspector, and link the inspector's state combo to the viewport's
+  preview-state dropdown.
 - `engine.ui_layers.hit(...)` — pure, topmost-first (D8) — and
   `ScreenSkinning.hit_layer(screen_id, ids, mx, my)`.
 - `hud.life_1` / `life_2` / `life_3` as id'd widgets with a per-life state fed
   from the run's life-lost signal (D10).
-- Updated `game/ui/CLAUDE.md`, `data/CLAUDE.md`, `editor/panels/CLAUDE.md`.
+- Updated `game/ui/CLAUDE.md`, `data/CLAUDE.md`, `editor/panels/CLAUDE.md` and
+  `engine/render/CLAUDE.md` (the last one to pay S1's debt: its blanket "
+  `configure_fonts` NEVER touches `_LAYOUT_H`" claim went stale the moment
+  UL-2 opened `fonts.json` to custom presets, which DO get a derived entry).
+- New `docs/ui-layers-for-designers.md` — the designer-language walkthrough,
+  the only layers doc that assumes no knowledge of this repo.
 
 **Depends on.** S2, S3.
 
 | Phase | Scope (package) | Status |
 |---|---|---|
-| UL-9 | The pure hit resolver + the action contract (data + engine) | not started |
-| UL-10 | Wire clickable layers into every screen + the host (game + editor) | not started |
-| UL-11 | Three life counters with real states (game + data) | not started |
-| UL-12 | Docs and designer handover (docs) | not started |
+| UL-9 | The pure hit resolver + the action contract (data + engine) | *(LANDED)* — `ul-phase-UL-9-hit-resolver` |
+| UL-10 | Wire clickable layers into every screen + the host (game + editor) | *(LANDED)* — `ul-phase-UL-10-click-wiring` |
+| UL-11 | Three life counters with real states (game + data) | *(LANDED)* — `ul-phase-UL-11-life-counters`, goldens regenerated on purpose (D5) |
+| UL-12 | Docs and designer handover (docs) | *(LANDED)* — `ul-phase-UL-12-docs`, WIP rescued from `a74ed70` and finished by the main session |
 
 #### Phase UL-9 — The pure hit resolver and the action contract
 
 **Goal.** Decide, purely, which layer a click lands on and what it means.
 Nothing routes it yet.
 
-**Blocked on one input:** the reserved action-token enum must be named before
-this phase starts (§5). Retarget-an-existing-widget works without it.
+**UNBLOCKED** (2026-08-17): the reserved tokens are **`close_window`, `back`,
+`noop`**, and an unroutable target warns rather than failing validation — see the
+amended D7. Retarget-an-existing-widget works as before.
 
 **Files.**
 - Modified: `data/schemas/ui_screen.schema.json` — `clickable` (bool) and
-  `target` (string) on a layer entry; `target` validates as either a widget-id
-  pattern or a member of the reserved enum, so an unroutable action is
-  unrepresentable (D7).
+  `target` (string) on a layer entry. `target` accepts any id-shaped string
+  (`^[a-z][a-z0-9_]*$`); it is **not** a closed enum. Routability is an EDITOR
+  warning, not a schema constraint (D7 as amended) — so the schema stays
+  permissive and the editor is what tells the designer a target is dead.
 - Modified: `engine/ui_layers.py` — `hit(layers, owner_rect, mx, my, state)`,
   topmost-first within `over`, then the owner, then `under`. Pure (D8).
 
@@ -516,7 +549,9 @@ py -m pytest tools/tests/test_ui_layers.py -q
 - Modified: `game/main.py` — route the reserved tokens; a retarget resolves to
   the existing widget's own action and needs no new host branch.
 - Modified: `editor/panels/screen_details.py` — the Clickable checkbox + the
-  target picker (widget ids in this screen + the reserved enum).
+  target picker (widget ids in this screen + the three reserved tokens). The
+  picker is a CONVENIENCE LIST, never a closed enum — free text saves, and an
+  unroutable value raises the inspector warning instead (D7 as amended).
 
 **Tests.** New `tools/tests/test_ui_layer_click.py` — a retargeting layer
 produces the target widget's action; `Hud.hit` called twice returns the same
@@ -611,21 +646,40 @@ deliberately rather than half-promised. Each is its own future plan.
 
 ## 5. Risks and open items
 
-- **The reserved action-token enum is unnamed** (D7). UL-9 is blocked on it.
-  Retargeting an existing widget covers most of the designer's document; the
-  tokens are for actions no widget has yet (e.g. "close this window"). Name them
-  before W3.
+- ~~**The reserved action-token enum is unnamed** (D7).~~ **RESOLVED 2026-08-17
+  at the W2→W3 boundary**: the tokens are `close_window`, `back`, `noop`, and an
+  unroutable target warns instead of failing validation (amended D7). UL-9 is
+  unblocked.
+  - **New risk this creates.** Because the schema no longer rejects an
+    unroutable `target`, a dead button can ship. The editor warning is the ONLY
+    guard, so it has to be visible where the designer is working.
+    - ~~UL-10 must also decide what a dead target does at RUNTIME.~~
+      **DECIDED S4-A — it SWALLOWS the click, it does not fall through**
+      (`hit_layer`'s "Ruling 1", `game/ui/skinning.py`: an unroutable target
+      returns `"noop"`, never `None`). Falling through would make a typo behave
+      exactly as if the layer were never clickable — the worse failure, with no
+      symptom to notice. Swallowing reads honestly as "this decal does
+      nothing", which is what `noop` already means, so the accident and the
+      intent are ONE behaviour. Consequence accepted: an unroutable target
+      ships as a dead spot that also blocks the control behind it, and the
+      amber inspector warning is the only thing that catches it. Recorded in
+      `docs/handoffs/uilayeredwidgets-S4.md` §2, in plain language for
+      designers in `docs/ui-layers-for-designers.md`.
 - **D4's band limitation is real.** An `under` layer sits behind everything on
   its screen, not just behind its owner. If a designer needs a background
   between two stacked panels, the answer is a third band or a per-widget
   submission seam — a design change, not a bug fix. Flag it in the tooltip so it
   is discovered in the editor, not in game.
-- **`test_ui_min_targets.py` and clickable layers.** That test asserts every
-  `kind == "button"` is ≥12 logical px and that its static label fits. A
-  clickable LAYER is a new click target it does not know about. UL-10 must
-  decide whether layers join the assertion or the 12–16px non-blocking lint —
-  and `game/ui/CLAUDE.md`'s standing rule holds either way: do not mass-resize
-  controls to silence a lint.
+- ~~**`test_ui_min_targets.py` and clickable layers.**~~ **DECIDED S4-B —
+  clickable layers join the NON-BLOCKING under-16px lint only, never
+  `TestButtonMinSize`'s hard ≥12px floor** (`_clickable_layers()` in
+  `tools/tests/test_ui_min_targets.py`, resolved in the `idle` state, reporting
+  from 0px up). A clickable layer is usually decorative art retargeted onto a
+  button that already passed the floor, so the floor is satisfied by the real
+  control; failing the build on the decoration would pressure a designer into
+  the one fix `game/ui/CLAUDE.md` forbids — mass-resizing controls to silence a
+  lint. The lint still surfaces a genuinely tiny standalone target for an
+  eyeball pass. Recorded in `docs/handoffs/uilayeredwidgets-S4.md` §2.
 - **Golden-pin churn.** UL-11 regenerates `screen_defaults.json`,
   `screen_previews.json` and one `test_ui_skinning.py` baseline on purpose. Every
   other phase must leave all three byte-identical (D5). A phase that moves them

@@ -1304,6 +1304,19 @@ something the resolver expresses), plus an inline warning label.
   `_layer_inspector_controls()`/`_layer_reset_buttons()` so they enable,
   disable and reset with every other row.
 
+### UL-12 — the designer-facing half
+
+`docs/ui-layers-for-designers.md` is the walkthrough a DESIGNER reads: add a
+layer, give it a hover colour, the Under/Over gotcha, and what the amber target
+warning means. It is deliberately written without schema key names, file:line
+citations or decision IDs — it is the only layers document that assumes no
+knowledge of this repo. **If you change the layer inspector's controls,
+wording or gating, change that file too**; it describes the same UI in the same
+order (outliner → state selector → band → clickable/target), so a rename here
+silently makes it wrong. The agent-facing counterparts stay where they are:
+this file for the editor, `game/ui/CLAUDE.md` for the runtime, `data/CLAUDE.md`
+for the schema.
+
 ## Phase UT-2/UT-6 — the real screen preview + the Text-template row
 
 - **`ViewportPanel` REPLAYS a recorded draw list** (`data/ui/screen_previews

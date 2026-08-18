@@ -1508,6 +1508,19 @@ sets one).
     then reverts to `disabled`. The FIRST `update()` only SEEDS the tracker, so
     a run that starts below full lives shows dead-and-static counters rather
     than replaying a transition that already happened.
+  - **Only ONE transition is tracked at a time** (`_life_transition_idx` is a
+    scalar, not a queue). Two lives lost inside the same 600 ms window means
+    the first one's `pressed` frame is CUT SHORT — the second loss overwrites
+    the index and the first counter goes straight to `disabled`. Accepted as
+    cosmetic (S4 section review, LOW): the resolved STATE is never wrong,
+    because `_life_state_token`'s `idx <= lives` test settles every
+    non-transitioning life correctly on its own; only the death animation is
+    truncated. Queue the indices if a designer ever asks for overlapping
+    death animations — nothing else depends on the scalar.
+  - Lives GAINED are handled by the same `idx <= lives` test with no special
+    case: a restored life snaps back to `idle` on the next frame and no
+    transition fires (the delta check is `<` only). Deliberate — the
+    transition art is a DEATH animation; there is no revival animation to play.
 
 - **Non-`Button` widgets get a `types.SimpleNamespace` holder** (`rect`,
   `skin`, `font_key`, `text_color`, `label`, `visible` as needed) that
@@ -1691,6 +1704,17 @@ starts pinning them). Pinned by `tools/tests/test_layout_h_invariant.py`
 (monkeypatches the measurement +1px and asserts both artifacts are
 unaffected).
 
+**Since UL-2 the table is not wholly hardcoded**: the 7 shipped keys still are,
+but a DESIGNER-DEFINED preset's entry is measured once inside `configure_fonts`
+and stored (`engine/render/CLAUDE.md`). `layout_h` is still a table read and
+never a live measurement, so the rule above is unchanged — but the cross-
+platform guarantee covers only the 7 pinned keys, because only those were
+measured by a human on one machine and frozen. Nothing in CODE lays out
+against a custom preset today (the exporter and the golden capture both run
+the shipped screens, which name only the 7), and that is what keeps the
+committed artifacts reproducible. If code ever DOES lay out against a custom
+`font_key`, that stored rect becomes machine-dependent — pin the value first.
+
 ## The seven tile highlights are EFFECTS now (VfxAuthoringPLAN VA-5)
 `tile_selected`, `section_2x2`, `attack_range`, `move_target`, `wall_edge`,
 `upgrade_batch` and `tutorial_highlight` are `data/balancing/vfx.json` entries:
@@ -1774,14 +1798,22 @@ data, so the two can never silently drift apart.
   inside `widgets.py` itself still traps, since default-argument
   expressions evaluate once at import) — they now default to `None` and
   resolve inside the function body.
-- **`configure_fonts`/`configure_palette` fail loud on a key-set mismatch**
-  (missing or unknown key) — a renamed/dropped preset or color would
-  otherwise leave some `font_key`/`C_*` silently un-rebound.
-- **`layout_h`/`_LAYOUT_H` are UNTOUCHED by `configure_fonts`** (see the
-  section above) — a designer enlarging a preset changes drawn glyphs only;
-  stored layout rects don't move, so text can overflow its widget. That is
-  the pinned-layout contract, not a bug (the editor's Theme panel says so
-  in a tooltip).
+- **`configure_fonts`/`configure_palette` fail loud on a MISSING key** — a
+  renamed or dropped preset/color would otherwise leave some `font_key`/`C_*`
+  silently un-rebound. They differ on an UNKNOWN key: `configure_palette`
+  still rejects one, but since UL-2/D6 `configure_fonts` ACCEPTS extras,
+  because a designer-defined preset is exactly an extra key (see below).
+- **The 7 PINNED `layout_h`/`_LAYOUT_H` entries are untouched by
+  `configure_fonts`** (see the section above) — a designer enlarging a
+  shipped preset changes drawn glyphs only; stored layout rects don't move, so
+  text can overflow its widget. That is the pinned-layout contract, not a bug
+  (the editor's Theme panel says so in a tooltip).
+  - **A DESIGNER-DEFINED preset key does get a `_LAYOUT_H` entry** (UL-2/D6):
+    it has no pinned value to protect, so `configure_fonts` derives one at the
+    end of the call and stores it. Derived ONCE at config time, never measured
+    live at a layout call site — which is what keeps it compatible with the
+    "`layout_h`, never a live font measurement" rule above rather than an
+    exception to it. Details in `engine/render/CLAUDE.md`.
 - **Optional per-widget `tint`** (`data/ui/screens/<id>.json`'s `widgets.
   <id>.tint`, `data/schemas/ui_screen.schema.json`): a sheet-multiply color
   on the DATA/ENGINE side for any widget that resolves to a skin (per-widget

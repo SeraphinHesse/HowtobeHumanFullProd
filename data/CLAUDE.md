@@ -833,6 +833,26 @@ validating writer; don't hand-edit the JSON.
     still validates and SAVES; the editor WARNS about an unroutable target
     instead of failing validation, and at runtime such a click is SWALLOWED,
     not passed through (`game/ui/CLAUDE.md`).
+- **`states` on the WIDGET itself (UL-5, D9) is a SMALLER key set than a
+  layer's** — `color`, `font`, `label`, `offset`, `text_color`, `tint`, and
+  nothing else. A layer's state patch also takes `align`, `slot`, `text_id`
+  and `visible`; the widget's does not, because the owner's art/text binding
+  is resolved by its screen's own `submit()` before any patch is applied.
+  Same four state keys, same presence-not-truthiness fallback. Do not read the
+  layer list above and assume the widget accepts the same keys —
+  `additionalProperties: false` rejects the extras.
+  - Reachability, not validity, is the catch: `ScreenSkinning.state_of`
+    resolves anything that is not a `Button` to `idle` forever, so
+    `hover`/`pressed`/`disabled` on a label/panel/backdrop holder validate and
+    are permanently dead. The editor greys those rows rather than letting a
+    designer author them (`editor/panels/CLAUDE.md`, UL-8 Ruling 1).
+- **`align` (UL-1/S1) is a REAL override key now, not just a draw hint.**
+  `left | center | right`, absent = `left`. It rode into `screen_defaults.json`
+  as an editor measuring hint first (see that file's entry below); since UL-1
+  it is also a per-widget override the GAME honours at draw time, through
+  `widgets.submit_label`'s `getattr(holder, "align", "left")`. The two are
+  separate values with the same name: the default is what the CODE lays out,
+  the override is what the designer chose.
 - **`data/ui/screen_defaults.json`**: generated-but-committed file, written by
   `tools/export_ui_layouts.py` (B3) and validated by a test that re-runs the
   exporter (B3). FLAT shape, keyed directly by screen id at the root:
