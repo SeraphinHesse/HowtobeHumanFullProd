@@ -49,6 +49,16 @@ def _core_with_entries(*rounds):
     return core
 
 
+def _core_with_tutorial_entry(round_num=1, flagged=True):
+    """A deep copy of the fixture's core balance with ONE entry authored at
+    ``round_num``, opting into (or out of) the tutorial's own combat round."""
+    core = copy.deepcopy(CORE)
+    core["EnemyIntro"]["entries"] = [
+        {**_MOCK_ENTRY, "round": round_num,
+         "show_on_tutorial_round": flagged}]
+    return core
+
+
 def synth(rows, base=(0, 0)):
     doc = tilemap.TileMapDoc(
         map_id="synth", display_name="Synth",
@@ -270,6 +280,58 @@ class TestWindowSpriteFields(unittest.TestCase):
         # user-confirmed "any category" requirement.
         sprite = self.submitted_sprite({"sprite_slot": "ui_button"})
         self.assertEqual(sprite.slot_key, "ui_button")
+
+
+class TestTutorialRoundEntry(unittest.TestCase):
+    """`show_on_tutorial_round`: the tutorial's OWN combat round is round 0
+    (TU-9, seeded host-side in game/main.py), and the flagged entry belongs
+    there instead of on its authored round — once, never twice."""
+
+    def _tutorial_session(self, core):
+        session, scene = build_session(core)
+        session.state.round_num = 0   # what an ACTIVE tutorial run seeds
+        return session, scene
+
+    def test_flagged_entry_fires_on_the_tutorial_round(self):
+        session, _scene = self._tutorial_session(_core_with_tutorial_entry())
+        session.end_turn()
+        st = session.state
+        self.assertEqual(st.phase, GamePhase.ENEMY_INTRO)
+        self.assertEqual(len(st.pending_enemy_intros), 1)
+        self.assertTrue(st.tutorial_intros_shown)
+
+    def test_flagged_entry_does_not_fire_again_on_its_authored_round(self):
+        session, _scene = self._tutorial_session(_core_with_tutorial_entry())
+        session.end_turn()
+        st = session.state
+        # drain the tutorial round's dialogue, then reach round 1's End Turn
+        while st.phase == GamePhase.ENEMY_INTRO:
+            session.resolve_enemy_intro()
+        st.round_num = 1
+        st.phase = GamePhase.BUILDING
+        session.end_turn()
+        self.assertEqual(st.phase, GamePhase.ENEMY)
+        self.assertEqual(st.pending_enemy_intros, [])
+
+    def test_flagged_entry_fires_on_round_1_when_the_tutorial_was_skipped(self):
+        # No round 0 ever happened (RunState.from_balance starts at 1) —
+        # the flag must not cost the entry its normal appearance.
+        session, _scene = build_session(_core_with_tutorial_entry())
+        self.assertEqual(session.state.round_num, 1)
+        session.end_turn()
+        st = session.state
+        self.assertEqual(st.phase, GamePhase.ENEMY_INTRO)
+        self.assertEqual(len(st.pending_enemy_intros), 1)
+        self.assertFalse(st.tutorial_intros_shown)
+
+    def test_unflagged_entry_is_untouched_by_the_tutorial_round(self):
+        session, _scene = self._tutorial_session(
+            _core_with_tutorial_entry(flagged=False))
+        session.end_turn()
+        st = session.state
+        self.assertEqual(st.phase, GamePhase.ENEMY)
+        self.assertEqual(st.pending_enemy_intros, [])
+        self.assertFalse(st.tutorial_intros_shown)
 
 
 if __name__ == "__main__":

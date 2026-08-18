@@ -1239,11 +1239,19 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         set_boss_upgrade_pair()
         if tune_gc:
             gc.unfreeze()  # let the old world's tile grid become collectable
-        # -- SD-7: a quit-to-menu DURING a cutscene never reaches the host's
-        # `release()` edge below, so the director's push would strand: it
+        # TU-5: quitting DURING a cutscene must hand its capture back — the
+        # players themselves outlive the run (one per registry id, built
+        # once at boot), and only `gp["cutscene"]` is per-run. `start()`
+        # re-opens from scratch next time either way, so this is about
+        # freeing the cv2 handle + stopping the track, not about rewinding.
+        if gp["cutscene"] is not None:
+            gp["cutscene"].release()
+        # -- SD-7: TU-5 above frees the PLAYER, but the director's music push
+        # is separate state and would still strand on a quit-to-menu: it
         # would stay "in cutscene" for the rest of the process, silently
         # no-opping the NEXT cutscene's push while still popping. Balance it
-        # here — idempotent, so a teardown outside a cutscene does nothing. --
+        # here, after release(), mirroring the normal leave edge —
+        # idempotent, so a teardown outside a cutscene does nothing. --
         director.leave_cutscene()
         # SD-4: "sfx" is deliberately ABSENT from this tuple — the sound
         # dispatcher has process lifetime and must survive teardown so the

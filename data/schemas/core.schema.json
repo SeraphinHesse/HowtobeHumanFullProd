@@ -100,6 +100,10 @@
           "minimum": 1,
           "type": "integer"
         },
+        "show_on_tutorial_round": {
+          "description": "Show this dialogue on the tutorial's own combat round (round 0) instead of the round above — the tutorial fight IS the first walkers, so its intro belongs there. A run that skipped the tutorial has no round 0, so it lands on the round above as normal. Either way it shows once, never twice.",
+          "type": "boolean"
+        },
         "sprite_flip_h": {
           "description": "Mirrors the sprite horizontally.",
           "type": "boolean"
@@ -522,6 +526,7 @@
         "enemy_label",
         "hidden_frames",
         "round",
+        "show_on_tutorial_round",
         "sprite_flip_h",
         "sprite_h",
         "sprite_offset_x",
