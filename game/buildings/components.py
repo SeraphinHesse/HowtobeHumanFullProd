@@ -53,11 +53,26 @@ class BuildingSprite(SpriteAnimator):
             self.reveal_delay = max(0.0, self.reveal_delay - dt)
         super().update(dt)
 
-    def render_items(self, transform):
+    @property
+    def hidden(self):
+        """True exactly when this sprite yields no RenderItem.
+
+        The dead-owner and reveal-delay conditions ``render_items`` used to
+        early-return on, factored into ONE predicate so an effect drawn
+        ALONGSIDE the building can hide on the identical condition instead of
+        keeping a second copy that can drift. ``game/ui/effects.py``'s
+        ``submit_boost_auras`` is the first such reader: a boost aura behind a
+        dead or not-yet-revealed booster must be absent for the same reasons
+        the sprite is, and "dead" here also covers kidnapped buildings (they
+        are the dead case — see the class docstring).
+        """
         owner = getattr(self, "_owner", None)
         if owner is not None and not getattr(owner, "alive", True):
-            return
-        if self.reveal_delay > 0.0:
+            return True
+        return self.reveal_delay > 0.0
+
+    def render_items(self, transform):
+        if self.hidden:
             return
         yield from super().render_items(transform)
 

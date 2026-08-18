@@ -376,6 +376,56 @@ multi-tile footprint) — see `game/anchors.py`'s module docstring and
 formula (`engine.render.sprite_anchor_screen`) every anchor consumer now
 resolves through.
 
+## Boost aura (feature: an always-on VFX at every boost building)
+**`submit_boost_auras`** (`game/ui/effects.py`, beside `submit_drummer_auras`;
+called from `game/main.py` right after it) — a continuous, looping sprite drawn
+BEHIND every live boost building, bound by
+`data/balancing/vfx.json`'s `triggers_by_type.<building_type>.boost_aura`
+(`data/CLAUDE.md` has the data half, including why that open registry exists).
+
+It is the third member of the CONTINUOUS-effect family, and the first one that
+is both entity-attached AND swappable art:
+- Unlike `_play`/`PlayOnceVfx` it re-submits a plain `RenderItem` every frame.
+  A despawn clock is the wrong mechanism for an always-on effect — it would
+  respawn the object each frame (the same VA-5 / `triggers.projectile`
+  reasoning `submit_highlight` carries).
+- Unlike `submit_highlight` (`widgets.py`) it walks the scene —
+  `scene.by_tag("boost")`, never `isinstance` — instead of being handed tiles.
+- Unlike `submit_drummer_auras` it is ART, not a procedural ring: its rows
+  ship `procedural: ""`, so with nothing imported it draws NOTHING (E-37).
+
+Four gates, each a `continue`, never a raise: no row / no slot; the building's
+`BuildingSprite.hidden`; no art on the RESOLVED variant; and `draw_in_front`
+→ `rank ∓1`.
+
+Three things worth knowing before touching it:
+- **`BuildingSprite.hidden` is now a SHARED predicate**
+  (`game/buildings/components.py`) — the dead-owner + `reveal_delay` pair the
+  sprite's own `render_items` early-returns on, factored out precisely so an
+  effect drawn alongside the building cannot drift from it. Read it; never
+  restate the condition. Kidnapped buildings are the dead case.
+- **The art gate tests the RESOLVED variant, not the family stem.**
+  `variant_select.mode "level"` means variant N is the booster's GLOBAL level
+  N, and a level whose art is not imported yet draws nothing rather than
+  falling back to a lower one (user decision — a half-imported family should
+  look half-imported).
+- **`fit_tiles` stays 0 even though the art is cut 192×96 to cover the 3×3
+  boost range.** With `fit_tiles == 0` the renderer centres the frame on the
+  tile diamond's centre, and a 3×3 iso block's bounding diamond is exactly
+  192×96 about that same point — the coverage lands with zero offset.
+  `fit_tiles=3` would instead trigger `block_center_offset` and shift the blit
+  by a tile, because the aura is addressed by its CENTRE tile, not a block
+  min-corner.
+
+The animation phase is offset per building by `_aura_phase_ms(col, row, total)`
+— a pure hash of the TILE, deliberately not an rng draw: `self._rng` is the
+shared global `random` stream, and drawing from it once per booster per FRAME
+would desync every downstream roll (the argument `vfx_variants.resolve`'s
+<2-variant short-circuit makes). It rides a monotonic `self._aura_clock_ms`
+(the `_beam_clock_ms` shape) that never resets, because
+`Manifest.current_frame` wraps modulo the track total — a forever-growing
+`anim_time_ms` is exactly what loops an idle track.
+
 ## Drummer buff-range telegraph + buffed-enemy arrow (feature, very-simple placeholders)
 Two new `FloaterManager` methods (`game/ui/effects.py`), both wired in
 `game/main.py` beside their closest existing analog:

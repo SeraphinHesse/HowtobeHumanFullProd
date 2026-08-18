@@ -2674,6 +2674,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # Drummer buff-range telegraph ring — always visible while a
             # Drummer is alive, same world-overlay slot as the mortar crater.
             gp["floaters"].submit_drummer_auras(renderer, cs, world.scene)
+            # The always-on boost aura behind every live booster
+            # (triggers_by_type.<building_type>.boost_aura). Unlike its
+            # neighbours here this submits depth-sorted world RenderItems, not
+            # overlay polys — it sits beside submit_drummer_auras because that
+            # is its nearest sibling in kind, not because order matters.
+            gp["floaters"].submit_boost_auras(renderer, cs, world.scene)
             gp["floaters"].submit_lightning(renderer, cs, world.scene)  # 10H
             # feature-storm-acolyte-multi-build: per-acolyte charge bars
             gp["floaters"].submit_lightning_charge_bars(

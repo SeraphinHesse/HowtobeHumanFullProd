@@ -1293,6 +1293,156 @@
               "slots": [
                 "vfx_test"
               ]
+            },
+            {
+              "label": "Boost Aura Speed",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v2"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v3"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v4"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v5"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v6"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v7"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v8"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v9"
+                }
+              ]
+            },
+            {
+              "label": "Boost Aura Damage",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v2"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v3"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v4"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v5"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v6"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v7"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v8"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v9"
+                }
+              ]
+            },
+            {
+              "label": "Boost Aura HP",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v2"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v3"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v4"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v5"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v6"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v7"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v8"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v9"
+                }
+              ]
             }
           ],
           "label": "Effects"

@@ -1769,3 +1769,30 @@ class TestSettingsDialog(TempDataCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestOpenObjectSchema(unittest.TestCase):
+    """`vfx.schema.json`'s `triggers_by_type` is the first OPEN object in a
+    balancing domain — no `properties`, members typed through
+    `additionalProperties`. `_build_object` used to index `node["properties"]`
+    unconditionally, so such a node raised KeyError and took the whole domain
+    form down. Pinned as a pure-function call (the method touches no self)
+    rather than a rendered panel, so it costs nothing in the Qt tier."""
+
+    def test_open_object_keys_come_from_the_doc(self):
+        node = {"type": "object", "additionalProperties": {"type": "object"}}
+        value = {"boost_speed": {}, "boost_hp": {}}
+        props = BalancingPanel._object_properties(None, node, value)
+        self.assertEqual(sorted(props), ["boost_hp", "boost_speed"])
+        self.assertEqual(props["boost_hp"], node["additionalProperties"])
+
+    def test_named_properties_still_win(self):
+        node = {"type": "object", "properties": {"a": {"type": "integer"}}}
+        self.assertEqual(
+            BalancingPanel._object_properties(None, node, {"a": 1}),
+            node["properties"])
+
+    def test_free_form_blob_yields_nothing(self):
+        node = {"type": "object", "additionalProperties": True}
+        self.assertEqual(
+            BalancingPanel._object_properties(None, node, {"x": 1}), {})
