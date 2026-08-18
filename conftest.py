@@ -161,6 +161,7 @@ TIERS = {
     "test_qa_triage": "core",  # /datatriage: playtest-session coalescer
     "test_projectile_sprites": "core",  # fix-anchor-offset-and-bullet-sprites Fix 2
     "test_range_sensor": "core",
+    "test_registry_savegame": "core",  # SaveGamePLAN SG-3: Building save/restore
     "test_render": "core",
     "test_render_backend_parity": "core",
     "test_right_click_dismiss": "core",

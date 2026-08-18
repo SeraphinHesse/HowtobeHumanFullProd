@@ -283,6 +283,87 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
     return building, cost
 
 
+def save_building(building):
+    """Save-slot serialization for one building (SaveGamePLAN SG-3).
+
+    ``building.to_dict()`` (``GameObject.to_dict``, engine/core) already
+    serializes id/name/tags/transform + every component field generically —
+    every component subclass in this package (``TierState``, ``Health``,
+    ``BoostReceiver``, …) declares only JSON-safe fields for exactly this
+    reason. This wrapper adds only the two things the generic serialization
+    cannot recover: ``building_type`` (needed to pick the right leaf class on
+    restore — ``GameObject.from_dict`` returns a base `GameObject`, losing
+    subclass identity, per this module's own docstring) and ``col``/``row``
+    (also on the ``Transform``, but plain ints are what ``create``/``restore_
+    building`` want, not a float world position)."""
+    return {
+        "building_type": building.building_type,
+        "col": building.col,
+        "row": building.row,
+        "gameobject": building.to_dict(),
+    }
+
+
+def _saved_component_field(gameobject_data, type_name, field_name):
+    for comp in gameobject_data["components"]:
+        if comp["type"] == type_name:
+            return comp["fields"][field_name]
+    raise ValueError(f"restore_building: no saved {type_name} component "
+                     f"(expected one on every Building)")
+
+
+def restore_building(data, tilemap, buildings_balance):
+    """Inverse of ``save_building`` — reconstructs a full, correctly-typed
+    ``Building`` with every component field restored exactly as saved.
+
+    The dance (see the plan's Architecture section for the rationale): build
+    a FRESH instance the normal way (``create``, which runs the real
+    tier/condition-dependent stat derivation exactly like a live placement
+    would), then overwrite every one of ITS component field values from the
+    saved dict, matched by component class name. This restores exact values
+    (including a damaged ``Health.hp`` that a fresh, full-healed construction
+    would not have) while still going through the real construction path for
+    everything ``to_dict``/``from_dict`` cannot express on their own (which
+    components a leaf carries, ``on_added`` wiring, …).
+
+    Mirrors ``registry.place_building``'s own tile-condition snapshot step
+    (the ``_tile_condition``/``_condition_mods`` E-11 transients — never
+    serialized, since they are derived from the TILE, not the building) so a
+    restored building's condition-dependent stats (e.g. a defence line's
+    effective range) are correct BEFORE the saved component values overwrite
+    them. ``tile`` is looked up on the caller's ``tilemap``, which must
+    already have this building's tile restored (SG-4's ordering: tiles
+    before buildings).
+
+    Raises loud (D-2) if a saved component has no matching component on the
+    fresh instance — schema/version drift, never silently dropped.
+    """
+    go = data["gameobject"]
+    tier_idx = _saved_component_field(go, "TierState", "current_tier")
+    building = create(data["building_type"], data["col"], data["row"],
+                      buildings_balance, tier_idx)
+
+    tile = tilemap.get(data["col"], data["row"])
+    if tile is not None:
+        building._tile_condition = tile.condition
+        building._condition_mods = tilemap.balance["TileConditions"]["modifiers"]
+        building.apply_tier_stats()
+
+    building.id = go["id"]
+
+    by_type = {type(c).__name__: c for c in building.components}
+    for saved in go["components"]:
+        comp = by_type.get(saved["type"])
+        if comp is None:
+            raise ValueError(
+                f"restore_building: a fresh {data['building_type']} has no "
+                f"{saved['type']} component to restore onto (schema drift?)")
+        for field_name, value in saved["fields"].items():
+            setattr(comp, field_name, value)
+
+    return building
+
+
 def attach_base(tilemap, base_building, scene, occupancy):
     """Attach the ``BaseBuilding`` to the pre-seeded base tile (already BUILT +
     ``base_building`` content key from ``TileMap`` construction), spawn it, and

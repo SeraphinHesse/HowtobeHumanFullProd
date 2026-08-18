@@ -359,7 +359,31 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   gate → sets `tile.occupant/content_key/state` → `scene.spawn` → `sync_occupancy`
   → raises `PlacementError` on a bad tile / too little love. `attach_base` wires the
   `BaseBuilding` onto its pre-seeded tile. Love is passed in (no game-state store
-  until 9F); UI batching + per-type unlock gates are 9F/9G. **A fresh placement
+  until 9F); UI batching + per-type unlock gates are 9F/9G.
+  - **`save_building`/`restore_building` (SaveGamePLAN SG-3)** are the generic
+    save-slot round-trip for ANY building, built entirely on the engine's
+    existing `GameObject.to_dict()`/`Component.to_dict()`/`component_from_dict`
+    (E-15) — zero per-type serialization code for all twelve `LEAF_CLASSES`.
+    `save_building(building)` is `{building_type, col, row, gameobject:
+    building.to_dict()}`. `restore_building(data, tilemap, buildings_balance)`
+    does the dance `create`'s own docstring calls out as the reason it exists
+    ("also the way to reconstruct a subclass after `GameObject.from_dict`,
+    which returns a base GameObject, losing subclass identity"): build a FRESH
+    instance via `create(building_type, col, row, buildings_balance,
+    tier_idx)` (`tier_idx` read off the saved `TierState.current_tier`),
+    re-run the SAME tile-condition snapshot + `apply_tier_stats()` step
+    `place_building` runs (so condition-dependent derived stats — e.g. a
+    defence line's effective range — come out correct), THEN overwrite every
+    one of the fresh instance's component field values from the saved dict,
+    matched by component class name — restoring exact values (a damaged
+    `Health.hp`, in-progress `PainterProgress`, …) that `apply_tier_stats()`'s
+    full-heal would otherwise have erased. `building.id` is restored too (the
+    `_ENGINE_ATTRS`-exempt field `GameObject.__setattr__` allows past its E-11
+    guard), so a save/load doesn't change a building's identity — load-bearing
+    for `TileMap`'s wall-edge/moving-order owner references (SG-4) and
+    `RunState.mortar_slow_snapshot_ids`' uuid translation (SG-2). A saved
+    component with no match on the fresh instance (schema/version drift)
+    raises loud (D-2) rather than silently dropping data. **A fresh placement
   builds at the type's CURRENT research ceiling, not always tier 0**: `place_building`
   derives `tier_idx` from `tiers_unlocked_for(state, building_type) - 1` and threads
   it through both `build_cost(building_type, buildings_balance, tier_idx)` and

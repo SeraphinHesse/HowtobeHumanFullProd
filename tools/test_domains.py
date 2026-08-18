@@ -89,6 +89,9 @@ DOMAINS = {
         "test_levelup.py",
         "test_lightning.py",
         "test_painter_meditator.py",
+        # SaveGamePLAN SG-3: game/buildings/registry.py's save_building/
+        # restore_building generic round-trip.
+        "test_registry_savegame.py",
         # SD-4: the building/map sound trigger dispatcher (game/sounds.py)
         "test_sound_triggers_buildings.py",
         "test_structure.py",
