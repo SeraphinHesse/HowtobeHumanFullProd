@@ -38,7 +38,7 @@ from types import SimpleNamespace
 
 from engine.render import HudRect
 
-from .skinning import ScreenSkinning, button_kwargs, is_visible
+from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .widgets import (
     Button, anim_ms, contains, submit_label, submit_panel, submit_text
 )
@@ -220,6 +220,16 @@ class CheatMenu:
         """The clicked action, or None (every click on/off the panel is
         swallowed by the host while the menu is open). An invisible button
         is never hit (10L-B)."""
+        # UL-10: clickable layers first. ``_ACTION_IDS`` reversed plus the
+        # close button; ``btn_goto`` is left out on purpose — its branch
+        # COMMITS the typed round field, which is not a pure lookup.
+        layer_actions = {wid: action for action, wid in _ACTION_IDS.items()}
+        layer_actions["btn_close"] = "close"
+        layer_action = hit_layer(
+            self.ids, self.skinning.widgets_spec(self.screen_id), mx, my,
+            self.skinning.state_of, layer_actions)
+        if layer_action is not None:
+            return layer_action
         if is_visible(self.close_btn) and self.close_btn.hit(mx, my):
             return "close"
         for action, btn in self.buttons:
@@ -250,6 +260,8 @@ class CheatMenu:
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
         self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "under", self.skinning.state_of)
         renderer.submit_hud(HudRect((0, 0, view_w, view_h), _BG))
         if is_visible(self._panel):
             submit_panel(renderer, self.panel_rect, skin=self._panel.skin,
@@ -283,3 +295,5 @@ class CheatMenu:
                    tcol)
         if is_visible(self.go_btn):
             self.go_btn.submit(renderer, anim_ms=t, **button_kwargs(self.go_btn))
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "over", self.skinning.state_of)
