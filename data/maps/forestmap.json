@@ -1033,92 +1033,21 @@
       "slot": "deco_bush"
     },
     {
-      "col": 507,
-      "row": 516,
-      "slot": "deco_prop_4_v3"
-    },
-    {
-      "col": 504,
-      "row": 515,
-      "slot": "deco_prop_4_v4"
-    },
-    {
       "col": 504,
       "flip": true,
       "row": 517,
       "slot": "deco_prop_4"
     },
     {
-      "col": 505,
-      "flip": true,
-      "row": 518,
-      "slot": "deco_prop_4_v2"
-    },
-    {
-      "col": 505,
-      "flip": true,
-      "row": 516,
-      "slot": "deco_prop_4_v2"
-    },
-    {
-      "col": 506,
-      "flip": true,
-      "row": 518,
-      "slot": "deco_prop_4_v3"
-    },
-    {
       "col": 506,
       "row": 514,
       "slot": "deco_prop_4"
-    },
-    {
-      "col": 506,
-      "row": 515,
-      "slot": "deco_prop_4_v5"
-    },
-    {
-      "col": 507,
-      "row": 517,
-      "slot": "deco_prop_4_v2"
-    },
-    {
-      "col": 506,
-      "row": 517,
-      "slot": "deco_prop_4_v2"
-    },
-    {
-      "col": 506,
-      "row": 517,
-      "slot": "deco_prop_4_v3"
-    },
-    {
-      "col": 507,
-      "row": 514,
-      "slot": "deco_prop_4_v3"
     },
     {
       "col": 504,
       "flip": true,
       "row": 513,
       "slot": "deco_prop_4"
-    },
-    {
-      "col": 505,
-      "flip": true,
-      "row": 514,
-      "slot": "deco_prop_4_v2"
-    },
-    {
-      "col": 503,
-      "flip": true,
-      "row": 515,
-      "slot": "deco_prop_4_v5"
-    },
-    {
-      "col": 504,
-      "flip": true,
-      "row": 514,
-      "slot": "deco_tree"
     },
     {
       "col": 509,
@@ -2114,16 +2043,6 @@
       "col": 508,
       "row": 504,
       "slot": "deco_tree_v3"
-    },
-    {
-      "col": 504,
-      "row": 516,
-      "slot": "deco_tree_v10"
-    },
-    {
-      "col": 506,
-      "row": 517,
-      "slot": "deco_tree_v9"
     },
     {
       "col": 502,
