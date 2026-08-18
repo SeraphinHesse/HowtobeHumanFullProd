@@ -170,6 +170,7 @@ TIERS = {
     "test_simrun": "core",  # debug mode: the headless balance-sweep runner
     "test_spawn_deco": "core",
     "test_sound_import": "core",
+    "test_sound_music": "core",  # SD-7: music arbitration + game stings
     "test_sound_slot_widget": "editor",
     "test_sound_slots_data": "core",
     "test_sound_triggers_buildings": "core",  # SD-4: game/sounds.py dispatcher
