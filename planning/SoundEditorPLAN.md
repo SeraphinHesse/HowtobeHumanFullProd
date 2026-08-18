@@ -1,390 +1,509 @@
-<!-- status: NOT STARTED — SE-1–SE-6 -->
+<!-- status: NOT STARTED — SD-1–SD-7 -->
 
-# SoundEditorPLAN.md — Sound authoring in the editor, audio in the game
+# SoundEditorPLAN.md — Sound slots in balancing, audio in the game
 
 Phased, agent-executable plan (same family as `AgentDispatchPLAN.md` /
-`MIGRATION_PLAN.md`). Base branch: `Development`. Runnable via
-`/execute-plan-phases planning/SoundEditorPLAN.md SE-1-SE-6` or phase-by-phase.
+`VfxAuthoringPLAN.md`). Base branch: `Development`. Runnable via
+`/execute-plan-phases planning/SoundEditorPLAN.md SD-1-SD-7` or phase-by-phase.
 
-Source: `Sound document ideation.md` (user-supplied), plus four scoping
-decisions taken with the user (§1).
+**Source**: `Sound checklist.md` (21 sound rows) plus the scoping session of
+2026-08-18. This document **replaces** an earlier draft of the same name that
+designed a central `data/audio/sound_bank.json` and a separate editor **Sound**
+menu. That design is dropped: sounds belong *inside the balancing of the element
+that makes them*, not in a bank off to the side.
 
 ## 1. Vision
 
-The editor gets a **Sound** root in the left tree, directly below **VFX**, with
-five children — **Buildings, Enemies, Environment, Music, UI**. From it a
-designer authors every sound in the game without touching JSON: import a clip
-the same way spritesheets are imported, set its volume and its in/out trim,
-preview it in-panel, and choose **single** mode (one clip) or **array** mode (a
-list; the game picks one at random each time the event fires).
+Every sound in the game is a **slot inside the balancing of the thing that makes
+it**. Open `buildings` in the editor's balancing form and each building family
+has a **Sounds** section: placement, selection, upgrade, death, attack,
+upkeep/boost. Each slot is a composite widget — *Import…* / *Use existing…*, a
+clip list (several clips = random variation), per-clip volume and in/out trim, a
+loop toggle, and a ▶ preview. Global defaults sit on the domain's globals; a
+per-element slot left empty **inherits the default**, so one imported clip
+covers everything until you want a specific one.
 
-Buildings and enemies have **default** sounds that every instance inherits, and
-a per-thing override layer underneath. A building that has never been touched in
-the Sound menu shows *"inherits default"* — not a copy — so the fallback stays
-visible and no phantom overrides get written.
+The game never names an audio file. It calls `sfx.play(...)` with a resolved
+slot; the resolver walks **element override → global default → silence**.
 
-Today there is effectively **no sound system** to build on:
+Today there is effectively **no sound system** to build on *(all verified in the
+`SoundEditor` worktree, 2026-08-18)*:
 
-- `engine/audio.py:15-40` — three functions (`play_music` / `stop_music` /
-  `set_volume`). Music only. No SFX, no channels. *(verified)*
-- `game/main.py:223` — the single audio call site in the game: one looping track
-  at boot, windowed runs only. *(verified)*
-- `game/ui/settings.py:172` — a volume slider labelled **"(no audio yet)"**,
-  never wired to `set_volume()`. *(verified)*
-- Zero triggers for building placed / upgraded / death / attack / repair, enemy
-  spawn / attack / death / reaches-hole, boss phases, or UI clicks. *(verified)*
-
-So this plan builds three layers — data, engine, editor — and then wires ~15
-game trigger points. It spans `data/`, `engine/`, `game/` and `editor/`; each
-phase below is scoped to as few packages as the work allows, and each names the
-ONE package doc its executor should read.
+- `engine/audio.py:15,27,35` — three functions (`play_music` / `stop_music` /
+  `set_volume`). Music only. No `pygame.mixer.Sound` anywhere in the repo.
+- `game/main.py:66,785` — one hardcoded boot track.
+- `game/ui/cutscene_player.py:16,69` — cutscene companion audio; it uses the
+  same `music` channel and nothing restores the previous track (`:66`).
+- `game/ui/settings.py:71` — `volume: float = 0.8  # inert (no audio system)`,
+  drawn at `:112-113,229-235` with the label `"(no audio yet)"`.
+- No audio schema. `data/audio/` holds one 49 MB `.wav` and no JSON.
 
 ### Scoping decisions (taken with the user)
 
-- **D1 — Sound gets its own data model**, `data/audio/sound_bank.json`, *not* a
-  `slots.json` category. VFX is an asset-only registry category and the selector
-  picks it up for free (`editor/panels/selector.py:110-148`), which made reuse
-  tempting. But audio has no frames, no animation rows, no frame size, and it
-  *does* need array mode, per-clip volume and trim — none of which
-  `asset_manifest.schema.json` can express. Forcing sound through a sprite-shaped
-  schema would be a lie the whole editor then has to special-case.
-- **D2 — Full scope.** Editor *and* engine *and* every trigger, including boss
-  and per-era music. Sound is audible in-game when SE-6 lands.
-- **D3 — Environment = placeable emitters.** The ideation doc's environment
-  sentence is truncated ("there should be a tool that can"); the user's
-  clarification is a **placeable sound emitter** on the map, choosing from the
-  environment sounds imported in the Sound menu, with a radius and distance
-  falloff.
-- **D4 — In-panel preview**, play/stop plus numeric trim fields. No waveform
-  rendering (needs a decoder and a custom paint widget; not worth it here).
+- **D1 — Global default + per-element override.** Untouched elements inherit;
+  no phantom copies. (Rejected: global-only, which forecloses per-building and
+  per-enemy variation; per-element-only, which makes every element silent until
+  individually filled.)
+- **D2 — Slots live inside the existing balancing domains** (`core` / `ui` /
+  `map` / `buildings` / `enemies`), not in a new bank file. This is the whole
+  point: the sound sits with the thing it belongs to, and the editor's existing
+  schema-driven balancing form, save path, and history come for free.
+- **D3 — Per-slot features**: preview ▶ button, random variation (several clips
+  per slot), in/out trim, loop toggle — on top of file + volume.
+- **D4 — Music**: a **default** music slot with **building-phase** and
+  **combat-phase** overrides, plus **menu** and **cutscene** slots. **Ambient is
+  a separate slot**, not part of music.
+- **D5 — Button click**: a global default plus a per-button override, carried by
+  the existing per-widget override object in `data/ui/screens/*.json` (which
+  already takes optional `font` / `skin` / `tint` / `text_id` patches — see
+  `data/schemas/ui_screen.schema.json:46,110,127`).
+- **D6 — Settings gets Master + Music + SFX sliders**, replacing the inert one.
+  **Ambient plays on the SFX bus.**
+- **D7 — Enemy overrides are per enemy type** — the ten `EnemyTypes` entries
+  (Boss, Commander, Digger, Drummer, Formation, Raider, SiegeCannon, Sniper,
+  Standard, Tutorial) — *not* per type × era.
+- **D8 — Import copies `.ogg` / `.wav` / `.mp3` as-is**, with an optional
+  **transcode-to-.ogg** checkbox powered by **`soundfile`** (added to
+  `requirements.txt` as OPTIONAL; the checkbox greys out if it is absent).
+  Rejected: ffmpeg-on-PATH — *measured*: no ffmpeg on this machine, so the
+  option would be dead out of the box.
+- **D9 — Plan scale: flat.** Seven phases on a mostly linear chain.
 
 ## 2. Architecture
 
 ```
-data/                                    engine/audio/  (audio.py → package)
-────                                     ──────────────
-schemas/sound_bank.schema.json           __init__.py  re-exports play_music,
-audio/sound_bank.json   ◄── the bank                  stop_music, set_volume
-audio/imported/*.ogg    ◄── clips        bank.py      pure: load, resolve,
-schemas/map_file.schema.json                          array pick   (no pygame)
-  += sound_emitters[]                    sfx.py       Sound cache, channel pool,
-                                                      trim, master volume
-editor/                                  game/
-───────                                  ─────
-panels/sound.py   (new)                  buildings/, enemies/, ui/  call
-  Buildings │ Enemies │ Environment        sfx.play("building.placed", ctx)
-  Music     │ UI                         core/  music per era/phase
-panels/selector.py  += Sound root         main.py  emitter falloff per frame
-map_session.py      += emitter cmds
-panels/viewport.py  += emitter place
+data/balancing/                          engine/audio/   (audio.py → package)
+────────────────                         ─────────────
+core.json      Sounds.Music/Ambient/Game  __init__.py  re-exports play_music,
+ui.json        Sounds.*                                stop_music, set_volume
+map.json       Sounds.*                   bank.py      PURE: resolve override→
+buildings.json BuildingsGlobal.Sounds                  default→silence, random
+               + <family>.sounds                       pick (injected rng),
+enemies.json   EnemySounds (defaults)                  volume math. No pygame.
+               + EnemyTypes.<type>.sounds  sfx.py      Sound cache, channel pool,
+data/audio/imported/*.ogg  ◄── clips                   cooldown, trim, buses
+data/ui/screens/*.json     ◄── per-button  music.py    streaming channel, phase/
+                               click override          menu/cutscene switching
+
+editor/                                   game/
+───────                                   ─────
+sound_import.py  (new, pure)              main.py   sfx.init() after pygame.init;
+  copy/transcode → data/audio/imported/             gp["sfx"]
+panels/sound_slot.py (new)                buildings/, enemies/, ui/, core/
+  SoundSlotWidget                           ~20 trigger call sites
+panels/balancing.py  += x-widget hook     ui/settings.py  Master/Music/SFX
 ```
 
-**Flow**: designer imports a clip → `editor/panels/sound.py` copies it into
-`data/audio/imported/` and writes the bank through `engine.data_io.write_validated`
-→ at runtime `bank.resolve(event_key, ctx)` walks **override → default →
-silence** → `sfx.play()` fetches the cached `pygame.mixer.Sound`, picks a channel,
-applies clip volume × master volume, and plays.
+**Flow**: designer opens a domain in the balancing panel → a `sound_slot` node
+renders as `SoundSlotWidget` → *Import…* copies the clip into
+`data/audio/imported/` via `editor/sound_import.py` → the widget commits the
+whole slot object through the panel's existing `_commit` → Save writes through
+`engine.data_io.write_validated` → at runtime the game's dispatch seam resolves
+**element override → global default → silence** and calls
+`engine.audio.sfx.play(clip, bus)`.
 
-### 2.1 The bank
+### Load-bearing facts this design rests on
+
+- `editor/panels/balancing.py` is a **generic schema-walking form generator** —
+  `_build_object:361`, `_add_leaf_row:522`, and the one widget switch
+  `_make_widget:670`. It already supports composite rendering steered by schema
+  extensions: `x-paired` (`:372`), `x-toggle` (`_build_toggle_checkbox:638`),
+  `x-array-editable` (`:419`). An `x-widget: "sound_slot"` hook is the same move,
+  and it is why D2 costs almost no editor code.
+- **`data/CLAUDE.md:410-412` — never use `oneOf` or a type-less node; it crashes
+  the balancing panel for the whole domain.** Hence no nullable trim: `end: 0.0`
+  is the "play to the end" sentinel.
+- **`data/CLAUDE.md:438-455` — local `#/$defs/` refs only, never cross-file.**
+  So the `sound_slot` `$defs` block is *duplicated* into each domain schema and
+  pinned identical by a generator + drift test. Precedent:
+  `tools/gen_sprite_slot_enum.py` + `tools/tests/test_schema_slot_sync.py`.
+- **`editor/panels/viewport.py` sets `SDL_AUDIODRIVER=dummy` at module level for
+  the whole editor process** — in-editor preview therefore cannot use
+  `pygame.mixer`. It uses QtMultimedia, lazily imported, degrading to a disabled
+  button (precedent `editor/thats_my_producer.py:15-32`). *Verified: QtMultimedia
+  imports cleanly on this machine.*
+- `editor/cutscene_import.py:93-151` (`audio_dest`, `import_audio`) is the
+  existing audio-file import-copy flow; `editor/asset_import.py:55-71`
+  (`sheet_users` / `unreferenced_sheets`) is the refcounting model.
+- `tools/tests/temp_data.py:9` stubs `.wav/.mp3/.ogg/.mp4` to zero bytes in the
+  temp `data/` copy; a test that actually decodes must set `DECODES_MEDIA:119`.
+- `game/main.py:588` `pygame.init()` is where the mixer initialises; `gp` (built
+  at `:825`) is the de-facto system registry — audio joins as `gp["sfx"]`.
+- *Verified*: numpy 2.4.6 imports, but only transitively via the OPTIONAL
+  `opencv-python`. Start-trim must feature-detect it (§5).
+
+### 2.1 The slot shape (`$defs/sound_slot`, duplicated per domain schema)
 
 ```json
-{
-  "version": 1,
-  "defaults": {
-    "building.placed": {
-      "mode": "array",
-      "clips": [{"file": "imported/place_a.ogg", "volume": 0.8,
-                 "start": 0.0, "end": null}]
-    }
-  },
-  "overrides": {
-    "building.stone_thrower_t1_lvl1.placed": {"mode": "single", "clips": [...]}
-  },
-  "environment": {
-    "wind_loop": {"mode": "single", "clips": [...]}
-  }
+"death": {
+  "clips": [
+    {"file": "imported/building_death_a.ogg", "volume": 0.8, "start": 0.0, "end": 0.0}
+  ],
+  "loop": false,
+  "pick": "random"
 }
 ```
 
-`start`/`end` are seconds from the clip head; `end: null` means "to the end".
-`volume` is 0.0–1.0. `mode` is `"single"` (clips must be length 1) or `"array"`
-(one clip picked at random per play).
+- `file` — path relative to `data/audio/`. Empty string = no clip.
+- `volume` — 0.0–1.0, multiplied by the bus volume and the master volume.
+- `start` / `end` — seconds. `end: 0.0` means *play to the end* (a sentinel, not
+  `null` — see the `oneOf` rule above).
+- `loop` — one-shot vs looping (ambient, music).
+- `pick` — `"random"` | `"sequential"`, used when `clips` has more than one entry.
+- **`clips: []` on a global default = silence. `clips: []` on an element
+  override = inherit the default.** Both layers are always present in the JSON
+  (full `required` per `data/CLAUDE.md`), so the form always renders them and no
+  "create the override key" machinery is needed.
 
-### 2.2 Event-key grammar
+### 2.2 Buses
 
-Flat dotted strings. This is the whole indirection layer — the game never names
-a file, only an event.
+The bus is fixed by *where the slot lives*, not by a data field a designer can
+mis-set:
 
-| Family | Default key | Override key |
+| Bus | Slots | Channel |
 |---|---|---|
-| Building | `building.<event>` | `building.<slot_key>.<event>` |
-| Enemy | `enemy.<event>` | `enemy.<group>.<era>.<event>` |
-| Boss | `boss.<event>` | `boss.<slot_key>.<event>` |
-| UI | `ui.<event>` | — (no per-thing layer) |
-| Music | `music.era.<n>`, `music.phase.<name>`, `music.menu`, `music.special.<name>` | — |
+| `music` | `core.Sounds.Music.*` | `pygame.mixer.music` (streaming, one at a time) |
+| `sfx` | everything else, including `core.Sounds.Ambient` (D6) | `pygame.mixer.Sound` on a pooled channel |
 
-Events — buildings: `placed, upgraded, death, ui_select, attack, repair`
-(economy buildings included; `attack`/`repair` simply stay silent for those that
-never fire them). Enemies: `spawn, attack, death, reaches_hole`. Boss:
-`entrance_music, entrance_voice, attack, death, reaches_hole, phase2`. UI:
-`click, cancel, menu_click`.
+Effective volume = `master × bus × clip.volume`.
 
-**Why enemy overrides key on `<group>.<era>`**: the ideation doc wants an era-1
-walker to sound different from an era-3 walker. That distinction already exists
-in the registry group path — `game/enemies/enemy.py:45,62` calls
-`registry.group_slots("enemies", (group, era_label))`. Keying on it means
-era-specific sound falls out of the existing model instead of inventing a
-second one.
+### 2.3 Checklist → slot map (all 21 rows)
 
-### 2.3 Layering
+| Checklist row | Slot |
+|---|---|
+| Music / ambient | `core.Sounds.Music.default` + `core.Sounds.Ambient.loop` |
+| game start sound | `core.Sounds.Game.game_start` |
+| round win / loss | `core.Sounds.Game.round_win` / `.round_loss` |
+| round start (humans screaming) | `core.Sounds.Game.round_start` |
+| level up sound | `core.Sounds.Game.level_up` |
+| buying plot | `map.Sounds.buy_plot` |
+| tile placement sound | `map.Sounds.tile_placement` |
+| cutscene sound/music | `core.Sounds.Music.cutscene` |
+| menu music | `core.Sounds.Music.menu` |
+| not enough love | `ui.Sounds.not_enough_love` |
+| button click | `ui.Sounds.button_click` + per-widget `sound` in `data/ui/screens/*.json` |
+| Building death sound | `buildings.BuildingsGlobal.Sounds.death` (+ per-family) |
+| Building upgrade sounds | `…Sounds.upgrade` (+ per-family) |
+| upkeep/boost | `…Sounds.upkeep_boost` (+ per-family) |
+| selection sound | `…Sounds.selection` (+ per-family) |
+| placement sound | `…Sounds.placement` (+ per-family) |
+| boss death sound | `enemies.EnemyTypes.Boss.sounds.death` |
+| cannon/boss attack sound | `EnemyTypes.Boss.sounds.attack` + `EnemyTypes.SiegeCannon.sounds.attack` |
+| boss spawn | `EnemyTypes.Boss.sounds.spawn` |
+| Enemy death sound | `enemies.EnemySounds.death` (+ per-type) |
+| Enemy attack sound | `enemies.EnemySounds.attack` (+ per-type) |
+| *(D4, beyond the checklist)* | `core.Sounds.Music.building_phase`, `core.Sounds.Music.combat_phase` |
 
-`engine/audio/bank.py` is **pure** — no pygame, no globals, `data_dir`-injectable
-— so it unit-tests headless. `sfx.py` is the only new pygame surface; `game/`
-calls `sfx.play(...)` and never touches `pygame.mixer`. `editor/` and `game/`
-still never import each other. Every `sfx` entry point carries the same
-swallow-and-continue guard `engine/audio.py:15-40` already uses, so a machine
-with no audio device — or a headless CI run — degrades to silence rather than
-crashing.
+Building sound events also include `attack`; economy buildings that never attack
+simply stay silent.
 
-## 3. Build order
+## 3. Build order (flat)
 
-| Phase | Scope | Status |
-|-------|-------|--------|
-| SE-1  | Sound-bank schema + `data/audio/` layout + pure resolver | not started |
-| SE-2  | Engine SFX playback: channel pool, trim, master volume, settings slider | not started |
-| SE-3  | Editor Sound menu: tree root, panel, import, single/array, volume/trim, preview | not started |
-| SE-4  | Trigger wiring: buildings, enemies, UI | not started |
-| SE-5  | Music: per-era / per-phase / special / menu, plus boss entrance + phase 2 | not started |
-| SE-6  | Environment emitters: map schema, editor placement, falloff playback | not started |
+| Phase | Scope (package) | Status |
+|-------|-----------------|--------|
+| SD-1 | Slot schema + `$defs` generator + all balancing subtrees (data) | not started |
+| SD-2 | `engine/audio/` package: pure bank + sfx + music channels (engine) | not started |
+| SD-3 | Editor: `sound_import.py`, `SoundSlotWidget`, `x-widget` hook, preview (editor) | not started |
+| SD-4 | Triggers: buildings + map (game) | not started |
+| SD-5 | Triggers: enemies + boss (game) | not started |
+| SD-6 | Triggers: UI + per-button override + Master/Music/SFX sliders (game + data) | not started |
+| SD-7 | Music & round/game events; retire the hardcoded boot track (game) | not started |
 
-SE-2 and SE-3 both depend only on SE-1 and are independent of each other — the
-editor can be built against the schema while engine playback lands in parallel.
-SE-4 and SE-5 need SE-2. SE-6 needs both SE-2 and SE-3.
-
----
-
-### Phase SE-1 — Sound-bank schema + resolver (pure)
-
-**Package**: `data/` + `engine/` — read `data/CLAUDE.md`.
-
-**Goal**: the bank exists, validates, and resolves. No playback, no UI.
-
-**Files** — new: `data/schemas/sound_bank.schema.json`,
-`data/audio/sound_bank.json` (seeded with the full default key set, empty clip
-lists), `data/audio/imported/.gitkeep`, `engine/audio/bank.py`,
-`tools/tests/test_sound_bank.py`. Modified: `engine/audio.py` → `engine/audio/__init__.py`
-re-exporting the existing three functions unchanged; `tools/smoke.py` if
-`validate_data` does not already reach `data/audio/` (the directory-exception
-precedent is `data/maps/` → `map_file.schema.json` and `data/agent_forms/` →
-`agent_form.schema.json`, `tools/smoke.py::validate_data`).
-
-**Tests**: bank loads and validates; `mode: "single"` with two clips is rejected
-by the schema; unknown event key resolves to `None`, not a raise; resolution
-order override → default → silence; array pick is deterministic under a seeded
-RNG; `start`/`end` out of order rejected; a round-trip through `write_validated`
-is byte-stable (sorted keys, 2-space indent, trailing newline).
-
-**Exit gate**: `py tools/smoke.py` validates the new file; `py tools/testgate.py
-check --affected` → GATE PASS. `game/main.py:51`'s `from engine.audio import
-play_music` still works (the package conversion must be invisible).
+SD-1 gates everything. SD-2 and SD-3 depend only on SD-1 and are independent of
+each other. SD-4 – SD-7 need SD-2.
 
 ---
 
-### Phase SE-2 — Engine SFX playback
+### Phase SD-1 — Slot schema + balancing subtrees (data)
 
-**Package**: `engine/` — read `engine/CLAUDE.md`. Use `engine-coder`.
+**Goal**: the data model exists and validates. No engine, no editor, no sound.
 
-**Goal**: `sfx.play(event_key, ctx)` makes noise, with volume, trim, array pick
-and a channel budget. The settings slider stops lying.
+**Read**: `data/CLAUDE.md`.
 
-**Files** — new: `engine/audio/sfx.py`. Modified: `engine/audio/__init__.py`
-(export `play`, `set_master_volume`, `init`), `game/ui/settings.py` (wire the
-slider at :172 to master volume; delete the "(no audio yet)" label),
-`tools/tests/test_audio.py` (extend).
+**Files** — new: `tools/gen_sound_slot_defs.py` (writes the identical
+`$defs/sound_slot` + `$defs/sound_clip` block into every domain schema that uses
+it — the `tools/gen_sprite_slot_enum.py` pattern),
+`tools/tests/test_sound_slots_data.py`.
+Modified: `data/schemas/{core,ui,map,buildings,enemies}.schema.json` (the `$defs`
+block, the `Sounds` subtrees, every slot site marked `x-widget: "sound_slot"`,
+per-key `description` + `minimum`/`maximum` per D-12),
+`data/balancing/{core,ui,map,buildings,enemies}.json` (the subtrees, all slots
+empty). Imported clips stay committed content (D-31) — do **not** gitignore them.
 
-**Design points**:
-- `pygame.mixer.Sound` cache keyed by resolved clip path; a bounded channel pool
-  with a **per-event-key cooldown and max-concurrent cap** — 40 enemies dying in
-  one frame must not become mud or exhaust channels.
-- Trim: `end` via `Sound.play(maxtime=ms)`. `start` requires a sliced buffer —
-  slice once at load and cache the sliced `Sound`. If that needs numpy
-  (`pygame.sndarray`) and numpy is not already a dependency, **ship `end`-only
-  trim** and record start-trim as an open item rather than adding a dep.
-- Master volume multiplies clip volume; both clamp to [0, 1].
+**Tests** (`test_sound_slots_data.py`): the `$defs` block is byte-identical
+across all five schemas (drift test); every checklist slot in §2.3 exists at its
+stated path; an empty slot validates; a slot with two clips validates; an
+out-of-range `volume`, an unknown key, and a `null` trim value each fail; no
+node added to the touched schemas is type-less or uses `oneOf`; the `pick` enum
+is exactly `["random", "sequential"]`.
 
-**Tests**: every `sfx` entry point is a no-op that raises nothing with the mixer
-uninitialised (the headless case — this is the invariant `test_audio.py` already
-guards for music); cooldown suppresses a second play inside the window; the
-channel cap is respected under a burst; master × clip volume math; cache returns
-the same object twice.
+**Exit gate**: `py tools/smoke.py` +
+`py -m pytest tools/tests/test_sound_slots_data.py -q`.
+**Quick test**: `py editor/main.py` → select `buildings` → the new `Sounds`
+sections render (as plain nested fields at this phase — the composite widget is
+SD-3) and the domain does not crash.
 
-**Exit gate**: `py tools/testgate.py check --affected` → GATE PASS;
-`py tools/smoke.py` 5-frame headless boot still clean.
+### Phase SD-2 — `engine/audio/` package (engine)
+
+**Goal**: sound can be played by code, headlessly safe, with no game vocabulary
+in `engine/`.
+
+**Read**: `engine/CLAUDE.md`.
+
+**Files** — new: `engine/audio/__init__.py` (re-exports `play_music`,
+`stop_music`, `set_volume` **exactly** — `game/main.py:66`,
+`game/ui/cutscene_player.py:16` and `tools/tests/test_audio.py` all import from
+`engine.audio`), `engine/audio/bank.py` (pure: `resolve(default_slot,
+override_slot)`, `pick_clip(slot, rng)`, `effective_volume(clip, bus, master)`),
+`engine/audio/sfx.py` (`init()`, `play(clip, bus)`, `set_bus_volume`,
+`stop_all`; `pygame.mixer.Sound` cache keyed by `(file, start, end)`, channel
+pool, per-slot cooldown and max-concurrent cap), `engine/audio/music.py`
+(`play(clip)`, `stop()`, `push`/`pop` so a cutscene restores the previous track —
+fixing the clobber noted at `game/ui/cutscene_player.py:66`),
+`tools/tests/test_audio_bank.py`, `tools/tests/test_audio_sfx.py`.
+Deleted: `engine/audio.py` (becomes the package).
+
+**Decisions**: every entry point keeps `engine/audio.py`'s swallow-and-continue
+guard, so `SDL_AUDIODRIVER=dummy` and machines with no device degrade to silence
+rather than crashing. `bank.py` is pure — no pygame, no globals, `rng` injected,
+`data_dir`-injectable. **Start-trim needs numpy** (`pygame.sndarray` slicing) and
+numpy is only a transitive optional here, so `sfx.py` feature-detects it and
+falls back to `end`-only trim (`Sound.play(maxtime=…)`); it must never add a hard
+dependency.
+
+**Tests**: `bank.py` tests are headless and pure (override wins; empty override
+falls through to default; empty default → `None`; `random`/`sequential` picking
+with a seeded rng; volume math). `sfx` tests assert the graceful-degradation
+invariant already pinned by `tools/tests/test_audio.py` (never raises with the
+mixer quit / a missing file) plus cache, cooldown and cap behaviour against a
+fake mixer. `tools/tests/test_audio.py` must keep passing verbatim — it pins the
+re-export surface.
+
+**Exit gate**: `py tools/smoke.py` +
+`py -m pytest tools/tests/test_audio.py tools/tests/test_audio_bank.py tools/tests/test_audio_sfx.py -q`.
+**Quick test**: `py game/main.py` boots and the existing music still plays.
+
+### Phase SD-3 — Editor sound slot (editor)
+
+**Goal**: a designer imports a clip, sets volume/trim/loop, adds variations, and
+hears it — without leaving the balancing form.
+
+**Read**: `editor/CLAUDE.md`.
+
+**Files** — new: `editor/sound_import.py` (PURE — Qt-free and pygame-free:
+`clip_ref(name)`, `import_clip(data_dir, src, name, transcode=False)` copying
+into `data/audio/imported/`, `imported_clips(data_dir)` for the reuse picker,
+`clip_users` / `unreferenced_clips` refcounting modelled on
+`editor/asset_import.py:55-71`, `transcode_available()`),
+`editor/panels/sound_slot.py` (`SoundSlotWidget`),
+`tools/tests/test_sound_import.py`, `tools/tests/test_sound_slot_widget.py`.
+Modified: `editor/panels/balancing.py` — `_build_object:361` intercepts
+`prop.get("x-widget") == "sound_slot"` and emits a `SoundSlotWidget` instead of
+recursing; the widget commits the whole slot object through the existing
+`_commit:725`, and `_set_widget_value:795` / `_apply_snapshot:806` learn the new
+widget type. `tools/tests/test_editor_viewport.py` (`TestPurity` += the two new
+modules — editor rule 2). `requirements.txt` (+ `soundfile`, marked OPTIONAL in
+the same style as `opencv-python`).
+
+**Decisions**: preview uses **QtMultimedia**, lazily imported inside a `try`
+(precedent `editor/thats_my_producer.py:15-32`), because
+`editor/panels/viewport.py` sets `SDL_AUDIODRIVER=dummy` process-wide —
+`pygame.mixer` in the editor is silent by construction. Missing QtMultimedia ⇒
+the ▶ button disables itself. The transcode checkbox is enabled only when
+`soundfile` imports; the raw-copy path always works. Files above a size
+threshold get a warning (`data/audio/Bass_and_drum_Duo.wav` is already 49 MB).
+`QFileDialog` stays confined to one `_on_*_clicked` method and dialog
+construction is split from display, so no test `exec()`s (editor rule 12).
+
+**Tests**: `test_sound_import.py` (pure, no Qt) — copy into a temp `data_dir`,
+`clip_ref` shape, refcounting, transcode skipped cleanly when `soundfile` is
+absent, non-audio extension rejected. `test_sound_slot_widget.py` — the widget
+renders from a slot dict and round-trips it through `_commit`; adding/removing a
+clip restructures the list; volume/trim bounds come from the schema;
+`QtCase.track` destroys every widget (editor rule 17); assert against a pinned
+fixture, never live `data/` (rule 18). Any test that actually decodes a clip must
+set `DECODES_MEDIA` (`tools/tests/temp_data.py:119`) — audio is stubbed to zero
+bytes in the temp copy.
+
+**Exit gate**: `py tools/smoke.py` +
+`py -m pytest tools/tests/test_sound_import.py tools/tests/test_sound_slot_widget.py tools/tests/test_editor_viewport.py -q`.
+**Quick test**: `py editor/main.py` → `buildings` → *DefenceBuildings →
+BasicDefence → Sounds → attack* → **Import…** a short clip → ▶ plays it → set
+volume 0.5 → Save → reopen the editor and confirm it persisted into
+`data/balancing/buildings.json`.
+
+### Phase SD-4 — Triggers: buildings + map (game)
+
+**Goal**: placement, selection, upgrade, death, attack and upkeep/boost sounds
+fire; buying a plot and placing a tile make a noise.
+
+**Read**: `game/CLAUDE.md`, then `game/buildings/CLAUDE.md`.
+
+**Files** — modified: `game/main.py` (`sfx.init(data_dir)` after
+`pygame.init():588`; `gp["sfx"]`), `game/buildings/*` (placement, upgrade,
+death, attack, selection, upkeep/boost call sites), `game/map/*` and
+`game/ui/building_ui.py` (buy-plot, tile placement), `game/core/balance.py` if a
+loader seam is needed. New: `tools/tests/test_sound_triggers_buildings.py`.
+
+**Decisions**: game code resolves through **one seam** — a
+`game/ui/effects.py`-style dispatcher (`play_building_sound(kind, family)`) that
+looks up the family override then the global default, mirroring how
+`game/ui/effects.py::_play` / `_play_typed` already dispatches VFX. No `game/`
+module ever names an audio file, and `engine/` never branches on a building type
+string (D5, layering). **Locate every call site fresh** — the previous draft of
+this plan cited line numbers that no longer resolve.
+
+**Tests**: a fake `sfx` records `(slot_path, clip)` calls; assert the right slot
+fires on place / upgrade / death / attack / select / upkeep, that an empty
+override falls back to the default, and that an empty default is a silent no-op
+rather than a crash.
+
+**Exit gate**: `py tools/smoke.py` +
+`py -m pytest tools/tests/test_sound_triggers_buildings.py -q`.
+**Quick test**: `py game/main.py` → buy a plot (sound) → place a defence building
+(placement) → select it (selection) → upgrade it (upgrade) → let it shoot
+(attack) → let it die (death).
+
+### Phase SD-5 — Triggers: enemies + boss (game)
+
+**Goal**: enemy spawn/attack/death and the three boss rows fire, with per-type
+overrides.
+
+**Read**: `game/CLAUDE.md`, then `game/enemies/CLAUDE.md`.
+
+**Files** — modified: `game/enemies/*` (spawner, walker, combat sweep),
+`game/core/session.py` / `game/core/boss_bonuses.py` for boss spawn.
+New: `tools/tests/test_sound_triggers_enemies.py`.
+
+**Decisions**: the override key is the `EnemyTypes` entry (D7), reached via the
+existing `registry_group` / type mapping — **not** a new string convention.
+`data/schemas/enemies.schema.json:663-667` warns explicitly that the registry
+label is not the `EnemyTypes` key (`Standard → "Walker"`,
+`SiegeCannon → "Siege Cannon"`); match by field, never by convention. Boss spawn,
+boss attack and boss death are the `Boss` type's override rows; the cannon attack
+is `SiegeCannon`'s. A 40-enemy wipe in one frame is the load case — SD-2's
+per-slot cooldown and max-concurrent cap are load-bearing here, not polish.
+
+**Tests**: fake-`sfx` assertions per type; a mass-death burst plays at most the
+cap; `SiegeCannon` and `Boss` attacks resolve to their overrides while an
+un-overridden type falls back to `EnemySounds`.
+
+**Exit gate**: `py tools/smoke.py` +
+`py -m pytest tools/tests/test_sound_triggers_enemies.py -q`.
+**Quick test**: `py game/main.py` → reach a wave with siege cannons (their attack
+differs from the default) → reach a boss round (spawn, attack, death).
+
+### Phase SD-6 — UI triggers, per-button override, volume sliders (game + data)
+
+**Goal**: buttons click, "not enough love" is audible, and the settings screen
+has working Master / Music / SFX sliders.
+
+**Read**: `game/CLAUDE.md`, then `game/ui/CLAUDE.md`.
+
+**Files** — modified: `data/schemas/ui_screen.schema.json` (an **optional**
+`sound` key on the per-widget override object — optional by omission from
+`required`, so every existing `data/ui/screens/*.json` stays byte-identical),
+`game/ui/widgets.py` + `game/ui/shell.py` (`_main_menu_click:205`,
+`_settings_click:246`, `_pause_click:255`) for the click seam,
+`game/ui/overlays.py` (or wherever `ui.Timing.not_enough_love_duration` is
+consumed), `game/ui/settings.py` (three sliders replacing the inert `volume:71`
+and the `_audio_note` label at `:112-113,229-235`), `game/ui/strings.py` +
+`data/ui/strings.json` (retire `settings.no_audio`, add music/SFX labels), and a
+regeneration of `data/ui/screen_defaults.json` / `screen_previews.json` via
+`tools/export_ui_layouts.py` if the settings layout changes.
+New: `tools/tests/test_sound_triggers_ui.py`.
+
+**Decisions**: the per-button override resolves once, in the widget click seam —
+the widget's own `sound` if set, else `ui.Sounds.button_click`. Each slider sets
+a bus volume through `engine.audio.sfx.set_bus_volume` / `music.set_volume`, and
+persists wherever the settings screen already persists. Ambient is on the SFX bus
+(D6). `screen_defaults.json` / `screen_previews.json` are generated-but-committed
+— regenerate them in this phase or the drift test fails.
+
+**Tests**: the click seam plays the global slot; a widget carrying a `sound`
+override plays that instead; bus volume multiplies correctly; the schema still
+validates every unmodified `data/ui/screens/*.json`.
+
+**Exit gate**: `py tools/smoke.py` +
+`py -m pytest tools/tests/test_sound_triggers_ui.py tools/tests/test_ui_screens.py -q`.
+**Quick test**: `py game/main.py` → click menu buttons (click sound) → Settings →
+drag Music to 0 (music stops, SFX keeps playing) → drag SFX to 0 → in game, try
+to place a building you cannot afford (not-enough-love sound at SFX volume).
+
+### Phase SD-7 — Music and round/game events (game)
+
+**Goal**: every remaining checklist row plays, and no audio path is hardcoded.
+
+**Read**: `game/CLAUDE.md`, then `game/core/CLAUDE.md`.
+
+**Files** — modified: `game/main.py` (**delete** the hardcoded
+`play_music(data_dir / "audio" / "Bass_and_drum_Duo.wav", loop=True)` at `:785`;
+that track becomes the imported clip of `core.Sounds.Music.default`),
+`game/core/phases.py` + `game/core/session.py` (building-phase / combat-phase
+music switch; round start / win / loss), `game/core/levelup.py` (level-up sound),
+`game/ui/shell.py` (menu music on `to_main_menu:116` / `enter_gameplay:108`;
+game-start sound), `game/ui/cutscene_player.py` (cutscene music slot, using
+`music.push`/`pop` so the previous track resumes), `data/balancing/core.json`
+(seed the default music slot with the existing WAV).
+New: `tools/tests/test_sound_music.py`.
+
+**Decisions**: music resolution is `phase override → default`, exactly like every
+other slot — building phase and combat phase are overrides of
+`core.Sounds.Music.default` (D4). Ambient loops on the SFX bus concurrently with
+music. Switching to a track that is already playing is a no-op — never restart it
+on every phase tick.
+
+**Tests**: a fake music channel records `play`/`stop`; the phase machine switches
+tracks on transition and only on transition; an empty phase override falls back
+to the default; the cutscene push/pop restores the prior track; round win/loss
+and level-up fire exactly once each.
+
+**Exit gate**: `py tools/smoke.py` +
+`py -m pytest tools/tests/test_sound_music.py -q`.
+**Quick test**: `py game/main.py` → menu music at the main menu → start a game
+(game-start sound, then building-phase music) → end turn (round-start scream,
+combat-phase music) → clear the wave (round-win) → level up (level-up sound) →
+trigger a cutscene (its music plays, then the previous track resumes).
 
 ---
-
-### Phase SE-3 — Editor Sound menu
-
-**Package**: `editor/` — read `editor/CLAUDE.md` then `editor/panels/CLAUDE.md`.
-Consider opening with `/add-editor-feature`.
-
-**Goal**: a designer can do everything in §1 from the editor.
-
-**Files** — new: `editor/panels/sound.py`, `editor/sound_import.py` (clip copy +
-bank write; mirror `editor/asset_import.py:46,139`),
-`tools/tests/test_editor_sound.py`. Modified: `editor/panels/selector.py`
-(inject the **Sound** root immediately after the VFX category node — Sound is
-not a registry category, so it is an explicit root, not a `registry.categories()`
-entry), `editor/main_window.py:109` (`_on_node_selected` routes sound nodes to
-the new panel), `tools/tests/test_editor_viewport.py` (`TestPurity` +=
-`editor.panels.sound`, `editor.sound_import`).
-
-**Design points**:
-- Five children: Buildings, Enemies, Environment, Music, UI. Buildings/Enemies
-  open on the **defaults** row with a per-thing list beneath; untouched rows
-  render *"inherits default"* and write nothing.
-- Per event key: mode toggle, clip list (add / remove / reorder), per-clip
-  **Import…**, volume spin, start/end trim spins, **▶ / ■** preview.
-- Preview uses `QtMultimedia.QMediaPlayer` via the lazy-import,
-  degrade-gracefully pattern at `editor/thats_my_producer.py:15-28` — if
-  QtMultimedia is unavailable the button disables itself, it does not crash.
-- Canonical import format is **`.ogg`** (size; pygame handles it natively).
-  Accept `.wav` on import too, but do not transcode — store as-is.
-- Every write goes through `write_validated`. Single-selection model, one render
-  path (ED-22).
-
-**Tests** (`editor` tier): panel builds for each of the five tabs against a temp
-`data/` copy; importing a clip lands it in `data/audio/imported/` *inside the
-temp tree* and the bank re-validates; toggling single→array preserves clip 1;
-an untouched per-thing row writes no `overrides` entry; preview is skipped
-cleanly when QtMultimedia is absent. `TempDataCase` throughout — never assert
-against live `data/`.
-
-**Exit gate**: `py tools/testgate.py check --affected` → GATE PASS. Manual:
-`py editor/main.py` → Sound → Buildings → import a clip on `building.placed` →
-preview plays.
-
----
-
-### Phase SE-4 — Trigger wiring: buildings, enemies, UI
-
-**Package**: `game/` — read `game/CLAUDE.md`.
-
-**Goal**: the game fires the events. Sound is audible in play.
-
-**Files** — modified (call sites already located, *verified*):
-`game/buildings/registry.py:43` (placed), the building `upgrade()` path and the
-repair path in `game/buildings/`, `game/core/session.py:385`
-(`_award_building_deaths` → building death), `game/enemies/spawner.py` (spawn),
-`game/enemies/combat.py:333` (`resolve_combat` → attack, both directions),
-`game/main.py:625` + `game/core/session.py:427` (enemy death), the
-reaches-hole path, `game/ui/shell.py:93,109,123,137,146` and
-`game/ui/building_ui.py:722,766,798,854` (UI clicks and the upgrade-UI select).
-
-**Design points**: each call is one line — `sfx.play(key, ctx)` — with `ctx`
-carrying the slot key (buildings) or group+era (enemies) so `bank.resolve` can
-find an override. No game-logic change; no behaviour depends on the return.
-
-**Tests**: a headless session runs a wave end-to-end with a stub `sfx` recording
-event keys, and asserts the expected keys fire in order with the right override
-context. This is the phase's real value — it pins the *keys*, which are the
-contract the editor writes against.
-
-**Exit gate**: `py tools/testgate.py check --affected` → GATE PASS. Manual:
-place a building and hear it; kill an enemy and hear it.
-
----
-
-### Phase SE-5 — Music
-
-**Package**: `game/` — read `game/CLAUDE.md`.
-
-**Goal**: music per era, per phase, special occasion, main menu; boss entrance
-music + voiceline + phase-2 sting.
-
-**Files** — modified: `game/main.py:223` (replace the hardcoded boot track with
-`music.menu` / the active era key), the era- and phase-transition sites in
-`game/core/`, `game/core/boss_bonuses.py` (see below), `engine/audio/__init__.py`
-if a crossfade helper is wanted.
-
-**Open item carried into this phase**: boss **phase 2** has no existing trigger
-point in `game/core/boss_bonuses.py` *(inferred — scout found none)*. The
-executor must first locate or create the phase-transition hook, and should
-surface it to the user if creating one means a behaviour change rather than a
-pure hook.
-
-**Tests**: music key selection per era/phase is a pure function and is tested as
-one; boss entrance fires exactly once per boss.
-
-**Exit gate**: `py tools/testgate.py check --affected` → GATE PASS.
-
----
-
-### Phase SE-6 — Environment emitters
-
-**Package**: spans `data/` + `editor/` + `game/` — tell the user before starting;
-it is the one phase that legitimately crosses packages.
-
-**Goal**: a designer places a sound emitter on the map; the game plays its
-environment sound with distance falloff.
-
-**Files** — modified: `data/schemas/map_file.schema.json` (add a
-`sound_emitters` array — copy the `deco` array shape at schema lines 79-107,
-plus `sound` (a key into the bank's `environment` section) and `radius`),
-`editor/map_session.py:330,333` (mirror `_DecoPlaceCommand` /
-`_DecoRemoveCommand` — undo/redo comes free from the `QUndoStack`),
-`editor/panels/viewport.py:88+` (palette-armed left-click places, erase removes),
-`editor/panels/palette.py` (emitter tool), `game/main.py` (per-frame falloff).
-
-**Design points**: emitters are **passive data** — no `GameObject`, no
-`RenderItem`, no entry in `engine/tilemap.py::render_items`. Each frame, take the
-camera-centre world point (`cs.screen_to_world(view_w/2, view_h/2)`,
-`game/main.py:147-148`), compute linear falloff over `radius`, set that
-emitter's channel volume. The editor *should* draw a radius ring while the
-emitter tool is armed, so the designer can see what they are placing.
-
-**Tests**: a map with emitters round-trips through the schema; place/remove
-undo/redo restores exactly; falloff is a pure function tested at centre, edge,
-and beyond radius; a map with no `sound_emitters` key still loads (backwards
-compatible — the field is optional).
-
-**Exit gate**: `py tools/smoke.py` (map schema + boot) and the **full**
-`py tools/testgate.py check` → GATE PASS. Manual: place an emitter, walk the
-camera away, hear it fade.
 
 ## 4. Verification (whole plan)
 
-```
-py tools/smoke.py           # data validation + 5-frame headless boot
-py tools/testgate.py check  # GATE PASS or you are not done
-```
+Each phase's own gate is written above, and that is what the executing agent
+runs — `py tools/smoke.py` plus the named test files, then the Quick Test.
 
-`--affected` while iterating; the full `check` once, at handoff. Tests must copy
-`data/` to a tempdir (`TempDataCase`) — the session fixture fails the run if
-`data/` changed. Never assert against live `data/` content; pin fixtures.
+The **single** full `py tools/testgate.py check` happens once, in the main
+session, at handoff. §"Test Suite Policy" in the root `CLAUDE.md` is the only
+authority on this; do not restate a different rule here.
 
-**Quick Test for the PR**: `py editor/main.py` → Sound → Buildings → import a
-clip on `building.placed` → preview plays → save → `py game/main.py` → place a
-building → hear it. Then place an environment emitter in the map editor, load
-that map, and move the camera away — the sound fades.
+Tests must never write into `data/` (`TempDataCase`; a session fixture hashes
+`data/` and fails the run if it changed) and must never assert against live
+`data/` content — pin the fixture.
 
 ## 5. Risks / open items
 
-- **Start-trim slicing** may need numpy (`pygame.sndarray`). If numpy is not
-  already a dependency, SE-2 ships `end`-only trim (`maxtime`) and start-trim
-  becomes an open item — do not add a dependency to close it without asking.
-- **Channel exhaustion / mix mud** — a 40-enemy wipe in one frame. SE-2's
-  per-event cooldown and max-concurrent cap are load-bearing, not polish.
-- **Boss phase-2 has no hook** *(inferred)* — SE-5 may have to create one; that
-  is a game-logic touch inside a plan that is otherwise additive.
-- **`engine/audio.py` → package conversion** is the one backwards-compat risk in
-  SE-1. `game/main.py:51` and `tools/tests/test_audio.py` both import from it;
-  the re-export must be exact.
-- **QtMultimedia may be absent** — already an established optional at
-  `editor/thats_my_producer.py`; the preview button disables itself.
-- **The ideation doc's environment sentence is truncated.** The emitter design in
-  SE-6 is the user's spoken clarification, not the document's — re-confirm before
-  building SE-6 if much time has passed.
-- **Volume UX**: master volume lives in `game/ui/settings.py`; there is no
-  separate music/SFX split. If the user wants one later it is a settings change,
-  not a bank change — the split belongs above `sfx.play`, not in the schema.
+- **Start-trim depends on numpy**, which is present only transitively via the
+  OPTIONAL `opencv-python` (*measured*: numpy 2.4.6 imports today). SD-2 must
+  feature-detect it and ship `end`-only trim when it is missing; the editor greys
+  the `start` field out in that case. Do **not** promote numpy to a hard
+  dependency without asking.
+- **`soundfile` is a new dependency** (D8). It must be OPTIONAL — the transcode
+  checkbox disables itself if the import fails, and the raw-copy path always
+  works.
+- **Repo size.** Audio is committed content. `data/audio/Bass_and_drum_Duo.wav`
+  is already 49 MB; 21 more uncompressed clips would hurt. The transcode option
+  and the import-size warning are mitigation, not a guarantee.
+- **`engine/audio.py` → package conversion** is the one backwards-compat risk
+  (SD-2). Three importers depend on the exact re-export surface.
+- **Channel exhaustion / mix mud** on a mass enemy wipe — SD-2's cooldown and
+  max-concurrent cap are load-bearing for SD-5.
+- **Empty-clips semantics differ by layer** (default = silence, override =
+  inherit). Deliberate and cheap, but it must be stated in the `SoundSlotWidget`
+  tooltip or a designer will be confused by it.
+- **`screen_defaults.json` / `screen_previews.json` are generated-but-committed**
+  — SD-6 regenerates them if it changes the settings layout, or the drift test
+  fails.
+- Every file:line in this document was re-verified in the `SoundEditor` worktree
+  on **2026-08-18**. The previous draft's citations had drifted badly (including
+  a reference to `editor/main_window.py`, which does not exist) — re-check before
+  executing if much time passes.
