@@ -121,29 +121,42 @@
         ]
       },
       "box_a": {
-        "display_name": "Boss option A box",
+        "display_name": "Boss upgrade slot 1 box",
         "font_key": "lg",
         "kind": "panel",
         "label": "",
         "parent": "backdrop",
         "rect": [
-          225,
-          158,
-          90,
-          65
+          8,
+          138,
+          200,
+          104
         ]
       },
       "box_b": {
-        "display_name": "Boss option B box",
+        "display_name": "Boss upgrade slot 2 box",
         "font_key": "lg",
         "kind": "panel",
         "label": "",
         "parent": "backdrop",
         "rect": [
-          325,
-          158,
-          90,
-          65
+          220,
+          138,
+          200,
+          104
+        ]
+      },
+      "box_c": {
+        "display_name": "Boss upgrade slot 3 box",
+        "font_key": "lg",
+        "kind": "panel",
+        "label": "",
+        "parent": "backdrop",
+        "rect": [
+          432,
+          138,
+          200,
+          104
         ]
       },
       "headline": {
@@ -155,7 +168,7 @@
         "parent": "backdrop",
         "rect": [
           320,
-          101,
+          81,
           0,
           0
         ]
@@ -169,7 +182,7 @@
         "parent": "backdrop",
         "rect": [
           320,
-          139,
+          119,
           0,
           0
         ]
@@ -218,7 +231,7 @@
             "parent": "panel",
             "rect": [
               290,
-              237,
+              249,
               60,
               16
             ]
@@ -2483,7 +2496,7 @@
         "parent": "panel",
         "rect": [
           290,
-          237,
+          249,
           60,
           16
         ]

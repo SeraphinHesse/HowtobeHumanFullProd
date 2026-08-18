@@ -29,7 +29,7 @@ import random
 from engine import era_math
 from game.debug import events as dbg  # debug-mode-telemetry Phase 2
 
-from . import boss_bonuses as bb
+from . import boss_upgrades as bu  # BossUpgradeTimelinePLAN BU-2/BU-4
 from . import levelup as lv
 from . import lightning as lt  # 10H
 from . import xp as xpmod
@@ -574,22 +574,32 @@ class Session:
     # -- BOSS_CUTSCENE (10G) -----------------------------------------------
 
     def _begin_boss_cutscene(self):
-        """Enter the fully modal A/B phase. ``pending_boss_cutscene`` stays set
+        """Enter the fully modal pick phase. ``pending_boss_cutscene`` stays set
         (the host reads boss_num/outcome to open the window on the phase edge —
         the LEVELUP pattern); ``resolve_boss_cutscene`` consumes it."""
         self.state.phase = GamePhase.BOSS_CUTSCENE
 
     def resolve_boss_cutscene(self, option, scene=None):
-        """Apply the ``"A"``/``"B"`` choice (choice sets cycle every 3 bosses),
-        log it to the run history, then chain into the LEVELUP the cutscene
-        deferred — or straight to payday (prototype game.py:947-963). Payday
-        runs exactly once either way."""
+        """Apply the picked BOSS UPGRADE (``option`` is a catalog upgrade id —
+        BU-4 replaced 10G's ``"A"``/``"B"``), log it to the run history, then
+        chain into the LEVELUP the cutscene deferred — or straight to payday
+        (prototype game.py:947-963). Payday runs exactly once either way.
+
+        ``apply_pick`` is THE seam: it counts the stack every persistent
+        passive's hook site reads and fires the one-time effects (and the
+        injected pick-time hooks) for the ids that carry them. ``tilemap`` is
+        the Session's own; ``scene`` is the host's, and both are needed before
+        a hook (``stone_thrower_sync``'s building sweep, ``mortar_slow``'s
+        snapshot) will run at all — a headless resolve passing no scene is a
+        silent no-op there, by that module's contract.
+        """
         st = self.state
         pending = st.pending_boss_cutscene or {}
         boss_num = pending.get("boss_num", 1)
         outcome = pending.get("outcome", "win")
-        bb.apply_choice(st, (boss_num - 1) % 3, option)
-        st.boss_choices.append((boss_num, option, outcome))
+        bu.apply_pick(st, option, self.boss_upgrades_balance,
+                      self.core_balance, tilemap=self.tilemap, scene=scene)
+        st.boss_upgrade_choices.append((boss_num, option, outcome))
         st.pending_boss_cutscene = None
         if self.debug is not None:
             self.debug.emit(dbg.BOSS_CHOICE, boss_num=boss_num, option=option,
@@ -746,16 +756,18 @@ class Session:
     # -- helpers ----------------------------------------------------------
 
     def _boss_loss_reward(self, era):
-        """This era's consolation love for a LOST boss round (0 = none).
+        """The retaliation love a LOST boss round pays (0 = none).
 
-        Resolved through ``era_math.resolve_era_row`` with the boss's own
-        ``endgame_boss_scaling``, i.e. the exact path ``Boss._stat_row`` takes
-        — game/core cannot import game.enemies (it would close an import
-        cycle), so it calls the shared engine helper instead of the class."""
-        block = self.enemies_balance["EnemyTypes"]["Boss"]
-        row = era_math.resolve_era_row(block["stats"], max(0, int(era)),
-                                       block["endgame_boss_scaling"])
-        return int(row.get("loss_love_reward", 0))
+        BU-4/D7: sourced from the boss-upgrade TIMELINE's own 4-cycle table
+        (``retaliation_bonus_love``, one per milestone), which is now the sole
+        source of truth — ``enemies.json``'s per-era ``loss_love_reward`` and
+        its ``era_math.resolve_era_row`` lookup are retired. ``era`` is
+        0-indexed here (``_begin_round_end``'s ``era_of_round``) and
+        ``retaliation_love`` takes a 1-BASED boss number, hence ``era + 1`` —
+        the same conversion ``pending_boss_cutscene["boss_num"]`` already
+        makes two lines below its call site. 0 when no balance is wired (a
+        bare ``Session`` a logic test builds)."""
+        return bu.retaliation_love(self.boss_upgrades_balance, int(era) + 1)
 
     def _begin_round_end(self):
         st = self.state
@@ -771,12 +783,11 @@ class Session:
             era = era_math.era_of_round(st.round_num, rounds_per_era)
             outcome = ("win" if st.base_lives >= st.boss_lives_snapshot
                        else "loss")
-            # A LOST boss round pays consolation love, straight off THIS era's
-            # boss stat row (`loss_love_reward`) — the same clamped/endgame-
-            # scaled resolve the Boss itself uses for hp/dmg, so era 6+ keeps
-            # paying whatever `endgame_boss_scaling` says. Paid here, once,
-            # the moment the outcome is known: the cutscene shows the number
-            # and the payday that follows it already sees the love.
+            # A LOST boss round pays retaliation love, off the boss-upgrade
+            # timeline's own 4-cycle table (BU-4/D7 — see
+            # `_boss_loss_reward`). Paid here, once, the moment the outcome is
+            # known: the cutscene shows the number and the payday that follows
+            # it already sees the love.
             reward = self._boss_loss_reward(era) if outcome == "loss" else 0
             if reward:
                 st.add_love(reward)

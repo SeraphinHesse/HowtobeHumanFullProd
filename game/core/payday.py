@@ -9,11 +9,11 @@ not reorder without the user.
 
 9F drives steps 1, 2, 4, 5, 9, 11, 12 (snapshot -> base income + yield -> upkeep
 clamp-0 -> revive -> round++ -> INCOME). 10C fills step 6 (the Painter payout
-sweep, before revive); 10D step 7 (boosts); 10E steps 8 + 10 (walls); step 3 is
-the boss story love payout (``boss_bonuses.love_bonus_income``, silent) — a
-whole-board sum since the boss-upgrade rework, which DELETED the old Boss2A/2B
-per-recipient fold-in from the step-4 income sweep. The income + upkeep sweeps
-are duck-typed
+sweep, before revive); 10D step 7 (boosts); 10E steps 8 + 10 (walls); step 3
+held the boss story love payout (``boss_bonuses.love_bonus_income``) until
+BossUpgradeTimelinePLAN D6 retired that system, and is now a **documented
+no-op whose ordinal position is deliberately kept** — see the step itself. The
+income + upkeep sweeps are duck-typed
 (``yield_amount`` / ``upkeep``) exactly like the prototype, so future building
 types are picked up here with no edit to this loop; the ONE exception is the
 Meditator, whose streak compounding needs an ordered reset->pay->advance the
@@ -46,7 +46,6 @@ from game.buildings.components import (
 )
 from game.buildings.movement import process_moves
 from game.map.tiles import TileState
-from .boss_bonuses import love_bonus_income
 from .boss_upgrades import hook_stacks
 from .phases import GamePhase
 from .xp import scaled_base_income
@@ -217,16 +216,20 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None,
         rs.dmg_taken_this_round = 0
         rs.dmg_dealt_this_round = 0
 
-    # 3. Boss-bonus love payout, Boss2A / Boss2B. A whole-board sum, AFTER the
-    #    snapshot and BEFORE base income (slot position unchanged from 10G).
-    #    Paid silently: NO income_events floater.
-    story = love_bonus_income(state, tilemap, core_balance)
-    if story > 0:
-        state.add_love(story)
+    # 3. RESERVED — intentionally a NO-OP, and the slot stays where it is.
+    #    This ordinal used to invoke the boss story-love payout
+    #    (``boss_bonuses.love_bonus_income``, Boss2A/2B — a silent whole-board
+    #    sum, no income_events floater). BossUpgradeTimelinePLAN D6 retired
+    #    that whole system, and the boss UPGRADES that replaced it pay nothing
+    #    at payday. The step order is SACROSANCT (see this module's docstring),
+    #    so the position is kept as a documented placeholder rather than
+    #    closed up: a future between-snapshot-and-base-income payout belongs
+    #    exactly here, and nothing below it may shift by one.
 
     # debug-mode-telemetry: immediately after step 3 — story_income is
-    # measured as the exact love delta across this ONE step, since the
-    # Boss1B/3B payouts leave no income_events trace to split later.
+    # measured as the exact love delta across this ONE step, which is now
+    # always 0 (the slot is a no-op). Kept at its ordinal for the same reason
+    # the slot is.
     if debug is not None:
         debug.on_payday_story(state)
 

@@ -91,7 +91,6 @@ from game.core import Session, append_random_name, load_balance
 from game.core import boss_upgrades  # BU-3: the one-time-hook seam
 from game.core import highscores  # player-identity: the run-history document
 from game.core import lightning  # BU-3 3.3: the stormpriest_slow hook seam
-from game.core.boss_bonuses import story_damage_bonus
 from game.core.phases import GamePhase, GameState
 from game.debug import (  # debug-mode-telemetry
     DebugRecorder, LEVELS, LEVEL_BASIC, LEVEL_OFF, LEVEL_VERBOSE,
@@ -1037,7 +1036,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         gp["levelup"] = LevelupWindow(view_w, view_h, skinning=shell.skinning)
         gp["boss_cutscene"] = BossCutscene(view_w, view_h,  # -- 10G boss --
                                           core_balance,
-                                          skinning=shell.skinning)
+                                          skinning=shell.skinning,
+                                          # BU-4: the 3 upgrade cards' copy +
+                                          # magnitudes and this bossfight's
+                                          # milestone slots.
+                                          boss_upgrades_balance=(
+                                              boss_upgrades_balance))
         # feature-enemy-intro-dialogue
         gp["enemy_intro"] = EnemyIntroWindow(
             view_w, view_h, core_balance["EnemyIntro"]["window"],
@@ -1328,7 +1332,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             _execute_cheat(gp["cheat"].hit(mx, my))
             return
         # -- /10H --
-        # -- 10G boss: the cutscene is fully modal — A/B or nothing (clicks
+        # -- 10G boss: the cutscene is fully modal — one of the 3 upgrade cards
+        # (BU-4; `hit` returns the picked catalog id) or nothing (clicks
         # elsewhere swallowed; keys are already swallowed by the frozen gate).
         if session.state.phase == GamePhase.BOSS_CUTSCENE:
             choice = gp["boss_cutscene"].hit(mx, my)
@@ -2037,10 +2042,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                     world.scene.update(sim_dt)
                     apply_crowd_spacing(world.scene, sim_dt,
                                         enemies_balance["CrowdSpacing"])
-                    # The flat boss-bonus story damage (Boss1A/1B/3A/3B),
-                    # computed once per frame and threaded as a plain int.
-                    dmg_bonus = story_damage_bonus(session.state, world.tile_map,
-                                                   core_balance)
+                    # (BU-4/D6: the flat boss-bonus story damage that used to
+                    # be computed here and threaded as `dmg_bonus` is retired
+                    # with `boss_bonuses.py`. `resolve_combat`'s `dmg_bonus`
+                    # parameter stays, defaulted to 0 — it is a generic
+                    # whole-board additive seam, not a boss-bonus one.)
 
                     # Play the death animation if the dead enemy's sheet has a
                     # `death` row (Art/enemies): the session bookkeeping runs first
@@ -2099,7 +2105,6 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                                    buildings_balance, vfx_balance,
                                    on_base_hit=session.on_base_hit,
                                    on_enemy_death=_on_enemy_death,
-                                   dmg_bonus=dmg_bonus,
                                    assets=assets, cs=cs,
                                    on_splash_impact=_on_splash_impact,
                                    on_defender_fire=_on_defender_fire,

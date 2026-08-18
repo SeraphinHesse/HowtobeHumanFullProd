@@ -55,14 +55,15 @@ Four files beside `balance.py`:
     payout already ran by step 12), are how the HUD love counter animates
     in the two segments the player actually watches (up during the economy
     beat, down during the upkeep beat) — see `game/ui/CLAUDE.md`.
-  - **10G filled slot 3** (the last reserved no-op), and the boss-upgrade
-    rework re-pointed it: ONE `boss_bonuses.love_bonus_income(state, tilemap,
-    core_balance)` call — the Boss2A/2B story love — still AFTER the RoundStats
-    snapshot, still BEFORE base income, still paid silently (NO floater). **The
-    slot's ORDINAL POSITION is unchanged.** Step 4's income sweep carries NO
-    boss fold-in any more: the old per-recipient Boss2A/2B deltas (and
-    `defence_count`/`aoe_count`) are DELETED — both income bonuses are
-    whole-board sums now, so nothing folds into per-recipient yields.
+  - **Slot 3 is a documented NO-OP again (BU-4/D6).** 10G filled it with the
+    boss story-love payout (`boss_bonuses.love_bonus_income`); the
+    BossUpgradeTimeline rework retired that whole system and the boss UPGRADES
+    that replaced it pay nothing at payday. **The slot's ORDINAL POSITION is
+    kept, empty and commented** — payday order is sacrosanct, so a future
+    between-snapshot-and-base-income payout goes exactly there and nothing
+    below it shifts. Step 4's income sweep carries no boss fold-in either (the
+    per-recipient Boss2A/2B deltas and `defence_count`/`aoe_count` were
+    deleted by the earlier rework and are not coming back).
   - **10E filled slots 8 + 10**: `_process_wall_teardown` (slot 8, BEFORE revive)
     tears down every DEAD `wall_builder`'s perimeter (`tilemap.remove_walls_for_builder`)
     — seen as `alive == False` at this point, same as painters/boosts; `tilemap.rebuild_walls()`
@@ -429,40 +430,32 @@ in `game/ui/CLAUDE.md`.
   and the `1`/`2`/`3` + `P` keys only, so `toggle_pause` currently has no key bound
   to it.
 
-## Boss cutscene + bonuses (Phase 10G; reworked)
-- **`boss_bonuses.py`** (pure) — no global singleton: the six stack counters
-  live in `RunState.boss_stacks` (fresh run = fresh RunState = the reset).
-  `apply_choice(state, (boss_num-1)%3, option)` stacks; picking the same option
-  twice doubles it. The **positional ids `boss1a`…`boss3b` + `BONUS_IDS` are
-  permanent** — they encode set+option, which the cutscene's `WinA`/`WinB`
-  labels, the `(boss_num-1)%3` set cycle and the boss-history popup all key off
-  — so re-designing the EFFECTS never touches `RunState`/`game_state.py`.
-- **The six effects (boss-upgrade rework)**: 1A +dmg per unbuilt (BUILDABLE)
-  tile · 1B +dmg per building placed · 2A +love per building level past
-  `level_past_threshold` · 2B +love per building at `low_level_target` · 3A
-  +dmg per `love_chunk_size` of love held (the End-Turn snapshot) · 3B +dmg
-  per lightning building built.
-- **Magnitudes are BALANCING now, not code constants** (they were in 10G):
-  `data/balancing/core.json`'s `BossBonuses` block, threaded in as
-  `core_balance`. That domain was chosen because `core_balance` already reaches
-  every call site — no function gained a new parameter CHAIN and
-  `run_payday`'s signature is untouched. `choice_desc(effective_idx, option,
-  core_balance)` `.format()`s the live numbers into the two-line UI copy, so
-  the cutscene can never advertise a magnitude the math no longer uses.
-- **Two payout sites**: `story_damage_bonus(state, tilemap, core_balance)` sums
-  1A + 1B + 3A + 3B into the ONE flat int the HOST threads into
-  `resolve_combat(dmg_bonus=…)` each frame; `love_bonus_income(state, tilemap,
-  core_balance)` sums 2A + 2B in one walk and is payday slot 3.
-- **"Buildings" = ALIVE, non-base occupants of built tiles**, in every count —
-  a destroyed building stops counting until payday's revive. This is a
-  deliberate change: 10G's `defence_count`/`aoe_count` had NO alive filter, and
-  both are DELETED (with `boss1b_income`/`boss3b_income`). Levels read
-  `TierState.current_level_in_tier` (a building freshly advanced into a new
-  tier is level 1 again); lightning buildings are duck-typed off the
-  `"lightning_source"` TAG (the `payday._process_boosts` `"boost"` precedent) —
-  this module must NEVER import `game.buildings.registry`, which risks closing
-  an import cycle (`game.core.session` imports `game.debug` at module scope).
-- **Phase flow**: `end_turn` snapshots love EVERY round (Boss3A) and, on a boss
+## Boss cutscene + upgrades (Phase 10G; BossUpgradeTimelinePLAN BU-4)
+- **`boss_bonuses.py` is DELETED (BU-4/D6)**, and with it the six A/B story
+  bonuses, `RunState.boss_stacks`, `RunState.boss_choices`, payday's slot-3
+  love payout (now a kept, empty ordinal — see the payday section),
+  `hud.py`'s "Story" income row and the host's per-frame
+  `resolve_combat(dmg_bonus=…)` sum. `dmg_bonus` itself SURVIVES as a generic
+  whole-board additive seam, defaulted to 0 with no caller.
+- **Its replacement is `boss_upgrades.py`** (this doc's BU-2/BU-3 sections
+  above): 12 catalog upgrades, 4 authored milestones on a `(boss_num - 1) % 4`
+  cycle, 3 slots each, counted in `RunState.boss_upgrade_stacks`.
+- **`resolve_boss_cutscene(option, scene)` takes an UPGRADE ID**, not
+  `"A"`/`"B"`: it calls `boss_upgrades.apply_pick(state, option,
+  boss_upgrades_balance, core_balance, tilemap=self.tilemap, scene=scene)` —
+  THE seam that both counts the stack every hook site reads and fires the
+  one-time effects/pick-time hooks — then appends `(boss_num, option, outcome)`
+  to `boss_upgrade_choices` (the per-run history the base-info popup reads; no
+  disk persistence).
+- **`_boss_loss_reward(era)` reads the TIMELINE** (D7):
+  `boss_upgrades.retaliation_love(self.boss_upgrades_balance, era + 1)` — the
+  4-cycle `retaliation_bonus_love` table is the sole source of truth, and
+  `enemies.json`'s per-era `loss_love_reward` (with its
+  `era_math.resolve_era_row` lookup) is retired. `era` is 0-indexed here and
+  `retaliation_love` takes a 1-based boss number, which is the ONLY conversion
+  in the path. Still paid only on a loss, still through `RunState.add_love`,
+  still once, at the moment the outcome is known.
+- **Phase flow**: `end_turn` snapshots love EVERY round and, on a boss
   round, lives + one `boss_events` announce marker. **Both boss-round checks in
   this file (`end_turn`'s announce marker and `_begin_round_end`'s cutscene
   queue) read the era clock through `engine.era_math`** (ES-2/D1):
@@ -474,10 +467,8 @@ in `game/ui/CLAUDE.md`.
   `pending_boss_cutscene = {boss_num, outcome}` (outcome = lives vs snapshot).
   At ROUND_END expiry the pending cutscene **beats** a due level-up;
   `Session.frozen` covers `BOSS_CUTSCENE` exactly like LEVELUP.
-  `resolve_boss_cutscene(option, scene)` applies the stack, appends
-  `(boss_num, option, outcome)` to `boss_choices` (the per-run history the
-  base-info popup reads; no disk persistence), then chains → LEVELUP (if
-  due) → payday, exactly once.
+  `resolve_boss_cutscene` (above) then chains → LEVELUP (if due) → payday,
+  exactly once.
   - **"Due" is `Session._levelup_due()`, the ONE place the two leveling modes
     branch** — `levelup_pending` under XP leveling, `scripted_level_due(...)`
     under scripted leveling — and BOTH the ROUND_END arm and the boss chain

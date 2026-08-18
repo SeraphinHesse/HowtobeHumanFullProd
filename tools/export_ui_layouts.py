@@ -171,8 +171,9 @@ _DISPLAY_NAMES = {
         "backdrop": "Background backdrop",
         "headline": "Headline label",
         "subtitle": "Subtitle label",
-        "box_a": "Boss option A box",
-        "box_b": "Boss option B box",
+        "box_a": "Boss upgrade slot 1 box",
+        "box_b": "Boss upgrade slot 2 box",
+        "box_c": "Boss upgrade slot 3 box",
     },
     "overlays": {
         "btn_range": "Range overlay toggle",
@@ -652,8 +653,12 @@ def _build_boss_cutscene(view_w, view_h, data_root):
     from game.core import load_balance
     from game.ui.boss_cutscene import BossCutscene
 
-    # The option descs format live BossBonuses magnitudes in — geometry only
-    # lands in the export, but the screen still needs a real core balance.
+    # Only GEOMETRY lands in the export, and the screen still takes a core
+    # balance as its third positional. BU-4: `boss_upgrades_balance` is
+    # deliberately NOT passed — the milestone a bossfight offers is run state,
+    # not screen state, so the recorded default is the three EMPTY card boxes
+    # (frames only, `boss_cutscene.py`'s empty-slot rule). The rects are what a
+    # designer skins, and they are identical either way.
     screen = BossCutscene(view_w, view_h, load_balance(data_root, "core"))
     screen.open(1, "win")  # R3 contract: open(1, "win") + layout(640, 360)
     return _widgets_from_ids(screen.ids), "open(1, 'win')"

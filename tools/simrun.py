@@ -61,7 +61,7 @@ from game.buildings.components import TierState
 from game.buildings.coverage import wire_defence_coverage
 from game.buildings.registry import PlacementError
 from game.core import Session, load_balance
-from game.core.boss_bonuses import story_damage_bonus
+from game.core import boss_upgrades  # BU-4: the headless cutscene pick
 from game.core.phases import GamePhase, GameState
 from game.debug import DebugRecorder, LEVEL_BASIC, LEVELS, LEVEL_VERBOSE
 from game.debug import events as dbg
@@ -246,7 +246,17 @@ def _resolve_modal(session, scene):
         session.resolve_levelup(options[0], scene)
         return True
     if st.phase == GamePhase.BOSS_CUTSCENE:
-        session.resolve_boss_cutscene("A", scene)
+        # BU-4: the pick is a boss-upgrade catalog id now, taken from THIS
+        # bossfight's milestone. Deterministic by construction (always the
+        # first non-empty slot, the `options[0]` rule above); a milestone with
+        # no slots assigned at all resolves with `None`, which `apply_pick`
+        # counts harmlessly and no hook site matches — the run keeps going
+        # rather than deadlocking in a modal phase no headless host can close.
+        pending = st.pending_boss_cutscene or {}
+        slots = boss_upgrades.milestone_slots(session.boss_upgrades_balance,
+                                              pending.get("boss_num", 1))
+        session.resolve_boss_cutscene(
+            next((s for s in slots if s is not None), None), scene)
         return True
     if st.phase == GamePhase.ENEMY_INTRO:
         # feature-enemy-intro-dialogue: a designer-authored enemy-intro entry
@@ -334,8 +344,8 @@ def run_sim(rounds, strategy, seed, level=LEVEL_BASIC, data_dir=None,
                     on_base_hit=session.on_base_hit,
                     on_enemy_death=session.on_enemy_death,
                     on_kidnap=session.on_kidnap,
-                    dmg_bonus=story_damage_bonus(state, world.tile_map,
-                                                 world.core_bal),
+                    # (BU-4/D6: the retired boss-bonus `dmg_bonus` sum used to
+                    # be computed here; `resolve_combat` defaults it to 0.)
                     on_defender_fire=_on_defender_fire if verbose else None,
                     on_damage=_on_damage if verbose else None)
                 session.post_sim(scene)

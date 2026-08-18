@@ -126,6 +126,16 @@ def _screen_captures():
 #: live ``core.json BossBonuses`` magnitudes). Only those four HudText strings
 #: moved — every rect/pos/colour in the entry is untouched, which is what says
 #: the change was contained.
+#: Regenerated a TWELFTH time (BossUpgradeTimelinePLAN BU-4): ``boss_cutscene``
+#: is now the 3-card boss-UPGRADE picker, so its entry gains a third box and
+#: the two existing boxes move + grow (90x65 -> 200x104, to hold a wrapped
+#: catalog description instead of 10G's pre-broken two-liner), which also
+#: lifts the headline/subtitle anchored above them. The four option HudTexts
+#: are GONE from this capture on purpose: the cards' copy comes from the
+#: ``boss_upgrades`` balance, which this driver does not load (it is run
+#: state, not screen state — ``tools/export_ui_layouts._build_boss_cutscene``
+#: says the same), so all three slots record as EMPTY frames. Only
+#: ``boss_cutscene`` changed; every other entry is byte-identical.
 #: Regenerated a THIRD time (player-identity): ``main_menu`` gained the
 #: HIGHSCORES row, so every row below it in the stack shifts down one slot
 #: (52 + 14 px) and its DEFAULT geometry moved on purpose. Only ``main_menu``
@@ -476,18 +486,14 @@ _BASELINE = {
     ],
     "boss_cutscene": [
         HudRect(rect=(0, 0, 640, 360), color=(0, 0, 0, 210), border_radius=0, width=0),
-        HudText(text='Cutscene: Round Won :)', pos=(320, 101), font_key='xxl', color=(100, 220, 100), align='center'),
-        HudText(text='How will we react?', pos=(320, 139), font_key='md', color=(150, 140, 120), align='center'),
-        HudRect(rect=(225, 158, 90, 65), color=(42, 34, 68), border_radius=0, width=0),
-        HudRect(rect=(225, 158, 90, 65), color=(80, 65, 120), border_radius=0, width=1),
-        HudText(text='WinA', pos=(270, 164), font_key='lg', color=(235, 225, 195), align='center'),
-        HudText(text='Per unbuilt tile, buildings', pos=(270, 184), font_key='sm', color=(150, 140, 120), align='center'),
-        HudText(text='deal +1 extra damage', pos=(270, 197), font_key='sm', color=(150, 140, 120), align='center'),
-        HudRect(rect=(325, 158, 90, 65), color=(42, 34, 68), border_radius=0, width=0),
-        HudRect(rect=(325, 158, 90, 65), color=(80, 65, 120), border_radius=0, width=1),
-        HudText(text='WinB', pos=(370, 164), font_key='lg', color=(235, 225, 195), align='center'),
-        HudText(text='Per building placed, buildings', pos=(370, 184), font_key='sm', color=(150, 140, 120), align='center'),
-        HudText(text='deal +1 extra damage', pos=(370, 197), font_key='sm', color=(150, 140, 120), align='center'),
+        HudText(text='Cutscene: Round Won :)', pos=(320, 81), font_key='xxl', color=(100, 220, 100), align='center'),
+        HudText(text='How will we react?', pos=(320, 119), font_key='md', color=(150, 140, 120), align='center'),
+        HudRect(rect=(8, 138, 200, 104), color=(42, 34, 68), border_radius=0, width=0),
+        HudRect(rect=(8, 138, 200, 104), color=(80, 65, 120), border_radius=0, width=1),
+        HudRect(rect=(220, 138, 200, 104), color=(42, 34, 68), border_radius=0, width=0),
+        HudRect(rect=(220, 138, 200, 104), color=(80, 65, 120), border_radius=0, width=1),
+        HudRect(rect=(432, 138, 200, 104), color=(42, 34, 68), border_radius=0, width=0),
+        HudRect(rect=(432, 138, 200, 104), color=(80, 65, 120), border_radius=0, width=1),
     ],
 }
 

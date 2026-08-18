@@ -169,6 +169,32 @@ _CLOSE_W, _CLOSE_H = 14, 13
 #: Font for the CONFIRM/CANCEL row shared by ConstructPreview and MovePreview.
 #: "md", not "lg" — see the comment at ConstructPreview's button row.
 _PREVIEW_BTN_FONT = "md"
+#: BU-4: how many wrapped "sm" lines the boss-history popup's hover tooltip may
+#: use. The popup's height budget is written against exactly this number (see
+#: `_boss_popup_rect`), so the two move together.
+_BOSS_TIP_LINES = 4
+
+
+def _boss_upgrade_copy(session, upgrade_id):
+    """``(name, description)`` for a picked boss upgrade — the SAME catalog
+    lookup `game/ui/boss_cutscene.py` does for its cards, with the live
+    ``params`` formatted into the description so the history can never quote a
+    magnitude the cards did not.
+
+    Degrades to ``(upgrade_id, "")`` when no ``boss_upgrades`` balance is wired
+    (a bare `Session` a logic test builds) or the id is not in the catalog —
+    a history row must render whatever the run recorded.
+    """
+    balance = getattr(session, "boss_upgrades_balance", None)
+    catalog = ({} if balance is None
+               else balance["BossUpgrades"]["Catalog"])
+    entry = catalog.get(upgrade_id) or {}
+    desc = entry.get("description", "")
+    try:
+        desc = desc.format(**entry.get("params", {}))
+    except (KeyError, IndexError, ValueError):
+        pass
+    return entry.get("name", upgrade_id), desc
 
 
 def _row_step(font_key, leading=1):
@@ -1029,7 +1055,22 @@ class BuildingUI:
         # top and bottom. (The old 130 already overhung the CLOSE button with
         # its tooltip by 1px at step 8, and would have overhung by 5px at the
         # correct 12.)
-        pw, ph = 170, 158
+        # BU-4 re-sized it once more, for the SAME reason (content, not taste):
+        # a row now names the picked UPGRADE ("Boss 1: Win Concussive Shells")
+        # instead of a bare "A"/"B", and the hover tooltip is the catalog's
+        # wrapped prose description rather than a pre-broken 2-liner. 170 could
+        # not hold either.
+        #   width     260 -> a 246px text column, which fits the longest
+        #             shipped row ("Boss 10: Loss <17-char name>") at "md"
+        #   rows      unchanged: first at py+24, sixth ends py+24+5*14+13 =
+        #             py+107
+        #   tooltip   up to _BOSS_TIP_LINES (4) "sm" lines at 12, anchored
+        #             UPWARDS off the CLOSE button, so its top is
+        #             py+ph-26-48 = py+108 at ph = 182 — exactly clear of the
+        #             sixth row, the same 1px-tight budget the 158 layout had
+        #   CLOSE     top py+ph-22 = py+160 (5px clear), popup bottom py+182
+        # Centred on a 360-tall surface: y 89..271.
+        pw, ph = 260, 182
         self._boss_popup_rect = (view_w // 2 - pw // 2,
                                  view_h // 2 - ph // 2, pw, ph)
         px, py = self._boss_popup_rect[0], self._boss_popup_rect[1]
@@ -2847,10 +2888,9 @@ class BuildingUI:
 
     def _submit_boss_popup(self, renderer, session, anim_ms=0):
         """The small boss-history popup (prototype ``_BossHistoryPanel``): one
-        row per ``(boss_num, option, outcome)``, the hovered row's bonus desc
-        as a tooltip line, "None yet" when empty, a Close button (10G)."""
-        from game.core.boss_bonuses import choice_desc
-
+        row per ``(boss_num, upgrade_id, outcome)``, the hovered row's upgrade
+        description as a tooltip, "None yet" when empty, a Close button (10G;
+        re-pointed at the boss-upgrade history in BU-4)."""
         px, py, pw, ph = self._boss_popup_rect
         # B3: the popup body is dynamic-count content (choice history rows) —
         # not id'd, styled from the screen's defaults.panel_skin instead.
@@ -2859,33 +2899,35 @@ class BuildingUI:
                     anim_ms=anim_ms)
         submit_text(renderer, T("building.boss.title"), (px + pw // 2, py + 7),
                     "lg", widgets.C_UI_TEXT, align="center")
-        choices = session.state.boss_choices
+        choices = session.state.boss_upgrade_choices
         y = py + 24
         if not choices:
             submit_text(renderer, T("building.boss.none_yet"), (px + 7, y),
                         "md", widgets.C_UI_TEXT_DIM)
         hover_desc = None
-        for i, (boss_num, option, outcome) in enumerate(choices):
+        for i, (boss_num, upgrade_id, outcome) in enumerate(choices):
             hovered = i == self._boss_hover_row
+            name, desc = _boss_upgrade_copy(session, upgrade_id)
             submit_text(
                 renderer,
                 T("building.boss.row", n=boss_num,
-                  outcome=outcome.capitalize(), option=option),
+                  outcome=outcome.capitalize(), option=name),
                 (px + 7, y), "md", widgets.C_GOLD if hovered else widgets.C_UI_TEXT)
             if hovered:
-                hover_desc = choice_desc((boss_num - 1) % 3, option,
-                                         session.core_balance)
+                hover_desc = desc
             # Font-scale (see _row_step) and the SAME expression `hover`'s
             # row hit test divides by.
             y += _row_step("md")
-        if hover_desc is not None:
-            # `choice_desc` is always 2 lines: anchor the block so its last
-            # line clears the CLOSE button (top py + ph - 22) instead of
-            # restating a literal offset — at "sm" this is py + ph - 50
-            # (py + 108 at the popup's 158px height).
+        if hover_desc:
+            # The catalog description is prose, so it wraps to the popup and
+            # is clamped to _BOSS_TIP_LINES; the block is anchored UPWARDS off
+            # the CLOSE button (top py + ph - 22) by however many lines it
+            # actually used, so a 1-line tip sits low and a 4-line one starts
+            # exactly at the row budget's floor (see the rect's arithmetic).
             tip_step = _row_step("sm")
-            ty = py + ph - 26 - 2 * tip_step
-            for line in hover_desc.split("\n"):
+            lines = wrap_text(hover_desc, "sm", pw - 14, _BOSS_TIP_LINES)
+            ty = py + ph - 26 - len(lines) * tip_step
+            for line in lines:
                 submit_text(renderer, line, (px + 7, ty), "sm", widgets.C_UI_TEXT_DIM)
                 ty += tip_step
         if is_visible(self._boss_close_btn):
