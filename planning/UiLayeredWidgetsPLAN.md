@@ -135,7 +135,7 @@ Read `game/ui/CLAUDE.md`, `data/CLAUDE.md`'s "UI screen data" section and
 | S1 | Quick wins — alignment and fonts | UL-1, UL-2 | — | **LANDED** — `ul-section-S1`, merged to umbrella |
 | S2 | The layer model | UL-3, UL-4, UL-5 | — | **LANDED** — `ul-section-S2`, merged to umbrella |
 | S3 | Layers in the editor | UL-6, UL-7, UL-8 | S2 | **LANDED** — `ul-section-S3`, merged to umbrella |
-| S4 | Clickable layers + life counters | UL-9, UL-10, UL-11, UL-12 | S2, S3 | not started |
+| S4 | Clickable layers + life counters | UL-9, UL-10, UL-11, UL-12 | S2, S3 | **PARTIAL** — UL-9/10/11 landed + merged to umbrella; **UL-12 NOT DONE** (orchestrator + coder killed by API limit; WIP rescued on `ul-phase-UL-12-docs` @ `a74ed70`) |
 
 **Waves:** W1 = **S1 + S2** (concurrent). W2 = **S3**. W3 = **S4**.
 

@@ -129,6 +129,7 @@ TIERS = {
     "test_kidnap": "core",  # Art/enemies: kidnapping
     "test_layout_h_invariant": "core",  # Fix 1 (phase-10L wave3): layout_h pin
     "test_levelup": "core",
+    "test_life_counters": "core",  # UL-11: the three id'd life counters + death state
     "test_lightning": "core",
     "test_map_overlays": "core",  # MapOverlays: the TIER OVERVIEW toggle pill
     "test_master_registry": "core",   # MasterSheetColumnsPLAN C3
@@ -178,6 +179,7 @@ TIERS = {
     # editor.panels._screen_primitives — that module is Qt-free and
     # editor/panels/__init__.py is empty, so no PySide6 is pulled.
     "test_ui_align": "core",
+    "test_ui_layer_click": "core",  # UL-10: clickable-layer routing (pure game path)
     "test_ui_layer_draw": "core",  # UL-4: ScreenSkinning.submit_layers (the caller)
     "test_ui_layers": "core",  # UL-3: engine.ui_layers pure resolver (unused until UL-4)
     "test_ui_layout_export": "core",  # 10L-B phase B3: layout exporter staleness gate
