@@ -31,7 +31,7 @@
           0,
           0
         ],
-        "body": "Slow, steady grunts that march straight for the hole. Individually weak, but they keep coming — and they can kidnap an undefended building along the way.",
+        "body": "Our scouts have reported that more humans are on their way to take us. The Hunter is a normal acting human, but their number is far more concerning than their individual abilities. It seems like their goal is to reach our core, the hole",
         "crop_h": 0,
         "crop_w": 0,
         "crop_x": 0,
@@ -45,7 +45,7 @@
         "sprite_offset_y": 0,
         "sprite_slot": "enemy_stage_1_v1",
         "sprite_w": 110,
-        "title": "Walkers incoming"
+        "title": "THE HUNTERS HAVE RETURNED"
       },
       {
         "anim_speed": 1.0,
@@ -56,7 +56,7 @@
           0,
           0
         ],
-        "body": "Fast, fragile flankers that hunt your economy buildings. Kill them before they reach an unguarded tile — or before they carry one off.",
+        "body": "The Raider are way faster than other humans. Our scouts reported that this human cant take many hits, but it is faster, it strikes harder and it aims for our most unpretected ones",
         "crop_h": 0,
         "crop_w": 0,
         "crop_x": 0,
@@ -70,7 +70,7 @@
         "sprite_offset_y": 0,
         "sprite_slot": "raider_stage_1",
         "sprite_w": 110,
-        "title": "Raiders inbound"
+        "title": "STOP THEM BEFORE THEY REACH US"
       },
       {
         "anim_speed": 1.0,
