@@ -401,5 +401,100 @@ class TestRangeShapeOffsets(unittest.TestCase):
         self.assertEqual(range_shape.offsets(0, "square"), [])
 
 
+# ---------------------------------------------------------------------------
+# BossUpgradeTimelinePLAN BU-3 3.6 — #10 `boost_double_trigger`
+# ---------------------------------------------------------------------------
+#: Hand-pinned (BU-6): what a designer types into the new editor panel must
+#: never decide whether this module is green (`data/CLAUDE.md`).
+EXTRA_TRIGGERS = 1
+BOSS_UPGRADES = {
+    "BossUpgrades": {
+        "Catalog": {
+            "boost_double_trigger": {
+                "name": "Double Boost", "description": "",
+                "params": {"extra_triggers": EXTRA_TRIGGERS}},
+        },
+        "Timeline": {"milestones": [
+            {"slots": ["boost_double_trigger", None, None],
+             "retaliation_bonus_love": 30},
+        ] * 4},
+    }
+}
+
+
+class TestBoostDoubleTrigger(unittest.TestCase):
+    """D18 — a PERMANENT GLOBAL rule: `apply_per_turn()` runs `extra_triggers`
+    ADDITIONAL times inside payday's own slot 7. The payday ordering is
+    sacrosanct, so a second trigger is a repeat of that step's work, never a
+    new step — and the param IS the count, so repeat picks do not multiply it.
+    """
+
+    def _pair(self, picks=0):
+        tm, scene, occ = board(["bbb"])
+        st = run_state("boost_damage")
+        if picks:
+            st.boss_upgrade_stacks["boost_double_trigger"] = picks
+        dfn, _ = place_building(tm, tm.get(1, 0), "defence", 9999, BUILD,
+                                scene, occ, state=st)
+        place_building(tm, tm.get(2, 0), "boost_damage", 9999, BUILD,
+                       scene, occ, state=st)
+        return tm, scene, occ, st, dfn
+
+    def _payday(self, picks=0, balance=BOSS_UPGRADES):
+        tm, scene, occ, st, dfn = self._pair(picks)
+        run_payday(st, tm, CORE, occ, scene, None, balance)
+        return st, dfn
+
+    def test_no_balance_threaded_is_byte_identical(self):
+        st, dfn = self._payday(picks=1, balance=None)
+        step = DMG_T1["boost_per_turn"]
+        self.assertEqual(dfn.get_component(BoostReceiver).damage_pct, step)
+
+    def test_an_unpicked_upgrade_triggers_exactly_once(self):
+        st, dfn = self._payday(picks=0)
+        step = DMG_T1["boost_per_turn"]
+        self.assertAlmostEqual(dfn.get_component(BoostReceiver).damage_pct,
+                               step)
+        self.assertEqual(len(st.boost_events), 1)
+
+    def test_one_pick_adds_extra_triggers_inside_the_same_payday(self):
+        st, dfn = self._payday(picks=1)
+        step = DMG_T1["boost_per_turn"]
+        self.assertAlmostEqual(dfn.get_component(BoostReceiver).damage_pct,
+                               step * (1 + EXTRA_TRIGGERS))
+        # every repeat pushes its OWN floater, so the UI shows each trigger
+        self.assertEqual(len(st.boost_events), 1 + EXTRA_TRIGGERS)
+
+    def test_repeat_picks_do_NOT_multiply_the_count(self):
+        """Unlike every %-based passive, the param IS the count here."""
+        one = self._payday(picks=1)[1].get_component(BoostReceiver).damage_pct
+        two = self._payday(picks=2)[1].get_component(BoostReceiver).damage_pct
+        self.assertAlmostEqual(one, two)
+
+    def test_a_negative_authored_count_can_never_remove_the_base_trigger(self):
+        bal = copy.deepcopy(BOSS_UPGRADES)
+        bal["BossUpgrades"]["Catalog"]["boost_double_trigger"]["params"][
+            "extra_triggers"] = -5
+        tm, scene, occ, st, dfn = self._pair(picks=1)
+        run_payday(st, tm, CORE, occ, scene, None, bal)
+        self.assertAlmostEqual(dfn.get_component(BoostReceiver).damage_pct,
+                               DMG_T1["boost_per_turn"])
+
+    def test_a_booster_placed_AFTER_the_pick_is_covered_too(self):
+        """D18: a permanent global rule, not a snapshot — nothing about the
+        booster itself is consulted."""
+        tm, scene, occ = board(["bbb"])
+        st = run_state("boost_damage")
+        st.boss_upgrade_stacks["boost_double_trigger"] = 1   # picked first...
+        dfn, _ = place_building(tm, tm.get(1, 0), "defence", 9999, BUILD,
+                                scene, occ, state=st)
+        place_building(tm, tm.get(2, 0), "boost_damage", 9999, BUILD,
+                       scene, occ, state=st)                # ...booster after
+        run_payday(st, tm, CORE, occ, scene, None, BOSS_UPGRADES)
+        self.assertAlmostEqual(
+            dfn.get_component(BoostReceiver).damage_pct,
+            DMG_T1["boost_per_turn"] * (1 + EXTRA_TRIGGERS))
+
+
 if __name__ == "__main__":
     unittest.main()

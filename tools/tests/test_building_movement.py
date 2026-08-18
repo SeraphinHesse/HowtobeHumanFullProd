@@ -10,6 +10,7 @@ Covers the three things the feature's correctness rests on:
 3. the payday tick landing the building on its destination with its
    ``col``/``row`` caches AND its Transform following it.
 """
+import inspect
 import unittest
 from pathlib import Path
 
@@ -250,6 +251,81 @@ class TestProcessMoves(unittest.TestCase):
         process_moves(tm, occ, scene)
         self.assertIs(tm.get(1, 1).occupant, b)
         self.assertEqual(tm.moving_orders, [])
+
+
+# ---------------------------------------------------------------------------
+# BossUpgradeTimelinePLAN BU-3 3.2 — #4 `move_time_cap` (D14: the TIME dial)
+# ---------------------------------------------------------------------------
+#: Hand-pinned (BU-6): the cap a designer types in the new editor panel must
+#: never decide whether this module is green — `data/CLAUDE.md`.
+CAP = 1
+BOSS_UPGRADES = {
+    "BossUpgrades": {
+        "Catalog": {
+            "move_time_cap": {"name": "Quick Relocation", "description": "",
+                              "params": {"move_time_cap": CAP}},
+        },
+        "Timeline": {"milestones": [
+            {"slots": ["move_time_cap", None, None],
+             "retaliation_bonus_love": 30},
+        ] * 4},
+    }
+}
+
+#: A move long enough that the uncapped formula exceeds the cap — derived,
+#: never a literal, so a Movement retune cannot strand these assertions.
+LONG = next(d for d in range(1, 500)
+            if move_time(d, MOVE) > CAP)
+
+
+class _StubRunState:
+    """`move_time` reads exactly one thing off the RunState (the stack dict,
+    via `boss_upgrades.stack_count`); a real one would need core/buildings
+    balancing this module does not otherwise load."""
+
+    def __init__(self, picks=0):
+        self.boss_upgrade_stacks = {"move_time_cap": picks} if picks else {}
+
+
+class TestMoveTimeCapBossUpgrade(unittest.TestCase):
+    def test_no_pair_is_byte_identical(self):
+        want = move_time(LONG, MOVE)
+        self.assertEqual(move_time(LONG, MOVE, None, None), want)
+        self.assertEqual(move_time(LONG, MOVE, _StubRunState(1), None), want)
+        self.assertEqual(move_time(LONG, MOVE, None, BOSS_UPGRADES), want)
+
+    def test_an_unpicked_upgrade_leaves_the_duration_alone(self):
+        self.assertEqual(
+            move_time(LONG, MOVE, _StubRunState(0), BOSS_UPGRADES),
+            move_time(LONG, MOVE))
+
+    def test_a_long_move_is_clamped_to_the_cap(self):
+        self.assertGreater(move_time(LONG, MOVE), CAP)
+        self.assertEqual(
+            move_time(LONG, MOVE, _StubRunState(1), BOSS_UPGRADES), CAP)
+
+    def test_a_move_already_under_the_cap_is_untouched(self):
+        short = move_time(0, MOVE)
+        if short <= CAP:
+            self.assertEqual(
+                move_time(0, MOVE, _StubRunState(1), BOSS_UPGRADES), short)
+
+    def test_a_cap_does_NOT_stack_per_pick(self):
+        """Two ceilings are the lower one, which is the same number — unlike
+        every %-based passive, a repeat pick changes nothing here."""
+        one = move_time(LONG, MOVE, _StubRunState(1), BOSS_UPGRADES)
+        for picks in (2, 5):
+            with self.subTest(picks=picks):
+                self.assertEqual(
+                    move_time(LONG, MOVE, _StubRunState(picks), BOSS_UPGRADES),
+                    one)
+
+    def test_the_LOVE_dial_never_grew_a_cap(self):
+        """D14 caps the TIME dial only. `move_cost` calls the same `_stepped`
+        helper and must stay untouched — which is exactly why the clamp lives
+        in `move_time` and not in that shared helper."""
+        self.assertEqual(list(inspect.signature(move_cost).parameters),
+                         ["distance", "movement_balance"])
 
 
 if __name__ == "__main__":

@@ -1339,9 +1339,10 @@ class TestMainWindowVfxMode(TempDataCase):
         # preview moved INTO details_pane) + cutscenes (4, TU-3) +
         # tutorial_panel (5, TU-4) + strings_panel (6, Phase C) +
         # timeline (7, TimelinePLAN T5) + master_sheets (8,
-        # MasterSheetColumnsPLAN E5). The point of the pin is that the
+        # MasterSheetColumnsPLAN E5) + boss_upgrades (9,
+        # BossUpgradeTimelinePLAN BU-5). The point of the pin is that the
         # vfx preview is NOT a stack page of its own.
-        self.assertEqual(window.right_stack.count(), 9)
+        self.assertEqual(window.right_stack.count(), 10)
         self.assertIs(window.vfx_preview.parent().parent(), window.details_pane)
 
         window.selector.select_domain("vfx")
@@ -1517,6 +1518,7 @@ class TestPurity(unittest.TestCase):
             "editor.panels.cutscenes, "
             "editor.panels.tutorial_panel, editor.tutorial_ops, "
             "editor.panels.timeline, "
+            "editor.panels.boss_upgrades, editor.boss_upgrades_ops, "
             "editor.font_import, "
             "editor.panels.strings_panel, editor.strings_ops, "
             "editor.panels.vfx_preview, "

@@ -65,14 +65,25 @@ def count_tag(tilemap, tag):
               if t.occupant is not None and tag in t.occupant.tags)
 
 
-def build_cost(building_type, buildings_balance, tier_idx=0, repeat_count=0):
+def build_cost(building_type, buildings_balance, tier_idx=0, repeat_count=0,
+               run_state=None, boss_upgrades_balance=None):
     """Build cost for ``building_type`` at ``tier_idx`` (the placement price).
 
     ``repeat_count`` (feature-storm-acolyte-multi-build) escalates the price
     by the group's own ``repeat_cost_multiplier ** repeat_count`` when that
     OPTIONAL balancing key is present; ``repeat_count=0`` (the default) and a
     group with no such key both leave today's price untouched, so every
-    caller that predates this feature is unaffected."""
+    caller that predates this feature is unaffected.
+
+    ``run_state``/``boss_upgrades_balance`` are BU-3's standard optional
+    trailing pair (``game/core/boss_upgrades.py``'s threading-pattern
+    section): with both present, a ``"structure"``-tagged type
+    (``Blocker``/``WallBuilder``) is cut by the ``wall_cost_discount`` boss
+    upgrade, applied LAST so it discounts the escalated price rather than the
+    other way round. This is the module-level twin of
+    ``Building.build_cost()`` — the one a fresh placement and the upgrade
+    panel's tier-advance button actually charge — and both go through the same
+    reducer, so they can never disagree."""
     cls = BUILDING_CLASSES[building_type]
     tiers = cls._resolve_tiers(buildings_balance)
     cost = tiers[tier_idx]["build_cost"]
@@ -81,12 +92,21 @@ def build_cost(building_type, buildings_balance, tier_idx=0, repeat_count=0):
             "repeat_cost_multiplier")
         if mult is not None:
             cost = round(cost * (mult ** repeat_count))
+    if (run_state is not None and boss_upgrades_balance is not None
+            and "structure" in cls.EXTRA_TAGS):
+        # Lazy import: game.core.__init__ pulls in payday, which imports
+        # game.buildings.movement — a module-level import from this package
+        # closes that cycle (boss_upgrades.py documents the rule).
+        from game.core import boss_upgrades
+        cost = boss_upgrades.discounted(
+            cost, run_state, boss_upgrades_balance, "wall_cost_discount",
+            "cost_reduction_pct", 50, floor=1)
     return cost
 
 
 def place_building(tilemap, tile, building_type, love, buildings_balance,
                    scene, occupancy, state=None, colour_columns=None,
-                   rng=None, column=None):
+                   rng=None, column=None, boss_upgrades_balance=None):
     """Place ``building_type`` on ``tile``. Returns ``(building, cost)``.
 
     Raises ``PlacementError`` if the tile is not BUILDABLE, the type is not yet
@@ -116,6 +136,16 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
       index, so this is tested with ``is not None``, never for truthiness. Not
       range-checked here — S1's D7 clamp handles an out-of-range column at cut
       time.
+
+    ``boss_upgrades_balance`` is HALF of BU-3's standard optional trailing pair
+    (``game/core/boss_upgrades.py``'s threading-pattern section) — the other
+    half, the RunState, is already here under its existing name ``state``, so
+    this seam grows one argument rather than a duplicate reference to the same
+    object. With both present two boss upgrades come alive: the price a
+    ``Blocker``/``WallBuilder`` is charged is cut by ``wall_cost_discount``
+    (through ``build_cost`` below), and a freshly-placed ``Musician`` is
+    levelled by ``musician_auto_level``. Absent (every caller that predates
+    BU-3, every logic test) both are inert.
     """
     if tile.state != TileState.BUILDABLE:
         raise PlacementError(
@@ -170,7 +200,9 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
     # ``storm_priest`` branch) and passes it through; ``build_cost`` is a
     # no-op with this for every OTHER type (no ``repeat_cost_multiplier`` key).
     repeat_count = count_tag(tilemap, LIGHTNING_SOURCE_TAG)
-    cost = build_cost(building_type, buildings_balance, tier_idx, repeat_count)
+    cost = build_cost(building_type, buildings_balance, tier_idx, repeat_count,
+                      run_state=state,
+                      boss_upgrades_balance=boss_upgrades_balance)
     if love < cost:
         raise PlacementError(
             f"{building_type} costs {cost} love, have {love}")
@@ -222,6 +254,16 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
     # applies its one-time boost (10D); a WallBuilder raises its perimeter walls
     # (10E).
     building.on_placed(tilemap)
+    # BU-3 #5 musician_auto_level: AFTER create() + on_placed(), so the bonus
+    # levels land on a fully wired building (the levels themselves go through
+    # the normal `upgrade()` path, never a TierState write — see
+    # `boss_upgrade_effects.py`). Scoped to the Musician tier line (D12); a
+    # no-op for every other type and whenever the boss-upgrade pair is absent.
+    # Local import: `boss_upgrade_effects` imports the leaf classes, and this
+    # module is itself imported from `game.buildings.__init__` before some of
+    # them exist.
+    from .boss_upgrade_effects import apply_musician_auto_level
+    apply_musician_auto_level(building, state, boss_upgrades_balance)
     return building, cost
 
 

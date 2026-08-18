@@ -37,7 +37,7 @@
       "type": "string"
     },
     "boss_cutscene.headline_loss_reward": {
-      "description": "Boss-cutscene headline shown on a LOST boss round that paid consolation love (EnemyTypes.Boss.stats[era].loss_love_reward above 0). `love` is that amount, already added to the player's love.",
+      "description": "Boss-cutscene headline shown on a LOST boss round that paid consolation love (BossUpgrades.Timeline.milestones[milestone_index].retaliation_bonus_love above 0). `love` is that amount, already added to the player's love.",
       "type": "string"
     },
     "boss_cutscene.headline_win": {

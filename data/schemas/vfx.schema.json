@@ -117,6 +117,7 @@
             "vfx_buff_arrow",
             "vfx_crater",
             "vfx_death",
+            "vfx_debuff_arrow",
             "vfx_digger_direction",
             "vfx_digger_marker",
             "vfx_dirt_pile",

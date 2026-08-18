@@ -1,10 +1,3 @@
-<!-- active-plan: BossUpgradeTimelinePLAN.md | set: 2026-08-18 -->
-> **Active plan:** BossUpgradeTimelinePLAN.md (mirror). Source of truth:
-> `planning/BossUpgradeTimelinePLAN.md`. Do **not** edit this file directly — edit the
-> source in `planning/` and re-run `/setcurrentplan`, or pick a different
-> plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
-> screen).
-
 <!-- status: COMPLETE — all phases BU-0..BU-7 landed on feature/boss-upgrade-timeline, 2026-08-18 -->
 <!-- plan-scale: large -->
 

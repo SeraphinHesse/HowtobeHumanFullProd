@@ -266,7 +266,7 @@
         "font_key": "xxl",
         "pos": [
           320,
-          101
+          81
         ],
         "text": "Cutscene: Round Won :)",
         "type": "text"
@@ -281,7 +281,7 @@
         "font_key": "md",
         "pos": [
           320,
-          139
+          119
         ],
         "text": "How will we react?",
         "type": "text"
@@ -294,10 +294,10 @@
           68
         ],
         "rect": [
-          225,
-          158,
-          90,
-          65
+          8,
+          138,
+          200,
+          104
         ],
         "type": "rect",
         "width": 0
@@ -310,58 +310,13 @@
           120
         ],
         "rect": [
-          225,
-          158,
-          90,
-          65
+          8,
+          138,
+          200,
+          104
         ],
         "type": "rect",
         "width": 1
-      },
-      {
-        "align": "center",
-        "color": [
-          235,
-          225,
-          195
-        ],
-        "font_key": "lg",
-        "pos": [
-          270,
-          164
-        ],
-        "text": "WinA",
-        "type": "text"
-      },
-      {
-        "align": "center",
-        "color": [
-          150,
-          140,
-          120
-        ],
-        "font_key": "sm",
-        "pos": [
-          270,
-          184
-        ],
-        "text": "Per unbuilt tile, buildings",
-        "type": "text"
-      },
-      {
-        "align": "center",
-        "color": [
-          150,
-          140,
-          120
-        ],
-        "font_key": "sm",
-        "pos": [
-          270,
-          197
-        ],
-        "text": "deal +1 extra damage",
-        "type": "text"
       },
       {
         "border_radius": 0,
@@ -371,10 +326,10 @@
           68
         ],
         "rect": [
-          325,
-          158,
-          90,
-          65
+          220,
+          138,
+          200,
+          104
         ],
         "type": "rect",
         "width": 0
@@ -387,58 +342,45 @@
           120
         ],
         "rect": [
-          325,
-          158,
-          90,
-          65
+          220,
+          138,
+          200,
+          104
         ],
         "type": "rect",
         "width": 1
       },
       {
-        "align": "center",
+        "border_radius": 0,
         "color": [
-          235,
-          225,
-          195
+          42,
+          34,
+          68
         ],
-        "font_key": "lg",
-        "pos": [
-          370,
-          164
+        "rect": [
+          432,
+          138,
+          200,
+          104
         ],
-        "text": "WinB",
-        "type": "text"
+        "type": "rect",
+        "width": 0
       },
       {
-        "align": "center",
+        "border_radius": 0,
         "color": [
-          150,
-          140,
+          80,
+          65,
           120
         ],
-        "font_key": "sm",
-        "pos": [
-          370,
-          184
+        "rect": [
+          432,
+          138,
+          200,
+          104
         ],
-        "text": "Per building placed, buildings",
-        "type": "text"
-      },
-      {
-        "align": "center",
-        "color": [
-          150,
-          140,
-          120
-        ],
-        "font_key": "sm",
-        "pos": [
-          370,
-          197
-        ],
-        "text": "deal +1 extra damage",
-        "type": "text"
+        "type": "rect",
+        "width": 1
       }
     ]
   },

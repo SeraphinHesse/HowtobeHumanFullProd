@@ -396,9 +396,11 @@ Two new `FloaterManager` methods (`game/ui/effects.py`), both wired in
   the `hud.py` XP-bar level-up pulse shape, generalised to a per-manager
   clock rather than a per-screen one.
 - **`submit_buff_arrows`** (HUD pass, beside `submit_enemy_hp_bars`) — a
-  little golden arrow above any ALIVE enemy with an active buff
-  (`BuffState.sources` non-empty — today always a Drummer's aura, but keyed
-  off "any active buff" generically, not the source type). Shown
+  little golden arrow above any ALIVE enemy carrying at least one source with
+  a POSITIVE `move_speed` contribution (today always a Drummer's aura, but
+  keyed off the STAT, never the source type; it was gated on "`BuffState
+  .sources` non-empty" until D20 gave the slows their own red twin — see the
+  debuff-arrow section below for the gate that replaced it). Shown
   independently of the HP bar's own "hide at full HP" rule. Anchors off the
   SAME `hp_bar` point (or `_sprite_top` fallback) the HP bars use, offset
   above it — a deliberately SIMPLER placeholder than the HP-bar pass: it
@@ -409,6 +411,46 @@ Two new `FloaterManager` methods (`game/ui/effects.py`), both wired in
   golden triangle outline instead (`_BUFF_ARROW_GOLD`, a code chrome
   constant beside `HP_BAR_W`/`HP_BAR_H`, not balancing — only the swappable
   ART is a designer lever here, not the placeholder's own shape/colour).
+
+## The RED debuff arrow, and the independently-gated gold one (BossUpgradeTimelinePLAN D20)
+`submit_debuff_arrows` (`effects.py`, wired in `game/main.py` immediately after
+`submit_buff_arrows`) is the gold arrow's twin in `_DEBUFF_ARROW_RED`, over any
+ALIVE enemy carrying an active SLOW. Same geometry constants, same
+swappable-art rule (E-37) — a new `vfx` slot, `vfx_debuff_arrow`, drawing as a
+`HudSprite` once imported and a small procedural red triangle until then — but
+a DIFFERENT anchor from the gold arrow's (see below).
+- **Gated on `buff_signs(enemy, "move_speed")`, not `buff_total`'s netted
+  sign** (follow-up fix, live-tested): gold fires when ANY source contributes
+  positive `move_speed`, red when ANY source contributes negative — read
+  independently, not as the two signs of one summed number. An enemy
+  simultaneously buffed by a Drummer AND slowed by a mortar is a real state
+  and shows BOTH arrows at once; the earlier "netted aggregate, so at most
+  one can ever fire" design silently hid whichever effect lost the sum (and
+  hid both on an exact cancel). Keyed on the STAT, never the source — today's
+  slows come from the boss upgrades `mortar_slow`/`stormpriest_slow` via
+  `game.enemies.components.apply_slow` (D19), but anything that ever slows
+  an enemy gets the indicator for free.
+- **`submit_buff_arrows` stays NARROWED to a positive `move_speed`
+  contribution** (unchanged from D20's original call): a Drummer aura that
+  only lifts dmg/hp/attack_speed still shows no gold arrow.
+- **The two arrows sit in genuinely different spots, not just different
+  colours at one point.** `_hp_bar_rect` resolves the hp bar's own on-screen
+  rectangle once; `_buff_arrow_anchor` centres the gold badge above it
+  (unchanged position); `_debuff_arrow_anchor` places the red badge to its
+  LEFT, vertically centred on the bar. Two independent booleans can both be
+  true on one enemy now, so "no stacking offset needed — the two can't both
+  fire" stopped being true; two anchors, not an offset, is what keeps them
+  from overlapping each other AND the bar itself.
+- **`_submit_arrow`'s procedural (no-art) triangle used to straddle its own
+  anchor point** — it drew from `y` down to `y + _BUFF_ARROW_H`, while the
+  anchor itself sits only `_BUFF_ARROW_GAP` (3px) clear of the bar's edge, so
+  the triangle's far end landed *inside* the bar. Fixed to draw `y - H` to
+  `y` (matching the sprite branch's own span) so the badge is always
+  entirely on the far side of `y` from the bar, never overlapping it.
+- Three small private helpers hold the shared geometry so the two arrows
+  cannot drift apart: `_hp_bar_rect` (the bar's own rectangle),
+  `_buff_arrow_anchor`/`_debuff_arrow_anchor` (each arrow's position off
+  that rectangle), and `_submit_arrow` (the art/no-art draw branch, shared).
 
 ## Digger underground telegraph (digger-hop-rework)
 The player-feedback fix that came with the Digger's stand-and-erupt-in-place +
@@ -468,15 +510,28 @@ logic is `game/core` — see that doc.)
 ## Boss UI (10G)
 - **`boss_cutscene.py`** (`BossCutscene`) — the `levelup.py` modal template
   (construct→`open(boss_num, outcome)`→layout-on-open→update→hit→submit): opaque
-  near-black backdrop, win/loss headline + "How will we react?", two 180×130
-  boxes labeled `WinA/WinB` (or `LossA/LossB`) with descs from
-  `game.core.boss_bonuses.choice_desc`. Since the boss-upgrade rework those
-  descs quote LIVE `BossBonuses` magnitudes, so the constructor takes a third
-  positional `core_balance` (passed from `build_gameplay()`, where it is
-  already in scope). `hit` returns `"A"`/`"B"`/None — NO
-  dismiss path; it sits above `session.frozen` in `main.py`'s click ladder and
-  the frozen key-gate swallows keys. Opened by the host on the BOSS_CUTSCENE
-  phase edge from `state.pending_boss_cutscene` (the LEVELUP pattern).
+  near-black backdrop, win/loss headline + "How will we react?", and — since
+  **BossUpgradeTimelinePLAN BU-4** — **THREE 200×104 upgrade cards** (`box_a`/
+  `box_b`/`box_c`, ids appended, the two old ones keeping their names and
+  meaning) instead of 10G's two `WinA`/`WinB` narrative boxes. A card's copy is
+  the catalog's own `name` + `description` for that slot
+  (`boss_upgrades.milestone_slots(balance, boss_num)`), the description
+  `.format()`ed with its live `params` and WRAPPED to the box (`wrap_text`,
+  clamped to the height — designer prose, not a pre-broken two-liner). So the
+  constructor gained a `boss_upgrades_balance` (5th param, `None`-tolerant);
+  its third positional `core_balance` is UNCHANGED but no longer read, kept so
+  no call site can silently mis-fill the position. `hit` returns the picked
+  **upgrade id string** (or None) — NO dismiss path; it sits above
+  `session.frozen` in `main.py`'s click ladder and the frozen key-gate
+  swallows keys. Opened by the host on the BOSS_CUTSCENE phase edge from
+  `state.pending_boss_cutscene` (the LEVELUP pattern); **a LOSS shows the
+  retaliation-love headline AND the same 3 cards** (D7).
+  - **An EMPTY slot draws its frame and nothing else**, and is neither
+    hoverable nor clickable. That is what `screen_defaults.json` /
+    `screen_previews.json` / the golden pin record, because neither
+    `tools/export_ui_layouts.py` nor `tools/screen_preview.py` loads the
+    `boss_upgrades` balance: which milestone a bossfight offers is RUN state,
+    not screen state, and the rects a designer skins are identical either way.
 - **`effects.py`** grew three fenced 10G members: `spawn_boss_events(state)`
   drains the `boss_events` announce markers (gated by
   `ui.FX.boss_announce.enabled`); `submit_announce` draws the centred two-line
@@ -509,17 +564,21 @@ logic is `game/core` — see that doc.)
   NOT drawn here — see the enemy HP bars below, which own every overhead bar in
   the game (the boss is tagged `"enemy"` too, so it comes along for free and can
   never double up).
-- **`hud.py`**: BOSS_CUTSCENE phase label/color entries, and — in
-  `income_sources` (which `income_breakdown` sums) — ONE
-  `love_bonus_income(st, session.tilemap, session.core_balance)` call for the
-  "Story" row, the exact same whole-board slot-3 sum payday pays, so the HUD
-  net keeps matching payday. (The boss-upgrade rework replaced 10G's fenced
-  block: there are no per-recipient boss deltas any more.)
+- **`hud.py`**: BOSS_CUTSCENE phase label/color entries. **The "Story" income
+  row is GONE (BU-4/D6)** — `income_sources` no longer calls
+  `love_bonus_income` (payday's slot 3 pays nothing to mirror), and the
+  tooltip's gold `Story upgrades: +N` branch went with it. Its two string ids
+  (`hud.income.story` / `hud.tooltip_story`) are still in the table and
+  referenced by no code, like the `hud.phase.*` ids — a string-table cleanup
+  pass owns both.
 - **`building_ui.py`** base_info mode: a "BOSS CHOICES" button (10H's lightning
   section sits ABOVE it) opening a centred history popup — one row per
-  `state.boss_choices` entry (`"Boss {n}: {Outcome} {option}"`), the hovered
-  row's bonus desc as a tooltip line, "None yet" when empty, Close; the popup
-  consumes clicks inside itself.
+  `state.boss_upgrade_choices` entry, `"Boss {n}: {Outcome} {name}"` with the
+  picked upgrade's CATALOG NAME (BU-4; `_boss_upgrade_copy` does the same
+  lookup+`params` format the cards do), the hovered row's wrapped description
+  as the tooltip, "None yet" when empty, Close; the popup consumes clicks
+  inside itself. It grew 170×158 → 260×182 for that copy — the height budget
+  is written against `_BOSS_TIP_LINES`, so the two move together.
 - **`game/main.py`** owns the screen shake: a transient `cs.pan(ox, oy)` /
   `cs.pan(-ox, -oy)` wrap around the world render branch (NO clamp between),
   parameters from `Boss.shake.{interval,strength}`, active only while ENEMY

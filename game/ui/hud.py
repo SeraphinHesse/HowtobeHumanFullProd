@@ -18,7 +18,6 @@ from types import SimpleNamespace
 from engine import era_math
 from engine.render.fonts import layout_h
 
-from game.core.boss_bonuses import love_bonus_income
 from game.core.lightning import LightningCaster
 from game.core.phases import GamePhase, GameState
 from game.core.xp import scaled_base_income
@@ -134,14 +133,20 @@ def _readout_bottom():
 # -- 10J income tooltip (prototype hud.py:519-554 colours) --
 _TOOLTIP_BG = (20, 15, 35)
 _TOOLTIP_RED = (180, 80, 80)
-_TOOLTIP_GOLD = (220, 180, 80)
+# (The gold ``Story upgrades: +N`` tooltip row went with the Story income row
+# BossUpgradeTimelinePLAN D6 retired; its two string ids —
+# ``hud.income.story`` / ``hud.tooltip_story`` — are still in the table and
+# referenced by no code, like the ``hud.phase.*`` ids, for a string-table
+# cleanup pass to remove.)
 
 
 def income_sources(session):
     """Ordered ``[(label, amount)]`` this HUD would pay next payday — the 10J
     income-tooltip breakdown (prototype ``game.py:1998-2006`` ``_income_sources``):
-    ``Base`` always, then ``Musicians`` / ``Meditators`` / ``Story`` when
-    nonzero, then a NEGATIVE ``Upkeep`` when nonzero. Mirrors the payday sweep
+    ``Base`` always, then ``Musicians`` / ``Meditators`` when
+    nonzero, then a NEGATIVE ``Upkeep`` when nonzero. (The ``Story`` row is
+    GONE — BossUpgradeTimelinePLAN D6 retired the boss story income it
+    mirrored, so payday's slot 3 pays nothing to mirror.) Mirrors the payday sweep
     so the readout can't drift; ``income_breakdown`` sums it, keeping the pill
     and the tooltip in lockstep."""
     musicians = meditators = upkeep = 0
@@ -158,17 +163,12 @@ def income_sources(session):
         ufn = getattr(b, "upkeep", None)
         if ufn is not None:
             upkeep += ufn()
-    # Boss-bonus story income: the SAME whole-board slot-3 sum payday pays
-    # (Boss2A/2B), so the HUD net can't drift from the next payday.
     st = session.state
-    story = love_bonus_income(st, session.tilemap, session.core_balance)
     sources = [(T("hud.income.base"), scaled_base_income(st, session.core_balance))]
     if musicians:
         sources.append((T("hud.income.musicians"), musicians))
     if meditators:
         sources.append((T("hud.income.meditators"), meditators))
-    if story:
-        sources.append((T("hud.income.story"), story))
     if upkeep:
         sources.append((T("hud.income.upkeep"), -upkeep))
     return sources
@@ -855,9 +855,8 @@ class Hud:
 
     def _submit_income_tooltip(self, renderer, sources, anchor):
         """The 10J per-source breakdown below the income line (prototype
-        ``hud.py:519-554``): green income rows, red ``Upkeep: -N``, gold
-        ``Story upgrades: +N``; dark panel + border, left-aligned under the
-        anchor."""
+        ``hud.py:519-554``): green income rows and a red ``Upkeep: -N``; dark
+        panel + border, left-aligned under the anchor."""
         from engine.render import HudRect  # local: keep module import list lean
 
         rows = []
@@ -868,8 +867,6 @@ class Hud:
             # income_sources() actually returned.
             if label == T("hud.income.upkeep"):
                 rows.append((T("hud.tooltip_upkeep", amount=amount), _TOOLTIP_RED))
-            elif label == T("hud.income.story"):
-                rows.append((T("hud.tooltip_story", amount=amount), _TOOLTIP_GOLD))
             else:
                 rows.append((T("hud.tooltip_income", label=label, amount=amount),
                             widgets.C_HP_GREEN))

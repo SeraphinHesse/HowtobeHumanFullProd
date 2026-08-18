@@ -384,7 +384,8 @@ def apply_levelup_option(state, option, core_balance):
 
 # -- the upgrade-panel classifier -------------------------------------------
 
-def _next_tier_gate(state, building, buildings_balance, progression_balance):
+def _next_tier_gate(state, building, buildings_balance, progression_balance,
+                    boss_upgrades_balance=None):
     """The next-tier half of the classifier below, independent of whether the
     building is currently AT its tier max — ``(mode, next_name, cost)`` using
     the same four post-tier-max modes ``upgrade_gate`` returns. Shared by
@@ -406,13 +407,35 @@ def _next_tier_gate(state, building, buildings_balance, progression_balance):
                 timeline_level_for(tier_lead(btype), next_idx,
                                    progression_balance))
     tier = tiers_for(btype, buildings_balance)[next_idx]
-    cost = tier.get("build_cost", 0)
+    cost = _wall_discounted(tier.get("build_cost", 0), state, building,
+                            boss_upgrades_balance)
     if tiers_unlocked_for(state, btype) > next_idx:
         return ("tier_upgrade", tier["name"], cost)
     return ("tier_locked", tier["name"], cost)
 
 
-def upgrade_gate(state, building, buildings_balance, progression_balance):
+def _wall_discounted(cost, state, building, boss_upgrades_balance):
+    """``cost`` after BU-3's ``wall_cost_discount`` (#2), structure-scoped.
+
+    The tier-advance and batch-catch-up prices in this module read the tier
+    table DIRECTLY rather than through ``Building.build_cost()``/
+    ``upgrade_cost()``, so they need the same reducer applied explicitly or a
+    Blocker/WallBuilder would be discounted at some price points and not
+    others. Tag-gated on ``"structure"``, exactly like
+    ``Building._wall_discount``. Inert without BU-3's optional trailing
+    ``boss_upgrades_balance`` (``game/core/boss_upgrades.py``'s
+    threading-pattern section — the RunState half is already this module's
+    first argument)."""
+    if boss_upgrades_balance is None or "structure" not in building.tags:
+        return cost
+    from . import boss_upgrades
+    return boss_upgrades.discounted(
+        cost, state, boss_upgrades_balance, "wall_cost_discount",
+        "cost_reduction_pct", 50, floor=1)
+
+
+def upgrade_gate(state, building, buildings_balance, progression_balance,
+                 boss_upgrades_balance=None):
     """Classify a building's upgrade button -> ``(mode, next_name, cost)``:
 
     ``in_tier``      normal level-up inside the current tier
@@ -421,13 +444,23 @@ def upgrade_gate(state, building, buildings_balance, progression_balance):
     ``tier_hidden``  at tier max, next tier not yet offerable — see
                      ``_next_tier_gate``'s docstring for what ``cost`` means
     ``max_tier``     at tier max, no higher tier exists
+
+    ``boss_upgrades_balance`` is BU-3's optional trailing half-pair (the
+    RunState is already the first argument): present, a Blocker/WallBuilder's
+    quoted price carries the ``wall_cost_discount`` reduction. This is the ONE
+    seam the panel reads BOTH the label price and the charged price through
+    (``_upgrade_state`` -> ``_batch_upgrade_targets``), so the two can never
+    disagree about the discount.
     """
     if not building.at_tier_max():
-        return ("in_tier", None, building.upgrade_cost())
-    return _next_tier_gate(state, building, buildings_balance, progression_balance)
+        return ("in_tier", None,
+                building.upgrade_cost(state, boss_upgrades_balance))
+    return _next_tier_gate(state, building, buildings_balance,
+                           progression_balance, boss_upgrades_balance)
 
 
-def advance_batch_plan(state, building, buildings_balance, progression_balance):
+def advance_batch_plan(state, building, buildings_balance, progression_balance,
+                       boss_upgrades_balance=None):
     """``(eligible, total_cost, levels_needed)`` for the multi-select batch
     ADVANCE action (``game/ui/building_ui.py``'s ``_batch_advance_targets``).
 
@@ -441,9 +474,16 @@ def advance_batch_plan(state, building, buildings_balance, progression_balance):
     sums every remaining in-tier level-up needed to reach this tier's max
     level (projected via ``upgrade_cost()``'s own formula, without mutating
     the building) plus the next tier's advance cost; ``levels_needed`` is how
-    many ``upgrade()`` calls that catch-up takes (0 if already at tier max)."""
+    many ``upgrade()`` calls that catch-up takes (0 if already at tier max).
+
+    ``boss_upgrades_balance`` (BU-3's optional trailing half-pair) discounts
+    both halves of the total for a Blocker/WallBuilder — the projected
+    catch-up levels through the same reducer ``upgrade_cost()`` applies, and
+    the tier cost through ``_next_tier_gate`` — so the batch total matches
+    what the per-building path would charge one at a time."""
     mode, _next_name, tier_cost = _next_tier_gate(
-        state, building, buildings_balance, progression_balance)
+        state, building, buildings_balance, progression_balance,
+        boss_upgrades_balance)
     if mode != "tier_upgrade":
         return False, 0, 0
     tier_data = building.tier_data()
@@ -454,7 +494,8 @@ def advance_batch_plan(state, building, buildings_balance, progression_balance):
     catchup_cost = 0
     levels_needed = 0
     while lvl < max_levels:
-        catchup_cost += base + (lvl - 1) * increment
+        catchup_cost += _wall_discounted(base + (lvl - 1) * increment, state,
+                                         building, boss_upgrades_balance)
         lvl += 1
         levels_needed += 1
     return True, catchup_cost + tier_cost, levels_needed
