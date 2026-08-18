@@ -38,6 +38,13 @@ class Building(GameObject):
     CONTENT_KEY = None        # tile.content_key set at placement (map.json key)
     SUBTREE = ()              # path into the buildings-domain balancing tree
     TIER_SPRITES = ()         # per-tier slot-key prefixes
+    # The string ids the upgrade panel's action button uses for an IN-TIER
+    # upgrade, single and batched (`game/ui/building_ui.py::_upgrade_state` /
+    # `_build_upgrade`). A class attribute rather than a `building_type ==`
+    # branch in the UI, so a line that calls its upgrade something else says
+    # so HERE -- the Painter's INVEST is the only override today.
+    ACTION_UPGRADE_KEY = "building.action.upgrade"
+    ACTION_UPGRADE_MANY_KEY = "building.action.upgrade_many"
     EXTRA_TAGS = ()           # family capability tags (e.g. "combat", "economy")
 
     def __init__(self, col, row, buildings_balance, tier_idx=0):
@@ -216,10 +223,20 @@ class Building(GameObject):
         health = self.get_component(Health)
         health.max_hp = self.max_hp()
         health.hp = health.max_hp
+        self.refresh_slot_key()
+        self._on_apply_stats()
+
+    def refresh_slot_key(self):
+        """Re-derive the animator's art slot and NOTHING else.
+
+        The non-healing sibling of ``apply_tier_stats`` (which full-heals on
+        every call, prototype-exact) -- for the one case where the art may
+        change without any stat changing: the Painter's canvas filling in as
+        its progress advances at payday. Never inline this write again; this
+        is the single writer of ``SpriteAnimator.slot_key`` for buildings."""
         anim = self.get_component(SpriteAnimator)
         if anim is not None:
             anim.slot_key = self.slot_key()
-        self._on_apply_stats()
 
     def _on_apply_stats(self):
         """Family hook: extend derived-stat application (defence syncs the

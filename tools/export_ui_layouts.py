@@ -133,6 +133,14 @@ _DISPLAY_NAMES = {
         "btn_toggle_income_floaters": "Income Floaters toggle",
         "btn_toggle_bg_art": "Background Art toggle",
         "btn_toggle_gore": "Gore toggle",
+        # SD-6: the three audio rows (`audio_label` is the Master row's label,
+        # kept under its shipped id).
+        "audio_label": "Master volume label",
+        "bar_master_volume": "Master volume bar",
+        "label_music_volume": "Music volume label",
+        "bar_music_volume": "Music volume bar",
+        "label_sfx_volume": "SFX volume label",
+        "bar_sfx_volume": "SFX volume bar",
     },
     "credits": {
         "backdrop": "Background backdrop",
