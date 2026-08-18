@@ -36,6 +36,8 @@ _STRINGS = {
     "boss_cutscene.prefix_loss": "Loss",
     "boss_cutscene.prefix_win": "Win",
     "building.action.advance": "ADVANCE: {name}  {cost}",
+    "building.action.invest": "INVEST  {cost}",
+    "building.action.invest_many": "INVEST ×{n}  {cost}",
     "building.action.max_tier": "MAX TIER",
     "building.action.not_adjacent": "NOT ADJACENT",
     "building.action.research": "RESEARCH REQUIRED",

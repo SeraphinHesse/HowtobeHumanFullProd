@@ -369,11 +369,34 @@ class BalancingPanel(QWidget):
             node = props[seg]
         return self._deref(node)
 
+    def _object_properties(self, node, value):
+        """The ``{key: subschema}`` map to render this object level from.
+
+        Normally just the node's own ``properties``. An OPEN object — one that
+        declares no ``properties`` and types its members through
+        ``additionalProperties`` instead — has no key list in the schema at
+        all, so its keys come from the DOC and every one of them renders
+        against that single shared subschema. ``vfx.schema.json``'s
+        ``triggers_by_type`` (the per-type VFX registry, open two levels deep)
+        is the first such node; without this the panel raised ``KeyError:
+        'properties'`` and took the whole vfx balancing form down with it.
+
+        A node that is open AND has no dict ``additionalProperties`` (i.e. a
+        free-form blob like the tutorial's ``flags``) yields nothing, which is
+        the honest answer: there is no schema to build widgets from."""
+        props = node.get("properties")
+        if props is not None:
+            return props
+        extra = node.get("additionalProperties")
+        if isinstance(extra, dict) and isinstance(value, dict):
+            return {key: extra for key in value}
+        return {}
+
     def _build_object(self, node, value, path, parent_layout, depth):
         """One object level: scalar leaves collect into QFormLayouts, nested
         objects/arrays become CollapsibleSections, in sorted key order."""
         form = None
-        for key, prop in sorted(node["properties"].items()):
+        for key, prop in sorted(self._object_properties(node, value).items()):
             if key.startswith("_"):
                 continue
             if key not in value:

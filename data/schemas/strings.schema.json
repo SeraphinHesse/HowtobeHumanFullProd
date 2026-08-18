@@ -56,6 +56,14 @@
       "description": "Action button caption for a tier advance. `name` is the next tier's display name (upper-cased by the call site), `cost` the love figure.",
       "type": "string"
     },
+    "building.action.invest": {
+      "description": "Action button caption for a single in-tier upgrade on a line that calls it an investment (the Painter, whose upgrade buys payout rather than visible painting). `cost` is the love figure.",
+      "type": "string"
+    },
+    "building.action.invest_many": {
+      "description": "Action button caption for a batched in-tier upgrade when every selected building calls it an investment. `n` is the building count, `cost` the summed love figure.",
+      "type": "string"
+    },
     "building.action.max_tier": {
       "description": "Action button caption at the last tier. No placeholders.",
       "type": "string"
@@ -631,6 +639,8 @@
     "boss_cutscene.prefix_loss",
     "boss_cutscene.prefix_win",
     "building.action.advance",
+    "building.action.invest",
+    "building.action.invest_many",
     "building.action.max_tier",
     "building.action.not_adjacent",
     "building.action.research",

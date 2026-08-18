@@ -39,6 +39,9 @@ class MasterSheetsPanelTest(TempDataCase):
         for slot in slots:
             doc["entries"][slot] = {
                 "sheet": f"master/{self.sheet_id}.png",
+                # The COPY of the registry's column_width that `details._save`
+                # stamps at link time — what a column-width edit must re-stamp.
+                "column_width": 2,
                 "frame_w": 32, "frame_h": 48, "offset_x": 0, "offset_y": 0,
                 "rows": [{"animation": "idle", "frames": 4, "fps": 8,
                           "hidden": [], "loop_start": 0, "loop_end": 0,
@@ -71,32 +74,65 @@ class MasterSheetsPanelTest(TempDataCase):
 
     # -- D10 lock ------------------------------------------------------------
 
-    def test_slicing_locked_while_slots_link_and_free_when_none_do(self):
+    def test_frame_grid_locked_while_slots_link_but_column_width_is_not(self):
         self.link_slots("painter_t1_lvl1")
         panel = self.make()
         panel.select_sheet(self.sheet_id)
-        self.assertFalse(panel._column_width.isEnabled())
+        self.assertFalse(panel._frame_w.isEnabled())
+        self.assertFalse(panel._frame_h.isEnabled())
         self.assertIn("painter_t1_lvl1", panel._lock_label.text())
-        # D10 locks the SLICING values, never the colour NAMES: naming a column
-        # re-cuts nothing, and locking it made a colour-capable sheet
-        # undeclarable once its first slot linked.
+        # D10 locks the FRAME GRID only. Colour names re-cut nothing, and
+        # column width is per-sheet metadata whose linking copies are
+        # re-stamped on save — locking either made the value uncorrectable
+        # once the first slot linked.
+        self.assertTrue(panel._column_width.isEnabled())
         self.assertTrue(panel._colours.isEnabled())
         self.assertTrue(panel._save.isEnabled())
 
         panel.select_sheet(self.other_id)          # nothing links to this one
+        self.assertTrue(panel._frame_w.isEnabled())
         self.assertTrue(panel._column_width.isEnabled())
         self.assertTrue(panel._save.isEnabled())
 
-    def test_save_keeps_slicing_but_writes_colours_while_slots_link(self):
+    def test_save_keeps_frame_grid_but_writes_colours_while_slots_link(self):
         self.link_slots("painter_t1_lvl1")
         panel = self.make()
         panel.select_sheet(self.sheet_id)
-        panel._column_width.setValue(4)            # locked: must not land
+        panel._frame_w.setValue(64)                # locked: must not land
         panel._colours.setText("Pink, Red")        # free: must land
         self.assertEqual(panel.save_selected(), self.sheet_id)
         entry = self.registry()["entries"][self.sheet_id]
-        self.assertEqual(entry["column_width"], 2)
+        self.assertEqual(entry["frame_w"], 32)
         self.assertEqual(entry["columns"], ["pink", "red"])
+
+    def test_column_width_edit_in_use_restamps_linking_entries_and_signals(self):
+        """The registry write alone is a NO-OP for a linked slot: `store`
+        slices from the manifest's own copy and never opens the registry."""
+        self.link_slots("painter_t1_lvl1", "mortar_t1_lvl1")
+        panel = self.make()
+        panel.select_sheet(self.sheet_id)
+        seen = []
+        panel.manifest_changed.connect(seen.append)
+
+        panel._column_width.setValue(4)
+        self.assertEqual(panel.save_selected(), self.sheet_id)
+
+        self.assertEqual(self.registry()["entries"][self.sheet_id]
+                         ["column_width"], 4)
+        entries = data_io.load_json(
+            self.data_dir / "sprites" / "asset_manifest.json")["entries"]
+        self.assertEqual(entries["painter_t1_lvl1"]["column_width"], 4)
+        self.assertEqual(entries["mortar_t1_lvl1"]["column_width"], 4)
+        self.assertEqual(seen, [""])   # ED-42 reload fires exactly once
+
+    def test_column_width_save_that_changes_nothing_emits_nothing(self):
+        self.link_slots("painter_t1_lvl1")
+        panel = self.make()
+        panel.select_sheet(self.sheet_id)
+        seen = []
+        panel.manifest_changed.connect(seen.append)
+        self.assertEqual(panel.save_selected(), self.sheet_id)   # width stays 2
+        self.assertEqual(seen, [])
 
     # -- writes --------------------------------------------------------------
 
@@ -143,7 +179,7 @@ class MasterSheetsPanelTest(TempDataCase):
         panel = self.make()
         panel.select_sheet(self.sheet_id)
         with self.assertRaises(master_sheet_import.GridInUseError) as caught:
-            panel.reimport_selected(replacement, column_width=4)
+            panel.reimport_selected(replacement, frame_w=64)
         self.assertIn("painter_t1_lvl1", str(caught.exception))
         self.assertEqual(png.read_bytes(), before)   # refused before the copy
 
