@@ -52,7 +52,7 @@
         "name": "Chilling Storm",
         "params": {
           "duration_seconds": 2.5,
-          "slow_pct": 20
+          "slow_pct": 15
         }
       },
       "thorns": {
@@ -85,7 +85,15 @@
     "Timeline": {
       "milestones": [
         {
-          "retaliation_bonus_love": 30,
+          "retaliation_bonus_love": 35,
+          "slots": [
+            "stormpriest_slow",
+            "thorns",
+            "boost_double_trigger"
+          ]
+        },
+        {
+          "retaliation_bonus_love": 70,
           "slots": [
             "restock_lives",
             "mortar_slow",
@@ -93,26 +101,18 @@
           ]
         },
         {
-          "retaliation_bonus_love": 60,
+          "retaliation_bonus_love": 105,
           "slots": [
-            "thorns",
             "musician_auto_level",
-            "move_time_cap"
-          ]
-        },
-        {
-          "retaliation_bonus_love": 100,
-          "slots": [
-            "stormpriest_slow",
-            "wall_cost_discount",
+            "condition_dmg_bonus",
             "stone_thrower_sync"
           ]
         },
         {
-          "retaliation_bonus_love": 150,
+          "retaliation_bonus_love": 160,
           "slots": [
-            "condition_dmg_bonus",
-            "boost_double_trigger",
+            "move_time_cap",
+            "wall_cost_discount",
             "tile_refund"
           ]
         }
