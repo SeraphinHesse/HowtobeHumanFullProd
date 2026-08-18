@@ -150,10 +150,24 @@ engine task; if an engine change forces a caller change, tell the user
   `data/schemas/keybindings.schema.json` (the `highscores.schema.json`
   two-shape precedent — this schema pairs with no `data/` content file of its
   own; `tools/smoke.py` never sees it).
-- **`audio.py`** — thin `pygame.mixer.music` wrapper
-  (`play_music`/`stop_music`/`set_volume`). Every call **swallows ALL exceptions**
-  → silent no-op when audio is unavailable (no device, missing file, mixer not
-  initialised, SDL dummy). No game vocabulary; the caller passes the path.
+- **`audio/`** (SD-2) — the sound package. `engine/audio/__init__.py` is the
+  ONLY module callers import; it re-exports the legacy `play_music`/
+  `stop_music`/`set_volume` (thin `pygame.mixer.music` wrapper, frozen at
+  `-> None`, every call swallowing ALL exceptions — the original `audio.py`
+  contract, unchanged) plus the new bus-routed surface: `init(data_dir)`,
+  `play_slot(default_slot, override_slot=None, *, bus, key, rng, loop)`,
+  `set_master_volume`/`set_bus_volume`/`master_volume`/`bus_volume`,
+  `stop_all()` — every new call returns `bool` and never raises.
+  `audio/bank.py` is PURE (no pygame, no module globals, rng injected):
+  slot/clip resolution (`resolve`/`pick_clip`/`effective_volume`/`clip_path`/
+  `trim_bounds`). `audio/sfx.py` wraps `pygame.mixer.Sound` (clip cache keyed
+  by `(path, start, end)`, channel pool, per-key cooldown + concurrency cap,
+  the bus/master volume registry). `audio/music.py` wraps
+  `pygame.mixer.music` (one streaming track, push/pop stack for temporary
+  tracks, "already playing = no-op"); it reads `sfx.py`'s volume registry
+  rather than keeping its own. Dependency direction: `__init__ -> {music,
+  sfx} -> bank`. No game vocabulary anywhere: buses are opaque strings, `key`
+  is an opaque cooldown bucket the package never parses.
 - **`video.py`** — OpenCV `VideoSource(path, length, target_size=None)` for the
   cutscene. cv2 is imported LAZILY; **graceful skip** (`enabled=False`,
   `done=True` immediately) if cv2 is absent, the file is missing, or the capture
@@ -351,7 +365,8 @@ one-shot carries it through `Transform.rank`.
   and `render/backend_gpu.py`, the SDL2/Texture world backend), `render/fonts.py`,
   `render/ground_cache.py`, `render/ground_cache_gpu.py` (the SDL2/Texture ground
   cache), the asset surface cache (`assets/store.py`,
-  `assets/placeholder.py`), `engine/audio.py`, and `engine/video.py`. `coords/`,
+  `assets/placeholder.py`), `engine/audio/sfx.py`, `engine/audio/music.py`, and
+  `engine/video.py`. `engine/audio/bank.py` is PURE (no pygame). `coords/`,
   `core/`, `physics/`, `tilemap.py`, `data_io.py`, `video_playback.py`, and asset
   *metadata* code are pure Python — that is what keeps game logic
   headless-testable.

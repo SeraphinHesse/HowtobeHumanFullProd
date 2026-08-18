@@ -5575,34 +5575,19 @@
     "mock_note": "love=123, round=7 (idle, default SessionSettings — no world state)",
     "widgets": {
       "audio_label": {
-        "display_name": "Master Audio label",
+        "display_name": "Master volume label",
         "font_key": "md",
         "kind": "label",
         "label": "",
         "parent": "backdrop",
         "rect": [
+          190,
           245,
-          237,
           0,
           0
         ],
         "sample": "Master Audio",
         "text_id": "settings.master_audio"
-      },
-      "audio_note": {
-        "align": "center",
-        "font_key": "sm",
-        "kind": "label",
-        "label": "",
-        "parent": "backdrop",
-        "rect": [
-          320,
-          259,
-          0,
-          0
-        ],
-        "sample": "(no audio yet)",
-        "text_id": "settings.no_audio"
       },
       "backdrop": {
         "display_name": "Background backdrop",
@@ -5615,6 +5600,42 @@
           360
         ]
       },
+      "bar_master_volume": {
+        "display_name": "Master volume bar",
+        "kind": "bar",
+        "label": "",
+        "parent": "backdrop",
+        "rect": [
+          275,
+          248,
+          90,
+          6
+        ]
+      },
+      "bar_music_volume": {
+        "display_name": "Music volume bar",
+        "kind": "bar",
+        "label": "",
+        "parent": "backdrop",
+        "rect": [
+          275,
+          260,
+          90,
+          6
+        ]
+      },
+      "bar_sfx_volume": {
+        "display_name": "SFX volume bar",
+        "kind": "bar",
+        "label": "",
+        "parent": "backdrop",
+        "rect": [
+          275,
+          272,
+          90,
+          6
+        ]
+      },
       "btn_back": {
         "display_name": "Back button",
         "font_key": "lg",
@@ -5623,7 +5644,7 @@
         "parent": "backdrop",
         "rect": [
           270,
-          279,
+          296,
           100,
           23
         ]
@@ -5635,7 +5656,7 @@
         "parent": "backdrop",
         "rect": [
           380,
-          279,
+          296,
           90,
           23
         ]
@@ -5787,6 +5808,36 @@
         ],
         "sample": "Income Floaters",
         "text_id": "settings.toggle.income_floaters"
+      },
+      "label_music_volume": {
+        "display_name": "Music volume label",
+        "font_key": "md",
+        "kind": "label",
+        "label": "",
+        "parent": "backdrop",
+        "rect": [
+          190,
+          257,
+          0,
+          0
+        ],
+        "sample": "Music",
+        "text_id": "settings.music_audio"
+      },
+      "label_sfx_volume": {
+        "display_name": "SFX volume label",
+        "font_key": "md",
+        "kind": "label",
+        "label": "",
+        "parent": "backdrop",
+        "rect": [
+          190,
+          269,
+          0,
+          0
+        ],
+        "sample": "SFX",
+        "text_id": "settings.sfx_audio"
       },
       "title": {
         "display_name": "Title label",
