@@ -475,7 +475,7 @@
       "sprite_slot": "",
       "variant_select": {
         "misc_key": "",
-        "mode": "random"
+        "mode": "level"
       }
     },
     "projectile_hit": {
