@@ -275,7 +275,14 @@ the only place the words `"placement"`/`"upgrade"`/`"buy_plot"` and the
     ui.json`'s `LoadingScreen.min_display_seconds`) has also elapsed — the
     fast half so it never just flickers (this work does no asset I/O; every
     asset is already loaded at boot), the honest-progress half so the
-    duration floor never reads as a fake spinner. `build_gameplay()` itself
+    duration floor never reads as a fake spinner. **The click's own frame
+    runs NO checkpoint** — `loading_just_armed` makes that one frame render
+    the screen at 0% only; the first real checkpoint (`_step_world`, which
+    builds the whole fresh `TileMap` and can itself take the better part of a
+    second on a large map) starts the frame after. Without this the screen's
+    first paint would wait behind that checkpoint, reading as a stall between
+    the click and the screen appearing (a live-tested regression, fixed in
+    the same feature). `build_gameplay()` itself
     survives as a thin synchronous wrapper (`for step in
     _build_gameplay_steps(): step()`) for the headless autostart seam above
     and any other direct caller — its behavior is byte-identical to before
