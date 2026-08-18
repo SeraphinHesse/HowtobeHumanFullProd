@@ -1568,6 +1568,53 @@ sets one).
     controls to silence the lint" rule above forbids the only fix a hard
     failure would pressure a designer into.
 
+- **Designer-authored custom widgets (UL-13)**: a screen doc may carry a
+  top-level `custom_widgets` table beside `widgets`/`background`/`defaults` —
+  decoration a designer wants and NO CODE OWNS. An entry is that widget's
+  DEFAULT GEOMETRY ONLY (`kind`, `rect`, optional `band`/`z`/`display_name`):
+  a hand-written twin of ONE `screen_defaults.json` record. Everything
+  paintable — `skin`, `color`, `label`, `text_id`, `font`, `text_color`,
+  `tint`, `align`, `visible`, `parent`, `layers`, `states` — is an ORDINARY
+  override under `widgets/<the same id>`, exactly as for a code-owned widget.
+  There is no second styling vocabulary, and no screen learns a new key.
+  - **They ride the TWO `submit_layers` calls every screen already makes**,
+    drawn at the tail of the matching band's pass. No `submit()` gains a third
+    call and no new call site exists anywhere, which is what keeps the golden
+    parity pin byte-identical BY CONSTRUCTION: no `custom_widgets` key ⇒ zero
+    extra primitives. `apply()` and the real-widget loops need no change —
+    both iterate `ids` (the game's own widget objects), so a custom id is
+    simply never matched there.
+  - **Order**: band first (absent = `over`, so `under` puts it behind
+    EVERYTHING on the screen — the same no-depth-sort trade-off as a layer),
+    then ascending `z` (absent = 0) among the custom widgets of that band, ties
+    keeping the file's own authoring order. `z` never orders a custom widget
+    against a code-owned one; the band alone decides that.
+  - **Kind → primitives.** `panel`: `skin` (falling back to this screen's
+    `defaults.panel_skin`) → `HudSprite`, else `color` → `HudRect`; THEN a
+    CENTRED `HudText` when it carries `label`/`text_id`. That is TWO
+    primitives, which is exactly why this is a NEW `_submit_custom_widget`
+    method and not an overload of `_submit_one_layer` — that method's "one
+    role, FIRST MATCH WINS" precedence is a design decision, not iteration
+    order. `backdrop`: the same box, no text, and NO kind-matched default skin
+    (its own `skin` only — the existing code has no backdrop default).
+    `label`: `HudText` only, through `strings.T` exactly as a layer does, with
+    an empty resolved string drawing NOTHING rather than a blank `HudText`.
+    Then its own `layers` array, from that same `widgets/<id>` override,
+    resolved against the custom widget's rect and filtered to the band we were
+    called for. Semantics matched by eye against `editor/panels/
+    _screen_primitives.fallback_hud_items` — never imported, the same accepted
+    editor/game drift that module's own docstring records.
+  - **State is always `"idle"`.** A custom widget has no state machine, the
+    same answer `state_of` gives any non-`Button` holder, so only `states.idle`
+    is ever reachable on one.
+  - **They are NEVER click targets** (a user decision, not an oversight):
+    neither the widget nor its layers are hit-tested, `hit_layer` does not see
+    them, and a click passes straight through to the real UI underneath.
+  - **`_validate_ids` must know them.** It fails loud on an override naming a
+    widget absent from `screen_defaults.json`, and a custom widget has no
+    record there by construction — so ids present in `custom_widgets` join the
+    `known` set. Without that, every screen carrying one raises at load.
+
 - **The three life counters (UL-11, D10)**: `life_1`/`life_2`/`life_3` are
   THREE id'd `panel`-kind holders in `hud.py`'s `ids` (not one repeated draw),
   each positionable, skinnable and layerable on its own. They are ADDED beside
