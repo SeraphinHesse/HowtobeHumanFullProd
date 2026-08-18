@@ -1180,8 +1180,28 @@ imports:
   `FloaterManager._vfx_params.projectile`; the "has art" check is the same
   `assets.animation_total_ms(slot, "idle") is not None` signal
   `engine.vfx.spawn_play_once` uses, so the two paths can never disagree
-  about "imported". Deliberately NOT a `triggers` row — a projectile is
-  continuous, like a beam or a lightning bolt, not a one-shot.
+  about "imported". **feat-projectile-variant-select gave it a `triggers.
+  projectile` row after all** — but a CONTINUOUS one, the seven VA-5 tile
+  highlights' shape rather than `_play`'s: the row contributes ONLY
+  `variant_select`, so `sprite_slot` (the stone/shell choice is the shot's
+  own kind, and those two slots are independent by design), `procedural`
+  (the fallback is the `procedural.projectile` dot right here, not a
+  one-shot kind) and `draw_in_front` (this function emits on the HUD pass,
+  which has no depth sort) are all INERT on it and say so in the schema.
+  A row was the right home anyway because the VFX panel's Binding strip is
+  generated from `vfx.schema.json`'s `triggers` properties
+  (`editor/panels/vfx_preview.py::_trigger_events`), so a schema property
+  buys the whole Event/Pick-mode/misc-key UI with zero editor code.
+  **The resolve is CACHED on the projectile GameObject** (`p._vfx_slot`, an
+  E-11 underscore transient) by `_projectile_slot`, because this function
+  runs every frame for every live shot: resolving inline would re-roll
+  `"random"` per frame (a bullet flickering through its flight) and draw
+  from the shared `self._rng` once per projectile per frame. `"level"` mode
+  needs no new plumbing — both projectile components already retain the
+  firing building as `_shooter`, so tier 1/2/3 can each get their own
+  bullet art. Honouring `draw_in_front` would mean moving every bullet off
+  the HUD pass onto `submit_world_fill`; that changes how every shot in the
+  game depth-sorts against buildings and is deliberately NOT done here.
   **feat-projectile-anchored-flight: the lift is gone from this function —
   `submit_projectiles` is now a pure projection of `p.transform.world_pos`,
   no `int(tile_h*zoom*lift_frac)` subtracted at draw time.** It moved into
