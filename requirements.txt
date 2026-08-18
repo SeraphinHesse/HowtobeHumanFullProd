@@ -7,6 +7,7 @@ PySide6          # editor UI (editor/main.py)
 Pillow           # image loading for editor asset import (editor/asset_import.py, panels/details.py)
 jsonschema       # validates data/ JSON against data/schemas/
 opencv-python    # cutscene playback (engine/video.py) — OPTIONAL: absent = cutscene gracefully skips
+soundfile        # audio transcode-to-ogg on import (editor/sound_import.py) — OPTIONAL: absent = the transcode checkbox greys out, raw copy still works
 
 # Test runner. The suite is unittest.TestCase throughout; pytest collects it
 # natively (no rewrites) and xdist runs it in parallel.
