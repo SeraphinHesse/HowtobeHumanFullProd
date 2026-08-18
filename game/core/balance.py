@@ -1,5 +1,6 @@
-"""Single validated balancing loader for all seven domains (Phase 9D; ESV-3a
-added ``vfx``; TimelinePLAN T2 added ``progression``).
+"""Single validated balancing loader for all eight domains (Phase 9D; ESV-3a
+added ``vfx``; TimelinePLAN T2 added ``progression``;
+BossUpgradeTimelinePLAN BU-1 added ``boss_upgrades``).
 
 Generalises 9C's ``game/map/tile_map.load_map_balance``. Every domain file
 ``data/balancing/<domain>.json`` validates against
@@ -12,7 +13,8 @@ from pathlib import Path
 
 from engine import data_io
 
-DOMAINS = ("buildings", "enemies", "map", "ui", "core", "vfx", "progression")
+DOMAINS = ("buildings", "enemies", "map", "ui", "core", "vfx", "progression",
+           "boss_upgrades")
 
 
 def load_balance(data_dir, domain):

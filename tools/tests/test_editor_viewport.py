@@ -1339,9 +1339,10 @@ class TestMainWindowVfxMode(TempDataCase):
         # preview moved INTO details_pane) + cutscenes (4, TU-3) +
         # tutorial_panel (5, TU-4) + strings_panel (6, Phase C) +
         # timeline (7, TimelinePLAN T5) + master_sheets (8,
-        # MasterSheetColumnsPLAN E5). The point of the pin is that the
+        # MasterSheetColumnsPLAN E5) + boss_upgrades (9,
+        # BossUpgradeTimelinePLAN BU-5). The point of the pin is that the
         # vfx preview is NOT a stack page of its own.
-        self.assertEqual(window.right_stack.count(), 9)
+        self.assertEqual(window.right_stack.count(), 10)
         self.assertIs(window.vfx_preview.parent().parent(), window.details_pane)
 
         window.selector.select_domain("vfx")
@@ -1496,7 +1497,7 @@ class TestPurity(unittest.TestCase):
             "editor.tilemap_ops, editor.map_session, editor.asset_import, "
             "editor.master_sheet_import, "
             "editor.registry_ops, editor.balancing_history, "
-            "editor.cutscene_import, "
+            "editor.cutscene_import, editor.sound_import, "
             "editor.run_controls, editor.spawnclaude, editor.theme, "
             "editor.keybinds, editor.settings_dialog, "
             "editor.agent_forms, editor.agent_form_dialog, editor.plans, "
@@ -1509,6 +1510,7 @@ class TestPurity(unittest.TestCase):
             "editor.panels.level_bar, editor.panels.palette, "
             "editor.panels.map_details, editor.panels.sheet_preview, "
             "editor.panels.sheet_picker, editor.panels.master_sheet_dialog, "
+            "editor.panels.sound_slot, "
             "editor.panels.master_sheets, "
             "editor.panels.screen_details, "
             "editor.panels.anchors_panel, "
@@ -1517,6 +1519,7 @@ class TestPurity(unittest.TestCase):
             "editor.panels.cutscenes, "
             "editor.panels.tutorial_panel, editor.tutorial_ops, "
             "editor.panels.timeline, "
+            "editor.panels.boss_upgrades, editor.boss_upgrades_ops, "
             "editor.font_import, "
             "editor.panels.strings_panel, editor.strings_ops, "
             "editor.panels.vfx_preview, "
@@ -1682,6 +1685,82 @@ class TestColumnSwitcher(TempDataCase):
         panel.set_preview_draft(self.SLOT, None)   # draft dropped
         self.assertEqual(panel._preview_column_labels(), ())
         self.assertTrue(panel._column_combo.isHidden())
+
+
+class TestScreenDetailsScrollArea(TempDataCase):
+    """Part C: the ~2k-line panel body lives in a QScrollArea (balancing.py's
+    pattern) while the dirty label and Save stay pinned OUTSIDE it."""
+
+    def test_body_scrolls_but_save_is_pinned(self):
+        panel = self.track(ScreenDetailsPanel(data_dir=self.data_dir))
+        body = panel._scroll.widget()
+        self.assertIsNotNone(body)
+        self.assertTrue(panel._scroll.widgetResizable())
+        # outliner + per-widget form live inside the scrolled body
+        self.assertTrue(body.isAncestorOf(panel.widget_list))
+        self.assertTrue(body.isAncestorOf(panel.x_spin))
+        self.assertGreater(panel.widget_list.minimumHeight(), 0)
+        # Save (and the dirty label) do not — always reachable
+        self.assertFalse(body.isAncestorOf(panel.save_button))
+        self.assertFalse(body.isAncestorOf(panel._dirty_label))
+
+
+class TestScreenZoomAndPan(TempDataCase):
+    """Part D: the zoom picker and the middle-drag pan feed
+    `_screen_scale_offset` and nothing else, so the blit and the hit-test
+    cannot disagree."""
+
+    def setUp(self):
+        super().setUp()
+        # Pin the fixture: a live override in data/ui/screens/main_menu.json
+        # would move the widget the hit-test below aims at.
+        self.empty_screens("main_menu")
+
+    def make_viewport(self):
+        panel = self.track(ViewportPanel(data_dir=self.data_dir))
+        panel.resize(SCREEN_W, SCREEN_H)
+        panel.show()
+        _APP.processEvents()
+        return panel
+
+    def make_screen_viewport(self):
+        panel = self.make_viewport()
+        session = self.track(UIScreenSession(data_dir=self.data_dir))
+        session.open("main_menu")
+        panel.set_screen_mode(session, FIXTURE_DEFAULTS)
+        return panel
+
+    def test_fit_and_explicit_percentage(self):
+        panel = self.make_screen_viewport()
+        self.assertEqual(panel._zoom_combo.currentText(), "Fit")
+        self.assertEqual(panel._screen_scale_offset(), (1.0, 0.0, 0.0))
+        panel._zoom_combo.setCurrentText("300%")
+        scale, _ox, _oy = panel._screen_scale_offset()
+        self.assertEqual(scale, 3.0)
+
+    def test_zoom_change_recentres_and_pan_is_clamped(self):
+        panel = self.make_screen_viewport()
+        panel._zoom_combo.setCurrentText("300%")
+        panel._pan_screen(100_000, 100_000)     # yank it far off to one side
+        scale, ox, oy = panel._screen_scale_offset()
+        # canvas is bigger than the widget: no gap at either edge
+        self.assertLessEqual(ox, 0.0)
+        self.assertGreaterEqual(ox + SCREEN_W * scale, panel.width())
+        self.assertLessEqual(oy, 0.0)
+        self.assertGreaterEqual(oy + SCREEN_H * scale, panel.height())
+        panel._zoom_combo.setCurrentText("200%")
+        self.assertEqual(panel._screen_pan, [0.0, 0.0])
+        scale, ox, _oy = panel._screen_scale_offset()
+        self.assertEqual(ox, float((panel.width() - SCREEN_W * scale) // 2))
+
+    def test_hit_test_follows_the_zoom(self):
+        panel = self.make_screen_viewport()
+        panel._zoom_combo.setCurrentText("300%")
+        scale, ox, oy = panel._screen_scale_offset()
+        x, y, w, h = FIXTURE_DEFAULTS["main_menu"]["widgets"]["btn_new_game"]["rect"]
+        pos = QPoint(int(ox + (x + w / 2) * scale), int(oy + (y + h / 2) * scale))
+        QTest.mouseClick(panel, Qt.MouseButton.LeftButton, pos=pos)
+        self.assertEqual(panel._selected_widget, "btn_new_game")
 
 
 if __name__ == "__main__":

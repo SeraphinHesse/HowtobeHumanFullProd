@@ -4,8 +4,9 @@ Runs the baker into a tempdir COPY of ``data/`` (never live ``data/`` — the
 ``TempDataCase`` pattern, ``tools/tests/test_editor_panels.py``): asserts the
 merged manifest validates against its schema, every expected ``ui_*`` slot
 has an entry, the baked PNGs exist at the right sheet dimensions (64 wide x
-64*rows tall; ``ui_bg_main_menu`` is the one 480x270 shared-sheet exception
-and writes NO new PNG of its own), and a second run is byte-identical to the
+64*rows tall; ``ui_bg_main_menu`` is the one exception — the baker renders
+no pixels for it, only wires its manifest row up to art that already exists,
+and writes NO PNG of its own), and a second run is byte-identical to the
 first (idempotency, mirrors ``test_ui_layout_export.py``'s determinism pin).
 
 Headless: the baker sets its own SDL dummy drivers before any pygame-pulling
@@ -19,6 +20,7 @@ from pathlib import Path
 from PIL import Image
 
 from engine import data_io
+from engine.assets.registry import load_registry
 from tools.bake_ui_sheets import bake
 from tools.tests.temp_data import DataDirCase
 
@@ -75,16 +77,34 @@ class TestBakeUISheets(DataDirCase):
             self.assertIn(slot, doc["entries"], f"missing manifest entry: {slot}")
             self.assertEqual(doc["entries"][slot]["rows"][0]["animation"], "idle")
 
-    def test_ui_bg_main_menu_points_at_shared_sheet_no_copy(self):
+    def test_ui_bg_main_menu_is_wired_not_baked(self):
+        """The baker renders no pixels for this slot — it writes only the
+        manifest row, from what the tree already says: the slot's OWN
+        imported art if a designer imported some, else the shared
+        imported/main_menu_bg.png, at whatever size the slot registry
+        declares. Nothing here is pinned to a literal: the slot was re-cut
+        480x270 -> 640x360 and given its own art by a designer, and the
+        baker must follow that rather than re-install the old wiring."""
+        own_png = (self.data_dir / "sprites" / "imported"
+                   / "ui_bg_main_menu.png")
+        before = own_png.read_bytes() if own_png.is_file() else None
+
         bake(self.data_dir)
+
         entry = self._manifest()["entries"]["ui_bg_main_menu"]
-        self.assertEqual(entry["sheet"], "imported/main_menu_bg.png")
-        self.assertEqual((entry["frame_w"], entry["frame_h"]), (480, 270))
+        self.assertEqual(
+            entry["sheet"],
+            "imported/ui_bg_main_menu.png" if before is not None
+            else "imported/main_menu_bg.png")
+        self.assertEqual(
+            (entry["frame_w"], entry["frame_h"]),
+            load_registry(self.data_dir).frame_size("ui_bg_main_menu"))
         self.assertNotIn("slice", entry)
-        # No byte owned by this slot — it must not have written its own PNG.
-        self.assertFalse(
-            (self.data_dir / "sprites" / "imported" / "ui_bg_main_menu.png")
-            .exists())
+        # No byte owned by this slot — the baker must neither create a PNG
+        # for it nor rewrite the designer's.
+        after = own_png.read_bytes() if own_png.is_file() else None
+        self.assertEqual(after, before, "the baker wrote PNG bytes for a slot "
+                                        "it only wires up")
 
     def test_buttons_and_panels_carry_slice_icons_do_not(self):
         bake(self.data_dir)
@@ -152,8 +172,8 @@ class TestBakeUISheets(DataDirCase):
             1 for k in doc_after["entries"] if not k.startswith("ui_"))
         self.assertEqual(non_ui_count_before, non_ui_count_after)
         # A pre-existing, unrelated entry (main_menu_bg, 10K art) survives
-        # untouched — the ui_bg_main_menu entry shares its sheet, never its
-        # bytes or its own manifest row.
+        # untouched — ui_bg_main_menu points at a sheet, never at another
+        # slot's bytes or its manifest row.
         self.assertIn("main_menu_bg", doc_after["entries"])
         self.assertEqual(
             doc_after["entries"]["main_menu_bg"],

@@ -22,10 +22,12 @@ from game.buildings import (
 )
 from game.buildings.boost import BoostHP
 from game.buildings.components import WallBuilderState
-from game.buildings.registry import PlacementError
+from game.buildings.registry import PlacementError, build_cost
 from game.core import RunState, load_balance, run_payday
 from game.enemies import create_enemy
-from game.enemies.components import EnemyCombat, PathAgent
+from game.enemies.components import (
+    EnemyCombat, PathAgent, set_boss_upgrade_pair,
+)
 from game.map.pathfinder import find_path, find_path_ignoring_walls
 from game.map.tile_map import TileMap, WallEdge, _wall_key
 from game.map.tiles import TileState
@@ -144,9 +146,19 @@ class TestStructureStats(unittest.TestCase):
         for edge in tm.wall_edges.values():
             self.assertEqual((edge.hp, edge.max_hp), (tier2_hp, tier2_hp))
 
-    def test_wall_builder_flat_slot_key(self):
-        self.assertEqual(WallBuilder(0, 0, BUILD).slot_key(), "wall_builder")
-        self.assertEqual(Blocker(0, 0, BUILD).slot_key(), "blocker")
+    def test_structure_slot_key_is_per_tier_and_level(self):
+        """The PLACED structure uses the standard `_t{tier}_lvl{level}` family
+        like every other line; the flat `SLOT` survives for CARD art only."""
+        w = WallBuilder(0, 0, BUILD)
+        self.assertEqual(w.slot_key(), "wall_builder_t1_lvl1")
+        w.upgrade()
+        self.assertEqual(w.slot_key(), "wall_builder_t1_lvl2")
+        w.advance_tier()
+        self.assertEqual(w.slot_key(), "wall_builder_t2_lvl1")
+        self.assertEqual(Blocker(0, 0, BUILD).slot_key(), "blocker_t1_lvl1")
+        # Card art (research/unlock card, `card_slots`) stays one flat slot.
+        self.assertEqual((WallBuilder.SLOT, Blocker.SLOT),
+                         ("wall_builder", "blocker"))
 
 
 # ---------------------------------------------------------------------------
@@ -384,6 +396,177 @@ class TestResearchGating(unittest.TestCase):
         w, _ = place_building(tm, tm.get(1, 0), "wall_builder", 9999, BUILD,
                               scene, occ, state=st)
         self.assertEqual(w.building_type, "wall_builder")
+
+
+# ---------------------------------------------------------------------------
+# BossUpgradeTimelinePLAN BU-3 — the two upgrades that land on this package:
+# #2 `wall_cost_discount` (structure prices) and #8 `thorns` (D13: a WALL
+# reflects exactly like a building does).
+# ---------------------------------------------------------------------------
+#: Hand-pinned (BU-6): a designer retuning either percentage in the new editor
+#: panel must never decide whether this module is green (`data/CLAUDE.md`).
+CUT_PCT, REFLECT_PCT = 20, 10
+BOSS_UPGRADES = {
+    "BossUpgrades": {
+        "Catalog": {
+            "wall_cost_discount": {
+                "name": "Cheap Stonework", "description": "",
+                "params": {"cost_reduction_pct": CUT_PCT}},
+            "thorns": {"name": "Thorns", "description": "",
+                       "params": {"reflect_pct": REFLECT_PCT}},
+        },
+        "Timeline": {"milestones": [
+            {"slots": ["wall_cost_discount", "thorns", None],
+             "retaliation_bonus_love": 30},
+        ] * 4},
+    }
+}
+
+
+def picks(**counts):
+    """A RunState with the named upgrades already picked N times."""
+    st = run_state()
+    st.boss_upgrade_stacks.update(counts)
+    return st
+
+
+def cut(cost, n=1):
+    """`boss_upgrades.discounted`'s arithmetic, restated: ADDITIVE per pick,
+    truncated, floored at 1 for a structure price."""
+    return max(1, int(cost * (1.0 - n * CUT_PCT / 100.0)))
+
+
+class TestWallCostDiscount(unittest.TestCase):
+    """#2 — tag-gated on `"structure"`, additive per pick, floored at 1 (never
+    free, never negative). Three price sites, one shared reducer."""
+
+    def _blocker(self):
+        return Blocker(0, 0, BUILD)
+
+    def test_no_pair_is_byte_identical(self):
+        b = self._blocker()
+        self.assertEqual(b.build_cost(), BLOCKER[0]["build_cost"])
+        self.assertEqual(b.build_cost(picks(wall_cost_discount=1), None),
+                         BLOCKER[0]["build_cost"])
+        self.assertEqual(b.build_cost(None, BOSS_UPGRADES),
+                         BLOCKER[0]["build_cost"])
+
+    def test_an_unpicked_upgrade_leaves_the_price_alone(self):
+        b = self._blocker()
+        self.assertEqual(b.build_cost(run_state(), BOSS_UPGRADES),
+                         BLOCKER[0]["build_cost"])
+
+    def test_build_cost_and_upgrade_cost_are_both_cut(self):
+        b = self._blocker()
+        st = picks(wall_cost_discount=1)
+        self.assertEqual(b.build_cost(st, BOSS_UPGRADES),
+                         cut(BLOCKER[0]["build_cost"]))
+        self.assertEqual(b.upgrade_cost(st, BOSS_UPGRADES),
+                         cut(b.upgrade_cost()))
+
+    def test_the_wall_builder_line_is_cut_too(self):
+        w = WallBuilder(0, 0, BUILD)
+        st = picks(wall_cost_discount=1)
+        self.assertEqual(w.build_cost(st, BOSS_UPGRADES),
+                         cut(WALLB[0]["build_cost"]))
+
+    def test_a_non_structure_building_is_never_cut(self):
+        """Tag-gated on `"structure"`, not an isinstance or a type string —
+        every other line must price identically with the pair present."""
+        st = picks(wall_cost_discount=1)
+        for btype in ("defence", "economic", "boost_hp"):
+            with self.subTest(building_type=btype):
+                self.assertEqual(
+                    build_cost(btype, BUILD, run_state=st,
+                               boss_upgrades_balance=BOSS_UPGRADES),
+                    build_cost(btype, BUILD))
+
+    def test_the_module_level_price_matches_the_instance_method(self):
+        """`registry.build_cost` is what a fresh placement actually charges;
+        `Building.build_cost` is what the panel quotes. Miss one and a wall is
+        discounted at some price points and not others."""
+        st = picks(wall_cost_discount=1)
+        self.assertEqual(
+            build_cost("blocker", BUILD, run_state=st,
+                       boss_upgrades_balance=BOSS_UPGRADES),
+            self._blocker().build_cost(st, BOSS_UPGRADES))
+
+    def test_picks_stack_additively_and_floor_at_one(self):
+        b = self._blocker()
+        base = BLOCKER[0]["build_cost"]
+        self.assertEqual(b.build_cost(picks(wall_cost_discount=1),
+                                      BOSS_UPGRADES), cut(base, 1))
+        two = b.build_cost(picks(wall_cost_discount=2), BOSS_UPGRADES)
+        self.assertEqual(two, cut(base, 2))
+        # ADDITIVE, not compounding: two picks of -20% is -40%, never x0.8^2.
+        self.assertNotEqual(two, int(base * 0.8 * 0.8))
+        self.assertEqual(b.build_cost(picks(wall_cost_discount=9),
+                                      BOSS_UPGRADES), 1)   # never free
+
+    def test_a_placement_is_actually_charged_the_cut_price(self):
+        tm, scene, occ = board(["bbbb"] * 4)
+        st = run_state(blocker=1)
+        st.boss_upgrade_stacks["wall_cost_discount"] = 1
+        _b, cost = place_building(tm, tm.get(1, 0), "blocker", 9999, BUILD,
+                                  scene, occ, state=st,
+                                  boss_upgrades_balance=BOSS_UPGRADES)
+        self.assertEqual(cost, cut(BLOCKER[0]["build_cost"]))
+
+
+class TestThornsReflectsOffAWall(unittest.TestCase):
+    """#8/D13 — the wall branch of `EnemyCombat.update`. The reflected amount
+    comes off the blow the swing actually spent, at the same site the wall's
+    HP is spent, so the two can never disagree."""
+
+    def setUp(self):
+        self.addCleanup(set_boss_upgrade_pair)   # clear the module-level seam
+
+    def _walled_board(self):
+        tm, scene, occ = board(WALL_MAP)
+        place_building(tm, tm.get(2, 1), "wall_builder", 9999, BUILD, scene,
+                       occ)
+        self.assertIn(_wall_key(0, 1, 0, 2), tm.wall_edges)
+        e = create_enemy("standard", 0, 2, ENEM, tm)
+        combat = e.get_component(EnemyCombat)
+        combat.dmg = 20
+        combat.attack_speed = 0.2
+        health = e.get_component(Health)
+        health.max_hp = health.hp = 10 ** 6   # survive its own thorns
+        scene.spawn(e)
+        return tm, scene, e
+
+    def _run_until_it_swings(self, tm, scene, e):
+        for _ in range(400):
+            scene.update(0.1)
+            pa = e.get_component(PathAgent)
+            if pa.blocked and pa._wall_target is not None:
+                # one more tick so the swing actually lands
+                scene.update(0.3)
+                return True
+        return False
+
+    def test_no_pair_installed_reflects_nothing(self):
+        tm, scene, e = self._walled_board()
+        self.assertTrue(self._run_until_it_swings(tm, scene, e))
+        health = e.get_component(Health)
+        self.assertEqual(health.hp, health.max_hp)
+
+    def test_a_swing_at_a_wall_reflects_onto_the_attacker(self):
+        tm, scene, e = self._walled_board()
+        set_boss_upgrade_pair(picks(thorns=1), BOSS_UPGRADES)
+        self.assertTrue(self._run_until_it_swings(tm, scene, e))
+        health = e.get_component(Health)
+        lost = health.max_hp - health.hp
+        self.assertGreater(lost, 0)
+        # every reflected chunk is reflect_pct of the 20-dmg swing
+        self.assertEqual(lost % int(20 * REFLECT_PCT / 100), 0)
+
+    def test_an_unpicked_upgrade_reflects_nothing(self):
+        tm, scene, e = self._walled_board()
+        set_boss_upgrade_pair(run_state(), BOSS_UPGRADES)
+        self.assertTrue(self._run_until_it_swings(tm, scene, e))
+        health = e.get_component(Health)
+        self.assertEqual(health.hp, health.max_hp)
 
 
 if __name__ == "__main__":

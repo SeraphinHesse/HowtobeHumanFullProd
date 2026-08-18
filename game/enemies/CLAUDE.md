@@ -49,6 +49,22 @@ package (D7).
   `value × factor ** N`. All factors ship 1.0, so today this is exactly a
   clamp — and the old "past tier 5 stats freeze while counts climb forever"
   cliff is gone.
+  - **A `0.0` factor is NOT a clamp — it is a kill switch, and this has
+    shipped broken before.** `factor ** N` for `N ≥ 1` makes `0.0` zero the
+    stat outright the moment the round crosses past the authored table, not
+    "stop growing it." A 2026-08-10 balancing edit set `move_speed` (and
+    several `hp`/`dmg`/`count` factors) to `0.0` on most live enemy types,
+    which meant every enemy spawning from round 51 onward (round 51 = the
+    first round whose era, 5, falls past the 5-row authored table at
+    `rounds_per_era=10`) got `Movement(speed=0.0)` and froze on its spawn
+    tile forever — no exception, since `resolve_era_row`/`engine/era_math.py`
+    compute a perfectly well-typed zero. Fixed by restoring every factor to
+    `1.0` and adding `exclusiveMinimum: 0` to all three `*_endgame_scaling`
+    schema defs (`boss_endgame_scaling`/`pacing_endgame_scaling`/
+    `type_endgame_scaling` in `data/schemas/enemies.schema.json`) so `0.0`
+    can no longer be saved for a compounding factor. If a design ever truly
+    wants "stat hits zero past round 50," it must clamp the base stat to 0
+    directly in the last authored era row, not lean on this multiplier.
 - **D10 — `hunts` and `condition_path_weights` are PER-TYPE, NOT per-era**, and
   so are `kidnapping`, `death_spawn`, `registry_group`, `start_round`,
   `mix_ratio`, `queue_lead_count`. The
@@ -853,6 +869,13 @@ question.
     clock with no component of its own left to run. Put the timer on the
     source and a killed Drummer's buff would either hang forever or vanish
     instantly.
+  - **The same ledger carries DEBUFFS since BU-3 3.3** — see "Slows are
+    `BuffState` too" below (D19). A slow is one NEGATIVE `move_speed`
+    contribution keyed by a plain slot string instead of a `GameObject.id`,
+    carrying its own explicit `decay` instead of `BUFF_DECAY_SECONDS`.
+    Everything in this section applies to it unchanged, and nothing on the
+    aura path had to learn about it — which is exactly why D19 chose to widen
+    this ledger rather than build a parallel status-effect mechanism.
 - **`_grant_hp(delta)` is the ONE place `Health` is touched**, both
   directions, which is what makes grant and un-grant provably symmetric (D6):
   a positive delta raises `max_hp` AND `hp` by the same amount (a real heal,
@@ -904,6 +927,111 @@ question.
   one on your own initiative; the scope question is the user's to answer.
   Pinned by `test_enemies.TestDrummer.test_support_range_increase_is_inert_
   as_shipped`, which goes red the moment someone wires it up.
+
+## Slows are `BuffState` too (BossUpgradeTimelinePLAN BU-3 3.3, D19)
+The game's first DEBUFF rides the Drummer's own ledger rather than a parallel
+mechanism — read the Drummer section above first; everything it says about
+per-source keying, additive stacking and per-source decay applies unchanged.
+- **`apply_slow(owner, source, slow_fraction, duration)`** (`components.py`,
+  beside `buff_total`) is THE way anything slows an enemy. It writes a
+  NEGATIVE `move_speed` contribution through `BuffState.apply` — a slow IS a
+  buff with the sign flipped, which is why no new read site was needed:
+  `PathAgent._condition_speed` was already the one place `move_speed` is
+  resolved. `slow_fraction` is taken as a MAGNITUDE and negated inside, so no
+  caller can accidentally speed an enemy up through this door; `duration`
+  re-pins that source's decay clock on every application, the same "the Nth
+  second after the last frame anything re-pinned it" rule the aura uses.
+  Returns False (never raises) for an owner with no `BuffState`.
+- **`source` is a plain SLOT STRING here, not a `GameObject.id`** —
+  `"boss_upgrade:mortar_slow"` / `"boss_upgrade:stormpriest_slow"`, the two
+  module constants `game/enemies/combat.py` and `game/core/lightning.py` own.
+  **One key per UPGRADE, never per firing building**: N mortars shelling one
+  enemy must read as one slow, or a bombardment stacks into a full stop. The
+  upgrade's own repeat PICKS still stack additively (D4), inside the fraction
+  the caller computes.
+- **`buff_signs(owner, key)` is the READ side the HUD indicators gate on**, and
+  it is `buff_total`'s deliberate opposite: it returns `(has_positive,
+  has_negative)` by walking the individual `BuffState.sources` contributions,
+  **never by taking the sign of their sum**. A netted total can only ever carry
+  ONE sign, so an enemy inside a Drummer's aura AND under a mortar slow would
+  show only whichever effect won the subtraction (and nothing at all on an
+  exact cancel) — but that is a real, legible state and the gold buff arrow and
+  the red debuff arrow are meant to show TOGETHER for it (D20 follow-up,
+  `game/ui/CLAUDE.md`). `buff_total` stays THE read path for a buffed STAT's
+  value; `buff_signs` is only for "is something pushing this stat up / down".
+  Same `(False, False)`/no-`BuffState` guard, keyed on the STAT and never on
+  who applied it — anything that ever slows an enemy lights the indicator for
+  free.
+- **`MIN_SPEED_MULTIPLIER` (0.1) is the floor on that multiplier**, and it is
+  load-bearing for exactly the reason BP-1's own terrain floor is: a unit at
+  speed 0 never advances `Movement.index`, which is the only thing that
+  refreshes `_current_condition`, so it LATCHES at 0 forever. Additive
+  stacking can drive the sum past -1.0; the clamp in `_condition_speed` is
+  what makes that a very slow unit rather than a frozen one. Provably a no-op
+  for every positive bonus and for any negative sum above -0.9.
+- **The mortar's hook (#3 `mortar_slow`) lives in `combat.py`.**
+  `resolve_combat` grew the standard BU-3 optional trailing pair
+  (`run_state=None, boss_upgrades_balance=None` — see
+  `game/core/boss_upgrades.py`'s threading-pattern section) and threads it to
+  `_fire_splash` ONLY. `_mortar_slow_spec` resolves
+  `(source, fraction, duration)` at FIRE time — that is where the FIRING
+  building is in hand, and D16's snapshot check
+  (`id(defender) in RunState.mortar_slow_snapshot_ids`) is about the firing
+  building, not the shell — and stashes it on the shell's `ProjectileArc._slow`
+  (the `_on_damage`/`_assets` transient pattern, E-11). `_impact` applies it to
+  every enemy the splash damages, at the same site the damage lands. A shell
+  already in flight when the upgrade is picked carries `None`. This package
+  still imports `game.core` LAZILY, inside `_mortar_slow_spec`'s body.
+- **`game/core` does NOT import this** for its own slow (#7
+  `stormpriest_slow`): `apply_slow` reaches `game/core/lightning.py` through a
+  host-installed `set_slow_hook` seam, because `game/core` imports nothing
+  from `game/enemies` and that rule is not relaxed for a status effect. See
+  `game/core/CLAUDE.md`.
+
+## Two more boss-upgrade hooks live here (BU-3 3.4 + 3.5)
+The threading contract is stated ONCE, in `game/core/boss_upgrades.py`'s
+module docstring ("THE BU-3 HOOK THREADING PATTERN") — read it there. Both
+hooks below use its standard `hook_stacks` reader and its lazy
+`game.core.boss_upgrades` import; what is worth writing down here is the two
+places this package's shape forced a variation.
+- **#8 `thorns` (`components.py`) is the ONE BU-3 hook that CANNOT take the
+  pair as a parameter, so it takes it as a SEAM.** Its hook site is
+  `EnemyCombat.update()`, which `Scene.update`'s generic component sweep calls
+  with `dt` alone — the identical constraint that already forced
+  `set_damage_hook`/`set_wall_damage_hook` into this module, for the identical
+  reason (that sweep runs BEFORE `resolve_combat`, so `resolve_combat`'s own
+  parameters physically cannot reach it). Hence a module-level
+  `_boss_upgrade_pair` + **`set_boss_upgrade_pair(run_state,
+  boss_upgrades_balance)`**, installed once per run by `game/main.py`'s
+  `build_gameplay()` (spelled off the Session, like every other hook site) and
+  CLEARED by `teardown_gameplay()` so a dead run's ledger can never leak into
+  the next one. Unset by default ⇒ every headless test is byte-identical.
+  `_apply_thorns(attacker, dmg)` is called from BOTH damage branches (D13:
+  buildings AND edge walls), at the site each branch already spends the
+  victim's HP, off the SAME `dmg` — a wall carries no `Health`, so its reflect
+  is measured from the blow, not from the wall's remaining HP. Reflected
+  damage lands on the ATTACKER's own `Health`; `int()` truncation, no floor.
+- **#11 `condition_dmg_bonus` (`combat.py`) is resolved at IMPACT, not at
+  fire time** — the opposite of #3 `mortar_slow` above, and for a stated
+  reason: #3 asks about the FIRING building (D16's snapshot), while #11 asks
+  about the TARGET enemy's own tile (D15: any non-Grass condition), which
+  changes as the enemy walks and differs per enemy inside one splash. So the
+  pair rides UNRESOLVED on `ProjectileHoming`/`ProjectileArc` transients
+  (the `_slow`/`_on_damage` shape) and `_condition_bonus_dmg` runs at each
+  damage site. **"Exactly once per hit" is provable by the call graph, not by
+  a guard**: this module finalises damage at exactly three DISJOINT sites —
+  `ProjectileHoming._impact`, `ProjectileArc._impact` (once per enemy in the
+  radius) and `_update_beam` — and `_fire`/`_fire_splash` apply no damage at
+  all, they only load a projectile. There is no shared downstream applier for
+  the multiplier to run through twice. Each site multiplies once, immediately
+  before its single `Health.damage`, and reuses the returned value for the
+  `RoundStats` credit and the `on_damage` telemetry so all three report the
+  number actually dealt. `on_non_grass_condition(enemy)` (`components.py`,
+  beside `_condition_mods`) is the ONE definition of "is this enemy on
+  non-Grass", reading `PathAgent._current_condition` — the same value
+  `_condition_speed`/`_effective_dmg` already treat as the enemy's current
+  tile. Lightning is a separate damage source with its own hook (#7) and is
+  deliberately NOT covered.
 
 ## Prey hunting + per-type terrain weights (Chunk 3 + Chunk 4)
 Two independent per-type balancing knobs, both threaded through `PathAgent`
@@ -1766,6 +1894,58 @@ matters — nothing observed regressed the affected-tier gate, but a future
 phase adding more hunting types or higher counts should re-measure rather
 than assume. Nothing in this package invalidates the field directly — all
 mutations route through `TileMap`. Detail → `game/PERF.md`.
+
+## Sounds (SD-5) — `sounds.py` is the ONE audio seam
+
+Every enemy sound in the game goes through `game/enemies/sounds.py`
+(`play_enemy_sound(enemy, kind)` + the pure `slot_for(enemy, kind)`); nothing
+in this package touches pygame or names an audio file. `sounds.py` hands
+SD-2's `engine.audio` two slot dicts and lets it resolve/pick/play.
+
+**The four call sites — there are no others, and no type-name branch anywhere:**
+
+| Slot | Site |
+|---|---|
+| `death`  | `combat.py`, the death sweep, BEFORE `scene.despawn(enemy)` |
+| `attack` | `components.py`, `EnemyCombat.update` WALL branch, where the cooldown is re-armed |
+| `attack` | `components.py`, `EnemyCombat.update` BUILDING branch (melee AND the NE-1 ranged stand-off — the same swing), same spot |
+| `attack` | `components.py`, `BurrowAgent._strike` (the Digger eruption IS an attack) |
+| `spawn`  | `spawner.py`, after `scene.spawn(enemy)` in the wave pop |
+
+Consequences that are deliberate, not gaps:
+
+- **The boss needs no site of its own.** `EnemyTypes.Boss.sounds.{death,attack,
+  spawn}` are per-type OVERRIDES resolved at the four sites above. Same for
+  `SiegeCannon.sounds.attack`.
+- **A base arrival is silent.** `_resolve_base_arrivals` despawns it before the
+  death sweep can see it — the same reasoning as the no-double-award note there.
+- **The boss's second phase is silent.** It stays `alive` until
+  `phase_complete`, so the death sound fires once, at its real death.
+- **A kidnapper carrying a building home is silent** — `begin_kidnap` retags it
+  out of `by_tag("enemy")`.
+- **`_spawn_child` makes NO spawn sound** (death swarm / second phase). An
+  era-4 burst is 55 children in one frame; the plan authors no child-spawn row.
+  Do not "fix" this.
+- **No throttle lives here.** SD-2's per-key cooldown and max-concurrent cap
+  are the whole mechanism; a 40-enemy wipe calls `play_enemy_sound` 40 times on
+  purpose and lets the engine clamp.
+
+**The lookup key is `STAT_SUBTREE[0]`, never `ETYPE` and never
+`REGISTRY_GROUP`.** `EnemyTypes` is keyed by the stat subtree; the registry
+label differs (`Standard -> "Walker"`, `SiegeCannon -> "Siege Cannon"`, and
+Tutorial shares `"Walker"` with Standard while owning its own subtree) and
+`ETYPE` is lowercase and differs again. The two layers are
+`enemies.EnemySounds.<kind>` (global default) and
+`enemies.EnemyTypes.<Type>.sounds.<kind>` (override) — the case split is SD-1's
+and is deliberate. `clips: []` on the default = silence; `clips: []` on the
+override = inherit. That rule is `engine.audio.bank.resolve`'s; never re-derive
+it here.
+
+`sounds.sfx` is bound LAZILY (first play), because `engine/audio/sfx.py`
+imports pygame at its module top and `import game.enemies` is pygame-free —
+tests monkeypatch `game.enemies.sounds.sfx` with a recorder, which is the only
+seam this feature has. With SD-4's `sfx.init()` absent, no audio device, or
+`SDL_AUDIODRIVER=dummy`, every trigger degrades to a silent no-op.
 
 ## Verify
 Scripted round asserts HP ledger matches hand-computed prototype values:

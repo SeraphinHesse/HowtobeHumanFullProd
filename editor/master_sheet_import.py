@@ -36,7 +36,8 @@ from pathlib import Path
 from jsonschema import ValidationError
 from PIL import Image
 
-from editor.asset_import import load_manifest_doc, sheet_users
+from editor.asset_import import (
+    load_manifest_doc, sheet_users, write_manifest_doc)
 from engine import data_io
 from engine.assets import master_registry
 
@@ -71,9 +72,8 @@ class RegistryUnreadableError(ValueError):
 
 
 class GridInUseError(ValueError):
-    """Refusal: a re-import would change ``frame_w``/``frame_h``/``column_width``
-    on a master sheet that manifest entries already cut windows out of
-    (M4 §2.1, extended by MasterSheetColumnsPLAN D10).
+    """Refusal: a re-import would change ``frame_w``/``frame_h`` on a master
+    sheet that manifest entries already cut windows out of (M4 §2.1).
 
     IT SUBCLASSES ``ValueError`` ON PURPOSE, AND THAT IS LOAD-BEARING.
     ``panels/master_sheet_dialog._on_import_clicked`` already catches
@@ -89,12 +89,31 @@ class GridInUseError(ValueError):
     over. With ZERO users nothing can be mis-cut, so the rewrite is still
     allowed — that is the "correct a wrong frame_w" flow M3 documented.
 
-    ``column_width`` IS PART OF THE SAME GUARD (D10), on the other axis. A slot
-    claiming master column ``c`` cuts ``x = (c * column_width + frame_col) *
-    frame_w``, so changing ``column_width`` alone re-points every column window
-    at different pixels just as silently as a frame-size change re-points every
-    row window. The comparison tuple is therefore ``(frame_w, frame_h,
-    column_width)``, not the pair it was in M4.
+    ``column_width`` IS DELIBERATELY **NOT** PART OF THIS GUARD ANY MORE.
+    D10 folded it in on the theory that the column axis fails the same way the
+    row axis does: a slot claiming master column ``c`` cuts ``x = (c *
+    column_width + frame_col) * frame_w``, so a changed ``column_width``
+    re-points every column window. The pixels do move — but the two axes are
+    not the same problem, and treating them as one made the common case
+    impossible:
+
+    * ``row_start`` is a per-entry number the DESIGNER authored by eye while
+      linking. Nothing can re-derive it, so a changed frame size really is
+      unrecoverable silent corruption.
+    * ``column_width`` is a per-SHEET number the registry owns and every
+      linking entry merely COPIES (``panels/details._column_width_from_
+      registry``). Getting it wrong on import is the single most common
+      master-sheet mistake, it is invisible until a slot links and animates,
+      and the copies can be re-derived exactly — which is what
+      ``restamp_column_width`` below does. Refusing the fix left "clear every
+      linking slot, re-import, re-link every slot" as the only route.
+
+    The pixels moving is the POINT of the edit, not an accident of it, so the
+    comparison tuple is back to M4's ``(frame_w, frame_h)``. Column indices
+    survive a widen/narrow on their own: ``store._column_block`` clamps to the
+    sheet's real column count (D7), and a row whose authored frame count now
+    overruns the narrower window degrades to the placeholder with one warning
+    rather than borrowing a neighbour's art (``store._frame_surface``).
     """
 
 
@@ -152,6 +171,49 @@ def write_registry_doc(data_dir, doc):
     writer). Twin of ``asset_import.write_manifest_doc``; no other module in
     this feature may call ``write_validated`` on this file."""
     data_io.write_validated(doc, registry_path(data_dir), schema_path(data_dir))
+
+
+def restamp_column_width(data_dir, ref, column_width):
+    """Re-copy the registry's ``column_width`` onto every manifest entry that
+    links ``ref``. Returns the slot keys actually rewritten (empty ⇒ nothing to
+    do and NO manifest write happened).
+
+    WHY THIS EXISTS. The schema says a linking slot *inherits* the sheet's
+    ``column_width``, but inheritance is resolved ONCE, at link time:
+    ``panels/details._on_sheet_chosen`` reads it out of the registry and
+    ``_save`` writes it into the entry as a literal (``entry["column_width"]``),
+    because ``engine/assets/store`` slices from the manifest alone and never
+    opens the master registry. So editing the registry value by itself is a
+    silent NO-OP for exactly the sheets worth editing — the ones that already
+    have users. This is the other half of that edit.
+
+    It is a pure re-derivation, not a guess: the value written is the sheet's
+    new number, the same one a fresh link would have copied. Entries are only
+    touched if they ALREADY carry a ``column_width`` key — an entry linked
+    before columns shipped is column-free (``column_width`` 0 ⇒ "no column
+    concept", ``manifest.py:261``) and must stay that way, or this would
+    retroactively column-slice art that was never authored in columns.
+
+    ``row_start``, ``column`` and ``column_mode`` are untouched. The stored
+    column INDEX stays meaningful across the change (D5 stores an index, not a
+    pixel), and an index past the sheet's new column count is clamped at draw
+    time by ``store._column_block``'s D7 clamp rather than rewritten here —
+    widening then narrowing back must not lose a designer's column choice."""
+    column_width = int(column_width)
+    doc = load_manifest_doc(data_dir)
+    entries = doc.get("entries") or {}
+    changed = []
+    for slot_key in sheet_users(doc, ref):
+        entry = entries.get(slot_key)
+        if not isinstance(entry, dict) or "column_width" not in entry:
+            continue
+        if entry["column_width"] == column_width:
+            continue
+        entry["column_width"] = column_width
+        changed.append(slot_key)
+    if changed:
+        write_manifest_doc(data_dir, doc)
+    return tuple(changed)
 
 
 def frame_bounds(data_dir=None):
@@ -372,11 +434,16 @@ def import_master_sheet(data_dir, png_path, display_name, frame_w, frame_h,
     designer corrects a wrong ``display_name`` or ``frame_w`` without breeding
     a duplicate file. **While the sheet has ZERO users that still holds
     exactly** (nothing links to it, so nothing can be mis-cut); once manifest
-    entries DO link to it, a re-import that changes
-    ``frame_w``/``frame_h``/``column_width`` raises ``GridInUseError`` instead,
-    naming the slots to fix first (M4 §2.1, D10). The refusal happens BEFORE
-    the PNG copy and before the registry write, so a refused import leaves disk
-    byte-identical.
+    entries DO link to it, a re-import that changes ``frame_w``/``frame_h``
+    raises ``GridInUseError`` instead, naming the slots to fix first (M4 §2.1).
+    The refusal happens BEFORE the PNG copy and before the registry write, so a
+    refused import leaves disk byte-identical.
+
+    A CHANGED ``column_width`` IS **NOT** REFUSED, even with users. It is a
+    per-sheet number the linking entries only copy, so this call fixes it in
+    both places: the registry entry, then ``restamp_column_width`` over every
+    linking manifest entry. See ``GridInUseError`` for why the two axes are
+    treated differently.
 
     `sheet_id` IS THE "REPLACE **THIS** SHEET'S ART" PATH (MasterSheetColumnsPLAN
     E5), and it is the ONE thing that changes which entry gets written. Left
@@ -413,13 +480,14 @@ def import_master_sheet(data_dir, png_path, display_name, frame_w, frame_h,
     doc.setdefault("version", 1)
     doc.setdefault("entries", {})
     existing = doc["entries"].get(sheet_id)
-    # D10: the guard covers the COLUMN axis too, not just the frame grid — a
-    # re-import that changes only `column_width` re-points every column window.
-    stored_grid = ((existing.get("frame_w"), existing.get("frame_h"),
-                    existing.get("column_width"))
+    # The guard covers the FRAME GRID only. `column_width` is deliberately not
+    # in this tuple — see GridInUseError's docstring: it is a per-sheet number
+    # every linking entry merely copies, and `restamp_column_width` re-derives
+    # those copies exactly, so a changed column width is an editable mistake
+    # rather than unrecoverable corruption.
+    stored_grid = ((existing.get("frame_w"), existing.get("frame_h"))
                    if isinstance(existing, dict) else None)
-    if stored_grid is not None and stored_grid != (frame_w, frame_h,
-                                                   column_width):
+    if stored_grid is not None and stored_grid != (frame_w, frame_h):
         # ONE refcount in the editor (`asset_import.sheet_users`), never a
         # second. A non-int stored value compares unequal and lands here too,
         # which is the safe direction: refuse rather than silently re-cut.
@@ -439,11 +507,13 @@ def import_master_sheet(data_dir, png_path, display_name, frame_w, frame_h,
         if users:
             raise GridInUseError(
                 f"'{sheet_id}' is cut at {stored_grid[0]}×{stored_grid[1]} "
-                f"(column width {stored_grid[2]}) by {len(users)} slot(s): "
-                f"{', '.join(users)}. Re-importing it at {frame_w}×{frame_h} "
-                f"(column width {column_width}) would re-cut every row and "
-                f"column window into different pixels. Clear or re-point those "
-                f"slots first, then import again.")
+                f"by {len(users)} slot(s): {', '.join(users)}. Re-importing it "
+                f"at {frame_w}×{frame_h} would re-cut every row window into "
+                f"different pixels, and each slot's row_start is a number the "
+                f"designer authored by eye — nothing can re-derive it. Clear "
+                f"or re-point those slots first, then import again. (Column "
+                f"width is NOT locked: change it here or in the Slicing form "
+                f"and every linking slot is re-stamped.)")
 
     destination = data_dir.joinpath(*MASTER_SUBDIR) / f"{sheet_id}.png"
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -461,8 +531,26 @@ def import_master_sheet(data_dir, png_path, display_name, frame_w, frame_h,
     # than an empty array the schema's `minItems: 1` would reject anyway.
     if columns:
         entry["columns"] = list(columns)
+    stored_column_width = (existing.get("column_width")
+                           if isinstance(existing, dict) else None)
     doc["entries"][sheet_id] = entry
     write_registry_doc(data_dir, doc)
+    # A re-import that changes `column_width` is legal on a linked sheet (see
+    # GridInUseError), so it owes the linking entries the same re-stamp the
+    # Slicing form does — otherwise the registry and the manifest disagree and
+    # the manifest is the one `store` actually slices from. Registry first: a
+    # failed manifest write leaves the sheet re-registered but the slots on
+    # their old width, which is the recoverable direction (press Save again).
+    if stored_column_width is not None and stored_column_width != column_width:
+        # The entry's STORED ref, not the freshly minted one — that is what
+        # linking manifest entries literally hold, and the two part company
+        # exactly when a hand-edited registry points somewhere else (the same
+        # reason the in-use guard above counts against `existing["file"]`).
+        stored_ref = existing.get("file")
+        restamp_column_width(
+            data_dir,
+            stored_ref if isinstance(stored_ref, str) else entry["file"],
+            column_width)
     return sheet_id
 
 

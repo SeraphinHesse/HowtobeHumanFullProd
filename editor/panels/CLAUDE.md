@@ -180,6 +180,48 @@ import list.**
   whatever differs from the current baseline, nothing is written until the user
   clicks Save again); "Delete" removes an entry via
   `balancing_history.delete_session`. Undo (ED-24) deferred for balancing.
+- **Composite widgets (`x-widget`) — the sound slot (SoundEditorPLAN SD-3)**: a
+  schema node carrying `"x-widget": "<name>"` is claimed WHOLE by one composite
+  widget instead of being walked. `sound_slot` is the first and only user.
+  - The marker lives INSIDE `$defs/sound_slot`, not beside the `$ref`, because
+    `_build_object` calls `_deref(prop)` before reading any `x-` extension — a
+    sibling marker would be silently dropped.
+  - `_build_object` routes an `x-widget` prop straight to `_add_leaf_row`
+    (immediately after the `x-paired` skip, before the object/array branch): a
+    sound slot IS an object, so the recursion would otherwise turn it into a
+    CollapsibleSection of raw `clips`/`loop`/`pick` rows and never reach
+    `_make_widget`. Reusing `_add_leaf_row` is what gives the composite the
+    dirty dot, the `self._widgets` registration and the description tooltip for
+    free — no new bookkeeping.
+  - `_make_widget` stays THE one widget switch: the composite is its first
+    branch, so its terminal `raise` still means "unhandled schema".
+  - `_set_widget_value` carries an `isinstance(SoundSlotWidget)` arm calling
+    `set_slot(value)`. Without it, Version History's `_apply_snapshot` (which
+    iterates `self._widgets`) would silently skip every sound slot.
+  - `panels/sound_slot.py` is a **staging client, not a second writer** (the
+    `vfx_preview.py` seam): it holds a panel reference and goes through
+    `_commit`/`staged_value`. No second doc, no second dirty set.
+  - **Nothing enumerates slots.** No slot name, no domain key and neither the
+    `Sounds` nor the `sounds` spelling appears in `sound_slot.py` or
+    `sound_import.py` — a slot added to a schema later renders with zero editor
+    edits. Ranges/decimals/enums all come from the schema node (`start`/`end`
+    are deliberately 0-3600 s, so a local constant would be wrong).
+  - **Preview is QtMultimedia, imported lazily inside the handler**, never
+    `pygame.mixer`: `panels/viewport.py` sets `SDL_AUDIODRIVER=dummy` at module
+    level for the whole editor process, so mixer audio in the editor is silent
+    by construction. Import failure ⇒ the ▶ button is built DISABLED with a
+    tooltip (visible degradation, unlike `thats_my_producer`'s silent one); the
+    player and its `QAudioOutput` are kept alive on the widget or playback dies.
+  - **Clip refcounts are CROSS-DOMAIN and fail to "unknown", never to zero.**
+    `BalancingPanel.sound_usage_docs()` is the ONE loading site (this panel is
+    the only object holding both the live staged doc and its domain name): the
+    open domain's entry is the STAGED doc, so a just-attached unsaved clip
+    counts as referenced; every other domain comes from disk over the DERIVED
+    `domains(data_dir)` list and degrades to `None` on a read failure.
+    `unreferenced_clips` returns nothing at all while any domain is unknown —
+    reporting a clip free-to-delete because a file failed to load is the one
+    failure mode that costs a designer their audio.
+
 - **Paired weight/override checkbox (`x-toggle`/`x-paired`)**: a schema-driven
   rendering rule, not a hardcoded path — `map.schema.json`'s
   `Pathfinding.content_weights.*`/`TileConditions.path_weights.*` are the first
@@ -982,6 +1024,55 @@ import list.**
   JSON, so a manifest-resolution regression here had no test that could
   have caught it).
 
+### The details panel scrolls; the dirty label and Save do not
+
+`ScreenDetailsPanel`'s body (outliner → per-widget form → Layers box → the
+per-layer/per-state inspector → Background → Defaults) is roughly 2k lines of
+controls deep and used to be a bare `QVBoxLayout`, so on any normal right-pane
+height the bottom of it simply fell off the panel. The body now lives in a
+`QScrollArea` — `balancing.py`'s pattern verbatim (`setWidgetResizable(True)`,
+`NoFrame`), with everything that used to be added to the panel layout going
+into one inner `QWidget` handed to `setWidget`.
+
+- **The dirty label stays pinned at the top and Save at the bottom, OUTSIDE
+  the scroll area.** A Save you have to scroll to find is the original
+  complaint in a new place.
+- **Every value control in this panel is a `_NoWheel*` from
+  `editor.panels.balancing`** — and that is not a style rule here, it is what
+  makes the scroll area usable: they ignore `wheelEvent`, so a scroll over a
+  spinbox reaches the scroll area instead of silently nudging a rect. A plain
+  `QSpinBox`/`QComboBox` added to this panel is a bug.
+- `widget_list` carries a minimum height (`_OUTLINER_MIN_HEIGHT`): under
+  `setWidgetResizable(True)` a tree with no floor collapses to nothing.
+
+### Screen-mode ZOOM (`_zoom_combo`) + middle-drag pan
+
+A fourth floating combo in `viewport.py`, built/placed/shown exactly like
+`_state_combo`/`_anim_combo`/`_column_combo` and the **inverse** of the last
+two: it is visible ONLY in screen mode (they hide there). Entries are the
+literal `_SCREEN_ZOOM_LEVELS` — `Fit`, `100%`, `200%`, `300%`, `400%` — and
+screen-mode entry always re-parks it on `Fit` (`_refresh_zoom_combo`).
+
+- **The zoom feeds `_screen_scale_offset()` and NOTHING else.** That helper is
+  the one `(scale, ox, oy)` triple the blit, the hit-test and every drag read;
+  applying a zoom at the blit in `_render_screen_frame` instead is precisely
+  the disagreement the UR-3 snap was moved into that helper to prevent.
+  `Fit` is the old behaviour unchanged (`min(w/SCREEN_W, h/SCREEN_H)`, floored
+  to a whole multiple at or above 1.0); an explicit percentage is used verbatim
+  as the scale. Offsets stay floored and centred.
+- **`wheelEvent` still early-returns in screen mode** — the picker is the
+  chosen affordance, deliberately not the wheel.
+- **Middle-drag pans** (map mode's gesture, on a button screen editing never
+  uses). The pan is folded into the same `(ox, oy)`, so hit-testing follows for
+  free, and it is CLAMPED by `_screen_offset_bounds`: a canvas bigger than the
+  widget can never show a gap at an edge, a smaller one stays wholly inside —
+  either way it cannot be dragged off-screen. It resets to centred on every
+  zoom change and every screen-mode entry.
+- Unchanged: chrome (selection outline, handles, caption, the E-37 placeholder,
+  the canvas-edge frame in `_submit_screen_chrome`) is submitted in SCREEN
+  pixels AFTER the blit and stays UNSCALED; `NUDGE_STEP` is still 1 LOGICAL px;
+  the blit is still `pygame.transform.scale`, never `smoothscale`.
+
 ## Editable buy options + reachable text anchors (editable-ui-widgets)
 
 The complaint this answers: "the UI editor can't replace many pieces of info
@@ -1134,6 +1225,286 @@ default each frame with no cascade.
     of a hidden parent can still appear there. Closing it would mean teaching
     the recorder the hierarchy, i.e. giving the exporter a runtime notion of
     parenting, which is exactly what D2/D4 keep out.
+
+## Widget layers in the outliner (UiLayeredWidgetsPLAN UL-6)
+
+A LAYER is extra art/text drawn under or over one widget, stored as an entry in
+that widget's `layers` ARRAY in the open screen doc (schema + pure resolver
+landed in UL-3/UL-4/UL-5: `engine/ui_layers.py`'s `resolve`/`ordered`/
+`validate_offsets`). UL-6 is the authoring half — the outliner shows them and
+`ScreenDetailsPanel`'s Layers section adds/removes/reorders them.
+
+- **`layers` is an ARRAY, so a layer op cannot use a per-layer command path.**
+  `_DocFieldCommand`'s `_set_at` walks DICTS: a path ending in a layer id
+  (`widgets/<id>/layers/<layer_id>`) would silently write an OBJECT where the
+  schema demands an array, and the next `save()` would fail validation. Every
+  op therefore pushes ONE command at `("widgets", <id>, "layers")` carrying the
+  FULL old and FULL new array — the same "never a delta" contract as
+  `push_move`, and still exactly one undo step per op. An emptied array is
+  pushed as `None`, so the "None = absent" pruning removes the key (and
+  `widgets/<id>` when it was the only override) rather than leaving `[]`.
+- **The session owns all five entry points** (`editor/ui_screen_session.py`):
+  `layers(widget_id)` (a deep COPY — reading cannot mutate the doc),
+  `add_layer`, `remove_layer`, `set_layer_field(..., old, new, text=None)` and
+  `reorder_layer(..., new_z)`, which is `set_layer_field` on `z` alone. The
+  panel never touches the array itself, exactly as it never writes a rect.
+- **A layer id is the only handle** remove/reorder/inspect have, and
+  `ordered()` silently DROPS a duplicate non-empty id — so `add_layer` refuses
+  an empty or already-used id rather than creating a layer that draws but
+  cannot be edited. The panel generates `layer_1`, `layer_2`, … (first free
+  index — deterministic and readable, not a uuid), so that guard is a backstop.
+- **A layer node's `UserRole` is a `(widget_id, layer_id)` TUPLE**; widget nodes
+  keep the bare-id-string contract unchanged. `isinstance(role, tuple)` is what
+  tells them apart in `_on_widget_list_selected`, `startDrag` and
+  `_drop_parent`. `self._layer_items[(widget_id, layer_id)] -> item` is the
+  layer twin of `_tree_items`.
+- **Selecting a layer still selects its OWNER widget everywhere else** — the
+  form keeps showing the widget's controls and `widget_selected` still emits
+  the widget id (per-layer inspection is UL-8). Only the Layers buttons and the
+  read-only "Selected layer:" line change. Layers are NOT re-parentable: a drag
+  from a layer node is refused, and a drop ON one targets its owner widget.
+- **Listed in PAINT order** — `ordered(layers, "under")` then
+  `ordered(layers, "over")`, i.e. the game's own order, so the outliner cannot
+  claim a stacking the screen does not have. Up/Down set `z` to the
+  neighbour's z ∓ 1, never the neighbour's z itself: `ordered` sorts STABLY, so
+  an equal z would leave the pair in source order and the button would appear
+  to do nothing.
+
+## Layers in the viewport (UiLayeredWidgetsPLAN UL-7)
+
+UL-6 authors layers in the outliner; UL-7 is the direct-manipulation half —
+`panels/viewport.py` draws every layer where the game will draw it, hit-tests
+it and drags/resizes it, through `panels/_screen_primitives.
+layer_interaction_rect`.
+
+- **Selection has TWO LEVELS, not two selections.** `_selected_widget` is
+  ALWAYS the owner widget; `_selected_layer` is the layer id within it, or
+  `None`. So the caption, the P-3 subtree outline, the details form and the
+  existing `widget_selected` signal keep working untouched while the mouse is
+  actually holding a layer. The new `layer_selected(widget_id, layer_id|None)`
+  signal is emitted ALONGSIDE (never instead of) `widget_selected` — UL-8's
+  per-layer inspector is its intended consumer.
+- **Hit-test order: the selected widget's layers, then every other widget's
+  layers, then the widgets** (`_hit_layer`, falling through to `_hit_widget`).
+  Within a tier the SMALLEST candidate wins — `_hit_widget`'s own rule for its
+  own reason — and an area tie goes to the highest `z`, i.e. the one painted
+  last. Consequence, deliberate: a widget fully covered by its own `over` layer
+  is only selectable from the outliner.
+- **All geometry goes through `engine.ui_layers` (D3).** `resolve` is the only
+  place `owner + dx` happens, and `layer_interaction_rect` therefore takes the
+  RESOLVED rect rather than the raw offset + owner rect. It adds exactly one
+  thing: the zero-extent growth `interaction_rect` already gives a widget
+  anchor (a layer inherits its owner's w/h from a `0`, so it is zero-extent
+  precisely when its owner is an anchor).
+- **Release restores the pre-drag offset BEFORE pushing.** The drag
+  live-mutates `doc[...]["layers"][i]["offset"]` (the layer twin of a widget
+  drag writing `rect`), but UL-6's `set_layer_field` builds its command's OLD
+  value from the array AS IT IS AT PUSH TIME — so without the restore, undo
+  would "restore" the dragged value. A widget drag dodges the same trap by
+  handing `push_move` an explicitly captured `old_rect`.
+- **Handles are exclusive**: a layer selection owns them, and
+  `_hit_resize_handle` refuses the widget's while `_selected_layer` is set —
+  two handle sets on one corner would be a coin flip. A zero-extent layer gets
+  a single anchor-point marker and no handles, like an anchor widget.
+- **`screen_previews.json` is override-free by design**, so a layer can never
+  be in the replay: on the preview path both bands composite ON TOP of it
+  (`under` still before `over`, so their relative order is honest even though
+  neither can get behind a recorded widget). Only the no-preview path can put
+  `under` genuinely behind its widget. Never bake layers into that file.
+
+### UL-8 — the per-layer, per-state inspector
+
+Sits BELOW the Layers buttons, in the same box: a state selector plus one row
+per layer key, on B4's per-field immediate-undoable-push convention
+(`_field_row` + `_make_reset_button`), never `balancing.py`'s staged edits.
+
+- **The state selector decides the SCOPE of every row.** `Idle` writes the
+  layer entry itself (`layers[i][key]`); `Hover`/`Pressed`/`Disabled` write
+  `layers[i].states[<state>][key]` and leave every other state's patch alone.
+  Both go out through the ONE `session.set_layer_field` call — for a state the
+  key written is `states` and the value is the whole rebuilt object, so it is
+  still exactly one undo step per edit.
+- **An emptied state patch is REMOVED, not left as `{}`.** `{}` is PRESENT and
+  therefore means "this state looks like the base"
+  (`engine.ui_layers._state_patch` — presence drives the fallback, not
+  truthiness), which is not what a reset was asked for.
+- **`z` and `band` are not state-patch keys**, so those two rows always write
+  the base entry whatever the selector says.
+- **Ruling 1 — hover/pressed/disabled are greyed on a NON-Button holder**, with
+  `TOOLTIP_STATE_BUTTON_ONLY`, and the rows stay pinned to Idle:
+  `ScreenSkinning.state_of` resolves anything that is not a `Button` to `idle`
+  forever, so per-state values on a label/panel/backdrop holder are schema-valid
+  and permanently unreachable (ED-30).
+- **Ruling 2 does NOT apply to layers.** S2's "a Button's `color`/`tint`/`font`/
+  `label` per-state keys are inert" is about the WIDGET-level `states` patch
+  (`widgets.py Button.submit` wires only `text_color`/`offset`). A LAYER's state
+  patch goes through `engine.ui_layers.resolve`, which merges every appearance
+  key, so nothing is hidden here.
+- **What IS honest-controlled is PRECEDENCE, and it is the whole chain.**
+  `skinning._submit_one_layer` draws ONE primitive and returns: `slot` →
+  `HudSprite` (reads `tint`, nothing else), else `text_id`/`label` → `HudText`
+  (reads `font`/`align`/`text_color`), else `color` → `HudRect`. So, computed
+  from the SELECTED state's effective values in `_refresh_layer_inspector`:
+  Tint is live only with a slot; Text dies behind a slot (and stays editable
+  otherwise — typing in it is how the text branch is created); Text Color is
+  live only with no slot AND some text; Color is live only with no slot AND no
+  text. Each dead row carries its own reason (`TOOLTIP_LAYER_*`). Disabling
+  only the Color-behind-a-slot case was a HIGH review finding on this phase —
+  the other three rows silently accepted values the game never reads.
+- **`TOOLTIP_LAYER_BAND` (D4) is on BOTH band controls** — the add-picker and
+  the per-layer row: `under` is behind the whole SCREEN, not behind the owner
+  widget, and that has to be met in the editor rather than in a bug report.
+- The inspector's state selector is the PANEL's own combo. **UL-10 LINKED it
+  to `viewport.py`'s floating preview-state dropdown** (the cross-panel wiring
+  UL-8 deferred): both directions are connected in `editor/main.py` beside the
+  `widget_selected` cross-connect, and both are loop-guarded — the viewport's
+  `set_screen_state` early-returns on an unchanged name, and the panel's new
+  `sync_layer_state(name)` sets the combo with `blockSignals` before calling
+  `_refresh_layer_inspector()`. A name the panel's combo does not carry is
+  ignored rather than snapping the selector to Idle. `viewport.layer_selected`
+  (UL-7's signal, unconsumed until now) is connected to
+  `screen_details.select_layer` there too — one direction only, since the
+  panel has no matching signal to send back.
+
+### UL-10 — Clickable + Target rows
+
+Two more BASE-ONLY rows at the bottom of the layer inspector (the `Z`/`Band`
+pattern — neither is a state-patch key, and "clickable on hover only" is not
+something the resolver expresses), plus an inline warning label.
+
+- **Clickable** is a checkbox; `False` is the schema default, so only an
+  explicit `True` is stored (`visible`'s idle-scope convention).
+- **Target** is an EDITABLE `_NoWheelComboBox` pre-filled with the open
+  screen's widget ids (`_current_screen_defaults()["widgets"]`, the same
+  source `_refresh_parent_combo` reads) plus the three reserved tokens
+  `close_window`/`back`/`noop`. It is a convenience list, never a closed enum:
+  **D7 as amended lets an id-shaped target naming neither still SAVE.** Free
+  text commits on the line edit's `editingFinished` (the `label_edit` rule) or
+  on `activated`.
+- **`RESERVED_TARGETS` is restated in this module, not imported from
+  `game.ui.skinning`** — `editor/` may never import `game/` (D5). The game
+  module's docstring names this file as its twin.
+- **The warning is required, and it never gates the write.** Every value
+  change recomputes routability (a widget id in THIS screen, or a reserved
+  token) and sets `layer_target_warning` — amber, word-wrapped — saying the
+  click will be SWALLOWED, not passed through. That wording matters: the game
+  side's Ruling 1 makes a dead target stop the click, so "does nothing" is the
+  honest description, not "falls through".
+- Both write through `session.set_layer_field` (S3's path) via
+  `_push_layer_base_field`, so undo/dirty need no special case, and both join
+  `_layer_inspector_controls()`/`_layer_reset_buttons()` so they enable,
+  disable and reset with every other row.
+
+### UL-12 — the designer-facing half
+
+`docs/ui-layers-for-designers.md` is the walkthrough a DESIGNER reads: add a
+layer, give it a hover colour, the Under/Over gotcha, and what the amber target
+warning means. It is deliberately written without schema key names, file:line
+citations or decision IDs — it is the only layers document that assumes no
+knowledge of this repo. **If you change the layer inspector's controls,
+wording or gating, change that file too**; it describes the same UI in the same
+order (outliner → state selector → band → clickable/target), so a rename here
+silently makes it wrong. The agent-facing counterparts stay where they are:
+this file for the editor, `game/ui/CLAUDE.md` for the runtime, `data/CLAUDE.md`
+for the schema.
+
+### UL-13 — designer-authored CUSTOM widgets (the editor half)
+
+A CUSTOM widget is one the designer invented: it has no code owner and no
+`screen_defaults.json` entry, only a row in the open screen doc's optional
+`custom_widgets` table. `game/ui/skinning.py` draws them at the tail of the two
+`submit_layers` passes every screen already makes (see `game/ui/CLAUDE.md`);
+this section is the authoring half.
+
+- **The data split is the whole trick, and it is what makes this cheap.** A
+  `custom_widgets/<id>` entry is the widget's DEFAULT GEOMETRY AND NOTHING ELSE
+  — `kind` + `rect`, plus the authoring-only `band`/`z`/`display_name`. It is
+  the designer-authored twin of ONE `screen_defaults.json` widget entry.
+  Everything paintable (`skin`, `color`, `label`, `text_id`, `font`,
+  `text_color`, `tint`, `align`, `visible`, `parent`, `layers`, `states`) is an
+  ORDINARY override under `widgets/<the same id>`, exactly as for a code-owned
+  widget. There is no second styling vocabulary anywhere in the editor.
+- **ONE merge, two consumers.** `_screen_rules.merge_custom_widgets(
+  defaults_widgets, custom_widgets)` folds the table into the code-owned widget
+  map as synthetic default entries (`{kind, rect, label: ""}`, `display_name`
+  when set), and BOTH `ViewportPanel._current_screen_defaults()` and
+  `ScreenDetailsPanel._current_screen_defaults()` return that. That single fold
+  buys the existing outliner rows, the drag/hit-test (`push_move`/`push_resize`
+  keep writing `widgets/<id>/rect`), the per-field form with its ↺ reset
+  buttons, `widget_tree` parenting and the whole Layers section with **no
+  further change**. A CODE-OWNED id wins a collision (the session's add guard
+  refuses to create one, so only a hand-edited doc can get there — shadowing
+  the widget the game really draws is the worse lie). `_screen_rules.is_custom`
+  is the companion predicate the panel's gating asks; no call site re-derives
+  it.
+- **Four session entry points** (`editor/ui_screen_session.py`), on the layer
+  ops' contract — full old/new values, never a delta, EXACTLY ONE undo step per
+  op: `custom_widgets()` (a deep COPY — reading cannot mutate the doc),
+  `add_custom_widget(kind, widget_id=None, code_owned_ids=())`,
+  `remove_custom_widget(id)` and `set_custom_field(id, key, old, new)` for the
+  base-only `band`/`z`/`display_name` (the layer inspector's `Z`/`Band`
+  precedent: authoring metadata, never a state-patch key).
+  - Ids are `custom_panel_1` / `custom_text_1` / `custom_image_1`, FIRST FREE
+    INDEX (`_next_layer_id`'s rule — deterministic and readable, never a uuid),
+    numbered off the words the three BUTTONS say rather than the schema's
+    `kind` enum so the outliner matches what was clicked.
+  - **Creation writes a STARTER APPEARANCE OVERRIDE** (a `color` for
+    `panel`/`backdrop`, a `label` string for `label`) in the same command.
+    Without it a fresh custom panel draws the editor's flat placeholder box and
+    NOTHING in the game — a preview that lies.
+  - **Deletion is ONE undo step covering three things**: the `custom_widgets`
+    entry, the `widgets/<id>` overrides (its whole `layers` array with them),
+    and any OTHER widget's `parent` override naming it (its children are
+    re-rooted rather than left dangling). It uses `_DocFieldsCommand` — the
+    multi-field full-old/new command the parenting cascade already had — not a
+    `beginMacro` of three pushes: the contract that matters is "full old/new,
+    never a delta", and one command states it directly.
+  - The starting rect is centred on the logical canvas read from
+    `data/display.json`. That file is re-read here rather than imported from
+    `viewport.logical_resolution`, because `viewport.py` sets the SDL dummy
+    env vars and imports pygame at module scope and this session is Qt-only
+    (`TestPurity`). An unreadable file degrades to 640x360 — it is a starting
+    rect the designer immediately drags, not data.
+- **The panel controls sit under the outliner** (`_build_custom_widget_controls`,
+  built like `_build_layer_controls` next door): `+ Panel` / `+ Text` /
+  `+ Image` / `Remove`, then a Band combo and a Z spin. Gating: Add follows the
+  open SCREEN, **Remove/Band/Z follow the selection being CUSTOM** — a
+  code-owned widget belongs to the exporter and can never be deleted or
+  re-banded from here. Remove's `clicked` is lambda-wrapped (the `clicked(False)`
+  footgun), every value control is a `_NoWheel*` imported from
+  `editor.panels.balancing` (the panel is inside a `QScrollArea`), and all of it
+  goes into `self._scroll_body`, never the outer layout (which holds only the
+  dirty label and Save).
+- **Outliner rows carry a `(custom)` suffix** so a designer sees what they own.
+  **`UserRole` stays the BARE id string** for widget nodes — the layer nodes'
+  `(widget_id, layer_id)` tuple contract and `isinstance(role, tuple)` are
+  untouched.
+- **`TOOLTIP_CUSTOM_BAND` is `TOOLTIP_LAYER_BAND`**, deliberately the same
+  words: `under` means behind EVERYTHING on the screen, not behind the widget,
+  and that has to be met in the editor for exactly the reason UL-8 met it there.
+- **Ruling: a custom widget appears in EVERY view of `building_panel`.** Ids
+  are global to the screen (D2) and the runtime has no view concept, so
+  `CUSTOM_EVERY_VIEW_NOTE` states it inline beside the Add buttons on any screen
+  that has views. `_code_owned_ids()` accordingly unions the ids of ALL views,
+  not just the active one, before the add guard runs.
+- **Honest controls get a custom branch, not a special case inside the existing
+  rules.** `color_is_code_owned`/`label_is_code_owned` answer by citing what
+  game code does at a specific holder's draw site; a custom widget has no such
+  site, only `skinning._submit_custom_widget`'s fixed precedence. So
+  `_screen_rules` gained three small twins — `custom_color_is_code_owned`
+  (only `label`, which draws no box), `custom_label_is_code_owned` (only
+  `backdrop`, which draws no text) and `custom_tint_applies`
+  (`panel`/`backdrop`, the two kinds that emit a `HudSprite`). Without them a
+  custom panel's Color picker would be disabled as "hardcoded in game code",
+  which is exactly backwards — its `color` is the only thing the game has to
+  draw it with.
+- **Viewport draw order respects `band`/`z`, and custom widgets composite ON
+  TOP of the `screen_previews.json` replay.** `_submit_screen_layer_band` draws
+  its band's customs (box, then that widget's own layers) at the TAIL of the
+  band, mirroring `skinning.submit_layers`; the plain widget loops SKIP custom
+  ids so nothing is drawn twice. That file is override-free by design, so a
+  custom widget can never be in the recording — **never bake one into it**, the
+  same rule and the same reason as layers.
 
 ## Phase UT-2/UT-6 — the real screen preview + the Text-template row
 
@@ -1750,6 +2121,67 @@ calls):
   ships today is the exact "never assert against live `data/` content" trap
   the Testing section above describes (two of them had already gone red that
   way).
+
+## Boss Upgrade Timeline panel (`panels/boss_upgrades.py`, `boss_upgrades_ops.py`; BossUpgradeTimelinePLAN BU-5)
+The Timeline panel's sibling one document over (`data/balancing/
+boss_upgrades.json`): a browse list of the 12 boss-upgrade cards on the left,
+a 4×3 milestone grid on the right, staged edits through the pure
+`editor/boss_upgrades_ops.py`, ONE "Save Boss Upgrades" button as the sole
+`write_validated` call site. The Timeline bullets above describe the DROP side
+verbatim (a custom MIME type — here `application/x-htbh-boss-upgrade` carrying
+the bare upgrade id — `_SlotWidget.dropEvent` accepting only that type, and a
+drop onto an occupied slot replacing it with no confirmation, D10); the drag
+SOURCE differs, and so do five other things:
+- **Selection is a TOP-LEVEL "Bosses" branch (D11)**, not a leaf under a
+  category — `boss_upgrades` is deliberately not a `slots.json` category (the
+  `progression` precedent), and a boss upgrade is not a building. So its
+  single leaf emits `boss_upgrades_selected()` **alone**: never
+  `node_selected` (the single-document-leaf rule) and, unlike Timeline's
+  `domain_selected("buildings")`, never `domain_selected` either — there is
+  no `bosses` domain to gate one on (the Master Sheets argument). Its payload
+  `category_key` is the placeholder `"bosses"`, which matches no registry
+  category, so `domains()`/`refresh_markers()` skip it with no special case.
+  It is added outside the category loop, immediately BEFORE the Master Sheets
+  item, which stays the LAST top-level item. `right_stack` index 9.
+- **The CATALOG is inline-editable — this panel's one new capability.** A
+  building card's title comes from `buildings.json`; a boss upgrade's `name`/
+  `description`/`params` are this document's own designer content, so each
+  browse card carries a `QLineEdit` per text field (commit on
+  `editingFinished`) and one spin per param (commit on `valueChanged`) — the
+  `balancing.py` signal convention, and its `_NoWheel*` widgets, imported not
+  copied. **Which spin, and its range, come from the SCHEMA** via
+  `boss_upgrades_ops.catalog_param_specs` (ED-30): an `integer` param gets a
+  `_NoWheelSpinBox`, a `number` one a `_NoWheelDoubleSpinBox`, and
+  `set_catalog_field` additionally coerces to the type already in the doc, so
+  an int param can never be staged as a float that fails the schema at Save.
+  A card edit deliberately does NOT rebuild the card (that would destroy the
+  widget being typed into — `set_level_round`'s rule); only the milestone
+  slots, which display the name, refresh.
+- **The drag source is a dedicated `_DragHandle` widget, not the card** — a
+  fixed-width `⠿⠿⠿` grip to the LEFT of every browse card, whose OWN
+  `mousePressEvent`/`mouseMoveEvent` start the `QDrag`. The Timeline panel
+  starts its drag from `_BrowseCard`'s own `mousePressEvent` and gets away
+  with it only because an icon plus a read-only caption cover a small
+  fraction of that card; here inline-editable `QLineEdit`s and spins cover
+  nearly all of it. **A child widget does NOT forward an unhandled mouse
+  press to its parent** — Qt auto-propagates only a handful of event types
+  that way (wheel, context-menu), and mouse press/move are not among them.
+  This panel originally shipped a "drag the header `QLabel`" design built on
+  that false assumption, with a doc comment asserting the propagation; it
+  silently never worked, and the fix was a widget that IS the drag source
+  rather than one relying on bubbling. Do not "simplify" it back.
+- **A placed card stays draggable.** Timeline DISABLES an already-placed
+  browse card because a duplicate there is a Save-time `ValueError`. Here the
+  roster is a fixed 12 and moving an upgrade between milestones is the normal
+  gesture, so a placed card is MARKED ("in milestone 2 · slot 1") instead, and
+  a real double-placement surfaces in the warning label under the toolbar.
+- **`validate_uniqueness` WARNS, it never blocks** — it returns the list of
+  double-placed ids and `save_boss_upgrades` deliberately ignores it (D3, the
+  `round_warnings` stance, the opposite of `timeline_ops.validate_uniqueness`).
+  Blocking Save would trap a designer halfway through moving a card between
+  two milestones, which is exactly the state silent overwrite exists to allow.
+- **Text-only, no icons (D9)**: no `set_icon_provider`, no `slot_qimage`, no
+  art path anywhere in this panel — do not add one.
 
 ## Master-sheet dialog (`panels/master_sheet_dialog.py`, `master_sheet_import.py`; GpuAndMasterSheetsPLAN M3)
 - **What a master sheet is**: ONE committed PNG under `data/sprites/master/`

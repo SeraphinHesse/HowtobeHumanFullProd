@@ -51,10 +51,10 @@ from editor import (
     vfx_params,
     widget_tree,
 )
-from editor.panels import _screen_primitives
+from editor.panels import _screen_primitives, _screen_rules
 from editor.panels.balancing import _NoWheelComboBox
 from editor.sprite_fit import slot_draw_fit
-from engine import data_io, tilemap
+from engine import data_io, tilemap, ui_layers
 from engine.assets import (
     entry_from_dict,
     load_manifest,
@@ -163,7 +163,16 @@ SUBTREE_COLOR = (150, 130, 50)
 LETTERBOX_EDGE_COLOR = (90, 95, 105)   # UR-3: muted frame on the canvas edge
 HANDLE_COLOR = (255, 255, 255)
 HANDLE_PX = 8          # resize-handle hit box, half-width in SCREEN pixels
+# UL-7: the fallback colour a layer's text draws in when it sets none —
+# game/ui/widgets.py's C_UI_TEXT, copied (editor/ may not import game/), the
+# same accepted drift `_screen_primitives` documents for the flat-rect look.
+LAYER_TEXT_COLOR = (235, 225, 195)
 NUDGE_STEP = 1         # arrow-key nudge, in ONE LOGICAL pixel of the canvas
+# Screen-mode zoom picker entries: (label, scale | None). None = "Fit", the
+# scale-to-fit behaviour that was the only option before the picker existed.
+_SCREEN_ZOOM_LEVELS = (
+    ("Fit", None), ("100%", 1.0), ("200%", 2.0), ("300%", 3.0), ("400%", 4.0),
+)
 _CORNERS = ("tl", "tr", "bl", "br")
 
 
@@ -187,6 +196,11 @@ class ViewportPanel(QWidget):
     stage_number_picked = Signal(int)     # picker on a stage-zone mark → spinbox
     condition_picked = Signal(str)        # picker on a condition mark → brush
     widget_selected = Signal(object)      # B4: screen-mode selection (str|None)
+    # UL-7: which LAYER of that widget is selected — (widget_id, layer_id) with
+    # layer_id None when a bare widget was picked. Emitted alongside (never
+    # instead of) widget_selected, so every existing listener keeps working
+    # unchanged; UL-8's per-layer inspector is the intended consumer.
+    layer_selected = Signal(object, object)
     anchor_selected = Signal(object)          # ESV-2: name|None -> AnchorsPanel
     anchor_dragged = Signal(str, int, int)    # ESV-2: live drag -> spinboxes
     anchor_drag_finished = Signal(str, int, int)  # ESV-2: ONE write per gesture
@@ -320,6 +334,12 @@ class ViewportPanel(QWidget):
         self._screen_preview_items = {}
         self._preview_recorded_doc = {}
         self._selected_widget = None
+        # UL-7: the selected LAYER's id within `_selected_widget` (its owner),
+        # or None when a bare widget is selected. `_selected_widget` is ALWAYS
+        # the owner, so every widget-scoped code path below (caption, subtree
+        # outline, the widget_selected signal) keeps working while a layer is
+        # what the mouse actually grabs.
+        self._selected_layer = None
         self._selected_field_mode = None   # None | "move" | "resize"
         self._resize_corner = None         # "tl"|"tr"|"bl"|"br" while resizing
         self._drag_start = None            # SCREEN-pixel QPointF at press
@@ -330,6 +350,12 @@ class ViewportPanel(QWidget):
         # Empty for a resize (resizing does NOT cascade) and for a childless
         # widget.
         self._drag_subtree = []
+        # UL-7: the dragged layer's `offset` AS STORED IN THE DOC at press —
+        # a list, or None when the entry had no `offset` key at all. Release
+        # restores it before pushing, so the undo command's "old" array is the
+        # pre-drag one and not the live-mutated one.
+        self._drag_layer_offset = None
+        self._drag_layer_rect = None       # resolved LOGICAL rect at press
         self._screen_state = "idle"        # state-dropdown value (button rows)
         self._screen_anim_ms = 0.0
         self._screen_anim_last_t = None
@@ -342,6 +368,26 @@ class ViewportPanel(QWidget):
         self._state_combo.move(8, 8)
         self._state_combo.hide()
         self._state_combo.currentTextChanged.connect(self.set_screen_state)
+        # Screen-mode ZOOM picker — the fourth floating combo, twinned with
+        # the state/animation/column ones and the INVERSE of the last two
+        # (they hide in screen mode; this one is the only one that shows).
+        # A picker rather than wheel zoom: `wheelEvent` stays a deliberate
+        # early-return in screen mode.
+        self._zoom_combo = _NoWheelComboBox(self)
+        self._zoom_combo.move(8, 40)   # stacked clear of the state combo
+        self._zoom_combo.hide()
+        for label, value in _SCREEN_ZOOM_LEVELS:
+            self._zoom_combo.addItem(label, value)
+        self._zoom_combo.currentIndexChanged.connect(
+            self._on_screen_zoom_changed)
+        # None = Fit (scale-to-fit, the pre-zoom behaviour); a float = that
+        # explicit multiple, used verbatim as the scale.
+        self._screen_zoom = None
+        # Middle-drag pan, in SCREEN pixels, folded into
+        # `_screen_scale_offset`'s (ox, oy) — so hit-testing follows for
+        # free. Reset to centred on every zoom change / screen-mode entry.
+        self._screen_pan = [0.0, 0.0]
+        self._screen_pan_drag = None    # QPointF while middle-dragging
 
         self._surface = None
         self._qimage = None
@@ -631,6 +677,7 @@ class ViewportPanel(QWidget):
         self._screen_defaults = defaults if defaults is not None else {}
         self.refresh_screen_previews(previews)
         self._selected_widget = None
+        self._selected_layer = None
         self._selected_field_mode = None
         self._resize_corner = None
         self._drag_start = None
@@ -644,8 +691,11 @@ class ViewportPanel(QWidget):
             self._column_combo.hide()
             self._refresh_state_combo()
             self._state_combo.show()
+            self._refresh_zoom_combo()
+            self._zoom_combo.show()
         else:
             self._state_combo.hide()
+            self._zoom_combo.hide()
         self._resize_surface()
 
     def in_screen_mode(self):
@@ -723,6 +773,9 @@ class ViewportPanel(QWidget):
         own selection, without re-emitting widget_selected (screen_details
         already knows)."""
         self._selected_widget = widget_id
+        # UL-7: picking a WIDGET anywhere drops the layer selection — the two
+        # are one selection with two levels, never two independent ones.
+        self._selected_layer = None
         self._selected_field_mode = None
         self._drag_start = None
 
@@ -755,6 +808,18 @@ class ViewportPanel(QWidget):
         combo.setCurrentText(self._screen_state)
         combo.blockSignals(False)
 
+    def _refresh_zoom_combo(self):
+        """`_refresh_state_combo`'s twin for the zoom picker: every entry is a
+        fixed literal (`_SCREEN_ZOOM_LEVELS`, filled once at construction), so
+        this only re-parks the selection on `Fit` and re-centres the pan —
+        entering a screen always starts whole-canvas-visible."""
+        combo = self._zoom_combo
+        combo.blockSignals(True)
+        combo.setCurrentIndex(0)
+        combo.blockSignals(False)
+        self._screen_zoom = None
+        self._reset_screen_pan()
+
     def _current_screen_defaults(self):
         """The open screen's own {widgets, mock_note} sub-dict, or None when
         absent (no defaults file, or this screen isn't in it yet) — the ONE
@@ -775,13 +840,56 @@ class ViewportPanel(QWidget):
         views = entry.get("views")
         view = self._screen_session.view
         if views and view in views:
-            return views[view]
-        return entry
+            entry = views[view]
+        return self._with_custom_widgets(entry)
+
+    def _custom_widgets(self):
+        """The open doc's `custom_widgets` table (UL-13) — the LIVE dict, read
+        every frame, so never mutated here."""
+        if self._screen_session is None or self._screen_session.doc is None:
+            return {}
+        table = self._screen_session.doc.get("custom_widgets")
+        return table if isinstance(table, dict) else {}
+
+    def _with_custom_widgets(self, entry):
+        """`entry` with the open doc's designer-authored custom widgets folded
+        into its `widgets` map as synthetic default entries (B1 —
+        `_screen_rules.merge_custom_widgets`, the ONE merge the details panel
+        reads too). That single fold IS the whole viewport half of UL-13's
+        authoring: the outliner, the hit-test, the drag/resize commands
+        (`push_move`/`push_resize` still write `widgets/<id>/rect`) and the
+        selection chrome need no further change. Returns `entry` untouched
+        when the screen authors none."""
+        customs = self._custom_widgets()
+        if not customs:
+            return entry
+        widgets = _screen_rules.merge_custom_widgets(
+            entry.get("widgets", {}), customs)
+        merged = dict(entry)
+        merged["widgets"] = widgets
+        return merged
+
+    @staticmethod
+    def _screen_offset_bounds(extent, avail):
+        """The legal range for one axis of the canvas offset: the canvas may
+        never be dragged fully off-screen. Bigger than the widget → the offset
+        lives in [avail - extent, 0] (no gap at either edge); smaller → in
+        [0, avail - extent] (it stays wholly inside). One expression covers
+        both."""
+        return (min(0.0, avail - extent), max(0.0, avail - extent))
 
     def _screen_scale_offset(self):
-        """Uniform scale + letterbox offset fitting the SCREEN_W x SCREEN_H
-        logical canvas inside the current widget size (screen mode never
-        zooms).
+        """Uniform scale + letterbox offset placing the SCREEN_W x SCREEN_H
+        logical canvas inside the current widget size.
+
+        This is the ONE triple the blit, the hit-test and every drag read, so
+        the ZOOM PICKER (`_zoom_combo`) and the middle-drag PAN are applied
+        HERE and nowhere else — a zoom applied at the blit in
+        `_render_screen_frame` would make the drawn image and the hit-test
+        disagree, which is the exact bug the UR-3 snap was moved in here to
+        avoid. `Fit` is the pre-picker behaviour, unchanged; an explicit
+        percentage is used verbatim as the scale. The pan rides on the
+        centred offsets and is clamped by `_screen_offset_bounds`.
 
         UR-3: a fitted scale of 1.0 or more is snapped DOWN to a whole number
         (1x, 2x, 3x). The preview is pixel art blitted through one
@@ -794,13 +902,46 @@ class ViewportPanel(QWidget):
         lives HERE and not at the blit: hit-testing, dragging and the blit all
         read this one triple, so they cannot disagree."""
         w, h = max(1, self.width()), max(1, self.height())
-        scale = min(w / SCREEN_W, h / SCREEN_H)
-        if scale >= 1.0:
-            scale = float(math.floor(scale))
+        if self._screen_zoom is None:
+            scale = min(w / SCREEN_W, h / SCREEN_H)
+            if scale >= 1.0:
+                scale = float(math.floor(scale))
+        else:
+            scale = float(self._screen_zoom)
         scaled_w, scaled_h = SCREEN_W * scale, SCREEN_H * scale
+        ox = math.floor((w - scaled_w) / 2) + self._screen_pan[0]
+        oy = math.floor((h - scaled_h) / 2) + self._screen_pan[1]
+        lo_x, hi_x = self._screen_offset_bounds(scaled_w, w)
+        lo_y, hi_y = self._screen_offset_bounds(scaled_h, h)
         return (scale,
-                float(math.floor((w - scaled_w) / 2)),
-                float(math.floor((h - scaled_h) / 2)))
+                float(math.floor(min(max(ox, lo_x), hi_x))),
+                float(math.floor(min(max(oy, lo_y), hi_y))))
+
+    def _reset_screen_pan(self):
+        """Back to centred — on every zoom change and every screen-mode
+        entry, so a zoom never lands you looking at empty letterbox."""
+        self._screen_pan = [0.0, 0.0]
+        self._screen_pan_drag = None
+
+    def _on_screen_zoom_changed(self, index):
+        self._screen_zoom = self._zoom_combo.itemData(index)
+        self._reset_screen_pan()
+
+    def _pan_screen(self, dx, dy):
+        """Middle-drag delta, in SCREEN pixels. Clamped immediately (against
+        the CURRENT scale) so the stored pan can never run away past the
+        edge and then have to be dragged all the way back."""
+        w, h = max(1, self.width()), max(1, self.height())
+        scale, _ox, _oy = self._screen_scale_offset()
+        scaled_w, scaled_h = SCREEN_W * scale, SCREEN_H * scale
+        base_x = math.floor((w - scaled_w) / 2)
+        base_y = math.floor((h - scaled_h) / 2)
+        lo_x, hi_x = self._screen_offset_bounds(scaled_w, w)
+        lo_y, hi_y = self._screen_offset_bounds(scaled_h, h)
+        self._screen_pan = [
+            min(max(base_x + self._screen_pan[0] + dx, lo_x), hi_x) - base_x,
+            min(max(base_y + self._screen_pan[1] + dy, lo_y), hi_y) - base_y,
+        ]
 
     def _to_screen_rect(self, rect, scale, ox, oy):
         x, y, w, h = rect
@@ -836,13 +977,20 @@ class ViewportPanel(QWidget):
         effective rect, with any zero-extent axis grown to the measured size
         of its text (`_screen_primitives.interaction_rect`). Distinct from
         `_effective_rect`, which is what gets WRITTEN — a drag/nudge on an
-        anchor still stores w/h 0."""
+        anchor still stores w/h 0.
+
+        Alignment goes through `resolve_align` (UL-1) so a designer's own
+        `align` override wins over the exporter-recorded default, exactly as
+        `_widget_font_key`/`_widget_text` already prefer the doc: measuring a
+        re-aligned anchor against the OLD default puts the box beside the
+        glyphs."""
         spec = defaults.get("widgets", {}).get(widget_id) or {}
+        override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
         return _screen_primitives.interaction_rect(
             self._effective_rect(widget_id, defaults),
             text=self._widget_text(widget_id, spec),
             font_key=self._widget_font_key(widget_id, spec),
-            align=spec.get("align", "left"))
+            align=_screen_primitives.resolve_align(spec, override))
 
     def _widget_font_key(self, widget_id, spec):
         """The font the widget's text is drawn at: the doc's own `font`
@@ -860,6 +1008,90 @@ class ViewportPanel(QWidget):
         onto a text anchor would change what the game draws)."""
         return _screen_primitives.is_anchor_rect(
             self._effective_rect(widget_id, defaults))
+
+    # -- layers (UL-7) -------------------------------------------------------
+    # A layer is EXTRA art/text drawn under or over ONE widget, stored as an
+    # entry of that widget's `layers` array in the OPEN DOC only (D1 — never in
+    # screen_defaults.json). Its geometry is an OFFSET from the owner's rect,
+    # and D3 pins that math to `engine.ui_layers`: everything below resolves
+    # through `ui_layers.resolve`/`ordered` and never adds `owner + dx` itself.
+    # `data/ui/screen_previews.json` is override-free by design, so a layer can
+    # never appear in the replay — the viewport composites layers ON TOP of it.
+
+    def _widget_layers(self, widget_id):
+        """The widget's raw `layers` array from the open doc (the LIVE list —
+        drag mutates it in place, exactly as a widget drag mutates `rect`).
+        `[]` when the widget has no layers or no override at all."""
+        if self._screen_session is None or self._screen_session.doc is None:
+            return []
+        entry = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
+        value = entry.get("layers", [])
+        return value if isinstance(value, list) else []
+
+    def _layer_entry(self, widget_id, layer_id):
+        """The live layer dict for `layer_id`, or None. FIRST match wins on a
+        duplicate id — the same rule `ui_layers.ordered` dedupes by and
+        `UIScreenSession._layer_index` writes by, so read and write can never
+        address different entries."""
+        if not layer_id:
+            return None
+        for entry in self._widget_layers(widget_id):
+            if isinstance(entry, dict) and entry.get("id") == layer_id:
+                return entry
+        return None
+
+    def _resolved_layer(self, entry, owner_rect):
+        """`ui_layers.resolve` at the viewport's CURRENT state (the same
+        idle/hover/pressed/disabled combo that animates skinned widgets), so
+        switching state re-lays-out layers exactly as the game would."""
+        return ui_layers.resolve(entry, owner_rect, self._screen_state)
+
+    def _layer_text(self, resolved):
+        """The text a resolved layer DRAWS, best-effort — `text_id` through the
+        session's live `strings.json` table (so a designer's own string edit
+        immediately resizes the box), else the literal `label`. Mirrors
+        `_widget_text`'s preference chain, one level down."""
+        text_id = resolved.get("text_id")
+        if text_id:
+            table = getattr(self._screen_session, "strings_doc", None) or {}
+            if table.get(text_id):
+                return table[text_id]
+        return resolved.get("label") or ""
+
+    def _layer_interaction_rect(self, resolved):
+        """A resolved layer's editor-side hit/outline box in LOGICAL pixels.
+
+        Only ever grows a zero-extent axis (`_screen_primitives.
+        layer_interaction_rect`), which for a layer means "my owner is a
+        position-only anchor, so my inherited w/h is 0" — without it such a
+        layer is an invisible, unclickable dot."""
+        return _screen_primitives.layer_interaction_rect(
+            resolved["rect"], text=self._layer_text(resolved),
+            font_key=resolved.get("font") or "md",
+            align=resolved.get("align") or "left")
+
+    def _layer_boxes(self, widget_id, defaults):
+        """`[(layer_id, resolved, interaction rect)]` for every DRAWABLE layer
+        of one widget, in paint order (`under` by z, then `over` by z — the
+        outliner's order too). Skips a layer resolved `visible=False` and a
+        layer with no id: an id-less entry still DRAWS, but nothing can
+        address it, so it must not become the selection."""
+        layers = self._widget_layers(widget_id)
+        if not layers:
+            return []
+        owner_rect = self._effective_rect(widget_id, defaults)
+        out = []
+        for band in ("under", "over"):
+            for entry in ui_layers.ordered(layers, band):
+                layer_id = entry.get("id") or ""
+                if not layer_id:
+                    continue
+                resolved = self._resolved_layer(entry, owner_rect)
+                if resolved.get("visible") is False:
+                    continue
+                out.append((layer_id, resolved,
+                            self._layer_interaction_rect(resolved)))
+        return out
 
     # -- widget parenting (P-3/P-5) -----------------------------------------
     # The hierarchy is DATA (`screen_defaults.json`'s `parent`, plus the open
@@ -952,11 +1184,88 @@ class ViewportPanel(QWidget):
                 best, best_area = widget_id, area
         return best
 
+    def _hit_layer(self, pos, defaults):
+        """The LAYER under `pos` (SCREEN pixels) as `(widget_id, layer_id)`, or
+        None. Tests the same interaction rect it outlines, at the current
+        state, and skips anything a `visible=False` (own or inherited, or
+        post-state-resolution on the layer itself) hides.
+
+        The rule, in priority order:
+          1. **The selected widget's own layers first.** Once a widget is
+             selected, its layers are what the designer is working on, so they
+             win over a stranger's layer lying on top of them.
+          2. **Then every other widget's layers.**
+          3. Only then the widgets themselves (`_screen_press` falls through to
+             `_hit_widget`) — a layer is painted over/under a widget the
+             designer explicitly attached it to, so a click on the layer means
+             the layer. A widget fully covered by its own `over` layer is still
+             reachable from the outliner, which is why this stays simple.
+        Within a tier, the SMALLEST candidate wins — `_hit_widget`'s own rule,
+        for its own reason (clicking a badge on a backdrop selects the badge).
+        Ties in area go to the HIGHEST `z`, i.e. the one painted last and so
+        visually on top."""
+        scale, ox, oy = self._screen_scale_offset()
+        doc = self._screen_session.doc
+        hidden = self._hidden_subtrees(defaults)   # P-5: inherited visibility
+        best, best_key = None, None
+        for widget_id in defaults.get("widgets", {}):
+            if doc.get("widgets", {}).get(widget_id, {}).get("visible") is False:
+                continue
+            if widget_id in hidden:
+                continue
+            tier = 0 if widget_id == self._selected_widget else 1
+            for layer_id, resolved, rect in self._layer_boxes(widget_id,
+                                                              defaults):
+                sx, sy, sw, sh = self._to_screen_rect(rect, scale, ox, oy)
+                if not (sx <= pos.x() <= sx + sw and sy <= pos.y() <= sy + sh):
+                    continue
+                entry = self._layer_entry(widget_id, layer_id) or {}
+                key = (tier, sw * sh, -entry.get("z", 0))
+                if best_key is None or key < best_key:
+                    best, best_key = (widget_id, layer_id), key
+        return best
+
+    def _hit_layer_handle(self, pos, defaults):
+        """One of the 4 corner handles of the CURRENTLY selected LAYER, or
+        None. Same contract as `_hit_resize_handle` one level down: no handles
+        on a zero-extent (anchor) layer, since there is no stored size for a
+        resize to write back into the offset."""
+        if self._selected_widget is None or self._selected_layer is None:
+            return None
+        rect = self._selected_layer_rect(defaults)
+        if rect is None or _screen_primitives.is_anchor_rect(rect):
+            return None
+        scale, ox, oy = self._screen_scale_offset()
+        sx, sy, sw, sh = self._to_screen_rect(rect, scale, ox, oy)
+        corners = dict(zip(_CORNERS,
+                          ((sx, sy), (sx + sw, sy), (sx, sy + sh),
+                           (sx + sw, sy + sh))))
+        for corner, (cx, cy) in corners.items():
+            if abs(pos.x() - cx) <= HANDLE_PX and abs(pos.y() - cy) <= HANDLE_PX:
+                return corner
+        return None
+
+    def _selected_layer_rect(self, defaults):
+        """The selected layer's RESOLVED logical rect (not its interaction
+        box): what a resize writes and what the handles sit on. None when the
+        selection no longer resolves (an undone add, a deleted layer)."""
+        entry = self._layer_entry(self._selected_widget, self._selected_layer)
+        if entry is None or self._selected_widget not in defaults.get(
+                "widgets", {}):
+            return None
+        owner_rect = self._effective_rect(self._selected_widget, defaults)
+        return list(self._resolved_layer(entry, owner_rect)["rect"])
+
     def _hit_resize_handle(self, pos, defaults):
         """One of the 4 corner handles of the CURRENTLY selected widget, or
         None — handles only exist once something is already selected, and
         never on a position-only anchor (nothing to resize)."""
         if self._selected_widget is None:
+            return None
+        if self._selected_layer is not None:
+            # UL-7: a layer selection owns the handles (`_hit_layer_handle`).
+            # Two overlapping handle sets on the same corner would be a coin
+            # flip between resizing the layer and resizing its owner.
             return None
         if self._is_anchor_widget(self._selected_widget, defaults):
             return None
@@ -996,15 +1305,41 @@ class ViewportPanel(QWidget):
             return   # E-37: no defaults, no interaction
         pos = event.position()
         self.setFocus(Qt.FocusReason.MouseFocusReason)   # arrow nudge needs it
+        layer_handle = self._hit_layer_handle(pos, defaults)
+        if layer_handle is not None:
+            self._begin_layer_drag(self._selected_widget, self._selected_layer,
+                                   "resize", pos, defaults,
+                                   corner=layer_handle)
+            return
         handle = self._hit_resize_handle(pos, defaults)
         if handle is not None:
             self._begin_drag(self._selected_widget, "resize", pos, defaults,
                              corner=handle)
             return
+        layer_hit = self._hit_layer(pos, defaults)      # UL-7: layers first
+        if layer_hit is not None:
+            widget_id, layer_id = layer_hit
+            if (widget_id, layer_id) != (self._selected_widget,
+                                         self._selected_layer):
+                changed_widget = widget_id != self._selected_widget
+                self._selected_widget = widget_id
+                self._selected_layer = layer_id
+                if changed_widget:
+                    # The owner is still the widget selection everywhere else
+                    # (the panel form, the caption, the subtree outline).
+                    self.widget_selected.emit(widget_id)
+                self.layer_selected.emit(widget_id, layer_id)
+            self._begin_layer_drag(widget_id, layer_id, "move", pos, defaults)
+            return
         widget_id = self._hit_widget(pos, defaults)
-        if widget_id != self._selected_widget:
-            self._selected_widget = widget_id
-            self.widget_selected.emit(widget_id)
+        if widget_id != self._selected_widget or self._selected_layer is not None:
+            had_layer = self._selected_layer is not None
+            self._selected_layer = None
+            if widget_id != self._selected_widget:
+                self._selected_widget = widget_id
+                self.widget_selected.emit(widget_id)
+            if had_layer:
+                self.layer_selected.emit(widget_id, None)
         if widget_id is not None:
             self._begin_drag(widget_id, "move", pos, defaults)
         else:
@@ -1027,6 +1362,60 @@ class ViewportPanel(QWidget):
         self._drag_subtree = (
             self._captured_subtree(widget_id, defaults) if mode == "move"
             else [])
+
+    def _begin_layer_drag(self, widget_id, layer_id, mode, pos, defaults,
+                          corner=None):
+        """Start a layer move/resize. Records the offset AS STORED (a list, or
+        None when the entry carries no `offset` key) plus the resolved rect at
+        press — the same never-a-delta capture `_begin_drag` makes for a
+        widget, so a long drag cannot accumulate rounding."""
+        self._selected_widget = widget_id
+        self._selected_layer = layer_id
+        self._selected_field_mode = mode
+        self._resize_corner = corner
+        self._drag_start = pos
+        self._drag_subtree = []     # layers have no subtree of their own
+        entry = self._layer_entry(widget_id, layer_id) or {}
+        stored = entry.get("offset")
+        self._drag_layer_offset = list(stored) if stored is not None else None
+        self._drag_layer_rect = self._selected_layer_rect(defaults)
+
+    def _layer_drag_offset(self, dx, dy):
+        """The offset a live drag should write, from the press-time capture.
+
+        A MOVE shifts the stored dx/dy and leaves w/h exactly as authored —
+        including a `0` that means "inherit the owner's extent" (D2), which a
+        move must never silently freeze into a literal size.
+
+        A RESIZE goes through `_resized_rect` on the RESOLVED rect (the widget
+        rule, opposite corner anchored) and converts back to an offset by
+        subtracting the owner origin — the one place resolved geometry travels
+        backwards, and only for the corner the mouse is holding. It DOES write
+        a concrete w/h, which is what resizing means: the layer stops
+        inheriting on that axis.
+        """
+        ox0, oy0, w0, h0 = (self._drag_layer_offset
+                            or (0, 0, 0, 0))
+        if self._selected_field_mode != "resize":
+            return [round(ox0 + dx), round(oy0 + dy), w0, h0]
+        rx, ry, rw, rh = self._drag_layer_rect
+        nx, ny, nw, nh = self._resized_rect(
+            (rx, ry, rw, rh), self._resize_corner, dx, dy)
+        # owner origin = resolved origin - stored dx/dy (no offset math of our
+        # own: both terms came out of `ui_layers.resolve`).
+        return [round(nx - (rx - ox0)), round(ny - (ry - oy0)), nw, nh]
+
+    def _write_layer_offset(self, widget_id, layer_id, offset):
+        """LIVE-mutate the doc's layer offset (or clear the key with None) —
+        the layer twin of the drag writing `doc[...]["rect"]` directly. No
+        undo command here: release pushes exactly one."""
+        entry = self._layer_entry(widget_id, layer_id)
+        if entry is None:
+            return
+        if offset is None:
+            entry.pop("offset", None)
+        else:
+            entry["offset"] = list(offset)
 
     def _captured_subtree(self, widget_id, defaults):
         """`[(child_id, effective rect at press, doc override at press)]` for
@@ -1054,6 +1443,11 @@ class ViewportPanel(QWidget):
         dx = (pos.x() - self._drag_start.x()) / scale
         dy = (pos.y() - self._drag_start.y()) / scale
         doc = self._screen_session.doc
+        if self._selected_layer is not None:
+            self._write_layer_offset(self._selected_widget,
+                                     self._selected_layer,
+                                     self._layer_drag_offset(dx, dy))
+            return
         if self._selected_field_mode == "resize":
             new_rect = self._resized_rect(
                 self._drag_orig_rect, self._resize_corner, dx, dy)
@@ -1079,6 +1473,9 @@ class ViewportPanel(QWidget):
         defaults = self._current_screen_defaults()
         if not defaults:
             return
+        if self._selected_layer is not None:
+            self._release_layer(widget_id, self._selected_layer)
+            return
         new_rect = self._effective_rect(widget_id, defaults)
         old_rect = self._drag_orig_override_rect
         if mode == "resize":
@@ -1096,6 +1493,30 @@ class ViewportPanel(QWidget):
         else:
             self._screen_session.push_move(widget_id, old_rect, new_rect)
         self._drag_subtree = []
+
+    def _release_layer(self, widget_id, layer_id):
+        """Commit ONE undoable layer-offset edit (UL-6's `set_layer_field`).
+
+        The live drag already wrote the new offset into the doc, and
+        `set_layer_field` builds its command's OLD array from what the doc
+        holds RIGHT NOW — so the pre-drag offset is restored first, then
+        pushed. Without that restore, undo would "restore" the dragged value
+        and the gesture would be uncancellable. (A widget drag avoids the same
+        trap by handing `push_move` an explicitly captured `old_rect`;
+        `set_layer_field` takes `old_value` only for its no-op guard, because
+        the command carries whole arrays — see `_push_layers`.)"""
+        entry = self._layer_entry(widget_id, layer_id)
+        new_offset = list(entry["offset"]) if (
+            entry is not None and entry.get("offset") is not None) else None
+        old_offset = self._drag_layer_offset
+        self._write_layer_offset(widget_id, layer_id, old_offset)
+        self._drag_layer_offset = None
+        self._drag_layer_rect = None
+        self._screen_session.set_layer_field(
+            widget_id, layer_id, "offset", old_offset, new_offset,
+            text=f"move layer {layer_id}"
+            if self._selected_field_mode != "resize"
+            else f"resize layer {layer_id}")
 
     def _nudge_selected(self, ddx, ddy):
         """Arrow-key nudge (1 logical px/press): a discrete edit, pushed
@@ -2410,6 +2831,13 @@ class ViewportPanel(QWidget):
         doc = self._screen_session.doc
         # P-5: resolved ONCE per frame and threaded into every submit below.
         hidden = self._hidden_subtrees(defaults)
+        # UL-13: custom widgets are drawn by the band passes below, in
+        # band/z order, never by the plain widget loops — `screen_previews
+        # .json` is override-free by design, so a custom widget can never be
+        # in the recording and must composite ON TOP of it (the same
+        # treatment, and the same reason, as layers). Never bake one into
+        # that file.
+        customs = self._custom_widgets()
         preview = self._current_screen_preview()
         if preview is not None:
             # UT-2: the recorded game draw list — real background, real fonts,
@@ -2421,20 +2849,31 @@ class ViewportPanel(QWidget):
                 # widgets again would only double them. The one exception is
                 # the widget under an in-flight drag, whose live rect no
                 # recording can know yet.
-                dragging = self._selected_widget if self._drag_start else None
+                dragging = self._selected_widget if (
+                    self._drag_start and self._selected_layer is None) else None
                 if dragging in defaults.get("widgets", {}):
                     self._submit_screen_widget(
                         dragging, defaults["widgets"][dragging], doc, scale,
                         ox, oy, hidden)
+                self._submit_screen_layers(defaults, scale, ox, oy, hidden)
                 return
             for widget_id, spec in defaults.get("widgets", {}).items():
+                if widget_id in customs:
+                    continue    # UL-13: composited by _submit_screen_layers
                 self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy,
                                            hidden)
+            self._submit_screen_layers(defaults, scale, ox, oy, hidden)
             return
         self._submit_screen_background(doc, scale, ox, oy)
+        # UL-7 band order, no-preview path: `under` layers really do go behind
+        # their widgets here, because this path draws the widgets itself.
+        self._submit_screen_layer_band(defaults, "under", scale, ox, oy, hidden)
         for widget_id, spec in defaults.get("widgets", {}).items():
+            if widget_id in customs:
+                continue        # UL-13: drawn by its own band pass
             self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy,
                                        hidden)
+        self._submit_screen_layer_band(defaults, "over", scale, ox, oy, hidden)
 
     def _submit_screen_chrome(self, scale, ox, oy):
         """Editor-only overlay, in SCREEN pixels at a fixed size: the canvas
@@ -2532,6 +2971,130 @@ class ViewportPanel(QWidget):
                     text_color=text_color, fill=fill):
                 self._renderer.submit_hud(item)
 
+    def _submit_screen_layers(self, defaults, scale, ox, oy, hidden=()):
+        """Both bands, `under` first — the PREVIEW-REPLAY path (UL-7).
+
+        `data/ui/screen_previews.json` is override-free by design: a layer can
+        never be baked into it, so layers composite ON TOP of the whole replay
+        and an `under` layer cannot actually get behind a recorded widget. It
+        is still drawn before the `over` ones, so the two bands' relative order
+        is honest even where their relation to the widget is not. (Baking
+        layers into the recording instead would mean regenerating a file this
+        phase is explicitly forbidden to touch — and the recording describes
+        the SHIPPED screen, not the doc being edited.)
+
+        UL-13: the same argument, verbatim, for CUSTOM widgets — they live in
+        the override doc, so the recording cannot know them either, and each
+        band pass draws its own customs at its tail."""
+        self._submit_screen_layer_band(defaults, "under", scale, ox, oy, hidden)
+        self._submit_screen_layer_band(defaults, "over", scale, ox, oy, hidden)
+
+    def _submit_screen_layer_band(self, defaults, band, scale, ox, oy,
+                                  hidden=()):
+        """Every widget's `band`-side layer stack, in `ui_layers.ordered`
+        order — the editor twin of `game/ui/skinning.py::submit_layers`, which
+        the two must stay aligned with BY EYE (editor/ may not import game/).
+        Widgets are walked in `screen_defaults.json` key order, the same order
+        `_submit_screen_items` submits them in."""
+        doc = self._screen_session.doc
+        customs = self._custom_widgets()
+        for widget_id in defaults.get("widgets", {}):
+            if widget_id in customs:
+                continue    # UL-13: drawn (box AND layers) by the pass below
+            self._submit_widget_band_layers(widget_id, defaults, band, scale,
+                                            ox, oy, hidden)
+        # UL-13: this screen's designer-authored widgets, at the TAIL of the
+        # band — the same place `skinning.submit_layers` draws them, after
+        # every code-owned widget's layers of the same band. Each draws its
+        # own box and then its own layers, so its `under` layer really does
+        # sit under it.
+        for widget_id, _entry in _screen_rules.custom_widgets_in_band(customs,
+                                                                     band):
+            spec = defaults.get("widgets", {}).get(widget_id)
+            if spec is None:
+                continue
+            self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy,
+                                       hidden)
+            self._submit_widget_band_layers(widget_id, defaults, band, scale,
+                                            ox, oy, hidden)
+
+    def _submit_widget_band_layers(self, widget_id, defaults, band, scale, ox,
+                                   oy, hidden=()):
+        """ONE widget's `band`-side layer stack, in `ui_layers.ordered` order."""
+        doc = self._screen_session.doc
+        override = doc.get("widgets", {}).get(widget_id, {})
+        if override.get("visible") is False or widget_id in hidden:
+            return
+        layers = self._widget_layers(widget_id)
+        if not layers:
+            return              # D5 golden-parity path: no layers, no calls
+        owner_rect = self._effective_rect(widget_id, defaults)
+        for entry in ui_layers.ordered(layers, band):
+            resolved = self._resolved_layer(entry, owner_rect)
+            if resolved.get("visible") is False:
+                continue
+            self._submit_one_layer(resolved, scale, ox, oy)
+
+    def _submit_one_layer(self, resolved, scale, ox, oy):
+        """The ONE primitive a resolved layer describes, in the game's own
+        first-match-wins precedence (S2 handoff / `skinning._submit_one_layer`):
+        `slot` -> HudSprite, `text_id`/`label` -> HudText, `color` -> HudRect,
+        nothing -> skip. Drawn at the RESOLVED rect verbatim (never the grown
+        interaction box) so the editor shows exactly what the game will."""
+        dest = self._to_screen_rect(resolved["rect"], scale, ox, oy)
+        slot = resolved.get("slot")
+        if slot:
+            self._renderer.submit_hud(HudSprite(
+                slot, (dest[0], dest[1]), (dest[2], dest[3]),
+                resolved.get("tint")))
+            return
+        if resolved.get("text_id") or resolved.get("label"):
+            text = self._layer_text(resolved)
+            if not text:
+                return          # an unresolvable text_id draws nothing
+            self._renderer.submit_hud(HudText(
+                text, (dest[0], dest[1]), resolved.get("font") or "md",
+                tuple(resolved["text_color"]) if resolved.get("text_color")
+                else LAYER_TEXT_COLOR,
+                align=resolved.get("align") or "left"))
+            return
+        color = resolved.get("color")
+        if color:
+            self._renderer.submit_hud(HudRect(dest, tuple(color)))
+
+    def _submit_screen_layer_chrome(self, widget_id, defaults, scale, ox, oy):
+        """Editor-only layer overlay (UL-7): a dim outline on every layer of
+        the selected widget — they cascade with it, so the designer sees what
+        comes along — and the bright outline + handles on the selected one."""
+        for layer_id, resolved, rect in self._layer_boxes(widget_id, defaults):
+            x, y, w, h = self._to_screen_rect(rect, scale, ox, oy)
+            selected = layer_id == self._selected_layer
+            self._renderer.submit_hud(HudLines(
+                ((x, y), (x + w, y), (x + w, y + h), (x, y + h)),
+                SELECTION_COLOR if selected else SUBTREE_COLOR,
+                width=2 if selected else 1, closed=True))
+            if not selected:
+                continue
+            half = HANDLE_PX / 2
+            if _screen_primitives.is_anchor_rect(resolved["rect"]):
+                # Zero-extent (its owner is a position-only anchor, so the
+                # inherited w/h is 0): move-only, with a marker on the draw
+                # POINT — `_hit_layer_handle` refuses handles here too.
+                ax, ay, _w, _h = self._to_screen_rect(
+                    resolved["rect"], scale, ox, oy)
+                self._renderer.submit_hud(HudRect(
+                    (ax - half, ay - half, HANDLE_PX, HANDLE_PX), HANDLE_COLOR))
+            else:
+                hx, hy, hw, hh = self._to_screen_rect(
+                    resolved["rect"], scale, ox, oy)
+                for cx, cy in ((hx, hy), (hx + hw, hy), (hx, hy + hh),
+                               (hx + hw, hy + hh)):
+                    self._renderer.submit_hud(HudRect(
+                        (cx - half, cy - half, HANDLE_PX, HANDLE_PX),
+                        HANDLE_COLOR))
+            self._renderer.submit_hud(HudText(
+                layer_id, (x, max(oy, y - 14)), "sm", SELECTION_COLOR))
+
     def _submit_screen_selection(self, widget_id, defaults, scale, ox, oy):
         # P-3: a dimmer outline around every widget that will come along when
         # this one is dragged, so the designer sees the subtree BEFORE moving
@@ -2552,7 +3115,12 @@ class ViewportPanel(QWidget):
         self._renderer.submit_hud(HudLines(
             ((x, y), (x + w, y), (x + w, y + h), (x, y + h)),
             SELECTION_COLOR, width=2, closed=True))
-        if self._is_anchor_widget(widget_id, defaults):
+        if self._selected_layer is not None:
+            # UL-7: a LAYER is what the mouse holds — its own handles are
+            # drawn by `_submit_screen_layer_chrome` below and the widget's
+            # are suppressed, matching `_hit_resize_handle`'s refusal.
+            pass
+        elif self._is_anchor_widget(widget_id, defaults):
             # Move-only: no corner handles (`_hit_resize_handle` refuses them
             # too), and a small marker ON the stored anchor point so the
             # designer can see WHICH point the X/Y fields address — for a
@@ -2576,6 +3144,9 @@ class ViewportPanel(QWidget):
         caption_y = max(oy, y - 14)
         self._renderer.submit_hud(HudText(
             name, (x, caption_y), "sm", SELECTION_COLOR))
+        # UL-7: the selected widget's layers, drawn LAST so a selected layer's
+        # bright outline sits on top of its owner's.
+        self._submit_screen_layer_chrome(widget_id, defaults, scale, ox, oy)
 
     def paintEvent(self, event):
         if self._qimage is None:
@@ -2638,6 +3209,11 @@ class ViewportPanel(QWidget):
                 self._drag_pos = event.position()
             return
         if self.in_screen_mode():
+            # Middle-drag pans the zoomed canvas (map mode's pan gesture,
+            # on a button widget editing never uses).
+            if event.button() == Qt.MouseButton.MiddleButton:
+                self._screen_pan_drag = event.position()
+                return
             self._screen_press(event)
             return
         # ESV-2: a LEFT-press on a handle grabs it (drag + select) and
@@ -2666,6 +3242,11 @@ class ViewportPanel(QWidget):
                 self._tool_move(pos)
             return
         if self.in_screen_mode():
+            if self._screen_pan_drag is not None and                     (event.buttons() & Qt.MouseButton.MiddleButton):
+                self._pan_screen(pos.x() - self._screen_pan_drag.x(),
+                                 pos.y() - self._screen_pan_drag.y())
+                self._screen_pan_drag = pos
+                return
             self._screen_move(event)
             return
         if self._anchor_drag is not None:
@@ -2686,6 +3267,9 @@ class ViewportPanel(QWidget):
                 self._drag_pos = None
             return
         if self.in_screen_mode():
+            if event.button() == Qt.MouseButton.MiddleButton:
+                self._screen_pan_drag = None
+                return
             self._screen_release(event)
             return
         if event.button() == Qt.MouseButton.LeftButton and self._anchor_drag is not None:

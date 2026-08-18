@@ -154,3 +154,102 @@ TOOLTIP_COLOR_CODE_OWNED = (
     "This widget's fill is hardcoded in game code — a color override has "
     "nothing to apply to here."
 )
+
+
+# -- UL-13: designer-authored CUSTOM widgets ---------------------------------
+# A screen doc's optional `custom_widgets` table (data/schemas/
+# ui_screen.schema.json) holds widgets no code owns. Each entry is the
+# widget's DEFAULT GEOMETRY ONLY (`kind` + `rect`, plus the authoring-only
+# `band`/`z`/`display_name`) — the designer-authored twin of ONE
+# `data/ui/screen_defaults.json` widget entry. Everything paintable (skin,
+# color, label, text_id, font, text_color, tint, align, visible, parent,
+# layers, states) is an ORDINARY override under `widgets/<the same id>`,
+# exactly as for a code-owned widget.
+#
+# That split is what makes the editor side cheap: fold the custom entries
+# into the code-owned default map ONCE, here, and the outliner, the
+# hit-test/drag, the per-field form and its reset buttons, `widget_tree`
+# parenting and the layer machinery all keep working untouched.
+
+def merge_custom_widgets(defaults_widgets, custom_widgets):
+    """`defaults_widgets` (a screen's `screen_defaults.json` widget map) plus
+    one synthetic default entry per `custom_widgets` id — the ONE definition
+    of "what widgets exist on this screen" the viewport and the details panel
+    both read, so they cannot disagree.
+
+    A synthetic entry carries `{kind, rect, label: ""}` (+ `display_name`
+    when the designer set one): the same shape the exporter writes, so every
+    consumer of a default spec keeps working. `band`/`z` are deliberately NOT
+    copied in — they are authoring metadata about PAINT ORDER, not part of a
+    widget spec, and the drawing code reads them off the table itself.
+
+    **A code-owned id WINS.** The session's add guard refuses to create a
+    custom id that collides with one, so this can only be reached by a
+    hand-edited doc; shadowing the real widget would hide the thing the game
+    actually draws, which is the worse of the two lies.
+
+    Returns `defaults_widgets` UNCHANGED (the same object) when there are no
+    custom widgets — the overwhelmingly common path, called a few times per
+    frame.
+    """
+    if not custom_widgets:
+        return defaults_widgets
+    merged = dict(defaults_widgets or {})
+    for widget_id, entry in custom_widgets.items():
+        if widget_id in merged or not isinstance(entry, dict):
+            continue
+        spec = {"kind": entry.get("kind"),
+                "rect": list(entry.get("rect") or (0, 0, 0, 0)),
+                "label": ""}
+        if entry.get("display_name"):
+            spec["display_name"] = entry["display_name"]
+        merged[widget_id] = spec
+    return merged
+
+
+def is_custom(widget_id, custom_widgets):
+    """True iff this id is designer-authored (in the screen doc's
+    `custom_widgets` table) rather than code-owned. The ONE predicate the
+    panel's enable/disable gating asks, so no call site re-derives it."""
+    return bool(custom_widgets) and widget_id in custom_widgets
+
+
+def custom_widgets_in_band(custom_widgets, band):
+    """`[(id, entry), ...]` for the custom widgets drawn in `band`, ascending
+    `z` — a LITERAL mirror of `game/ui/skinning.py::_custom_in_band` (absent
+    band == "over", absent z == 0, `sorted` stable so authoring order is the
+    tie-break). Duplicated rather than imported: `editor/` may never import
+    `game/`, the same accepted drift `_screen_primitives` records."""
+    if not custom_widgets:
+        return []
+    rows = [(name, entry) for name, entry in custom_widgets.items()
+            if isinstance(entry, dict) and (entry.get("band") or "over") == band]
+    return sorted(rows, key=lambda pair: pair[1].get("z") or 0)
+
+
+# -- honest controls for a CUSTOM widget -------------------------------------
+# `color_is_code_owned`/`label_is_code_owned` above answer for CODE-OWNED
+# widgets, by citing what game code does at each holder's draw site. A custom
+# widget has no such site: `skinning._submit_custom_widget` draws it, and its
+# precedence is fixed and known, so the two questions get their own (much
+# smaller) answers here rather than special cases inside those functions.
+
+def custom_color_is_code_owned(kind):
+    """True iff a custom widget of this kind never reads a `color` override.
+    Only `label` — it draws text and no box at all. `panel`/`backdrop` fall
+    back to `color` -> `HudRect` whenever no skin resolves."""
+    return kind == "label"
+
+
+def custom_label_is_code_owned(kind):
+    """True iff a custom widget of this kind draws no text. Only `backdrop`
+    (`_submit_custom_widget` gives it a box and no caption); a `panel` gets a
+    centred caption and a `label` IS the text."""
+    return kind == "backdrop"
+
+
+def custom_tint_applies(kind):
+    """True iff a SKINNED custom widget of this kind threads `tint` into its
+    sprite — `panel`/`backdrop`, the two kinds that draw a `HudSprite` at
+    all."""
+    return kind in ("panel", "backdrop")

@@ -194,6 +194,7 @@
       "enabled": true,
       "path_weight_add": 1
     },
+    "placement_reveal_delay_seconds": 0.3,
     "random_names": [
       "Serph",
       "Fabian",

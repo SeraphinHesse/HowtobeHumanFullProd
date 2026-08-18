@@ -43,7 +43,10 @@ class BaseBuilding(Building):
     def max_hp(self):
         return self.get_component(Health).max_hp
 
-    def upgrade_cost(self):
+    def upgrade_cost(self, run_state=None, boss_upgrades_balance=None):
+        # The pair is accepted (and ignored) purely so this override keeps the
+        # base signature — the hole is untiered and never priced. BU-3's
+        # wall_cost_discount is structure-scoped and could not apply anyway.
         return 0
 
     def tier_data(self):

@@ -1,5 +1,12 @@
 {
   "entries": {
+    "alldeco": {
+      "column_width": 35,
+      "display_name": "Alldeco",
+      "file": "master/alldeco.png",
+      "frame_h": 96,
+      "frame_w": 64
+    },
     "slinger_t2_lvl3": {
       "column_width": 15,
       "display_name": "slinger_t2_lvl3",
@@ -20,22 +27,92 @@
       "frame_h": 96,
       "frame_w": 64
     },
+    "ss_meditator": {
+      "column_width": 20,
+      "columns": [
+        "pink",
+        "red",
+        "purple",
+        "yellow"
+      ],
+      "display_name": "SS_Meditator",
+      "file": "master/ss_meditator.png",
+      "frame_h": 96,
+      "frame_w": 64
+    },
     "ss_mortar": {
       "column_width": 25,
+      "columns": [
+        "pink",
+        "red",
+        "purple",
+        "yellow"
+      ],
       "display_name": "SS_Mortar",
       "file": "master/ss_mortar.png",
       "frame_h": 96,
       "frame_w": 64
     },
+    "ss_painter": {
+      "column_width": 37,
+      "columns": [
+        "pink",
+        "red",
+        "purple",
+        "yellow"
+      ],
+      "display_name": "SS_Painter",
+      "file": "master/ss_painter.png",
+      "frame_h": 96,
+      "frame_w": 64
+    },
     "ss_stonethrower": {
       "column_width": 20,
+      "columns": [
+        "pink",
+        "red",
+        "purple",
+        "yellow"
+      ],
       "display_name": "SS_Stonethrower",
       "file": "master/ss_stonethrower.png",
       "frame_h": 96,
       "frame_w": 64
     },
+    "ss_wallbuilder": {
+      "column_width": 1,
+      "columns": [
+        "pink",
+        "red",
+        "purple",
+        "yellow"
+      ],
+      "display_name": "SS_Wallbuilder",
+      "file": "master/ss_wallbuilder.png",
+      "frame_h": 96,
+      "frame_w": 64
+    },
+    "ss_walls": {
+      "column_width": 9,
+      "columns": [
+        "pink",
+        "red",
+        "purple",
+        "yellow"
+      ],
+      "display_name": "SS_Walls",
+      "file": "master/ss_walls.png",
+      "frame_h": 96,
+      "frame_w": 64
+    },
     "ts_alltiles": {
       "column_width": 10,
+      "columns": [
+        "pink",
+        "red",
+        "purple",
+        "yellow"
+      ],
       "display_name": "TS_Alltiles",
       "file": "master/ts_alltiles.png",
       "frame_h": 32,

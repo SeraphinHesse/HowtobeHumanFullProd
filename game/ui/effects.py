@@ -146,7 +146,7 @@ from dataclasses import dataclass   # VA-2: the resolved TriggerRow
 
 from engine.core import Health, SpriteAnimator
 from engine.render import (
-    HudLines, HudRect, HudSprite, block_center_offset, fit_factor,
+    HudLines, HudRect, HudSprite, RenderItem, block_center_offset, fit_factor,
 )
 from game.anchors import anchor_world_point
 from engine.render.fonts import layout_h
@@ -157,6 +157,11 @@ from engine.vfx import (
     VfxParams, VfxSystem, spawn_play_once,
 )
 from game.buildings.components import BeamAttacker, Nameplate, TierState
+# feat-projectile-variant-select: read-only, at DRAW time, purely to reach a
+# live shot's `_shooter` for "level" variant mode — the same shape this module
+# already uses on BeamAttacker._target above. No cycle: game/enemies/ imports
+# game/buildings/ + engine/, never game/ui/.
+from game.enemies.combat import ProjectileArc, ProjectileHoming
 from game.core.lightning import LightningCaster
 from game.core.phases import GamePhase
 from game import vfx_variants
@@ -236,6 +241,24 @@ BUFF_ARROW_SLOT = "vfx_buff_arrow"
 _BUFF_ARROW_W, _BUFF_ARROW_H = 10, 8   # base-zoom px, fixed screen size
 _BUFF_ARROW_GAP = 3                    # px above the HP-bar anchor point
 _BUFF_ARROW_GOLD = (255, 200, 50)      # placeholder colour == widgets.C_GOLD
+
+# BossUpgradeTimelinePLAN D20: the RED twin of the arrow above, for an enemy
+# carrying an active SLOW (ANY source contributing a negative `move_speed` —
+# today the two boss upgrades `mortar_slow`/`stormpriest_slow`, but keyed off
+# the STAT, never the source). Same swappable-art rule (E-37) and the same
+# "colour/shape are code chrome, only the ART is a designer lever" line
+# _BUFF_ARROW_GOLD draws. It reuses the buff arrow's own W/H/GAP deliberately:
+# the two are the same badge in two colours, so a second set of geometry
+# constants would be two homes for one number.
+DEBUFF_ARROW_SLOT = "vfx_debuff_arrow"
+_DEBUFF_ARROW_RED = (220, 40, 40)      # placeholder colour
+# The two arrows are gated INDEPENDENTLY (`buff_signs`, not `buff_total`'s
+# netted sign) and sit in two DIFFERENT spots so they can show TOGETHER on
+# one enemy — buffed by a Drummer AND slowed by a mortar at once is a real,
+# expected state, not an edge case to net away. Gold stays centred above the
+# hp bar (`_buff_arrow_anchor`); red sits to its LEFT, vertically centred on
+# the bar (`_debuff_arrow_anchor`) — not above it, so it can never sit on top
+# of the bar the way a naive shared-anchor placement would.
 
 # Digger underground telegraph (player-feedback rework): two placeholder
 # arrows, the vfx_buff_arrow pattern applied to a raw WORLD point instead of
@@ -436,6 +459,52 @@ def _triggers_from_balance(vfx):
     }
 
 
+def _triggers_by_type_from_balance(vfx):
+    """Turn ``vfx.json``'s top-level ``triggers_by_type`` object into a plain
+    ``{type_key: {event: TriggerRow}}`` dict — the per-TYPE twin of
+    ``_triggers_from_balance`` above, and the ONE place the open table's key
+    names are read.
+
+    ``.get`` rather than ``[...]``: every bare-constructed ``FloaterManager``
+    in the test suite hands this a hand-pinned balance dict, and a table that
+    predates the key must degrade to "no per-type rows" rather than raise —
+    the same degrade-never-raise contract ``self.assets is None`` keeps for
+    the sprite branch of ``_play``."""
+    return {
+        type_key: {
+            event: TriggerRow(
+                sprite_slot=row["sprite_slot"],
+                procedural=row["procedural"],
+                variant_mode=row["variant_select"]["mode"],
+                misc_key=row["variant_select"]["misc_key"],
+                draw_in_front=row["draw_in_front"],
+            )
+            for event, row in events.items()
+        }
+        for type_key, events in vfx.get("triggers_by_type", {}).items()
+    }
+
+
+def _aura_phase_ms(col, row, total_ms):
+    """A stable per-TILE animation phase offset, in ms, inside a track of
+    ``total_ms``.
+
+    So a cluster of boosters does not pulse in lockstep. Derived from the tile
+    coordinates and NEVER from ``self._rng``: that handle is the shared global
+    ``random`` stream, and drawing from it once per booster per FRAME would
+    desync every downstream roll — the same argument
+    ``vfx_variants.resolve``'s <2-variant short-circuit makes. A tile
+    derivation also needs no per-building state, survives save/load, and is
+    identical on every machine.
+
+    Two knock-on effects, both harmless: a booster MOVED by Building Movement
+    re-phases (its sprite is absent for the whole move anyway), and two
+    boosters can never share a tile, so no two auras can collide on a phase.
+    """
+    total = max(1, int(total_ms))
+    return ((col * 73856093) ^ (row * 19349663)) % total
+
+
 def _polygon_ring(cx, cy, r, segments):
     """A regular ``segments``-gon of radius ``r`` in WORLD units, centred at
     ``(cx, cy)``, starting at the top and stepping clockwise — the same shape
@@ -577,6 +646,15 @@ class FloaterManager:
         # bare-constructed FloaterManager in the existing test suite keeps
         # working unchanged.
         self._triggers = _triggers_from_balance(vfx_balance)
+        # The OPEN per-type table beside the closed global one. Nothing
+        # dispatches off it automatically — `submit_boost_auras` names the
+        # (building_type, "boost_aura") pairs it reads.
+        self._triggers_by_type = _triggers_by_type_from_balance(vfx_balance)
+        # A monotonic ms clock for the continuous boost auras, the
+        # `_beam_clock_ms` shape: it never resets, because
+        # Manifest.current_frame wraps modulo the track total, so a
+        # forever-growing anim_time_ms is exactly what loops an idle track.
+        self._aura_clock_ms = 0.0
         self.assets = None   # AssetStore, wired by the host
         self.scene = None    # Scene, wired by the host
         self.cs = None       # CoordinateSystem, wired by the host (ESV-6)
@@ -985,6 +1063,8 @@ class FloaterManager:
         self._vfx.update(dt)  # -- 10J: particles / gold / slashes --
         # vfx-projectile-spritesheets: the beam's has-art HudSprite anim clock.
         self._beam_clock_ms += dt * 1000.0
+        # The boost auras' looping anim clock (submit_boost_auras).
+        self._aura_clock_ms += dt * 1000.0
         # -- Payout-phase sequencing: release the next queued beat once the
         # stagger pause elapses.
         if self._payout_queue:
@@ -1053,6 +1133,56 @@ class FloaterManager:
         the ``VfxSystem`` (ESV-3a)."""
         self._vfx.submit_gold_highlights(renderer)
 
+    def _projectile_slot(self, p, shell):
+        """The vfx slot in-flight projectile ``p`` draws this frame, resolved
+        ONCE per shot (feat-projectile-variant-select).
+
+        The BASE slot is unchanged and stays here rather than in the trigger
+        row: ``vfx_shell`` for a mortar's shell, ``vfx_projectile`` for every
+        defender's stone. Those two are independent shared slots by design
+        (``data/CLAUDE.md``), and one row carries one ``sprite_slot``, so the
+        row contributes only ``variant_select`` — which of the base slot's
+        interchangeable ``_v<k>`` variants actually plays.
+
+        **Resolved once and cached, never per frame.** ``submit_projectiles``
+        runs for every live shot on every frame; calling ``resolve`` there
+        would re-roll ``"random"`` mode each frame (a bullet that flickers
+        through its whole flight) and — worse — draw from ``self._rng`` once
+        per projectile per frame, desyncing the shared stream from what the
+        game did before this feature. ``game/vfx_variants.resolve``'s
+        ``len(variants) < 2`` short-circuit hides that today, but it stops
+        firing the moment a designer authors the second variant this feature
+        exists to let them author. The cache is an underscore transient on the
+        GameObject (E-11, explicitly allowed by ``GameObject.__setattr__``);
+        it lives and dies with the shot, so it needs no invalidation.
+
+        ``source=`` is the FIRING BUILDING, so ``"level"`` mode gives tier 1 /
+        2 / 3 their own bullet art: both projectile components already retain
+        it as ``_shooter``, and it is read only on the resolve frame. A shot
+        whose component or shooter is missing (a hand-built test projectile)
+        resolves to variant 0 under ``"level"``, the same D4 fallback the five
+        point-only events take.
+        """
+        slot = getattr(p, "_vfx_slot", None)
+        if slot is not None:
+            return slot
+        base = "vfx_shell" if shell else "vfx_projectile"
+        row = self._triggers.get("projectile", _NO_TRIGGER)
+        shooter = None
+        for cls in (ProjectileHoming, ProjectileArc):
+            comp = p.get_component(cls)
+            if comp is not None:
+                shooter = getattr(comp, "_shooter", None)
+                break
+        # `getattr(..., "registry", None)`, not `.registry`: `self.assets` is
+        # the same duck-typed host-wired handle `_play` guards this way, and
+        # is None outright in every bare-constructed test.
+        slot = vfx_variants.resolve(
+            getattr(self.assets, "registry", None), base, row.variant_mode,
+            row.misc_key, rng=self._rng, source=shooter)
+        p._vfx_slot = slot
+        return slot
+
     def submit_projectiles(self, renderer, cs, scene):
         """In-flight shots (10J): the plain defender stone as a small light
         dot, the mortar shell darker and larger (prototype's procedural
@@ -1066,11 +1196,15 @@ class FloaterManager:
         The "has art" signal is the SAME one ``engine.vfx.spawn_play_once``
         uses — ``assets.animation_total_ms(slot, "idle")`` returning
         ``None`` means no imported art (E-37) — so the two paths can never
-        disagree about what "imported" means. Not a trigger-table event:
-        projectiles are continuous in-flight objects, like beams and
-        lightning, so this never spawns a ``PlayOnceVfx``. ``self.assets``
-        is ``None`` in every bare-constructed test and degrades to the dot,
-        never raises.
+        disagree about what "imported" means. Still never spawns a
+        ``PlayOnceVfx``: projectiles are continuous in-flight objects, like
+        beams and lightning. ``self.assets`` is ``None`` in every
+        bare-constructed test and degrades to the dot, never raises.
+
+        feat-projectile-variant-select: which of a slot's interchangeable
+        VARIANTS draws now comes from the ``projectile`` trigger row's
+        ``variant_select``, through ``_projectile_slot`` below — resolved
+        ONCE per shot, never per frame.
 
         feat-projectile-anchored-flight: the draw-time lift is GONE — this
         is now a pure projection of ``p.transform.world_pos``. The cosmetic
@@ -1086,20 +1220,30 @@ class FloaterManager:
             wx, wy = p.transform.world_pos
             cx, cy = cs.world_to_screen(wx, wy)
             shell = p.name == "shell"
-            slot = "vfx_shell" if shell else "vfx_projectile"
+            slot = self._projectile_slot(p, shell)
             color = pr.shell_color if shell else pr.stone_color
-            size = max(2, int((pr.shell_size if shell else pr.stone_size)
-                              * zoom))
-            dest = (int(cx - size / 2), int(cy - size / 2))
+            dot = max(2, int((pr.shell_size if shell else pr.stone_size)
+                             * zoom))
             has_art = (self.assets is not None
                       and self.assets.animation_total_ms(slot, "idle")
                       is not None)
             if has_art:
-                renderer.submit_hud(HudSprite(slot, dest, (size, size)))
+                # Imported art draws at ITS OWN authored frame size, not at
+                # the dot's — `stone_size`/`shell_size` describe the
+                # procedural fallback below and were tuned for it, so reusing
+                # them here silently downscaled every imported bullet (a
+                # 64x64 sheet drew at 32 px; found live). Same
+                # `assets.frame_size` sizing `submit_beams` uses for an
+                # imported `vfx_beam`, and the same reason: no new balancing
+                # key for a size the manifest already states.
+                fw, fh = self.assets.frame_size(slot)
+                w, h = max(2, int(fw * zoom)), max(2, int(fh * zoom))
+                renderer.submit_hud(HudSprite(
+                    slot, (int(cx - w / 2), int(cy - h / 2)), (w, h)))
             else:
                 renderer.submit_hud(HudRect(
-                    (dest[0], dest[1], size, size),
-                    color, border_radius=size // 2))
+                    (int(cx - dot / 2), int(cy - dot / 2), dot, dot),
+                    color, border_radius=dot // 2))
 
     def submit_fx(self, renderer, cs):
         """Screen-space particle FX: sparks / death shards / muzzle motes as
@@ -1116,6 +1260,16 @@ class FloaterManager:
         alpha glow — 10J). Params from ``self._vfx_params.beam`` (ESV-3b) — the
         clamp to ``len(colors) - 1`` is geometry (the ramp is a fixed 3-stop
         shape), not itself a tunable. Draws no random numbers.
+
+        **The owning building must be checked for ``alive`` too, not just the
+        target (fix: lingering beam after Sun Scorcher destroyed).**
+        ``_update_defender`` (``game/enemies/combat.py``) bails out before
+        ``_update_beam`` runs at all once the defender itself is dead, so a
+        killed Sun Scorcher's ``BeamAttacker._target`` is never cleared — it
+        stays frozen on whatever it last locked. Dead buildings are not
+        despawned (they revive at payday) and keep their ``"combat"`` tag, so
+        without this guard the beam kept drawing from the destroyed
+        building's tile for as long as its last target stayed alive.
 
         vfx-projectile-spritesheets: a designer-imported ``vfx_beam`` sheet
         REPLACES the line with a looping ``HudSprite`` at the target's screen
@@ -1135,6 +1289,8 @@ class FloaterManager:
         for b in scene.by_tag("combat"):
             beam = b.get_component(BeamAttacker)
             if beam is None:
+                continue
+            if not getattr(b, "alive", True):
                 continue
             target = getattr(beam, "_target", None)
             if target is None or not getattr(target, "alive", False):
@@ -1212,6 +1368,73 @@ class FloaterManager:
             pts = _polygon_ring(wx + 0.5, wy + 0.5, aura.support_range,
                                 dp.segments)
             renderer.submit_overlay_polys(pts, dp.color + (alpha,))
+
+    def submit_boost_auras(self, renderer, cs, scene):
+        """The always-on aura behind every live boost building, bound by
+        ``triggers_by_type.<building_type>.boost_aura``.
+
+        CONTINUOUS, so it deliberately does NOT go through ``_play``:
+        ``PlayOnceVfx``'s despawn clock would respawn the object every frame
+        (the VA-5 tile-highlight / ``triggers.projectile`` reasoning). Like
+        ``submit_highlight`` it re-submits a plain ``RenderItem`` on the
+        depth-sorted world layer each frame, and like ``submit_drummer_auras``
+        above it walks the scene for live entities rather than being pushed a
+        list of tiles.
+
+        Four gates, in order, each a ``continue`` and never a raise:
+
+        1. **No row / no slot** — a boost line a designer has not authored.
+        2. **Hidden building** — ``BuildingSprite.hidden``, the SHARED
+           predicate the sprite's own ``render_items`` early-returns on, so
+           the aura cannot drift from the thing it sits behind (dead, and the
+           placement ``reveal_delay``; kidnapped buildings are the dead case).
+        3. **No art on the RESOLVED variant** — the usual
+           ``animation_total_ms(slot, "idle") is not None`` probe (E-37), and
+           deliberately on the resolved slot rather than the family stem:
+           ``variant_select.mode "level"`` means variant N is the booster's
+           GLOBAL level N, and a level whose art is not imported yet draws
+           NOTHING rather than falling back to a lower level's sheet. That is
+           the user's explicit call — a half-imported family should look
+           half-imported, not silently reuse level 1 art at level 9.
+        4. **``draw_in_front``** — false on every shipped row, so
+           ``rank = -1`` puts the aura BEHIND the booster sharing its tile
+           (the same mapping ``submit_highlight`` makes).
+
+        ``fit_tiles`` is deliberately left at its 0 default even though the
+        art is cut 192x96 to cover a 3x3 block: with ``fit_tiles == 0`` the
+        renderer blits the frame centred on the tile diamond's centre, and a
+        3x3 iso block's bounding diamond is exactly 192x96 about that same
+        centre — so the coverage lands with no offset at all. Setting
+        ``fit_tiles=3`` would instead trigger ``block_center_offset`` and
+        shift the blit by a tile, because the aura is addressed by its CENTRE
+        tile, not a block min-corner.
+
+        ``b.building_type`` is the only boost-type STRING spoken here, and it
+        is spoken in ``game/`` — never in ``engine/vfx/`` (D5)."""
+        from game.buildings.components import BuildingSprite
+
+        if self.assets is None or not self._triggers_by_type:
+            return
+        registry = getattr(self.assets, "registry", None)
+        for b in scene.by_tag("boost"):
+            row = self._triggers_by_type.get(
+                b.building_type, {}).get("boost_aura")
+            if row is None or not row.sprite_slot:
+                continue
+            sprite = b.get_component(BuildingSprite)
+            if sprite is None or sprite.hidden:
+                continue
+            slot = vfx_variants.resolve(
+                registry, row.sprite_slot, row.variant_mode, row.misc_key,
+                rng=self._rng, source=b)
+            total = self.assets.animation_total_ms(slot, "idle")
+            if total is None:
+                continue
+            phase = _aura_phase_ms(b.col, b.row, total)
+            renderer.submit(RenderItem(
+                slot, (b.col, b.row), animation="idle",
+                anim_time_ms=int(self._aura_clock_ms + phase),
+                rank=1 if row.draw_in_front else -1))
 
     # -- 10H: lightning + cheat menu ---------------------------------------
 
@@ -1388,25 +1611,89 @@ class FloaterManager:
                            bg=widgets.C_HP_RED, fill=widgets.C_HP_GREEN)
                 slot += 1
 
+    def _hp_bar_rect(self, renderer, cs, e, zoom, assets):
+        """``(x_c, bar_top, w, h)`` — the on-screen horizontal centre, TOP
+        edge, width and height of `e`'s hp bar's own slot (slot 0; the arrow
+        badges do not account for same-tile stacking, see
+        ``submit_buff_arrows``'s docstring). The SAME ``hp_bar`` anchor point
+        (or its ``_sprite_top`` fallback) ``submit_enemy_hp_bars`` uses.
+
+        Factored out so the gold buff arrow and the red debuff arrow
+        (BossUpgradeTimelinePLAN D20) can never drift apart on where the bar
+        itself actually is, even though they now sit in two different spots
+        relative to it."""
+        w = getattr(e, "HP_BAR_W", _ENEMY_BAR_FALLBACK[0])
+        h = getattr(e, "HP_BAR_H", _ENEMY_BAR_FALLBACK[1])
+        pad = getattr(e, "HP_BAR_PAD", _ENEMY_BAR_FALLBACK[2])
+        point = anchor_world_point(assets, cs, e, "hp_bar")
+        if point is not None:
+            x_c, y_c = cs.world_to_screen(*point)
+        else:
+            cx, cy = cs.world_to_screen(e.transform.wx + 0.5,
+                                        e.transform.wy + 0.5)
+            top = _sprite_top(renderer, cs, e, cy, zoom)
+            x_c, y_c = cx, top - pad * zoom
+        return x_c, int(y_c) - h, w, h
+
+    def _buff_arrow_anchor(self, renderer, cs, e, zoom, assets):
+        """Where the gold buff badge hangs: centred above the hp bar, clear
+        of its top edge by ``_BUFF_ARROW_GAP``."""
+        x_c, bar_top, _w, _h = self._hp_bar_rect(renderer, cs, e, zoom, assets)
+        return x_c, bar_top - _BUFF_ARROW_GAP
+
+    def _debuff_arrow_anchor(self, renderer, cs, e, zoom, assets):
+        """Where the red debuff badge hangs: to the LEFT of the hp bar,
+        vertically centred on it — a different spot from the buff badge's
+        (not merely a different colour at the same point), so the two can be
+        shown TOGETHER without ever overlapping each other or the bar."""
+        x_c, bar_top, w, h = self._hp_bar_rect(renderer, cs, e, zoom, assets)
+        x = x_c - w / 2 - _BUFF_ARROW_GAP - _BUFF_ARROW_W / 2
+        y = bar_top + h / 2 + _BUFF_ARROW_H / 2
+        return x, y
+
+    def _submit_arrow(self, renderer, x_c, y, slot, has_art, color):
+        """Draw ONE arrow badge, ending exactly AT ``y`` and extending
+        ``_BUFF_ARROW_H`` px upward from it — the imported sprite if the slot
+        has art, else a procedural triangle outline pointing down at ``y``
+        (E-37). Both branches occupy the SAME ``[y - H, y]`` span so neither
+        can straddle (and overlap) whatever ``y`` was chosen to clear."""
+        w = _BUFF_ARROW_W
+        if has_art:
+            renderer.submit_hud(HudSprite(
+                slot, (int(x_c - w / 2), y - _BUFF_ARROW_H),
+                (w, _BUFF_ARROW_H)))
+        else:
+            pts = ((int(x_c - w / 2), y),
+                   (int(x_c), y - _BUFF_ARROW_H),
+                   (int(x_c + w / 2), y))
+            renderer.submit_hud(HudLines(pts, color, width=2))
+
     def submit_buff_arrows(self, renderer, cs, scene):
-        """A little golden arrow above any ALIVE enemy carrying an active
-        buff (``BuffState.sources`` non-empty — today always a Drummer's
-        aura, NE-3, but this deliberately keys off "any active buff" rather
-        than the source type, per the user's own design call). Shown
-        independently of the HP bar's own "hide at full HP" rule — a
-        buffed-but-undamaged enemy still gets the arrow.
+        """A little golden arrow above any ALIVE enemy carrying AT LEAST ONE
+        source with a POSITIVE ``move_speed`` contribution — i.e. something
+        is genuinely making it faster (today always a Drummer's aura, NE-3,
+        but keyed off the STAT, never the source type). Shown independently
+        of the HP bar's own "hide at full HP" rule — a buffed-but-undamaged
+        enemy still gets the arrow.
+
+        **Gated on ``buff_signs``, not ``buff_total``'s netted sign**
+        (BossUpgradeTimelinePLAN D20 follow-up): an enemy simultaneously
+        buffed by a Drummer AND slowed by a mortar is a real state the
+        player should see BOTH indicators for, not the one that happens to
+        win the sum. The gold and red arrows are independent booleans now,
+        not the two signs of one aggregate.
 
         Anchored off the SAME ``hp_bar`` point (or its ``_sprite_top``
-        fallback) ``submit_enemy_hp_bars`` uses, offset one arrow-height +
-        gap above it — a deliberately SIMPLER placeholder than that method:
-        it does not stack multiple enemies sharing a tile, since a buffed
-        unit's arrow is a status flag, not a competing bar.
+        fallback) ``submit_enemy_hp_bars`` uses, centred above it — a
+        deliberately SIMPLER placeholder than that method: it does not stack
+        multiple enemies sharing a tile, since a buffed unit's arrow is a
+        status flag, not a competing bar.
 
         Interchangeable placeholder art (E-37 shape): the ``vfx_buff_arrow``
         slot draws as a real sprite once imported; with no art yet it draws
         a small procedural golden triangle instead, so the feature is
         visible today with zero art asset required."""
-        from game.enemies.components import BuffState
+        from game.enemies.components import buff_signs
 
         zoom = cs.camera.zoom
         assets = getattr(renderer, "assets", None)
@@ -1416,30 +1703,47 @@ class FloaterManager:
         for e in scene.by_tag("enemy"):
             if not getattr(e, "alive", False):
                 continue
-            buffs = e.get_component(BuffState)
-            if buffs is None or not buffs.sources:
+            has_buff, _has_slow = buff_signs(e, "move_speed")
+            if not has_buff:
                 continue
-            h = getattr(e, "HP_BAR_H", _ENEMY_BAR_FALLBACK[1])
-            pad = getattr(e, "HP_BAR_PAD", _ENEMY_BAR_FALLBACK[2])
-            point = anchor_world_point(assets, cs, e, "hp_bar")
-            if point is not None:
-                x_c, y_c = cs.world_to_screen(*point)
-            else:
-                cx, cy = cs.world_to_screen(e.transform.wx + 0.5,
-                                            e.transform.wy + 0.5)
-                top = _sprite_top(renderer, cs, e, cy, zoom)
-                x_c, y_c = cx, top - pad * zoom
-            y = int(y_c) - h - _BUFF_ARROW_GAP
-            w = _BUFF_ARROW_W
-            if has_art:
-                renderer.submit_hud(HudSprite(
-                    BUFF_ARROW_SLOT,
-                    (int(x_c - w / 2), y - _BUFF_ARROW_H), (w, _BUFF_ARROW_H)))
-            else:
-                pts = ((int(x_c - w / 2), y),
-                       (int(x_c), y + _BUFF_ARROW_H),
-                       (int(x_c + w / 2), y))
-                renderer.submit_hud(HudLines(pts, _BUFF_ARROW_GOLD, width=2))
+            x_c, y = self._buff_arrow_anchor(renderer, cs, e, zoom, assets)
+            self._submit_arrow(renderer, x_c, y, BUFF_ARROW_SLOT, has_art,
+                               _BUFF_ARROW_GOLD)
+
+    def submit_debuff_arrows(self, renderer, cs, scene):
+        """``submit_buff_arrows``'s RED twin (BossUpgradeTimelinePLAN D20):
+        the same badge, to the LEFT of the hp bar instead of above it, above
+        any ALIVE enemy carrying at least one source with a NEGATIVE
+        ``move_speed`` contribution — an active slow.
+
+        Keyed on the STAT, not on who applied it, exactly like its gold
+        sibling: today's two writers are the boss upgrades ``mortar_slow``
+        (#3) and ``stormpriest_slow`` (#7) through
+        ``game.enemies.components.apply_slow`` (D19), but anything that ever
+        slows an enemy gets the indicator for free. Interchangeable
+        placeholder art (E-37): the ``vfx_debuff_arrow`` slot draws as a real
+        sprite once imported, else a small procedural red triangle.
+
+        Gated on ``buff_signs``, independently of the gold arrow above — an
+        enemy that is BOTH speed-buffed and slowed shows both badges at
+        once, in their two distinct spots, never overlapping each other or
+        the bar."""
+        from game.enemies.components import buff_signs
+
+        zoom = cs.camera.zoom
+        assets = getattr(renderer, "assets", None)
+        has_art = (assets is not None
+                   and assets.animation_total_ms(DEBUFF_ARROW_SLOT, "idle")
+                   is not None)
+        for e in scene.by_tag("enemy"):
+            if not getattr(e, "alive", False):
+                continue
+            _has_buff, has_slow = buff_signs(e, "move_speed")
+            if not has_slow:
+                continue
+            x_c, y = self._debuff_arrow_anchor(renderer, cs, e, zoom, assets)
+            self._submit_arrow(renderer, x_c, y, DEBUFF_ARROW_SLOT, has_art,
+                               _DEBUFF_ARROW_RED)
 
     def submit_digger_telegraphs(self, renderer, cs, scene):
         """Two placeholder arrows over a burrowed Digger's CURRENT dig — the

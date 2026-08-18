@@ -1329,6 +1329,12 @@
           ],
           "type": "object"
         },
+        "placement_reveal_delay_seconds": {
+          "description": "Seconds a freshly-placed building's sprite stays hidden before it appears (a cosmetic reveal delay so the placement VFX/feedback plays first) - purely visual, never delays occupancy, stats or combat, which are all live the instant place_building returns. 0 disables the delay (the building appears instantly, pre-feature behaviour).",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        },
         "random_names": {
           "description": "Pool of building nameplate names. Appended to at runtime by the add-name menu (the one runtime data write, Phase 9H) - no maxItems.",
           "items": {
@@ -1443,6 +1449,7 @@
       "required": [
         "Movement",
         "defence_range_pathfinding",
+        "placement_reveal_delay_seconds",
         "random_names",
         "xp_on_death"
       ],

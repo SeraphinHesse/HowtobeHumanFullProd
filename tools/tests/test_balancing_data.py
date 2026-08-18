@@ -19,7 +19,8 @@ from engine import data_io
 from engine.assets import load_registry
 
 REPO = Path(__file__).resolve().parents[2]
-DOMAINS = ("buildings", "enemies", "map", "ui", "core", "progression")  # canonical D-10 order
+DOMAINS = ("buildings", "enemies", "map", "ui", "core", "progression",
+           "boss_upgrades")  # canonical D-10 order
 
 
 def paths(domain):
@@ -52,20 +53,37 @@ def schema_leaves(schema):
     yield from walk(schema, ())
 
 
+def _subschema(node, key):
+    """The subschema for ``key`` under ``node``.
+
+    ``properties`` when the object names its keys; ``additionalProperties``
+    when it is OPEN and types them all alike (``vfx.schema.json``'s
+    ``triggers_by_type``). Without the second branch this was a latent
+    KeyError the moment any domain grew an open object — it survived only
+    because the one caller breaks on the first numeric leaf it finds."""
+    props = node.get("properties")
+    if props is not None and key in props:
+        return props[key]
+    extra = node.get("additionalProperties")
+    if isinstance(extra, dict):
+        return extra
+    raise KeyError(key)
+
+
 def doc_schema_pairs(doc, schema):
     """Yield (path, value, subschema) for every leaf value in the data doc."""
     def walk(value, node, path):
         node = deref(schema, node)
         if isinstance(value, dict):
             for key, sub in value.items():
-                yield from walk(sub, node["properties"][key], path + (key,))
+                yield from walk(sub, _subschema(node, key), path + (key,))
         elif isinstance(value, list):
             for i, item in enumerate(value):
                 yield from walk(item, node["items"], path + (i,))
         else:
             yield path, value, node
     for key, sub in doc.items():
-        yield from walk(sub, schema["properties"][key], (key,))
+        yield from walk(sub, _subschema(schema, key), (key,))
 
 
 def set_at(doc, path, value):

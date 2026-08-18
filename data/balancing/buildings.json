@@ -7,6 +7,38 @@
         "boost_damage_t2_lvl1",
         "boost_damage_t3_lvl1"
       ],
+      "sounds": {
+        "attack": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "death": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "placement": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "selection": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upgrade": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upkeep_boost": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        }
+      },
       "tiers": [
         {
           "base_hp": 80,
@@ -59,6 +91,38 @@
         "boost_hp_t2_lvl1",
         "boost_hp_t3_lvl1"
       ],
+      "sounds": {
+        "attack": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "death": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "placement": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "selection": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upgrade": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upkeep_boost": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        }
+      },
       "tiers": [
         {
           "base_hp": 80,
@@ -117,6 +181,38 @@
         "boost_speed_t2_lvl1",
         "boost_speed_t3_lvl1"
       ],
+      "sounds": {
+        "attack": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "death": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "placement": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "selection": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upgrade": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upkeep_boost": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        }
+      },
       "tiers": [
         {
           "base_hp": 80,
@@ -191,10 +287,43 @@
       "time_cost_enabled": true,
       "warning_text": "Warning: unavailable in combat while it is being moved."
     },
+    "Sounds": {
+      "attack": {
+        "clips": [],
+        "loop": false,
+        "pick": "random"
+      },
+      "death": {
+        "clips": [],
+        "loop": false,
+        "pick": "random"
+      },
+      "placement": {
+        "clips": [],
+        "loop": false,
+        "pick": "random"
+      },
+      "selection": {
+        "clips": [],
+        "loop": false,
+        "pick": "random"
+      },
+      "upgrade": {
+        "clips": [],
+        "loop": false,
+        "pick": "random"
+      },
+      "upkeep_boost": {
+        "clips": [],
+        "loop": false,
+        "pick": "random"
+      }
+    },
     "defence_range_pathfinding": {
       "enabled": true,
       "path_weight_add": 1
     },
+    "placement_reveal_delay_seconds": 1.2,
     "random_names": [
       "Serph",
       "Fabian",
@@ -232,6 +361,38 @@
         "maw_mortar_t2_lvl1",
         "maw_mortar_t3_lvl1"
       ],
+      "sounds": {
+        "attack": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "death": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "placement": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "selection": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upgrade": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upkeep_boost": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        }
+      },
       "starts_unlocked": false,
       "tiers": [
         {
@@ -240,12 +401,12 @@
           "base_hp": 150,
           "base_radius": 1.0,
           "base_upkeep": 3,
-          "build_cost": 35,
+          "build_cost": 30,
           "dmg_per_level": 4,
           "explanation": "An organic mortar that deals area damage to enemy hordes.",
           "hp_per_level": 50,
           "levels": 3,
-          "name": "Maw Mortar",
+          "name": "Mortar",
           "radius_per_level": 0.125,
           "range_tiles": 3,
           "upgrade_cost_base": 20,
@@ -258,7 +419,7 @@
           "base_hp": 350,
           "base_radius": 1.5,
           "base_upkeep": 6,
-          "build_cost": 40,
+          "build_cost": 60,
           "dmg_per_level": 6,
           "explanation": "A crude catapult flinging heavier payloads.",
           "hp_per_level": 80,
@@ -276,7 +437,7 @@
           "base_hp": 600,
           "base_radius": 1.9,
           "base_upkeep": 0,
-          "build_cost": 60,
+          "build_cost": 130,
           "dmg_per_level": 10,
           "explanation": "A heavy organic mortar. Stranger and more powerful.",
           "hp_per_level": 120,
@@ -298,6 +459,38 @@
         "slinger_t2_lvl1",
         "pistoleer_t3_lvl1"
       ],
+      "sounds": {
+        "attack": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "death": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "placement": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "selection": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upgrade": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upkeep_boost": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        }
+      },
       "starts_unlocked": true,
       "tiers": [
         {
@@ -321,9 +514,9 @@
           "base_dmg": 50,
           "base_hp": 220,
           "base_upkeep": 2,
-          "build_cost": 20,
+          "build_cost": 35,
           "dmg_per_level": 10,
-          "explanation": "A small creature riding a bigger one, slinging shots.",
+          "explanation": "can fire stones with better speed and damage",
           "hp_per_level": 60,
           "levels": 3,
           "name": "Slinger",
@@ -337,7 +530,7 @@
           "base_dmg": 80,
           "base_hp": 450,
           "base_upkeep": 5,
-          "build_cost": 75,
+          "build_cost": 100,
           "dmg_per_level": 20,
           "explanation": "Packs a punch. Loud. Effective.",
           "hp_per_level": 90,
@@ -357,6 +550,38 @@
         "radiant_beam_t2_lvl1",
         "laser_beam_t3_lvl1"
       ],
+      "sounds": {
+        "attack": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "death": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "placement": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "selection": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upgrade": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upkeep_boost": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        }
+      },
       "starts_unlocked": false,
       "target_death_cooldown": 1.4,
       "tiers": [
@@ -424,6 +649,38 @@
         "storm_priest_iii_t3_lvl1"
       ],
       "repeat_cost_multiplier": 1.2,
+      "sounds": {
+        "attack": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "death": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "placement": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "selection": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upgrade": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upkeep_boost": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        }
+      },
       "starts_unlocked": false,
       "tiers": [
         {
@@ -489,6 +746,38 @@
         "shaman_t2_lvl1",
         "sun_priest_t3_lvl1"
       ],
+      "sounds": {
+        "attack": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "death": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "placement": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "selection": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upgrade": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upkeep_boost": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        }
+      },
       "starts_unlocked": false,
       "tiers": [
         {
@@ -542,6 +831,38 @@
         "harp_player_t2_lvl1",
         "trio_t3_lvl1"
       ],
+      "sounds": {
+        "attack": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "death": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "placement": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "selection": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upgrade": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upkeep_boost": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        }
+      },
       "starts_unlocked": true,
       "tiers": [
         {
@@ -589,6 +910,38 @@
         "painter_t2_lvl1",
         "painter_t3_lvl1"
       ],
+      "sounds": {
+        "attack": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "death": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "placement": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "selection": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upgrade": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upkeep_boost": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        }
+      },
       "starts_unlocked": false,
       "tiers": [
         {
@@ -645,6 +998,38 @@
         "blocker",
         "blocker"
       ],
+      "sounds": {
+        "attack": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "death": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "placement": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "selection": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upgrade": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upkeep_boost": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        }
+      },
       "starts_unlocked": false,
       "tiers": [
         {
@@ -686,6 +1071,38 @@
         "wall_builder",
         "wall_builder"
       ],
+      "sounds": {
+        "attack": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "death": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "placement": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "selection": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upgrade": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "upkeep_boost": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        }
+      },
       "starts_unlocked": false,
       "tiers": [
         {

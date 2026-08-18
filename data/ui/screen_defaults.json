@@ -121,29 +121,42 @@
         ]
       },
       "box_a": {
-        "display_name": "Boss option A box",
+        "display_name": "Boss upgrade slot 1 box",
         "font_key": "lg",
         "kind": "panel",
         "label": "",
         "parent": "backdrop",
         "rect": [
-          225,
-          158,
-          90,
-          65
+          8,
+          138,
+          200,
+          104
         ]
       },
       "box_b": {
-        "display_name": "Boss option B box",
+        "display_name": "Boss upgrade slot 2 box",
         "font_key": "lg",
         "kind": "panel",
         "label": "",
         "parent": "backdrop",
         "rect": [
-          325,
-          158,
-          90,
-          65
+          220,
+          138,
+          200,
+          104
+        ]
+      },
+      "box_c": {
+        "display_name": "Boss upgrade slot 3 box",
+        "font_key": "lg",
+        "kind": "panel",
+        "label": "",
+        "parent": "backdrop",
+        "rect": [
+          432,
+          138,
+          200,
+          104
         ]
       },
       "headline": {
@@ -155,7 +168,7 @@
         "parent": "backdrop",
         "rect": [
           320,
-          101,
+          81,
           0,
           0
         ]
@@ -169,7 +182,7 @@
         "parent": "backdrop",
         "rect": [
           320,
-          139,
+          119,
           0,
           0
         ]
@@ -218,7 +231,7 @@
             "parent": "panel",
             "rect": [
               290,
-              237,
+              249,
               60,
               16
             ]
@@ -403,7 +416,7 @@
         "mock_note": "love=123, round=7; the lowest-(row,col) BUILDABLE tile of the 'first_light' map, with EVERY building type unlocked so each construct card (`card_<building_type>`) is recorded — the count is dynamic in game, the ids are not",
         "widgets": {
           "card_aoe_defence": {
-            "display_name": "Maw Mortar card",
+            "display_name": "Mortar card",
             "font_key": "sm",
             "kind": "button",
             "label": "",
@@ -416,10 +429,10 @@
             ]
           },
           "card_aoe_defence_name": {
-            "display_name": "Maw Mortar card name",
+            "display_name": "Mortar card name",
             "font_key": "sm",
             "kind": "label",
-            "label": "Maw Mortar",
+            "label": "Mortar",
             "parent": "card_aoe_defence",
             "rect": [
               557,
@@ -429,7 +442,7 @@
             ]
           },
           "card_aoe_defence_name2": {
-            "display_name": "Maw Mortar card name2",
+            "display_name": "Mortar card name2",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -442,7 +455,7 @@
             ]
           },
           "card_aoe_defence_portrait": {
-            "display_name": "Maw Mortar card portrait",
+            "display_name": "Mortar card portrait",
             "kind": "panel",
             "label": "",
             "parent": "card_aoe_defence",
@@ -454,7 +467,7 @@
             ]
           },
           "card_aoe_defence_price": {
-            "display_name": "Maw Mortar card price",
+            "display_name": "Mortar card price",
             "font_key": "sm",
             "kind": "button",
             "label": "",
@@ -467,7 +480,7 @@
             ]
           },
           "card_aoe_defence_price_icon": {
-            "display_name": "Maw Mortar card price icon",
+            "display_name": "Mortar card price icon",
             "kind": "panel",
             "label": "",
             "parent": "card_aoe_defence_price",
@@ -479,7 +492,7 @@
             ]
           },
           "card_aoe_defence_price_text": {
-            "display_name": "Maw Mortar card price text",
+            "display_name": "Mortar card price text",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -2483,13 +2496,13 @@
         "parent": "panel",
         "rect": [
           290,
-          237,
+          249,
           60,
           16
         ]
       },
       "card_aoe_defence": {
-        "display_name": "Maw Mortar card",
+        "display_name": "Mortar card",
         "font_key": "sm",
         "kind": "button",
         "label": "",
@@ -2502,10 +2515,10 @@
         ]
       },
       "card_aoe_defence_name": {
-        "display_name": "Maw Mortar card name",
+        "display_name": "Mortar card name",
         "font_key": "sm",
         "kind": "label",
-        "label": "Maw Mortar",
+        "label": "Mortar",
         "parent": "card_aoe_defence",
         "rect": [
           557,
@@ -2515,7 +2528,7 @@
         ]
       },
       "card_aoe_defence_name2": {
-        "display_name": "Maw Mortar card name2",
+        "display_name": "Mortar card name2",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -2528,7 +2541,7 @@
         ]
       },
       "card_aoe_defence_portrait": {
-        "display_name": "Maw Mortar card portrait",
+        "display_name": "Mortar card portrait",
         "kind": "panel",
         "label": "",
         "parent": "card_aoe_defence",
@@ -2540,7 +2553,7 @@
         ]
       },
       "card_aoe_defence_price": {
-        "display_name": "Maw Mortar card price",
+        "display_name": "Mortar card price",
         "font_key": "sm",
         "kind": "button",
         "label": "",
@@ -2553,7 +2566,7 @@
         ]
       },
       "card_aoe_defence_price_icon": {
-        "display_name": "Maw Mortar card price icon",
+        "display_name": "Mortar card price icon",
         "kind": "panel",
         "label": "",
         "parent": "card_aoe_defence_price",
@@ -2565,7 +2578,7 @@
         ]
       },
       "card_aoe_defence_price_text": {
-        "display_name": "Maw Mortar card price text",
+        "display_name": "Mortar card price text",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -5056,6 +5069,42 @@
         ],
         "text_id": "hud.income_net"
       },
+      "life_1": {
+        "display_name": "Life 1",
+        "kind": "panel",
+        "label": "",
+        "parent": "readout_panel",
+        "rect": [
+          30,
+          41,
+          9,
+          9
+        ]
+      },
+      "life_2": {
+        "display_name": "Life 2",
+        "kind": "panel",
+        "label": "",
+        "parent": "readout_panel",
+        "rect": [
+          41,
+          41,
+          9,
+          9
+        ]
+      },
+      "life_3": {
+        "display_name": "Life 3",
+        "kind": "panel",
+        "label": "",
+        "parent": "readout_panel",
+        "rect": [
+          52,
+          41,
+          9,
+          9
+        ]
+      },
       "lives_text": {
         "display_name": "Lives counter",
         "font_key": "md",
@@ -5526,34 +5575,19 @@
     "mock_note": "love=123, round=7 (idle, default SessionSettings — no world state)",
     "widgets": {
       "audio_label": {
-        "display_name": "Master Audio label",
+        "display_name": "Master volume label",
         "font_key": "md",
         "kind": "label",
         "label": "",
         "parent": "backdrop",
         "rect": [
+          190,
           245,
-          237,
           0,
           0
         ],
         "sample": "Master Audio",
         "text_id": "settings.master_audio"
-      },
-      "audio_note": {
-        "align": "center",
-        "font_key": "sm",
-        "kind": "label",
-        "label": "",
-        "parent": "backdrop",
-        "rect": [
-          320,
-          259,
-          0,
-          0
-        ],
-        "sample": "(no audio yet)",
-        "text_id": "settings.no_audio"
       },
       "backdrop": {
         "display_name": "Background backdrop",
@@ -5566,6 +5600,42 @@
           360
         ]
       },
+      "bar_master_volume": {
+        "display_name": "Master volume bar",
+        "kind": "bar",
+        "label": "",
+        "parent": "backdrop",
+        "rect": [
+          275,
+          248,
+          90,
+          6
+        ]
+      },
+      "bar_music_volume": {
+        "display_name": "Music volume bar",
+        "kind": "bar",
+        "label": "",
+        "parent": "backdrop",
+        "rect": [
+          275,
+          260,
+          90,
+          6
+        ]
+      },
+      "bar_sfx_volume": {
+        "display_name": "SFX volume bar",
+        "kind": "bar",
+        "label": "",
+        "parent": "backdrop",
+        "rect": [
+          275,
+          272,
+          90,
+          6
+        ]
+      },
       "btn_back": {
         "display_name": "Back button",
         "font_key": "lg",
@@ -5574,7 +5644,7 @@
         "parent": "backdrop",
         "rect": [
           270,
-          279,
+          296,
           100,
           23
         ]
@@ -5586,7 +5656,7 @@
         "parent": "backdrop",
         "rect": [
           380,
-          279,
+          296,
           90,
           23
         ]
@@ -5738,6 +5808,36 @@
         ],
         "sample": "Income Floaters",
         "text_id": "settings.toggle.income_floaters"
+      },
+      "label_music_volume": {
+        "display_name": "Music volume label",
+        "font_key": "md",
+        "kind": "label",
+        "label": "",
+        "parent": "backdrop",
+        "rect": [
+          190,
+          257,
+          0,
+          0
+        ],
+        "sample": "Music",
+        "text_id": "settings.music_audio"
+      },
+      "label_sfx_volume": {
+        "display_name": "SFX volume label",
+        "font_key": "md",
+        "kind": "label",
+        "label": "",
+        "parent": "backdrop",
+        "rect": [
+          190,
+          269,
+          0,
+          0
+        ],
+        "sample": "SFX",
+        "text_id": "settings.sfx_audio"
       },
       "title": {
         "display_name": "Title label",

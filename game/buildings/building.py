@@ -38,6 +38,13 @@ class Building(GameObject):
     CONTENT_KEY = None        # tile.content_key set at placement (map.json key)
     SUBTREE = ()              # path into the buildings-domain balancing tree
     TIER_SPRITES = ()         # per-tier slot-key prefixes
+    # The string ids the upgrade panel's action button uses for an IN-TIER
+    # upgrade, single and batched (`game/ui/building_ui.py::_upgrade_state` /
+    # `_build_upgrade`). A class attribute rather than a `building_type ==`
+    # branch in the UI, so a line that calls its upgrade something else says
+    # so HERE -- the Painter's INVEST is the only override today.
+    ACTION_UPGRADE_KEY = "building.action.upgrade"
+    ACTION_UPGRADE_MANY_KEY = "building.action.upgrade_many"
     EXTRA_TAGS = ()           # family capability tags (e.g. "combat", "economy")
 
     def __init__(self, col, row, buildings_balance, tier_idx=0):
@@ -160,15 +167,45 @@ class Building(GameObject):
             return max(1, base)
         return max(1, int(base * (1.0 + rcv.hp_pct)) - rcv.hp_penalty())
 
-    def upgrade_cost(self):
+    # -- BU-3 #2: wall_cost_discount ---------------------------------------
+    #
+    # ``Blocker``/``WallBuilder`` prices are cut by the boss upgrade
+    # ``wall_cost_discount``, additively per pick and floored at 1 (never free,
+    # never negative). Both price methods below take the standard BU-3
+    # optional trailing pair — see ``game/core/boss_upgrades.py``'s
+    # threading-pattern section for why it is a PAIR and why the import is
+    # lazy. The module-level twin of ``build_cost`` (``registry.build_cost``,
+    # which is what a fresh placement and the tier-advance button actually
+    # charge) applies the same reduction through the same reducer.
+
+    def _wall_discount(self, cost, run_state, boss_upgrades_balance):
+        """``cost`` after ``wall_cost_discount``, for a structure only.
+
+        Tag-gated on ``"structure"`` (the family tag ``Blocker`` and
+        ``WallBuilder`` share, ``structure.py``) rather than an isinstance
+        check or a ``building_type`` string — the G-3 discipline every other
+        capability read in this package follows. Unchanged for every other
+        building, and for every caller that passes no pair."""
+        if run_state is None or boss_upgrades_balance is None:
+            return cost
+        if "structure" not in self.tags:
+            return cost
+        from game.core import boss_upgrades  # lazy — see the note above
+        return boss_upgrades.discounted(
+            cost, run_state, boss_upgrades_balance, "wall_cost_discount",
+            "cost_reduction_pct", 50, floor=1)
+
+    def upgrade_cost(self, run_state=None, boss_upgrades_balance=None):
         d = self.tier_data()
-        return d["upgrade_cost_base"] + self._lvl_idx * d["upgrade_cost_increment"]
+        cost = d["upgrade_cost_base"] + self._lvl_idx * d["upgrade_cost_increment"]
+        return self._wall_discount(cost, run_state, boss_upgrades_balance)
 
     def upkeep(self):
         return 0
 
-    def build_cost(self):
-        return self._tiers[0]["build_cost"]
+    def build_cost(self, run_state=None, boss_upgrades_balance=None):
+        return self._wall_discount(self._tiers[0]["build_cost"],
+                                   run_state, boss_upgrades_balance)
 
     def slot_key(self):
         ts = self._tier
@@ -186,10 +223,20 @@ class Building(GameObject):
         health = self.get_component(Health)
         health.max_hp = self.max_hp()
         health.hp = health.max_hp
+        self.refresh_slot_key()
+        self._on_apply_stats()
+
+    def refresh_slot_key(self):
+        """Re-derive the animator's art slot and NOTHING else.
+
+        The non-healing sibling of ``apply_tier_stats`` (which full-heals on
+        every call, prototype-exact) -- for the one case where the art may
+        change without any stat changing: the Painter's canvas filling in as
+        its progress advances at payday. Never inline this write again; this
+        is the single writer of ``SpriteAnimator.slot_key`` for buildings."""
         anim = self.get_component(SpriteAnimator)
         if anim is not None:
             anim.slot_key = self.slot_key()
-        self._on_apply_stats()
 
     def _on_apply_stats(self):
         """Family hook: extend derived-stat application (defence syncs the

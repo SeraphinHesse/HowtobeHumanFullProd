@@ -3,7 +3,9 @@
 reached the selection-driven way (ED-3), sibling of the "Screens" branch.
 
 Edits ``data/ui/fonts.json`` (per-key size spinbox, schema-bounded, + bold
-checkbox), ``data/ui/palette.json`` (per-key color swatch button ->
+checkbox, plus add/rename/remove for DESIGNER-DEFINED presets — UL-2/D6; the
+7 shipped presets are PINNED and get neither affordance),
+``data/ui/palette.json`` (per-key color swatch button ->
 ``QColorDialog``), and ``data/ui/active_font.json`` (a font-family combo +
 "Import Font…" button, UH-Font-A — ORTHOGONAL to the size/bold presets
 above: "Default" keeps today's SysFont monospace, any other choice is a
@@ -38,7 +40,9 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFormLayout,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
+    QLineEdit,
     QMessageBox,
     QPushButton,
     QScrollArea,
@@ -54,6 +58,9 @@ REPO = Path(__file__).resolve().parents[2]
 
 _DEFAULT_FONT_LABEL = "Default (System Monospace)"
 _PREVIEW_TEXT = "The quick brown fox jumps over the lazy dog"
+# What a freshly added designer preset starts as (UL-2/D6) — the stock `md`
+# shape, i.e. deliberately unremarkable; the designer then moves the spinbox.
+_NEW_PRESET_SPEC = {"size": 11, "bold": False}
 
 
 class GameThemePanel(QWidget):
@@ -71,6 +78,7 @@ class GameThemePanel(QWidget):
         self._active_font_baseline = None
         self._font_widgets = {}     # key -> (size_spin, bold_check)
         self._font_dots = {}
+        self._new_preset_edit = None   # UL-2: the "add a preset" name field
         self._palette_buttons = {}  # key -> swatch QPushButton
         self._palette_dots = {}
         self._font_family_combo = None
@@ -139,6 +147,7 @@ class GameThemePanel(QWidget):
     def _show_unavailable(self):
         self._font_widgets = {}
         self._font_dots = {}
+        self._new_preset_edit = None
         self._palette_buttons = {}
         self._palette_dots = {}
         self._font_family_combo = None
@@ -158,6 +167,7 @@ class GameThemePanel(QWidget):
     def _rebuild_form(self):
         self._font_widgets = {}
         self._font_dots = {}
+        self._new_preset_edit = None
         self._palette_buttons = {}
         self._palette_dots = {}
         self._font_family_combo = None
@@ -178,9 +188,11 @@ class GameThemePanel(QWidget):
         fonts_section = CollapsibleSection(
             "Fonts",
             "Point size + bold per preset (engine/render/fonts.py's font_key "
-            "set). Size changes drawn glyphs only — stored layout rects are "
-            "pinned (layout_h) and a very different size can overflow its "
-            "widget.",
+            "set). Size changes drawn glyphs only — the 7 shipped presets' "
+            "layout rects are pinned (layout_h) and a very different size can "
+            "overflow its widget. Add your own presets below and pick them per "
+            "widget in Screens; the 7 shipped ones cannot be renamed or "
+            "removed (the game names them by key).",
             expanded=True, parent=content)
         fonts_form = QFormLayout()
         for key in sorted(self._fonts_doc):
@@ -188,6 +200,7 @@ class GameThemePanel(QWidget):
             fonts_form.addRow(key, row)
             self._font_widgets[key] = (size_spin, bold_check)
             self._font_dots[key] = dot
+        fonts_form.addRow("new preset", self._build_add_preset_row())
         fonts_section.content_layout.addLayout(fonts_form)
         content_layout.addWidget(fonts_section)
 
@@ -216,6 +229,21 @@ class GameThemePanel(QWidget):
 
         content_layout.addStretch(1)
         self._scroll.setWidget(content)
+        self._refresh_all_dots()
+
+    def _refresh_all_dots(self):
+        """Re-show every dirty dot after a rebuild. ``_rebuild_form`` used to
+        run only from ``set_theme`` (which clears ``_dirty`` first), so its
+        freshly-built, all-hidden dots were always right; UL-2's add/rename/
+        remove rebuild the form WHILE staged edits are pending, and a dot
+        silently reset to hidden would under-report what Save is about to
+        write."""
+        for key, dot in self._font_dots.items():
+            dot.setVisible(f"font:{key}" in self._dirty)
+        for key, dot in self._palette_dots.items():
+            dot.setVisible(f"palette:{key}" in self._dirty)
+        if self._active_font_dot is not None:
+            self._active_font_dot.setVisible("active_font" in self._dirty)
         self.save_button.setEnabled(bool(self._dirty))
 
     # -- row builders ---------------------------------------------------------
@@ -237,8 +265,41 @@ class GameThemePanel(QWidget):
         row_layout.setContentsMargins(0, 0, 0, 0)
         row_layout.addWidget(size_spin)
         row_layout.addWidget(bold_check)
+        # UL-2/D6: rename + remove exist ONLY on designer-defined presets.
+        # The 7 shipped ones get no affordance at all (their handlers refuse
+        # them too — `theme_ops.is_pinned_preset`, enforced in code).
+        if not theme_ops.is_pinned_preset(key):
+            rename_button = QPushButton("Rename…", self)
+            rename_button.setToolTip(f"Rename the '{key}' preset")
+            rename_button.clicked.connect(
+                lambda _checked=False, k=key: self._on_rename_preset(k))
+            remove_button = QPushButton("Remove", self)
+            remove_button.setToolTip(f"Delete the '{key}' preset")
+            remove_button.clicked.connect(
+                lambda _checked=False, k=key: self._on_remove_preset(k))
+            row_layout.addWidget(rename_button)
+            row_layout.addWidget(remove_button)
         row_layout.addWidget(dot)
         return row, size_spin, bold_check, dot
+
+    def _build_add_preset_row(self):
+        """The "add a designer-defined preset" affordance (UL-2/D6) — a name
+        field + button at the bottom of the Fonts section. Staged like every
+        other edit here: it mutates ``self._fonts_doc`` + ``self._dirty``, and
+        Save is still the one ``write_validated`` call site."""
+        row = QWidget(self)
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        name_edit = QLineEdit(row)
+        name_edit.setPlaceholderText("preset name, e.g. title_big")
+        name_edit.setToolTip(theme_ops.PRESET_NAME_HINT)
+        name_edit.returnPressed.connect(self._on_add_preset)
+        self._new_preset_edit = name_edit
+        add_button = QPushButton("Add Preset", row)
+        add_button.clicked.connect(lambda _checked=False: self._on_add_preset())
+        row_layout.addWidget(name_edit, 1)
+        row_layout.addWidget(add_button)
+        return row
 
     def _build_palette_row(self, key):
         button = QPushButton(self)
@@ -390,7 +451,12 @@ class GameThemePanel(QWidget):
             return
         family = self._family_for_font_id(self._active_font_doc["font_id"])
         for key, label in self._preview_labels.items():
-            spec = self._fonts_doc[key]
+            # ``.get``: between a UL-2 remove/rename and the ``_rebuild_form``
+            # that follows it, a label for a key the doc no longer has is
+            # still hanging here — skip it rather than KeyError out of a slot.
+            spec = self._fonts_doc.get(key)
+            if spec is None:
+                continue
             font = QFont(family) if family else QFont()
             font.setPointSize(spec["size"])
             font.setBold(spec["bold"])
@@ -406,9 +472,60 @@ class GameThemePanel(QWidget):
         self._fonts_doc[key]["bold"] = value
         self._refresh_font_dirty(key)
 
+    # -- designer-defined presets (UL-2/D6): add / rename / remove -----------
+
+    def _on_add_preset(self):
+        if self._fonts_doc is None or self._new_preset_edit is None:
+            return
+        name = self._new_preset_edit.text().strip()
+        if not theme_ops.is_valid_preset_name(name, self._fonts_doc):
+            QMessageBox.warning(self, "Add Preset", theme_ops.PRESET_NAME_HINT)
+            return
+        self._fonts_doc[name] = dict(_NEW_PRESET_SPEC)
+        self._refresh_font_dirty(name)
+        self._rebuild_form()
+
+    def _on_rename_preset(self, key):
+        """Rename = remove the old key + add the new one carrying the same
+        ``{size, bold}`` (a preset IS a dict key). Refuses a pinned preset in
+        CODE, not merely by not drawing the button."""
+        if self._fonts_doc is None or theme_ops.is_pinned_preset(key):
+            return
+        name, ok = QInputDialog.getText(
+            self, "Rename Preset", f"New name for '{key}':", text=key)
+        if not ok:
+            return
+        name = name.strip()
+        if name == key:
+            return
+        if not theme_ops.is_valid_preset_name(name, self._fonts_doc):
+            QMessageBox.warning(self, "Rename Preset", theme_ops.PRESET_NAME_HINT)
+            return
+        self._fonts_doc[name] = self._fonts_doc.pop(key)
+        self._refresh_font_dirty(key)
+        self._refresh_font_dirty(name)
+        self._rebuild_form()
+
+    def _on_remove_preset(self, key):
+        if self._fonts_doc is None or theme_ops.is_pinned_preset(key):
+            return
+        confirm = QMessageBox.question(
+            self, "Remove Preset",
+            f"Delete the '{key}' font preset? Any widget still pointing at it "
+            "falls back to 'md'.")
+        if confirm != QMessageBox.Yes:
+            return
+        self._fonts_doc.pop(key, None)
+        self._refresh_font_dirty(key)
+        self._rebuild_form()
+
     def _refresh_font_dirty(self, key):
         dirty_key = f"font:{key}"
-        if self._fonts_doc[key] != self._fonts_baseline[key]:
+        # ``.get`` on BOTH sides, not ``[key]``: UL-2's add/rename/remove mean
+        # a key can be present in exactly one of doc/baseline, and that
+        # asymmetry IS the dirty state (an added or deleted preset), not a
+        # KeyError.
+        if self._fonts_doc.get(key) != self._fonts_baseline.get(key):
             self._dirty.add(dirty_key)
         else:
             self._dirty.discard(dirty_key)

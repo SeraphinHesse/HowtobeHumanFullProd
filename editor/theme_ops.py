@@ -7,6 +7,7 @@ the same convention as ``editor/selection.py``): ``panels/game_theme.py`` is
 the only caller, and ``screen_details.py`` uses ``font_keys`` to source its
 font combos from data instead of a hardcoded tuple.
 """
+import re
 from pathlib import Path
 
 from engine import data_io
@@ -20,11 +21,46 @@ _FONT_MANIFEST_SCHEMA = "font_manifest.schema.json"
 _ACTIVE_FONT_FILE = ("ui", "active_font.json")
 _ACTIVE_FONT_SCHEMA = "active_font.schema.json"
 
+# The 7 SHIPPED presets — schema-REQUIRED (fonts.schema.json's `required`)
+# and PINNED (engine/render/fonts.py's `_LAYOUT_H`/`_REQUIRED_KEYS`): the
+# Theme panel may resize them but may never rename or remove one, and
+# `configure_fonts` fails loud if any is missing. Designer-defined presets
+# (UL-2/D6) are everything else in the doc.
+PINNED_FONT_KEYS = ("sm", "md", "lg", "xl", "xxl", "hud_phase", "hud_lvl")
+
 # Editor-side graceful degrade (E-37) fallback for font_keys() ONLY — the
 # combo must show SOMETHING even with a missing/corrupt data/ui/fonts.json.
-# Mirrors engine/render/fonts.py's _FONT_SPECS key set. The game's own boot
-# load (game/main.py) fails loud instead, per D-2 (this is data, not art).
-_FALLBACK_FONT_KEYS = ("sm", "md", "lg", "xl", "xxl", "hud_phase", "hud_lvl")
+# The pinned 7 are exactly the set that is guaranteed to exist, so it is the
+# same literal, named once. The game's own boot load (game/main.py) fails
+# loud instead, per D-2 (this is data, not art).
+_FALLBACK_FONT_KEYS = PINNED_FONT_KEYS
+
+# A designer-defined preset name (UL-2/D6). ONE home for the rule
+# data/schemas/fonts.schema.json's `patternProperties` also encodes — the
+# panel must never carry its own copy of this regex.
+_PRESET_NAME_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+
+PRESET_NAME_HINT = (
+    "A preset name must start with a lowercase letter and use only "
+    "lowercase letters, digits and underscores — and must not already exist.")
+
+
+def is_valid_preset_name(name, existing_keys):
+    """True if ``name`` is a legal NEW font-preset key: it matches the same
+    pattern ``fonts.schema.json`` accepts and does not collide with an
+    existing key (which covers the 7 pinned presets, since they are always
+    in the doc). Pure + Qt-free on purpose — ``panels/game_theme.py``'s
+    add/rename affordances call this instead of inlining the regex, so the
+    schema and the editor can never drift apart."""
+    if not isinstance(name, str) or _PRESET_NAME_RE.fullmatch(name) is None:
+        return False
+    return name not in set(existing_keys)
+
+
+def is_pinned_preset(key):
+    """True for one of the 7 shipped presets — the Theme panel's rename/
+    remove paths refuse these IN CODE, not merely by hiding the button."""
+    return key in PINNED_FONT_KEYS
 
 
 def fonts_path(data_dir):
