@@ -79,6 +79,19 @@
       "frame_h": 96,
       "frame_w": 64
     },
+    "ss_thunderman": {
+      "column_width": 31,
+      "columns": [
+        "pink",
+        "red",
+        "purple",
+        "yellow"
+      ],
+      "display_name": "SS_Thunderman",
+      "file": "master/ss_thunderman.png",
+      "frame_h": 96,
+      "frame_w": 64
+    },
     "ss_wallbuilder": {
       "column_width": 1,
       "columns": [
