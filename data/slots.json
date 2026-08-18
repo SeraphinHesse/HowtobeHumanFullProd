@@ -740,6 +740,11 @@
                   "frame_h": 49,
                   "frame_w": 48,
                   "key": "ui_button_pause"
+                },
+                {
+                  "frame_h": 32,
+                  "frame_w": 32,
+                  "key": "ui_button_pause_v2"
                 }
               ]
             },
