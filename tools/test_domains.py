@@ -210,6 +210,8 @@ DOMAINS = {
         "test_ui_text_binding.py",
         "test_vfx_preview.py",
         "test_widget_tree.py",
+        "test_sound_import.py",
+        "test_sound_slot_widget.py",
     ),
     "data": (
         "test_assets_registry.py",

@@ -167,6 +167,8 @@ TIERS = {
     "test_shell": "core",
     "test_simrun": "core",  # debug mode: the headless balance-sweep runner
     "test_spawn_deco": "core",
+    "test_sound_import": "core",
+    "test_sound_slot_widget": "editor",
     "test_sound_slots_data": "core",
     "test_strings_data": "core",  # Phase C: string-table data + T() parity pins
     "test_structure": "core",
