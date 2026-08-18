@@ -162,7 +162,8 @@ TOOLTIP_COLOR_CODE_OWNED = (
 # widget's DEFAULT GEOMETRY ONLY (`kind` + `rect`, plus the authoring-only
 # `band`/`z`/`display_name`) — the designer-authored twin of ONE
 # `data/ui/screen_defaults.json` widget entry. Everything paintable (skin,
-# color, label, text_id, font, text_color, tint, align, visible, parent,
+# color, label, text_id, font, font_family, text_color, tint, align,
+# visible, parent,
 # layers, states) is an ORDINARY override under `widgets/<the same id>`,
 # exactly as for a code-owned widget.
 #

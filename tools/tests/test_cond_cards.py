@@ -22,8 +22,8 @@ if str(REPO) not in sys.path:
 
 from game.map.tiles import TileCondition  # noqa: E402
 from game.ui.building_ui import (  # noqa: E402
-    _CARD_GROUND_SLOT, _COND_CARD_ID_PREFIX, _COND_EFFECT_LINES,
-    _cond_effect_rows,
+    _BUILD_COND_CARD_ID_PREFIX, _CARD_GROUND_SLOT, _COND_CARD_ID_PREFIX,
+    _COND_EFFECT_LINES, _UPGRADE_COND_CARD_ID_PREFIX, _cond_effect_rows,
 )
 from tools import screen_mocks  # noqa: E402
 
@@ -166,23 +166,25 @@ class TestCondEffectRows(unittest.TestCase):
 
 
 class TestTerrainBoxIsEditable(unittest.TestCase):
-    """The badge and the effect box were the two things on this panel a
-    designer could not touch."""
+    """The badge and its effect box are DELETED: every mode that names a
+    terrain draws a card (feature: construct-terrain-card)."""
 
-    def test_construct_mode_exposes_the_box_widgets(self):
+    def test_upgrade_mode_shows_a_card_not_a_badge(self):
         balances = screen_mocks.load_balances(DATA)
         session = screen_mocks.build_session(DATA, balances)
-        panel = screen_mocks.build_bp_view("construct", 640, 360, balances,
+        panel = screen_mocks.build_bp_view("upgrade", 640, 360, balances,
                                            session).panel
-        for name in ("cond_badge", "cond_badge_text", "cond_effect_box",
-                     "construct_card_list"):
-            self.assertIn(name, panel.ids)
-        for i in range(_COND_EFFECT_LINES):
-            self.assertIn(f"cond_effect_line_{i}", panel.ids)
+        self.assertIn("upgrade_terrain_card_list", panel.ids)
+        self.assertTrue(any(k.startswith(_UPGRADE_COND_CARD_ID_PREFIX)
+                            for k in panel.ids))
+        for gone in ("cond_badge", "cond_badge_text", "cond_effect_box",
+                     "cond_effect_line_0"):
+            self.assertNotIn(gone, panel.ids)
 
     def test_unlock_mode_drops_the_badge(self):
         """The cards say the same thing for all four tiles, so the pill that
-        named only the primary tile's condition is gone from this mode."""
+        named only the primary tile's condition is gone — from this mode
+        first, and now from the panel altogether."""
         panel = self.panel = _panel()
 
         class Rec:
@@ -201,7 +203,43 @@ class TestTerrainBoxIsEditable(unittest.TestCase):
         balances = screen_mocks.load_balances(DATA)
         session = screen_mocks.build_session(DATA, balances)
         panel.submit(Rec(), session)
-        self.assertIsNone(panel._cond_badge_rect)
+        self.assertFalse(hasattr(panel, "_cond_badge_rect"))
+
+
+class TestConstructTerrainCard(unittest.TestCase):
+    """feature: construct-terrain-card — build mode ends in the same card
+    unlock mode draws, in its own id family, with nothing hover-gated."""
+
+    def setUp(self):
+        balances = screen_mocks.load_balances(DATA)
+        session = screen_mocks.build_session(DATA, balances)
+        self.panel = screen_mocks.build_bp_view("construct", 640, 360,
+                                                balances, session).panel
+
+    def test_it_builds_the_same_tree_under_its_own_prefix(self):
+        """The mock selects a four-condition chunk, so all four trees build —
+        each with the child ids an unlock card has."""
+        keys = [c.name for c, _ in self.panel._construct_cond_cards]
+        self.assertEqual(keys, [c.name for c in TileCondition])
+        self.assertIn("build_terrain_card_list", self.panel.ids)
+        for cond, _parts in self.panel._construct_cond_cards:
+            root = f"{_BUILD_COND_CARD_ID_PREFIX}{cond.name.lower()}"
+            for part in ("",) + CARD_PARTS:
+                self.assertIn(root + part, self.panel.ids)
+
+    def test_the_effect_rows_are_filled_without_any_hover(self):
+        """The pill this replaces only revealed its effect box under the
+        cursor; the card carries the lines outright."""
+        self.assertFalse(hasattr(self.panel, "_cond_hover"))
+        cards = dict(self.panel._construct_cond_cards)
+        self.assertEqual(cards[TileCondition.MOUNTAIN].lines, ["Range", "+1"])
+
+    def test_the_two_families_do_not_share_ids(self):
+        """Overrides are per-id, so a build card must not answer to an unlock
+        card's key — that is what lets the two modes place theirs apart."""
+        for cond, _parts in self.panel._construct_cond_cards:
+            self.assertNotIn(f"{_COND_CARD_ID_PREFIX}{cond.name.lower()}",
+                             self.panel.ids)
 
 
 if __name__ == "__main__":

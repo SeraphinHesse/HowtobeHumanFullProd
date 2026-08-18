@@ -57,12 +57,13 @@ BP_VIEW_ORDER = ("unlock", "construct", "upgrade", "base_info", "preview")
 BP_VIEW_IDS = {
     "unlock": ("panel", "close_btn", "action_btn", "terrain_card_list",
                "unlock_title", "unlock_hint", "unlock_blocked"),
+    # feature: construct-terrain-card — build AND upgrade mode end in a
+    # terrain CARD group now. The `cond_badge` pill and its hover-gated effect
+    # box are gone from the panel entirely, so no view lists them.
     "construct": ("panel", "close_btn", "construct_title",
-                  "construct_card_list",
-                  "cond_badge", "cond_badge_text", "cond_effect_box"),
+                  "construct_card_list", "build_terrain_card_list"),
     "upgrade": ("panel", "close_btn", "action_btn", "rename_dice_btn",
-                "move_btn",
-                "cond_badge", "cond_badge_text", "cond_effect_box",
+                "move_btn", "upgrade_terrain_card_list",
                 "upgrade_title", "upgrade_name", "upgrade_tier_level",
                 "dmg_dealt_label", "dmg_dealt_value",
                 "dmg_taken_label", "dmg_taken_value",
@@ -89,8 +90,12 @@ BP_VIEW_IDS = {
 #:     an edit here. The `preview` view's own `preview_color_*` twin needs no
 #:     prefix rule: that view records the modal's whole `ids` dict.
 BP_VIEW_ID_PREFIXES = {
-    "upgrade": ("stat_", "cond_effect_line_", "upgrade_swatch"),
-    "construct": ("card_", "cond_effect_line_"),
+    "upgrade": ("stat_", "upgrade_cond_card_", "upgrade_swatch"),
+    # `build_cond_card_` is construct mode's terrain-card family (one tree
+    # per DISTINCT condition among the selected tiles); the mock forces all
+    # four onto the selection so every card is recorded, exactly as the unlock
+    # mock forces them onto its chunk.
+    "construct": ("card_", "build_cond_card_"),
     # The terrain cards are unlock mode's own dynamic-count family — one card
     # tree per DISTINCT condition in the purchase. `_all_conditions_chunk`
     # below forces all four onto the mock chunk so every card is recorded.
@@ -369,10 +374,30 @@ def build_bp_view(view, view_w, view_h, balances, session, skinning=None,
         panel.selected_tiles = [tile]
         _unlock_every_type(session)
         panel._build_construct()
+        if view == "construct":
+            # feature: construct-terrain-card — the panel emits one
+            # `build_cond_card_<condition>` tree per DISTINCT condition among
+            # the SELECTED tiles, so this single selection records ONE card
+            # and would leave the other three with no `screen_defaults.json`
+            # entry, i.e. invisible to the editor (`_all_conditions_chunk`'s
+            # argument, for the build family).
+            #
+            # It re-drives the builder with all four rows instead of SELECTING
+            # four tiles: the selection is what every construct card's price
+            # is a batch of, so a four-tile mock would quadruple every
+            # recorded price and make the panel unaffordable.
+            _all_conditions_chunk(tm, tile, panel.assets.registry)
+            panel._build_construct_cond_cards(
+                [(t.condition, 1, panel._cond_slot(t))
+                 for t in tm.get_chunk_for_tile(tile)])
         note = (f"{COMMON_NOTE}; the lowest-(row,col) BUILDABLE tile of the "
                 f"{PINNED_MAP!r} map, with EVERY building type unlocked so "
                 "each construct card (`card_<building_type>`) is recorded — "
-                "the count is dynamic in game, the ids are not")
+                "the count is dynamic in game, the ids are not"
+                + ("; its 2x2 chunk's four tiles are forced to the four "
+                   "distinct tile conditions and fed to the terrain-card "
+                   "builder so every `build_cond_card_<condition>` tree is "
+                   "recorded too" if view == "construct" else ""))
         if view == "preview":
             # `ConstructPreview.__init__` rolls its starting colour column off
             # the MODULE-GLOBAL `random` (MasterSheetColumnsPLAN B2 rolls it
@@ -405,11 +430,21 @@ def build_bp_view(view, view_w, view_h, balances, session, skinning=None,
         panel._selected = building
         panel.selected_tiles = [tile]
         panel._build_upgrade()
+        # feature: construct-terrain-card (upgrade half) — ONE building means
+        # ONE `upgrade_cond_card_<condition>` tree, so the builder is re-driven
+        # with all four rows; the same seam, and the same reason, as the
+        # construct view above.
+        _all_conditions_chunk(tm, tile, panel.assets.registry)
+        panel._build_upgrade_cond_cards(
+            building, [(t.condition, 1, panel._cond_slot(t))
+                       for t in tm.get_chunk_for_tile(tile)])
         note = (f"{COMMON_NOTE}; a freshly created {MOCK_BUILDING_TYPE!r} "
                 "building (tier 0, level 1) — upgrade_gate resolves "
                 "'in_tier' deterministically, with that slot's live colour "
-                "columns wired so every `upgrade_swatch_<i>` is recorded — "
-                "the count is dynamic in game, the ids are not")
+                "columns wired so every `upgrade_swatch_<i>` is recorded, and "
+                "its 2x2 chunk forced to the four distinct tile conditions so "
+                "every `upgrade_cond_card_<condition>` tree is too — the "
+                "count is dynamic in game, the ids are not")
     elif view == "base_info":
         tile = tm.get(tm.base_col, tm.base_row)
         panel.mode, panel.tile = "base_info", tile

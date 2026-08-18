@@ -413,8 +413,336 @@
         }
       },
       "construct": {
-        "mock_note": "love=123, round=7; the lowest-(row,col) BUILDABLE tile of the 'first_light' map, with EVERY building type unlocked so each construct card (`card_<building_type>`) is recorded — the count is dynamic in game, the ids are not",
+        "mock_note": "love=123, round=7; the lowest-(row,col) BUILDABLE tile of the 'first_light' map, with EVERY building type unlocked so each construct card (`card_<building_type>`) is recorded — the count is dynamic in game, the ids are not; its 2x2 chunk's four tiles are forced to the four distinct tile conditions and fed to the terrain-card builder so every `build_cond_card_<condition>` tree is recorded too",
         "widgets": {
+          "build_cond_card_forest": {
+            "display_name": "Forest build terrain card",
+            "kind": "panel",
+            "label": "",
+            "parent": "build_terrain_card_list",
+            "rect": [
+              516,
+              670,
+              118,
+              138
+            ]
+          },
+          "build_cond_card_forest_count": {
+            "align": "right",
+            "display_name": "Forest build terrain card count",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "build_cond_card_forest",
+            "rect": [
+              631,
+              769,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.count"
+          },
+          "build_cond_card_forest_effect_0": {
+            "display_name": "Forest build terrain card effect line 1",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "build_cond_card_forest",
+            "rect": [
+              519,
+              781,
+              0,
+              0
+            ]
+          },
+          "build_cond_card_forest_effect_1": {
+            "display_name": "Forest build terrain card effect line 2",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "build_cond_card_forest",
+            "rect": [
+              519,
+              793,
+              0,
+              0
+            ]
+          },
+          "build_cond_card_forest_name": {
+            "display_name": "Forest build terrain card name",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "build_cond_card_forest",
+            "rect": [
+              519,
+              769,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.name"
+          },
+          "build_cond_card_forest_sprite": {
+            "display_name": "Forest build terrain card sprite",
+            "kind": "panel",
+            "label": "",
+            "parent": "build_cond_card_forest",
+            "rect": [
+              543,
+              673,
+              64,
+              96
+            ]
+          },
+          "build_cond_card_grass": {
+            "display_name": "Grass build terrain card",
+            "kind": "panel",
+            "label": "",
+            "parent": "build_terrain_card_list",
+            "rect": [
+              516,
+              308,
+              118,
+              74
+            ]
+          },
+          "build_cond_card_grass_count": {
+            "align": "right",
+            "display_name": "Grass build terrain card count",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "build_cond_card_grass",
+            "rect": [
+              631,
+              343,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.count"
+          },
+          "build_cond_card_grass_effect_0": {
+            "display_name": "Grass build terrain card effect line 1",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "build_cond_card_grass",
+            "rect": [
+              519,
+              355,
+              0,
+              0
+            ]
+          },
+          "build_cond_card_grass_effect_1": {
+            "display_name": "Grass build terrain card effect line 2",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "build_cond_card_grass",
+            "rect": [
+              519,
+              367,
+              0,
+              0
+            ]
+          },
+          "build_cond_card_grass_name": {
+            "display_name": "Grass build terrain card name",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "build_cond_card_grass",
+            "rect": [
+              519,
+              343,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.name"
+          },
+          "build_cond_card_grass_sprite": {
+            "display_name": "Grass build terrain card sprite",
+            "kind": "panel",
+            "label": "",
+            "parent": "build_cond_card_grass",
+            "rect": [
+              543,
+              311,
+              64,
+              32
+            ]
+          },
+          "build_cond_card_mountain": {
+            "display_name": "Mountain build terrain card",
+            "kind": "panel",
+            "label": "",
+            "parent": "build_terrain_card_list",
+            "rect": [
+              516,
+              386,
+              118,
+              138
+            ]
+          },
+          "build_cond_card_mountain_count": {
+            "align": "right",
+            "display_name": "Mountain build terrain card count",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "build_cond_card_mountain",
+            "rect": [
+              631,
+              485,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.count"
+          },
+          "build_cond_card_mountain_effect_0": {
+            "display_name": "Mountain build terrain card effect line 1",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "build_cond_card_mountain",
+            "rect": [
+              519,
+              497,
+              0,
+              0
+            ]
+          },
+          "build_cond_card_mountain_effect_1": {
+            "display_name": "Mountain build terrain card effect line 2",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "build_cond_card_mountain",
+            "rect": [
+              519,
+              509,
+              0,
+              0
+            ]
+          },
+          "build_cond_card_mountain_name": {
+            "display_name": "Mountain build terrain card name",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "build_cond_card_mountain",
+            "rect": [
+              519,
+              485,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.name"
+          },
+          "build_cond_card_mountain_sprite": {
+            "display_name": "Mountain build terrain card sprite",
+            "kind": "panel",
+            "label": "",
+            "parent": "build_cond_card_mountain",
+            "rect": [
+              543,
+              389,
+              64,
+              96
+            ]
+          },
+          "build_cond_card_pond": {
+            "display_name": "Pond build terrain card",
+            "kind": "panel",
+            "label": "",
+            "parent": "build_terrain_card_list",
+            "rect": [
+              516,
+              528,
+              118,
+              138
+            ]
+          },
+          "build_cond_card_pond_count": {
+            "align": "right",
+            "display_name": "Pond build terrain card count",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "build_cond_card_pond",
+            "rect": [
+              631,
+              627,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.count"
+          },
+          "build_cond_card_pond_effect_0": {
+            "display_name": "Pond build terrain card effect line 1",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "build_cond_card_pond",
+            "rect": [
+              519,
+              639,
+              0,
+              0
+            ]
+          },
+          "build_cond_card_pond_effect_1": {
+            "display_name": "Pond build terrain card effect line 2",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "build_cond_card_pond",
+            "rect": [
+              519,
+              651,
+              0,
+              0
+            ]
+          },
+          "build_cond_card_pond_name": {
+            "display_name": "Pond build terrain card name",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "build_cond_card_pond",
+            "rect": [
+              519,
+              627,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.name"
+          },
+          "build_cond_card_pond_sprite": {
+            "display_name": "Pond build terrain card sprite",
+            "kind": "panel",
+            "label": "",
+            "parent": "build_cond_card_pond",
+            "rect": [
+              543,
+              531,
+              64,
+              96
+            ]
+          },
+          "build_terrain_card_list": {
+            "display_name": "Build terrain card group",
+            "kind": "panel",
+            "label": "",
+            "parent": "panel",
+            "rect": [
+              516,
+              308,
+              118,
+              52
+            ]
+          },
           "card_aoe_defence": {
             "display_name": "Mortar card",
             "font_key": "sm",
@@ -423,7 +751,7 @@
             "parent": "construct_card_list",
             "rect": [
               526,
-              176,
+              166,
               44,
               45
             ]
@@ -435,7 +763,7 @@
             "parent": "card_aoe_defence",
             "rect": [
               516,
-              165,
+              155,
               64,
               64
             ]
@@ -448,7 +776,7 @@
             "parent": "card_aoe_defence",
             "rect": [
               585,
-              178,
+              168,
               0,
               0
             ]
@@ -461,7 +789,7 @@
             "parent": "card_aoe_defence",
             "rect": [
               585,
-              190,
+              180,
               0,
               0
             ]
@@ -473,7 +801,7 @@
             "parent": "card_aoe_defence",
             "rect": [
               579,
-              152,
+              142,
               77,
               64
             ]
@@ -485,7 +813,7 @@
             "parent": "card_aoe_defence",
             "rect": [
               530,
-              180,
+              170,
               34,
               34
             ]
@@ -498,7 +826,7 @@
             "parent": "card_aoe_defence",
             "rect": [
               578,
-              198,
+              188,
               74,
               23
             ]
@@ -510,7 +838,7 @@
             "parent": "card_aoe_defence_price",
             "rect": [
               592,
-              206,
+              196,
               10,
               10
             ]
@@ -523,7 +851,7 @@
             "parent": "card_aoe_defence_price",
             "rect": [
               606,
-              205,
+              195,
               0,
               0
             ],
@@ -537,7 +865,7 @@
             "parent": "construct_card_list",
             "rect": [
               526,
-              752,
+              702,
               44,
               45
             ]
@@ -549,7 +877,7 @@
             "parent": "card_blocker",
             "rect": [
               516,
-              741,
+              691,
               64,
               64
             ]
@@ -562,7 +890,7 @@
             "parent": "card_blocker",
             "rect": [
               585,
-              754,
+              704,
               0,
               0
             ]
@@ -575,7 +903,7 @@
             "parent": "card_blocker",
             "rect": [
               585,
-              766,
+              716,
               0,
               0
             ]
@@ -587,7 +915,7 @@
             "parent": "card_blocker",
             "rect": [
               579,
-              728,
+              678,
               77,
               64
             ]
@@ -599,7 +927,7 @@
             "parent": "card_blocker",
             "rect": [
               530,
-              756,
+              706,
               34,
               34
             ]
@@ -612,7 +940,7 @@
             "parent": "card_blocker",
             "rect": [
               578,
-              774,
+              724,
               74,
               23
             ]
@@ -624,7 +952,7 @@
             "parent": "card_blocker_price",
             "rect": [
               592,
-              782,
+              732,
               10,
               10
             ]
@@ -637,7 +965,7 @@
             "parent": "card_blocker_price",
             "rect": [
               606,
-              781,
+              731,
               0,
               0
             ],
@@ -651,7 +979,7 @@
             "parent": "construct_card_list",
             "rect": [
               526,
-              608,
+              568,
               44,
               45
             ]
@@ -663,7 +991,7 @@
             "parent": "card_boost_damage",
             "rect": [
               516,
-              597,
+              557,
               64,
               64
             ]
@@ -676,7 +1004,7 @@
             "parent": "card_boost_damage",
             "rect": [
               585,
-              610,
+              570,
               0,
               0
             ]
@@ -689,7 +1017,7 @@
             "parent": "card_boost_damage",
             "rect": [
               585,
-              622,
+              582,
               0,
               0
             ]
@@ -701,7 +1029,7 @@
             "parent": "card_boost_damage",
             "rect": [
               579,
-              584,
+              544,
               77,
               64
             ]
@@ -713,7 +1041,7 @@
             "parent": "card_boost_damage",
             "rect": [
               530,
-              612,
+              572,
               34,
               34
             ]
@@ -726,7 +1054,7 @@
             "parent": "card_boost_damage",
             "rect": [
               578,
-              630,
+              590,
               74,
               23
             ]
@@ -738,7 +1066,7 @@
             "parent": "card_boost_damage_price",
             "rect": [
               592,
-              638,
+              598,
               10,
               10
             ]
@@ -751,7 +1079,7 @@
             "parent": "card_boost_damage_price",
             "rect": [
               606,
-              637,
+              597,
               0,
               0
             ],
@@ -765,7 +1093,7 @@
             "parent": "construct_card_list",
             "rect": [
               526,
-              680,
+              635,
               44,
               45
             ]
@@ -777,7 +1105,7 @@
             "parent": "card_boost_hp",
             "rect": [
               516,
-              669,
+              624,
               64,
               64
             ]
@@ -790,7 +1118,7 @@
             "parent": "card_boost_hp",
             "rect": [
               585,
-              682,
+              637,
               0,
               0
             ]
@@ -803,7 +1131,7 @@
             "parent": "card_boost_hp",
             "rect": [
               585,
-              694,
+              649,
               0,
               0
             ]
@@ -815,7 +1143,7 @@
             "parent": "card_boost_hp",
             "rect": [
               579,
-              656,
+              611,
               77,
               64
             ]
@@ -827,7 +1155,7 @@
             "parent": "card_boost_hp",
             "rect": [
               530,
-              684,
+              639,
               34,
               34
             ]
@@ -840,7 +1168,7 @@
             "parent": "card_boost_hp",
             "rect": [
               578,
-              702,
+              657,
               74,
               23
             ]
@@ -852,7 +1180,7 @@
             "parent": "card_boost_hp_price",
             "rect": [
               592,
-              710,
+              665,
               10,
               10
             ]
@@ -865,7 +1193,7 @@
             "parent": "card_boost_hp_price",
             "rect": [
               606,
-              709,
+              664,
               0,
               0
             ],
@@ -879,7 +1207,7 @@
             "parent": "construct_card_list",
             "rect": [
               526,
-              536,
+              501,
               44,
               45
             ]
@@ -891,7 +1219,7 @@
             "parent": "card_boost_speed",
             "rect": [
               516,
-              525,
+              490,
               64,
               64
             ]
@@ -904,7 +1232,7 @@
             "parent": "card_boost_speed",
             "rect": [
               585,
-              538,
+              503,
               0,
               0
             ]
@@ -917,7 +1245,7 @@
             "parent": "card_boost_speed",
             "rect": [
               585,
-              550,
+              515,
               0,
               0
             ]
@@ -929,7 +1257,7 @@
             "parent": "card_boost_speed",
             "rect": [
               579,
-              512,
+              477,
               77,
               64
             ]
@@ -941,7 +1269,7 @@
             "parent": "card_boost_speed",
             "rect": [
               530,
-              540,
+              505,
               34,
               34
             ]
@@ -954,7 +1282,7 @@
             "parent": "card_boost_speed",
             "rect": [
               578,
-              558,
+              523,
               74,
               23
             ]
@@ -966,7 +1294,7 @@
             "parent": "card_boost_speed_price",
             "rect": [
               592,
-              566,
+              531,
               10,
               10
             ]
@@ -979,7 +1307,7 @@
             "parent": "card_boost_speed_price",
             "rect": [
               606,
-              565,
+              530,
               0,
               0
             ],
@@ -1107,7 +1435,7 @@
             "parent": "construct_card_list",
             "rect": [
               526,
-              104,
+              99,
               44,
               45
             ]
@@ -1119,7 +1447,7 @@
             "parent": "card_economic",
             "rect": [
               516,
-              93,
+              88,
               64,
               64
             ]
@@ -1132,7 +1460,7 @@
             "parent": "card_economic",
             "rect": [
               585,
-              106,
+              101,
               0,
               0
             ]
@@ -1145,7 +1473,7 @@
             "parent": "card_economic",
             "rect": [
               585,
-              118,
+              113,
               0,
               0
             ]
@@ -1157,7 +1485,7 @@
             "parent": "card_economic",
             "rect": [
               579,
-              80,
+              75,
               77,
               64
             ]
@@ -1169,7 +1497,7 @@
             "parent": "card_economic",
             "rect": [
               530,
-              108,
+              103,
               34,
               34
             ]
@@ -1182,7 +1510,7 @@
             "parent": "card_economic",
             "rect": [
               578,
-              126,
+              121,
               74,
               23
             ]
@@ -1194,7 +1522,7 @@
             "parent": "card_economic_price",
             "rect": [
               592,
-              134,
+              129,
               10,
               10
             ]
@@ -1207,7 +1535,7 @@
             "parent": "card_economic_price",
             "rect": [
               606,
-              133,
+              128,
               0,
               0
             ],
@@ -1221,7 +1549,7 @@
             "parent": "construct_card_list",
             "rect": [
               526,
-              464,
+              434,
               44,
               45
             ]
@@ -1233,7 +1561,7 @@
             "parent": "card_meditator",
             "rect": [
               516,
-              453,
+              423,
               64,
               64
             ]
@@ -1246,7 +1574,7 @@
             "parent": "card_meditator",
             "rect": [
               585,
-              466,
+              436,
               0,
               0
             ]
@@ -1259,7 +1587,7 @@
             "parent": "card_meditator",
             "rect": [
               585,
-              478,
+              448,
               0,
               0
             ]
@@ -1271,7 +1599,7 @@
             "parent": "card_meditator",
             "rect": [
               579,
-              440,
+              410,
               77,
               64
             ]
@@ -1283,7 +1611,7 @@
             "parent": "card_meditator",
             "rect": [
               530,
-              468,
+              438,
               34,
               34
             ]
@@ -1296,7 +1624,7 @@
             "parent": "card_meditator",
             "rect": [
               578,
-              486,
+              456,
               74,
               23
             ]
@@ -1308,7 +1636,7 @@
             "parent": "card_meditator_price",
             "rect": [
               592,
-              494,
+              464,
               10,
               10
             ]
@@ -1321,7 +1649,7 @@
             "parent": "card_meditator_price",
             "rect": [
               606,
-              493,
+              463,
               0,
               0
             ],
@@ -1335,7 +1663,7 @@
             "parent": "construct_card_list",
             "rect": [
               526,
-              392,
+              367,
               44,
               45
             ]
@@ -1347,7 +1675,7 @@
             "parent": "card_painter",
             "rect": [
               516,
-              381,
+              356,
               64,
               64
             ]
@@ -1360,7 +1688,7 @@
             "parent": "card_painter",
             "rect": [
               585,
-              394,
+              369,
               0,
               0
             ]
@@ -1373,7 +1701,7 @@
             "parent": "card_painter",
             "rect": [
               585,
-              406,
+              381,
               0,
               0
             ]
@@ -1385,7 +1713,7 @@
             "parent": "card_painter",
             "rect": [
               579,
-              368,
+              343,
               77,
               64
             ]
@@ -1397,7 +1725,7 @@
             "parent": "card_painter",
             "rect": [
               530,
-              396,
+              371,
               34,
               34
             ]
@@ -1410,7 +1738,7 @@
             "parent": "card_painter",
             "rect": [
               578,
-              414,
+              389,
               74,
               23
             ]
@@ -1422,7 +1750,7 @@
             "parent": "card_painter_price",
             "rect": [
               592,
-              422,
+              397,
               10,
               10
             ]
@@ -1435,7 +1763,7 @@
             "parent": "card_painter_price",
             "rect": [
               606,
-              421,
+              396,
               0,
               0
             ],
@@ -1449,7 +1777,7 @@
             "parent": "construct_card_list",
             "rect": [
               526,
-              320,
+              300,
               44,
               45
             ]
@@ -1461,7 +1789,7 @@
             "parent": "card_storm_priest",
             "rect": [
               516,
-              309,
+              289,
               64,
               64
             ]
@@ -1474,7 +1802,7 @@
             "parent": "card_storm_priest",
             "rect": [
               585,
-              322,
+              302,
               0,
               0
             ]
@@ -1487,7 +1815,7 @@
             "parent": "card_storm_priest",
             "rect": [
               585,
-              334,
+              314,
               0,
               0
             ]
@@ -1499,7 +1827,7 @@
             "parent": "card_storm_priest",
             "rect": [
               579,
-              296,
+              276,
               77,
               64
             ]
@@ -1511,7 +1839,7 @@
             "parent": "card_storm_priest",
             "rect": [
               530,
-              324,
+              304,
               34,
               34
             ]
@@ -1524,7 +1852,7 @@
             "parent": "card_storm_priest",
             "rect": [
               578,
-              342,
+              322,
               74,
               23
             ]
@@ -1536,7 +1864,7 @@
             "parent": "card_storm_priest_price",
             "rect": [
               592,
-              350,
+              330,
               10,
               10
             ]
@@ -1549,7 +1877,7 @@
             "parent": "card_storm_priest_price",
             "rect": [
               606,
-              349,
+              329,
               0,
               0
             ],
@@ -1563,7 +1891,7 @@
             "parent": "construct_card_list",
             "rect": [
               526,
-              248,
+              233,
               44,
               45
             ]
@@ -1575,7 +1903,7 @@
             "parent": "card_sun_scorcher",
             "rect": [
               516,
-              237,
+              222,
               64,
               64
             ]
@@ -1588,7 +1916,7 @@
             "parent": "card_sun_scorcher",
             "rect": [
               585,
-              250,
+              235,
               0,
               0
             ]
@@ -1601,7 +1929,7 @@
             "parent": "card_sun_scorcher",
             "rect": [
               585,
-              262,
+              247,
               0,
               0
             ]
@@ -1613,7 +1941,7 @@
             "parent": "card_sun_scorcher",
             "rect": [
               579,
-              224,
+              209,
               77,
               64
             ]
@@ -1625,7 +1953,7 @@
             "parent": "card_sun_scorcher",
             "rect": [
               530,
-              252,
+              237,
               34,
               34
             ]
@@ -1638,7 +1966,7 @@
             "parent": "card_sun_scorcher",
             "rect": [
               578,
-              270,
+              255,
               74,
               23
             ]
@@ -1650,7 +1978,7 @@
             "parent": "card_sun_scorcher_price",
             "rect": [
               592,
-              278,
+              263,
               10,
               10
             ]
@@ -1663,7 +1991,7 @@
             "parent": "card_sun_scorcher_price",
             "rect": [
               606,
-              277,
+              262,
               0,
               0
             ],
@@ -1677,7 +2005,7 @@
             "parent": "construct_card_list",
             "rect": [
               526,
-              824,
+              769,
               44,
               45
             ]
@@ -1689,7 +2017,7 @@
             "parent": "card_wall_builder",
             "rect": [
               516,
-              813,
+              758,
               64,
               64
             ]
@@ -1702,7 +2030,7 @@
             "parent": "card_wall_builder",
             "rect": [
               585,
-              826,
+              771,
               0,
               0
             ]
@@ -1715,7 +2043,7 @@
             "parent": "card_wall_builder",
             "rect": [
               585,
-              838,
+              783,
               0,
               0
             ]
@@ -1727,7 +2055,7 @@
             "parent": "card_wall_builder",
             "rect": [
               579,
-              800,
+              745,
               77,
               64
             ]
@@ -1739,7 +2067,7 @@
             "parent": "card_wall_builder",
             "rect": [
               530,
-              828,
+              773,
               34,
               34
             ]
@@ -1752,7 +2080,7 @@
             "parent": "card_wall_builder",
             "rect": [
               578,
-              846,
+              791,
               74,
               23
             ]
@@ -1764,7 +2092,7 @@
             "parent": "card_wall_builder_price",
             "rect": [
               592,
-              854,
+              799,
               10,
               10
             ]
@@ -1777,7 +2105,7 @@
             "parent": "card_wall_builder_price",
             "rect": [
               606,
-              853,
+              798,
               0,
               0
             ],
@@ -1794,71 +2122,6 @@
               4,
               14,
               13
-            ]
-          },
-          "cond_badge": {
-            "display_name": "Terrain badge box",
-            "kind": "panel",
-            "label": "",
-            "parent": "panel",
-            "rect": [
-              516,
-              340,
-              118,
-              15
-            ]
-          },
-          "cond_badge_text": {
-            "align": "center",
-            "display_name": "Terrain badge text",
-            "font_key": "sm",
-            "kind": "label",
-            "label": "",
-            "parent": "panel",
-            "rect": [
-              575,
-              342,
-              0,
-              0
-            ],
-            "text_id": "building.terrain_badge"
-          },
-          "cond_effect_box": {
-            "display_name": "Terrain effect box",
-            "kind": "panel",
-            "label": "",
-            "parent": "panel",
-            "rect": [
-              516,
-              308,
-              118,
-              29
-            ]
-          },
-          "cond_effect_line_0": {
-            "display_name": "Terrain effect line 1",
-            "font_key": "sm",
-            "kind": "label",
-            "label": "",
-            "parent": "panel",
-            "rect": [
-              520,
-              310,
-              0,
-              0
-            ]
-          },
-          "cond_effect_line_1": {
-            "display_name": "Terrain effect line 2",
-            "font_key": "sm",
-            "kind": "label",
-            "label": "",
-            "parent": "panel",
-            "rect": [
-              520,
-              322,
-              0,
-              0
             ]
           },
           "construct_card_list": {
@@ -2437,7 +2700,7 @@
         }
       },
       "upgrade": {
-        "mock_note": "love=123, round=7; a freshly created 'defence' building (tier 0, level 1) — upgrade_gate resolves 'in_tier' deterministically, with that slot's live colour columns wired so every `upgrade_swatch_<i>` is recorded — the count is dynamic in game, the ids are not",
+        "mock_note": "love=123, round=7; a freshly created 'defence' building (tier 0, level 1) — upgrade_gate resolves 'in_tier' deterministically, with that slot's live colour columns wired so every `upgrade_swatch_<i>` is recorded, and its 2x2 chunk forced to the four distinct tile conditions so every `upgrade_cond_card_<condition>` tree is too — the count is dynamic in game, the ids are not",
         "widgets": {
           "action_btn": {
             "display_name": "Unlock / Build / Upgrade button",
@@ -2463,71 +2726,6 @@
               4,
               14,
               13
-            ]
-          },
-          "cond_badge": {
-            "display_name": "Terrain badge box",
-            "kind": "panel",
-            "label": "",
-            "parent": "panel",
-            "rect": [
-              516,
-              45,
-              118,
-              15
-            ]
-          },
-          "cond_badge_text": {
-            "align": "center",
-            "display_name": "Terrain badge text",
-            "font_key": "sm",
-            "kind": "label",
-            "label": "",
-            "parent": "panel",
-            "rect": [
-              575,
-              47,
-              0,
-              0
-            ],
-            "text_id": "building.terrain_badge"
-          },
-          "cond_effect_box": {
-            "display_name": "Terrain effect box",
-            "kind": "panel",
-            "label": "",
-            "parent": "panel",
-            "rect": [
-              516,
-              63,
-              118,
-              29
-            ]
-          },
-          "cond_effect_line_0": {
-            "display_name": "Terrain effect line 1",
-            "font_key": "sm",
-            "kind": "label",
-            "label": "",
-            "parent": "panel",
-            "rect": [
-              520,
-              65,
-              0,
-              0
-            ]
-          },
-          "cond_effect_line_1": {
-            "display_name": "Terrain effect line 2",
-            "font_key": "sm",
-            "kind": "label",
-            "label": "",
-            "parent": "panel",
-            "rect": [
-              520,
-              77,
-              0,
-              0
             ]
           },
           "died_last_round": {
@@ -3197,6 +3395,322 @@
             ],
             "text_id": "building.stat.value"
           },
+          "upgrade_cond_card_forest": {
+            "display_name": "Forest upgrade terrain card",
+            "kind": "panel",
+            "label": "",
+            "parent": "upgrade_terrain_card_list",
+            "rect": [
+              516,
+              670,
+              118,
+              138
+            ]
+          },
+          "upgrade_cond_card_forest_count": {
+            "align": "right",
+            "display_name": "Forest upgrade terrain card count",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "upgrade_cond_card_forest",
+            "rect": [
+              631,
+              769,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.count"
+          },
+          "upgrade_cond_card_forest_effect_0": {
+            "display_name": "Forest upgrade terrain card effect line 1",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "upgrade_cond_card_forest",
+            "rect": [
+              519,
+              781,
+              0,
+              0
+            ]
+          },
+          "upgrade_cond_card_forest_effect_1": {
+            "display_name": "Forest upgrade terrain card effect line 2",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "upgrade_cond_card_forest",
+            "rect": [
+              519,
+              793,
+              0,
+              0
+            ]
+          },
+          "upgrade_cond_card_forest_name": {
+            "display_name": "Forest upgrade terrain card name",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "upgrade_cond_card_forest",
+            "rect": [
+              519,
+              769,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.name"
+          },
+          "upgrade_cond_card_forest_sprite": {
+            "display_name": "Forest upgrade terrain card sprite",
+            "kind": "panel",
+            "label": "",
+            "parent": "upgrade_cond_card_forest",
+            "rect": [
+              543,
+              673,
+              64,
+              96
+            ]
+          },
+          "upgrade_cond_card_grass": {
+            "display_name": "Grass upgrade terrain card",
+            "kind": "panel",
+            "label": "",
+            "parent": "upgrade_terrain_card_list",
+            "rect": [
+              516,
+              308,
+              118,
+              74
+            ]
+          },
+          "upgrade_cond_card_grass_count": {
+            "align": "right",
+            "display_name": "Grass upgrade terrain card count",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "upgrade_cond_card_grass",
+            "rect": [
+              631,
+              343,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.count"
+          },
+          "upgrade_cond_card_grass_effect_0": {
+            "display_name": "Grass upgrade terrain card effect line 1",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "upgrade_cond_card_grass",
+            "rect": [
+              519,
+              355,
+              0,
+              0
+            ]
+          },
+          "upgrade_cond_card_grass_effect_1": {
+            "display_name": "Grass upgrade terrain card effect line 2",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "upgrade_cond_card_grass",
+            "rect": [
+              519,
+              367,
+              0,
+              0
+            ]
+          },
+          "upgrade_cond_card_grass_name": {
+            "display_name": "Grass upgrade terrain card name",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "upgrade_cond_card_grass",
+            "rect": [
+              519,
+              343,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.name"
+          },
+          "upgrade_cond_card_grass_sprite": {
+            "display_name": "Grass upgrade terrain card sprite",
+            "kind": "panel",
+            "label": "",
+            "parent": "upgrade_cond_card_grass",
+            "rect": [
+              543,
+              311,
+              64,
+              32
+            ]
+          },
+          "upgrade_cond_card_mountain": {
+            "display_name": "Mountain upgrade terrain card",
+            "kind": "panel",
+            "label": "",
+            "parent": "upgrade_terrain_card_list",
+            "rect": [
+              516,
+              386,
+              118,
+              138
+            ]
+          },
+          "upgrade_cond_card_mountain_count": {
+            "align": "right",
+            "display_name": "Mountain upgrade terrain card count",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "upgrade_cond_card_mountain",
+            "rect": [
+              631,
+              485,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.count"
+          },
+          "upgrade_cond_card_mountain_effect_0": {
+            "display_name": "Mountain upgrade terrain card effect line 1",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "upgrade_cond_card_mountain",
+            "rect": [
+              519,
+              497,
+              0,
+              0
+            ]
+          },
+          "upgrade_cond_card_mountain_effect_1": {
+            "display_name": "Mountain upgrade terrain card effect line 2",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "upgrade_cond_card_mountain",
+            "rect": [
+              519,
+              509,
+              0,
+              0
+            ]
+          },
+          "upgrade_cond_card_mountain_name": {
+            "display_name": "Mountain upgrade terrain card name",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "upgrade_cond_card_mountain",
+            "rect": [
+              519,
+              485,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.name"
+          },
+          "upgrade_cond_card_mountain_sprite": {
+            "display_name": "Mountain upgrade terrain card sprite",
+            "kind": "panel",
+            "label": "",
+            "parent": "upgrade_cond_card_mountain",
+            "rect": [
+              543,
+              389,
+              64,
+              96
+            ]
+          },
+          "upgrade_cond_card_pond": {
+            "display_name": "Pond upgrade terrain card",
+            "kind": "panel",
+            "label": "",
+            "parent": "upgrade_terrain_card_list",
+            "rect": [
+              516,
+              528,
+              118,
+              138
+            ]
+          },
+          "upgrade_cond_card_pond_count": {
+            "align": "right",
+            "display_name": "Pond upgrade terrain card count",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "upgrade_cond_card_pond",
+            "rect": [
+              631,
+              627,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.count"
+          },
+          "upgrade_cond_card_pond_effect_0": {
+            "display_name": "Pond upgrade terrain card effect line 1",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "upgrade_cond_card_pond",
+            "rect": [
+              519,
+              639,
+              0,
+              0
+            ]
+          },
+          "upgrade_cond_card_pond_effect_1": {
+            "display_name": "Pond upgrade terrain card effect line 2",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "upgrade_cond_card_pond",
+            "rect": [
+              519,
+              651,
+              0,
+              0
+            ]
+          },
+          "upgrade_cond_card_pond_name": {
+            "display_name": "Pond upgrade terrain card name",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "upgrade_cond_card_pond",
+            "rect": [
+              519,
+              627,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.name"
+          },
+          "upgrade_cond_card_pond_sprite": {
+            "display_name": "Pond upgrade terrain card sprite",
+            "kind": "panel",
+            "label": "",
+            "parent": "upgrade_cond_card_pond",
+            "rect": [
+              543,
+              531,
+              64,
+              96
+            ]
+          },
           "upgrade_hint": {
             "align": "center",
             "display_name": "Action button hint",
@@ -3276,6 +3790,18 @@
               282,
               12,
               12
+            ]
+          },
+          "upgrade_terrain_card_list": {
+            "display_name": "Upgrade terrain card group",
+            "kind": "panel",
+            "label": "",
+            "parent": "panel",
+            "rect": [
+              516,
+              308,
+              118,
+              52
             ]
           },
           "upgrade_tier_level": {
@@ -3363,6 +3889,334 @@
           16
         ]
       },
+      "build_cond_card_forest": {
+        "display_name": "Forest build terrain card",
+        "kind": "panel",
+        "label": "",
+        "parent": "build_terrain_card_list",
+        "rect": [
+          516,
+          670,
+          118,
+          138
+        ]
+      },
+      "build_cond_card_forest_count": {
+        "align": "right",
+        "display_name": "Forest build terrain card count",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "build_cond_card_forest",
+        "rect": [
+          631,
+          769,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.count"
+      },
+      "build_cond_card_forest_effect_0": {
+        "display_name": "Forest build terrain card effect line 1",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "build_cond_card_forest",
+        "rect": [
+          519,
+          781,
+          0,
+          0
+        ]
+      },
+      "build_cond_card_forest_effect_1": {
+        "display_name": "Forest build terrain card effect line 2",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "build_cond_card_forest",
+        "rect": [
+          519,
+          793,
+          0,
+          0
+        ]
+      },
+      "build_cond_card_forest_name": {
+        "display_name": "Forest build terrain card name",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "build_cond_card_forest",
+        "rect": [
+          519,
+          769,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.name"
+      },
+      "build_cond_card_forest_sprite": {
+        "display_name": "Forest build terrain card sprite",
+        "kind": "panel",
+        "label": "",
+        "parent": "build_cond_card_forest",
+        "rect": [
+          543,
+          673,
+          64,
+          96
+        ]
+      },
+      "build_cond_card_grass": {
+        "display_name": "Grass build terrain card",
+        "kind": "panel",
+        "label": "",
+        "parent": "build_terrain_card_list",
+        "rect": [
+          516,
+          308,
+          118,
+          74
+        ]
+      },
+      "build_cond_card_grass_count": {
+        "align": "right",
+        "display_name": "Grass build terrain card count",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "build_cond_card_grass",
+        "rect": [
+          631,
+          343,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.count"
+      },
+      "build_cond_card_grass_effect_0": {
+        "display_name": "Grass build terrain card effect line 1",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "build_cond_card_grass",
+        "rect": [
+          519,
+          355,
+          0,
+          0
+        ]
+      },
+      "build_cond_card_grass_effect_1": {
+        "display_name": "Grass build terrain card effect line 2",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "build_cond_card_grass",
+        "rect": [
+          519,
+          367,
+          0,
+          0
+        ]
+      },
+      "build_cond_card_grass_name": {
+        "display_name": "Grass build terrain card name",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "build_cond_card_grass",
+        "rect": [
+          519,
+          343,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.name"
+      },
+      "build_cond_card_grass_sprite": {
+        "display_name": "Grass build terrain card sprite",
+        "kind": "panel",
+        "label": "",
+        "parent": "build_cond_card_grass",
+        "rect": [
+          543,
+          311,
+          64,
+          32
+        ]
+      },
+      "build_cond_card_mountain": {
+        "display_name": "Mountain build terrain card",
+        "kind": "panel",
+        "label": "",
+        "parent": "build_terrain_card_list",
+        "rect": [
+          516,
+          386,
+          118,
+          138
+        ]
+      },
+      "build_cond_card_mountain_count": {
+        "align": "right",
+        "display_name": "Mountain build terrain card count",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "build_cond_card_mountain",
+        "rect": [
+          631,
+          485,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.count"
+      },
+      "build_cond_card_mountain_effect_0": {
+        "display_name": "Mountain build terrain card effect line 1",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "build_cond_card_mountain",
+        "rect": [
+          519,
+          497,
+          0,
+          0
+        ]
+      },
+      "build_cond_card_mountain_effect_1": {
+        "display_name": "Mountain build terrain card effect line 2",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "build_cond_card_mountain",
+        "rect": [
+          519,
+          509,
+          0,
+          0
+        ]
+      },
+      "build_cond_card_mountain_name": {
+        "display_name": "Mountain build terrain card name",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "build_cond_card_mountain",
+        "rect": [
+          519,
+          485,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.name"
+      },
+      "build_cond_card_mountain_sprite": {
+        "display_name": "Mountain build terrain card sprite",
+        "kind": "panel",
+        "label": "",
+        "parent": "build_cond_card_mountain",
+        "rect": [
+          543,
+          389,
+          64,
+          96
+        ]
+      },
+      "build_cond_card_pond": {
+        "display_name": "Pond build terrain card",
+        "kind": "panel",
+        "label": "",
+        "parent": "build_terrain_card_list",
+        "rect": [
+          516,
+          528,
+          118,
+          138
+        ]
+      },
+      "build_cond_card_pond_count": {
+        "align": "right",
+        "display_name": "Pond build terrain card count",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "build_cond_card_pond",
+        "rect": [
+          631,
+          627,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.count"
+      },
+      "build_cond_card_pond_effect_0": {
+        "display_name": "Pond build terrain card effect line 1",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "build_cond_card_pond",
+        "rect": [
+          519,
+          639,
+          0,
+          0
+        ]
+      },
+      "build_cond_card_pond_effect_1": {
+        "display_name": "Pond build terrain card effect line 2",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "build_cond_card_pond",
+        "rect": [
+          519,
+          651,
+          0,
+          0
+        ]
+      },
+      "build_cond_card_pond_name": {
+        "display_name": "Pond build terrain card name",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "build_cond_card_pond",
+        "rect": [
+          519,
+          627,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.name"
+      },
+      "build_cond_card_pond_sprite": {
+        "display_name": "Pond build terrain card sprite",
+        "kind": "panel",
+        "label": "",
+        "parent": "build_cond_card_pond",
+        "rect": [
+          543,
+          531,
+          64,
+          96
+        ]
+      },
+      "build_terrain_card_list": {
+        "display_name": "Build terrain card group",
+        "kind": "panel",
+        "label": "",
+        "parent": "panel",
+        "rect": [
+          516,
+          308,
+          118,
+          52
+        ]
+      },
       "card_aoe_defence": {
         "display_name": "Mortar card",
         "font_key": "sm",
@@ -3371,7 +4225,7 @@
         "parent": "construct_card_list",
         "rect": [
           526,
-          176,
+          166,
           44,
           45
         ]
@@ -3383,7 +4237,7 @@
         "parent": "card_aoe_defence",
         "rect": [
           516,
-          165,
+          155,
           64,
           64
         ]
@@ -3396,7 +4250,7 @@
         "parent": "card_aoe_defence",
         "rect": [
           585,
-          178,
+          168,
           0,
           0
         ]
@@ -3409,7 +4263,7 @@
         "parent": "card_aoe_defence",
         "rect": [
           585,
-          190,
+          180,
           0,
           0
         ]
@@ -3421,7 +4275,7 @@
         "parent": "card_aoe_defence",
         "rect": [
           579,
-          152,
+          142,
           77,
           64
         ]
@@ -3433,7 +4287,7 @@
         "parent": "card_aoe_defence",
         "rect": [
           530,
-          180,
+          170,
           34,
           34
         ]
@@ -3446,7 +4300,7 @@
         "parent": "card_aoe_defence",
         "rect": [
           578,
-          198,
+          188,
           74,
           23
         ]
@@ -3458,7 +4312,7 @@
         "parent": "card_aoe_defence_price",
         "rect": [
           592,
-          206,
+          196,
           10,
           10
         ]
@@ -3471,7 +4325,7 @@
         "parent": "card_aoe_defence_price",
         "rect": [
           606,
-          205,
+          195,
           0,
           0
         ],
@@ -3485,7 +4339,7 @@
         "parent": "construct_card_list",
         "rect": [
           526,
-          752,
+          702,
           44,
           45
         ]
@@ -3497,7 +4351,7 @@
         "parent": "card_blocker",
         "rect": [
           516,
-          741,
+          691,
           64,
           64
         ]
@@ -3510,7 +4364,7 @@
         "parent": "card_blocker",
         "rect": [
           585,
-          754,
+          704,
           0,
           0
         ]
@@ -3523,7 +4377,7 @@
         "parent": "card_blocker",
         "rect": [
           585,
-          766,
+          716,
           0,
           0
         ]
@@ -3535,7 +4389,7 @@
         "parent": "card_blocker",
         "rect": [
           579,
-          728,
+          678,
           77,
           64
         ]
@@ -3547,7 +4401,7 @@
         "parent": "card_blocker",
         "rect": [
           530,
-          756,
+          706,
           34,
           34
         ]
@@ -3560,7 +4414,7 @@
         "parent": "card_blocker",
         "rect": [
           578,
-          774,
+          724,
           74,
           23
         ]
@@ -3572,7 +4426,7 @@
         "parent": "card_blocker_price",
         "rect": [
           592,
-          782,
+          732,
           10,
           10
         ]
@@ -3585,7 +4439,7 @@
         "parent": "card_blocker_price",
         "rect": [
           606,
-          781,
+          731,
           0,
           0
         ],
@@ -3599,7 +4453,7 @@
         "parent": "construct_card_list",
         "rect": [
           526,
-          608,
+          568,
           44,
           45
         ]
@@ -3611,7 +4465,7 @@
         "parent": "card_boost_damage",
         "rect": [
           516,
-          597,
+          557,
           64,
           64
         ]
@@ -3624,7 +4478,7 @@
         "parent": "card_boost_damage",
         "rect": [
           585,
-          610,
+          570,
           0,
           0
         ]
@@ -3637,7 +4491,7 @@
         "parent": "card_boost_damage",
         "rect": [
           585,
-          622,
+          582,
           0,
           0
         ]
@@ -3649,7 +4503,7 @@
         "parent": "card_boost_damage",
         "rect": [
           579,
-          584,
+          544,
           77,
           64
         ]
@@ -3661,7 +4515,7 @@
         "parent": "card_boost_damage",
         "rect": [
           530,
-          612,
+          572,
           34,
           34
         ]
@@ -3674,7 +4528,7 @@
         "parent": "card_boost_damage",
         "rect": [
           578,
-          630,
+          590,
           74,
           23
         ]
@@ -3686,7 +4540,7 @@
         "parent": "card_boost_damage_price",
         "rect": [
           592,
-          638,
+          598,
           10,
           10
         ]
@@ -3699,7 +4553,7 @@
         "parent": "card_boost_damage_price",
         "rect": [
           606,
-          637,
+          597,
           0,
           0
         ],
@@ -3713,7 +4567,7 @@
         "parent": "construct_card_list",
         "rect": [
           526,
-          680,
+          635,
           44,
           45
         ]
@@ -3725,7 +4579,7 @@
         "parent": "card_boost_hp",
         "rect": [
           516,
-          669,
+          624,
           64,
           64
         ]
@@ -3738,7 +4592,7 @@
         "parent": "card_boost_hp",
         "rect": [
           585,
-          682,
+          637,
           0,
           0
         ]
@@ -3751,7 +4605,7 @@
         "parent": "card_boost_hp",
         "rect": [
           585,
-          694,
+          649,
           0,
           0
         ]
@@ -3763,7 +4617,7 @@
         "parent": "card_boost_hp",
         "rect": [
           579,
-          656,
+          611,
           77,
           64
         ]
@@ -3775,7 +4629,7 @@
         "parent": "card_boost_hp",
         "rect": [
           530,
-          684,
+          639,
           34,
           34
         ]
@@ -3788,7 +4642,7 @@
         "parent": "card_boost_hp",
         "rect": [
           578,
-          702,
+          657,
           74,
           23
         ]
@@ -3800,7 +4654,7 @@
         "parent": "card_boost_hp_price",
         "rect": [
           592,
-          710,
+          665,
           10,
           10
         ]
@@ -3813,7 +4667,7 @@
         "parent": "card_boost_hp_price",
         "rect": [
           606,
-          709,
+          664,
           0,
           0
         ],
@@ -3827,7 +4681,7 @@
         "parent": "construct_card_list",
         "rect": [
           526,
-          536,
+          501,
           44,
           45
         ]
@@ -3839,7 +4693,7 @@
         "parent": "card_boost_speed",
         "rect": [
           516,
-          525,
+          490,
           64,
           64
         ]
@@ -3852,7 +4706,7 @@
         "parent": "card_boost_speed",
         "rect": [
           585,
-          538,
+          503,
           0,
           0
         ]
@@ -3865,7 +4719,7 @@
         "parent": "card_boost_speed",
         "rect": [
           585,
-          550,
+          515,
           0,
           0
         ]
@@ -3877,7 +4731,7 @@
         "parent": "card_boost_speed",
         "rect": [
           579,
-          512,
+          477,
           77,
           64
         ]
@@ -3889,7 +4743,7 @@
         "parent": "card_boost_speed",
         "rect": [
           530,
-          540,
+          505,
           34,
           34
         ]
@@ -3902,7 +4756,7 @@
         "parent": "card_boost_speed",
         "rect": [
           578,
-          558,
+          523,
           74,
           23
         ]
@@ -3914,7 +4768,7 @@
         "parent": "card_boost_speed_price",
         "rect": [
           592,
-          566,
+          531,
           10,
           10
         ]
@@ -3927,7 +4781,7 @@
         "parent": "card_boost_speed_price",
         "rect": [
           606,
-          565,
+          530,
           0,
           0
         ],
@@ -4055,7 +4909,7 @@
         "parent": "construct_card_list",
         "rect": [
           526,
-          104,
+          99,
           44,
           45
         ]
@@ -4067,7 +4921,7 @@
         "parent": "card_economic",
         "rect": [
           516,
-          93,
+          88,
           64,
           64
         ]
@@ -4080,7 +4934,7 @@
         "parent": "card_economic",
         "rect": [
           585,
-          106,
+          101,
           0,
           0
         ]
@@ -4093,7 +4947,7 @@
         "parent": "card_economic",
         "rect": [
           585,
-          118,
+          113,
           0,
           0
         ]
@@ -4105,7 +4959,7 @@
         "parent": "card_economic",
         "rect": [
           579,
-          80,
+          75,
           77,
           64
         ]
@@ -4117,7 +4971,7 @@
         "parent": "card_economic",
         "rect": [
           530,
-          108,
+          103,
           34,
           34
         ]
@@ -4130,7 +4984,7 @@
         "parent": "card_economic",
         "rect": [
           578,
-          126,
+          121,
           74,
           23
         ]
@@ -4142,7 +4996,7 @@
         "parent": "card_economic_price",
         "rect": [
           592,
-          134,
+          129,
           10,
           10
         ]
@@ -4155,7 +5009,7 @@
         "parent": "card_economic_price",
         "rect": [
           606,
-          133,
+          128,
           0,
           0
         ],
@@ -4169,7 +5023,7 @@
         "parent": "construct_card_list",
         "rect": [
           526,
-          464,
+          434,
           44,
           45
         ]
@@ -4181,7 +5035,7 @@
         "parent": "card_meditator",
         "rect": [
           516,
-          453,
+          423,
           64,
           64
         ]
@@ -4194,7 +5048,7 @@
         "parent": "card_meditator",
         "rect": [
           585,
-          466,
+          436,
           0,
           0
         ]
@@ -4207,7 +5061,7 @@
         "parent": "card_meditator",
         "rect": [
           585,
-          478,
+          448,
           0,
           0
         ]
@@ -4219,7 +5073,7 @@
         "parent": "card_meditator",
         "rect": [
           579,
-          440,
+          410,
           77,
           64
         ]
@@ -4231,7 +5085,7 @@
         "parent": "card_meditator",
         "rect": [
           530,
-          468,
+          438,
           34,
           34
         ]
@@ -4244,7 +5098,7 @@
         "parent": "card_meditator",
         "rect": [
           578,
-          486,
+          456,
           74,
           23
         ]
@@ -4256,7 +5110,7 @@
         "parent": "card_meditator_price",
         "rect": [
           592,
-          494,
+          464,
           10,
           10
         ]
@@ -4269,7 +5123,7 @@
         "parent": "card_meditator_price",
         "rect": [
           606,
-          493,
+          463,
           0,
           0
         ],
@@ -4283,7 +5137,7 @@
         "parent": "construct_card_list",
         "rect": [
           526,
-          392,
+          367,
           44,
           45
         ]
@@ -4295,7 +5149,7 @@
         "parent": "card_painter",
         "rect": [
           516,
-          381,
+          356,
           64,
           64
         ]
@@ -4308,7 +5162,7 @@
         "parent": "card_painter",
         "rect": [
           585,
-          394,
+          369,
           0,
           0
         ]
@@ -4321,7 +5175,7 @@
         "parent": "card_painter",
         "rect": [
           585,
-          406,
+          381,
           0,
           0
         ]
@@ -4333,7 +5187,7 @@
         "parent": "card_painter",
         "rect": [
           579,
-          368,
+          343,
           77,
           64
         ]
@@ -4345,7 +5199,7 @@
         "parent": "card_painter",
         "rect": [
           530,
-          396,
+          371,
           34,
           34
         ]
@@ -4358,7 +5212,7 @@
         "parent": "card_painter",
         "rect": [
           578,
-          414,
+          389,
           74,
           23
         ]
@@ -4370,7 +5224,7 @@
         "parent": "card_painter_price",
         "rect": [
           592,
-          422,
+          397,
           10,
           10
         ]
@@ -4383,7 +5237,7 @@
         "parent": "card_painter_price",
         "rect": [
           606,
-          421,
+          396,
           0,
           0
         ],
@@ -4397,7 +5251,7 @@
         "parent": "construct_card_list",
         "rect": [
           526,
-          320,
+          300,
           44,
           45
         ]
@@ -4409,7 +5263,7 @@
         "parent": "card_storm_priest",
         "rect": [
           516,
-          309,
+          289,
           64,
           64
         ]
@@ -4422,7 +5276,7 @@
         "parent": "card_storm_priest",
         "rect": [
           585,
-          322,
+          302,
           0,
           0
         ]
@@ -4435,7 +5289,7 @@
         "parent": "card_storm_priest",
         "rect": [
           585,
-          334,
+          314,
           0,
           0
         ]
@@ -4447,7 +5301,7 @@
         "parent": "card_storm_priest",
         "rect": [
           579,
-          296,
+          276,
           77,
           64
         ]
@@ -4459,7 +5313,7 @@
         "parent": "card_storm_priest",
         "rect": [
           530,
-          324,
+          304,
           34,
           34
         ]
@@ -4472,7 +5326,7 @@
         "parent": "card_storm_priest",
         "rect": [
           578,
-          342,
+          322,
           74,
           23
         ]
@@ -4484,7 +5338,7 @@
         "parent": "card_storm_priest_price",
         "rect": [
           592,
-          350,
+          330,
           10,
           10
         ]
@@ -4497,7 +5351,7 @@
         "parent": "card_storm_priest_price",
         "rect": [
           606,
-          349,
+          329,
           0,
           0
         ],
@@ -4511,7 +5365,7 @@
         "parent": "construct_card_list",
         "rect": [
           526,
-          248,
+          233,
           44,
           45
         ]
@@ -4523,7 +5377,7 @@
         "parent": "card_sun_scorcher",
         "rect": [
           516,
-          237,
+          222,
           64,
           64
         ]
@@ -4536,7 +5390,7 @@
         "parent": "card_sun_scorcher",
         "rect": [
           585,
-          250,
+          235,
           0,
           0
         ]
@@ -4549,7 +5403,7 @@
         "parent": "card_sun_scorcher",
         "rect": [
           585,
-          262,
+          247,
           0,
           0
         ]
@@ -4561,7 +5415,7 @@
         "parent": "card_sun_scorcher",
         "rect": [
           579,
-          224,
+          209,
           77,
           64
         ]
@@ -4573,7 +5427,7 @@
         "parent": "card_sun_scorcher",
         "rect": [
           530,
-          252,
+          237,
           34,
           34
         ]
@@ -4586,7 +5440,7 @@
         "parent": "card_sun_scorcher",
         "rect": [
           578,
-          270,
+          255,
           74,
           23
         ]
@@ -4598,7 +5452,7 @@
         "parent": "card_sun_scorcher_price",
         "rect": [
           592,
-          278,
+          263,
           10,
           10
         ]
@@ -4611,7 +5465,7 @@
         "parent": "card_sun_scorcher_price",
         "rect": [
           606,
-          277,
+          262,
           0,
           0
         ],
@@ -4625,7 +5479,7 @@
         "parent": "construct_card_list",
         "rect": [
           526,
-          824,
+          769,
           44,
           45
         ]
@@ -4637,7 +5491,7 @@
         "parent": "card_wall_builder",
         "rect": [
           516,
-          813,
+          758,
           64,
           64
         ]
@@ -4650,7 +5504,7 @@
         "parent": "card_wall_builder",
         "rect": [
           585,
-          826,
+          771,
           0,
           0
         ]
@@ -4663,7 +5517,7 @@
         "parent": "card_wall_builder",
         "rect": [
           585,
-          838,
+          783,
           0,
           0
         ]
@@ -4675,7 +5529,7 @@
         "parent": "card_wall_builder",
         "rect": [
           579,
-          800,
+          745,
           77,
           64
         ]
@@ -4687,7 +5541,7 @@
         "parent": "card_wall_builder",
         "rect": [
           530,
-          828,
+          773,
           34,
           34
         ]
@@ -4700,7 +5554,7 @@
         "parent": "card_wall_builder",
         "rect": [
           578,
-          846,
+          791,
           74,
           23
         ]
@@ -4712,7 +5566,7 @@
         "parent": "card_wall_builder_price",
         "rect": [
           592,
-          854,
+          799,
           10,
           10
         ]
@@ -4725,7 +5579,7 @@
         "parent": "card_wall_builder_price",
         "rect": [
           606,
-          853,
+          798,
           0,
           0
         ],
@@ -4743,33 +5597,6 @@
           14,
           13
         ]
-      },
-      "cond_badge": {
-        "display_name": "Terrain badge box",
-        "kind": "panel",
-        "label": "",
-        "parent": "panel",
-        "rect": [
-          516,
-          340,
-          118,
-          15
-        ]
-      },
-      "cond_badge_text": {
-        "align": "center",
-        "display_name": "Terrain badge text",
-        "font_key": "sm",
-        "kind": "label",
-        "label": "",
-        "parent": "panel",
-        "rect": [
-          575,
-          342,
-          0,
-          0
-        ],
-        "text_id": "building.terrain_badge"
       },
       "cond_card_forest": {
         "display_name": "Forest terrain card",
@@ -5085,44 +5912,6 @@
           335,
           64,
           96
-        ]
-      },
-      "cond_effect_box": {
-        "display_name": "Terrain effect box",
-        "kind": "panel",
-        "label": "",
-        "parent": "panel",
-        "rect": [
-          516,
-          308,
-          118,
-          29
-        ]
-      },
-      "cond_effect_line_0": {
-        "display_name": "Terrain effect line 1",
-        "font_key": "sm",
-        "kind": "label",
-        "label": "",
-        "parent": "panel",
-        "rect": [
-          520,
-          310,
-          0,
-          0
-        ]
-      },
-      "cond_effect_line_1": {
-        "display_name": "Terrain effect line 2",
-        "font_key": "sm",
-        "kind": "label",
-        "label": "",
-        "parent": "panel",
-        "rect": [
-          520,
-          322,
-          0,
-          0
         ]
       },
       "construct_card_list": {
@@ -6141,6 +6930,322 @@
         "sample": "UNLOCK TILE",
         "text_id": "building.unlock.title"
       },
+      "upgrade_cond_card_forest": {
+        "display_name": "Forest upgrade terrain card",
+        "kind": "panel",
+        "label": "",
+        "parent": "upgrade_terrain_card_list",
+        "rect": [
+          516,
+          670,
+          118,
+          138
+        ]
+      },
+      "upgrade_cond_card_forest_count": {
+        "align": "right",
+        "display_name": "Forest upgrade terrain card count",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "upgrade_cond_card_forest",
+        "rect": [
+          631,
+          769,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.count"
+      },
+      "upgrade_cond_card_forest_effect_0": {
+        "display_name": "Forest upgrade terrain card effect line 1",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "upgrade_cond_card_forest",
+        "rect": [
+          519,
+          781,
+          0,
+          0
+        ]
+      },
+      "upgrade_cond_card_forest_effect_1": {
+        "display_name": "Forest upgrade terrain card effect line 2",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "upgrade_cond_card_forest",
+        "rect": [
+          519,
+          793,
+          0,
+          0
+        ]
+      },
+      "upgrade_cond_card_forest_name": {
+        "display_name": "Forest upgrade terrain card name",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "upgrade_cond_card_forest",
+        "rect": [
+          519,
+          769,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.name"
+      },
+      "upgrade_cond_card_forest_sprite": {
+        "display_name": "Forest upgrade terrain card sprite",
+        "kind": "panel",
+        "label": "",
+        "parent": "upgrade_cond_card_forest",
+        "rect": [
+          543,
+          673,
+          64,
+          96
+        ]
+      },
+      "upgrade_cond_card_grass": {
+        "display_name": "Grass upgrade terrain card",
+        "kind": "panel",
+        "label": "",
+        "parent": "upgrade_terrain_card_list",
+        "rect": [
+          516,
+          308,
+          118,
+          74
+        ]
+      },
+      "upgrade_cond_card_grass_count": {
+        "align": "right",
+        "display_name": "Grass upgrade terrain card count",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "upgrade_cond_card_grass",
+        "rect": [
+          631,
+          343,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.count"
+      },
+      "upgrade_cond_card_grass_effect_0": {
+        "display_name": "Grass upgrade terrain card effect line 1",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "upgrade_cond_card_grass",
+        "rect": [
+          519,
+          355,
+          0,
+          0
+        ]
+      },
+      "upgrade_cond_card_grass_effect_1": {
+        "display_name": "Grass upgrade terrain card effect line 2",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "upgrade_cond_card_grass",
+        "rect": [
+          519,
+          367,
+          0,
+          0
+        ]
+      },
+      "upgrade_cond_card_grass_name": {
+        "display_name": "Grass upgrade terrain card name",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "upgrade_cond_card_grass",
+        "rect": [
+          519,
+          343,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.name"
+      },
+      "upgrade_cond_card_grass_sprite": {
+        "display_name": "Grass upgrade terrain card sprite",
+        "kind": "panel",
+        "label": "",
+        "parent": "upgrade_cond_card_grass",
+        "rect": [
+          543,
+          311,
+          64,
+          32
+        ]
+      },
+      "upgrade_cond_card_mountain": {
+        "display_name": "Mountain upgrade terrain card",
+        "kind": "panel",
+        "label": "",
+        "parent": "upgrade_terrain_card_list",
+        "rect": [
+          516,
+          386,
+          118,
+          138
+        ]
+      },
+      "upgrade_cond_card_mountain_count": {
+        "align": "right",
+        "display_name": "Mountain upgrade terrain card count",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "upgrade_cond_card_mountain",
+        "rect": [
+          631,
+          485,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.count"
+      },
+      "upgrade_cond_card_mountain_effect_0": {
+        "display_name": "Mountain upgrade terrain card effect line 1",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "upgrade_cond_card_mountain",
+        "rect": [
+          519,
+          497,
+          0,
+          0
+        ]
+      },
+      "upgrade_cond_card_mountain_effect_1": {
+        "display_name": "Mountain upgrade terrain card effect line 2",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "upgrade_cond_card_mountain",
+        "rect": [
+          519,
+          509,
+          0,
+          0
+        ]
+      },
+      "upgrade_cond_card_mountain_name": {
+        "display_name": "Mountain upgrade terrain card name",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "upgrade_cond_card_mountain",
+        "rect": [
+          519,
+          485,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.name"
+      },
+      "upgrade_cond_card_mountain_sprite": {
+        "display_name": "Mountain upgrade terrain card sprite",
+        "kind": "panel",
+        "label": "",
+        "parent": "upgrade_cond_card_mountain",
+        "rect": [
+          543,
+          389,
+          64,
+          96
+        ]
+      },
+      "upgrade_cond_card_pond": {
+        "display_name": "Pond upgrade terrain card",
+        "kind": "panel",
+        "label": "",
+        "parent": "upgrade_terrain_card_list",
+        "rect": [
+          516,
+          528,
+          118,
+          138
+        ]
+      },
+      "upgrade_cond_card_pond_count": {
+        "align": "right",
+        "display_name": "Pond upgrade terrain card count",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "upgrade_cond_card_pond",
+        "rect": [
+          631,
+          627,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.count"
+      },
+      "upgrade_cond_card_pond_effect_0": {
+        "display_name": "Pond upgrade terrain card effect line 1",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "upgrade_cond_card_pond",
+        "rect": [
+          519,
+          639,
+          0,
+          0
+        ]
+      },
+      "upgrade_cond_card_pond_effect_1": {
+        "display_name": "Pond upgrade terrain card effect line 2",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "upgrade_cond_card_pond",
+        "rect": [
+          519,
+          651,
+          0,
+          0
+        ]
+      },
+      "upgrade_cond_card_pond_name": {
+        "display_name": "Pond upgrade terrain card name",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "upgrade_cond_card_pond",
+        "rect": [
+          519,
+          627,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.name"
+      },
+      "upgrade_cond_card_pond_sprite": {
+        "display_name": "Pond upgrade terrain card sprite",
+        "kind": "panel",
+        "label": "",
+        "parent": "upgrade_cond_card_pond",
+        "rect": [
+          543,
+          531,
+          64,
+          96
+        ]
+      },
       "upgrade_hint": {
         "align": "center",
         "display_name": "Action button hint",
@@ -6220,6 +7325,18 @@
           282,
           12,
           12
+        ]
+      },
+      "upgrade_terrain_card_list": {
+        "display_name": "Upgrade terrain card group",
+        "kind": "panel",
+        "label": "",
+        "parent": "panel",
+        "rect": [
+          516,
+          308,
+          118,
+          52
         ]
       },
       "upgrade_tier_level": {

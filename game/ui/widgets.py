@@ -141,13 +141,19 @@ def cond_label(name):
 # -- /10I --
 
 
-def text_size(text, font_key):
-    """(w, h) of ``text`` in the given font — pure metric, no blit."""
-    return _METRICS.size(text, font_key)
+def text_size(text, font_key, family=None):
+    """(w, h) of ``text`` in the given font — pure metric, no blit.
+
+    ``family`` (UH-Font-B) measures in a font family other than the active
+    one. Legal here because these are DRAW-TIME-ONLY metrics (word wrap, a
+    hover hint's width): nothing they produce lands in a stored rect or a
+    captured stream, so they may track the real font. Layout math must keep
+    using ``layout_h``, which has no family axis on purpose."""
+    return _METRICS.size(text, font_key, family)
 
 
-def text_h(font_key):
-    return _METRICS.size("Ag", font_key)[1]
+def text_h(font_key, family=None):
+    return _METRICS.size("Ag", font_key, family)[1]
 
 
 def pretty(slug):
@@ -155,13 +161,13 @@ def pretty(slug):
     return slug.replace("_", " ").title()
 
 
-def wrap_text(text, font_key, max_w, max_lines=None):
+def wrap_text(text, font_key, max_w, max_lines=None, family=None):
     """Greedy word wrap to ``max_w`` pixels. A word longer than the line is not
     broken (it just overhangs). Truncates to ``max_lines`` when given."""
     lines, current = [], ""
     for word in text.split():
         trial = f"{current} {word}" if current else word
-        if current and text_size(trial, font_key)[0] > max_w:
+        if current and text_size(trial, font_key, family)[0] > max_w:
             lines.append(current)
             current = word
             if max_lines is not None and len(lines) == max_lines:
@@ -228,17 +234,21 @@ def announce_bottom_y(view_h):
     return announce_top_y(view_h) + 2 * layout_h("xl") + 8
 
 
-def submit_text(renderer, text, pos, font_key, color, align="left"):
-    renderer.submit_hud(HudText(text, pos, font_key, color, align=align))
+def submit_text(renderer, text, pos, font_key, color, align="left",
+                family=None):
+    renderer.submit_hud(HudText(text, pos, font_key, color, align=align,
+                                family=family))
 
 
-def submit_centered(renderer, text, cx, cy, font_key, color):
+def submit_centered(renderer, text, cx, cy, font_key, color, family=None):
     """Text centred horizontally on ``cx`` with its top at ``cy``."""
-    renderer.submit_hud(HudText(text, (cx, cy), font_key, color, align="center"))
+    renderer.submit_hud(HudText(text, (cx, cy), font_key, color,
+                                align="center", family=family))
 
 
 def label_holder(rect=(0, 0, 0, 0), *, text_id=None, label="", font_key="md",
-                 text_color=None, align="left", visible=True):
+                 font_family=None, text_color=None, align="left",
+                 visible=True):
     """A ``label``-kind widget holder for an id'd piece of text (UT-1).
 
     The ``SimpleNamespace`` shadow object every screen already builds by hand
@@ -254,9 +264,17 @@ def label_holder(rect=(0, 0, 0, 0), *, text_id=None, label="", font_key="md",
     through ``T()`` at draw time, so the template is designer-editable and the
     live values stay code-owned. A holder with no ``text_id`` falls back to its
     static ``label`` — the pre-UT-1 behaviour, unchanged.
+
+    ``font_family`` (UH-Font-B) is the font FAMILY the holder draws in — a
+    ``data/fonts/font_manifest.json`` entry id, orthogonal to ``font_key``'s
+    size/bold preset. ``None`` inherits the active family, so every holder
+    that predates the per-text axis is unchanged. Like every other field
+    here it is designer-ownable: ``ScreenSkinning.apply`` setattrs a
+    ``font_family`` override straight onto the holder.
     """
     return SimpleNamespace(rect=rect, text_id=text_id, label=label,
-                           font_key=font_key, text_color=text_color,
+                           font_key=font_key, font_family=font_family,
+                           text_color=text_color,
                            align=align, visible=visible)
 
 
@@ -357,7 +375,8 @@ def submit_label(renderer, holder, *, text=None, color=None, align=None, **fmt):
     # text anchor, whose w/h are nominal 0 — see game/ui/CLAUDE.md).
     dx, dy, _dw, _dh = _state_offset(patch)
     renderer.submit_hud(HudText(text, (rect[0] + dx, rect[1] + dy),
-                                holder.font_key, tcol, align=align))
+                                holder.font_key, tcol, align=align,
+                                family=getattr(holder, "font_family", None)))
 
 
 # ===========================================================================
@@ -657,10 +676,16 @@ class Button:
     seam or no skin, behaves as today (rect test).
     """
 
-    def __init__(self, rect, label, font_key="lg", enabled=True, skin=None):
+    def __init__(self, rect, label, font_key="lg", enabled=True, skin=None,
+                 font_family=None):
         self.rect = rect
         self.label = label
         self.font_key = font_key
+        # UH-Font-B: the font FAMILY this button's label draws in, or None for
+        # the active one. Appended LAST in the signature on purpose — the
+        # shipping call sites pass (rect, label, font_key) positionally, so
+        # `enabled`/`skin` must keep their places.
+        self.font_family = font_family
         self.enabled = enabled
         self.skin = skin          # 10L-A: slot key, or None = flat rects
         self.hovered = False
@@ -759,4 +784,7 @@ class Button:
         # layout_h, not text_h: this positions every Button label recorded in
         # the parity/exporter streams (engine/render/fonts.py "layout_h").
         ty = y + (h - layout_h(self.font_key)) // 2
-        submit_centered(renderer, label, x + w // 2, ty, self.font_key, tcol)
+        # layout_h above takes no family (the pinned-layout rule): a family
+        # swap changes the glyphs this line draws, never where it draws them.
+        submit_centered(renderer, label, x + w // 2, ty, self.font_key, tcol,
+                        family=getattr(self, "font_family", None))

@@ -42,7 +42,8 @@ if str(REPO) not in sys.path:
 from engine import data_io  # noqa: E402
 from game.ui import strings  # noqa: E402
 from game.ui.building_ui import (  # noqa: E402
-    _CARD_ID_PREFIX, _COND_CARD_ID_PREFIX, _COND_EFFECT_LINES,
+    _BUILD_COND_CARD_ID_PREFIX, _CARD_ID_PREFIX, _COND_CARD_ID_PREFIX,
+    _COND_EFFECT_LINES, _UPGRADE_COND_CARD_ID_PREFIX,
     _UPGRADE_COLOR_PREFIX,
 )
 from tools import screen_mocks  # noqa: E402
@@ -72,6 +73,11 @@ _COMMON_NOTE = screen_mocks.COMMON_NOTE
 _CARD_TREE_ROOTS = {
     _CARD_ID_PREFIX: "construct_card_list",
     _COND_CARD_ID_PREFIX: "terrain_card_list",
+    # feature: construct-terrain-card — build mode's own terrain-card family.
+    # Its prefix does NOT start with `cond_card_`, so the two families never
+    # steal each other's children (`_derived_parent` picks by `startswith`).
+    _BUILD_COND_CARD_ID_PREFIX: "build_terrain_card_list",
+    _UPGRADE_COND_CARD_ID_PREFIX: "upgrade_terrain_card_list",
 }
 _CARD_TREE_PREFIXES = tuple(_CARD_TREE_ROOTS)
 _MOCK_BUILDING_TYPE = screen_mocks.MOCK_BUILDING_TYPE
@@ -137,11 +143,8 @@ _DISPLAY_NAMES = {
         # condition with fewer effects leaves the tail undrawn.
         "construct_card_list": "Build card group",
         "terrain_card_list": "Terrain card group",
-        "cond_badge": "Terrain badge box",
-        "cond_badge_text": "Terrain badge text",
-        "cond_effect_box": "Terrain effect box",
-        **{f"cond_effect_line_{i}": f"Terrain effect line {i + 1}"
-           for i in range(_COND_EFFECT_LINES)},
+        "build_terrain_card_list": "Build terrain card group",
+        "upgrade_terrain_card_list": "Upgrade terrain card group",
         # MasterSheetColumnsPLAN B2/B3: the building-colour swatch rows. Both
         # families are DYNAMIC-count (one swatch per colour the selected
         # building's master sheet declares), which is why they are generated
@@ -474,13 +477,20 @@ def _cond_card_display_name(widget_id):
     condition the purchase covers), so a hand-written table would go stale the
     day `TileCondition` grows a member. The card's condition is its own id
     suffix, which is also exactly the word a designer looks for."""
-    if not widget_id.startswith(_COND_CARD_ID_PREFIX):
+    prefix = next((p for p in (_BUILD_COND_CARD_ID_PREFIX,
+                               _UPGRADE_COND_CARD_ID_PREFIX,
+                               _COND_CARD_ID_PREFIX)
+                   if widget_id.startswith(p)), None)
+    if prefix is None:
         return None
-    rest = widget_id[len(_COND_CARD_ID_PREFIX):]
+    rest = widget_id[len(prefix):]
     condition, _, part = rest.partition("_")
     if not condition:
         return None
-    card = f"{condition.capitalize()} terrain card"
+    kind = {_BUILD_COND_CARD_ID_PREFIX: "build terrain card",
+            _UPGRADE_COND_CARD_ID_PREFIX: "upgrade terrain card",
+            }.get(prefix, "terrain card")
+    card = f"{condition.capitalize()} {kind}"
     if not part:
         return card
     if part.startswith("effect_"):

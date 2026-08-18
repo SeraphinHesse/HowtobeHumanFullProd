@@ -1069,6 +1069,26 @@ any way to *reach* them:
   banner, `boss_cutscene`'s headline and ~40 `building_panel` stat cells are
   shaped that way. A zero-AREA rect is unclickable, undraggable and invisible
   when selected, so those widgets existed on disk and nowhere else.
+- **Font family rows (UH-Font-B).** The per-widget form, the `Defaults`
+  section and the layer inspector each carry a `Font family` combo beside
+  their `Font` combo, sourced from `theme_ops.imported_fonts(data_dir)` —
+  the manifest IS the registry, so a font imported in the Theme panel
+  appears here with no second list to maintain. Item DATA is the font id,
+  the label its `display_name`, so a rename relabels the combo and never
+  rewrites a screen override (the `_slot_label` contract). The blank
+  leading item is "inherit", not a font; an id the manifest no longer
+  carries shows as blank, which is what the game draws for it too.
+  - The LAYER inspector gained its `Font` combo at the same time: the key
+    had been schema-legal and honoured since UL-3 with no control at all.
+    Both go through `_push_layer_field`, which is already state-aware, so
+    Hover/Pressed/Disabled write into `layers[i].states.<state>`.
+  - Honest controls (D3): both layer rows follow `Text colour`'s gate —
+    dead behind a `slot`, dead with no text, since `_submit_one_layer`
+    reads them only in the text branch.
+  - The Theme panel keeps owning the *default* family
+    (`data/ui/active_font.json`) and the import button; it grew no
+    per-preset family control, because the family axis is per TEXT, not per
+    preset.
 - **`_screen_primitives.interaction_rect(rect, text=, font_key=, align=)`**
   (pure) is the fix: it grows a zero-extent axis to the MEASURED size of the
   widget's live text, floored at a grabbable minimum, and shifts x per

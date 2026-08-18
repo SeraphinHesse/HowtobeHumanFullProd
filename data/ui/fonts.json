@@ -12,7 +12,7 @@
     "size": 13
   },
   "md": {
-    "bold": true,
+    "bold": false,
     "size": 11
   },
   "pixel_azure": {
@@ -20,7 +20,7 @@
     "size": 11
   },
   "sm": {
-    "bold": true,
+    "bold": false,
     "size": 9
   },
   "xl": {

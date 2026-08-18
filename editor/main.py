@@ -199,7 +199,8 @@ class MainWindow(QMainWindow):
         try:
             configure_fonts(
                 theme_ops.load_fonts(self._data_dir),
-                font_path=theme_ops.resolve_active_font_path(self._data_dir))
+                font_path=theme_ops.resolve_active_font_path(self._data_dir),
+                family_paths=theme_ops.resolve_family_paths(self._data_dir))
         except Exception:
             pass
         self._node = None   # (category_key, group_path) of the tree selection
@@ -1390,11 +1391,16 @@ class MainWindow(QMainWindow):
         consumer to reconfigure (game/ui.widgets is game-only — off limits
         to the editor, ED layering rule); the game re-reads palette.json at
         its own next boot. Graceful degrade mirrors the boot-time load
-        above (UH-Font-A: `resolve_active_font_path` degrades to None)."""
+        above (UH-Font-A: `resolve_active_font_path` degrades to None).
+
+        `family_paths` (UH-Font-B) is re-resolved here too, so a font
+        the designer just IMPORTED becomes selectable per text run
+        immediately rather than after an editor restart."""
         try:
             configure_fonts(
                 theme_ops.load_fonts(self._data_dir),
-                font_path=theme_ops.resolve_active_font_path(self._data_dir))
+                font_path=theme_ops.resolve_active_font_path(self._data_dir),
+                family_paths=theme_ops.resolve_family_paths(self._data_dir))
         except Exception:
             pass
         self.viewport.render_frame()

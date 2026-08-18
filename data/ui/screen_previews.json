@@ -56,6 +56,7 @@
           200,
           50
         ],
+        "family": null,
         "font_key": "xl",
         "pos": [
           320,
@@ -71,6 +72,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           320,
@@ -118,6 +120,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           221,
@@ -133,6 +136,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           217,
@@ -180,6 +184,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "lg",
         "pos": [
           257,
@@ -227,6 +232,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "lg",
         "pos": [
           390,
@@ -263,6 +269,7 @@
           220,
           100
         ],
+        "family": null,
         "font_key": "xxl",
         "pos": [
           320,
@@ -278,6 +285,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           320,
@@ -460,6 +468,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               629,
@@ -475,6 +484,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "lg",
             "pos": [
               517,
@@ -490,6 +500,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               517,
@@ -505,6 +516,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               633,
@@ -520,6 +532,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               517,
@@ -535,6 +548,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               633,
@@ -550,6 +564,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               517,
@@ -565,6 +580,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               633,
@@ -580,6 +596,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               517,
@@ -595,6 +612,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               633,
@@ -610,6 +628,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               517,
@@ -625,6 +644,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               633,
@@ -672,6 +692,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               575,
@@ -755,6 +776,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               629,
@@ -770,6 +792,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "lg",
             "pos": [
               517,
@@ -835,6 +858,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               548,
@@ -904,6 +928,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               615,
@@ -937,6 +962,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               585,
@@ -952,6 +978,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               606,
@@ -966,7 +993,7 @@
             "crop": null,
             "dest": [
               579,
-              80
+              75
             ],
             "flip": false,
             "hidden_frames": [],
@@ -987,7 +1014,7 @@
             ],
             "rect": [
               526,
-              104,
+              99,
               44,
               45
             ],
@@ -1003,7 +1030,7 @@
             ],
             "rect": [
               526,
-              104,
+              99,
               44,
               45
             ],
@@ -1017,10 +1044,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               548,
-              121
+              116
             ],
             "text": "",
             "type": "text"
@@ -1031,7 +1059,7 @@
             "crop": null,
             "dest": [
               530,
-              108
+              103
             ],
             "flip": false,
             "hidden_frames": [],
@@ -1049,7 +1077,7 @@
             "crop": null,
             "dest": [
               516,
-              93
+              88
             ],
             "flip": false,
             "hidden_frames": [],
@@ -1067,7 +1095,7 @@
             "crop": null,
             "dest": [
               578,
-              126
+              121
             ],
             "flip": false,
             "hidden_frames": [],
@@ -1086,10 +1114,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               615,
-              132
+              127
             ],
             "text": "",
             "type": "text"
@@ -1100,7 +1129,7 @@
             "crop": null,
             "dest": [
               592,
-              134
+              129
             ],
             "flip": false,
             "hidden_frames": [],
@@ -1119,10 +1148,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               585,
-              106
+              101
             ],
             "text": "Flute Player",
             "type": "text"
@@ -1134,10 +1164,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               606,
-              133
+              128
             ],
             "text": "10",
             "type": "text"
@@ -1148,7 +1179,7 @@
             "crop": null,
             "dest": [
               579,
-              152
+              142
             ],
             "flip": false,
             "hidden_frames": [],
@@ -1169,7 +1200,7 @@
             ],
             "rect": [
               526,
-              176,
+              166,
               44,
               45
             ],
@@ -1185,7 +1216,7 @@
             ],
             "rect": [
               526,
-              176,
+              166,
               44,
               45
             ],
@@ -1199,10 +1230,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               548,
-              193
+              183
             ],
             "text": "",
             "type": "text"
@@ -1213,7 +1245,7 @@
             "crop": null,
             "dest": [
               530,
-              180
+              170
             ],
             "flip": false,
             "hidden_frames": [],
@@ -1231,7 +1263,7 @@
             "crop": null,
             "dest": [
               516,
-              165
+              155
             ],
             "flip": false,
             "hidden_frames": [],
@@ -1249,7 +1281,7 @@
             "crop": null,
             "dest": [
               578,
-              198
+              188
             ],
             "flip": false,
             "hidden_frames": [],
@@ -1268,10 +1300,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               615,
-              204
+              194
             ],
             "text": "",
             "type": "text"
@@ -1282,7 +1315,7 @@
             "crop": null,
             "dest": [
               592,
-              206
+              196
             ],
             "flip": false,
             "hidden_frames": [],
@@ -1301,10 +1334,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               585,
-              178
+              168
             ],
             "text": "Mortar",
             "type": "text"
@@ -1316,10 +1350,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               606,
-              205
+              195
             ],
             "text": "30",
             "type": "text"
@@ -1330,7 +1365,7 @@
             "crop": null,
             "dest": [
               579,
-              224
+              209
             ],
             "flip": false,
             "hidden_frames": [],
@@ -1351,7 +1386,7 @@
             ],
             "rect": [
               526,
-              248,
+              233,
               44,
               45
             ],
@@ -1367,7 +1402,7 @@
             ],
             "rect": [
               526,
-              248,
+              233,
               44,
               45
             ],
@@ -1381,10 +1416,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               548,
-              265
+              250
             ],
             "text": "",
             "type": "text"
@@ -1395,7 +1431,7 @@
             "crop": null,
             "dest": [
               530,
-              252
+              237
             ],
             "flip": false,
             "hidden_frames": [],
@@ -1413,7 +1449,7 @@
             "crop": null,
             "dest": [
               516,
-              237
+              222
             ],
             "flip": false,
             "hidden_frames": [],
@@ -1431,7 +1467,7 @@
             "crop": null,
             "dest": [
               578,
-              270
+              255
             ],
             "flip": false,
             "hidden_frames": [],
@@ -1450,10 +1486,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               615,
-              276
+              261
             ],
             "text": "",
             "type": "text"
@@ -1464,7 +1501,7 @@
             "crop": null,
             "dest": [
               592,
-              278
+              263
             ],
             "flip": false,
             "hidden_frames": [],
@@ -1483,10 +1520,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               585,
-              250
+              235
             ],
             "text": "Sun Scorcher",
             "type": "text"
@@ -1498,10 +1536,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               606,
-              277
+              262
             ],
             "text": "40",
             "type": "text"
@@ -1515,9 +1554,9 @@
             ],
             "rect": [
               516,
-              340,
+              308,
               118,
-              15
+              74
             ],
             "type": "rect",
             "width": 0
@@ -1531,26 +1570,77 @@
             ],
             "rect": [
               516,
-              340,
+              308,
               118,
-              15
+              74
             ],
             "type": "rect",
             "width": 1
           },
           {
-            "align": "center",
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              543,
+              311
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              64,
+              32
+            ],
+            "slot_key": "tile_buildable",
+            "tint": null,
+            "type": "sprite"
+          },
+          {
+            "align": "left",
             "color": [
               100,
               180,
               80
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
-              575,
-              342
+              519,
+              343
             ],
             "text": "Grass",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "family": null,
+            "font_key": "sm",
+            "pos": [
+              631,
+              343
+            ],
+            "text": "×1",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "family": null,
+            "font_key": "sm",
+            "pos": [
+              519,
+              355
+            ],
+            "text": "No effect",
             "type": "text"
           }
         ]
@@ -1628,6 +1718,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               629,
@@ -1643,6 +1734,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "lg",
             "pos": [
               517,
@@ -1708,6 +1800,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               548,
@@ -1777,6 +1870,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               615,
@@ -1810,6 +1904,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               585,
@@ -1825,6 +1920,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               606,
@@ -1839,7 +1935,7 @@
             "crop": null,
             "dest": [
               579,
-              80
+              75
             ],
             "flip": false,
             "hidden_frames": [],
@@ -1860,7 +1956,7 @@
             ],
             "rect": [
               526,
-              104,
+              99,
               44,
               45
             ],
@@ -1876,7 +1972,7 @@
             ],
             "rect": [
               526,
-              104,
+              99,
               44,
               45
             ],
@@ -1890,10 +1986,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               548,
-              121
+              116
             ],
             "text": "",
             "type": "text"
@@ -1904,7 +2001,7 @@
             "crop": null,
             "dest": [
               530,
-              108
+              103
             ],
             "flip": false,
             "hidden_frames": [],
@@ -1922,7 +2019,7 @@
             "crop": null,
             "dest": [
               516,
-              93
+              88
             ],
             "flip": false,
             "hidden_frames": [],
@@ -1940,7 +2037,7 @@
             "crop": null,
             "dest": [
               578,
-              126
+              121
             ],
             "flip": false,
             "hidden_frames": [],
@@ -1959,10 +2056,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               615,
-              132
+              127
             ],
             "text": "",
             "type": "text"
@@ -1973,7 +2071,7 @@
             "crop": null,
             "dest": [
               592,
-              134
+              129
             ],
             "flip": false,
             "hidden_frames": [],
@@ -1992,10 +2090,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               585,
-              106
+              101
             ],
             "text": "Flute Player",
             "type": "text"
@@ -2007,10 +2106,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               606,
-              133
+              128
             ],
             "text": "10",
             "type": "text"
@@ -2021,7 +2121,7 @@
             "crop": null,
             "dest": [
               579,
-              152
+              142
             ],
             "flip": false,
             "hidden_frames": [],
@@ -2042,7 +2142,7 @@
             ],
             "rect": [
               526,
-              176,
+              166,
               44,
               45
             ],
@@ -2058,7 +2158,7 @@
             ],
             "rect": [
               526,
-              176,
+              166,
               44,
               45
             ],
@@ -2072,10 +2172,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               548,
-              193
+              183
             ],
             "text": "",
             "type": "text"
@@ -2086,7 +2187,7 @@
             "crop": null,
             "dest": [
               530,
-              180
+              170
             ],
             "flip": false,
             "hidden_frames": [],
@@ -2104,7 +2205,7 @@
             "crop": null,
             "dest": [
               516,
-              165
+              155
             ],
             "flip": false,
             "hidden_frames": [],
@@ -2122,7 +2223,7 @@
             "crop": null,
             "dest": [
               578,
-              198
+              188
             ],
             "flip": false,
             "hidden_frames": [],
@@ -2141,10 +2242,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               615,
-              204
+              194
             ],
             "text": "",
             "type": "text"
@@ -2155,7 +2257,7 @@
             "crop": null,
             "dest": [
               592,
-              206
+              196
             ],
             "flip": false,
             "hidden_frames": [],
@@ -2174,10 +2276,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               585,
-              178
+              168
             ],
             "text": "Mortar",
             "type": "text"
@@ -2189,10 +2292,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               606,
-              205
+              195
             ],
             "text": "30",
             "type": "text"
@@ -2203,7 +2307,7 @@
             "crop": null,
             "dest": [
               579,
-              224
+              209
             ],
             "flip": false,
             "hidden_frames": [],
@@ -2224,7 +2328,7 @@
             ],
             "rect": [
               526,
-              248,
+              233,
               44,
               45
             ],
@@ -2240,7 +2344,7 @@
             ],
             "rect": [
               526,
-              248,
+              233,
               44,
               45
             ],
@@ -2254,10 +2358,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               548,
-              265
+              250
             ],
             "text": "",
             "type": "text"
@@ -2268,7 +2373,7 @@
             "crop": null,
             "dest": [
               530,
-              252
+              237
             ],
             "flip": false,
             "hidden_frames": [],
@@ -2286,7 +2391,7 @@
             "crop": null,
             "dest": [
               516,
-              237
+              222
             ],
             "flip": false,
             "hidden_frames": [],
@@ -2304,7 +2409,7 @@
             "crop": null,
             "dest": [
               578,
-              270
+              255
             ],
             "flip": false,
             "hidden_frames": [],
@@ -2323,10 +2428,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               615,
-              276
+              261
             ],
             "text": "",
             "type": "text"
@@ -2337,7 +2443,7 @@
             "crop": null,
             "dest": [
               592,
-              278
+              263
             ],
             "flip": false,
             "hidden_frames": [],
@@ -2356,10 +2462,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               585,
-              250
+              235
             ],
             "text": "Sun Scorcher",
             "type": "text"
@@ -2371,10 +2478,11 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               606,
-              277
+              262
             ],
             "text": "40",
             "type": "text"
@@ -2388,9 +2496,9 @@
             ],
             "rect": [
               516,
-              340,
+              308,
               118,
-              15
+              138
             ],
             "type": "rect",
             "width": 0
@@ -2398,32 +2506,99 @@
           {
             "border_radius": 0,
             "color": [
-              100,
-              180,
-              80
+              70,
+              160,
+              70
             ],
             "rect": [
               516,
-              340,
+              308,
               118,
-              15
+              138
             ],
             "type": "rect",
             "width": 1
           },
           {
-            "align": "center",
-            "color": [
-              100,
-              180,
-              80
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              543,
+              311
             ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              64,
+              96
+            ],
+            "slot_key": "cond_forest_combat",
+            "tint": null,
+            "type": "sprite"
+          },
+          {
+            "align": "left",
+            "color": [
+              70,
+              160,
+              70
+            ],
+            "family": null,
             "font_key": "sm",
             "pos": [
-              575,
-              342
+              519,
+              407
             ],
-            "text": "Grass",
+            "text": "Forest",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "family": null,
+            "font_key": "sm",
+            "pos": [
+              631,
+              407
+            ],
+            "text": "×1",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "family": null,
+            "font_key": "sm",
+            "pos": [
+              519,
+              419
+            ],
+            "text": "Economy",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "family": null,
+            "font_key": "sm",
+            "pos": [
+              519,
+              431
+            ],
+            "text": "+10%",
             "type": "text"
           },
           {
@@ -2529,6 +2704,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               389,
@@ -2576,6 +2752,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               362,
@@ -2623,6 +2800,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               278,
@@ -2670,6 +2848,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               395,
@@ -2717,6 +2896,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               349,
@@ -2764,6 +2944,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               363,
@@ -2827,6 +3008,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               377,
@@ -2874,6 +3056,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               391,
@@ -2889,6 +3072,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "lg",
             "pos": [
               320,
@@ -2904,6 +3088,7 @@
               200,
               50
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               320,
@@ -2919,6 +3104,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               243,
@@ -2934,6 +3120,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               247,
@@ -2949,6 +3136,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               243,
@@ -2964,6 +3152,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               397,
@@ -2979,6 +3168,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               243,
@@ -2994,6 +3184,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               397,
@@ -3009,6 +3200,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               243,
@@ -3024,6 +3216,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               397,
@@ -3039,6 +3232,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               243,
@@ -3054,6 +3248,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               397,
@@ -3069,6 +3264,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               243,
@@ -3084,6 +3280,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               397,
@@ -3167,6 +3364,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               629,
@@ -3182,6 +3380,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "lg",
             "pos": [
               517,
@@ -3197,6 +3396,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               517,
@@ -3244,6 +3444,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "lg",
             "pos": [
               575,
@@ -3309,6 +3510,7 @@
               180,
               80
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               519,
@@ -3324,6 +3526,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               631,
@@ -3339,6 +3542,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               519,
@@ -3404,6 +3608,7 @@
               130,
               90
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               519,
@@ -3419,6 +3624,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               631,
@@ -3434,6 +3640,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               519,
@@ -3449,6 +3656,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               519,
@@ -3532,6 +3740,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               629,
@@ -3547,6 +3756,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "lg",
             "pos": [
               517,
@@ -3594,6 +3804,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               520,
@@ -3641,6 +3852,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               625,
@@ -3656,6 +3868,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               517,
@@ -3673,9 +3886,9 @@
             ],
             "rect": [
               516,
-              45,
+              308,
               118,
-              15
+              74
             ],
             "type": "rect",
             "width": 0
@@ -3689,26 +3902,77 @@
             ],
             "rect": [
               516,
-              45,
+              308,
               118,
-              15
+              74
             ],
             "type": "rect",
             "width": 1
           },
           {
-            "align": "center",
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              543,
+              311
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              64,
+              32
+            ],
+            "slot_key": "tile_buildable",
+            "tint": null,
+            "type": "sprite"
+          },
+          {
+            "align": "left",
             "color": [
               100,
               180,
               80
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
-              575,
-              47
+              519,
+              343
             ],
             "text": "Grass",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "family": null,
+            "font_key": "sm",
+            "pos": [
+              631,
+              343
+            ],
+            "text": "×1",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "family": null,
+            "font_key": "sm",
+            "pos": [
+              519,
+              355
+            ],
+            "text": "No effect",
             "type": "text"
           },
           {
@@ -3718,6 +3982,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               517,
@@ -3733,6 +3998,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               633,
@@ -3748,6 +4014,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               517,
@@ -3763,6 +4030,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               633,
@@ -3778,6 +4046,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               517,
@@ -3793,6 +4062,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               633,
@@ -3808,6 +4078,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               517,
@@ -3823,6 +4094,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               633,
@@ -3838,6 +4110,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               517,
@@ -3853,6 +4126,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               633,
@@ -3868,6 +4142,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               517,
@@ -3883,6 +4158,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               633,
@@ -3898,6 +4174,7 @@
               140,
               120
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               517,
@@ -3913,6 +4190,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               633,
@@ -3960,6 +4238,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "lg",
             "pos": [
               575,
@@ -4007,6 +4286,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "md",
             "pos": [
               575,
@@ -4054,6 +4334,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               586,
@@ -4101,6 +4382,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               600,
@@ -4148,6 +4430,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               614,
@@ -4195,6 +4478,7 @@
               225,
               195
             ],
+            "family": null,
             "font_key": "sm",
             "pos": [
               628,
@@ -4265,6 +4549,7 @@
           200,
           50
         ],
+        "family": null,
         "font_key": "lg",
         "pos": [
           320,
@@ -4312,6 +4597,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           372,
@@ -4359,6 +4645,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           320,
@@ -4406,6 +4693,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           320,
@@ -4453,6 +4741,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           320,
@@ -4500,6 +4789,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           320,
@@ -4547,6 +4837,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           320,
@@ -4594,6 +4885,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           320,
@@ -4641,6 +4933,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           320,
@@ -4672,6 +4965,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           263,
@@ -4719,6 +5013,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           266,
@@ -4766,6 +5061,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           345,
@@ -4801,6 +5097,7 @@
           200,
           50
         ],
+        "family": null,
         "font_key": "xxl",
         "pos": [
           320,
@@ -4816,6 +5113,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           300,
@@ -4831,6 +5129,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           340,
@@ -4846,6 +5145,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           300,
@@ -4861,6 +5161,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           340,
@@ -4876,6 +5177,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           300,
@@ -4891,6 +5193,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           340,
@@ -4906,6 +5209,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           300,
@@ -4921,6 +5225,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           340,
@@ -4936,6 +5241,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           300,
@@ -4951,6 +5257,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           340,
@@ -4966,6 +5273,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           300,
@@ -4981,6 +5289,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           340,
@@ -4996,6 +5305,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           300,
@@ -5011,6 +5321,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           340,
@@ -5026,6 +5337,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           300,
@@ -5041,6 +5353,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           340,
@@ -5056,6 +5369,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           300,
@@ -5071,6 +5385,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           340,
@@ -5086,6 +5401,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           300,
@@ -5101,6 +5417,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           340,
@@ -5116,6 +5433,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           300,
@@ -5131,6 +5449,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           340,
@@ -5178,6 +5497,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "lg",
         "pos": [
           320,
@@ -5198,6 +5518,7 @@
           155,
           255
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           4,
@@ -5233,6 +5554,7 @@
           55,
           55
         ],
+        "family": null,
         "font_key": "xxl",
         "pos": [
           320,
@@ -5248,6 +5570,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           320,
@@ -5263,6 +5586,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           320,
@@ -5278,6 +5602,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           320,
@@ -5325,6 +5650,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "lg",
         "pos": [
           320,
@@ -5394,6 +5720,7 @@
           200,
           50
         ],
+        "family": null,
         "font_key": "xl",
         "pos": [
           20,
@@ -5409,6 +5736,7 @@
           200,
           50
         ],
+        "family": null,
         "font_key": "hud_lvl",
         "pos": [
           107,
@@ -5474,6 +5802,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           118,
@@ -5521,6 +5850,7 @@
           96,
           136
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           8,
@@ -5554,6 +5884,7 @@
           55,
           55
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           19,
@@ -5623,6 +5954,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           8,
@@ -5638,6 +5970,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "hud_phase",
         "pos": [
           552,
@@ -5653,6 +5986,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           592,
@@ -5700,6 +6034,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           592,
@@ -5770,6 +6105,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           609,
@@ -5817,6 +6153,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           28,
@@ -5853,6 +6190,7 @@
           200,
           50
         ],
+        "family": null,
         "font_key": "xxl",
         "pos": [
           320,
@@ -5900,6 +6238,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           186,
@@ -5915,6 +6254,7 @@
           200,
           50
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           186,
@@ -5930,6 +6270,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           186,
@@ -5977,6 +6318,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           320,
@@ -6016,6 +6358,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           320,
@@ -6031,6 +6374,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           320,
@@ -6046,6 +6390,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           320,
@@ -6093,6 +6438,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           454,
@@ -6108,6 +6454,7 @@
           200,
           50
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           454,
@@ -6123,6 +6470,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           454,
@@ -6176,6 +6524,7 @@
           105,
           222
         ],
+        "family": null,
         "font_key": "xxl",
         "pos": [
           320,
@@ -6191,6 +6540,7 @@
           105,
           222
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           320,
@@ -6238,6 +6588,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "lg",
         "pos": [
           320,
@@ -6285,6 +6636,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "lg",
         "pos": [
           320,
@@ -6332,6 +6684,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "lg",
         "pos": [
           320,
@@ -6379,6 +6732,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "lg",
         "pos": [
           320,
@@ -6426,6 +6780,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "lg",
         "pos": [
           320,
@@ -6473,6 +6828,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "lg",
         "pos": [
           320,
@@ -6520,6 +6876,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "lg",
         "pos": [
           320,
@@ -6567,6 +6924,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           420,
@@ -6618,6 +6976,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           26,
@@ -6665,6 +7024,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           71,
@@ -6712,6 +7072,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           116,
@@ -6780,6 +7141,7 @@
           200,
           50
         ],
+        "family": null,
         "font_key": "xl",
         "pos": [
           320,
@@ -6827,6 +7189,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "lg",
         "pos": [
           320,
@@ -6874,6 +7237,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "lg",
         "pos": [
           320,
@@ -6921,6 +7285,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "lg",
         "pos": [
           320,
@@ -6968,6 +7333,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "lg",
         "pos": [
           320,
@@ -7003,6 +7369,7 @@
           200,
           50
         ],
+        "family": null,
         "font_key": "xxl",
         "pos": [
           320,
@@ -7018,6 +7385,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           320,
@@ -7033,6 +7401,7 @@
           200,
           50
         ],
+        "family": null,
         "font_key": "lg",
         "pos": [
           320,
@@ -7080,6 +7449,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "lg",
         "pos": [
           255,
@@ -7127,6 +7497,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "lg",
         "pos": [
           385,
@@ -7142,6 +7513,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           245,
@@ -7189,6 +7561,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "lg",
         "pos": [
           372,
@@ -7204,6 +7577,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           245,
@@ -7251,6 +7625,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "lg",
         "pos": [
           372,
@@ -7266,6 +7641,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           245,
@@ -7313,6 +7689,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "lg",
         "pos": [
           372,
@@ -7328,6 +7705,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "md",
         "pos": [
           245,
@@ -7375,6 +7753,7 @@
           140,
           120
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           320,
@@ -7422,6 +7801,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "lg",
         "pos": [
           320,
@@ -7469,6 +7849,7 @@
           225,
           195
         ],
+        "family": null,
         "font_key": "sm",
         "pos": [
           425,

@@ -195,6 +195,8 @@ TOOLTIP_LAYER_TEXT_WINS = (
     "drawn by a layer with no slot and no text.")
 TOOLTIP_LAYER_TEXT_COLOR_NEEDS_TEXT = (
     "Nothing to colour: give this layer some Text first.")
+TOOLTIP_LAYER_FONT_NEEDS_TEXT = (
+    "Nothing to set a font on: give this layer some Text first.")
 TOOLTIP_LAYER_TINT_NEEDS_SLOT = (
     "Tint multiplies a sprite sheet, so it only applies to a layer with a "
     "Slot.")
@@ -367,6 +369,7 @@ class ScreenDetailsPanel(QWidget):
         self._live_commit_timer.timeout.connect(self._on_rect_edited)
         self._skin_baseline = None
         self._font_baseline = None
+        self._font_family_baseline = None   # UH-Font-B
         self._align_baseline = None     # UL-1
         self._color_baseline = None
         self._tint_baseline = None      # UH-6/D6: the Color row's OTHER key
@@ -459,6 +462,18 @@ class ScreenDetailsPanel(QWidget):
         font_row, self.font_reset_button = self._field_row(
             (self.font_combo,), "font", lambda: self._on_reset_field("font"))
         form.addRow("Font", font_row)
+
+        # UH-Font-B: the SECOND font axis. `Font` above picks a size/bold
+        # preset; this picks the family those glyphs are drawn from. Empty =
+        # inherit (the screen's `defaults.font_family`, then the game-wide
+        # `active_font.json`), which is what every widget did before the
+        # axis existed.
+        self.font_family_combo = _NoWheelComboBox(self)
+        self.font_family_combo.activated.connect(self._on_font_family_changed)
+        font_family_row, self.font_family_reset_button = self._field_row(
+            (self.font_family_combo,), "font_family",
+            lambda: self._on_reset_field("font_family"))
+        form.addRow("Font family", font_family_row)
 
         # UL-1: which way the widget's text spreads from its stored anchor.
         # Unlike Skin/Font (open-ended, registry-driven, hence their
@@ -574,6 +589,15 @@ class ScreenDetailsPanel(QWidget):
             (self.default_font_combo,), "font",
             lambda: self._on_reset_default_field("font"))
         defaults_form.addRow("Font", default_font_row)
+        self.default_font_family_combo = _NoWheelComboBox(self)
+        self.default_font_family_combo.activated.connect(
+            lambda i: self._on_default_combo_changed(
+                "font_family", self.default_font_family_combo))
+        default_font_family_row, self.default_font_family_reset_button = (
+            self._field_row(
+                (self.default_font_family_combo,), "font_family",
+                lambda: self._on_reset_default_field("font_family")))
+        defaults_form.addRow("Font family", default_font_family_row)
         self.default_text_color_button = QPushButton("Text Color…", self)
         self.default_text_color_button.clicked.connect(
             self._on_default_text_color_clicked)
@@ -600,6 +624,10 @@ class ScreenDetailsPanel(QWidget):
         self._populate_skin_combo(self.layer_field_slot_combo)   # UL-8
         self._populate_font_combo(self.font_combo)
         self._populate_font_combo(self.default_font_combo)
+        self._populate_font_family_combo(self.font_family_combo)
+        self._populate_font_family_combo(self.default_font_family_combo)
+        self._populate_font_combo(self.layer_font_combo)
+        self._populate_font_family_combo(self.layer_font_family_combo)
         self._populate_background_combo()
         self._set_widget_form_enabled(False)
         self._refresh_background()
@@ -656,6 +684,28 @@ class ScreenDetailsPanel(QWidget):
         combo.addItem("", None)
         for key in theme_ops.font_keys(self._data_dir):
             combo.addItem(key, key)
+        combo.blockSignals(False)
+
+    def _populate_font_family_combo(self, combo):
+        """The Font family picker (UH-Font-B), sourced from
+        `data/fonts/font_manifest.json` exactly as the Theme panel's own
+        family combo is — the manifest is the registry, and a font imported
+        there shows up here with no second list to keep in step.
+
+        Item DATA is the font id, the LABEL its `display_name`: renaming a
+        font in the Theme panel relabels this combo and never rewrites a
+        screen override, the same contract `_slot_label` gives skins. The
+        leading blank item is "inherit" (no override), not a font.
+
+        Degrades to just that blank item when the manifest is missing or
+        unreadable (E-37) — `imported_fonts` already returns {} there."""
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem("", None)
+        entries = theme_ops.imported_fonts(self._data_dir)
+        for font_id in sorted(entries):
+            display = entries[font_id].get("display_name") or font_id
+            combo.addItem(display, font_id)
         combo.blockSignals(False)
 
     def _populate_background_combo(self):
@@ -1564,6 +1614,32 @@ class ScreenDetailsPanel(QWidget):
             lambda: self._on_reset_layer_field("label"))
         form.addRow("Text", label_row)
 
+        # `layers[].font` has been schema-legal and honoured by
+        # `_submit_one_layer` since UL-3, but had no control here — a layer's
+        # size preset could only be hand-authored in the JSON. Adding the
+        # family axis (UH-Font-B) beside a row that does not exist would be
+        # the odder half of that gap, so both are added together. Both go
+        # through `_push_layer_field`, which is already state-aware: with
+        # Hover selected they write `layers[i].states.hover.<key>`.
+        self.layer_font_combo = _NoWheelComboBox(self)
+        self.layer_font_combo.activated.connect(
+            lambda _i: self._push_layer_field(
+                "font", self.layer_font_combo.currentData()))
+        layer_font_row, self.layer_font_reset_button = self._field_row(
+            (self.layer_font_combo,), "font",
+            lambda: self._on_reset_layer_field("font"))
+        form.addRow("Font", layer_font_row)
+
+        self.layer_font_family_combo = _NoWheelComboBox(self)
+        self.layer_font_family_combo.activated.connect(
+            lambda _i: self._push_layer_field(
+                "font_family", self.layer_font_family_combo.currentData()))
+        layer_font_family_row, self.layer_font_family_reset_button = (
+            self._field_row(
+                (self.layer_font_family_combo,), "font_family",
+                lambda: self._on_reset_layer_field("font_family")))
+        form.addRow("Font family", layer_font_family_row)
+
         self.layer_color_button = QPushButton("Color…", self)
         self.layer_color_button.clicked.connect(
             lambda: self._on_layer_color_clicked("color"))
@@ -1891,7 +1967,8 @@ class ScreenDetailsPanel(QWidget):
     def _layer_inspector_controls(self):
         return (self.layer_off_x, self.layer_off_y, self.layer_off_w,
                 self.layer_off_h, self.layer_field_slot_combo,
-                self.layer_label_edit, self.layer_color_button,
+                self.layer_label_edit, self.layer_font_combo,
+                self.layer_font_family_combo, self.layer_color_button,
                 self.layer_tint_button, self.layer_text_color_button,
                 self.layer_visible_check, self.layer_z_spin,
                 self.layer_field_band_combo,
@@ -1901,6 +1978,8 @@ class ScreenDetailsPanel(QWidget):
         return {"offset": self.layer_offset_reset_button,
                 "slot": self.layer_slot_reset_button,
                 "label": self.layer_label_reset_button,
+                "font": self.layer_font_reset_button,
+                "font_family": self.layer_font_family_reset_button,
                 "color": self.layer_color_reset_button,
                 "tint": self.layer_tint_reset_button,
                 "text_color": self.layer_text_color_reset_button,
@@ -1976,6 +2055,15 @@ class ScreenDetailsPanel(QWidget):
             max(0, self.layer_field_slot_combo.findData(slot)))
         self.layer_label_edit.setText(
             self._layer_effective_value(entry, state, "label", ""))
+        self.layer_font_combo.setCurrentIndex(
+            max(0, self.layer_font_combo.findData(
+                self._layer_effective_value(entry, state, "font"))))
+        # An id the manifest no longer carries lands on index 0 ("inherit"),
+        # which is what the game draws for it too — see the widget form's
+        # own note.
+        self.layer_font_family_combo.setCurrentIndex(
+            max(0, self.layer_font_family_combo.findData(
+                self._layer_effective_value(entry, state, "font_family"))))
         self.layer_visible_check.setChecked(
             bool(self._layer_effective_value(entry, state, "visible", True)))
         self.layer_z_spin.setValue(int(entry.get("z", 0) or 0))
@@ -2014,14 +2102,21 @@ class ScreenDetailsPanel(QWidget):
             self.layer_text_color_button, not has_slot and has_text,
             TOOLTIP_LAYER_SLOT_WINS if has_slot
             else TOOLTIP_LAYER_TEXT_COLOR_NEEDS_TEXT)
+        # Font/family style the text run and nothing else, so they follow
+        # Text colour's gate exactly: dead behind a slot, dead with no text.
+        for control in (self.layer_font_combo, self.layer_font_family_combo):
+            self._set_honest(
+                control, not has_slot and has_text,
+                TOOLTIP_LAYER_SLOT_WINS if has_slot
+                else TOOLTIP_LAYER_FONT_NEEDS_TEXT)
         # Colour is the LAST branch: it loses to a slot and to text alike.
         self._set_honest(
             self.layer_color_button, not has_slot and not has_text,
             TOOLTIP_LAYER_COLOR_INERT if has_slot else TOOLTIP_LAYER_TEXT_WINS)
 
         buttons = self._layer_reset_buttons()
-        for key in ("offset", "slot", "label", "color", "tint", "text_color",
-                    "visible"):
+        for key in ("offset", "slot", "label", "font", "font_family",
+                    "color", "tint", "text_color", "visible"):
             buttons[key].setEnabled(
                 self._layer_raw_value(entry, state, key) is not None)
         buttons["z"].setEnabled("z" in entry)
@@ -2059,7 +2154,9 @@ class ScreenDetailsPanel(QWidget):
             # widget selected there is nothing to reset, full stop.
             for btn in (self.rect_reset_button, self.parent_reset_button,
                        self.skin_reset_button,
-                       self.font_reset_button, self.align_reset_button,
+                       self.font_reset_button,
+                       self.font_family_reset_button,
+                       self.align_reset_button,
                        self.color_reset_button,
                        self.text_color_reset_button, self.label_reset_button,
                        self.text_id_reset_button, self.visible_reset_button):
@@ -2085,6 +2182,7 @@ class ScreenDetailsPanel(QWidget):
         self.parent_reset_button.setEnabled(widget_tree.PARENT_KEY in override)
         self.skin_reset_button.setEnabled("skin" in override)
         self.font_reset_button.setEnabled("font" in override)
+        self.font_family_reset_button.setEnabled("font_family" in override)
         self.align_reset_button.setEnabled("align" in override)
         self.color_reset_button.setEnabled(self._active_color_key() in override)
         self.text_color_reset_button.setEnabled("text_color" in override)
@@ -2249,6 +2347,17 @@ class ScreenDetailsPanel(QWidget):
         self._font_baseline = font
         self.font_combo.setCurrentIndex(max(0, self.font_combo.findData(font)))
 
+        # UH-Font-B. `findData` returning -1 for a family the manifest no
+        # longer carries lands on index 0 ("inherit"), which is exactly what
+        # the game draws for a stale id — the combo cannot show a font that
+        # is gone, and must not silently invent one either. The BASELINE
+        # keeps the raw override, so the reset button still offers to clear
+        # it.
+        font_family = override.get("font_family")
+        self._font_family_baseline = font_family
+        self.font_family_combo.setCurrentIndex(
+            max(0, self.font_family_combo.findData(font_family)))
+
         # UL-1: baseline is the RAW override (None = absent), but the combo
         # shows the EFFECTIVE value — an unoverridden widget reads "Left",
         # which is what `submit_label` actually draws.
@@ -2396,6 +2505,17 @@ class ScreenDetailsPanel(QWidget):
             return
         self._session.push_field(self._current_widget, "font", old_font, new_font)
         self._font_baseline = new_font
+
+    def _on_font_family_changed(self, index):
+        if self._current_widget is None:
+            return
+        new_family = self.font_family_combo.itemData(index)
+        old_family = self._font_family_baseline
+        if new_family == old_family:
+            return
+        self._session.push_field(self._current_widget, "font_family",
+                                 old_family, new_family)
+        self._font_family_baseline = new_family
 
     def _on_align_changed(self, index):
         """UL-1. Mirrors `_on_font_changed`: one key, no dependent UI, so no
@@ -2644,11 +2764,13 @@ class ScreenDetailsPanel(QWidget):
     def _refresh_defaults_section(self):
         if self._session is None or self._session.doc is None:
             for combo in (self.button_skin_combo, self.panel_skin_combo,
-                         self.default_font_combo):
+                         self.default_font_combo,
+                         self.default_font_family_combo):
                 combo.setCurrentIndex(0)
             for btn in (self.button_skin_reset_button,
                        self.panel_skin_reset_button,
                        self.default_font_reset_button,
+                       self.default_font_family_reset_button,
                        self.default_text_color_reset_button):
                 btn.setEnabled(False)
             return
@@ -2665,9 +2787,16 @@ class ScreenDetailsPanel(QWidget):
         self.default_font_combo.setCurrentIndex(
             max(0, self.default_font_combo.findData(style.get("font"))))
         self.default_font_combo.blockSignals(False)
+        self.default_font_family_combo.blockSignals(True)
+        self.default_font_family_combo.setCurrentIndex(
+            max(0, self.default_font_family_combo.findData(
+                style.get("font_family"))))
+        self.default_font_family_combo.blockSignals(False)
         self.button_skin_reset_button.setEnabled("button_skin" in style)
         self.panel_skin_reset_button.setEnabled("panel_skin" in style)
         self.default_font_reset_button.setEnabled("font" in style)
+        self.default_font_family_reset_button.setEnabled(
+            "font_family" in style)
         self.default_text_color_reset_button.setEnabled("text_color" in style)
 
     def _on_default_combo_changed(self, field_key, combo):

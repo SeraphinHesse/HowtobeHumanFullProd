@@ -24,13 +24,23 @@ class HudRect:
 @dataclass(frozen=True)
 class HudText:
     """A run of text. pos = (x, y); align is 'left' | 'center' | 'right'.
-    color may be RGBA — alpha < 255 fades the whole run (10J)."""
+    color may be RGBA — alpha < 255 fades the whole run (10J).
+
+    ``family`` (UH-Font-B) is the font FAMILY this run draws in — a
+    ``data/fonts/font_manifest.json`` entry id, orthogonal to ``font_key``'s
+    size/bold preset. ``None`` means the ACTIVE family
+    (``data/ui/active_font.json``), which is what every run drew in before
+    the per-text axis existed. Appended LAST on purpose, exactly like
+    ``HudSprite``'s ``animation``/``crop``: the shipping call sites pass
+    ``(text, pos, font_key, color)`` positionally, so ``align`` must keep
+    its position."""
 
     text: str
     pos: tuple
     font_key: str
     color: tuple  # RGB or RGBA
     align: str = "left"
+    family: str = None
 
 
 @dataclass(frozen=True)

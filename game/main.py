@@ -870,7 +870,20 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             raise ValueError(
                 f"active_font.json's font {active_font_id!r} points at "
                 f"{font_path} which does not exist on disk")
-    configure_fonts(fonts_doc, font_path=font_path)
+    # UH-Font-B: EVERY manifest entry, so a screen doc can name a family
+    # other than the active one per text run. Same D-2 loudness as the active
+    # font above — a manifest entry whose file is missing is a broken tree,
+    # not something to silently skip, and finding out at boot beats finding
+    # out when the one screen that uses it is opened.
+    family_paths = {}
+    for family_id, entry in font_manifest_doc["entries"].items():
+        family_path = (data_dir / "fonts" / entry["file"]).resolve()
+        if not family_path.is_file():
+            raise ValueError(
+                f"font_manifest.json entry {family_id!r} points at "
+                f"{family_path} which does not exist on disk")
+        family_paths[family_id] = family_path
+    configure_fonts(fonts_doc, font_path=font_path, family_paths=family_paths)
     widgets.configure_palette(palette_doc)
     configure_strings(strings_doc)
     # G4: the Renderer and the ground cache are built AFTER the presenter (the

@@ -170,7 +170,12 @@ _CARD_H = 77
 # column of x (the frame ends at +64, the plate starts at +63), so there is
 # nothing to collide. Spelling this as a `_CARD_GAP` of -5 would be a name
 # that lies about what it measures.
-_CARD_PITCH = 72           # 64 visible + 8 gap — see the note above
+#
+# Tightened 72 -> 67 on request: the visible gap is `P - 64`, so the list now
+# breathes 3px between cards instead of 8, and a slot overlaps its neighbour's
+# by 10px rather than 5 — still only the frame's bottom band against the next
+# plate's top band, which share one column of x and nothing else.
+_CARD_PITCH = 67           # 64 visible + 3 gap — see the note above
 _CARD_PLATE = (63, 0, 77, 64)    # name/price backdrop, relative to the slot
 _CARD_FRAME = (0, 13, 64, 64)    # portrait frame, relative to the slot
 _CARD_BODY = (10, 24, 44, 45)    # click target + portrait backing
@@ -268,7 +273,7 @@ _COND_CARD_LIST_BOTTOM_PAD = 6
 _TERRAIN_LIST_ID = "terrain_card_list"
 _CONSTRUCT_LIST_ID = "construct_card_list"
 
-#: The terrain box and each terrain card reserve exactly TWO id'd effect rows,
+#: Each terrain card reserves exactly TWO id'd effect rows,
 #: and the two are a PAIR, not a list: row 0 names the effect ("Range"), row 1
 #: carries its number ("+1"). That is what lets a designer place the name and
 #: the value independently — side by side, or stacked — the same split the
@@ -285,11 +290,45 @@ _CONSTRUCT_LIST_ID = "construct_card_list"
 #: a second effect on one condition would need a second pair of rows, not a
 #: longer list.
 _COND_EFFECT_LINES = 2
+
+#: **feature: construct-terrain-card** — the CONSTRUCT panel's own terrain
+#: card family. Build mode used to name the tile's terrain with a footer PILL
+#: (`cond_badge`) whose effect box only appeared while the pill was hovered;
+#: it shows the same terrain CARD unlock mode shows instead, always-on, at the
+#: panel foot. Nothing is hover-gated any more — the info is simply there.
+#:
+#: It is a SEPARATE id family from `cond_card_*` on purpose. An override is
+#: per-ID, not per-view (`skinning.apply` walks one `widgets` table for the
+#: whole screen), so reusing the unlock ids would pin the build card to
+#: wherever the unlock LIST put it and make the two modes impossible to place
+#: independently. Same tree shape, same builder, its own keys.
+#:
+#: The badge/effect-box widgets are NOT deleted: upgrade mode still draws
+#: them, for the building's placement snapshot.
+_BUILD_COND_CARD_ID_PREFIX = "build_cond_card_"
+_BUILD_TERRAIN_LIST_ID = "build_terrain_card_list"
+
+#: …and the UPGRADE panel's, on the same argument. The badge is GONE from
+#: this panel entirely now: all three modes that ever named a terrain draw
+#: the card, so `cond_badge` / `cond_badge_text` / `cond_effect_box` /
+#: `cond_effect_line_<i>` and the whole `_layout_cond_box` / hover-tooltip
+#: path they existed for are deleted rather than left as widgets no mode
+#: reaches (an id in no view has no `screen_defaults.json` record, which the
+#: override validator then rejects — dead ids here are not free).
+_UPGRADE_COND_CARD_ID_PREFIX = "upgrade_cond_card_"
+_UPGRADE_TERRAIN_LIST_ID = "upgrade_terrain_card_list"
+
+#: The build/upgrade card GROUP's DEFAULT height: the band the badge + effect
+#: box used to own at the panel foot (`view_h - 52` .. `view_h`), so a card
+#: lands at
+#: the same height the thing it replaces did. A full-size (64x96-sprite) card
+#: is taller than the band and overflows it — index 0 always draws, see
+#: `_cond_card_in_viewport` — which is deliberate: the shipped screen places
+#: this family from `data/ui/screens/building_panel.json`, and a default that
+#: silently WINDOWED the only card away would read as "the card is gone".
+_BUILD_COND_LIST_H = 52
 # -- /tile-condition cards -------------------------------------------------
 
-# 10I: tooltip chrome — dark panel, 1px border in the condition colour
-# (prototype building_ui.py:1440-1455).
-_COND_TOOLTIP_BG = (20, 15, 35)
 # -- 10J: the name-dice glyph (prototype building_ui.py:106) --
 #: UT-3: the dice caption is `building.btn.dice` in the string table now.
 #: This stays as the UNCONFIGURED fallback the table was seeded from —
@@ -1238,17 +1277,18 @@ class BuildingUI:
         self._boss_popup_open = False
         self._boss_hover_row = -1
         # -- /10G --
-        # -- 10I: terrain badge hover/tooltip state --
-        self._cond_badge_rect = None    # last-submitted badge rect (hit probe)
-        self._cond_hover = False
-        self._cond_tooltip = None       # (condition, color)
-        self._cond_effect_lines = []    # the lines _layout_cond_box stacked
-        # -- /10I --
         # unlock-mode terrain cards: [(condition, parts)], one per DISTINCT
         # condition across the selection's chunks (see `_build_cond_cards`)
         self._cond_cards = []
         self._cond_row_count = 0
         self.cond_scroll_offset = 0
+        # construct-mode terrain cards: the same [(condition, parts)] shape,
+        # one per DISTINCT condition among the SELECTED tiles (one card for a
+        # single selection, which is the normal case).
+        self._construct_cond_cards = []
+        # upgrade-mode terrain card: always exactly one — the placement
+        # snapshot of the building being looked at.
+        self._upgrade_cond_cards = []
         # -- 10L-B: mode-independent ids (submit() has no separate layout()) --
         # ``rename_dice_btn``/``boss_close_btn`` close a Phase-3 id-coverage
         # gap: both are created once here with a fixed lifetime rect (the
@@ -1342,42 +1382,9 @@ class BuildingUI:
             self._text[f"info_{key}_value"] = lab(y, "building.stat.value",
                                                   align="right")
             y += 15
-        # -- the terrain badge + effect box, as id'd widgets -----------------
-        # Both used to be drawn as bare `HudRect`s shrink-wrapped around a live
-        # text measurement, which made them the two things on this panel a
-        # designer could not touch. They are widgets now: a `panel` holder for
-        # each box and a `label` holder for every line of text in it. The boxes
-        # are therefore a FIXED width (the card column's) instead of shrink-
-        # wrapped — a stored rect may not depend on a font measurement
-        # (`game/ui/CLAUDE.md`) — and the badge caption centres inside it.
-        #
-        # `_COND_EFFECT_LINES` rows are reserved whether or not today's
-        # balancing fills them; `_layout_cond_box` re-stacks the used ones
-        # compactly per condition and the rest simply never draw (the
-        # `_layout_upgrade_rows` shape). Real geometry lands there, at build
-        # time; these are only the anchors the exporter would read for a mode
-        # that never opened.
-        # `_row_step("sm", 4)` — layout_h + 4, NEVER `text_h`: these rects are
-        # STORED (and exported), and a stored rect may not depend on a live
-        # font measurement (`tools/tests/test_layout_h_invariant.py`).
+        # -- the card GROUPS (see `_TERRAIN_LIST_ID`) ------------------------
+        # The panel's card column: every group is laid out inside it.
         cx, cw = self.panel_x + _CARD_INSET, self.panel_w - 2 * _CARD_INSET
-        badge_h = _row_step("sm", 4)
-        self._cond_badge = SimpleNamespace(
-            rect=(cx, self.view_h - 20, cw, badge_h), skin=None,
-            visible=True)
-        self._cond_effect_box = SimpleNamespace(
-            rect=(cx, self.view_h - 20 - 3 - (sm * _COND_EFFECT_LINES + 5),
-                  cw, sm * _COND_EFFECT_LINES + 5), skin=None, visible=True)
-        self._text["cond_badge_text"] = label_holder(
-            (cx + cw // 2, self.view_h - 18, 0, 0),
-            text_id="building.terrain_badge", font_key="sm", align="center")
-        for i in range(_COND_EFFECT_LINES):
-            self._text[f"cond_effect_line_{i}"] = label_holder(
-                (cx + 4, self._cond_effect_box.rect[1] + 2 + i * sm, 0, 0),
-                font_key="sm")
-        self.ids["cond_badge"] = ("panel", self._cond_badge)
-        self.ids["cond_effect_box"] = ("panel", self._cond_effect_box)
-        # -- the two card GROUPS (see `_TERRAIN_LIST_ID`) --------------------
         # The construct group is `_CARD_W` wide, not the panel column `cw`:
         # a card IS 140px across (plate + frame union), so a group narrower
         # than one card would window a list its own cards spill out of.
@@ -1390,12 +1397,25 @@ class BuildingUI:
                   self.view_h - _COND_CARD_LIST_BOTTOM_PAD
                   - _COND_CARD_LIST_TOP),
             skin=None, visible=True)
+        # feature: construct-terrain-card — build mode's own card group, at
+        # the panel foot (see `_BUILD_COND_LIST_H`).
+        self._build_terrain_list = SimpleNamespace(
+            rect=(cx, self.view_h - _BUILD_COND_LIST_H, cw,
+                  _BUILD_COND_LIST_H),
+            skin=None, visible=True)
         self.ids[_CONSTRUCT_LIST_ID] = ("panel", self._construct_list)
         self.ids[_TERRAIN_LIST_ID] = ("panel", self._terrain_list)
-        # -- /terrain badge + effect box ------------------------------------
+        self._upgrade_terrain_list = SimpleNamespace(
+            rect=(cx, self.view_h - _BUILD_COND_LIST_H, cw,
+                  _BUILD_COND_LIST_H),
+            skin=None, visible=True)
+        self.ids[_BUILD_TERRAIN_LIST_ID] = ("panel", self._build_terrain_list)
+        self.ids[_UPGRADE_TERRAIN_LIST_ID] = ("panel",
+                                              self._upgrade_terrain_list)
+        # -- /card groups ---------------------------------------------------
         for name, holder in self._text.items():
             self.ids[name] = ("label", holder)
-        del md, sm      # step values are recomputed per submit (font-scale)
+        del md, sm, cx, cw   # recomputed per submit (font-scale / overrides)
 
     # -- open / close -----------------------------------------------------
 
@@ -1434,13 +1454,9 @@ class BuildingUI:
         # -- /10J --
         self._stats_bottom = _STAT_BLOCK_TOP  # UT-3, set by _layout_upgrade_rows
         self._boss_popup_open = False  # -- 10G boss --
-        # -- 10I: terrain badge state resets with the panel --
-        self._cond_badge_rect = None
-        self._cond_hover = False
-        self._cond_tooltip = None
-        self._cond_effect_lines = []
-        # -- /10I --
         self._clear_cond_card_ids()
+        self._clear_build_cond_card_ids()
+        self._clear_upgrade_cond_card_ids()
         self.cond_scroll_offset = 0
 
     def dismiss(self):
@@ -1652,22 +1668,25 @@ class BuildingUI:
     def _has_art(self, slot):
         """Is ``slot`` actually imported? The `animation_total_ms(...) is not
         None` probe `_card_portrait_slot` already uses, so the two cannot
-        disagree about what "imported" means. No store ⇒ assume yes: a
-        headless panel draws nothing anyway."""
-        store = self.assets
-        if store is None:
+        disagree about what "imported" means. No store — or one that cannot
+        answer, which is what a test's stub is — ⇒ assume yes: a headless
+        panel draws nothing anyway. The `assets` seam promises it NEVER
+        raises (see its note in `__init__`), so this asks by `getattr`."""
+        probe = getattr(self.assets, "animation_total_ms", None)
+        if probe is None:
             return True
-        return store.animation_total_ms(slot, "idle") is not None
+        return probe(slot, "idle") is not None
 
     def _cond_sprite_size(self, slot):
         """The slot's OWN frame size — the card is sized to the sprite, never
-        the sprite to the card (`HudSprite` stretches). Falls back only for a
-        headless panel with no asset store."""
-        store = self.assets
-        if store is None or not slot:
+        the sprite to the card (`HudSprite` stretches). Falls back for a
+        headless panel with no asset store, and for a stub that cannot answer
+        `frame_size` — same never-raises seam as `_has_art`."""
+        probe = getattr(self.assets, "frame_size", None)
+        if probe is None or not slot:
             return _COND_CARD_SPRITE_FALLBACK
         try:
-            return store.frame_size(slot)
+            return probe(slot)
         except KeyError:
             return _COND_CARD_SPRITE_FALLBACK
 
@@ -1687,26 +1706,35 @@ class BuildingUI:
         rect = self._list_rect(_TERRAIN_LIST_ID, self._terrain_list)
         return rect[0], rect[2]
 
+    def _cond_list_viewport(self, list_id, holder):
+        """``(top, bottom)`` of ANY terrain-card group's box — one of the two
+        families (`terrain_card_list` in unlock mode, `build_terrain_card_list`
+        in construct mode)."""
+        rect = self._list_rect(list_id, holder)
+        return rect[1], rect[1] + rect[3]
+
     def _cond_card_viewport(self):
-        """``(top, bottom)`` of the terrain-card list — its GROUP's box.
+        """``(top, bottom)`` of the UNLOCK terrain-card list — its GROUP's box.
 
         At full-size sprites a card is 74-138px tall, so four of them do NOT
         fit at once and this really is a scrolling window (`handle_scroll`),
         not the belt-and-braces clip it was at thumbnail sizes."""
-        rect = self._list_rect(_TERRAIN_LIST_ID, self._terrain_list)
-        return rect[1], rect[1] + rect[3]
+        return self._cond_list_viewport(_TERRAIN_LIST_ID, self._terrain_list)
 
-    def _cond_card_in_viewport(self, rect, index=None):
+    def _cond_card_in_viewport(self, rect, index=None, viewport=None):
         """Is this card fully inside the group's window?
 
         ``index`` 0 always answers True: a full-size card is 138px, so a
         designer who sizes the group under that would otherwise get an EMPTY
         list rather than a clipped one. Same argument, same answer, as
         `_cards_visible`'s `max(1, ...)` — always show the card the wheel is
-        scrolled to."""
+        scrolled to.
+
+        ``viewport`` names the group to clip against; it defaults to the
+        unlock list's, so the construct family passes its own."""
         if index == 0:
             return True
-        top, bottom = self._cond_card_viewport()
+        top, bottom = viewport or self._cond_card_viewport()
         return rect[1] >= top and rect[1] + rect[3] <= bottom
 
     def _build_cond_cards(self, session):
@@ -1720,10 +1748,6 @@ class BuildingUI:
         frame. Laid out here, before `skinning.apply`, so a rect override wins.
         """
         self._clear_cond_card_ids()
-        skin = self.skinning.defaults(self.screen_id).get("panel_skin")
-        cx, cw = self._cond_card_column()
-        top, _bottom = self._cond_card_viewport()
-        step = _row_step("sm")
         rows = self._cond_card_rows(session)
         # The FULL row count, kept for `handle_scroll`'s clamp. It may not use
         # `len(self._cond_cards)`: that list only holds the cards from the
@@ -1732,8 +1756,26 @@ class BuildingUI:
         self._cond_row_count = len(rows)
         offset = max(0, min(self.cond_scroll_offset, max(0, len(rows) - 1)))
         self.cond_scroll_offset = offset
-        y = top
-        for cond, count, slot in rows[offset:]:
+        self._cond_cards = self._layout_cond_card_list(
+            rows[offset:], _TERRAIN_LIST_ID, self._terrain_list,
+            _COND_CARD_ID_PREFIX)
+
+    def _layout_cond_card_list(self, rows, list_id, holder, prefix):
+        """Lay a ``[(condition, count, slot)]`` list out as id'd card trees
+        inside ``list_id``'s box, and return ``[(condition, parts)]``.
+
+        The ONE terrain-card layout, shared by unlock mode's list and build
+        mode's (feature: construct-terrain-card) — the two differ only in
+        their GROUP and their id PREFIX, which is the whole point: a build
+        card is the same tree as an unlock card, so the look a designer
+        authored for one reads identically in the other.
+        """
+        skin = self.skinning.defaults(self.screen_id).get("panel_skin")
+        rect = self._list_rect(list_id, holder)
+        cx, cw, y = rect[0], rect[2], rect[1]
+        step = _row_step("sm")
+        cards = []
+        for cond, count, slot in rows:
             lines = self._tile_cond_effect_lines(cond)
             # The sprite owns the card's top band on its own; the name + count
             # row goes UNDER it, and the effect name/value pair under that,
@@ -1774,15 +1816,112 @@ class BuildingUI:
                                     name=name, count=count_lbl,
                                     count_value=count, effects=effects,
                                     lines=lines)
-            self._cond_cards.append((cond, parts))
-            key = f"{_COND_CARD_ID_PREFIX}{cond.name.lower()}"
+            cards.append((cond, parts))
+            key = f"{prefix}{cond.name.lower()}"
             self.ids[key] = ("panel", body)
             self.ids[f"{key}_sprite"] = ("panel", sprite)
             self.ids[f"{key}_name"] = ("label", name)
             self.ids[f"{key}_count"] = ("label", count_lbl)
-            for i, holder in enumerate(effects):
-                self.ids[f"{key}_effect_{i}"] = ("label", holder)
+            for i, row_holder in enumerate(effects):
+                self.ids[f"{key}_effect_{i}"] = ("label", row_holder)
             y += card_h + _COND_CARD_GAP
+        return cards
+
+    # -- construct-mode terrain card (feature: construct-terrain-card) ------
+
+    def _construct_cond_rows(self):
+        """``[(condition, count, slot)]`` for the tile(s) being built on.
+
+        `_cond_card_rows`'s shape, over the SELECTION instead of over the
+        bought chunks: one row per DISTINCT condition among the selected
+        tiles, so a single selection (the normal case) yields exactly one
+        card, and a shift multi-select spanning two terrains names both rather
+        than letting the primary tile speak for all of them. Ordered by the
+        `TileCondition` declaration order, never by scan order.
+        """
+        tiles = list(self.selected_tiles) or (
+            [self.tile] if self.tile is not None else [])
+        seen = {}
+        for t in tiles:
+            count, slot = seen.get(t.condition, (0, None))
+            if slot in (None, _CARD_GROUND_SLOT):
+                slot = self._cond_slot(t)
+            seen[t.condition] = (count + 1, slot)
+        return [(cond, *seen[cond]) for cond in TileCondition if cond in seen]
+
+    def _build_construct_cond_cards(self, rows=None):
+        """Build mode's terrain card(s), inside `build_terrain_card_list`.
+
+        Runs from `_build_construct` — i.e. before `skinning.apply` — which is
+        what makes a designer's rect override win, the same contract
+        the deleted `_layout_cond_box` kept for the pill this replaces.
+
+        ``rows`` overrides what the selection says, for ONE caller: the
+        exporter's mock, which has to record all four `build_cond_card_*`
+        trees off a SINGLE selected tile (a four-tile selection would quadruple
+        the batch price every other recorded construct id is derived from —
+        see `screen_mocks`).
+        """
+        self._clear_build_cond_card_ids()
+        self._construct_cond_cards = self._layout_cond_card_list(
+            self._construct_cond_rows() if rows is None else rows,
+            _BUILD_TERRAIN_LIST_ID, self._build_terrain_list,
+            _BUILD_COND_CARD_ID_PREFIX)
+
+    def _clear_build_cond_card_ids(self):
+        """`_clear_cond_card_ids`, for the build-mode family."""
+        for key in [k for k in self.ids
+                    if k.startswith(_BUILD_COND_CARD_ID_PREFIX)]:
+            del self.ids[key]
+        self._construct_cond_cards = []
+
+    # -- upgrade-mode terrain card ------------------------------------------
+
+    def _upgrade_cond_rows(self, building):
+        """``[(condition, count, slot)]`` for the building being looked at —
+        always exactly ONE row.
+
+        The condition is the building's PLACEMENT SNAPSHOT
+        (`_tile_condition`), which is what its stats were rolled against and
+        what the badge read before this; the tile underneath can be
+        re-terraformed in principle, so the snapshot wins over
+        `self.tile.condition` and Grass is shown rather than hidden. ``count``
+        is how many of the selected buildings sit on that same terrain, so a
+        shift multi-select reads `×3` instead of silently describing one.
+
+        The art comes from the tile only when the tile agrees with the
+        snapshot; otherwise the card falls back to plain ground rather than
+        showing terrain the building was not placed on.
+        """
+        cond = (getattr(building, "_tile_condition", None)
+                or TileCondition.GRASS)
+        tile = self.tile
+        slot = (self._cond_slot(tile)
+                if tile is not None and tile.condition == cond
+                else _CARD_GROUND_SLOT)
+        count = sum(1 for t in self.selected_tiles if t.condition == cond) or 1
+        return [(cond, count, slot)]
+
+    def _build_upgrade_cond_cards(self, building, rows=None):
+        """The upgrade panel's terrain card, in `upgrade_terrain_card_list`.
+
+        Runs from `_build_upgrade`, before `skinning.apply`, so a designer's
+        rect override wins — `_build_construct_cond_cards`'s contract, and
+        `rows` is the same exporter-only seam (the mock has one building but
+        must record all four condition trees).
+        """
+        self._clear_upgrade_cond_card_ids()
+        self._upgrade_cond_cards = self._layout_cond_card_list(
+            self._upgrade_cond_rows(building) if rows is None else rows,
+            _UPGRADE_TERRAIN_LIST_ID, self._upgrade_terrain_list,
+            _UPGRADE_COND_CARD_ID_PREFIX)
+
+    def _clear_upgrade_cond_card_ids(self):
+        """`_clear_cond_card_ids`, for the upgrade-mode family."""
+        for key in [k for k in self.ids
+                    if k.startswith(_UPGRADE_COND_CARD_ID_PREFIX)]:
+            del self.ids[key]
+        self._upgrade_cond_cards = []
 
     def _clear_cond_card_ids(self):
         """Drop the last build's `cond_card_*` entries from `self.ids` — the
@@ -1807,13 +1946,41 @@ class BuildingUI:
                          tint=getattr(holder, "tint", None), anim_ms=anim_ms)
 
     def _submit_cond_cards(self, renderer, anim_ms=0):
-        """Draw the terrain cards back-to-front: body, sprite, then text — the
-        house order every widget tree on this panel uses (the HUD queue is
-        drawn in submission order, so anything submitted later lands on top).
+        """Draw UNLOCK mode's terrain cards."""
+        self._submit_cond_card_list(renderer, self._cond_cards,
+                                    _TERRAIN_LIST_ID, self._terrain_list,
+                                    anim_ms)
+
+    def _submit_construct_cond_cards(self, renderer, anim_ms=0):
+        """Draw BUILD mode's terrain card(s) (feature:
+        construct-terrain-card) — the same tree, its own group and ids.
+
+        Nothing here is hover-gated: the effect rows the old `cond_badge`
+        pill only revealed under the cursor are part of the card, so the
+        info is simply on screen."""
+        self._submit_cond_card_list(
+            renderer, self._construct_cond_cards, _BUILD_TERRAIN_LIST_ID,
+            self._build_terrain_list, anim_ms)
+
+    def _submit_upgrade_cond_cards(self, renderer, anim_ms=0):
+        """Draw UPGRADE mode's terrain card — the same tree, its own group and
+        ids, and (like build mode) nothing hover-gated."""
+        self._submit_cond_card_list(
+            renderer, self._upgrade_cond_cards, _UPGRADE_TERRAIN_LIST_ID,
+            self._upgrade_terrain_list, anim_ms)
+
+    def _submit_cond_card_list(self, renderer, cards, list_id, holder,
+                               anim_ms=0):
+        """Draw one terrain-card family back-to-front: body, sprite, then text
+        — the house order every widget tree on this panel uses (the HUD queue
+        is drawn in submission order, so anything submitted later lands on
+        top).
         """
-        self._submit_list_group(renderer, self._terrain_list, anim_ms)
-        for index, (cond, parts) in enumerate(self._cond_cards):
-            if not self._cond_card_in_viewport(parts.body.rect, index):
+        self._submit_list_group(renderer, holder, anim_ms)
+        viewport = self._cond_list_viewport(list_id, holder)
+        for index, (cond, parts) in enumerate(cards):
+            if not self._cond_card_in_viewport(parts.body.rect, index,
+                                               viewport):
                 continue
             label, color = widgets.cond_label(cond.name)
             if is_visible(parts.body):
@@ -1830,9 +1997,9 @@ class BuildingUI:
             submit_label(renderer, parts.name, color=color, label=label)
             submit_label(renderer, parts.count, color=widgets.C_UI_TEXT_DIM,
                          count=parts.count_value)
-            for holder, text in zip(parts.effects,
-                                    _cond_effect_rows(parts.lines)):
-                submit_label(renderer, holder, text=text,
+            for row_holder, text in zip(parts.effects,
+                                        _cond_effect_rows(parts.lines)):
+                submit_label(renderer, row_holder, text=text,
                              color=widgets.C_UI_TEXT)
 
     # -- construct card: geometry, art + the two screen-level bools ---------
@@ -2120,10 +2287,11 @@ class BuildingUI:
             (col, row) for col, row in getattr(state, "used_painter_tiles", ())
             if (t := tm.get(col, row)) is not None
             and t.state == TileState.BUILDABLE]
-        # The footer badge + effect box, laid out here (before apply) so a
-        # designer's rect override wins — see `_layout_cond_box`.
-        self._layout_cond_box(self.tile.condition, self.view_h - 20,
-                              above=True)
+        # feature: construct-terrain-card — the footer terrain CARD, laid
+        # out here (before apply) so a designer's rect override wins. It
+        # replaces the `cond_badge` pill + hover-gated effect box this mode
+        # used to end with; both widgets live on for upgrade mode.
+        self._build_construct_cond_cards()
 
     def _clear_card_ids(self):
         """Drop last build's `card_*` entries from `self.ids`.
@@ -2213,9 +2381,9 @@ class BuildingUI:
         self._action_cost = cost if self.action_btn.enabled else 0
         self._upgrade_hint = hint
         self._layout_upgrade_rows()
-        self._layout_cond_box(
-            getattr(self._selected, "_tile_condition", None)
-            or TileCondition.GRASS, 45, above=False)
+        # feature: construct-terrain-card (upgrade half) — the terrain CARD in
+        # place of the badge + its hover-gated effect box.
+        self._build_upgrade_cond_cards(self._selected)
         self._build_move_btn()
         self._build_colour_row()   # MasterSheetColumnsPLAN B3
 
@@ -2461,13 +2629,8 @@ class BuildingUI:
 
     def hover(self, mx, my, mouse_down=False):
         self._hover_cost = None
-        # -- 10I: terrain badge hover (rect inflated 2px, prototype
-        # building_ui.py:1121-1130); off while the modal preview is open --
-        r = self._cond_badge_rect
-        self._cond_hover = (
-            self.preview is None and r is not None
-            and contains((r[0] - 2, r[1] - 2, r[2] + 4, r[3] + 4), mx, my))
-        # -- /10I --
+        # No terrain hover of any kind: every mode that names a terrain draws
+        # a CARD, which carries its effect rows outright.
         if self.preview is not None:
             self.preview.hover(mx, my, mouse_down)
             # feature: move-building-time-only-cost — a MovePreview's cost is
@@ -3044,11 +3207,6 @@ class BuildingUI:
                                           width=3)
         if not self.visible:
             return
-        # -- 10I: badge rect/tooltip refresh each frame (base_info shows no
-        # badge, so a mode without a badge must clear last frame's rect) --
-        self._cond_badge_rect = None
-        self._cond_tooltip = None
-        # -- /10I --
         # -- 10L-B: no separate layout() step, so apply() runs here (once per
         # visible frame, before the panel/buttons it may reposition/reskin) --
         self._panel.rect = self.panel_rect
@@ -3074,11 +3232,6 @@ class BuildingUI:
             self._submit_move_select(renderer, t)
         elif self.mode == "base_info":
             self._submit_base_info(renderer, session, t)
-        # -- 10I: the hovered terrain tooltip draws LAST, on top of the panel
-        # (prototype building_ui.py:1121-1130) --
-        if self._cond_hover and self._cond_tooltip is not None:
-            self._submit_cond_tooltip(renderer, *self._cond_tooltip)
-        # -- /10I --
         if self.preview is not None:
             self.preview.submit(renderer, anim_ms=t)
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
@@ -3098,8 +3251,9 @@ class BuildingUI:
         # The terrain CARDS replace the footer badge + hover tooltip in this
         # mode: every condition the purchase covers is spelled out inline, so
         # a pill naming only the primary tile's condition would say a fourth
-        # of the same thing twice. The badge is still drawn in construct and
-        # upgrade modes, where there is exactly one tile to describe.
+        # of the same thing twice. Construct mode draws a card of its own now
+        # too (feature: construct-terrain-card); UPGRADE is the last mode with
+        # a badge, where there is exactly one placed building to describe.
         self._submit_cond_cards(renderer, anim_ms)
 
     def _submit_construct(self, renderer, anim_ms=0):
@@ -3173,9 +3327,11 @@ class BuildingUI:
                              color=widgets.C_UI_TEXT)
             submit_label(renderer, parts.price_text, value=parts.cost,
                          color=widgets.C_UI_TEXT)
-        # -- 10I: tile terrain footer badge (effect box above) --
-        self._submit_cond_badge(renderer, self.tile.condition)
-        # -- /10I --
+        # feature: construct-terrain-card — the terrain card at the panel
+        # foot, in place of the 10I badge + its hover tooltip. The effect rows
+        # are always drawn, as part of the card; there is no hover probe on
+        # this panel at all any more.
+        self._submit_construct_cond_cards(renderer, anim_ms)
 
     def _next_level_rows(self, b):
         """``_building_stats`` at the NEXT in-tier level, computed on a
@@ -3290,12 +3446,10 @@ class BuildingUI:
         submit_label(renderer, txt["upgrade_tier_level"],
                      color=widgets.C_UI_TEXT_DIM,
                      tier=_tier_name(b), level=b.level)
-        # -- 10I: terrain badge (ALWAYS shown incl. Grass), reading the
-        # building's placement snapshot; effect box below the badge --
-        self._submit_cond_badge(
-            renderer,
-            getattr(b, "_tile_condition", None) or TileCondition.GRASS)
-        # -- /10I --
+        # The terrain card, reading the building's placement snapshot
+        # (Grass included — the card names it "No effect" rather than
+        # vanishing, exactly as the badge always did).
+        self._submit_upgrade_cond_cards(renderer, anim_ms)
         # 10J: hovering an enabled in-tier UPGRADE button previews the next
         # level's stats in green (prototype building_ui.py:1021, 1057-58).
         preview = None
@@ -3410,8 +3564,8 @@ class BuildingUI:
         for key in ("move_hint_1", "move_hint_2", "move_hint_cancel"):
             submit_label(renderer, txt[key], color=widgets.C_UI_TEXT_DIM)
 
-    # -- 10I: terrain badge + effect tooltip (prototype building_ui.py
-    # :998-1014 badge, :1418-1438 effect lines, :1440-1477 chrome/footer) ----
+    # -- the effect PAIR every terrain card carries (prototype building_ui.py
+    # :1418-1438 effect lines) ---------------------------------------------
 
     def _tile_cond_effect_lines(self, condition):
         """``[name, value]`` for a condition's effect — the NAME of the thing
@@ -3441,75 +3595,6 @@ class BuildingUI:
         if m.get("eco_yield_bonus"):
             return ["Economy", f'+{m["eco_yield_bonus"] * 100:.0f}%']
         return ["No effect", ""]
-
-    def _layout_cond_box(self, condition, y, above):
-        """Place the terrain badge + effect box for ``condition``, with the
-        badge's top at ``y`` and the box above or below it.
-
-        Runs from the MODE BUILDERS (`_build_construct` / `_build_upgrade`) —
-        i.e. before any `submit()`, and therefore before `skinning.apply` —
-        which is what makes a designer's rect override win: this writes the
-        DEFAULT anchor, `apply` then replaces it for whichever of the seven
-        widgets carry one (`_layout_upgrade_rows`'s convention, and the same
-        no-cascade rule: overriding the box does not move its lines).
-
-        The effect NAME and its VALUE are stacked from the box's top by
-        default, one row each; a designer who wants them side by side moves
-        `cond_effect_line_1` in the editor (the two rows are independent
-        widgets precisely so that is possible).
-        """
-        lines = self._tile_cond_effect_lines(condition)
-        self._cond_effect_lines = lines
-        step = _row_step("sm")
-        badge_h = _row_step("sm", 4)   # layout_h, not text_h — see above
-        bx, _by, bw, _bh = self._cond_badge.rect
-        self._cond_badge.rect = (bx, y, bw, badge_h)
-        self._text["cond_badge_text"].rect = (bx + bw // 2, y + 2, 0, 0)
-        box_h = step * _COND_EFFECT_LINES + 5
-        box_y = y - box_h - 3 if above else y + badge_h + 3
-        self._cond_effect_box.rect = (bx, box_y, bw, box_h)
-        for i in range(_COND_EFFECT_LINES):
-            self._text[f"cond_effect_line_{i}"].rect = (
-                bx + 4, box_y + 2 + i * step, 0, 0)
-
-    def _submit_cond_badge(self, renderer, condition):
-        """The ``Terrain: <Label>`` pill, drawn from its id'd widgets at
-        whatever rect `_layout_cond_box` (then `skinning.apply`) left them at.
-
-        Records the badge's LIVE rect as the hover probe — so a designer who
-        moves the pill moves its tooltip trigger with it — and the pending
-        tooltip, which `submit` draws last so it sits on top."""
-        label, color = widgets.cond_label(condition.name)
-        if not is_visible(self._cond_badge) and not is_visible(
-                self._text["cond_badge_text"]):
-            self._cond_badge_rect = None
-            self._cond_tooltip = None
-            return
-        rect = self._cond_badge.rect
-        self._cond_badge_rect = rect
-        if is_visible(self._cond_badge):
-            submit_panel(renderer, rect, fill=widgets.C_PANEL_STONE,
-                         border=color, skin=self._cond_badge.skin,
-                         tint=getattr(self._cond_badge, "tint", None))
-        submit_label(renderer, self._text["cond_badge_text"], color=color,
-                     label=label)
-        self._cond_tooltip = (condition, color)
-
-    def _submit_cond_tooltip(self, renderer, condition, color):
-        """The effect box: dark panel, 1px border in the condition colour,
-        and one id'd label per effect line. Lines past the condition's own
-        count are simply not drawn."""
-        if is_visible(self._cond_effect_box):
-            submit_panel(renderer, self._cond_effect_box.rect,
-                         fill=_COND_TOOLTIP_BG, border=color,
-                         skin=self._cond_effect_box.skin,
-                         tint=getattr(self._cond_effect_box, "tint", None))
-        rows = _cond_effect_rows(self._cond_effect_lines)
-        for i, text in enumerate(rows):
-            submit_label(renderer, self._text[f"cond_effect_line_{i}"],
-                         text=text, color=widgets.C_UI_TEXT)
-
-    # -- /10I ---------------------------------------------------------------
 
     def _submit_base_info(self, renderer, session, anim_ms=0):
         st, txt = session.state, self._text

@@ -1010,7 +1010,8 @@ class ViewportPanel(QWidget):
             self._effective_rect(widget_id, defaults),
             text=self._widget_text(widget_id, spec),
             font_key=self._widget_font_key(widget_id, spec),
-            align=_screen_primitives.resolve_align(spec, override))
+            align=_screen_primitives.resolve_align(spec, override),
+            family=self._widget_font_family(widget_id))
 
     def _widget_font_key(self, widget_id, spec):
         """The font the widget's text is drawn at: the doc's own `font`
@@ -1021,6 +1022,19 @@ class ViewportPanel(QWidget):
         style = self._screen_session.doc.get("defaults", {})
         return (override.get("font") or spec.get("font_key")
                 or style.get("font") or "md")
+
+    def _widget_font_family(self, widget_id):
+        """The font FAMILY the widget's text is drawn in (UH-Font-B): the
+        doc's own `font_family` override, else the screen's
+        `defaults.font_family`, else None for the active family — the same
+        chain `skinning._submit_text_for` resolves it with.
+
+        Unlike `_widget_font_key` there is no `screen_defaults.json` rung:
+        that file records CODE-authored defaults and a family is designer
+        data only, so no code-owned widget can carry one."""
+        override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
+        style = self._screen_session.doc.get("defaults", {})
+        return override.get("font_family") or style.get("font_family") or None
 
     def _is_anchor_widget(self, widget_id, defaults):
         """True when the widget stores no size — it can be MOVED but not
@@ -1088,7 +1102,8 @@ class ViewportPanel(QWidget):
         return _screen_primitives.layer_interaction_rect(
             resolved["rect"], text=self._layer_text(resolved),
             font_key=resolved.get("font") or "md",
-            align=resolved.get("align") or "left")
+            align=resolved.get("align") or "left",
+            family=resolved.get("font_family") or None)
 
     def _layer_boxes(self, widget_id, defaults):
         """`[(layer_id, resolved, interaction rect)]` for every DRAWABLE layer
@@ -2965,13 +2980,17 @@ class ViewportPanel(QWidget):
         # made the flat-box fallback disagree with the real screen.
         font_key = (override.get("font") or spec.get("font_key")
                     or style.get("font") or "md")
+        # UH-Font-B: the family axis, resolved down its own chain (there is
+        # no recorded rung for it — see `_widget_font_family`).
+        family = self._widget_font_family(widget_id)
         if _screen_primitives.is_anchor_rect(rect):
             # A position-only anchor has no box to centre in; measure the
             # same box the designer clicks and outlines (`_interaction_rect`),
             # so the fallback text lands on the glyphs' real spot.
             rect = _screen_primitives.interaction_rect(
                 rect, text=self._widget_text(widget_id, spec),
-                font_key=font_key, align=spec.get("align", "left"))
+                font_key=font_key, align=spec.get("align", "left"),
+                family=family)
         dest = self._to_screen_rect(rect, scale, ox, oy)
         text_color = override.get("text_color", style.get("text_color"))
         if skin:
@@ -2986,14 +3005,15 @@ class ViewportPanel(QWidget):
                 anim_time_ms=int(self._screen_anim_ms)))
             label_item = _screen_primitives.centered_label_item(
                 dest, label, font_key,
-                tuple(text_color) if text_color is not None else (255, 255, 255))
+                tuple(text_color) if text_color is not None else (255, 255, 255),
+                family)
             if label_item is not None:
                 self._renderer.submit_hud(label_item)
         else:
             fill = tuple(override["color"]) if "color" in override else None
             for item in _screen_primitives.fallback_hud_items(
                     dest, kind, label, font_key=font_key,
-                    text_color=text_color, fill=fill):
+                    text_color=text_color, fill=fill, family=family):
                 self._renderer.submit_hud(item)
 
     def _submit_drag_preview(self, defaults, doc, scale, ox, oy, hidden=()):
@@ -3111,7 +3131,8 @@ class ViewportPanel(QWidget):
                 text, (dest[0], dest[1]), resolved.get("font") or "md",
                 tuple(resolved["text_color"]) if resolved.get("text_color")
                 else LAYER_TEXT_COLOR,
-                align=resolved.get("align") or "left"))
+                align=resolved.get("align") or "left",
+                family=resolved.get("font_family") or None))
             return
         color = resolved.get("color")
         if color:

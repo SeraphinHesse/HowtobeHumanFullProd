@@ -90,6 +90,26 @@ dimension is **>= 12 logical px**, its static label fits in `w - 4`, and the
 button is at least `layout_h(font_key)` tall. Filter on the `kind` from the ids
 PAIR, never on `type(widget)` — panels/labels/bars are not click targets.
 
+### A text run has TWO font axes (UH-Font-B)
+
+`font_key` picks a size/bold preset; `font_family` picks the face those
+glyphs come from. They are independent, and both are designer-ownable off
+the screen doc — `ScreenSkinning.apply`'s generic setattr loop threads
+`font_family` onto a widget for free (it needs no `_SPEC_TO_ATTR` entry,
+unlike `font` → `font_key`).
+
+Every text run in this package reaches `HudText` through
+`widgets.submit_text` / `submit_centered` / `submit_label` / `Button.submit`
+or `skinning`'s two draw paths, so those are the only places that thread the
+family — no screen module does it itself. A holder carries it as
+`font_family` (see `label_holder`), `None` meaning "inherit".
+
+**`layout_h` takes no family, on purpose.** Positioning stays keyed by the
+preset alone, so a family swap changes drawn glyphs and never a stored rect.
+`text_size`/`text_h`/`wrap_text` DO take one — they are draw-time-only
+measurements (word wrap, a hover hint's width) whose output is never stored
+or captured, which is exactly the line the `layout_h` rule above draws.
+
 **That test measures the font the game actually SHIPS**, not whatever font
 state the process happens to be in. `data/ui/active_font.json` boots
 `pixel_emulator`, which is wider per glyph than the `SysFont("monospace")`
@@ -1081,13 +1101,11 @@ phase edge; blue→yellow→red ramp in `heat_color`). `widgets.cond_label(name)
 (condition label + colour, keyed by `TileCondition.name` — the label text is
 Phase C string-table content, `widgets.condition.*`; see "Global UI string
 table" below) is shared with
-`building_ui`'s terrain badges: a `Terrain: <Label>` pill in the upgrade
-panel (below Level, reads the building's `_tile_condition` snapshot) and at the
-construct panel foot (reads the tile), each with a hover effect box whose
-lines read LIVE from `TileConditions.modifiers` (enemy effects
-deliberately unlisted, prototype-exact); the box draws last/on top.
-`base_info` shows NO badge, and **unlock mode shows no badge either** — see
-the terrain cards below. The panel Range row + selection range highlight use
+`building_ui`'s terrain CARDS. There is no `Terrain: <Label>` badge any more
+and no hover anywhere on this panel: unlock, construct and upgrade each draw
+terrain cards (below), whose effect rows read LIVE from
+`TileConditions.modifiers` (enemy effects deliberately unlisted,
+prototype-exact). `base_info` names no terrain at all. The panel Range row + selection range highlight use
 `effective_range_tiles()` when present (mountain +1); the RANGE overlay stays
 raw.
 
@@ -1112,15 +1130,42 @@ _all_conditions_chunk` forces all four conditions onto the exporter's mock
 chunk for the same reason `_unlock_every_type` unlocks every building type:
 a card with no `screen_defaults.json` record is invisible to the editor.
 
-**The badge and its effect box are widgets now.** Both used to be bare
-`HudRect`s shrink-wrapped around a live `text_size` call, which made them the
-only two things on this panel a designer could not touch. They are
-`cond_badge` / `cond_badge_text` / `cond_effect_box` / `cond_effect_line_<i>`,
-laid out by `_layout_cond_box` from the MODE BUILDERS — before
-`skinning.apply`, so a rect override wins (`_layout_upgrade_rows`'s
-convention). The consequence to know: the boxes are a FIXED width now (the
-card column's) instead of growing to fit their text, because a stored rect may
-not depend on a font measurement.
+**Construct and upgrade mode show a terrain CARD too** (feature:
+construct-terrain-card). Both used to end in the badge pill plus an effect box
+that only appeared while the cursor was over it; both draw the same card
+unlock mode draws, at the panel foot, with nothing hover-gated — the effect
+rows are part of the card, so the info is simply on screen. Each mode builder
+calls its `_build_*_cond_cards` where it used to call `_layout_cond_box`, and
+each `_submit_*` draws the card where it drew the badge.
+
+`_layout_cond_card_list` is the ONE card layout all three share; they differ
+only in their GROUP and their id PREFIX:
+
+| mode | group | card ids | rows from |
+|---|---|---|---|
+| unlock | `terrain_card_list` | `cond_card_<condition>` | `_cond_card_rows` (every 2x2 chunk bought) |
+| construct | `build_terrain_card_list` | `build_cond_card_<condition>` | `_construct_cond_rows` (the SELECTED tiles) |
+| upgrade | `upgrade_terrain_card_list` | `upgrade_cond_card_<condition>` | `_upgrade_cond_rows` (the building's `_tile_condition` snapshot) |
+
+Three id families rather than one, because **an override is per-ID, not
+per-view** — `skinning.apply` walks a single `widgets` table for the whole
+screen. Sharing the ids would pin every mode's card to wherever the unlock
+LIST put it and make them impossible to place apart. The trees are otherwise
+identical, so art authored for one reads the same in the others. Each family
+has its own `_clear_*_cond_card_ids` sweep; `screen_mocks` re-drives the
+construct and upgrade builders with all four condition rows (rather than
+SELECTING four tiles, which would quadruple the batch price every recorded
+construct id is derived from) so every tree reaches `screen_defaults.json`,
+and `export_ui_layouts._CARD_TREE_ROOTS` maps each prefix to its group so the
+editor shows one movable branch per mode.
+
+**The badge is DELETED, not merely unused.** `cond_badge` /
+`cond_badge_text` / `cond_effect_box` / `cond_effect_line_<i>`,
+`_layout_cond_box`, `_submit_cond_badge`, `_submit_cond_tooltip` and the
+`_cond_hover` / `_cond_badge_rect` / `_cond_tooltip` state are all gone, along
+with the panel's ONLY hover probe. Leaving them as widgets no mode draws is
+not free: an id in no view gets no `screen_defaults.json` record, and the
+override validator then rejects any authored override that names it.
 
 **The two effect rows are a PAIR: a name and a number.** `_COND_EFFECT_LINES`
 is **2**, and the two rows are not a list — row 0 names the effect (`Range`),

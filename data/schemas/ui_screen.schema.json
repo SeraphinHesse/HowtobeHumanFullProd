@@ -1,4 +1,10 @@
 {
+  "$defs": {
+    "font_family": {
+      "description": "UH-Font-B: the font FAMILY this text draws in \u2014 a data/fonts/font_manifest.json entry id. ORTHOGONAL to `font`, which selects only a data/ui/fonts.json size/bold PRESET; the two axes combine, so any preset can be drawn in any imported family. ABSENT means \"inherit\": a widget falls back to its screen's `defaults.font_family`, and that falls back to data/ui/active_font.json \u2014 so a doc that predates this key draws exactly as it always did. That the id must name a real manifest entry is a cross-file check a schema can't express; unlike active_font.json (which game/main.py cross-checks and fails LOUD on, D-2) an unknown id here DEGRADES to the inherited family at draw time (engine/render/fonts.py's `get_font`), because a stale id in one screen doc must not kill the frame. Changing the family moves NO stored rect: `layout_h` is keyed by preset only, so text in a wider family can overflow its widget \u2014 the same pinned-layout contract a preset size change already has.",
+      "type": "string"
+    }
+  },
   "$id": "https://example.com/schemas/ui_screen.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -39,7 +45,7 @@
     },
     "custom_widgets": {
       "additionalProperties": false,
-      "description": "Designer-AUTHORED widgets that exist only in this file: a hand-written twin of ONE screen_defaults.json widget entry, for decoration a designer wants and no code owns. This entry is the widget's DEFAULT GEOMETRY ONLY. Everything paintable -- skin, color, label, text_id, font, text_color, tint, align, visible, parent, layers, states -- is an ORDINARY override under widgets/<the same id>, exactly as for a code-owned widget; there is no second styling vocabulary here. The game draws these at the tail of the two submit_layers calls every screen already makes, so a screen with no custom_widgets emits not one extra primitive. Custom widgets are NEVER click targets: neither the widget nor its layers are hit-tested, and a click passes straight through to the real UI underneath. parent on a custom widget is authoring-only metadata the game never reads.",
+      "description": "Designer-AUTHORED widgets that exist only in this file: a hand-written twin of ONE screen_defaults.json widget entry, for decoration a designer wants and no code owns. This entry is the widget's DEFAULT GEOMETRY ONLY. Everything paintable -- skin, color, label, text_id, font, font_family, text_color, tint, align, visible, parent, layers, states -- is an ORDINARY override under widgets/<the same id>, exactly as for a code-owned widget; there is no second styling vocabulary here. The game draws these at the tail of the two submit_layers calls every screen already makes, so a screen with no custom_widgets emits not one extra primitive. Custom widgets are NEVER click targets: neither the widget nor its layers are hit-tested, and a click passes straight through to the real UI underneath. parent on a custom widget is authoring-only metadata the game never reads.",
       "patternProperties": {
         "^[a-z][a-z0-9_]*$": {
           "additionalProperties": false,
@@ -101,6 +107,9 @@
         "font": {
           "type": "string"
         },
+        "font_family": {
+          "$ref": "#/$defs/font_family"
+        },
         "panel_skin": {
           "type": "string"
         },
@@ -132,7 +141,7 @@
           "additionalProperties": false,
           "properties": {
             "align": {
-              "description": "Which way the widget's text spreads from its stored anchor x — the same three values game/ui/widgets.submit_label already reads off the holder. Absent means \"left\", submit_label's own fallback, so a screen doc that predates this key draws unchanged.",
+              "description": "Which way the widget's text spreads from its stored anchor x \u2014 the same three values game/ui/widgets.submit_label already reads off the holder. Absent means \"left\", submit_label's own fallback, so a screen doc that predates this key draws unchanged.",
               "enum": [
                 "left",
                 "center",
@@ -160,6 +169,9 @@
             "font": {
               "type": "string"
             },
+            "font_family": {
+              "$ref": "#/$defs/font_family"
+            },
             "label": {
               "type": "string"
             },
@@ -167,39 +179,24 @@
               "items": {
                 "additionalProperties": false,
                 "properties": {
-                  "id": {
+                  "align": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
                     "type": "string"
-                  },
-                  "offset": {
-                    "items": {
-                      "type": "integer"
-                    },
-                    "maxItems": 4,
-                    "minItems": 4,
-                    "type": "array"
-                  },
-                  "z": {
-                    "type": "integer"
                   },
                   "band": {
-                    "enum": ["under", "over"],
+                    "enum": [
+                      "under",
+                      "over"
+                    ],
                     "type": "string"
                   },
-                  "slot": {
-                    "type": "string"
-                  },
-                  "text_id": {
-                    "type": "string"
-                  },
-                  "label": {
-                    "type": "string"
-                  },
-                  "font": {
-                    "type": "string"
-                  },
-                  "align": {
-                    "enum": ["left", "center", "right"],
-                    "type": "string"
+                  "clickable": {
+                    "description": "Is this layer a click target (UL-9)? Absent means false -- an ordinary decorative layer is never hit, and is TRANSPARENT to a click rather than blocking it. Static per layer, never per state: D9's four states govern appearance only.",
+                    "type": "boolean"
                   },
                   "color": {
                     "items": {
@@ -210,6 +207,29 @@
                     "maxItems": 4,
                     "minItems": 3,
                     "type": "array"
+                  },
+                  "font": {
+                    "type": "string"
+                  },
+                  "font_family": {
+                    "$ref": "#/$defs/font_family"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "offset": {
+                    "items": {
+                      "type": "integer"
+                    },
+                    "maxItems": 4,
+                    "minItems": 4,
+                    "type": "array"
+                  },
+                  "slot": {
+                    "type": "string"
                   },
                   "states": {
                     "additionalProperties": false,
@@ -238,6 +258,9 @@
                           },
                           "font": {
                             "type": "string"
+                          },
+                          "font_family": {
+                            "$ref": "#/$defs/font_family"
                           },
                           "label": {
                             "type": "string"
@@ -306,6 +329,9 @@
                           "font": {
                             "type": "string"
                           },
+                          "font_family": {
+                            "$ref": "#/$defs/font_family"
+                          },
                           "label": {
                             "type": "string"
                           },
@@ -372,6 +398,9 @@
                           },
                           "font": {
                             "type": "string"
+                          },
+                          "font_family": {
+                            "$ref": "#/$defs/font_family"
                           },
                           "label": {
                             "type": "string"
@@ -440,6 +469,9 @@
                           "font": {
                             "type": "string"
                           },
+                          "font_family": {
+                            "$ref": "#/$defs/font_family"
+                          },
                           "label": {
                             "type": "string"
                           },
@@ -486,6 +518,11 @@
                     },
                     "type": "object"
                   },
+                  "target": {
+                    "description": "What a click on this layer MEANS (UL-9, D7 as amended): a widget id in the same screen, or one of the reserved tokens close_window / back / noop. Deliberately NOT a closed enum -- an id-shaped string matching neither still validates and saves; the editor WARNS about an unroutable target instead of failing validation.",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "type": "string"
+                  },
                   "text_color": {
                     "items": {
                       "maximum": 255,
@@ -495,6 +532,9 @@
                     "maxItems": 4,
                     "minItems": 3,
                     "type": "array"
+                  },
+                  "text_id": {
+                    "type": "string"
                   },
                   "tint": {
                     "items": {
@@ -509,14 +549,8 @@
                   "visible": {
                     "type": "boolean"
                   },
-                  "clickable": {
-                    "description": "Is this layer a click target (UL-9)? Absent means false -- an ordinary decorative layer is never hit, and is TRANSPARENT to a click rather than blocking it. Static per layer, never per state: D9's four states govern appearance only.",
-                    "type": "boolean"
-                  },
-                  "target": {
-                    "description": "What a click on this layer MEANS (UL-9, D7 as amended): a widget id in the same screen, or one of the reserved tokens close_window / back / noop. Deliberately NOT a closed enum -- an id-shaped string matching neither still validates and saves; the editor WARNS about an unroutable target instead of failing validation.",
-                    "pattern": "^[a-z][a-z0-9_]*$",
-                    "type": "string"
+                  "z": {
+                    "type": "integer"
                   }
                 },
                 "type": "object"
@@ -524,7 +558,7 @@
               "type": "array"
             },
             "parent": {
-              "description": "Designer re-parenting (authoring metadata the game never reads): the widget id this widget hangs off in the editor's outliner, overriding screen_defaults.json's own `parent`. Explicit null re-roots a widget whose default parent the designer rejected — distinct from the key being ABSENT, which keeps the default. A cyclic or dangling chain resolves to root in the editor rather than failing.",
+              "description": "Designer re-parenting (authoring metadata the game never reads): the widget id this widget hangs off in the editor's outliner, overriding screen_defaults.json's own `parent`. Explicit null re-roots a widget whose default parent the designer rejected \u2014 distinct from the key being ABSENT, which keeps the default. A cyclic or dangling chain resolves to root in the editor rather than failing.",
               "type": [
                 "string",
                 "null"
@@ -560,6 +594,9 @@
                     },
                     "font": {
                       "type": "string"
+                    },
+                    "font_family": {
+                      "$ref": "#/$defs/font_family"
                     },
                     "label": {
                       "type": "string"
@@ -611,6 +648,9 @@
                     "font": {
                       "type": "string"
                     },
+                    "font_family": {
+                      "$ref": "#/$defs/font_family"
+                    },
                     "label": {
                       "type": "string"
                     },
@@ -661,6 +701,9 @@
                     "font": {
                       "type": "string"
                     },
+                    "font_family": {
+                      "$ref": "#/$defs/font_family"
+                    },
                     "label": {
                       "type": "string"
                     },
@@ -710,6 +753,9 @@
                     },
                     "font": {
                       "type": "string"
+                    },
+                    "font_family": {
+                      "$ref": "#/$defs/font_family"
                     },
                     "label": {
                       "type": "string"

@@ -59,11 +59,15 @@ _DEFAULTS_FILE = ("ui", "screen_defaults.json")
 _DEFAULTS_SCHEMA = "screen_defaults.schema.json"
 
 #: JSON override key -> the widget attribute it mutates. Everything else
-#: (rect/skin/label/color/text_color/visible/tint/text_id) maps 1:1 onto the
+#: (rect/skin/label/color/text_color/visible/tint/text_id/font_family) maps
+#: 1:1 onto the
 #: same name — ``tint`` (D6/UH-6, the sheet-multiply color for a skinned
 #: widget) and ``text_id`` (UT-1, the ``data/ui/strings.json`` key a label
 #: holder resolves its text through — see ``widgets.submit_label``) need no
-#: entry here for exactly that reason: ``apply``'s generic setattr loop
+#: entry here for exactly that reason -- and neither does ``font_family``
+#: (UH-Font-B), whose widget attribute is spelled the same as its JSON key
+#: precisely because ``font``'s mismatch is the one wart in this table:
+#: ``apply``'s generic setattr loop
 #: already threads them onto the widget for free, the same way it always has
 #: for ``skin``.
 _SPEC_TO_ATTR = {"font": "font_key"}
@@ -495,6 +499,7 @@ class ScreenSkinning:
         for key, attr in (("skin", "skin"), ("tint", "tint"),
                           ("color", "color"), ("label", "label"),
                           ("text_id", "text_id"), ("font", "font_key"),
+                          ("font_family", "font_family"),
                           ("text_color", "text_color"), ("align", "align")):
             if spec.get(key) is None:
                 value = getattr(widget, attr, None)
@@ -678,16 +683,27 @@ class ScreenSkinning:
             return
         from .widgets import C_UI_TEXT
         font = spec.get("font") or defaults.get("font") or "md"
+        # UH-Font-B: the family resolves down the SAME chain as the size
+        # preset one line up -- widget override, then the screen's defaults,
+        # then None, which `get_font` reads as "the active family". A screen
+        # doc with neither key draws exactly as it did before the axis
+        # existed.
+        family = spec.get("font_family") or defaults.get("font_family") or None
         color = _as_tuple(spec.get("text_color")
                           or defaults.get("text_color") or C_UI_TEXT)
         x, y, w, h = rect
         if center:
+            # layout_h, never a family-aware measurement: this y lands in a
+            # captured primitive stream, and the family axis is deliberately
+            # absent from the pinned heights (engine/render/fonts.py).
             text_h = layout_h(font)
             renderer.submit_hud(HudText(text, (x + w / 2, y + h / 2 - text_h / 2),
-                                        font, color, align="center"))
+                                        font, color, align="center",
+                                        family=family))
             return
         renderer.submit_hud(HudText(text, (x, y), font, color,
-                                    align=spec.get("align") or "left"))
+                                    align=spec.get("align") or "left",
+                                    family=family))
 
     def _submit_one_layer(self, renderer, resolved, state: str = "idle",
                           anim_ms: int = 0) -> None:
@@ -730,7 +746,8 @@ class ScreenSkinning:
             renderer.submit_hud(HudText(
                 text, (x, y), resolved.get("font") or "md",
                 resolved.get("text_color") or C_UI_TEXT,
-                align=resolved.get("align") or "left"))
+                align=resolved.get("align") or "left",
+                family=resolved.get("font_family") or None))
             return
         color = resolved.get("color")
         if color:

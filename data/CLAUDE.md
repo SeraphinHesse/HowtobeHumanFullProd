@@ -1216,6 +1216,37 @@ validating writer; don't hand-edit the JSON.
   then builds via `pygame.font.Font(font_path, size)` instead of
   `SysFont`. `layout_h`/`_LAYOUT_H` are unaffected either way (same
   invariant as a plain size change above).
+- **`font_family` in `data/ui/screens/<id>.json`** (UH-Font-B) — the
+  PER-TEXT font family, the second axis to `font`'s size/bold preset.
+  `active_font.json` above answers "which family does text that names none
+  get"; this answers "which family does THIS text get". A
+  `font_manifest.json` entry id, valid at all 11 places `font` is: screen
+  `defaults`, a widget, a widget's four state patches, a layer, and a
+  layer's four state patches (`schemas/ui_screen.schema.json`'s
+  `$defs/font_family`). ABSENT means inherit — widget, then
+  `defaults.font_family`, then `active_font.json` — so a doc written before
+  the key existed draws identically.
+  - Unlike `active_font.json`, an id here that names no manifest entry does
+    NOT fail the boot: `engine.render.fonts.get_font` degrades it to the
+    inherited family. Deleting a font must not make one stale screen doc
+    kill every frame, and the loud D-2 cross-check still covers the pointer
+    that every screen depends on.
+  - **A family change moves NO stored rect.** `layout_h` is keyed by preset
+    only, deliberately — keying it by family would make every widget rect
+    shift when a designer swaps a face, and `screen_defaults.json` +
+    `test_ui_skinning.py`'s golden stream would stop reproducing across
+    Windows/Linux. So text in a wider family can overflow its widget: the
+    same pinned-layout contract a preset SIZE change already has.
+  - Every manifest entry is resolved at boot and handed to
+    `configure_fonts(..., family_paths=)` (files slurped to BYTES, never
+    paths — SDL_ttf holds a path-built font's file open for its lifetime,
+    which is a hard lock on Windows). `game/main.py` fails loud on a
+    manifest entry whose file is missing; `editor.theme_ops
+    .resolve_family_paths` drops it instead (E-37).
+  - `data/ui/screen_defaults.json` never carries it — that file records
+    CODE-authored defaults and a family is designer data only.
+    `screen_previews.json` DOES: every recorded text item gets a `family`
+    (null when inherited), because `hud_item_to_json` emits every field.
 
 ## Map data (Phase 6, D-20/21/22 specifics)
 - **`maps/<id>.json` (map files)**: `id` (== filename stem, loader-enforced),
