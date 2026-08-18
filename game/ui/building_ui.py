@@ -997,6 +997,10 @@ class BuildingUI:
             T("building.btn.dice"), "md")
         self.log = None               # GameLog, wired by the host
         self.on_build_vfx = None      # (col, row, kind) -> None, wired by host
+        # SD-4: (kind, building) -> None, wired by the host to the game's sound
+        # dispatcher. The panel never imports game.sounds and knows nothing
+        # about buses or slots — it only names the EVENT that just succeeded.
+        self.on_sound = None
         # -- /10J --
         self.close_btn = Button(
             (self.panel_x + self.panel_w - 18, 4, _CLOSE_W, _CLOSE_H),
@@ -2352,6 +2356,12 @@ class BuildingUI:
                         lvl = tb.get_component(TierState).current_level_in_tier
                         self.on_build_vfx(tb.col, tb.row,
                                           "level1" if lvl == 2 else "level2")
+            # SD-4: ONE upgrade sound per successful click. All four success
+            # branches above (batch level-up, batch advance, single advance,
+            # single level-up) fall through to here; every failure path (not
+            # enough love -> flash, inert mode) already returned.
+            if self.on_sound is not None:
+                self.on_sound("upgrade", b)
             self._build_upgrade()
             if len(self.selected_tiles) == 1:
                 self._set_range_highlight(b, session.tilemap)
@@ -2468,6 +2478,12 @@ class BuildingUI:
             p.confirm_btn.start_flash(self._flash_dur, msg)
             return
         self.last_placed_type = p.building_type  # TU-6: signal a real placement
+        # SD-4: ONE placement sound per confirm, not one per tile of a batch.
+        # `building` is the last successfully placed one (a PlacementError
+        # never rebinds it); every tile of a batch shares `p.building_type`,
+        # so any of them names the same family.
+        if self.on_sound is not None:
+            self.on_sound("placement", building)
         self.preview = None
         selection = list(self.selected_tiles)  # keep the batch selected
         self.open_for_tile(self.tile, session, buildings_balance,

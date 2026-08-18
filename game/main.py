@@ -65,6 +65,7 @@ from engine.assets import load_manifest, load_registry
 from engine.assets import master_registry  # B1: the colour-column registry
 from engine.assets.store import AssetStore
 from engine.audio import play_music
+import engine.audio as game_audio  # SD-4
 from engine.coords import CameraLimit, load_coordinate_system
 from engine.core import Scene, SpriteAnimator
 from engine.physics import TileOccupancy
@@ -114,6 +115,7 @@ from game.map import (
 from game.map.tiles import CONDITION_CATEGORY
 from game.map.tiles import TileState  # 10J: multi-select category
 from game.map.wall_render import FRONT_SIDES, WALL_CATEGORY
+from game.sounds import GameSounds  # SD-4
 from game.tutorial import TutorialDirector  # TU-6
 from game.ui import (
     BossCutscene, BuildingUI, CheatMenu, EnemyIntroWindow, FloaterManager,
@@ -745,6 +747,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     caption = display["caption"]
 
     pygame.init()
+    # SD-4: the ONE audio init in the game (bus sliders + music reuse it,
+    # never a second one). Returns bool and never raises — a machine with no
+    # device is a supported configuration, so do NOT branch or log here.
+    game_audio.init(data_dir)
 
     # D-21: the active map decides what the ground IS — and its dims (D-20)
     map_doc = tilemap.load_active_map(data_dir)
@@ -882,6 +888,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     enemies_balance = load_balance(data_dir, "enemies")
     ui_balance = load_balance(data_dir, "ui")
     vfx_balance = load_balance(data_dir, "vfx")  # ESV-3a: procedural VFX params
+    # SD-4: the sound dispatcher is built HERE, at BOOT — not in
+    # build_gameplay() — so menu/Settings clicks are audible before any run
+    # exists. It holds no run state and survives teardown_gameplay().
+    sounds = GameSounds(buildings_balance, map_bal)
     # feature: rebindable hotkeys — `ui.json`'s `Keybindings` group is the
     # DESIGNER-EDITABLE default for every rebindable action (indexed
     # directly, never `.get` — the schema requires the key, D-2, the
@@ -1026,6 +1036,9 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
           # -- TU-5: active in-gameplay cutscene overlay, None when none playing --
           "cutscene": None,
           # -- TU-6: the guided-chain director + its Continue/Skip message box --
+          # -- SD-4: the sound dispatcher. Seeded with the BOOT-built object,
+          # never None, and deliberately NOT cleared by teardown_gameplay(). --
+          "sfx": sounds,
           "tutorial": None, "tutorial_message": None}
 
     # player-identity: the per-run latch that keeps the GAME_OVER transition
@@ -1116,6 +1129,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         gp["drag_select_enabled"] = False
         gp["panel"].log = gp["game_log"]
         gp["panel"].on_build_vfx = gp["floaters"].spawn_building_vfx
+        gp["panel"].on_sound = gp["sfx"].play_building_event  # SD-4
         # The construct card's portrait asks the store whether a dedicated
         # `card_portrait_*` slot has imported art before falling back to the
         # building's own tier sprite (the `floaters.assets` precedent below;
@@ -1169,6 +1183,9 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         set_boss_upgrade_pair()
         if tune_gc:
             gc.unfreeze()  # let the old world's tile grid become collectable
+        # SD-4: "sfx" is deliberately ABSENT from this tuple — the sound
+        # dispatcher has process lifetime and must survive teardown so the
+        # player returns to an audible main menu. Do not "complete" the list.
         for k in ("world", "hud", "panel", "floaters", "game_over", "levelup",
                   "boss_cutscene", "enemy_intro", "cheat", "overlays",
                   "game_log", "cutscene", "tutorial", "tutorial_message"):
@@ -1475,6 +1492,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 gp["tutorial"].on_card_selected(panel.preview.building_type)
             elif panel.last_unlocked:
                 gp["tutorial"].on_tile_unlocked()
+                # SD-4: the coin and the ground, layered — ONE of each per
+                # successful purchase, however many 2x2 chunks it converted.
+                gp["sfx"].play_map_event("buy_plot")
+                gp["sfx"].play_map_event("tile_placement")
                 panel.last_unlocked = False
             elif was_visible and not panel.visible:
                 gp["tutorial"].on_panel_closed()
@@ -1626,6 +1647,9 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             gp["sel"], gp["sel_cat"] = [tile], cat
         panel.open_for_tile(gp["sel"][0], session, buildings_balance,
                             selected_tiles=gp["sel"])
+        occ = getattr(gp["sel"][0], "occupant", None)   # SD-4: selection sound
+        if occ is not None:
+            gp["sfx"].play_building_event("selection", occ)
     # -- /10J --
 
     # -- drag-select: one press-drag-release == the batch Shift+Click builds
@@ -1663,6 +1687,9 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         tutorial.on_tile_clicked(start_tile.col, start_tile.row)
         panel.open_for_tile(picked[0], session, buildings_balance,
                             selected_tiles=picked)
+        occ = getattr(picked[0], "occupant", None)      # SD-4: selection sound
+        if occ is not None:
+            gp["sfx"].play_building_event("selection", occ)
     # -- /drag-select --
 
     if autostart:
@@ -2200,6 +2227,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 if (session.state.phase == GamePhase.INCOME
                         and gp["prev_phase"] != GamePhase.INCOME):
                     gp["floaters"].begin_payout(session.state)
+                    gp["sfx"].payday(session.state, world.tile_map)  # SD-4
                     # -- N1: the season clock ---------------------------------
                     # payday already ran (it does round++ then flips to INCOME,
                     # game/core/payday.py:277-280), so THIS edge is the round
@@ -2298,6 +2326,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 # deaths -> blood splatters, double-gated on gore) --
                 gp["floaters"].watch_buildings(world.scene, gp["game_log"])
                 gp["floaters"].watch_enemies(world.scene)
+                gp["sfx"].watch(world.scene)  # SD-4: death + attack sounds
                 gp["floaters"].spawn_death_events(session.state,
                                                   shell.settings.gore)
                 gp["floaters"].spawn_splash_impact_events(session.state)  # ESV-5
