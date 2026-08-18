@@ -59,6 +59,19 @@ balancing form). Selecting it emits timeline_selected() +
 domain_selected("buildings") — same never-node_selected rule, via its own
 marker role (_TIMELINE_ROLE).
 
+BossUpgradeTimelinePLAN BU-5 adds a "Bosses" TOP-LEVEL branch (D11 — a
+sibling of "buildings", explicitly NOT nested under it) holding one leaf,
+"Boss Upgrade Timeline" (`data/balancing/boss_upgrades.json`, one document,
+nothing to enumerate — the Timeline/Theme marker-role shape). Like Master
+Sheets it hangs off no registry category, so its payload category_key is the
+placeholder "bosses", which matches no category and is in no domain: the leaf
+emits boss_upgrades_selected() ALONE — never node_selected (the
+single-document-leaf rule) and never domain_selected (there is no
+"bosses" balancing domain to gate one on, `boss_upgrades` deliberately not
+being a slots.json category — the `progression` precedent). It is added
+outside the category loop, immediately BEFORE Master Sheets, which stays the
+LAST top-level item.
+
 Balancing domains are DERIVED, never hardcoded (AD-6): `domains.domains()`
 is slots.json's category order ∩ the categories carrying a
 data/balancing/<key>.json, cached here as `self._domains` (re-derived on
@@ -113,6 +126,7 @@ _TUTORIAL_ROLE = Qt.ItemDataRole.UserRole + 7    # True on the single Tutorial l
 _STRINGS_ROLE = Qt.ItemDataRole.UserRole + 8    # True on the single Strings leaf (Phase C)
 _TIMELINE_ROLE = Qt.ItemDataRole.UserRole + 9   # True on the single Timeline leaf (TimelinePLAN T5)
 _MASTER_SHEETS_ROLE = Qt.ItemDataRole.UserRole + 10  # True on the single Master Sheets top-level item (MasterSheetColumnsPLAN E5, D9)
+_BOSS_UPGRADES_ROLE = Qt.ItemDataRole.UserRole + 11  # True on the single Boss Upgrade Timeline leaf (BossUpgradeTimelinePLAN BU-5, D11)
 
 _MAPS_BRANCH_LABEL = "Maps"
 _SCREENS_BRANCH_LABEL = "Screens"
@@ -122,6 +136,12 @@ _TUTORIAL_LABEL = "Tutorial"
 _STRINGS_LABEL = "Strings"
 _TIMELINE_LABEL = "Timeline"
 _MASTER_SHEETS_LABEL = "Master Sheets"
+_BOSSES_LABEL = "Bosses"
+_BOSS_UPGRADES_LABEL = "Boss Upgrade Timeline"
+# Payload category_key for the Bosses branch: matches no slots.json category
+# and is in no balancing domain, so refresh_markers()/domains() skip it with
+# no special case (the "master_sheets" placeholder's precedent).
+_BOSSES_CATEGORY_KEY = "bosses"
 
 # Registry categories shown as CHILDREN of the "map" node instead of their own
 # top-level node — a tree-shape choice only (see the branch in __init__).
@@ -144,6 +164,7 @@ class SelectorPanel(QTreeWidget):
     strings_selected = Signal()      # Phase C: the single Strings leaf was selected
     timeline_selected = Signal()     # TimelinePLAN T5: the single Timeline leaf
     master_sheets_selected = Signal()  # E5: the Master Sheets top-level item
+    boss_upgrades_selected = Signal()  # BU-5: the Boss Upgrade Timeline leaf
     add_requested = Signal(str)      # form spec id (AD-6 context menu)
 
     def __init__(self, data_dir=None, parent=None):
@@ -163,6 +184,8 @@ class SelectorPanel(QTreeWidget):
         self._strings_item = None
         self._timeline_item = None
         self._master_sheets_item = None
+        self._bosses_item = None
+        self._boss_upgrades_item = None
         map_root = None
         for category in self.registry.categories():
             if domains.is_domain_category(category.key, self._data_dir) and \
@@ -249,6 +272,20 @@ class SelectorPanel(QTreeWidget):
                 timeline_item.setData(0, _TIMELINE_ROLE, True)
                 root.insertChild(0, timeline_item)
                 self._timeline_item = timeline_item
+        # BossUpgradeTimelinePLAN BU-5/D11: a NEW TOP-LEVEL "Bosses" branch —
+        # a SIBLING of "buildings", deliberately not a leaf under it. Added
+        # outside the category loop (there is no `bosses` slots.json category)
+        # and BEFORE the Master Sheets item, which stays LAST.
+        bosses_item = self._make_item(
+            _BOSSES_LABEL, _BOSSES_CATEGORY_KEY, (_BOSSES_LABEL,))
+        self.addTopLevelItem(bosses_item)
+        self._bosses_item = bosses_item
+        boss_upgrades_item = self._make_item(
+            _BOSS_UPGRADES_LABEL, _BOSSES_CATEGORY_KEY,
+            (_BOSSES_LABEL, _BOSS_UPGRADES_LABEL))
+        boss_upgrades_item.setData(0, _BOSS_UPGRADES_ROLE, True)
+        bosses_item.addChild(boss_upgrades_item)
+        self._boss_upgrades_item = boss_upgrades_item
         # MasterSheetColumnsPLAN D9: a NEW TOP-LEVEL item, not hung off any
         # registry category (a master sheet is not a slots.json category) —
         # added OUTSIDE the category loop above, LAST among the top-level
@@ -529,6 +566,17 @@ class SelectorPanel(QTreeWidget):
             raise KeyError("no Master Sheets item")
         self.setCurrentItem(self._master_sheets_item)
 
+    # -- Boss Upgrade Timeline leaf (BossUpgradeTimelinePLAN BU-5, D11) --------
+
+    def select_boss_upgrades(self):
+        """Programmatic selection of the Boss Upgrade Timeline leaf (tests,
+        initial selection) — mirrors select_theme/select_tutorial, expanding
+        its "Bosses" parent first."""
+        if self._boss_upgrades_item is None:
+            raise KeyError("no Boss Upgrade Timeline leaf")
+        self._boss_upgrades_item.parent().setExpanded(True)
+        self.setCurrentItem(self._boss_upgrades_item)
+
     # -- ● markers (ED-11) -----------------------------------------------------
 
     def refresh_markers(self):
@@ -608,6 +656,15 @@ class SelectorPanel(QTreeWidget):
             self.timeline_selected.emit()
             if "buildings" in self._domains:
                 self.domain_selected.emit("buildings")
+            return
+        if items[0].data(0, _BOSS_UPGRADES_ROLE):
+            # Boss Upgrade Timeline leaf (BU-5, D11): the _TIMELINE_ROLE
+            # pattern under a TOP-LEVEL "Bosses" branch instead of a category
+            # — so, like Master Sheets, there is no balancing domain to gate a
+            # domain_selected emission on (`boss_upgrades` is deliberately not
+            # a slots.json category, the `progression` precedent). Own signal
+            # only, and never node_selected.
+            self.boss_upgrades_selected.emit()
             return
         if items[0].data(0, _MASTER_SHEETS_ROLE):
             # Master Sheets item (MasterSheetColumnsPLAN E5, D9): a TOP-LEVEL

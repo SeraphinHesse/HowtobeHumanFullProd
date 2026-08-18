@@ -97,22 +97,47 @@ class RunState:
     xp_events: list = field(default_factory=list)
     levelup_options: list = field(default_factory=list)
     # -- Boss (10G) ---------------------------------------------------------
-    # The six A/B bonus stack counters (see ``game/core/boss_bonuses.py``); a
-    # fresh RunState = the prototype's new-game reset. ``boss_choices`` is the
-    # per-run history ledger of ``(boss_num, option, outcome)`` tuples — no disk
-    # persistence. The two snapshots are taken at End Turn: love EVERY round
-    # (Boss3A), lives on boss rounds only (the win/loss compare).
+    # The two snapshots are taken at End Turn: love EVERY round, lives on boss
+    # rounds only (the win/loss compare).
     # ``pending_boss_cutscene`` is ``{"boss_num", "outcome"}`` queued at a boss
     # round's ROUND_END and consumed by ``resolve_boss_cutscene``.
     # ``boss_events`` is a drained-by-UI announcement ledger (same contract as
     # ``xp_events``): one marker per boss-round End Turn.
-    boss_stacks: dict = field(default_factory=lambda: dict.fromkeys(
-        ("boss1a", "boss1b", "boss2a", "boss2b", "boss3a", "boss3b"), 0))
-    boss_choices: list = field(default_factory=list)
+    # (BU-4/D6 DELETED the 10G ``boss_stacks`` counters and the ``boss_choices``
+    # history list with the rest of the A/B story-bonus system — their
+    # replacements are ``boss_upgrade_stacks``/``boss_upgrade_choices`` below.
+    # ``boss_love_snapshot`` outlived its one reader, Boss3A's damage bonus,
+    # and is kept only as the End-Turn love marker other readouts may take.)
     boss_lives_snapshot: int = 0
     boss_love_snapshot: int = 0
     pending_boss_cutscene: object = None
     boss_events: list = field(default_factory=list)
+    # -- Boss upgrade timeline (BossUpgradeTimelinePLAN BU-2) ----------------
+    # The boss-upgrade system's per-run ledgers — since BU-4 the ONLY ones:
+    # the 10G ``boss_stacks``/``boss_choices`` fields they replaced are gone
+    # (D6), along with the A/B narrative pick that filled them.
+    #
+    # ``boss_upgrade_stacks`` is ``{upgrade_id: pick_count}`` — the ONE store
+    # for both questions every hook site asks: "is this upgrade active" (``> 0``)
+    # and "how many times has it been picked" (persistent %-effects stack
+    # ADDITIVELY per pick, D4). Read it through
+    # ``game.core.boss_upgrades.stack_count``, never by indexing here.
+    boss_upgrade_stacks: dict = field(default_factory=dict)
+    # Running total of love the player has spent UNLOCKING TILES this run — a
+    # ledger nothing else kept. The ``tile_refund`` upgrade (#12) pays exactly
+    # this back, once, via ``add_love``. Incremented at the ONE spend site,
+    # ``game/ui/building_ui.py``'s ``_unlock_click`` (wired in BU-3).
+    love_spent_on_tiles: int = 0
+    # ``id(building)`` of every mortar alive at the moment ``mortar_slow`` (#3)
+    # was picked — the upgrade is SNAPSHOT-scoped (D16), so mortars built
+    # afterwards never gain slow-on-hit. Frozen at pick time (populated in
+    # BU-3); ids are only ever compared against live buildings held by the
+    # tilemap, so they cannot be recycled out from under this set.
+    mortar_slow_snapshot_ids: set = field(default_factory=set)
+    # The per-run history ledger of ``(boss_num, upgrade_id, outcome)`` tuples
+    # — ``boss_choices``' replacement; the base-info popup reads it (BU-4).
+    # No disk persistence, same as its predecessor.
+    boss_upgrade_choices: list = field(default_factory=list)
     # -- 10J: game log + gore -----------------------------------------------
     # Two more drained-by-UI ledgers (the ``income_events`` contract):
     # ``log_events`` holds plain message strings for the fading game log;

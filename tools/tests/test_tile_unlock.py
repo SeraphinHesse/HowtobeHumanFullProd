@@ -738,5 +738,88 @@ class TestFind2x2WindowedMatchesFullScan(unittest.TestCase):
         self.assertEqual(got[0].col, 8)  # the row-major-earlier block wins
 
 
+# ---------------------------------------------------------------------------
+# BossUpgradeTimelinePLAN BU-3 3.2 — #6 `tile_discount` on `unlock_cost`
+# ---------------------------------------------------------------------------
+#: A hand-pinned `boss_upgrades` balance (BU-6). Written out rather than
+#: loaded for the same reason `expected_cost` derives from the live map
+#: balancing above but nothing here asserts a literal price: the percentage a
+#: designer edits in the new editor panel must never decide whether this
+#: module is green (`data/CLAUDE.md`).
+BOSS_UPGRADES = {
+    "BossUpgrades": {
+        "Catalog": {
+            "tile_discount": {"name": "Cheap Ground", "description": "",
+                              "params": {"discount_pct": 25}},
+        },
+        "Timeline": {"milestones": [
+            {"slots": ["tile_discount", None, None],
+             "retaliation_bonus_love": 30},
+        ] * 4},
+    }
+}
+DISCOUNT_PCT = (BOSS_UPGRADES["BossUpgrades"]["Catalog"]["tile_discount"]
+                ["params"]["discount_pct"])
+
+
+class _StubRunState:
+    """`unlock_cost` reads exactly one thing off the RunState — the boss
+    upgrade stack dict, through `boss_upgrades.stack_count`. Building a real
+    `RunState` here would drag `core`/`buildings` balancing into a map-layer
+    module for nothing."""
+
+    def __init__(self, picks=0):
+        self.boss_upgrade_stacks = {"tile_discount": picks} if picks else {}
+
+
+class TestTileDiscountBossUpgrade(unittest.TestCase):
+    """The standard BU-3 optional trailing pair: BOTH halves present or the
+    figure is byte-identical to every pre-BU-3 caller's."""
+
+    def setUp(self):
+        self.tm = make_tilemap()
+        # Section (1, 0) — one Manhattan step from the start section.
+        self.tile = self.tm.get(3, 1)
+        self.base = self.tm.unlock_cost(self.tile)
+
+    def test_no_pair_is_byte_identical(self):
+        self.assertEqual(self.tm.unlock_cost(self.tile, None, None), self.base)
+        self.assertEqual(
+            self.tm.unlock_cost(self.tile, _StubRunState(1), None), self.base)
+        self.assertEqual(
+            self.tm.unlock_cost(self.tile, None, BOSS_UPGRADES), self.base)
+
+    def test_an_unpicked_upgrade_leaves_the_price_alone(self):
+        self.assertEqual(
+            self.tm.unlock_cost(self.tile, _StubRunState(0), BOSS_UPGRADES),
+            self.base)
+
+    def test_one_pick_cuts_the_price_by_the_authored_percentage(self):
+        self.assertEqual(
+            self.tm.unlock_cost(self.tile, _StubRunState(1), BOSS_UPGRADES),
+            int(self.base * (1 - DISCOUNT_PCT / 100)))
+
+    def test_picks_stack_additively_never_multiplicatively(self):
+        one = self.tm.unlock_cost(self.tile, _StubRunState(1), BOSS_UPGRADES)
+        two = self.tm.unlock_cost(self.tile, _StubRunState(2), BOSS_UPGRADES)
+        self.assertEqual(two, int(self.base * (1 - 2 * DISCOUNT_PCT / 100)))
+        self.assertEqual(self.base - two, 2 * (self.base - one))
+
+    def test_a_tile_CAN_become_free_unlike_a_wall(self):
+        """`tile_discount` floors at 0, `wall_cost_discount` at 1 — that
+        difference is the whole reason `discounted` takes a floor."""
+        self.assertEqual(
+            self.tm.unlock_cost(self.tile, _StubRunState(9), BOSS_UPGRADES), 0)
+
+    def test_the_discount_applies_at_every_section_distance(self):
+        for col, row in ((3, 1), (5, 1), (7, 3)):
+            tile = self.tm.get(col, row)
+            base = self.tm.unlock_cost(tile)
+            with self.subTest(tile=(col, row), base=base):
+                self.assertEqual(
+                    self.tm.unlock_cost(tile, _StubRunState(1), BOSS_UPGRADES),
+                    int(base * (1 - DISCOUNT_PCT / 100)))
+
+
 if __name__ == "__main__":
     unittest.main()

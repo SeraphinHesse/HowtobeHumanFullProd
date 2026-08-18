@@ -56,6 +56,7 @@ TIERS = {
     "test_editor_anchors": "editor",
     "test_editor_preview_footprint": "editor",  # fix-editor-preview-footprint: §4.1
     "test_editor_asset_import": "editor",
+    "test_editor_boss_upgrades": "editor",  # BU-5/BU-6: the Bosses panel
     "test_editor_map_mode": "editor",
     "test_editor_panels": "editor",
     "test_timeline_panel": "editor",  # TimelinePLAN T5: editor/panels/timeline.py
@@ -88,9 +89,11 @@ TIERS = {
     "test_beam_crater_sprites": "core",  # vfx-projectile-spritesheets: has-art toggle
     "test_boost": "core",
     "test_boss": "core",
+    "test_boss_upgrades": "core",  # BU-6: the boss-upgrade engine + hooks
     "test_building_movement": "core",  # Building Movement: move_cost/start_move
     "test_buildings_placement": "core",
     "test_buildings_state_in_components": "core",
+    "test_buff_debuff_arrows": "core",  # BU-6/D20: the two status arrows
     "test_buildings_tier_math": "core",
     "test_button_skin": "core",
     "test_combat_anchors": "core",  # ESV-1: D4 guardrail (muzzle vs. flight timer)

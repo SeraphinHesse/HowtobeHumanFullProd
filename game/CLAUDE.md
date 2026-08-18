@@ -722,6 +722,30 @@ The feature's rules are `game/buildings/movement.py`
   slot draws only the countdown, never a grey X. `moving_orders` is empty on
   effectively every frame, so this costs one list check.
 
+## Boss Upgrade Timeline — host wiring (BossUpgradeTimelinePLAN)
+The feature's rules live across `game/core/CLAUDE.md` (the balancing domain,
+`RunState` fields, the milestone-cycle engine, retirement of `boss_bonuses.py`),
+`game/buildings/CLAUDE.md` (the hook-threading pattern), `game/enemies/CLAUDE.md`
+(the shared slow-debuff ledger + thorns), `game/ui/CLAUDE.md` (the 3-card
+cutscene, the debuff-arrow indicator). `main.py` is where every seam gets
+INSTALLED at boot (`build_gameplay()`, mirrored by a matching clear in
+`teardown_gameplay()` where noted) — nothing here is a new subsystem, just the
+one place a subsystem doc can't itself reach:
+- `boss_upgrades.set_one_time_hook("stone_thrower_sync", sync_stone_throwers)`
+  and `boss_upgrades.set_one_time_hook("mortar_slow", <snapshot fn>)` — the
+  pick-time actions `game/core/boss_upgrades.py`'s `apply_pick` cannot perform
+  itself (it never imports `game.buildings`/`game.enemies`, D5's layering rule).
+- `components.set_boss_upgrade_pair(session.state, boss_upgrades_balance)` in
+  `build_gameplay()`, **cleared** in `teardown_gameplay()` — the module-level
+  seam `EnemyCombat.update` (thorns, #8) reads, since that method has no call
+  site to thread the pair through directly (`game/enemies/CLAUDE.md`).
+- `lightning.set_slow_hook(<fn calling game.enemies.components.apply_slow>)` —
+  the same "no direct import" problem, one level up: `game/core` may never
+  import `game/enemies`, so `stormpriest_slow` (#7) reaches the slow ledger
+  through this seam instead.
+- `floaters.submit_debuff_arrows(...)`, wired immediately after the existing
+  `submit_buff_arrows(...)` call in the overlay pass.
+
 ## Large-map performance — INVARIANTS (why/detail → `game/PERF.md`)
 These are load-bearing; a regression drops a 1024² map to ~2 fps. Rules only here:
 - **Every tile-state write goes through `TileMap.set_tile_state`** (keeps the

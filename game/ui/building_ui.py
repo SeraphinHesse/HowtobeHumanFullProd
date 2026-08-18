@@ -169,6 +169,32 @@ _CLOSE_W, _CLOSE_H = 14, 13
 #: Font for the CONFIRM/CANCEL row shared by ConstructPreview and MovePreview.
 #: "md", not "lg" — see the comment at ConstructPreview's button row.
 _PREVIEW_BTN_FONT = "md"
+#: BU-4: how many wrapped "sm" lines the boss-history popup's hover tooltip may
+#: use. The popup's height budget is written against exactly this number (see
+#: `_boss_popup_rect`), so the two move together.
+_BOSS_TIP_LINES = 4
+
+
+def _boss_upgrade_copy(session, upgrade_id):
+    """``(name, description)`` for a picked boss upgrade — the SAME catalog
+    lookup `game/ui/boss_cutscene.py` does for its cards, with the live
+    ``params`` formatted into the description so the history can never quote a
+    magnitude the cards did not.
+
+    Degrades to ``(upgrade_id, "")`` when no ``boss_upgrades`` balance is wired
+    (a bare `Session` a logic test builds) or the id is not in the catalog —
+    a history row must render whatever the run recorded.
+    """
+    balance = getattr(session, "boss_upgrades_balance", None)
+    catalog = ({} if balance is None
+               else balance["BossUpgrades"]["Catalog"])
+    entry = catalog.get(upgrade_id) or {}
+    desc = entry.get("description", "")
+    try:
+        desc = desc.format(**entry.get("params", {}))
+    except (KeyError, IndexError, ValueError):
+        pass
+    return entry.get("name", upgrade_id), desc
 
 
 def _row_step(font_key, leading=1):
@@ -191,7 +217,8 @@ def _row_step(font_key, leading=1):
     return layout_h(font_key) + leading
 
 
-def _batch_cost(building_type, buildings_balance, tier_idx, repeat_count, count):
+def _batch_cost(building_type, buildings_balance, tier_idx, repeat_count, count,
+                run_state=None, boss_upgrades_balance=None):
     """The escalating BATCH total for ``count`` fresh placements of
     ``building_type`` (feature-storm-acolyte-multi-build), each tile priced
     at its own escalation step — ``repeat_count``, ``repeat_count + 1``, …,
@@ -201,9 +228,14 @@ def _batch_cost(building_type, buildings_balance, tier_idx, repeat_count, count)
     before the next tile is priced), so this total always agrees with what
     will actually be charged. A type with no ``repeat_cost_multiplier``
     collapses to the familiar flat ``build_cost(...) * count`` (every step
-    prices identically)."""
+    prices identically).
+
+    ``run_state``/``boss_upgrades_balance`` are BU-3's standard optional
+    trailing pair, forwarded per step so a Blocker/WallBuilder batch quotes
+    the ``wall_cost_discount`` price ``place_building`` will actually charge."""
     return sum(build_cost(building_type, buildings_balance, tier_idx,
-                          repeat_count + i)
+                          repeat_count + i, run_state=run_state,
+                          boss_upgrades_balance=boss_upgrades_balance)
               for i in range(count))
 
 
@@ -446,7 +478,8 @@ class ConstructPreview:
 
     def __init__(self, building_type, cost, buildings_balance, ui_balance,
                  view_w, view_h, count=1, tier_idx=0, repeat_count=0,
-                 skinning=None, *, building_colors=None):
+                 skinning=None, *, building_colors=None, run_state=None,
+                 boss_upgrades_balance=None):
         self.screen_id = SCREEN_ID
         self.skinning = skinning or ScreenSkinning.empty()
         self.building_type = building_type
@@ -458,6 +491,11 @@ class ConstructPreview:
         # `LIGHTNING_SOURCE_TAG`-tagged occupants at the moment this preview
         # opened — the escalation baseline `total_cost` sums from.
         self._repeat_count = repeat_count
+        # BU-3's standard optional trailing pair, held for `total_cost` — the
+        # batch figure CONFIRM charges, which must carry the same
+        # `wall_cost_discount` reduction the card's own price already showed.
+        self._run_state = run_state
+        self._boss_upgrades_balance = boss_upgrades_balance
         self.view_w = view_w
         self.view_h = view_h
         self._names = _random_names(buildings_balance)
@@ -561,7 +599,8 @@ class ConstructPreview:
         actually charge tile by tile as ``_do_place`` walks the batch. A
         type with no multiplier collapses to the familiar flat total."""
         return _batch_cost(self.building_type, self._buildings_balance,
-                           self._tier_idx, self._repeat_count, self.count)
+                           self._tier_idx, self._repeat_count, self.count,
+                           self._run_state, self._boss_upgrades_balance)
 
     @property
     def chosen_name(self):
@@ -1024,7 +1063,22 @@ class BuildingUI:
         # top and bottom. (The old 130 already overhung the CLOSE button with
         # its tooltip by 1px at step 8, and would have overhung by 5px at the
         # correct 12.)
-        pw, ph = 170, 158
+        # BU-4 re-sized it once more, for the SAME reason (content, not taste):
+        # a row now names the picked UPGRADE ("Boss 1: Win Concussive Shells")
+        # instead of a bare "A"/"B", and the hover tooltip is the catalog's
+        # wrapped prose description rather than a pre-broken 2-liner. 170 could
+        # not hold either.
+        #   width     260 -> a 246px text column, which fits the longest
+        #             shipped row ("Boss 10: Loss <17-char name>") at "md"
+        #   rows      unchanged: first at py+24, sixth ends py+24+5*14+13 =
+        #             py+107
+        #   tooltip   up to _BOSS_TIP_LINES (4) "sm" lines at 12, anchored
+        #             UPWARDS off the CLOSE button, so its top is
+        #             py+ph-26-48 = py+108 at ph = 182 — exactly clear of the
+        #             sixth row, the same 1px-tight budget the 158 layout had
+        #   CLOSE     top py+ph-22 = py+160 (5px clear), popup bottom py+182
+        # Centred on a 360-tall surface: y 89..271.
+        pw, ph = 260, 182
         self._boss_popup_rect = (view_w // 2 - pw // 2,
                                  view_h // 2 - ph // 2, pw, ph)
         px, py = self._boss_popup_rect[0], self._boss_popup_rect[1]
@@ -1301,7 +1355,14 @@ class BuildingUI:
         for t in self.selected_tiles:
             key = frozenset((c.col, c.row) for c in tm.get_chunk_for_tile(t))
             if key not in chunks:
-                chunks[key] = (t, tm.unlock_cost(t))
+                # BU-3 #6 tile_discount: the standard optional trailing pair,
+                # off the Session (which holds both halves). This is the ONE
+                # place the panel prices a tile unlock — the UNLOCK button's
+                # label, its affordability gate and `_unlock_click`'s actual
+                # `spend_love` all read this list — so the discount cannot
+                # show in one and not the other.
+                chunks[key] = (t, tm.unlock_cost(
+                    t, session.state, session.boss_upgrades_balance))
         return list(chunks.values())
 
     def _build_unlock(self, session):
@@ -1464,8 +1525,10 @@ class BuildingUI:
             if not buildable(state, btype):
                 continue  # type not unlocked / tier 1 not researched (10A)
             tier_idx = tiers_unlocked_for(state, btype) - 1
-            cost = build_cost(btype, self._buildings_balance, tier_idx,
-                              repeat_count)
+            cost = build_cost(
+                btype, self._buildings_balance, tier_idx, repeat_count,
+                run_state=state,
+                boss_upgrades_balance=self._session.boss_upgrades_balance)
             tier_name = BUILDING_CLASSES[btype]._resolve_tiers(
                 self._buildings_balance)[tier_idx]["name"]
             # The card body: the parent, and (unless `price_is_click_target`
@@ -1600,7 +1663,8 @@ class BuildingUI:
                 continue
             eligible, cost, levels_needed = advance_batch_plan(
                 self._session.state, b, self._buildings_balance,
-                self._session.progression_balance)
+                self._session.progression_balance,
+                self._session.boss_upgrades_balance)  # BU-3 #2
             if eligible:
                 out.append((b, cost, levels_needed))
         return out
@@ -1799,7 +1863,8 @@ class BuildingUI:
         it has no Timeline placement at all."""
         mode, next_name, cost = upgrade_gate(
             self._session.state, b, self._buildings_balance,
-            self._session.progression_balance)
+            self._session.progression_balance,
+            self._session.boss_upgrades_balance)  # BU-3 #2 wall_cost_discount
         if mode == "in_tier":
             return mode, cost, T("building.action.upgrade", cost=cost), None
         if mode == "tier_upgrade":
@@ -1938,7 +2003,8 @@ class BuildingUI:
                     tier_idx = tiers_unlocked_for(state, btype) - 1
                     self._hover_cost = _batch_cost(
                         btype, self._buildings_balance, tier_idx,
-                        repeat_count, count)
+                        repeat_count, count, state,
+                        self._session.boss_upgrades_balance)
         elif self.mode in ("unlock", "upgrade"):
             self.action_btn.hover(mx, my, mouse_down)
             self.action_btn.hovered = (self.action_btn.hovered
@@ -2071,6 +2137,16 @@ class BuildingUI:
                 for tile, chunk_cost in chunks:
                     if tm.do_unlock(tile):
                         st.spend_love(chunk_cost)
+                        # BossUpgradeTimelinePLAN BU-3 3.1: the accumulator
+                        # boss upgrade #12 (`tile_refund`) pays back. It is
+                        # incremented HERE, beside the spend and with the SAME
+                        # number, because this is the one place love actually
+                        # leaves the player's pocket for a tile — the price
+                        # `_unlock_chunks` quotes has already been through
+                        # `TileMap.unlock_cost`'s own #6 `tile_discount`, so
+                        # the refund pays back what was charged, never the
+                        # undiscounted list price.
+                        st.love_spent_on_tiles += chunk_cost
                         unlocked_any = True
                 self.close()
                 self.last_unlocked = unlocked_any  # TU-6: signal a real unlock
@@ -2097,15 +2173,18 @@ class BuildingUI:
                 # feature-storm-acolyte-multi-build: the same already-placed
                 # count `_build_construct` priced the card off.
                 repeat_count = count_tag(session.tilemap, LIGHTNING_SOURCE_TAG)
+                # BU-3: the standard optional trailing pair, off the Session.
+                bub = session.boss_upgrades_balance
                 cost = build_cost(btype, buildings_balance, tier_idx,
-                                  repeat_count)
+                                  repeat_count, run_state=session.state,
+                                  boss_upgrades_balance=bub)
                 count = max(1, len(self.selected_tiles))
                 # 10J batch: the whole batch must be affordable up front
                 # (prototype building_ui.py:704-708) — the ESCALATING total,
                 # not a flat cost x count, so this gate agrees with what
                 # ConstructPreview.total_cost/_do_place will actually charge.
                 total = _batch_cost(btype, buildings_balance, tier_idx,
-                                    repeat_count, count)
+                                    repeat_count, count, session.state, bub)
                 if session.state.love < total:
                     # Always flash the CARD, never the price pill, whichever
                     # was clicked: the message is a sentence and the card body
@@ -2117,7 +2196,9 @@ class BuildingUI:
                         btype, cost, buildings_balance, self._ui_balance,
                         self.view_w, self.view_h, count=count, tier_idx=tier_idx,
                         repeat_count=repeat_count, skinning=self.skinning,
-                        building_colors=self.colour_columns)  # B2
+                        building_colors=self.colour_columns,  # B2
+                        run_state=session.state,             # BU-3 #2
+                        boss_upgrades_balance=bub)
                 return True
         return contains(self.panel_rect, mx, my)
 
@@ -2308,7 +2389,12 @@ class BuildingUI:
             cost, rounds = start_move(
                 session.tilemap, self._selected, p.dest_tile,
                 buildings_balance["BuildingsGlobal"]["Movement"], st.love,
-                occupancy, scene)
+                occupancy, scene,
+                # BU-3 #4 move_time_cap: the same pair `_pick_move_destination`
+                # quoted the modal's round count with, so the rounds charged
+                # here can never exceed the capped figure shown.
+                run_state=st,
+                boss_upgrades_balance=session.boss_upgrades_balance)
         except MoveError:
             # A race since the modal opened (the destination got built on, or
             # another move claimed it) — flash and leave the player in
@@ -2350,7 +2436,11 @@ class BuildingUI:
                     # own path, which leaves the -1 "no driver" sentinel;
                     # `0` is a real colour and must never be read as "unset".
                     colour_columns=self.colour_columns,
-                    column=getattr(p, "chosen_column", None))
+                    column=getattr(p, "chosen_column", None),
+                    # BU-3: `state=st` above is already the RunState half of
+                    # the pair; this is the other half (#2 wall_cost_discount
+                    # on the charged price, #5 musician_auto_level).
+                    boss_upgrades_balance=session.boss_upgrades_balance)
             except PlacementError:
                 if not (p.building_type == "painter"
                         and (tile.col, tile.row) in
@@ -2877,10 +2967,9 @@ class BuildingUI:
 
     def _submit_boss_popup(self, renderer, session, anim_ms=0):
         """The small boss-history popup (prototype ``_BossHistoryPanel``): one
-        row per ``(boss_num, option, outcome)``, the hovered row's bonus desc
-        as a tooltip line, "None yet" when empty, a Close button (10G)."""
-        from game.core.boss_bonuses import choice_desc
-
+        row per ``(boss_num, upgrade_id, outcome)``, the hovered row's upgrade
+        description as a tooltip, "None yet" when empty, a Close button (10G;
+        re-pointed at the boss-upgrade history in BU-4)."""
         px, py, pw, ph = self._boss_popup_rect
         # B3: the popup body is dynamic-count content (choice history rows) —
         # not id'd, styled from the screen's defaults.panel_skin instead.
@@ -2889,33 +2978,35 @@ class BuildingUI:
                     anim_ms=anim_ms)
         submit_text(renderer, T("building.boss.title"), (px + pw // 2, py + 7),
                     "lg", widgets.C_UI_TEXT, align="center")
-        choices = session.state.boss_choices
+        choices = session.state.boss_upgrade_choices
         y = py + 24
         if not choices:
             submit_text(renderer, T("building.boss.none_yet"), (px + 7, y),
                         "md", widgets.C_UI_TEXT_DIM)
         hover_desc = None
-        for i, (boss_num, option, outcome) in enumerate(choices):
+        for i, (boss_num, upgrade_id, outcome) in enumerate(choices):
             hovered = i == self._boss_hover_row
+            name, desc = _boss_upgrade_copy(session, upgrade_id)
             submit_text(
                 renderer,
                 T("building.boss.row", n=boss_num,
-                  outcome=outcome.capitalize(), option=option),
+                  outcome=outcome.capitalize(), option=name),
                 (px + 7, y), "md", widgets.C_GOLD if hovered else widgets.C_UI_TEXT)
             if hovered:
-                hover_desc = choice_desc((boss_num - 1) % 3, option,
-                                         session.core_balance)
+                hover_desc = desc
             # Font-scale (see _row_step) and the SAME expression `hover`'s
             # row hit test divides by.
             y += _row_step("md")
-        if hover_desc is not None:
-            # `choice_desc` is always 2 lines: anchor the block so its last
-            # line clears the CLOSE button (top py + ph - 22) instead of
-            # restating a literal offset — at "sm" this is py + ph - 50
-            # (py + 108 at the popup's 158px height).
+        if hover_desc:
+            # The catalog description is prose, so it wraps to the popup and
+            # is clamped to _BOSS_TIP_LINES; the block is anchored UPWARDS off
+            # the CLOSE button (top py + ph - 22) by however many lines it
+            # actually used, so a 1-line tip sits low and a 4-line one starts
+            # exactly at the row budget's floor (see the rect's arithmetic).
             tip_step = _row_step("sm")
-            ty = py + ph - 26 - 2 * tip_step
-            for line in hover_desc.split("\n"):
+            lines = wrap_text(hover_desc, "sm", pw - 14, _BOSS_TIP_LINES)
+            ty = py + ph - 26 - len(lines) * tip_step
+            for line in lines:
                 submit_text(renderer, line, (px + 7, ty), "sm", widgets.C_UI_TEXT_DIM)
                 ty += tip_step
         if is_visible(self._boss_close_btn):

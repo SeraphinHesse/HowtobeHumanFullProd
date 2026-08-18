@@ -25,7 +25,13 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   max(0, manhattan_section_distance − 1) * unlock_cost_distance_mod` — sections
   adjacent to the start section cost exactly the base cost, each further
   Manhattan step adds the mod, never below base (the old signed `sc+sr` formula
-  went negative left/above the start).
+  went negative left/above the start). **`TileMap.unlock_cost` also carries an
+  optional trailing `run_state=None, boss_upgrades_balance=None` pair**
+  (BossUpgradeTimelinePLAN BU-3, `game/core/CLAUDE.md`'s hook-site table) — when
+  both are supplied and boss upgrade #6 `tile_discount` has been picked, the
+  formula above is discounted by `discount_pct` per stack, floored at 0 (a tile
+  CAN become free — unlike the wall-cost discount's floor of 1). Absent the
+  pair, this method is byte-identical to before.
 - **Zone changes show on the ground**: `set_tile_state` records the tile's new
   zone code (state→code via `_STATE_CODE`) in `TileMap.terrain_overrides` and
   fires the host-wired `on_zone_change` callable. `game/main.py` feeds the

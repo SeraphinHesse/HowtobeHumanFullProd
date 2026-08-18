@@ -1142,6 +1142,12 @@
               ]
             },
             {
+              "label": "Debuff Arrow",
+              "slots": [
+                "vfx_debuff_arrow"
+              ]
+            },
+            {
               "label": "Beam",
               "slots": [
                 "vfx_beam"

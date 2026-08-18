@@ -82,9 +82,15 @@ from game.buildings.registry import BUILDINGS_CATEGORY
 from game.buildings.movement import (
     MOVING_SIGN_SLOT, move_cost, move_distance, move_time,
 )
+# -- BossUpgradeTimelinePLAN BU-3 3.1: the building-sweep half of the ONE-TIME
+# `stone_thrower_sync` upgrade, installed into game/core's injected hook seam
+# below (the host is the one layer that may import both packages) --
+from game.buildings.boss_upgrade_effects import sync_stone_throwers
+from game.buildings.components import SplashAttacker  # BU-3 3.3: the mortar
 from game.core import Session, append_random_name, load_balance
+from game.core import boss_upgrades  # BU-3: the one-time-hook seam
 from game.core import highscores  # player-identity: the run-history document
-from game.core.boss_bonuses import story_damage_bonus
+from game.core import lightning  # BU-3 3.3: the stormpriest_slow hook seam
 from game.core.phases import GamePhase, GameState
 from game.debug import (  # debug-mode-telemetry
     DebugRecorder, LEVELS, LEVEL_BASIC, LEVEL_OFF, LEVEL_VERBOSE,
@@ -96,6 +102,10 @@ from game.enemies import (
 )
 from game.enemies.components import (  # debug-mode-telemetry Phase 3 + 5
     set_damage_hook, set_wall_damage_hook,
+)
+from game.enemies.components import apply_slow  # BU-3 3.3: the slow primitive
+from game.enemies.components import (  # BU-3 3.4: the thorns hook pair seam
+    set_boss_upgrade_pair,
 )
 from game.map import (
     TileMap, condition_render_items, spawn_deco_render_items,
@@ -588,7 +598,7 @@ class _World:
     ``_World`` is a fresh game (the base is re-attached to its pre-seeded tile)."""
 
     def __init__(self, map_doc, map_bal, enemies_bal, core_bal, buildings_bal,
-                 registry, progression_bal=None):
+                 registry, progression_bal=None, boss_upgrades_bal=None):
         # -- 10I: the live run rolls tile conditions (rng=None would keep the
         # all-GRASS fixture mode the headless tests rely on). `registry` also
         # rolls each tile's condition ART slot (the `terrain` draw layer). --
@@ -606,7 +616,8 @@ class _World:
         self.session = Session.create(self.spawner, self.tile_map, enemies_bal,
                                       core_bal, buildings_bal, registry=registry,
                                       occupancy=self.occupancy,
-                                      progression_balance=progression_bal)
+                                      progression_balance=progression_bal,
+                                      boss_upgrades_balance=boss_upgrades_bal)
         # -- 10I: defence coverage feeds enemy path weights (pre-query refresh
         # in the pathfinder reads the injected callable) --
         wire_defence_coverage(self.tile_map, buildings_bal)
@@ -890,6 +901,48 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     widgets.configure_highlights(vfx_balance)
     # TimelinePLAN T4: the sole source of unlock timing (game/core/levelup.py).
     progression_balance = load_balance(data_dir, "progression")
+    # BossUpgradeTimelinePLAN BU-1: the boss upgrade catalog + milestone
+    # timeline (game/core/boss_upgrades.py), threaded onto the Session beside
+    # progression_balance.
+    boss_upgrades_balance = load_balance(data_dir, "boss_upgrades")
+    # BU-3 3.1: install the injected half of the ONE-TIME `stone_thrower_sync`
+    # upgrade (#9). `game/core/boss_upgrades.py` may never import
+    # `game.buildings`, so the building sweep arrives through this seam — and
+    # the HOST is the one layer allowed to import both packages. Once per
+    # process, at boot, beside the other host wiring; `apply_pick` calls it
+    # only when it has a tilemap AND a scene in hand.
+    boss_upgrades.set_one_time_hook("stone_thrower_sync", sync_stone_throwers)
+
+    # BU-3 3.3: `mortar_slow` (#3) is a PERSISTENT passive that still needs one
+    # action at PICK time — D16's snapshot: only the mortars ALIVE when the
+    # upgrade was picked ever slow, so the set of eligible mortars is frozen
+    # here and read back at fire time (`game/enemies/combat.py`'s
+    # `_mortar_slow_spec`). It rides the SAME `set_one_time_hook` seam
+    # `stone_thrower_sync` uses — the table is keyed by upgrade id and does not
+    # care which category the id belongs to (see `boss_upgrades.py`'s docstring).
+    def _snapshot_mortar_slow(state, tilemap, scene):
+        """Stamp `RunState.mortar_slow_snapshot_ids` with every placed mortar.
+
+        Selected by the `SplashAttacker` CAPABILITY MARKER, never a class or a
+        `building_type` string (G-3) — and specifically because that is the
+        exact same marker `_update_defender` dispatches the splash-fire path
+        on, so the snapshot and the application site can never disagree about
+        what "a mortar" is. Walks `built_tiles()` (the `_by_state` index, i.e.
+        O(built tiles), never a full-map scan — the large-map invariant), the
+        same enumeration `boss_upgrade_effects.placed_buildings` uses. A DEAD
+        mortar counts: it is not a freed slot, payday's revive brings it back.
+        `scene` is part of the fixed hook signature and is unused here.
+        """
+        state.mortar_slow_snapshot_ids = {
+            id(t.occupant) for t in tilemap.built_tiles()
+            if t.occupant is not None
+            and t.occupant.get_component(SplashAttacker) is not None}
+
+    boss_upgrades.set_one_time_hook("mortar_slow", _snapshot_mortar_slow)
+    # BU-3 3.3: `stormpriest_slow` (#7) applies the shared slow primitive from
+    # inside `game/core/lightning.py`, which may not import `game/enemies` —
+    # so the host hands it over, exactly like the one-time hook above.
+    lightning.set_slow_hook(apply_slow)
     # debug: draw the camera-startpoint marker in-game (default off)
     show_camera_start = ui_balance["Debug"]["show_camera_startpoint"]
 
@@ -984,7 +1037,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         nonlocal score_recorded
         score_recorded = False
         gp["world"] = _World(map_doc, map_bal, enemies_balance, core_balance,
-                             buildings_balance, registry, progression_balance)
+                             buildings_balance, registry, progression_balance,
+                             boss_upgrades_balance)
         # Ground follows runtime zone changes: unlock/recede invalidates the
         # cached ground surface (repainted next ensure). Fresh game -> fresh
         # TileMap with empty overrides; invalidate drops the previous run's
@@ -1037,7 +1091,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         gp["levelup"] = LevelupWindow(view_w, view_h, skinning=shell.skinning)
         gp["boss_cutscene"] = BossCutscene(view_w, view_h,  # -- 10G boss --
                                           core_balance,
-                                          skinning=shell.skinning)
+                                          skinning=shell.skinning,
+                                          # BU-4: the 3 upgrade cards' copy +
+                                          # magnitudes and this bossfight's
+                                          # milestone slots.
+                                          boss_upgrades_balance=(
+                                              boss_upgrades_balance))
         # feature-enemy-intro-dialogue
         gp["enemy_intro"] = EnemyIntroWindow(
             view_w, view_h, core_balance["EnemyIntro"]["window"],
@@ -1080,6 +1139,16 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         gp["floaters"].cs = cs
         # -- /ESV-5/6 --
         gp["prev_phase"] = gp["world"].session.state.phase
+        # BU-3 3.4 (#8 thorns): the standard BU-3 hook pair, spelled off the
+        # fresh run's Session exactly like every other hook site — but
+        # installed through a module-level seam, because its ONE hook site
+        # (`EnemyCombat.update`) is called by `Scene.update`'s generic
+        # component sweep, whose signature is `dt` alone. Same reason and same
+        # shape as `set_damage_hook`/`set_wall_damage_hook` beside it; see
+        # `game/enemies/components.py::set_boss_upgrade_pair`. Re-installed per
+        # run so it always points at the CURRENT RunState.
+        set_boss_upgrade_pair(gp["world"].session.state,
+                              gp["world"].session.boss_upgrades_balance)
         frame_camera()  # re-centre on the startpoint / map for the fresh run
         freeze_static()  # exclude the fresh tile grid from GC scans
         shell.enter_gameplay()
@@ -1094,6 +1163,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         if recorder is not None:
             recorder.close(outcome="quit_to_menu")
             recorder = None
+        # BU-3 3.4: drop the torn-down run's RunState out of the thorns seam,
+        # so a quit-to-menu can never leave a dead run's ledger wired into the
+        # next one (the `recorder = None` rule above, applied to the pair).
+        set_boss_upgrade_pair()
         if tune_gc:
             gc.unfreeze()  # let the old world's tile grid become collectable
         for k in ("world", "hud", "panel", "floaters", "game_over", "levelup",
@@ -1314,7 +1387,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             _execute_cheat(gp["cheat"].hit(mx, my))
             return
         # -- /10H --
-        # -- 10G boss: the cutscene is fully modal — A/B or nothing (clicks
+        # -- 10G boss: the cutscene is fully modal — one of the 3 upgrade cards
+        # (BU-4; `hit` returns the picked catalog id) or nothing (clicks
         # elsewhere swallowed; keys are already swallowed by the frozen gate).
         if session.state.phase == GamePhase.BOSS_CUTSCENE:
             choice = gp["boss_cutscene"].hit(mx, my)
@@ -1456,7 +1530,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                                  tile.col, tile.row)
         panel.preview = MovePreview(
             building, tile, move_cost(distance, movement),
-            move_time(distance, movement), movement["warning_text"],
+            # BU-3 #4 move_time_cap: the standard optional trailing pair, off
+            # the Session — `_do_move` passes the same one into `start_move`,
+            # so the quoted round count and the charged one agree.
+            move_time(distance, movement, session.state,
+                      session.boss_upgrades_balance),
+            movement["warning_text"],
             ui_balance, view_w, view_h, skinning=shell.skinning)
 
     def handle_world_right_click(mx, my):
@@ -2037,10 +2116,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                     world.scene.update(sim_dt)
                     apply_crowd_spacing(world.scene, sim_dt,
                                         enemies_balance["CrowdSpacing"])
-                    # The flat boss-bonus story damage (Boss1A/1B/3A/3B),
-                    # computed once per frame and threaded as a plain int.
-                    dmg_bonus = story_damage_bonus(session.state, world.tile_map,
-                                                   core_balance)
+                    # (BU-4/D6: the flat boss-bonus story damage that used to
+                    # be computed here and threaded as `dmg_bonus` is retired
+                    # with `boss_bonuses.py`. `resolve_combat`'s `dmg_bonus`
+                    # parameter stays, defaulted to 0 — it is a generic
+                    # whole-board additive seam, not a boss-bonus one.)
 
                     # Play the death animation if the dead enemy's sheet has a
                     # `death` row (Art/enemies): the session bookkeeping runs first
@@ -2099,13 +2179,17 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                                    buildings_balance, vfx_balance,
                                    on_base_hit=session.on_base_hit,
                                    on_enemy_death=_on_enemy_death,
-                                   dmg_bonus=dmg_bonus,
                                    assets=assets, cs=cs,
                                    on_splash_impact=_on_splash_impact,
                                    on_defender_fire=_on_defender_fire,
                                    on_projectile_hit=_on_projectile_hit,
                                    on_kidnap=_on_kidnap,
-                                   on_damage=_debug_on_damage)
+                                   on_damage=_debug_on_damage,
+                                   # BU-3: the standard hook pair, spelled off
+                                   # the Session (#3 mortar_slow).
+                                   run_state=session.state,
+                                   boss_upgrades_balance=(
+                                       session.boss_upgrades_balance))
                     if debug_l2:  # armed this frame -> cleared this frame
                         set_damage_hook(None)
                         set_wall_damage_hook(None)
@@ -2463,8 +2547,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             gp["floaters"].submit_beams(renderer, cs, world.scene)    # 10B: HUD
             gp["floaters"].submit_hp_bars(renderer, cs, world.scene)
             gp["floaters"].submit_enemy_hp_bars(renderer, cs, world.scene)
-            # Golden arrow above any enemy carrying an active buff.
+            # Golden arrow above any enemy whose move speed is BUFFED, red
+            # arrow above any enemy that is SLOWED (BossUpgradeTimelinePLAN
+            # D20 — the two signs of one aggregate, so at most one fires).
             gp["floaters"].submit_buff_arrows(renderer, cs, world.scene)
+            gp["floaters"].submit_debuff_arrows(renderer, cs, world.scene)
             # Digger underground telegraph: entry-tile marker + heading arrow.
             gp["floaters"].submit_digger_telegraphs(renderer, cs, world.scene)
             gp["floaters"].submit(renderer, cs)

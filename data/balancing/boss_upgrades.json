@@ -1,0 +1,122 @@
+{
+  "BossUpgrades": {
+    "Catalog": {
+      "boost_double_trigger": {
+        "description": "Every boost building triggers {extra_triggers} extra time(s) each payday - the ones you already have and the ones you build later.",
+        "name": "Double Boost",
+        "params": {
+          "extra_triggers": 1
+        }
+      },
+      "condition_dmg_bonus": {
+        "description": "Enemies standing on mountain, pond or forest tiles take {dmg_bonus_pct}% more damage. Picking it again hurts them more.",
+        "name": "Rough Ground",
+        "params": {
+          "dmg_bonus_pct": 20
+        }
+      },
+      "mortar_slow": {
+        "description": "Every mortar you have right now slows what its splash hits by {slow_pct}% for {duration_seconds} seconds. Mortars built after this choice are not affected.",
+        "name": "Concussive Shells",
+        "params": {
+          "duration_seconds": 2.5,
+          "slow_pct": 20
+        }
+      },
+      "move_time_cap": {
+        "description": "Moving a building never takes longer than {move_time_cap} round(s), no matter how far it travels.",
+        "name": "Quick Relocation",
+        "params": {
+          "move_time_cap": 1
+        }
+      },
+      "musician_auto_level": {
+        "description": "Newly placed musicians - Flute Player, Harp Player, Trio - start {bonus_levels} level(s) higher. Picking it again adds another.",
+        "name": "Trained Musicians",
+        "params": {
+          "bonus_levels": 1
+        }
+      },
+      "restock_lives": {
+        "description": "Refills the hole back to its full starting number of lives, right now.",
+        "name": "Restock Lives",
+        "params": {}
+      },
+      "stone_thrower_sync": {
+        "description": "Levels every stone thrower you have placed up to match your best one, right now.",
+        "name": "Shared Drills",
+        "params": {}
+      },
+      "stormpriest_slow": {
+        "description": "Storm Priest lightning slows every enemy it damages by {slow_pct}% for {duration_seconds} seconds, including priests you build later.",
+        "name": "Chilling Storm",
+        "params": {
+          "duration_seconds": 2.5,
+          "slow_pct": 20
+        }
+      },
+      "thorns": {
+        "description": "Enemies take {reflect_pct}% of the damage they deal straight back, whether they hit a building or a wall. Picking it again reflects more.",
+        "name": "Thorns",
+        "params": {
+          "reflect_pct": 10
+        }
+      },
+      "tile_discount": {
+        "description": "Unlocking new tiles costs {discount_pct}% less love. Picking it again discounts them further.",
+        "name": "Cheap Ground",
+        "params": {
+          "discount_pct": 20
+        }
+      },
+      "tile_refund": {
+        "description": "Pays back every love you have spent on unlocking tiles so far.",
+        "name": "Land Reclaim",
+        "params": {}
+      },
+      "wall_cost_discount": {
+        "description": "Blockers and Wall Builders cost {cost_reduction_pct}% less to build and to upgrade, never below 1 love. Picking it again discounts them further.",
+        "name": "Cheap Stonework",
+        "params": {
+          "cost_reduction_pct": 50
+        }
+      }
+    },
+    "Timeline": {
+      "milestones": [
+        {
+          "retaliation_bonus_love": 30,
+          "slots": [
+            "restock_lives",
+            "mortar_slow",
+            "tile_discount"
+          ]
+        },
+        {
+          "retaliation_bonus_love": 60,
+          "slots": [
+            "thorns",
+            "musician_auto_level",
+            "move_time_cap"
+          ]
+        },
+        {
+          "retaliation_bonus_love": 100,
+          "slots": [
+            "stormpriest_slow",
+            "wall_cost_discount",
+            "stone_thrower_sync"
+          ]
+        },
+        {
+          "retaliation_bonus_love": 150,
+          "slots": [
+            "condition_dmg_bonus",
+            "boost_double_trigger",
+            "tile_refund"
+          ]
+        }
+      ]
+    }
+  }
+}

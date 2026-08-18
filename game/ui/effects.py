@@ -242,6 +242,24 @@ _BUFF_ARROW_W, _BUFF_ARROW_H = 10, 8   # base-zoom px, fixed screen size
 _BUFF_ARROW_GAP = 3                    # px above the HP-bar anchor point
 _BUFF_ARROW_GOLD = (255, 200, 50)      # placeholder colour == widgets.C_GOLD
 
+# BossUpgradeTimelinePLAN D20: the RED twin of the arrow above, for an enemy
+# carrying an active SLOW (ANY source contributing a negative `move_speed` —
+# today the two boss upgrades `mortar_slow`/`stormpriest_slow`, but keyed off
+# the STAT, never the source). Same swappable-art rule (E-37) and the same
+# "colour/shape are code chrome, only the ART is a designer lever" line
+# _BUFF_ARROW_GOLD draws. It reuses the buff arrow's own W/H/GAP deliberately:
+# the two are the same badge in two colours, so a second set of geometry
+# constants would be two homes for one number.
+DEBUFF_ARROW_SLOT = "vfx_debuff_arrow"
+_DEBUFF_ARROW_RED = (220, 40, 40)      # placeholder colour
+# The two arrows are gated INDEPENDENTLY (`buff_signs`, not `buff_total`'s
+# netted sign) and sit in two DIFFERENT spots so they can show TOGETHER on
+# one enemy — buffed by a Drummer AND slowed by a mortar at once is a real,
+# expected state, not an edge case to net away. Gold stays centred above the
+# hp bar (`_buff_arrow_anchor`); red sits to its LEFT, vertically centred on
+# the bar (`_debuff_arrow_anchor`) — not above it, so it can never sit on top
+# of the bar the way a naive shared-anchor placement would.
+
 # Digger underground telegraph (player-feedback rework): two placeholder
 # arrows, the vfx_buff_arrow pattern applied to a raw WORLD point instead of
 # a live enemy's own screen anchor (its sprite is hidden while submerged).
@@ -1457,25 +1475,89 @@ class FloaterManager:
                            bg=widgets.C_HP_RED, fill=widgets.C_HP_GREEN)
                 slot += 1
 
+    def _hp_bar_rect(self, renderer, cs, e, zoom, assets):
+        """``(x_c, bar_top, w, h)`` — the on-screen horizontal centre, TOP
+        edge, width and height of `e`'s hp bar's own slot (slot 0; the arrow
+        badges do not account for same-tile stacking, see
+        ``submit_buff_arrows``'s docstring). The SAME ``hp_bar`` anchor point
+        (or its ``_sprite_top`` fallback) ``submit_enemy_hp_bars`` uses.
+
+        Factored out so the gold buff arrow and the red debuff arrow
+        (BossUpgradeTimelinePLAN D20) can never drift apart on where the bar
+        itself actually is, even though they now sit in two different spots
+        relative to it."""
+        w = getattr(e, "HP_BAR_W", _ENEMY_BAR_FALLBACK[0])
+        h = getattr(e, "HP_BAR_H", _ENEMY_BAR_FALLBACK[1])
+        pad = getattr(e, "HP_BAR_PAD", _ENEMY_BAR_FALLBACK[2])
+        point = anchor_world_point(assets, cs, e, "hp_bar")
+        if point is not None:
+            x_c, y_c = cs.world_to_screen(*point)
+        else:
+            cx, cy = cs.world_to_screen(e.transform.wx + 0.5,
+                                        e.transform.wy + 0.5)
+            top = _sprite_top(renderer, cs, e, cy, zoom)
+            x_c, y_c = cx, top - pad * zoom
+        return x_c, int(y_c) - h, w, h
+
+    def _buff_arrow_anchor(self, renderer, cs, e, zoom, assets):
+        """Where the gold buff badge hangs: centred above the hp bar, clear
+        of its top edge by ``_BUFF_ARROW_GAP``."""
+        x_c, bar_top, _w, _h = self._hp_bar_rect(renderer, cs, e, zoom, assets)
+        return x_c, bar_top - _BUFF_ARROW_GAP
+
+    def _debuff_arrow_anchor(self, renderer, cs, e, zoom, assets):
+        """Where the red debuff badge hangs: to the LEFT of the hp bar,
+        vertically centred on it — a different spot from the buff badge's
+        (not merely a different colour at the same point), so the two can be
+        shown TOGETHER without ever overlapping each other or the bar."""
+        x_c, bar_top, w, h = self._hp_bar_rect(renderer, cs, e, zoom, assets)
+        x = x_c - w / 2 - _BUFF_ARROW_GAP - _BUFF_ARROW_W / 2
+        y = bar_top + h / 2 + _BUFF_ARROW_H / 2
+        return x, y
+
+    def _submit_arrow(self, renderer, x_c, y, slot, has_art, color):
+        """Draw ONE arrow badge, ending exactly AT ``y`` and extending
+        ``_BUFF_ARROW_H`` px upward from it — the imported sprite if the slot
+        has art, else a procedural triangle outline pointing down at ``y``
+        (E-37). Both branches occupy the SAME ``[y - H, y]`` span so neither
+        can straddle (and overlap) whatever ``y`` was chosen to clear."""
+        w = _BUFF_ARROW_W
+        if has_art:
+            renderer.submit_hud(HudSprite(
+                slot, (int(x_c - w / 2), y - _BUFF_ARROW_H),
+                (w, _BUFF_ARROW_H)))
+        else:
+            pts = ((int(x_c - w / 2), y),
+                   (int(x_c), y - _BUFF_ARROW_H),
+                   (int(x_c + w / 2), y))
+            renderer.submit_hud(HudLines(pts, color, width=2))
+
     def submit_buff_arrows(self, renderer, cs, scene):
-        """A little golden arrow above any ALIVE enemy carrying an active
-        buff (``BuffState.sources`` non-empty — today always a Drummer's
-        aura, NE-3, but this deliberately keys off "any active buff" rather
-        than the source type, per the user's own design call). Shown
-        independently of the HP bar's own "hide at full HP" rule — a
-        buffed-but-undamaged enemy still gets the arrow.
+        """A little golden arrow above any ALIVE enemy carrying AT LEAST ONE
+        source with a POSITIVE ``move_speed`` contribution — i.e. something
+        is genuinely making it faster (today always a Drummer's aura, NE-3,
+        but keyed off the STAT, never the source type). Shown independently
+        of the HP bar's own "hide at full HP" rule — a buffed-but-undamaged
+        enemy still gets the arrow.
+
+        **Gated on ``buff_signs``, not ``buff_total``'s netted sign**
+        (BossUpgradeTimelinePLAN D20 follow-up): an enemy simultaneously
+        buffed by a Drummer AND slowed by a mortar is a real state the
+        player should see BOTH indicators for, not the one that happens to
+        win the sum. The gold and red arrows are independent booleans now,
+        not the two signs of one aggregate.
 
         Anchored off the SAME ``hp_bar`` point (or its ``_sprite_top``
-        fallback) ``submit_enemy_hp_bars`` uses, offset one arrow-height +
-        gap above it — a deliberately SIMPLER placeholder than that method:
-        it does not stack multiple enemies sharing a tile, since a buffed
-        unit's arrow is a status flag, not a competing bar.
+        fallback) ``submit_enemy_hp_bars`` uses, centred above it — a
+        deliberately SIMPLER placeholder than that method: it does not stack
+        multiple enemies sharing a tile, since a buffed unit's arrow is a
+        status flag, not a competing bar.
 
         Interchangeable placeholder art (E-37 shape): the ``vfx_buff_arrow``
         slot draws as a real sprite once imported; with no art yet it draws
         a small procedural golden triangle instead, so the feature is
         visible today with zero art asset required."""
-        from game.enemies.components import BuffState
+        from game.enemies.components import buff_signs
 
         zoom = cs.camera.zoom
         assets = getattr(renderer, "assets", None)
@@ -1485,30 +1567,47 @@ class FloaterManager:
         for e in scene.by_tag("enemy"):
             if not getattr(e, "alive", False):
                 continue
-            buffs = e.get_component(BuffState)
-            if buffs is None or not buffs.sources:
+            has_buff, _has_slow = buff_signs(e, "move_speed")
+            if not has_buff:
                 continue
-            h = getattr(e, "HP_BAR_H", _ENEMY_BAR_FALLBACK[1])
-            pad = getattr(e, "HP_BAR_PAD", _ENEMY_BAR_FALLBACK[2])
-            point = anchor_world_point(assets, cs, e, "hp_bar")
-            if point is not None:
-                x_c, y_c = cs.world_to_screen(*point)
-            else:
-                cx, cy = cs.world_to_screen(e.transform.wx + 0.5,
-                                            e.transform.wy + 0.5)
-                top = _sprite_top(renderer, cs, e, cy, zoom)
-                x_c, y_c = cx, top - pad * zoom
-            y = int(y_c) - h - _BUFF_ARROW_GAP
-            w = _BUFF_ARROW_W
-            if has_art:
-                renderer.submit_hud(HudSprite(
-                    BUFF_ARROW_SLOT,
-                    (int(x_c - w / 2), y - _BUFF_ARROW_H), (w, _BUFF_ARROW_H)))
-            else:
-                pts = ((int(x_c - w / 2), y),
-                       (int(x_c), y + _BUFF_ARROW_H),
-                       (int(x_c + w / 2), y))
-                renderer.submit_hud(HudLines(pts, _BUFF_ARROW_GOLD, width=2))
+            x_c, y = self._buff_arrow_anchor(renderer, cs, e, zoom, assets)
+            self._submit_arrow(renderer, x_c, y, BUFF_ARROW_SLOT, has_art,
+                               _BUFF_ARROW_GOLD)
+
+    def submit_debuff_arrows(self, renderer, cs, scene):
+        """``submit_buff_arrows``'s RED twin (BossUpgradeTimelinePLAN D20):
+        the same badge, to the LEFT of the hp bar instead of above it, above
+        any ALIVE enemy carrying at least one source with a NEGATIVE
+        ``move_speed`` contribution — an active slow.
+
+        Keyed on the STAT, not on who applied it, exactly like its gold
+        sibling: today's two writers are the boss upgrades ``mortar_slow``
+        (#3) and ``stormpriest_slow`` (#7) through
+        ``game.enemies.components.apply_slow`` (D19), but anything that ever
+        slows an enemy gets the indicator for free. Interchangeable
+        placeholder art (E-37): the ``vfx_debuff_arrow`` slot draws as a real
+        sprite once imported, else a small procedural red triangle.
+
+        Gated on ``buff_signs``, independently of the gold arrow above — an
+        enemy that is BOTH speed-buffed and slowed shows both badges at
+        once, in their two distinct spots, never overlapping each other or
+        the bar."""
+        from game.enemies.components import buff_signs
+
+        zoom = cs.camera.zoom
+        assets = getattr(renderer, "assets", None)
+        has_art = (assets is not None
+                   and assets.animation_total_ms(DEBUFF_ARROW_SLOT, "idle")
+                   is not None)
+        for e in scene.by_tag("enemy"):
+            if not getattr(e, "alive", False):
+                continue
+            _has_buff, has_slow = buff_signs(e, "move_speed")
+            if not has_slow:
+                continue
+            x_c, y = self._debuff_arrow_anchor(renderer, cs, e, zoom, assets)
+            self._submit_arrow(renderer, x_c, y, DEBUFF_ARROW_SLOT, has_art,
+                               _DEBUFF_ARROW_RED)
 
     def submit_digger_telegraphs(self, renderer, cs, scene):
         """Two placeholder arrows over a burrowed Digger's CURRENT dig — the

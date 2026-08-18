@@ -13,6 +13,16 @@ gameplay tunables, and never simulation timing (D4).
 ``CASTER_FLASH_DURATION`` stays a code constant (the ``CRATER_LIFE``
 precedent).
 
+**BossUpgradeTimelinePLAN BU-3 3.3 — upgrade #7 ``stormpriest_slow``.**
+``strike()`` grows an optional trailing ``boss_upgrades_balance`` (the BALANCE
+half of the standard BU-3 pair — ``state`` already IS the ``RunState``, the
+documented ``place_building`` exception) and, when the upgrade has been picked,
+slows every enemy a bolt damages. The debuff PRIMITIVE lives with ``BuffState``
+in ``game.enemies.components`` (D19) and reaches this module through the
+host-installed ``set_slow_hook`` seam, NEVER an import: ``game/core`` imports
+nothing from ``game/enemies``, and that rule is not relaxed for a status
+effect. See ``_SLOW_HOOK`` below.
+
 **Radius semantics** (prototype ``game.py:505-508``): the blast is a Euclidean
 CIRCLE in the PROJECTED pixel plane — ``radius_px = radius_tiles * TILE_HW``
 around the click, hit-tested on projected coordinates. It is NOT the Chebyshev
@@ -125,7 +135,76 @@ def sync_level_from_tier(state, building):
         state.lightning_level = max(state.lightning_level, building.tier_number())
 
 
-def strike(state, core, vfx, scene, cs, wx, wy, on_hit=None):
+#: BossUpgradeTimelinePLAN BU-3 3.3 (#7 stormpriest_slow): the opaque
+#: ``BuffState`` source key every bolt's slow is written under. ONE key for the
+#: whole UPGRADE, never one per firing acolyte — several casters landing on the
+#: same enemy in one click must read as one slow, not N stacked ones (see
+#: ``game/enemies/components.py``'s ``apply_slow``). Repeat PICKS still stack,
+#: additively (D4), inside the fraction ``_slow_spec`` computes.
+STORMPRIEST_SLOW_SOURCE = "boss_upgrade:stormpriest_slow"
+
+#: The injected applier for that slow — ``fn(enemy, source, fraction,
+#: duration) -> bool``. Unset by default, so a bare import of this module
+#: changes nothing and every logic test that never installs one sees the
+#: pre-BU-3 strike exactly.
+#:
+#: **It is a seam and not an import because `game/core` imports NOTHING from
+#: `game/enemies`** — the same hard layering rule the ER-3 death-spawn
+#: handshake and `Session.on_enemy_death`'s callbacks exist to honour. The
+#: debuff primitive itself is `game.enemies.components.apply_slow` (D19: one
+#: shared slow mechanism, living with `BuffState`), so it arrives the way
+#: every other cross-package capability does: installed by the HOST, which is
+#: the one layer allowed to import both packages —
+#:
+#:     # game/main.py's boot:
+#:     lightning.set_slow_hook(apply_slow)
+#:
+#: the `boss_upgrades.set_one_time_hook` / `components.set_damage_hook` /
+#: `widgets.set_skin_hit_test` precedent exactly.
+_SLOW_HOOK = None
+
+
+def set_slow_hook(fn):
+    """Install (or clear, with ``fn=None``) the injected slow applier — see
+    ``_SLOW_HOOK`` above for why this is a seam rather than an import.
+
+    Today's ONE intended caller is ``game/main.py``'s boot, handing over
+    ``game.enemies.components.apply_slow`` for boss upgrade #7
+    ``stormpriest_slow``.
+    """
+    global _SLOW_HOOK
+    _SLOW_HOOK = fn
+
+
+def _slow_spec(state, boss_upgrades_balance):
+    """``(source, slow_fraction, duration_seconds)`` for boss upgrade #7
+    ``stormpriest_slow``, or ``None`` when it is inert.
+
+    Unlike ``mortar_slow`` (#3) there is NO snapshot: once picked, every bolt
+    from every acolyte slows, whenever the Storm Priest was built. Resolved
+    ONCE per ``strike`` call rather than per enemy — the answer cannot change
+    inside one click, and this keeps the per-enemy inner loop a single
+    ``is not None`` test.
+
+    ``state`` IS the ``RunState``, so this hook takes only the BALANCE half of
+    the standard BU-3 pair — the documented ``place_building`` exception
+    (``game/core/boss_upgrades.py``'s threading-pattern section): a hook site
+    that already carries the run state never grows a second, duplicate
+    reference to it.
+    """
+    from game.core import boss_upgrades
+
+    n, params = boss_upgrades.hook_stacks(state, boss_upgrades_balance,
+                                          "stormpriest_slow")
+    if not n:
+        return None
+    return (STORMPRIEST_SLOW_SOURCE,
+            n * params.get("slow_pct", 20) / 100.0,
+            params.get("duration_seconds", 2.5))
+
+
+def strike(state, core, vfx, scene, cs, wx, wy, on_hit=None,
+           boss_upgrades_balance=None):
     """Strike world point ``(wx, wy)`` (prototype ``_activate_lightning``,
     game.py:502-514 — feature-storm-acolyte-multi-build generalises it to
     every ready caster). Silent no-op (``False``) while locked or every
@@ -154,11 +233,25 @@ def strike(state, core, vfx, scene, cs, wx, wy, on_hit=None):
     ``RoundStats`` credit (no shooter), so this is the ONLY place a per-strike
     damage/hit total can be counted — ``Session.lightning_strike`` sums it
     into ``DebugRecorder.note_lightning``. Never changes what gets damaged or
-    by how much; it is a read of a value already about to be applied."""
+    by how much; it is a read of a value already about to be applied.
+
+    ``boss_upgrades_balance`` (BossUpgradeTimelinePLAN BU-3 3.3, optional):
+    the BALANCE half of the standard BU-3 hook pair — ``state`` already IS the
+    ``RunState``, so this is the documented ``place_building`` exception rather
+    than a second reference to it. ``None`` (every pre-BU-3 caller and every
+    test in this module) keeps the strike byte-identical; present, it arms
+    ``stormpriest_slow`` (#7), which applies a timed move-speed slow to every
+    enemy the bolt damages — no snapshot, every acolyte, from the pick on."""
     if not can_strike(state, scene):
         return False
     ls = core["LightningStrike"]
     lp = vfx["procedural"]["lightning"]
+    # BU-3 3.3 (#7): resolved once per click, before the caster loop — the
+    # answer cannot change inside one strike, and this keeps the per-enemy
+    # inner loop to a single `is not None` test. No installed hook (a bare
+    # logic test, a headless tool) is as inert as an unpicked upgrade.
+    slow = (None if boss_upgrades_balance is None or _SLOW_HOOK is None
+            else _slow_spec(state, boss_upgrades_balance))
     sx, sy = cs.world_to_screen(wx, wy)
     fired = False
     for b in scene.by_tag("lightning_source"):
@@ -194,6 +287,13 @@ def strike(state, core, vfx, scene, cs, wx, wy, on_hit=None):
                 enemy.get_component(Health).damage(dmg)
                 if on_hit is not None:
                     on_hit(dmg)
+                # BU-3 3.3 (#7 stormpriest_slow): right after the damage
+                # line, on every enemy this bolt actually hit, through the
+                # host-installed seam above. The applier itself is a no-op
+                # for an owner with no `BuffState`, so a stub enemy in a
+                # headless test is safe.
+                if slow is not None:
+                    _SLOW_HOOK(enemy, *slow)
         caster.cooldown = ls["cooldown"][idx]
         fx = LightningFX(wx, wy, radius_tiles, lp["bolt_life"], lp["marker_life"])
         fx.get_component(LightningFXFade)._scene = scene

@@ -92,17 +92,38 @@ def move_cost(distance, movement_balance):
     )
 
 
-def move_time(distance, movement_balance):
+def move_time(distance, movement_balance, run_state=None,
+              boss_upgrades_balance=None):
     """Rounds a move of ``distance`` tiles takes. 0 (instant — the building
     relocates the moment the move is confirmed, with no in-transit
-    representation at all) when the ``time_cost_enabled`` flag is off."""
-    return _stepped(
+    representation at all) when the ``time_cost_enabled`` flag is off.
+
+    ``run_state``/``boss_upgrades_balance`` are BU-3's standard optional
+    trailing pair (``game/core/boss_upgrades.py``'s threading-pattern
+    section): with both present and the ``move_time_cap`` boss upgrade picked,
+    the result is clamped to that upgrade's ``move_time_cap`` rounds (D14 —
+    the TIME dial, the one actually enabled today; the love dial is off and is
+    not capped). It does NOT stack per pick — a cap is a ceiling, and two
+    ceilings are the lower one, which is the same number. The clamp lives
+    HERE rather than in the shared ``_stepped`` helper because ``move_cost``
+    calls that helper too and must stay untouched."""
+    rounds = _stepped(
         distance,
         movement_balance["time_cost_enabled"],
         movement_balance["base_moving_time"],
         movement_balance["moving_time_increase_increment"],
         movement_balance["moving_time_increase"],
     )
+    if run_state is None or boss_upgrades_balance is None:
+        return rounds
+    # Lazy import: game.core.__init__ pulls in payday, which imports THIS
+    # module — a module-level import would close that cycle outright.
+    from game.core import boss_upgrades
+    n, params = boss_upgrades.hook_stacks(
+        run_state, boss_upgrades_balance, "move_time_cap")
+    if not n:
+        return rounds
+    return min(rounds, params.get("move_time_cap", 1))
 
 
 def is_movable(building):
@@ -144,7 +165,7 @@ def _complete(tilemap, building, dest_tile, occupancy, scene):
 
 
 def start_move(tilemap, building, dest_tile, movement_balance, love,
-               occupancy, scene):
+               occupancy, scene, run_state=None, boss_upgrades_balance=None):
     """Begin moving ``building`` to ``dest_tile``. Returns ``(cost, rounds)``.
 
     Raises ``MoveError`` if the destination is not BUILDABLE, is already an
@@ -156,6 +177,10 @@ def start_move(tilemap, building, dest_tile, movement_balance, love,
     ``rounds == 0`` (the time cost switched off, or tuned to zero) relocates
     the building synchronously and records NO order: there is nothing to tick
     down and nothing to sign-post.
+
+    ``run_state``/``boss_upgrades_balance`` are BU-3's standard optional
+    trailing pair, forwarded verbatim to ``move_time`` so the rounds actually
+    charged here match the capped figure the confirm modal quoted.
     """
     if dest_tile.state != TileState.BUILDABLE:
         raise MoveError(
@@ -171,7 +196,8 @@ def start_move(tilemap, building, dest_tile, movement_balance, love,
     distance = move_distance(building.col, building.row,
                              dest_tile.col, dest_tile.row)
     cost = move_cost(distance, movement_balance)
-    rounds = move_time(distance, movement_balance)
+    rounds = move_time(distance, movement_balance, run_state,
+                       boss_upgrades_balance)
     if love < cost:
         raise MoveError(f"moving costs {cost} love, have {love}")
 
