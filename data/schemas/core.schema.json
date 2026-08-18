@@ -537,78 +537,6 @@
   "additionalProperties": false,
   "description": "Core balancing domain (D-10), REPLAN nested tree (Phase 9A): camera, general, phase loop, XP, the hole, lightning strike, debug-mode telemetry. Values are the prototype's live tuning, verbatim. Bounds policy: fractions 0-1, costs/counts 0-10000, rounds/levels 0-1000, seconds 0-60, camera zoom factors 0.1-100.",
   "properties": {
-    "BossBonuses": {
-      "additionalProperties": false,
-      "description": "The six stacking boss A/B story bonuses (boss1a..boss3b). Each stack multiplies its own magnitude; the counted quantity is read off the live board/state.",
-      "properties": {
-        "dmg_per_building": {
-          "description": "Boss1B: extra per-shot damage every defender gains, per stack, for each ALIVE non-base building on the board (x10 combat scale, D-12).",
-          "maximum": 100000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "dmg_per_lightning_building": {
-          "description": "Boss3B: extra per-shot damage every defender gains, per stack, for each ALIVE lightning-source building built (x10 combat scale, D-12).",
-          "maximum": 100000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "dmg_per_love_chunk": {
-          "description": "Boss3A: extra per-shot damage every defender gains, per stack, for each whole love_chunk_size of love held at End Turn (x10 combat scale, D-12).",
-          "maximum": 100000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "dmg_per_unbuilt_tile": {
-          "description": "Boss1A: extra per-shot damage every defender gains, per stack, for each unbuilt (BUILDABLE) tile (x10 combat scale, D-12).",
-          "maximum": 100000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "level_past_threshold": {
-          "description": "Boss2A: the in-tier level a building must exceed to pay love (a building at level_past_threshold+2 pays twice).",
-          "maximum": 1000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "love_chunk_size": {
-          "description": "Boss3A: the love-held chunk size the damage bonus is counted per. A divisor - never 0.",
-          "maximum": 10000,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "love_per_level_past": {
-          "description": "Boss2A: love per round, per stack, for each in-tier building level past level_past_threshold.",
-          "maximum": 10000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "love_per_low_level_building": {
-          "description": "Boss2B: love per round, per stack, for each ALIVE non-base building sitting at in-tier level low_level_target.",
-          "maximum": 10000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "low_level_target": {
-          "description": "Boss2B: the exact in-tier level a building must sit at to pay love.",
-          "maximum": 1000,
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "dmg_per_building",
-        "dmg_per_lightning_building",
-        "dmg_per_love_chunk",
-        "dmg_per_unbuilt_tile",
-        "level_past_threshold",
-        "love_chunk_size",
-        "love_per_level_past",
-        "love_per_low_level_building",
-        "low_level_target"
-      ],
-      "type": "object"
-    },
     "Camera": {
       "additionalProperties": false,
       "description": "Camera zoom and travel limits (E-5). Overrides geometry.json's zoom_levels/default fallback at load time (engine/coords/__init__.py::load_coordinate_system) so zoom is a designer-editable balancing tunable, not baked into geometry.json.",
@@ -1052,7 +980,6 @@
     }
   },
   "required": [
-    "BossBonuses",
     "Camera",
     "Debug",
     "EnemyIntro",

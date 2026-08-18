@@ -226,6 +226,20 @@ validating writer; don't hand-edit the JSON.
   `ui:FX/bg_art/enabled`, `ui:FX/income_floaters_enabled`,
   `ui:FX/boss_announce/enabled`, `core:TheHole/building_revive`,
   `core:XP/xp_from_buildings`).
+- **`core.json`'s `BossBonuses` group is DELETED (BossUpgradeTimelinePLAN
+  BU-4/D6), schema and content** — the nine magnitudes behind the six hidden
+  boss A/B story bonuses (`dmg_per_building`, `dmg_per_unbuilt_tile`,
+  `love_chunk_size`, …). Their only reader, `game/core/boss_bonuses.py`, is
+  gone; the visible 3-card picker fed by `balancing/boss_upgrades.json`
+  replaces the whole mechanism. Do not reintroduce the group — a boss
+  upgrade's numbers belong in its own catalog entry there, not in a parallel
+  `core` table. **`balancing_history/core.json` still contains `BossBonuses`
+  inside its `snapshot` objects and MUST keep it**: a snapshot is a verbatim
+  record of what the file was at save time, its schema deliberately types it
+  as an unconstrained object (so a retired key can never make the audit log
+  fail validation), and rewriting it would be falsifying the log. The same
+  holds for `balancing_history/enemies.json` and the retired
+  `loss_love_reward` below.
 - **`buildings.json`'s `BuildingsGlobal.Movement` group (Building Movement)**
   — the 9 tunables for moving an already-placed building: `money_cost_enabled`
   / `time_cost_enabled` (the two off-switches; off ⇒ that axis is a flat 0),
@@ -348,6 +362,14 @@ validating writer; don't hand-edit the JSON.
     `round_counts[]` (BossReworkPLAN's territory) — and since **BR-1** its
     `footprint`, `sprite_scale` and `shake` are DELETED from the type root and
     live inside each `stats[]` row, so every boss variable is per-era.
+    **`loss_love_reward` joined the deleted list in BossUpgradeTimelinePLAN
+    BU-4/D7** — both homes (`$defs/boss_stat`, i.e. all five `Boss.stats[]`
+    rows, AND `$defs/boss_endgame_scaling`'s matching factor) are gone from
+    schema and content. The consolation love a LOST boss round pays now comes
+    SOLELY from `balancing/boss_upgrades.json`'s per-milestone
+    `retaliation_bonus_love`; re-adding a per-era key here would create a
+    second, silently-unread source of truth. (`endgame_boss_scaling` is 13
+    factors again as a result — the count the BR-4 bullet below states.)
   - **Kept FLAT at the type root, deliberately** (D10, exhaustive):
     `start_round`, `death_spawn`, `registry_group`, `kidnapping`, `hunts`,
     `condition_path_weights`, `mix_ratio`, `queue_lead_count`. Only numbers
