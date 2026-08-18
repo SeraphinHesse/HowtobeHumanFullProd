@@ -75,7 +75,11 @@ class CutscenePlayer:
         under SDL dummy / no audio device (``engine/audio.py``'s
         exception-swallowing contract). NOTE: there is only ONE
         ``pygame.mixer.music`` channel, so this replaces whatever background
-        music was already playing; nothing restores it afterward.
+        music was already playing — but it IS restored afterward now (SD-7):
+        the host stacks the current track with
+        ``MusicDirector.enter_cutscene()`` on the same edge that calls
+        ``start()``, and pops it back in ``leave_cutscene()`` beside
+        ``release()``. This class still owns only its own companion track.
 
         REPLAY: a ``VideoSource`` is one-shot — ``release()`` frees the cv2
         capture and ``done`` latches True — while the host builds ONE player

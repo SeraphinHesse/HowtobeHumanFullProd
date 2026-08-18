@@ -83,6 +83,8 @@ TIERS = {
     "test_assets_manifest": "core",
     "test_assets_registry": "core",
     "test_audio": "core",
+    "test_audio_bank": "core",
+    "test_audio_sfx": "core",
     "test_bake_ui_sheets": "core",  # 10L wave 3: UI sheet baker
     "test_balancing_data": "core",
     "test_base_building": "core",
@@ -167,6 +169,13 @@ TIERS = {
     "test_shell": "core",
     "test_simrun": "core",  # debug mode: the headless balance-sweep runner
     "test_spawn_deco": "core",
+    "test_sound_import": "core",
+    "test_sound_music": "core",  # SD-7: music arbitration + game stings
+    "test_sound_slot_widget": "editor",
+    "test_sound_slots_data": "core",
+    "test_sound_triggers_buildings": "core",  # SD-4: game/sounds.py dispatcher
+    "test_sound_triggers_enemies": "core",  # SD-5: enemy death/attack/spawn triggers
+    "test_sound_triggers_ui": "core",  # SD-6: UI click/refusal sounds + sliders
     "test_strings_data": "core",  # Phase C: string-table data + T() parity pins
     "test_structure": "core",
     "test_theme_data": "core",  # UH-6: fonts/palette data + tint parity pins

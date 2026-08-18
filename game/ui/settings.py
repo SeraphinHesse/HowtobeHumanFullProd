@@ -4,8 +4,9 @@
 seeded from the ``ui`` balancing FX flags at boot, mutated by this screen, read
 by the host. ``SettingsScreen`` ports the prototype's ``src/ui/settings_menu.py``
 onto the ``game_over.py`` template: a display-mode ``< value >`` cycler, the FX
-ON/OFF toggles (income floaters / background art / gore), an inert audio slider
-(no audio system yet — drawn, not wired), and BACK. Shared by the main-menu and
+ON/OFF toggles (income floaters / background art / gore), the three SD-6 audio
+tracks (Master / Music / SFX — click-to-set, the host applies and persists the
+new value on the ``"set_volume"`` action), and BACK. Shared by the main-menu and
 the pause-menu entry points; the shell tracks which caller BACK returns to.
 
 10L-B: ``ids`` names ``backdrop``, ``title`` ("SETTINGS") + every button (the
@@ -23,6 +24,7 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 
 from engine.render import HudRect
+from engine.render.fonts import layout_h
 
 from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .widgets import (
@@ -56,6 +58,18 @@ _TOGGLE_LABEL_IDS = {
     "gore": "label_gore",
 }
 
+# SD-6: the three audio rows, top to bottom. (SessionSettings attr, row-label
+# STRING ID, label widget id, bar widget id). The Master row keeps the shipped
+# ``audio_label`` id so a designer's existing override still lands on it.
+_VOLUME_ROWS = [
+    ("master_volume", "settings.master_audio", "audio_label",
+     "bar_master_volume"),
+    ("music_volume", "settings.music_audio", "label_music_volume",
+     "bar_music_volume"),
+    ("sfx_volume", "settings.sfx_audio", "label_sfx_volume",
+     "bar_sfx_volume"),
+]
+
 SCREEN_ID = "settings"
 
 
@@ -68,7 +82,12 @@ class SessionSettings:
     income_floaters: bool = True
     bg_art: bool = True
     gore: bool = True
-    volume: float = 0.8                  # inert (no audio system) — 0..1
+    # SD-6: the three audio levels, 0..1. SESSION fields like every other one
+    # here — the persisted document lives outside `data/` and is loaded by the
+    # host, which pushes its values in at boot and writes them back on change.
+    master_volume: float = 0.8
+    music_volume: float = 0.8
+    sfx_volume: float = 0.8
 
     @classmethod
     def from_balance(cls, ui_balance):
@@ -112,9 +131,13 @@ class SettingsScreen:
         self._dm_value = label_holder(font_key="lg", align="center")
         self._toggle_labels = {
             attr: label_holder(text_id=text_id) for attr, text_id in _TOGGLES}
-        self._audio_label = label_holder(text_id="settings.master_audio")
-        self._audio_note = label_holder(text_id="settings.no_audio",
-                                        font_key="sm", align="center")
+        # SD-6: one label holder + one bar holder per audio row. A bar is a
+        # plain rect holder (the `hud.xp_bar` shape), registered under kind
+        # "bar" — it is a 6px track, not a button.
+        self._volume_labels = {attr: label_holder(text_id=text_id)
+                               for attr, text_id, _lid, _bid in _VOLUME_ROWS}
+        self._volume_bars = {attr: SimpleNamespace(rect=(0, 0, 90, 6))
+                             for attr, _t, _lid, _bid in _VOLUME_ROWS}
         self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
         self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl",
                                       text_color=widgets.C_GOLD, label="SETTINGS",
@@ -139,16 +162,25 @@ class SettingsScreen:
             btn.rect = (cx + 30, y - 4, 45, 20)
             self._toggle_labels[attr].rect = (cx - 75, y, 0, 0)
             y += 28
-        self._slider_y = y + 5
-        self._slider_rect = (cx - 45, self._slider_y, 90, 6)
-        self.back_btn.rect = (cx - 50, y + 35, 100, 23)
-        self.controls_btn.rect = (cx + 60, y + 35, 90, 23)
+        # SD-6: three stacked volume rows. The row step is font-scale (never a
+        # bare literal) with a 12px floor — the 6px track plus breathing room.
+        self._slider_y = y + 4
+        step = max(12, layout_h("sm"))
+        self._volume_row_y = []
+        for i, (attr, _text_id, _lid, _bid) in enumerate(_VOLUME_ROWS):
+            row_y = self._slider_y + i * step
+            self._volume_row_y.append(row_y)
+            self._volume_bars[attr].rect = (cx - 45, row_y, 90, 6)
+            self._volume_labels[attr].rect = (cx - 130, row_y - 3, 0, 0)
+        # Clear of the third (SFX) row. `data/ui/screens/settings.json` authors
+        # `btn_back`'s rect and an authored rect WINS, so that doc moved in
+        # lockstep with this offset (279 -> 296).
+        self.back_btn.rect = (cx - 50, y + 52, 100, 23)
+        self.controls_btn.rect = (cx + 60, y + 52, 90, 23)
         self._backdrop.rect = (0, 0, view_w, view_h)
         self._title.rect = (cx, self._top, 0, 0)
         self._dm_label.rect = (cx, self._dm_y - 17, 0, 0)
         self._dm_value.rect = (cx, self._dm_y, 0, 0)
-        self._audio_label.rect = (cx - 75, self._slider_y - 12, 0, 0)
-        self._audio_note.rect = (cx, self._slider_y + 10, 0, 0)
         self.ids = {
             "backdrop": ("backdrop", self._backdrop),
             "title": ("label", self._title),
@@ -159,9 +191,10 @@ class SettingsScreen:
             "btn_controls": ("button", self.controls_btn),
             "dm_label": ("label", self._dm_label),
             "dm_value": ("label", self._dm_value),
-            "audio_label": ("label", self._audio_label),
-            "audio_note": ("label", self._audio_note),
         }
+        for attr, _text_id, label_id, bar_id in _VOLUME_ROWS:
+            self.ids[label_id] = ("label", self._volume_labels[attr])
+            self.ids[bar_id] = ("bar", self._volume_bars[attr])
         for attr, _text_id, btn in self.toggles:
             self.ids[_TOGGLE_IDS[attr]] = ("button", btn)
             self.ids[_TOGGLE_LABEL_IDS[attr]] = ("label",
@@ -188,7 +221,8 @@ class SettingsScreen:
             btn.update(dt)
 
     def hit(self, mx, my):
-        """Return ``"back"`` / ``"set_display_mode"`` (host must apply it) or
+        """Return ``"back"`` / ``"set_display_mode"`` / ``"set_volume"``
+        (the host must apply each of those) or
         ``None`` (FX toggles mutate ``settings`` in place). An invisible
         button is never hit (10L-B)."""
         # UL-10: clickable layers first. Only BACK is retargetable here — the
@@ -202,19 +236,29 @@ class SettingsScreen:
             self.skinning.state_of, {"btn_back": "back"})
         if layer_action is not None:
             return layer_action
-        if is_visible(self.back_btn) and self.back_btn.hit(mx, my):
+        # SD-6: the three volume bars. Click-to-set (no drag — the shell
+        # delivers discrete clicks, not a drag stream): the value is the
+        # fraction of the track's width the click landed at, clamped.
+        for attr, _text_id, _lid, _bid in _VOLUME_ROWS:
+            bar = self._volume_bars[attr]
+            if is_visible(bar) and widgets.contains(bar.rect, mx, my):
+                sx, _sy, sw, _sh = bar.rect
+                v = 0.0 if sw <= 0 else (mx - sx) / sw
+                setattr(self.settings, attr, min(1.0, max(0.0, v)))
+                return "set_volume"
+        if widgets.click(self.back_btn, mx, my):
             return "back"
-        if is_visible(self.controls_btn) and self.controls_btn.hit(mx, my):
+        if widgets.click(self.controls_btn, mx, my):
             return "open_controls"
         i = DISPLAY_MODES.index(self.settings.display_mode)
-        if is_visible(self.dm_left) and self.dm_left.hit(mx, my):
+        if widgets.click(self.dm_left, mx, my):
             self.settings.display_mode = DISPLAY_MODES[(i - 1) % len(DISPLAY_MODES)]
             return "set_display_mode"
-        if is_visible(self.dm_right) and self.dm_right.hit(mx, my):
+        if widgets.click(self.dm_right, mx, my):
             self.settings.display_mode = DISPLAY_MODES[(i + 1) % len(DISPLAY_MODES)]
             return "set_display_mode"
         for attr, _text_id, btn in self.toggles:
-            if is_visible(btn) and btn.hit(mx, my):
+            if widgets.click(btn, mx, my):
                 setattr(self.settings, attr, not getattr(self.settings, attr))
                 return None
         return None
@@ -247,13 +291,18 @@ class SettingsScreen:
             if is_visible(btn):
                 btn.submit(renderer, anim_ms=t, **button_kwargs(btn))
 
-        # inert audio slider (no audio system) — drawn only
-        sx, sy, sw, sh = self._slider_rect
-        submit_label(renderer, self._audio_label, color=widgets.C_UI_TEXT)
-        renderer.submit_hud(HudRect(self._slider_rect, widgets.C_UI_BORDER))
-        renderer.submit_hud(HudRect(
-            (sx, sy, int(sw * self.settings.volume), sh), widgets.C_UI_BTN))
-        submit_label(renderer, self._audio_note, color=widgets.C_UI_TEXT_DIM)
+        # SD-6: Master / Music / SFX, each a label + a click-to-set track.
+        for attr, _text_id, _lid, _bid in _VOLUME_ROWS:
+            bar = self._volume_bars[attr]
+            submit_label(renderer, self._volume_labels[attr],
+                         color=widgets.C_UI_TEXT)
+            if not is_visible(bar):
+                continue
+            sx, sy, sw, sh = bar.rect
+            level = min(1.0, max(0.0, getattr(self.settings, attr)))
+            renderer.submit_hud(HudRect(bar.rect, widgets.C_UI_BORDER))
+            renderer.submit_hud(HudRect((sx, sy, int(sw * level), sh),
+                                        widgets.C_UI_BTN))
 
         if is_visible(self.back_btn):
             self.back_btn.submit(renderer, anim_ms=t, **button_kwargs(self.back_btn))
