@@ -396,9 +396,11 @@ Two new `FloaterManager` methods (`game/ui/effects.py`), both wired in
   the `hud.py` XP-bar level-up pulse shape, generalised to a per-manager
   clock rather than a per-screen one.
 - **`submit_buff_arrows`** (HUD pass, beside `submit_enemy_hp_bars`) — a
-  little golden arrow above any ALIVE enemy with an active buff
-  (`BuffState.sources` non-empty — today always a Drummer's aura, but keyed
-  off "any active buff" generically, not the source type). Shown
+  little golden arrow above any ALIVE enemy carrying at least one source with
+  a POSITIVE `move_speed` contribution (today always a Drummer's aura, but
+  keyed off the STAT, never the source type; it was gated on "`BuffState
+  .sources` non-empty" until D20 gave the slows their own red twin — see the
+  debuff-arrow section below for the gate that replaced it). Shown
   independently of the HP bar's own "hide at full HP" rule. Anchors off the
   SAME `hp_bar` point (or `_sprite_top` fallback) the HP bars use, offset
   above it — a deliberately SIMPLER placeholder than the HP-bar pass: it

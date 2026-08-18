@@ -432,7 +432,10 @@ Moving an ALREADY-PLACED building to another unbuilt buildable tile.
   one place to import it from.
 
 ## Boss-upgrade hooks (BossUpgradeTimelinePLAN BU-3, sub-tasks 3.1 + 3.2)
-Three of the twelve boss upgrades land in this package. **The threading
+FOUR of the twelve boss upgrades land in this package — #2
+`wall_cost_discount`, #4 `move_time_cap`, #5 `musician_auto_level` and #9
+`stone_thrower_sync` (the roster and where the other eight live are in
+`game/core/CLAUDE.md`'s effect-engine subsection). **The threading
 contract is stated ONCE, in `game/core/boss_upgrades.py`'s module docstring
 ("THE BU-3 HOOK THREADING PATTERN") — read it there, not here**; the short
 version is an optional trailing pair `run_state=None,
@@ -440,7 +443,10 @@ boss_upgrades_balance=None` that both have to be present for anything to
 happen, spelled off the `Session` at every call site, with the
 `game.core.boss_upgrades` import made LAZILY inside the function body (a
 module-level one closes the `game.core.__init__` → `payday` →
-`game.buildings.movement` cycle).
+`game.buildings.movement` cycle). **`registry.place_building` is the ONE
+documented exception to the pair** — it already carries the `RunState` as its
+existing `state` param, so it grew `boss_upgrades_balance=None` alone rather
+than a second reference to the same object.
 - **`build_cost` / `upgrade_cost` (#2 `wall_cost_discount`)** — both the
   instance methods on `Building` and the module-level `registry.build_cost`
   (the one a fresh placement and the tier-advance button actually charge) run

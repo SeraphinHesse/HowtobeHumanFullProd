@@ -29,9 +29,11 @@ validating writer; don't hand-edit the JSON.
   frame sizes, animation vocabularies, editor grouping) (D-32, E-34; see
   the Phase 5 section for why it is NOT under `schemas/`).
 - `balancing/` — one file per domain (`buildings.json`, `enemies.json`,
-  `map.json`, `ui.json`, `core.json`, `vfx.json`) (D-10).
-- `balancing_history/` — one file per domain (`buildings.json`, …, matching
-  `balancing/`'s stems), each a flat newest-first JSON array of full-document
+  `map.json`, `ui.json`, `core.json`, `vfx.json`, `progression.json`,
+  `boss_upgrades.json`) (D-10).
+- `balancing_history/` — one file per **generic-panel** domain
+  (`buildings.json`, `core.json`, `enemies.json`, `map.json`, `vfx.json` —
+  stems from `balancing/`), each a flat newest-first JSON array of full-document
   snapshots appended only by the editor's explicit "Save Balancing Changes"
   action (`editor/balancing_history.py`, `editor/panels/balancing.py`). The
   **second schema-pairing exception** (see the three-exception rule below):
@@ -54,9 +56,59 @@ validating writer; don't hand-edit the JSON.
   PNGs (committed — they are content, not build artifacts).
 
 ## Balancing files (Phase 4 D-10/11/12, restructured Phase 9A)
-- Seven domains exist: `balancing/{buildings,enemies,map,ui,core,vfx,
-  progression}.json`, each with `schemas/<domain>.schema.json`.
-  **`progression` is the newest (TimelinePLAN T2)**: the Timeline editor
+- Eight domains exist: `balancing/{buildings,enemies,map,ui,core,vfx,
+  progression,boss_upgrades}.json`, each with `schemas/<domain>.schema.json`.
+  **`boss_upgrades` is the newest (BossUpgradeTimelinePLAN BU-1)**: the
+  boss-fight upgrade the player picks from 3 cards after every bossfight, and
+  the love a LOST bossfight pays back. One top-level `BossUpgrades` group with
+  exactly two children.
+  - **`Catalog` is a CLOSED set of 12 fixed named keys**
+    (`additionalProperties: false` + all twelve `required`) — `restock_lives`,
+    `wall_cost_discount`, `mortar_slow`, `move_time_cap`,
+    `musician_auto_level`, `tile_discount`, `stormpriest_slow`, `thorns`,
+    `stone_thrower_sync`, `boost_double_trigger`, `condition_dmg_bonus`,
+    `tile_refund`. Each is `{name, description, params}` and **only those three
+    fields are designer-editable; the ROSTER is not** — every upgrade needs its
+    own bespoke hook code in `game/`, so a new id is a schema change, never a
+    content one (the same argument that keeps `enemies.json`'s type blocks
+    named rather than an open array). `name`/`description` are the cutscene
+    card's copy (TEXT ONLY — boss upgrade cards carry no art, D9); the
+    description is `.format()`ed live against that entry's own `params`, so a
+    `{param_name}` placeholder always advertises the magnitude the math
+    actually uses. `params` is itself closed per upgrade, and the three
+    one-time upgrades (`restock_lives`/`stone_thrower_sync`/`tile_refund`)
+    carry a REQUIRED but empty `params: {}` so every entry has the identical
+    shape.
+  - **`Timeline.milestones` is a FIXED-LENGTH-4 array** (`minItems`/`maxItems`
+    both 4 — the 4-cycle is a design decision, D1, not a designer dial), each
+    row `{slots, retaliation_bonus_love}`. `slots` is exactly 3 entries
+    (always 3 offered, never randomized — D2), each a `$defs/upgrade_ref`:
+    one of the 12 Catalog keys, or `null` for an empty, still-persisted slot.
+    Milestone `(boss_num - 1) % 4` is what a bossfight shows, so boss 5
+    re-offers milestone 1's identical three cards forever.
+    `retaliation_bonus_love` is the **sole source of truth** for the
+    consolation love a LOST bossfight pays (D7) — see the retired
+    `enemies.json` `loss_love_reward` note below; a win pays nothing.
+  - **D3 uniqueness — an upgrade id may sit in at most ONE slot across the
+    whole timeline — is an authoring-time constraint JSON Schema cannot
+    express.** It lives in `editor/boss_upgrades_ops.py::validate_uniqueness`,
+    which **WARNS rather than blocks** (unlike `timeline_ops`' raising twin):
+    a designer mid-way through dragging a card from one milestone to another
+    is legitimately double-placed for a moment. Nothing at runtime cares — a
+    duplicated id is simply offered twice.
+  - Registered in `game/core/balance.py::DOMAINS` for runtime loading
+    (`game/main.py` and `tools/simrun.py` both load it and thread it onto
+    `Session.boss_upgrades_balance`). Like `progression` it is deliberately
+    **not** a `data/slots.json` category, so it does not auto-render as a
+    generic recursive form in the editor's balancing panel — it gets its own
+    bespoke drag-and-drop panel under a new TOP-LEVEL "Bosses" selector branch
+    (`editor/panels/boss_upgrades.py`, BU-5; that panel is also the only place
+    the Catalog's copy/params are editable at all).
+  - Seeded content: all 12 upgrades at the plan's §2 default magnitudes, the
+    four milestones assigning all 12 ids three-at-a-time with no repeats, and
+    placeholder retaliation values 30/60/100/150. Those four numbers are a
+    starting schedule for the user to tune in the panel, not a derived value.
+  **`progression` was the previous newest (TimelinePLAN T2)**: the Timeline editor
   feature's authored building-unlock schedule — `Timeline.levels[]`, one
   sparse entry per player `village_level` that has offer slots authored,
   each slot an `assignment` object (`kind: "unlock"|"tier"`, `building_type`,

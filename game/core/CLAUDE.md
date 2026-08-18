@@ -6,8 +6,11 @@ The round machine + economy + progression, porting the prototype's
 You reached here from `game/CLAUDE.md`. All pure logic (no pygame — a `TestPurity`
 guards it). When you change core conventions, update THIS doc.
 
-`balance.py` is the single validated balancing loader for all five domains
-(`load_balance(data_dir, domain)`).
+`balance.py` is the single validated balancing loader for all EIGHT domains
+(`load_balance(data_dir, domain)`) — the prototype's five plus `vfx` (ESV-3a),
+`progression` (TimelinePLAN T2) and `boss_upgrades` (BossUpgradeTimelinePLAN
+BU-1). `DOMAINS` is the one list; adding a domain means adding it there, not
+here.
 
 ## Round loop (Phase 9F)
 Four files beside `balance.py`:
@@ -437,9 +440,10 @@ in `game/ui/CLAUDE.md`.
   `hud.py`'s "Story" income row and the host's per-frame
   `resolve_combat(dmg_bonus=…)` sum. `dmg_bonus` itself SURVIVES as a generic
   whole-board additive seam, defaulted to 0 with no caller.
-- **Its replacement is `boss_upgrades.py`** (this doc's BU-2/BU-3 sections
-  above): 12 catalog upgrades, 4 authored milestones on a `(boss_num - 1) % 4`
-  cycle, 3 slots each, counted in `RunState.boss_upgrade_stacks`.
+- **Its replacement is `boss_upgrades.py`** (the effect-engine subsection at
+  the END of this section): 12 catalog upgrades, 4 authored milestones on a
+  `(boss_num - 1) % 4` cycle, 3 slots each, counted in
+  `RunState.boss_upgrade_stacks`.
 - **`resolve_boss_cutscene(option, scene)` takes an UPGRADE ID**, not
   `"A"`/`"B"`: it calls `boss_upgrades.apply_pick(state, option,
   boss_upgrades_balance, core_balance, tilemap=self.tilemap, scene=scene)` —
@@ -501,6 +505,75 @@ in `game/ui/CLAUDE.md`.
     (`engine/core/CLAUDE.md`). This closes the general queue-then-check race, not
     just the death-burst instance. It was a real bug for the 10G boss from the
     start and would have been a common one for ER-4's Formations.
+
+### The effect engine (`boss_upgrades.py`, BU-2/BU-3) — the whole mechanism
+`game/core/boss_upgrades.py` is the ONE place that knows which upgrade ids
+exist and how many times each has been picked. **Read its module docstring
+before wiring anything** — the hook-threading contract, the `set_one_time_hook`
+seam and the lazy-import rule are all stated THERE, once, and every other
+package's doc points back at it rather than restating them. What belongs here
+is the shape of the thing:
+- **It imports NOTHING from `game.buildings`/`game.enemies`** (a hard rule, not
+  a preference — its predecessor `boss_bonuses.py` reached into
+  `game.buildings.components.TierState` and that is exactly what is not coming
+  back). Everything impure arrives through the injected `set_one_time_hook`
+  callbacks the HOST installs at boot.
+- **The cycle (D1)** is `milestone_index(boss_num) == (boss_num - 1) % 4`, with
+  `boss_num` **1-BASED** — bosses 1-4 walk milestones 0-3 and boss 5 repeats
+  milestone 0 verbatim, forever, so a milestone always re-offers the identical
+  three cards. `milestone_slots` always returns exactly 3 entries and
+  `retaliation_love` an int; **`boss_upgrades_balance is None` is tolerated
+  everywhere** (`[None, None, None]` / `0`), the same host-set-optional shape
+  `levelup.timeline_level_for` gives `progression_balance`, so a bare `Session`
+  a logic test builds never crashes on a boss round.
+- **Four readers, and hook sites use nothing else**: `stack_count(state, id)`
+  (how many times picked — 0 is "inactive"), `catalog_params(balance, id)`,
+  `hook_stacks(run_state, balance, id) -> (stacks, params)` (the one call a
+  hook site opens with; `(0, {})` whenever the pair is absent or the upgrade
+  is unpicked, so the branch is just `if n:`), and `discounted(...)`, the
+  shared %-off-a-price reducer behind `wall_cost_discount` (`floor=1`, never
+  free) and `tile_discount` (`floor=0`, a tile CAN reach free). Repeat picks
+  stack ADDITIVELY (D4) inside those two; never index
+  `state.boss_upgrade_stacks` or walk the Catalog dict inline.
+- **`apply_pick(state, upgrade_id, boss_upgrades_balance, core_balance,
+  tilemap=None, scene=None)`** ALWAYS increments the stack — that counter is
+  the entire implementation of the nine persistent passives — then fires the
+  three `ONE_TIME_IDS` (`restock_lives`, `stone_thrower_sync`, `tile_refund`)
+  and, INDEPENDENTLY of that set, any host-installed pick-time hook. That
+  independence is load-bearing: it is what lets the PERSISTENT `mortar_slow`
+  register its D16 snapshot step through the same seam (see the
+  `set_one_time_hook` subsection under Lightning below). No world in hand
+  (`tilemap`/`scene` left `None` — a headless test, `tools/simrun` pre-scene)
+  skips the hook silently rather than raising.
+- **`RunState` grew exactly four fields (BU-2)**, and two of them REPLACED 10G
+  fields that are gone: `boss_upgrade_stacks` (`{upgrade_id: pick_count}`,
+  replacing `boss_stacks`), `boss_upgrade_choices`
+  (`(boss_num, upgrade_id, outcome)` per-run history the base-info popup
+  reads, replacing `boss_choices`), plus two genuinely new ledgers —
+  `love_spent_on_tiles` (an accumulator nothing else kept, incremented at its
+  ONE spend site, `game/ui/building_ui.py`'s `_unlock_click`, and paid back
+  once by `tile_refund`) and `mortar_slow_snapshot_ids` (`id()` of every
+  mortar alive when `mortar_slow` was picked). **If you are grepping for
+  `boss_stacks`, `boss_choices`, `boss_bonuses.love_bonus_income`,
+  `story_damage_bonus` or `enemies.json`'s `loss_love_reward`: they were all
+  deleted by BU-4, and this paragraph is where they went.**
+- **`Session.boss_upgrades_balance`** is the host-set optional balance dict —
+  the exact `progression_balance` shape (a trailing `None` param on
+  `Session.__init__`/`Session.create`, loaded by `game/main.py` and
+  `tools/simrun.py`). **At every hook call site the BU-3 pair is spelled off
+  the `Session`** (`run_state=session.state,
+  boss_upgrades_balance=session.boss_upgrades_balance`); `RunState` itself
+  deliberately carries no balance reference.
+- **Where the twelve effects actually live**, since only three of them are in
+  this package: `game/buildings/` (#2 `wall_cost_discount`, #4
+  `move_time_cap`, #5 `musician_auto_level`, #9 `stone_thrower_sync` — plus
+  `boss_upgrade_effects.py`, the one sanctioned free-advance path);
+  `game/map/tile_map.py` (#6 `tile_discount`, in `unlock_cost`);
+  `game/enemies/` (#3 `mortar_slow` and #11 `condition_dmg_bonus` in
+  `combat.py`, #8 `thorns` via `components.py`'s `set_boss_upgrade_pair`
+  seam); `game/core/` (#7 `stormpriest_slow` in `lightning.py` via
+  `set_slow_hook`, #10 `boost_double_trigger` inside payday's slot 7, and #1
+  `restock_lives`/#12 `tile_refund` inline in `apply_pick`).
 
 ## Enemy intro dialogue (feature-enemy-intro-dialogue)
 A new `GamePhase.ENEMY_INTRO`, appended LAST in `phases.py` (no existing

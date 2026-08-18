@@ -853,6 +853,13 @@ question.
     clock with no component of its own left to run. Put the timer on the
     source and a killed Drummer's buff would either hang forever or vanish
     instantly.
+  - **The same ledger carries DEBUFFS since BU-3 3.3** — see "Slows are
+    `BuffState` too" below (D19). A slow is one NEGATIVE `move_speed`
+    contribution keyed by a plain slot string instead of a `GameObject.id`,
+    carrying its own explicit `decay` instead of `BUFF_DECAY_SECONDS`.
+    Everything in this section applies to it unchanged, and nothing on the
+    aura path had to learn about it — which is exactly why D19 chose to widen
+    this ledger rather than build a parallel status-effect mechanism.
 - **`_grant_hp(delta)` is the ONE place `Health` is touched**, both
   directions, which is what makes grant and un-grant provably symmetric (D6):
   a positive delta raises `max_hp` AND `hp` by the same amount (a real heal,
@@ -926,6 +933,19 @@ per-source keying, additive stacking and per-source decay applies unchanged.
   enemy must read as one slow, or a bombardment stacks into a full stop. The
   upgrade's own repeat PICKS still stack additively (D4), inside the fraction
   the caller computes.
+- **`buff_signs(owner, key)` is the READ side the HUD indicators gate on**, and
+  it is `buff_total`'s deliberate opposite: it returns `(has_positive,
+  has_negative)` by walking the individual `BuffState.sources` contributions,
+  **never by taking the sign of their sum**. A netted total can only ever carry
+  ONE sign, so an enemy inside a Drummer's aura AND under a mortar slow would
+  show only whichever effect won the subtraction (and nothing at all on an
+  exact cancel) — but that is a real, legible state and the gold buff arrow and
+  the red debuff arrow are meant to show TOGETHER for it (D20 follow-up,
+  `game/ui/CLAUDE.md`). `buff_total` stays THE read path for a buffed STAT's
+  value; `buff_signs` is only for "is something pushing this stat up / down".
+  Same `(False, False)`/no-`BuffState` guard, keyed on the STAT and never on
+  who applied it — anything that ever slows an enemy lights the indicator for
+  free.
 - **`MIN_SPEED_MULTIPLIER` (0.1) is the floor on that multiplier**, and it is
   load-bearing for exactly the reason BP-1's own terrain floor is: a unit at
   speed 0 never advances `Movement.index`, which is the only thing that

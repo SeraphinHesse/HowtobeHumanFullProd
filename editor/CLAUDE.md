@@ -400,6 +400,18 @@ registry category and is in no domain, so `domains()` and `refresh_markers()`
 already skip it with no special case. It is the LAST top-level item, added
 outside the category loop; `right_stack` index 8.
 
+**There is now a SECOND top-level item on exactly this pattern**, and it is the
+one to copy from if you add a third: BossUpgradeTimelinePLAN BU-5's **"Bosses"**
+branch (D11), a top-level PARENT with one leaf ("Boss Upgrade Timeline") over
+`data/balancing/boss_upgrades.json`. Same reasoning end to end — a boss upgrade
+is not a `slots.json` slot and there is no `bosses` balancing domain, so the
+leaf emits `boss_upgrades_selected` **alone** (never `node_selected`, never
+`domain_selected`) and its placeholder `category_key` (`"bosses"`) matches no
+registry category, so `domains()`/`refresh_markers()` skip it for free. It is
+inserted outside the category loop immediately BEFORE Master Sheets, which
+stays last; `right_stack` index 9, panel `panels/boss_upgrades.py`, pure ops
+`boss_upgrades_ops.py` (above). Panel detail → `editor/panels/CLAUDE.md`.
+
 **One panel, three verbs.** `reload_sheets()` re-reads
 `master_sheet_import.master_sheets(data_dir)` — REGISTRY-driven, never a folder
 glob — on entry (`_on_master_sheets_selected`, the reload-on-entry convention).

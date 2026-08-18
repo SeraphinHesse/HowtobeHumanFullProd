@@ -1756,11 +1756,11 @@ The Timeline panel's sibling one document over (`data/balancing/
 boss_upgrades.json`): a browse list of the 12 boss-upgrade cards on the left,
 a 4×3 milestone grid on the right, staged edits through the pure
 `editor/boss_upgrades_ops.py`, ONE "Save Boss Upgrades" button as the sole
-`write_validated` call site. Everything the Timeline bullets above say about
-drag-and-drop applies verbatim (a custom MIME type — here
-`application/x-htbh-boss-upgrade` carrying the bare upgrade id — `_SlotWidget.
-dropEvent` accepting only that type, and a drop onto an occupied slot
-replacing it with no confirmation, D10). Four things are genuinely different:
+`write_validated` call site. The Timeline bullets above describe the DROP side
+verbatim (a custom MIME type — here `application/x-htbh-boss-upgrade` carrying
+the bare upgrade id — `_SlotWidget.dropEvent` accepting only that type, and a
+drop onto an occupied slot replacing it with no confirmation, D10); the drag
+SOURCE differs, and so do five other things:
 - **Selection is a TOP-LEVEL "Bosses" branch (D11)**, not a leaf under a
   category — `boss_upgrades` is deliberately not a `slots.json` category (the
   `progression` precedent), and a boss upgrade is not a building. So its
@@ -1786,6 +1786,19 @@ replacing it with no confirmation, D10). Four things are genuinely different:
   A card edit deliberately does NOT rebuild the card (that would destroy the
   widget being typed into — `set_level_round`'s rule); only the milestone
   slots, which display the name, refresh.
+- **The drag source is a dedicated `_DragHandle` widget, not the card** — a
+  fixed-width `⠿⠿⠿` grip to the LEFT of every browse card, whose OWN
+  `mousePressEvent`/`mouseMoveEvent` start the `QDrag`. The Timeline panel
+  starts its drag from `_BrowseCard`'s own `mousePressEvent` and gets away
+  with it only because an icon plus a read-only caption cover a small
+  fraction of that card; here inline-editable `QLineEdit`s and spins cover
+  nearly all of it. **A child widget does NOT forward an unhandled mouse
+  press to its parent** — Qt auto-propagates only a handful of event types
+  that way (wheel, context-menu), and mouse press/move are not among them.
+  This panel originally shipped a "drag the header `QLabel`" design built on
+  that false assumption, with a doc comment asserting the propagation; it
+  silently never worked, and the fix was a widget that IS the drag source
+  rather than one relying on bubbling. Do not "simplify" it back.
 - **A placed card stays draggable.** Timeline DISABLES an already-placed
   browse card because a duplicate there is a Save-time `ValueError`. Here the
   roster is a fixed 12 and moving an upgrade between milestones is the normal
