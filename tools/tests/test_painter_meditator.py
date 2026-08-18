@@ -12,11 +12,13 @@ REPO = Path(__file__).resolve().parents[2]
 from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine import tilemap
-from engine.core import Health, Scene
+from engine.core import Health, Scene, SpriteAnimator
 from engine.physics import TileOccupancy
 from game.buildings import BaseBuilding, attach_base, place_building
-from game.buildings.components import RoundStats, YieldEconomy
+from game.buildings.components import (PainterProgress, RoundStats,
+                                       YieldEconomy)
 from game.buildings.meditator import Meditator
+from game.buildings.painter import Painter, set_art_slots
 from game.buildings.registry import PlacementError
 from game.core import RunState, Session, load_balance, run_payday
 from game.core.phases import GamePhase
@@ -217,6 +219,94 @@ class TestPainterThroughSession(unittest.TestCase):
         self.assertIsNone(occ.get((1, 0)))                  # occupancy cleared
         self.assertIn((1, 0), session.state.used_painter_tiles)
         self.assertNotIn(painter, scene.by_tag("building"))  # despawned
+
+
+class TestPainterProgressArt(unittest.TestCase):
+    """The Painter's art tracks the PAINTING, not the upgrade level."""
+
+    def tearDown(self):
+        set_art_slots(None)      # the seam is process-global
+
+    def painter(self):
+        return Painter(0, 0, BUILD)
+
+    def test_art_stage_follows_progress_not_level(self):
+        p = self.painter()
+        for progress in range(3):        # tier 1: rounds_to_payout == 3
+            p.get_component(PainterProgress).progress = progress
+            self.assertEqual(p.slot_key(), f"painter_t1_lvl{progress + 1}")
+
+    def test_upgrading_does_not_repaint(self):
+        """An INVEST buys payout, not visible work — the art must not move."""
+        p = self.painter()
+        before = p.slot_key()
+        self.assertTrue(p.upgrade())
+        self.assertEqual(p.slot_key(), before)
+        self.assertGreater(p.payout_amount(), Painter(0, 0, BUILD).payout_amount())
+
+    def test_progress_past_the_last_stage_clamps(self):
+        p = self.painter()
+        p.get_component(PainterProgress).progress = 99
+        self.assertEqual(p.slot_key(), "painter_t1_lvl3")
+
+    def test_tier_advance_keeps_progress_and_moves_the_prefix(self):
+        p = self.painter()
+        p.get_component(PainterProgress).progress = 2
+        self.assertTrue(p.advance_tier())
+        self.assertEqual(p.progress, 2)                 # kept
+        self.assertEqual(p.slot_key(), "painter_t2_lvl3")
+        self.assertEqual(p.art_stages(), 4)             # tier 2 paints longer
+
+    def test_unimported_stage_falls_back_to_the_highest_lower_one(self):
+        p = self.painter()
+        self.assertTrue(p.advance_tier())
+        self.assertTrue(p.advance_tier())               # Art Factory, 6 stages
+        p.get_component(PainterProgress).progress = 4   # -> lvl5
+        set_art_slots({"painter_t3_lvl1", "painter_t3_lvl3"})
+        self.assertEqual(p.slot_key(), "painter_t3_lvl3")
+        # Nothing imported in this tier at all: the computed key stands, and
+        # E-37 draws the placeholder rather than another tier's art.
+        set_art_slots({"painter_t1_lvl1"})
+        self.assertEqual(p.slot_key(), "painter_t3_lvl5")
+
+    def test_payday_repaints_without_healing(self):
+        """Payday slot 6 must refresh the canvas — and must NOT full-heal.
+
+        The slot the animator is DRAWING from is what matters here, not what
+        `slot_key()` would compute: nothing else re-derives it between
+        paydays (`apply_tier_stats` is the only other writer, and it heals)."""
+        tm, scene, occ = board(["bb"])
+        st = run_state(unlocked=("painter",))
+        painter, _ = place_building(tm, tm.get(1, 0), "painter", 9999, BUILD,
+                                    scene, occ, state=st)
+        anim = painter.get_component(SpriteAnimator)
+        self.assertEqual(anim.slot_key, "painter_t1_lvl1")
+        run_payday(st, tm, CORE, occ, scene)
+        self.assertEqual(anim.slot_key, "painter_t1_lvl2")        # canvas moved
+
+    def test_refreshing_the_canvas_never_heals(self):
+        """`refresh_slot_key` is the NON-healing writer — payday calls it every
+        round, and `apply_tier_stats` (which sets hp = max_hp, prototype-exact)
+        would hand a Painter a free full heal per payday."""
+        p = self.painter()
+        p.get_component(Health).damage(5)
+        hurt = p.get_component(Health).hp
+        p.get_component(PainterProgress).progress = 1
+        p.refresh_slot_key()
+        self.assertEqual(p.get_component(SpriteAnimator).slot_key,
+                         "painter_t1_lvl2")
+        self.assertEqual(p.get_component(Health).hp, hurt)
+
+
+class TestPainterActionLabel(unittest.TestCase):
+    """The panel's in-tier action verb is the LEAF's to name (G-3: no
+    `building_type ==` branch in `game/ui`)."""
+
+    def test_painter_says_invest_and_nothing_else_does(self):
+        self.assertEqual(Painter.ACTION_UPGRADE_KEY, "building.action.invest")
+        self.assertEqual(Painter.ACTION_UPGRADE_MANY_KEY,
+                         "building.action.invest_many")
+        self.assertEqual(Meditator.ACTION_UPGRADE_KEY, "building.action.upgrade")
 
 
 if __name__ == "__main__":

@@ -333,6 +333,23 @@ def _stat_label(key):
     return T(f"building.stat.{key}")
 
 
+def _action_upgrade_key(*buildings, many=False):
+    """The string id for the panel's IN-TIER upgrade button.
+
+    Each leaf declares its own verb via `Building.ACTION_UPGRADE_KEY` /
+    `ACTION_UPGRADE_MANY_KEY` (the Painter's INVEST is the only override
+    today). With several buildings, they must ALL agree — one button carries
+    one label, and a mixed selection has no single honest verb, so it falls
+    back to the shared default. `getattr` rather than a bare attribute read:
+    the base building and the construct-preview stand-ins are not always full
+    `Building`s."""
+    attr = "ACTION_UPGRADE_MANY_KEY" if many else "ACTION_UPGRADE_KEY"
+    default = ("building.action.upgrade_many" if many
+               else "building.action.upgrade")
+    keys = {getattr(b, attr, default) for b in buildings}
+    return keys.pop() if len(keys) == 1 else default
+
+
 def _tier_name(b):
     """The building's current-tier display name from balancing (e.g. "Cave
     Painter"), not the art-slot prefix — so tiers that reuse another line's art
@@ -1688,7 +1705,11 @@ class BuildingUI:
             if upgrade_targets:
                 cost = sum(c for _, c in upgrade_targets)
                 mode = "in_tier"
-                label = T("building.action.upgrade_many",
+                # A batch reads INVEST ×n only when EVERY selected building
+                # names its upgrade that way; any mixed selection falls back to
+                # the shared default, since one label has to cover them all.
+                label = T(_action_upgrade_key(
+                              *(b for b, _ in upgrade_targets), many=True),
                           n=len(upgrade_targets), cost=cost)
                 hint = None
             else:
@@ -1871,7 +1892,12 @@ class BuildingUI:
             self._session.progression_balance,
             self._session.boss_upgrades_balance)  # BU-3 #2 wall_cost_discount
         if mode == "in_tier":
-            return mode, cost, T("building.action.upgrade", cost=cost), None
+            # The verb is the BUILDING's to name: a Painter's upgrade buys
+            # payout rather than visible painting, so it reads INVEST. A class
+            # attribute on the leaf (`Building.ACTION_UPGRADE_KEY`) rather than
+            # a `building_type ==` branch here, so `game/ui` stays free of the
+            # per-line vocabulary (G-3).
+            return mode, cost, T(_action_upgrade_key(b), cost=cost), None
         if mode == "tier_upgrade":
             return mode, cost, T("building.action.advance",
                                  name=next_name.upper(), cost=cost), None
