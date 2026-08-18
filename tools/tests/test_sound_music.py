@@ -153,6 +153,22 @@ class TestCutsceneStack(unittest.TestCase):
                                        ("pop", None)])
 
 
+    def test_teardown_during_a_cutscene_does_not_strand_the_next_one(self):
+        # quit-to-menu mid-cutscene never reaches the host's release() edge;
+        # `teardown_gameplay()` balances the stack instead. Without that, the
+        # director stays "in cutscene" forever: the NEXT cutscene's push is
+        # silently skipped while its pop still fires.
+        d, music, _sfx = _director()
+        d.enter_cutscene(None)
+        d.leave_cutscene()              # stands in for teardown_gameplay()
+        d.enter_cutscene(None)          # the next legitimate cutscene
+        d.leave_cutscene()
+        self.assertEqual(music.calls, [("push", "cutscene.wav"),
+                                       ("pop", None),
+                                       ("push", "cutscene.wav"),
+                                       ("pop", None)])
+
+
 class TestGameEvents(unittest.TestCase):
     def test_round_outcome(self):
         self.assertEqual(round_outcome(3, 3), "win")

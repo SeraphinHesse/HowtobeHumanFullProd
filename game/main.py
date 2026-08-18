@@ -1184,6 +1184,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         set_boss_upgrade_pair()
         if tune_gc:
             gc.unfreeze()  # let the old world's tile grid become collectable
+        # -- SD-7: a quit-to-menu DURING a cutscene never reaches the host's
+        # `release()` edge below, so the director's push would strand: it
+        # would stay "in cutscene" for the rest of the process, silently
+        # no-opping the NEXT cutscene's push while still popping. Balance it
+        # here — idempotent, so a teardown outside a cutscene does nothing. --
+        director.leave_cutscene()
         for k in ("world", "hud", "panel", "floaters", "game_over", "levelup",
                   "boss_cutscene", "enemy_intro", "cheat", "overlays",
                   "game_log", "cutscene", "tutorial", "tutorial_message"):
