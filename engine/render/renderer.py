@@ -251,7 +251,8 @@ class Renderer:
                         points=item.points, color=item.color,
                         width=item.width, closed=item.closed))
                 continue
-            frame = self._assets.frame(item.slot_key, item.animation, item.anim_time_ms)
+            frame = self._assets.frame(item.slot_key, item.animation,
+                                       item.anim_time_ms, column=item.column)
             # Multi-tile units are ADDRESSED by their anchor tile but DRAWN on
             # their block centre. Note this shifts the blit only — depth_key
             # (above) still sorts on the raw world_pos, or draw order would move

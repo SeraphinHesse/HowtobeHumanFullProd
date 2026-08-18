@@ -47,6 +47,7 @@ from .components import (
     _HUNT_QUERIES, BURROW_SUBMERGED, BuffState, BurrowAgent, DeathSpawn,
     DrummerAura, EnemyCombat, Kidnap, PathAgent,
 )
+from .crowd_spacing import CrowdSpacing
 
 # spawn_counts key -> the etype it spawns. The ORDER is load-bearing twice
 # over: it fixes how many draws a death burst takes from the injected `rng`
@@ -243,13 +244,20 @@ class Enemy(GameObject):
         The ONE seam for "a type needs a mechanism nothing else has", so a
         subclass never has to reimplement ``__init__`` just to add one
         component (and never has to re-derive the era/stat/fit resolution it
-        would have to copy to do that). Base: nothing — every stock type is
-        exactly the shared list.
+        would have to copy to do that). Base: Standard/Walker and Raider
+        carry ``CrowdSpacing`` (feature: tile-crowding visual offset,
+        ``game/enemies/crowd_spacing.py`` — each type groups only with its
+        own kind, off its own ``data/balancing/enemies.json``
+        ``CrowdSpacing.<Type>`` block) — every other stock type is exactly
+        the shared list, since ``cls.ETYPE`` differs for all of them and
+        this needs no per-subclass override to stay scoped that way.
 
         Kept a ``classmethod`` beside ``resolve_fit``/``endgame_factors``: it
         reads only the already-resolved balancing ``block``, and it is called
         BEFORE ``GameObject.__init__`` has run, so it must not touch instance
         state."""
+        if cls.ETYPE in ("standard", "raider"):
+            return (CrowdSpacing(),)
         return ()
 
     # -- render fit / footprint (BR-1 seam) --------------------------------

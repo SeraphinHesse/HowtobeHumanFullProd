@@ -13,6 +13,8 @@ currency mutation).
 """
 from dataclasses import dataclass, field
 
+from engine.era_math import era_of_round
+
 from .phases import GamePhase, GameState
 
 
@@ -21,6 +23,14 @@ class RunState:
     phase: GamePhase = GamePhase.BUILDING
     state: GameState = GameState.GAMEPLAY
     round_num: int = 1
+    # -- N1: the season clock -----------------------------------------------
+    # 0-based ground-art season index, derived from ``round_num`` by
+    # ``update_season`` (never set by hand). ``0`` is a REAL season — the first
+    # one — not "unset": a fresh run is round 1, which is season 0, so the
+    # default already agrees with the derived value and ``from_balance`` needs
+    # no season seeding. Round 0 (the tutorial round) is season 0 too, via
+    # ``era_of_round``'s ``round_num < 1`` guard.
+    season: int = 0
     love: int = 0
     base_lives: int = 0
     phase_timer: float = 0.0
@@ -198,6 +208,23 @@ class RunState:
     # queue drains.
     pending_enemy_intros: list = field(default_factory=list)
     # -- /feature-enemy-intro-dialogue --
+    # -- Payout-phase sequencing: love-counter checkpoints ------------------
+    # Two transient values `run_payday` stamps at its step 12 (never
+    # serialized, the `pending_boss_cutscene` precedent), so the UI's payout
+    # beat queue (`FloaterManager.begin_payout`) can animate the HUD love
+    # counter in the two segments the player actually sees: up while the
+    # economy beat's floaters show, down while the upkeep beat's do.
+    # `payout_love_start` is `love` at the very top of `run_payday` (before
+    # story/base/yield/upkeep/painter all ran this round);
+    # `payout_love_after_economy` is what `love` was right after story +
+    # base income + economy yield + the Painter payout, i.e. before upkeep
+    # was deducted — recovered as `love + total_upkeep` since upkeep runs
+    # before this snapshot is taken. The real, final total stays plain
+    # `love` — these two are read-only checkpoints, nothing else in the game
+    # consults them.
+    payout_love_start: float = 0.0
+    payout_love_after_economy: float = 0.0
+    # -- /Payout-phase sequencing --
 
     @classmethod
     def from_balance(cls, core_balance, buildings_balance):
@@ -225,3 +252,17 @@ class RunState:
 
     def spend_love(self, amount):
         self.love = max(0, self.love - amount)
+
+    def update_season(self, rounds_per_season):
+        """Recompute ``season`` from ``round_num``; True iff it CHANGED.
+
+        The bool is the caller's invalidate trigger: the host repaints its
+        cached ground layer only when the season actually turns, not on every
+        round edge. No new math — ``era_of_round`` IS the season formula (D7),
+        so the era clock and the season clock cannot drift apart.
+        """
+        new = era_of_round(self.round_num, rounds_per_season)
+        if new == self.season:
+            return False
+        self.season = new
+        return True

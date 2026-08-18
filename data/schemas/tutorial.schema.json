@@ -96,7 +96,7 @@
     },
     "messages": {
       "additionalProperties": false,
-      "description": "The three message-box/banner texts the tutorial shows, keyed by id (closed set - the step structure is fixed, only these texts are editor-editable).",
+      "description": "The four message-box/banner texts the tutorial shows, keyed by id (closed set - the step structure is fixed, only these texts are editor-editable).",
       "properties": {
         "close_panel_hint": {
           "description": "Non-modal banner text shown while the panel's own CLOSE button is highlighted after the guided flute placement (TU-8) -- resolved via a step's flags.banner key, never the modal message field.",
@@ -112,12 +112,18 @@
           "description": "Second message box: explains the 3 lives / destroyed-economy / defence buildings after the scripted first loss.",
           "minLength": 1,
           "type": "string"
+        },
+        "tile_buying_intro": {
+          "description": "Third message box: introduces the tile-buying topic after the first stone thrower is placed -- explains that range is finite and the adjacent tile needs its own defender.",
+          "minLength": 1,
+          "type": "string"
         }
       },
       "required": [
         "close_panel_hint",
         "economy_intro",
-        "lives_intro"
+        "lives_intro",
+        "tile_buying_intro"
       ],
       "type": "object"
     },

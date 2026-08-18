@@ -120,6 +120,21 @@ class TestBalancingFiles(unittest.TestCase):
                         self.assertIn("maximum", prop)
 
 
+class TestSeasonClock(unittest.TestCase):
+    """N1: the season clock's one tunable, read the way the game reads it."""
+
+    def test_rounds_per_season_ships_validated_with_a_minimum_of_one(self):
+        data_path, schema_path = paths("core")
+        doc = data_io.load_validated(data_path, schema_path)
+        # Indexing, never .get(): a schema-REQUIRED key must fail loud (D-2),
+        # exactly as game/main.py reads it on the round edge.
+        self.assertIsInstance(doc["Seasons"]["rounds_per_season"], int)
+        schema = data_io.load_json(schema_path)
+        self.assertIn("Seasons", schema["required"])
+        leaf = schema["properties"]["Seasons"]["properties"]["rounds_per_season"]
+        self.assertEqual(leaf["minimum"], 1)
+
+
 class TestSchemaRejections(unittest.TestCase):
     def test_unknown_key_rejected_at_top_level(self):
         for domain in DOMAINS:

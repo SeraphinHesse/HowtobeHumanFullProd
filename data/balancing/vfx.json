@@ -86,6 +86,7 @@
         255,
         255
       ],
+      "income_life": 2.6,
       "painter_finished_color": [
         255,
         255,
@@ -111,20 +112,20 @@
     },
     "gold_highlight": {
       "border_color": [
-        255,
-        240,
-        80
+        222,
+        158,
+        65
       ],
       "border_width": 2,
-      "fade_in": 0.15,
+      "fade_in": 1.0,
       "fill_alpha": 90,
       "fill_color": [
-        255,
-        215,
-        0
+        232,
+        193,
+        112
       ],
-      "hold": 0.35,
-      "life": 1.2
+      "hold": 0.15,
+      "life": 2.0
     },
     "highlights": {
       "attack_range": {
@@ -359,11 +360,18 @@
       ],
       "jitter": 0.6,
       "radius_px": 4.0
+    },
+    "tutorial_highlight_pulse": {
+      "alpha_max": 255,
+      "alpha_min": 140,
+      "pulse_period_s": 0.8,
+      "width_max": 4,
+      "width_min": 2
     }
   },
   "triggers": {
     "attack_range": {
-      "draw_in_front": true,
+      "draw_in_front": false,
       "procedural": "highlight",
       "sprite_slot": "",
       "variant_select": {
@@ -392,7 +400,7 @@
     "building_placed": {
       "draw_in_front": true,
       "procedural": "spark_place",
-      "sprite_slot": "",
+      "sprite_slot": "vfx_respawn",
       "variant_select": {
         "misc_key": "",
         "mode": "random"
@@ -401,7 +409,7 @@
     "building_respawn": {
       "draw_in_front": true,
       "procedural": "spark_respawn",
-      "sprite_slot": "",
+      "sprite_slot": "vfx_respawn",
       "variant_select": {
         "misc_key": "",
         "mode": "random"
@@ -462,25 +470,25 @@
       }
     },
     "projectile_hit": {
-      "draw_in_front": true,
+      "draw_in_front": false,
       "procedural": "",
-      "sprite_slot": "vfx_crater",
-      "variant_select": {
-        "misc_key": "",
-        "mode": "random"
-      }
-    },
-    "section_2x2": {
-      "draw_in_front": true,
-      "procedural": "highlight",
       "sprite_slot": "",
       "variant_select": {
         "misc_key": "",
         "mode": "random"
       }
     },
+    "section_2x2": {
+      "draw_in_front": false,
+      "procedural": "highlight",
+      "sprite_slot": "vfx_section_2x2",
+      "variant_select": {
+        "misc_key": "",
+        "mode": "random"
+      }
+    },
     "splash_impact": {
-      "draw_in_front": true,
+      "draw_in_front": false,
       "procedural": "crater",
       "sprite_slot": "vfx_crater",
       "variant_select": {
@@ -491,14 +499,14 @@
     "tile_selected": {
       "draw_in_front": false,
       "procedural": "highlight",
-      "sprite_slot": "",
+      "sprite_slot": "vfx_tile_selected",
       "variant_select": {
         "misc_key": "",
         "mode": "random"
       }
     },
     "tutorial_highlight": {
-      "draw_in_front": true,
+      "draw_in_front": false,
       "procedural": "highlight",
       "sprite_slot": "",
       "variant_select": {

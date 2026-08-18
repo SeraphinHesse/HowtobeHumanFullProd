@@ -6,6 +6,17 @@ a synth ``TileMapDoc`` -> ``TileMap`` fixture + real balancing via
 timing: a map with NO spawn tile makes every wave empty (rounds still complete
 BUILDING -> ENEMY -> ROUND_END -> INCOME -> BUILDING), and base-breach logic is
 exercised through the same ``on_base_hit`` callback the combat sweep calls.
+
+Every payout-sequencing assertion below DERIVES its expected ``phase_timer``
+from ``PHASE["payout_stagger_interval"]`` / ``PHASE["income_phase_duration"]``
+rather than restating either as a literal — a hardcoded timing number is what
+this suite's pinned fixture exists to make impossible. The payday-split branch
+that added them also shipped a blanket ``fixture_data.py --refresh``; that
+refresh was reverted during the Development merge-down (it had captured
+unrelated designer edits to progression/enemies/XP and reddened 16 level-up
+tests), leaving the fixture carrying ONLY this feature's three new keys:
+``PhaseLoop.payout_stagger_interval``, ``FX.love_counter_anim_duration`` and
+``procedural.floaters.income_life``.
 """
 import json
 import subprocess
@@ -98,6 +109,33 @@ class TestRunState(unittest.TestCase):
         st.add_love(7)
         self.assertEqual(st.love, 7)
 
+    def test_season_advances_once_per_n_rounds(self):
+        """N1: season 0 by default, and walking rounds 1..25 at
+        rounds_per_season=10 turns the season at 11 and 21 and nowhere else."""
+        st = RunState()
+        self.assertEqual(st.season, 0)   # 0 is a REAL season, not "unset"
+        seen = {}
+        for r in range(1, 26):
+            st.round_num = r
+            st.update_season(10)
+            seen[r] = st.season
+        self.assertEqual([r for r in range(2, 26) if seen[r] != seen[r - 1]],
+                         [11, 21])
+        self.assertEqual((seen[1], seen[10], seen[11], seen[20], seen[21]),
+                         (0, 0, 1, 1, 2))
+
+    def test_update_season_returns_true_only_on_the_change_round(self):
+        """N1: that bool IS the ground-cache invalidate trigger in
+        ``game/main.py`` — True only when the season actually turns, so the
+        cached ground layer is repainted on the crossing and never otherwise."""
+        st = RunState()
+        changed = []
+        for r in range(1, 26):
+            st.round_num = r
+            if st.update_season(10):
+                changed.append(r)
+        self.assertEqual(changed, [11, 21])
+
 
 # ---------------------------------------------------------------------------
 # Payday ordering (prototype _begin_income_phase)
@@ -157,6 +195,62 @@ class TestPayday(unittest.TestCase):
         base.get_component(Health).hp = 0
         run_payday(RunState.from_balance(CORE, BUILD), tm, CORE)
         self.assertFalse(base.alive)  # base excluded from the revive sweep
+
+    def test_upkeep_zero_building_appends_no_income_events_entry(self):
+        # Regression: a building whose upkeep() is 0 (a fresh tier-1
+        # defender by default balance) must never reach income_events —
+        # the payout phase's UI beat queue relies on this to skip it.
+        tm, musician, defender = self._board()
+        self.assertEqual(defender.upkeep(), 0)
+        st = RunState.from_balance(CORE, BUILD)
+
+        run_payday(st, tm, CORE)
+
+        self.assertFalse(any(kind == "upkeep" for *_, kind in st.income_events))
+
+    def test_phase_timer_boost_absent_upkeep_absent_is_the_bare_hold(self):
+        # No boost building, and a fresh defender's upkeep is 0 -> only the
+        # economy beat fires -> phase_timer is the bare post-last-beat hold,
+        # no stagger interval added.
+        tm, _musician, _defender = self._board()
+        st = RunState.from_balance(CORE, BUILD)
+
+        run_payday(st, tm, CORE)
+
+        self.assertAlmostEqual(st.phase_timer, PHASE["income_phase_duration"])
+
+    def test_phase_timer_grows_by_one_stagger_per_extra_beat(self):
+        # A boost building (nonzero upkeep by default balance, and it emits
+        # a per-turn boost_events entry onto its adjacent defender) makes
+        # all three beats fire: phase_timer = 2 stagger intervals + the
+        # bare hold.
+        tm, scene, occ = build_board(["bbbb"])
+        place_building(tm, tm.get(1, 0), "boost_speed", 9999, BUILD, scene, occ)
+        place_building(tm, tm.get(2, 0), "defence", 9999, BUILD, scene, occ)
+        st = RunState.from_balance(CORE, BUILD)
+
+        run_payday(st, tm, CORE)
+
+        self.assertTrue(st.boost_events)
+        self.assertTrue(any(kind == "upkeep" for *_, kind in st.income_events))
+        self.assertAlmostEqual(
+            st.phase_timer,
+            2 * PHASE["payout_stagger_interval"] + PHASE["income_phase_duration"])
+
+    def test_payout_love_checkpoints_bracket_the_upkeep_deduction(self):
+        tm, scene, occ = build_board(["bbbb"])
+        place_building(tm, tm.get(1, 0), "boost_speed", 9999, BUILD, scene, occ)
+        place_building(tm, tm.get(2, 0), "defence", 9999, BUILD, scene, occ)
+        st = RunState.from_balance(CORE, BUILD)
+        love0 = st.love
+
+        run_payday(st, tm, CORE)
+
+        total_upkeep = sum(-amount for _col, _row, amount, kind
+                           in st.income_events if kind == "upkeep")
+        self.assertEqual(st.payout_love_start, love0)
+        self.assertEqual(st.payout_love_after_economy, st.love + total_upkeep)
+        self.assertGreater(st.payout_love_after_economy, st.love)  # upkeep > 0
 
 
 # ---------------------------------------------------------------------------

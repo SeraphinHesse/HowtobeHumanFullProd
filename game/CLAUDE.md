@@ -257,7 +257,58 @@ preset names (D5).
   above, so spawner, movement and combat never desync. Never scale the
   ROUND_END/INCOME timers. Keys (gameplay, ENEMY phase only): `1`/`2`/`3` =
   1×/1.5×/2× (round-gated inside `Session`), bare `P` = quick-skip the wave. The
-  matching HUD buttons + the lives-faces readout are **10L**.
+  matching HUD buttons + the lives-faces readout are **10L**. Both are
+  REBINDABLE (below) — numpad `1`/`2`/`3` stay a fixed always-on alias
+  alongside the rebindable primary key, since rebinding only ever changes
+  which primary key fires the action.
+- **Rebindable hotkeys (feature: rebindable hotkeys)**: every gameplay hotkey
+  dispatches through `key_bindings[action]` (a live dict built at boot from
+  `ui.json`'s `Keybindings` group + any player rebind in
+  `scores/keybindings.json`, `engine.input.load_keybindings`) compared
+  against `_binding_key_name(event)` — the pygame-keycode-to-neutral-string
+  translator beside `_key_name`. 18 actions: `end_turn` (Space), combat speed
+  ×3 (`1`/`2`/`3`), `quick_skip_combat` (`P`), `toggle_cheat_menu` (Ctrl+L),
+  `toggle_heatmap`/`toggle_range`/`toggle_tier_overview` (H/R/T, the same
+  flip `MapOverlays.hit()` does for their pills), `toggle_drag_select` (Q,
+  the same flip the DRAG SEL HUD button does), `confirm_purchase` (Enter —
+  only while a construct/move preview is open, routed through the SAME
+  public `panel.handle_click` a mouse click on CONFIRM uses, aimed at that
+  button's own centre, so keyboard and mouse can never disagree),
+  `zoom_level_1`/`_2`/`_3` (`4`/`5`/`6` — an ABSOLUTE jump to the data-driven
+  `core.json Camera.zoom_levels[i]`, sorted ascending, via the new
+  `set_zoom_level(cs, index, view_w, view_h)`, `step_zoom`'s sibling sharing
+  its `_recenter_zoom` recentring body; a no-op if that index doesn't exist,
+  the combat-speed round-gate precedent), and `move_up`/`_down`/`_left`/
+  `_right` (WASD — camera panning). Esc, F12 and text-editing keys
+  (Backspace/arrows/Enter-while-typing-a-name) stay fixed system conventions,
+  never rebindable. The in-game Settings → Controls screen
+  (`game/ui/keybinds_screen.py`, `game/ui/CLAUDE.md`) surfaces 16 of the 18
+  `Keybindings` actions for player rebinding; `toggle_cheat_menu` (a hidden
+  dev feature) and `quick_skip_combat` (a testing convenience) are
+  deliberately excluded from that screen but keep dispatching normally.
+  Rebind capture (Esc cancels, a collision flashes, otherwise the key is
+  written + persisted) is host-only logic (`main.py`'s `_handle_capture_key`)
+  since `game/ui` must stay pygame-free.
+- **WASD/arrow-key camera panning (feature: rebindable hotkeys)** is the ONE
+  action group that is POLLED every frame (`pygame.key.get_pressed()`, right
+  after the event loop, the `skip_held` cutscene precedent) rather than
+  KEYDOWN-dispatched — panning must happen continuously while held, not once
+  per press. `_binding_pygame_key(binding)` is the REVERSE of
+  `_binding_key_name`: a binding string -> the pygame keycode to poll (a
+  single alnum char resolves via `ord()`, a named key via the same lookup
+  table `_binding_key_name` uses); `_binding_held(binding, keys_pressed)`
+  wraps it with the `ctrl+`-modifier check. The 4 arrow keys ALWAYS pan too —
+  a fixed always-on alias outside the rebindable set, exactly like numpad
+  1/2/3 beside the rebindable combat-speed keys — so rebinding `move_up` only
+  ever changes W. Speed is `core.json Camera.keyboard_pan_speed` (SCREEN
+  pixels/second, zoom-independent — matching mouse-drag panning's own raw
+  1:1-pixel behaviour, `cs.pan(-event.rel[0], -event.rel[1])`; a drag never
+  scales by zoom either). **Gated exactly like mouse drag-panning**: only
+  while `shell.state in _WORLD_STATES` (GAMEPLAY/GAME_OVER), never while
+  `session.frozen` (LEVELUP/BOSS_CUTSCENE/ENEMY_INTRO), the cheat menu is
+  open, a construct/move preview modal has focus (which also captures typed
+  characters — WASD must not leak into a name field), or the upgrade panel's
+  rename row is capturing keys.
 - **10J host wiring**: the BUILDING click branch runs the shift multi-select
   (`update_selection` + `gp["sel"]`/`gp["sel_cat"]`); `panel.name_editing`
   routes keys to the upgrade-panel rename row before the shortcut keys;
@@ -537,6 +588,65 @@ did change — see the fixed callouts above).
   `TutorialDirector`/`TutorialSequencer` change; the script's step ids/event
   feed are unaffected, only which literal round they fire on shifted down by
   one.
+
+## Tile-buying tutorial topic + pulsing highlights (feature)
+A third chain appended to the SAME `data/tutorial/tutorial.json` step list
+TU-6/TU-7 built, right after round-2's stone-thrower placement: a message,
+a forced click on the map doc's new `tutorial_unlock` marker (a locked
+COMBAT tile), a forced click on the panel's unlock action button, then the
+existing flute/stone forced-placement pattern again pointed at a second new
+marker, `tutorial_stone_2` (the far corner of the newly-bought chunk) —
+teaching that a defender's range is finite and an adjacent tile needs its
+own coverage. Becomes the script's new terminal chain; no new engine code,
+same "past the last step" semantics TU-7 relies on.
+- **The one genuinely new mechanic: buying a tile was previously ungated by
+  the tutorial entirely** (`main.py`'s `_tutorial_allows_panel_click`
+  used to fall through `unlock/upgrade/base_info modes: untouched by TU-6`
+  for every unlock-panel click). It now gates `panel.mode == "unlock"`
+  clicks on `panel.action_btn` through a new `tutorial.allows(("unlock",))`
+  action kind, exactly like the construct-card branch above it.
+- **`TutorialDirector` gains one new event-feed method, `on_tile_unlocked()`**
+  → `sequencer.advance("tile_unlocked")`. No marker-name parameterization —
+  the step's own `allow` whitelist already guarantees only the correct
+  chunk's unlock button can be clicked while it holds. Fed from a new
+  `BuildingUI.last_unlocked` transient bool (the `last_placed_type`
+  read/clear precedent exactly): `_unlock_click` sets it `True` on a real
+  `tm.do_unlock` success, `main.py` reads/clears it right after a successful
+  `panel.handle_click()` in the panel's "normal branch" (the same call site
+  that already reads `last_placed_type` for card selection and
+  `was_visible and not panel.visible` for `on_panel_closed()` — the unlock
+  check runs BEFORE that fallback, since a successful unlock also closes the
+  panel and would otherwise misread as a bare close).
+- **`BuildingUI.action_rect()`** (new, mirrors `close_rect()`) resolves the
+  `"button:unlock"` highlight id for `ui_highlight_rects` — gated on
+  `self.mode == "unlock"` since `action_btn` is reused across
+  unlock/construct-advance/upgrade modes and must never highlight the wrong
+  one.
+- **Two new map markers**, `tutorial_unlock`/`tutorial_stone_2`
+  (`engine/tilemap.py`, `data/schemas/map_file.schema.json`,
+  `data/slots.json`'s `core` category, full editor paint/drag/undo support —
+  `engine/CLAUDE.md`, `editor/panels/CLAUDE.md`'s "Tutorial markers" section)
+  — same never-rendered `{col,row,slot}` shape as `tutorial_flute`/
+  `tutorial_stone`. Painted on the 3 tutorial-enabled maps (`autumn`,
+  `summertest3`, `forestmap`) at the tile immediately adjacent to
+  `tutorial_stone` and that chunk's far corner from the base respectively;
+  every other map carries the two keys `null` (schema-required, migrated).
+- **Pulsing/glowing highlights**: every tutorial highlight (tile diamonds AND
+  the card/Confirm/End-Turn/Close/Unlock UI-box rings) now breathes alpha
+  AND border width on a sine cycle, on top of `VfxAuthoringPLAN` VA-5's
+  highlights-as-data rework (`game/ui/CLAUDE.md`'s highlights section) — a
+  new sibling `procedural.tutorial_highlight_pulse` balancing block
+  (`data/balancing/vfx.json`, NOT a new key inside `procedural.highlights`
+  itself, whose 7-entry shape is uniform and shared by six OTHER highlights
+  that stay static), a new `widgets.tutorial_pulse_style(clock_ms)` helper
+  composing the pulse onto `highlight_color("tutorial_highlight")`, and
+  `submit_highlight`'s new optional `pulse_color`/`pulse_width` params
+  (override the static colour/width ONLY on the procedural-diamond fallback
+  — an imported `vfx_tutorial_highlight` sprite still wins untouched). Both
+  draw call sites in `main.py` reuse the EXISTING `deco_clock_ms` wall-clock
+  accumulator — no new per-frame state. `submit_tutorial_banner` (the TU-8
+  close-panel-hint text box) is deliberately excluded — instructional text,
+  not a click-target border.
 
 ## Wall + tile-highlight render order — host wiring (fix/depth-sorted-world-fills)
 Every tile-diamond highlight (click/drag-select, condition tint, RANGE,

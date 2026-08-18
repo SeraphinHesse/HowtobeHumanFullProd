@@ -2,8 +2,8 @@
   "widgets": {
     "btn_drag_select": {
       "rect": [
-        11,
-        131,
+        4,
+        111,
         45,
         14
       ]
@@ -35,8 +35,8 @@
     },
     "btn_speed_1_5x": {
       "rect": [
-        36,
-        107,
+        38,
+        92,
         28,
         14
       ],
@@ -44,8 +44,8 @@
     },
     "btn_speed_1x": {
       "rect": [
-        4,
-        108,
+        6,
+        92,
         28,
         14
       ],
@@ -54,32 +54,83 @@
     "btn_speed_2x": {
       "rect": [
         68,
-        109,
+        92,
         28,
         14
       ],
       "skin": "ui_button_pill"
     },
+    "icon_lives": {
+      "parent": "lives_text",
+      "rect": [
+        4,
+        60,
+        13,
+        11
+      ]
+    },
+    "icon_love": {
+      "parent": "love_text",
+      "rect": [
+        12,
+        18,
+        16,
+        12
+      ]
+    },
     "icon_xp": {
       "rect": [
-        234,
-        9,
+        233,
+        10,
         9,
         9
+      ]
+    },
+    "income_text": {
+      "parent": "love_panel",
+      "rect": [
+        7,
+        33,
+        0,
+        0
+      ]
+    },
+    "lives_text": {
+      "rect": [
+        18,
+        58,
+        0,
+        0
       ]
     },
     "love_panel": {
       "rect": [
         6,
         6,
-        93,
-        62
+        95,
+        42
+      ]
+    },
+    "love_text": {
+      "rect": [
+        30,
+        12,
+        0,
+        0
+      ]
+    },
+    "lvl_label": {
+      "rect": [
+        107,
+        6,
+        0,
+        0
       ]
     },
     "readout_panel": {
       "rect": [
         1,
-        66,
+        52,
         84,
         36
       ]
@@ -91,12 +142,28 @@
         0
       ]
     },
+    "tiles_text": {
+      "rect": [
+        6,
+        70,
+        0,
+        0
+      ]
+    },
     "xp_bar": {
       "rect": [
         248,
         12,
         55,
         4
+      ]
+    },
+    "xp_text": {
+      "rect": [
+        236,
+        23,
+        0,
+        0
       ]
     }
   }

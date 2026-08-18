@@ -15,6 +15,7 @@ that ``data/slots.json`` does not carry (revisit at 10L / the 11 parity audit).
 import math
 from types import SimpleNamespace
 
+from engine import era_math
 from engine.render.fonts import layout_h
 
 from game.core.boss_bonuses import love_bonus_income
@@ -34,6 +35,15 @@ from .strings import T
 _LIGHTNING_READY = (255, 240, 80)    # prototype ready-label colour
 _LIGHTNING_COOLING = (120, 120, 140)
 # -- /10H --
+
+# -- boss-round indicator icon: TEMPORARY tint so the two grey-X placeholders
+# (ui_icon_boss_next / ui_icon_boss_next_off) read as visually distinct
+# before real art exists for either. Delete both constants and the two
+# `.tint =` assignments in `update()` once real art is imported for BOTH
+# slots — real art should draw untinted. --
+_BOSS_NEXT_TINT_ON = (255, 140, 140, 255)
+_BOSS_NEXT_TINT_OFF = (150, 150, 150, 255)
+# -- /boss-round indicator icon --
 
 # The phase readout's two-state copy. It used to be a six-way GamePhase ->
 # string-id map (``_PHASE_LABEL_ID``) resolved through the Phase C string
@@ -294,6 +304,15 @@ class Hud:
         self._icon_lives = SimpleNamespace(rect=(0, 0, 0, 0),
                                            skin="ui_icon_lives", visible=True)
         # -- /10L wave-3 --
+        # -- boss-round indicator icon: top-right, left of Pause. skin/tint
+        # vary live in update() (unlike the three baked icons above, whose
+        # skin is fixed) — BUILDING-phase-only, drawn only while the round
+        # about to be fought is known. --
+        self._icon_boss_next = SimpleNamespace(rect=(0, 0, 0, 0),
+                                               skin="ui_icon_boss_next_off",
+                                               tint=None, visible=True)
+        self._boss_next = False
+        # -- /boss-round indicator icon --
         self.ids = {}
         # -- /10L-B --
         self.layout(view_w, view_h)  # lay out now so hit() works before submit()
@@ -303,6 +322,13 @@ class Hud:
         self.end_turn.rect = (view_w - w - 8, view_h - h - 8, w, h)
         pw, ph = self.pause.rect[2], self.pause.rect[3]
         self.pause.rect = (view_w - pw - 8, 6, pw, ph)
+        # -- boss-round indicator icon: immediately left of Pause, same row,
+        # matching its 15px height. Positioned here (not _layout_readouts())
+        # since it anchors off pause.rect, finalized just above. --
+        bs, bgap = 15, 4
+        px, py = self.pause.rect[0], self.pause.rect[1]
+        self._icon_boss_next.rect = (px - bs - bgap, py, bs, bs)
+        # -- /boss-round indicator icon --
         # (phase_label's rect is END-TURN-relative since it moved bottom-right,
         # so it is computed in _layout_readouts() — the round_label precedent.)
         # -- 10L: speed buttons — a fixed row below the readout column.
@@ -327,6 +353,7 @@ class Hud:
             "btn_speed_1_5x": ("button", self.speed_1_5x),
             "btn_speed_2x": ("button", self.speed_2x),
             "btn_drag_select": ("button", self.drag_select_btn),
+            "icon_boss_next": ("panel", self._icon_boss_next),
         }
         self.skinning.apply(self.screen_id, self.ids)
 
@@ -429,6 +456,19 @@ class Hud:
         self.pause.hover(mx, my, mouse_down)
         self.pause.hovered = self.pause.hovered and is_visible(self.pause)
         self.pause.update(dt)
+        # -- boss-round indicator icon: st.round_num is ALREADY the round
+        # that will be fought on the next End Turn (it only increments in
+        # payday, after the round plays — game/core/game_state.py), so no
+        # "+1" is needed to know what's next. era_math.is_boss_round is False
+        # at round 0 (tutorial) by its own contract, so no guard needed here.
+        scaling = session.enemies_balance["EnemyScaling"]
+        self._boss_next = era_math.is_boss_round(
+            st.round_num, scaling["rounds_per_era"], scaling["boss_round_in_era"])
+        self._icon_boss_next.skin = ("ui_icon_boss_next" if self._boss_next
+                                     else "ui_icon_boss_next_off")
+        self._icon_boss_next.tint = (_BOSS_NEXT_TINT_ON if self._boss_next
+                                     else _BOSS_NEXT_TINT_OFF)
+        # -- /boss-round indicator icon --
         # -- 10L: fast-forward speed buttons (round-gated per Session) --
         for idx, btn in ((0, self.speed_1x), (1, self.speed_1_5x),
                          (2, self.speed_2x)):
@@ -478,7 +518,7 @@ class Hud:
                and self.end_turn.hit(mx, my) else None)
 
     def submit(self, renderer, session, view_w, view_h, hover_cost=None,
-              scene=None, drag_select_enabled=False):
+              scene=None, drag_select_enabled=False, love_display=None):
         from engine.render import HudRect  # local: keep module import list lean
 
         st = session.state
@@ -501,17 +541,21 @@ class Hud:
                         skin=self._icon_love.skin,
                         tint=getattr(self._icon_love, "tint", None), anim_ms=t)
         if hover_cost is not None:
-            remaining = st.love - hover_cost
-            # Unaffordable swaps to a DIFFERENT string id, so it goes through
-            # `text=` rather than the holder's own; the affordable case reads
-            # the holder's `text_id`, which a designer may re-point.
-            love_txt = (None if remaining >= 0
-                        else T("hud.love_unaffordable"))
-            amount, love_col = remaining, widgets.C_RED
+            # Shows the arithmetic ("current - price"), not the remainder —
+            # a player can read exactly what they have and what a purchase
+            # costs at a glance. Always the real, unanimated `st.love`
+            # (a correctness question — "can I afford this right now" — not
+            # a payout-flavor display); shown the same way whether or not
+            # it's affordable. Two separately-coloured runs (current love
+            # stays the plain love colour, only the " - price" half reads
+            # red) — two string-table ids rather than one combined template
+            # hand-split in code, so each half stays independently
+            # designer-editable.
+            self._submit_love_hover_cost(renderer, st.love, hover_cost)
         else:
-            love_txt, amount, love_col = None, st.love, widgets.C_GOLD
-        submit_label(renderer, self._love_text, text=love_txt,
-                     color=love_col, amount=amount)
+            amount = st.love if love_display is None else love_display
+            submit_label(renderer, self._love_text, color=widgets.C_GOLD,
+                         amount=amount)
 
         # -- XP bar + village level (right of the love pill) ---------------
         self._submit_xp(renderer, st)
@@ -557,6 +601,7 @@ class Hud:
         # The whole column lives under the building panel, so it is skipped
         # wholesale while that panel is open — drawing only part of it would
         # leave the round label floating over the panel.
+        boss_tooltip = None  # set below, read at the deferred draw at the end
         if not self._panel_open:
             bx, by, bw, bh = self.end_turn.rect
             # -- phase readout (bottom-right, directly above the round label).
@@ -589,6 +634,18 @@ class Hud:
             if is_visible(self.end_turn):
                 self.end_turn.submit(renderer, anim_ms=t,
                                      **button_kwargs(self.end_turn))
+            # -- boss-round indicator icon: BUILDING-phase-only (see
+            # update()'s comment), drawn BEFORE Pause (panel -> button, the
+            # house HUD submission order). Hover check feeds `boss_tooltip`
+            # (declared above), drawn LAST in this method with the income
+            # tooltip, so it stays on the topmost HUD layer. --
+            if st.phase == GamePhase.BUILDING and is_visible(self._icon_boss_next):
+                submit_panel(renderer, self._icon_boss_next.rect,
+                            skin=self._icon_boss_next.skin,
+                            tint=self._icon_boss_next.tint, anim_ms=t)
+                if contains(self._icon_boss_next.rect, self._mx, self._my):
+                    boss_tooltip = self._boss_next
+            # -- /boss-round indicator icon --
             if is_visible(self.pause):
                 self.pause.submit(renderer, anim_ms=t,
                                   **button_kwargs(self.pause))
@@ -633,6 +690,55 @@ class Hud:
         # -- income tooltip, LAST: topmost HUD layer (see the deferral above)
         if tooltip is not None:
             self._submit_income_tooltip(renderer, tooltip, income_pill)
+        # -- boss-round indicator tooltip, same "LAST = topmost" reasoning --
+        if boss_tooltip is not None:
+            self._submit_boss_next_tooltip(renderer, boss_tooltip)
+
+    def _submit_boss_next_tooltip(self, renderer, boss_next):
+        """One-line hover tooltip for the boss-round indicator icon —
+        ``_submit_income_tooltip``'s box+border shape, sized to one row."""
+        from engine.render import HudRect  # local: keep module import list lean
+
+        text = T("hud.boss_next_on" if boss_next else "hud.boss_next_off")
+        color = _TOOLTIP_RED if boss_next else widgets.C_UI_TEXT_DIM
+        anchor = self._icon_boss_next.rect
+        w = text_size(text, "sm")[0] + 4
+        h = text_h("sm") + 4
+        x = max(2, anchor[0] + anchor[2] - w)
+        y = anchor[1] + anchor[3] + 2
+        renderer.submit_hud(HudRect((x, y, w, h), _TOOLTIP_BG))
+        renderer.submit_hud(HudRect((x, y, w, h), widgets.C_UI_BORDER, width=1))
+        submit_text(renderer, text, (x + 2, y + 2), "sm", color)
+
+    def _submit_love_hover_cost(self, renderer, current_love, hover_cost):
+        """The love pill's hover-preview text, "current - price" as TWO
+        separately-coloured runs: the current-love half in the plain love
+        colour (a designer's ``text_color`` override on the ``love_text``
+        id still wins, the "None means compute" convention every other
+        override follows), the " - price" half always red — drawn
+        immediately after it via a live width measurement (``text_size``),
+        the same technique the income tooltip/lightning readout already use
+        for hover-only text with no stored rect. Left-aligned only — the
+        ``love_text`` holder is always left-aligned in practice; a future
+        non-left override would need this rewritten, so it falls back to
+        the single-colour combined draw instead of drawing wrong."""
+        holder = self._love_text
+        if not is_visible(holder):
+            return
+        if getattr(holder, "align", "left") != "left":
+            submit_label(renderer, holder,
+                         text=(T("hud.love_hover_cost_current", current=current_love)
+                               + T("hud.love_hover_cost_price", price=hover_cost)),
+                         color=widgets.C_RED)
+            return
+        current_text = T("hud.love_hover_cost_current", current=current_love)
+        price_text = T("hud.love_hover_cost_price", price=hover_cost)
+        x, y = holder.rect[0], holder.rect[1]
+        current_col = getattr(holder, "text_color", None) or widgets.C_GOLD
+        submit_text(renderer, current_text, (x, y), holder.font_key, current_col)
+        current_w, _h = text_size(current_text, holder.font_key)
+        submit_text(renderer, price_text, (x + current_w, y), holder.font_key,
+                   widgets.C_RED)
 
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
                                     "over", self.skinning.state_of)

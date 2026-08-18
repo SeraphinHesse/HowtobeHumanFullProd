@@ -2,7 +2,7 @@
   "$id": "master_sheets.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "data/sprites/master_sheets.json (GpuAndMasterSheetsPLAN D1): the registry of MASTER spritesheets - one committed PNG under data/sprites/master/ holding many characters' rows stacked in one grid, keyed by a generated sheet id. A master sheet is a FILE with metadata, not a data/slots.json category: it is never previewed, animated or rendered on its own, so it carries no animation vocabulary and no slot key. A manifest entry links to one by setting its 'sheet' to master/<sheet_id>.png and its 'row_start' to the first row of its window (asset_manifest.schema.json). The registry OWNS the frame grid (D3): a linking slot inherits frame_w/frame_h from here and may not override them, so every slot cutting one master sheet agrees on what row N means. Written ONLY by the editor's master-sheet import, through the validating writer.",
+  "description": "data/sprites/master_sheets.json (GpuAndMasterSheetsPLAN D1): the registry of MASTER spritesheets - one committed PNG under data/sprites/master/ holding many characters' rows stacked in one grid, keyed by a generated sheet id. A master sheet is a FILE with metadata, not a data/slots.json category: it is never previewed, animated or rendered on its own, so it carries no animation vocabulary and no slot key. A manifest entry links to one by setting its 'sheet' to master/<sheet_id>.png and its 'row_start' to the first row of its window (asset_manifest.schema.json). The registry OWNS the frame grid (D3): a linking slot inherits frame_w/frame_h from here and may not override them, so every slot cutting one master sheet agrees on what row N means. It owns the COLUMN width the same way (MasterSheetColumnsPLAN D1): column_width says how many frame-columns one master column spans, measured in FRAMES, and a linking manifest entry inherits it rather than restating it. Written ONLY by the editor's master-sheet import, through the validating writer.",
   "properties": {
     "entries": {
       "additionalProperties": false,
@@ -12,6 +12,24 @@
           "additionalProperties": false,
           "description": "One master spritesheet: where its PNG lives, its designer-facing name, and the frame grid it is cut at.",
           "properties": {
+            "column_width": {
+              "description": "How many frame-COLUMNS one master column spans (D1) — measured in FRAMES, never pixels, so a column boundary can never land mid-frame the way a raw pixel width can. A slot claiming master column c cuts x = (c * column_width + frame_col) * frame_w. A sheet whose art is one single column sets this to its full column count. Columns are MASTER-SHEET-ONLY (D2): a plain imported/<slot>.png has no column concept. Inherited onto a linking manifest entry, the same way frame_w/frame_h already are (D3); it cannot drift, because D10 refuses every slicing edit to a sheet that slots link.",
+              "maximum": 256,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "columns": {
+              "description": "Optional per-column NAMES, in sheet order (D4): the colour swatch labels a building colour picker reads, or the season labels a season stepper reads. A sheet may author its columns in any order and offer any set; index i names master column i. Omitted => this sheet's columns are unnamed and are referred to by index. A building stores the column INDEX, not the name (D5), so two sheets in one upgrade chain must author their colours in the same order — nothing enforces that.",
+              "items": {
+                "maxLength": 32,
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "type": "string"
+              },
+              "maxItems": 16,
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
             "display_name": {
               "description": "Human-readable name shown in the editor's master-sheet picker.",
               "maxLength": 80,
@@ -40,7 +58,8 @@
             "file",
             "display_name",
             "frame_w",
-            "frame_h"
+            "frame_h",
+            "column_width"
           ],
           "type": "object"
         }

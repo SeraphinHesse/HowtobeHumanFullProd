@@ -150,21 +150,41 @@
         ]
       },
       "frame_h": 96,
-      "frame_w": 64,
+      "frame_w": 192,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 18,
+          "hidden": [
+            10
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/boost_damage_t1_lvl1.png"
+      "sheet": "imported/boost_speed_t1_lvl1.png"
     },
     "boost_damage_t1_lvl2": {
       "anchors": {
@@ -366,21 +386,39 @@
         ]
       },
       "frame_h": 96,
-      "frame_w": 64,
+      "frame_w": 192,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/boost_hp_t1_lvl1.png"
+      "sheet": "imported/boost_speed_t1_lvl1.png"
     },
     "boost_hp_t1_lvl2": {
       "anchors": {
@@ -582,14 +620,32 @@
         ]
       },
       "frame_h": 96,
-      "frame_w": 64,
+      "frame_w": 192,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -3628,16 +3684,8 @@
       "sheet": "imported/enemy_t4.png"
     },
     "flute_player_t1_lvl1": {
-      "anchors": {
-        "floater_origin": [
-          -1,
-          -12
-        ],
-        "hp_bar": [
-          -3,
-          -26
-        ]
-      },
+      "column_mode": "building_color",
+      "column_width": 17,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3651,81 +3699,9 @@
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "master/ss_fluteplayer.png"
     },
     "flute_player_t1_lvl2": {
       "anchors": {
@@ -3738,92 +3714,16 @@
           -28
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 17,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 1,
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [
-            0,
-            2,
-            3,
-            4,
-            5,
-            6
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
           "fps": 6,
           "frames": 17,
           "hidden": [],
@@ -3832,7 +3732,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "master/ss_fluteplayer.png"
     },
     "flute_player_t1_lvl3": {
       "anchors": {
@@ -3845,92 +3745,16 @@
           -30
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 17,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 2,
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [
-            0,
-            1,
-            3,
-            4,
-            5,
-            6
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
           "fps": 6,
           "frames": 17,
           "hidden": [],
@@ -3939,7 +3763,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "master/ss_fluteplayer.png"
     },
     "formation_stage_1": {
       "anchors": {
@@ -4184,50 +4008,19 @@
           -21
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 17,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 3,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
           "frames": 17,
           "hidden": [
-            0,
-            1,
-            2,
-            4,
-            5,
-            6
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [
             8,
             9,
             10,
@@ -4238,77 +4031,12 @@
             15,
             16
           ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "master/ss_fluteplayer.png"
     },
     "harp_player_t2_lvl2": {
       "anchors": {
@@ -4657,88 +4385,61 @@
           -12
         ]
       },
+      "column_width": 25,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 8,
+      "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 13,
-          "hidden": [],
+          "frames": 25,
+          "hidden": [
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24
+          ],
           "loop_count": 5,
-          "loop_end": 4,
+          "loop_end": 3,
           "loop_start": 0
         },
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 13,
+          "frames": 25,
           "hidden": [
             10,
             11,
-            12
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 13,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 13,
-          "hidden": [
-            9,
-            10,
-            11,
-            12
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 13,
-          "hidden": [
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 13,
-          "hidden": [
-            12
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/maw_mortar_t1_lvl1.png"
+      "sheet": "master/ss_mortar.png"
     },
     "maw_mortar_t1_lvl2": {
       "anchors": {
@@ -4751,16 +4452,31 @@
           -9
         ]
       },
+      "column_width": 25,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 8,
+      "offset_y": 0,
+      "row_start": 2,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 13,
-          "hidden": [],
+          "frames": 25,
+          "hidden": [
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24
+          ],
           "loop_count": 5,
           "loop_end": 4,
           "loop_start": 0
@@ -4768,71 +4484,31 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 13,
-          "hidden": [
-            10,
-            11,
-            12
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 13,
-          "hidden": [],
-          "loop_count": 4,
-          "loop_end": 4,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 13,
+          "frames": 25,
           "hidden": [
             9,
             10,
             11,
-            12
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 13,
-          "hidden": [
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 13,
-          "hidden": [
-            12
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/maw_mortar_t1_lvl1.png"
+      "sheet": "master/ss_mortar.png"
     },
     "maw_mortar_t1_lvl3": {
       "anchors": {
@@ -4845,60 +4521,17 @@
           -6
         ]
       },
+      "column_width": 25,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 8,
+      "offset_y": 0,
+      "row_start": 4,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 13,
-          "hidden": [],
-          "loop_count": 5,
-          "loop_end": 4,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 13,
-          "hidden": [
-            10,
-            11,
-            12
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 13,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 13,
-          "hidden": [
-            9,
-            10,
-            11,
-            12
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 13,
+          "frames": 25,
           "hidden": [
             4,
             5,
@@ -4908,25 +4541,49 @@
             9,
             10,
             11,
-            12
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24
           ],
           "loop_count": 1,
-          "loop_end": 0,
+          "loop_end": 4,
           "loop_start": 0
         },
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 13,
+          "frames": 25,
           "hidden": [
-            12
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/maw_mortar_t1_lvl1.png"
+      "sheet": "master/ss_mortar.png"
     },
     "maw_mortar_t2_lvl1": {
       "anchors": {
@@ -4939,17 +4596,19 @@
           -24
         ]
       },
+      "column_width": 25,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 6,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
           "frames": 25,
           "hidden": [],
-          "loop_count": 2,
+          "loop_count": 1,
           "loop_end": 9,
           "loop_start": 0
         },
@@ -4975,211 +4634,43 @@
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 25,
-          "hidden": [
-            12,
-            13,
-            14,
-            15,
-            16,
-            17,
-            18,
-            19,
-            20,
-            21,
-            22,
-            23,
-            24
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 25,
-          "hidden": [
-            12,
-            13,
-            14,
-            15,
-            16,
-            17,
-            18,
-            19,
-            20,
-            21,
-            22,
-            23,
-            24
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 25,
-          "hidden": [
-            12,
-            13,
-            14,
-            15,
-            16,
-            17,
-            18,
-            19,
-            20,
-            21,
-            22,
-            23,
-            24
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 25,
-          "hidden": [
-            12,
-            13,
-            14,
-            15,
-            16,
-            17,
-            18,
-            19,
-            20,
-            21,
-            22,
-            23,
-            24
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
         }
       ],
-      "sheet": "imported/maw_mortar_t2_lvl1.png"
+      "sheet": "master/ss_mortar.png"
     },
     "maw_mortar_t2_lvl2": {
+      "column_width": 25,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 8,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
           "frames": 25,
-          "hidden": [],
-          "loop_count": 2,
+          "hidden": [
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24
+          ],
+          "loop_count": 1,
           "loop_end": 9,
           "loop_start": 0
         },
         {
           "animation": "attack",
-          "fps": 6,
-          "frames": 25,
-          "hidden": [
-            12,
-            13,
-            14,
-            15,
-            16,
-            17,
-            18,
-            19,
-            20,
-            21,
-            22,
-            23,
-            24
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 25,
-          "hidden": [
-            12,
-            13,
-            14,
-            15,
-            16,
-            17,
-            18,
-            19,
-            20,
-            21,
-            22,
-            23,
-            24
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 25,
-          "hidden": [
-            12,
-            13,
-            14,
-            15,
-            16,
-            17,
-            18,
-            19,
-            20,
-            21,
-            22,
-            23,
-            24
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 25,
-          "hidden": [
-            12,
-            13,
-            14,
-            15,
-            16,
-            17,
-            18,
-            19,
-            20,
-            21,
-            22,
-            23,
-            24
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
           "fps": 6,
           "frames": 25,
           "hidden": [
@@ -5202,27 +4693,20 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/maw_mortar_t2_lvl1.png"
+      "sheet": "master/ss_mortar.png"
     },
     "maw_mortar_t2_lvl3": {
+      "column_width": 25,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 10,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
           "frames": 25,
-          "hidden": [],
-          "loop_count": 2,
-          "loop_end": 9,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 25,
           "hidden": [
             12,
             13,
@@ -5238,76 +4722,7 @@
             23,
             24
           ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 25,
-          "hidden": [
-            12,
-            13,
-            14,
-            15,
-            16,
-            17,
-            18,
-            19,
-            20,
-            21,
-            22,
-            23,
-            24
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 25,
-          "hidden": [
-            12,
-            13,
-            14,
-            15,
-            16,
-            17,
-            18,
-            19,
-            20,
-            21,
-            22,
-            23,
-            24
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 25,
-          "hidden": [
-            12,
-            13,
-            14,
-            15,
-            16,
-            17,
-            18,
-            19,
-            20,
-            21,
-            22,
-            23,
-            24
-          ],
-          "loop_count": 7,
+          "loop_count": 4,
           "loop_end": 2,
           "loop_start": 0
         },
@@ -5335,7 +4750,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/maw_mortar_t2_lvl1.png"
+      "sheet": "master/ss_mortar.png"
     },
     "maw_mortar_t3_lvl1": {
       "anchors": {
@@ -5348,22 +4763,64 @@
           -25
         ]
       },
+      "column_width": 25,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 12,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 25,
+          "hidden": [
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 25,
+          "hidden": [
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/maw_mortar_t3_lvl1.png"
+      "sheet": "master/ss_mortar.png"
     },
     "maw_mortar_t3_lvl2": {
       "anchors": {
@@ -5376,22 +4833,64 @@
           -26
         ]
       },
+      "column_width": 25,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 14,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 25,
+          "hidden": [
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 25,
+          "hidden": [
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/maw_mortar_t3_lvl2.png"
+      "sheet": "master/ss_mortar.png"
     },
     "maw_mortar_t3_lvl3": {
       "anchors": {
@@ -5404,22 +4903,64 @@
           -27
         ]
       },
+      "column_width": 25,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 16,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 25,
+          "hidden": [
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24
+          ],
+          "loop_count": 7,
+          "loop_end": 5,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 25,
+          "hidden": [
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/maw_mortar_t3_lvl3.png"
+      "sheet": "master/ss_mortar.png"
     },
     "meditator_t1_lvl1": {
       "anchors": {
@@ -5807,16 +5348,23 @@
           -10
         ]
       },
+      "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 12,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 16,
-          "hidden": [],
+          "frames": 20,
+          "hidden": [
+            16,
+            17,
+            18,
+            19
+          ],
           "loop_count": 7,
           "loop_end": 3,
           "loop_start": 0
@@ -5824,7 +5372,7 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 16,
+          "frames": 20,
           "hidden": [
             6,
             7,
@@ -5835,72 +5383,18 @@
             12,
             13,
             14,
-            15
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 16,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 16,
-          "hidden": [
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 16,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 16,
-          "hidden": [
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15
+            15,
+            16,
+            17,
+            18,
+            19
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/pistoleer_t3_lvl1.png"
+      "sheet": "master/ss_stonethrower.png"
     },
     "pistoleer_t3_lvl2": {
       "anchors": {
@@ -5913,24 +5407,31 @@
           -12
         ]
       },
+      "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 14,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 16,
-          "hidden": [],
+          "frames": 20,
+          "hidden": [
+            16,
+            17,
+            18,
+            19
+          ],
           "loop_count": 7,
-          "loop_end": 3,
+          "loop_end": 4,
           "loop_start": 0
         },
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 16,
+          "frames": 20,
           "hidden": [
             6,
             7,
@@ -5941,72 +5442,18 @@
             12,
             13,
             14,
-            15
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 16,
-          "hidden": [],
-          "loop_count": 7,
-          "loop_end": 3,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 16,
-          "hidden": [
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 16,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 16,
-          "hidden": [
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15
+            15,
+            16,
+            17,
+            18,
+            19
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/pistoleer_t3_lvl2.png"
+      "sheet": "master/ss_stonethrower.png"
     },
     "pistoleer_t3_lvl3": {
       "anchors": {
@@ -6019,27 +5466,27 @@
           -12
         ]
       },
+      "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 16,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 16,
+          "frames": 20,
           "hidden": [],
-          "loop_count": 7,
+          "loop_count": 1,
           "loop_end": 3,
           "loop_start": 0
         },
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 16,
+          "frames": 20,
           "hidden": [
-            6,
-            7,
             8,
             9,
             10,
@@ -6047,72 +5494,18 @@
             12,
             13,
             14,
-            15
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 16,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 16,
-          "hidden": [
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 16,
-          "hidden": [],
-          "loop_count": 7,
-          "loop_end": 3,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 16,
-          "hidden": [
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15
+            15,
+            16,
+            17,
+            18,
+            19
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/pistoleer_t3_lvl3.png"
+      "sheet": "master/ss_stonethrower.png"
     },
     "radiant_beam_t2_lvl1": {
       "anchors": {
@@ -6680,15 +6073,17 @@
           -5
         ]
       },
+      "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 6,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
+          "frames": 20,
           "hidden": [
             4,
             5,
@@ -6700,7 +6095,12 @@
             11,
             12,
             13,
-            14
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -6709,13 +6109,18 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
+          "frames": 20,
           "hidden": [
             10,
             11,
             12,
             13,
-            14
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -6724,7 +6129,7 @@
         {
           "animation": "death",
           "fps": 6,
-          "frames": 15,
+          "frames": 20,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -6733,32 +6138,14 @@
         {
           "animation": "hurt",
           "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 15,
+          "frames": 20,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/slinger_t2_lvl1.png"
+      "sheet": "master/ss_stonethrower.png"
     },
     "slinger_t2_lvl2": {
       "anchors": {
@@ -6771,15 +6158,17 @@
           -7
         ]
       },
+      "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 8,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
+          "frames": 20,
           "hidden": [
             4,
             5,
@@ -6791,7 +6180,12 @@
             11,
             12,
             13,
-            14
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -6800,74 +6194,25 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
+          "frames": 20,
           "hidden": [
             10,
             11,
             12,
             13,
-            14
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
           ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/slinger_t2_lvl1.png"
+      "sheet": "master/ss_stonethrower.png"
     },
     "slinger_t2_lvl3": {
       "anchors": {
@@ -6880,15 +6225,17 @@
           -7
         ]
       },
+      "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 10,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
+          "frames": 20,
           "hidden": [
             4,
             5,
@@ -6900,7 +6247,12 @@
             11,
             12,
             13,
-            14
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -6909,74 +6261,25 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
+          "frames": 20,
           "hidden": [
             10,
             11,
             12,
             13,
-            14
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            10,
-            11,
-            12,
-            13,
-            14
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/slinger_t2_lvl3.png"
+      "sheet": "master/ss_stonethrower.png"
     },
     "sniper_stage_1": {
       "frame_h": 96,
@@ -7079,6 +6382,8 @@
           -18
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -7087,16 +6392,22 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 7,
+          "frames": 20,
+          "hidden": [
+            15,
+            16,
+            17,
+            18,
+            19
+          ],
+          "loop_count": 6,
           "loop_end": 3,
           "loop_start": 0
         },
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
+          "frames": 20,
           "hidden": [
             8,
             9,
@@ -7104,7 +6415,12 @@
             11,
             12,
             13,
-            14
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7113,8 +6429,19 @@
         {
           "animation": "death",
           "fps": 6,
-          "frames": 15,
-          "hidden": [],
+          "frames": 20,
+          "hidden": [
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -7122,8 +6449,24 @@
         {
           "animation": "hurt",
           "fps": 6,
-          "frames": 15,
-          "hidden": [],
+          "frames": 20,
+          "hidden": [
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -7131,8 +6474,19 @@
         {
           "animation": "place",
           "fps": 6,
-          "frames": 15,
-          "hidden": [],
+          "frames": 20,
+          "hidden": [
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -7140,14 +6494,52 @@
         {
           "animation": "upgrade",
           "fps": 6,
-          "frames": 15,
-          "hidden": [],
+          "frames": 20,
+          "hidden": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/stone_thrower_t1_lvl1.png"
+      "sheet": "master/ss_stonethrower.png"
     },
     "stone_thrower_t1_lvl2": {
       "anchors": {
@@ -7160,6 +6552,7 @@
           -7
         ]
       },
+      "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -7168,21 +6561,17 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
+          "frames": 20,
           "hidden": [],
-          "loop_count": 7,
-          "loop_end": 3,
+          "loop_count": 1,
+          "loop_end": 0,
           "loop_start": 0
         },
         {
-          "animation": "hurt",
+          "animation": "attack",
           "fps": 6,
-          "frames": 15,
-          "hidden": [
-            12,
-            13,
-            14
-          ],
+          "frames": 20,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -7190,25 +6579,28 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
+          "frames": 20,
           "hidden": [
             10,
             11,
             12,
             13,
-            14
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
           ],
-          "loop_count": 6,
-          "loop_end": 4,
+          "loop_count": 4,
+          "loop_end": 3,
           "loop_start": 0
         },
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
+          "frames": 20,
           "hidden": [
-            3,
-            4,
             5,
             6,
             7,
@@ -7218,32 +6610,19 @@
             11,
             12,
             13,
-            14
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
           ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/stone_thrower_t1_lvl1.png"
+      "sheet": "master/ss_stonethrower.png"
     },
     "stone_thrower_t1_lvl3": {
       "anchors": {
@@ -7256,85 +6635,65 @@
           -5
         ]
       },
+      "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 3,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
+          "frames": 20,
           "hidden": [],
           "loop_count": 7,
           "loop_end": 3,
           "loop_start": 0
         },
         {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            12,
-            13,
-            14
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
+          "frames": 20,
           "hidden": [
             10,
             11,
             12,
             13,
-            14
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
           ],
           "loop_count": 5,
-          "loop_end": 4,
+          "loop_end": 3,
           "loop_start": 0
         },
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
+          "frames": 20,
           "hidden": [
-            8,
             9,
             10,
             11,
             12,
             13,
-            14
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/stone_thrower_t1_lvl1.png"
+      "sheet": "master/ss_stonethrower.png"
     },
     "storm_priest_i_t1_lvl1": {
       "anchors": {
@@ -8066,7 +7425,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_buildable_b.png"
+      "sheet": "imported/tile_buildable.png"
     },
     "tile_cliff": {
       "frame_h": 32,
@@ -8128,7 +7487,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_combat.png"
+      "sheet": "imported/tile_buildable.png"
     },
     "tile_combat_b": {
       "frame_h": 32,
@@ -8159,7 +7518,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_combat_b.png"
+      "sheet": "imported/tile_buildable.png"
     },
     "tile_forest": {
       "frame_h": 32,
@@ -8296,92 +7655,16 @@
           -24
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 17,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 6,
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
           "fps": 6,
           "frames": 17,
           "hidden": [],
@@ -8390,7 +7673,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "master/ss_fluteplayer.png"
     },
     "trio_t3_lvl2": {
       "anchors": {
@@ -8403,92 +7686,16 @@
           -30
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 17,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 7,
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
           "fps": 6,
           "frames": 17,
           "hidden": [],
@@ -8497,103 +7704,17 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "master/ss_fluteplayer.png"
     },
     "trio_t3_lvl3": {
-      "anchors": {
-        "floater_origin": [
-          -1,
-          -24
-        ],
-        "hp_bar": [
-          -1,
-          -29
-        ]
-      },
+      "column_mode": "building_color",
+      "column_width": 17,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 8,
       "rows": [
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
         {
           "animation": "idle",
           "fps": 6,
@@ -8604,7 +7725,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "master/ss_fluteplayer.png"
     },
     "ui_bg_main_menu": {
       "frame_h": 270,
@@ -9238,6 +8359,24 @@
       ],
       "sheet": "imported/ui_panel_v2.png"
     },
+    "vfx_attack_range": {
+      "frame_h": 64,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 4,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/vfx_attack_range.png"
+    },
     "vfx_crater": {
       "frame_h": 96,
       "frame_w": 64,
@@ -9292,6 +8431,62 @@
       ],
       "sheet": "imported/vfx_projectile.png"
     },
+    "vfx_projectile_v2": {
+      "frame_h": 64,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/vfx_shell.png"
+    },
+    "vfx_respawn": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": -16,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/vfx_respawn.png"
+    },
+    "vfx_section_2x2": {
+      "frame_h": 96,
+      "frame_w": 128,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 2,
+          "hidden": [
+            1
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/vfx_tile_selected.png"
+    },
     "vfx_shell": {
       "frame_h": 64,
       "frame_w": 64,
@@ -9309,6 +8504,26 @@
         }
       ],
       "sheet": "imported/vfx_shell.png"
+    },
+    "vfx_tile_selected": {
+      "frame_h": 96,
+      "frame_w": 128,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 2,
+          "hidden": [
+            1
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/vfx_tile_selected.png"
     },
     "wall_builder": {
       "anchors": {

@@ -97,6 +97,8 @@ class PalettePanel(QWidget):
     start_area_armed = Signal(str)  # the 2×2 starting-area slot (paintable brush)
     tutorial_flute_armed = Signal(str)  # the "first flute" marker slot
     tutorial_stone_armed = Signal(str)  # the "first stone" marker slot
+    tutorial_unlock_armed = Signal(str)  # the tile-buying "tile to unlock" marker slot
+    tutorial_stone_2_armed = Signal(str)  # the tile-buying "second stone" marker slot
     spawn_reserve_armed = Signal()      # the spawnable-background brush (no slot)
     reserve_number_changed = Signal(int)  # the stage number marks carry
     despawn_armed = Signal()            # the despawnable-spawn brush (no slot)
@@ -401,6 +403,18 @@ class PalettePanel(QWidget):
         except (KeyError, ValueError):
             return []
 
+    def _tutorial_unlock_slots(self):
+        try:
+            return list(self._registry.group_slots("core", ("Tutorial Unlock",)))
+        except (KeyError, ValueError):
+            return []
+
+    def _tutorial_stone_2_slots(self):
+        try:
+            return list(self._registry.group_slots("core", ("Tutorial Stone 2",)))
+        except (KeyError, ValueError):
+            return []
+
     def _stage_bounds(self, property_key):
         """(minimum, maximum) for one overlay's stage-number spinbox, read
         straight from map_file.schema.json's own item property — invalid input
@@ -525,6 +539,12 @@ class PalettePanel(QWidget):
         elif kind == "tutorial_stone":
             btn.clicked.connect(
                 lambda _=False, v=value: self.arm_tutorial_stone(v))
+        elif kind == "tutorial_unlock":
+            btn.clicked.connect(
+                lambda _=False, v=value: self.arm_tutorial_unlock(v))
+        elif kind == "tutorial_stone_2":
+            btn.clicked.connect(
+                lambda _=False, v=value: self.arm_tutorial_stone_2(v))
         elif kind == "bgslot":
             btn.clicked.connect(
                 lambda _=False, v=value: self.arm_background_slot(v))
@@ -591,11 +611,15 @@ class PalettePanel(QWidget):
         self.refresh_icons()
 
     def _rebuild_tutorial(self):
-        """Two STATIC single-tile marker brushes (not legend-derived, unlike
-        _rebuild_gametiles) — "First Flute" and "First Stone"."""
+        """Four STATIC single-tile marker brushes (not legend-derived, unlike
+        _rebuild_gametiles) — "First Flute" and "First Stone" (round-1/2's
+        forced placements), plus the tile-buying topic's "Unlock Tile" and
+        "Second Stone" (round-2 follow-up: buy the adjacent tile, then place
+        the second stone thrower on its far corner)."""
         _title_w, _page, page_layout = self._pages["tutorial"]
         for key in [k for k in self._brush_buttons
-                    if k[0] in ("tutorial_flute", "tutorial_stone")]:
+                    if k[0] in ("tutorial_flute", "tutorial_stone",
+                                "tutorial_unlock", "tutorial_stone_2")]:
             btn = self._brush_buttons.pop(key)
             self._brush_group.removeButton(btn)
             page_layout.removeWidget(btn)
@@ -608,6 +632,14 @@ class PalettePanel(QWidget):
         for slot in self._tutorial_stone_slots():
             self._add_brush_button(
                 page_layout, ("tutorial_stone", slot), "First Stone", idx)
+            idx += 1
+        for slot in self._tutorial_unlock_slots():
+            self._add_brush_button(
+                page_layout, ("tutorial_unlock", slot), "Unlock Tile", idx)
+            idx += 1
+        for slot in self._tutorial_stone_2_slots():
+            self._add_brush_button(
+                page_layout, ("tutorial_stone_2", slot), "Second Stone", idx)
             idx += 1
         self.refresh_icons()
 
@@ -850,6 +882,18 @@ class PalettePanel(QWidget):
                 return value
         return None
 
+    def armed_tutorial_unlock(self):
+        for (kind, value), btn in self._brush_buttons.items():
+            if kind == "tutorial_unlock" and btn.isChecked():
+                return value
+        return None
+
+    def armed_tutorial_stone_2(self):
+        for (kind, value), btn in self._brush_buttons.items():
+            if kind == "tutorial_stone_2" and btn.isChecked():
+                return value
+        return None
+
     def armed_spawn_reserve(self):
         """True while the Spawnable Background brush is armed. Follows the
         armed_tutorial_stone pattern, but the brush has no SLOT to return (a
@@ -985,6 +1029,26 @@ class PalettePanel(QWidget):
         btn.setChecked(True)
         self.tutorial_stone_armed.emit(slot)
 
+    def arm_tutorial_unlock(self, slot):
+        """Arm the Unlock Tile brush (paint = place/move the tile-buying
+        topic's "tile to unlock" marker, erase = remove it —
+        viewport._tool_press). Clears any other armed brush."""
+        btn = self._brush_buttons.get(("tutorial_unlock", slot))
+        if btn is None:
+            return
+        btn.setChecked(True)
+        self.tutorial_unlock_armed.emit(slot)
+
+    def arm_tutorial_stone_2(self, slot):
+        """Arm the Second Stone brush (paint = place/move the tile-buying
+        topic's second stone-thrower marker, erase = remove it —
+        viewport._tool_press). Clears any other armed brush."""
+        btn = self._brush_buttons.get(("tutorial_stone_2", slot))
+        if btn is None:
+            return
+        btn.setChecked(True)
+        self.tutorial_stone_2_armed.emit(slot)
+
     def arm_spawn_reserve(self):
         """Arm the Spawnable Background brush (paint = mark with the spinbox's
         number, erase = clear the mark). Shares the one exclusive brush group,
@@ -1060,6 +1124,12 @@ class PalettePanel(QWidget):
         tutorial_stone = self.armed_tutorial_stone()
         if tutorial_stone is not None:
             return tutorial_stone
+        tutorial_unlock = self.armed_tutorial_unlock()
+        if tutorial_unlock is not None:
+            return tutorial_unlock
+        tutorial_stone_2 = self.armed_tutorial_stone_2()
+        if tutorial_stone_2 is not None:
+            return tutorial_stone_2
         code = self.armed_code()
         if code is not None and self._legend is not None:
             return self._legend[code]["slot"]

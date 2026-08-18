@@ -131,6 +131,86 @@ floaters, not-enough-love flash, building HP bars; input routing + click-consume
 priority in `game/main.py`. Every menu screen mirrors the `game_over.py`
 construct→layout→update→hit→submit template + `widgets.Button`.
 
+## Payout-phase sequencing + animated love counter (feature)
+The payout no longer fires every boost/economy/upkeep floater in one frame.
+`FloaterManager.begin_payout(state)` (`effects.py`) — called ONCE on the
+`INCOME` phase edge from `main.py`, replacing the old three separate
+`spawn_income_events`/`spawn_painter_events`/`spawn_boost_events` calls —
+builds three ordered BEATS (boost, economy [income-kind `income_events`
+entries + Painter's finish/lost message], upkeep) and queues them for
+staggered release by `update(dt, state)`, `core.PhaseLoop.
+payout_stagger_interval` apart — the `game/enemies/spawner.py` timed
+`_queue`/`_timer` pattern. A beat's presence in the queue mirrors
+`payday.py` step 12's `phase_timer` formula exactly (`game/core/CLAUDE.md`),
+so the phase always stays open exactly as long as the queued beats need.
+Floater LIFETIME for these three beats is `vfx.json procedural.
+floaters.income_life`, decoupled from `core.PhaseLoop.
+income_phase_duration` (now the phase's post-last-beat hold time, not a
+floater life) — Painter's own entries keep their existing, separate
+`painter_life`. `ui.FX.income_floaters_enabled` gates only the income/
+upkeep-derived floaters within a beat (unchanged from before this
+feature) — never whether the beat/pause/counter-checkpoint happens; boost
+and Painter floaters were never gated by it.
+
+**The HUD love counter animates instead of snapping**, for every love
+change anywhere in the game, not just payout — spending, cheats, boss
+bonuses, the works. `FloaterManager` owns it: `love_display` (a property,
+`round()`ed) is what `Hud.submit` draws outside a hover preview
+(`main.py` threads `love_display=gp["floaters"].love_display`); the ramp
+is LINEAR, fixed-duration (`ui.json FX.love_counter_anim_duration`,
+independent of how big the change is), and a retarget mid-flight starts
+from the counter's CURRENT displayed position, never from its old target
+— so it can never visibly jump. Two drivers into the same ramp state:
+`begin_payout`'s beat releases arm an explicit segment each (the economy
+beat's release targets `state.payout_love_after_economy`, the upkeep
+beat's targets the real final `state.love` — see `game/core/CLAUDE.md`'s
+payout-sequencing bullet for where those two checkpoints come from); a
+generic per-frame watcher in `update(dt, state)` handles every OTHER
+change, but stays quiet while a payout sequence is still queued (its
+segments already account for that round's pending change) — this is what
+lets a single synchronous `run_payday()` call's one big `state.love` jump
+still read as two separate, correctly-timed ramps instead of one.
+**Tuning note**: with the shipped defaults (`payout_stagger_interval`
+0.42s < `love_counter_anim_duration` 1.2s) the upkeep beat's retarget
+fires before the economy ramp finishes, so the counter curves toward the
+lower total mid-climb rather than fully arriving first — smooth, not a
+jump (the same mid-flight mechanic), but not two fully sequential ramps
+either. If a designer wants the ramps to fully complete before the next
+beat fires, raise `payout_stagger_interval` to >= the counter duration.
+
+**The hover-cost preview shows the arithmetic, not the remainder — in two
+colours.** `Hud.submit`'s `hover_cost` branch used to show
+`state.love - hover_cost` (what you'd be left with, all one colour); it now
+draws `"current - price"` as TWO separately-coloured `HudText` runs via the
+new `Hud._submit_love_hover_cost` — the current-love half stays the plain
+love colour (`widgets.C_GOLD`, or a designer's `love_text` `text_color`
+override), only the `" - price"` half reads `widgets.C_RED` — for both an
+affordable and an unaffordable hover alike. Two string-table ids, not one
+combined template split in code: `hud.love_hover_cost_current` (`"{current}"`)
+and `hud.love_hover_cost_price` (`" - {price}"`), each independently
+designer-editable; the second is drawn immediately after the first via a
+live `widgets.text_size` measurement (the income-tooltip/lightning-readout
+precedent for hover-only text with no stored rect). Falls back to a single
+combined (red) draw if `love_text`'s alignment is ever not `"left"` — the
+two-segment math assumes left alignment, and today it always is. Always
+reads the REAL `state.love`/`hover_cost`, never the animated `love_display`
+— affordability is a correctness question, not a payout-flavor display.
+
+**Floaters sharing one anchor point stack vertically.** Boost floaters are
+anchored at the RECEIVING building's tile, not the booster's own tile
+(`game/buildings/boost.py`'s `apply_per_turn`) — so several boost buildings
+buffing the same defender all land a floater on that ONE tile in the same
+beat, which used to draw them directly on top of each other. `FloaterManager
+.submit` now groups `self._floaters` by exact `(wx, wy)` every frame (spawn
+order preserved — the list is append-only until culled) and gives each
+floater in a group its own vertical slot, `_FLOATER_STACK_STEP` (14px, fixed
+code chrome, not balancing) apart — the exact `submit_enemy_hp_bars`
+per-tile-group precedent (`game/ui/CLAUDE.md`'s "Overhead HP bars" section)
+applied to floater text instead of bars. Generic by anchor point, not
+boost-specific — any floater kind sharing a point stacks the same way, at no
+extra cost (the grouping already has to walk every active floater to draw
+it).
+
 ## HUD submission order: panel -> button -> text
 `engine/render/CLAUDE.md` "HUD pass": the HUD layer has **no depth sort** —
 `submit_hud`/`submit_panel`/`submit_text` draw in the order they're called,
@@ -603,6 +683,27 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
     what says the change was contained.
 - **Deferred**: the settings audio slider is inert (no audio system beyond
   music). (The pause dim landed with 10J's HUD alpha.)
+- **Controls screen (feature: rebindable hotkeys)** — `game/ui/keybinds_screen.py`
+  (`KeybindsScreen`), the `debug_settings.py` code-only-screen shape: no
+  `data/ui/screens/keybinds.json`, no `screen_defaults.json` entry, not in
+  `tools/export_ui_layouts.py`'s `SCREEN_IDS`, row labels are plain code text.
+  Reached via a new CONTROLS button on `SettingsScreen`; opened as
+  `Shell.controls_open`, an overlay flag on `GameState.SETTINGS` (the
+  `debug_settings_open`-on-`MAIN_MENU` pattern — reachable from exactly one
+  place, so no new `GameState` member). Lists 16 of the 18
+  `data/balancing/ui.json Keybindings` actions in TWO columns (16 rows in one
+  column overflows the 640x360 logical surface — `_ROWS_PER_COL`)
+  (`toggle_cheat_menu`/`quick_skip_combat` deliberately excluded — see
+  `game/CLAUDE.md`'s Rebindable hotkeys section) with a REBIND button per row.
+  `KeybindsScreen.bindings` is a plain shared dict the HOST owns (the
+  `SessionSettings` precedent) — `Shell(key_bindings=...)` threads it in, and
+  the screen only tracks WHICH row is armed (`capturing`); resolving a
+  captured keypress (Esc cancels, a collision flashes red via
+  `Button.start_flash`, otherwise the binding is written + persisted to
+  `scores/keybindings.json`) is `main.py`'s job, since a disk write and a raw
+  `pygame.KEYDOWN` are both out of bounds for pygame-free `game/ui`.
+  `main.py`'s menu `KEYDOWN` routing special-cases capture mode BEFORE
+  `shell.handle_key(...)` — see `_handle_capture_key`.
 
 ## Defence FX (10B)
 `effects.py` `FloaterManager` grew `submit_beams` + `submit_craters`, drawn from
@@ -706,6 +807,103 @@ The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
   `submit_lightning`, world-overlay pass (before the panel), not the later
   HP-bar section.
 
+## Building-colour swatches (MasterSheetColumnsPLAN B2)
+
+The build-confirm modal picks the master-sheet COLOUR COLUMN a building is
+placed in. Two new module-level members in `building_ui.py`, both deliberately
+reusable — the upgrade panel gets the same row in B3 and **must not
+re-implement either**:
+- **`ColorSwatchRow(colors, left, right, top, id_prefix, ui_balance=None)`** —
+  layout + hit-test + draw over `widgets.Button`, right-aligned to `right` and
+  clamped to the first `(avail + GAP) // (SIZE + GAP)` colours (the registry
+  schema allows 16 names; only ~8 12px swatches fit the modal's band, and
+  shipped sheets declare 4). It owns **no state**: `hit(mx, my)` returns an
+  INDEX or `None` and `submit(renderer, selected, anim_ms=0)` takes the
+  caller's selection as an argument, which is what lets one screen point it at
+  a pending int and another at a live `SpriteAnimator.column`. `ids` merges
+  into the owning screen's dict BEFORE `skinning.apply`; `__bool__` is False
+  when inert. `SIZE = 12` is the UR-5 click-target floor exactly.
+- **`_swatch_rgb(name, ui_balance=None)`** — the ONE colour lookup, now (B3) a
+  read of `data/balancing/ui.json`'s `BuildingColors` group (`name -> [r, g,
+  b]`). Both screens pass the balance dict they already hold; there is no
+  second table. A miss of ANY kind — no balance, no group, or a `columns` name
+  the palette does not know — degrades to the neutral `widgets.C_PANEL_INSET`
+  rather than raising (E-37): the swatch still exists and still picks its
+  column, it just isn't tinted. The neutral is read as `widgets.<NAME>`
+  attribute access, never import-bound (`configure_palette` rebinds the `C_*`
+  constants at boot).
+  - **`BuildingColors` is deliberately NOT in `ui.schema.json`'s root
+    `required`** (it is the only optional group there). The root is
+    `additionalProperties: false` with four required groups, and a fifth
+    required key would redden `tools/tests/fixtures/data/balancing/ui.json`,
+    which no UI change may touch. So the read is `.get("BuildingColors", {})`
+    and absence is a supported state — which is exactly what the fixture
+    exercises. Its four names (`pink`/`purple`/`red`/`yellow`) are fixed schema
+    properties, not an open map, so the editor's balancing panel renders them
+    by recursing the schema with no editor code at all; growing the palette is
+    a one-line schema edit through `/add-balancing-value`.
+
+## Upgrade-panel colour swatches (MasterSheetColumnsPLAN B3)
+
+The upgrade panel grows the SAME `ColorSwatchRow`, pointed at the live
+building instead of a pending int — `BuildingUI.colour_row`, built by
+`_build_colour_row()` at the tail of `_build_upgrade` (after `_build_move_btn`)
+and swept by `_clear_colour_ids()` (the `_clear_card_ids` prefix rule, also
+called from `close()`), ids `upgrade_swatch_0…`.
+
+- **The D6 gate**: upgrade mode, SINGLE selection (the `move_btn` rule — a
+  batch recolour is not a feature), a host-wired `colour_columns` map, and
+  `>= 2` colours for the building's LIVE `BuildingSprite.slot_key` (the key the
+  host's map is built on, and `None` on the base, which has no animator).
+  Anything else leaves the row inert: no row, no gap, no placeholder, no ids,
+  never a raise.
+- **Clicking swatch `i` writes `i` onto `BuildingSprite.column`** — the field
+  the renderer reads, so the board recolours next frame with no confirm step,
+  nothing spent, nothing logged; it survives later upgrades for free because
+  `apply_tier_stats` rewrites only `slot_key`. The hit test sits after the
+  rename defocus (a swatch click commits an in-progress rename, like a move
+  click) and before `move_btn`. `-1` is the "no driver" sentinel and `0` is a
+  REAL colour, so the ring test is `_selected_column()`'s `>= 0`, never
+  truthiness.
+- **The band is dead space, so nothing moves.** All of it derives from
+  `action_btn.rect`: the row is `y 282..293` (12px, the UR-5 floor exactly),
+  6px above the action button's `y = 300` top and 14px below the stat column's
+  268 worst case; `action_btn`, `move_btn`, the stat rows and the hint keep
+  their exact rects. That is why `py tools/export_ui_layouts.py` was a **no-op
+  diff** and `test_ui_skinning.py`'s `building_panel` baseline needed no edit.
+- **The swatches are not in `screen_defaults.json` at all**, and the golden pin
+  does not cover them: the exporter's mock builds a real building but wires no
+  capability map, so the "no map ⇒ no colours ⇒ no row" path runs there. That
+  is deliberate — dynamic-count content is styled through
+  `ScreenSkinning.defaults()`, and an id absent from the defaults file is
+  harmless (`_validate_ids` only fails on an override naming an id the code
+  does not know). `tools/screen_mocks.py` is untouched on purpose: it is the
+  ONE mock state shared by `screen_defaults.json` and `screen_previews.json`.
+
+Rules this section fixes:
+- **`0` is a real colour index; `-1` is the "no driver" sentinel.** Nothing
+  here may truth-test a column — `is not None`, always. A slot with fewer than
+  2 colours builds no widgets at all, registers no ids, draws nothing, and
+  leaves `chosen_column = None` so `place_building` keeps the sentinel.
+- **The preview may not lie.** `ConstructPreview.__init__` ROLLS the initial
+  index (`random.randrange`, the same stdlib module the name dice already
+  uses — no rng seam threaded through the UI) and `_do_place` always passes it
+  as `place_building(..., column=)`, so confirming without touching a swatch
+  places exactly the colour shown.
+- **The capability map is the HOST's.** `game/main.py`'s
+  `_derive_colour_columns` builds `{slot_key: (colour_name, …)}` once at boot
+  and assigns `panel.colour_columns` — the `panel.assets` /
+  `overlays.condition_art` precedent. `BuildingUI.__init__` defaults it to
+  `{}`, so a bare panel in a test or tool has no colours and is unchanged.
+  `game/ui` never reaches into the asset layer (D6/E-37).
+- **Nothing already on the modal moved.** The row is `y+36..y+47`: 1px under
+  the cost line, exactly abutting the `y+48` name box, entirely above the
+  `y+69` stat list — so `data/ui/screen_defaults.json` needs no regeneration
+  and the stat list's 2px slack is untouched. It is hit-tested BEFORE
+  `handle_click`'s `name_rect` branch (a plain containment test, the broadest
+  one) and drawn inside `submit`'s BUTTON block, its selection ring right
+  after its own swatch (the sanctioned "ring after its own button" exception).
+
 ## Move Building (Building Movement)
 The upgrade panel's fifth mode + a second preview modal. Rules live in
 `game/buildings/movement.py` (`game/buildings/CLAUDE.md`); this module is the
@@ -730,15 +928,43 @@ picker and the confirmation.
   rung — move_select peels back to upgrade before the bare-panel close.
 - **`MovePreview`** — the `ConstructPreview` sibling, minus the name field,
   the dice and the stat list (nothing about the building changes, it just
-  relocates): display name, `Cost`/`Time` lines (`Free`/`Instant` at zero),
-  destination coords, CONFIRM/CANCEL. It reuses the SAME
-  `ui.Timing.construct_show_cancel`/`confirm_on_right_side` chrome keys and
-  the SAME `preview_*` id namespace, and mirrors `ConstructPreview`'s public
-  surface (`hover`/`confirm_hovered`/`update`/`handle_click`/`handle_key`/
-  `submit` + `confirm_btn`) closely enough that `main.py`'s existing
-  `panel.preview is not None` modal branch drives it with **no
-  preview-class-specific code**. `_preview_click` is the one place that
-  branches, on `isinstance(self.preview, MovePreview)`.
+  relocates): display name, ONE `Cost` line quoting ROUNDS (`Instant` at
+  zero — feature: move-building-time-only-cost merged the old separate
+  Cost-in-love/Time-in-rounds pair into this single line, since moving a
+  building spends no love any more), destination coords, CONFIRM/CANCEL.
+  `self.cost` (the love figure, always 0) is still carried and still what
+  `total_cost`/`_do_move`'s affordability check reads — only the SEPARATE
+  love-cost text line is gone. **The Cost line draws in `C_MOVE_HIGHLIGHT`
+  (the same cyan the destination path-line preview uses), never the
+  love-gold `C_GOLD` every OTHER preview's cost line uses** — the deliberate
+  visual signal that this number is a round count, not a currency figure. It
+  reuses the SAME `ui.Timing.construct_show_cancel`/`confirm_on_right_side`
+  chrome keys and the SAME `preview_*` id namespace, and mirrors
+  `ConstructPreview`'s public surface (`hover`/`confirm_hovered`/`update`/
+  `handle_click`/`handle_key`/`submit` + `confirm_btn`) closely enough that
+  `main.py`'s existing `panel.preview is not None` modal branch drives it
+  with **no preview-class-specific code**. Two places in THIS module branch
+  on `isinstance(self.preview, MovePreview)`: `_preview_click` (routes
+  CONFIRM to `_do_move` instead of `_do_place`), and `BuildingUI.hover` —
+  every other preview's hovered CONFIRM sets `self._hover_cost` to preview a
+  love spend on the HUD's top-left pill (`hud.py`'s `submit(...,
+  hover_cost=)`); a `MovePreview`'s CONFIRM is explicitly excluded from that,
+  since its cost is rounds, not love, and the pill must draw exactly as if
+  nothing were hovered.
+  - **The "will miss combat" warning (feature: move-building-time-only-cost)**
+    — a red `BuildingsGlobal.Movement.warning_text` line below the
+    destination coords, present only when `rounds > 0` (an instant, 0-round
+    move skips it — nothing is missed) and the balancing string is non-blank.
+    Wrapped at CONSTRUCT time via `wrap_text(..., "sm", pw - 16,
+    max_lines=3)` into `self._warning_lines`, which is what the panel's
+    height (`ph`) grows to fit — geometry is still fixed for the instance's
+    whole lifetime (10L-B), just computed from the actual wrapped line count
+    instead of a bare literal. It is dynamic designer content with no stored
+    id (the `ConstructPreview` stat-list/`levelup` explanation precedent), so
+    it is wrapped at construct time rather than draw time without tripping
+    the "layout_h, never a live font measurement" rule above — that rule
+    guards content the golden `screen_defaults.json`/`screen_previews.json`
+    capture, and this line is captured by neither.
 - **`_do_move`** mirrors `_do_place`: re-check love (a race since the modal
   opened), call `start_move` in a `try/except MoveError` (flash
   `CANNOT MOVE THERE` — the destination got taken), spend, log, close the
@@ -1082,7 +1308,9 @@ imports:
     NEVER read (`_params_from_balance` never touched it) — a designer
     editing it in the `vfx` balancing form saw no effect in game. The four
     floater spawn sites (`spawn_income_events`/`spawn_xp_events`/
-    `spawn_painter_events`/`spawn_boost_events`) now read
+    `spawn_painter_events`/`spawn_boost_events` — the first, third and
+    fourth are since SUPERSEDED by `begin_payout`, the payout-phase-
+    sequencing feature above; `spawn_xp_events` is untouched) now read
     `self._vfx_params.floaters` (`engine.vfx.FloaterParams`, built by
     `_params_from_balance` like every other family); the JSON already
     shipped values identical to the constants, so this is a visual no-op on
@@ -1404,7 +1632,13 @@ building — like every other effect.
   path line read `move_target`; the drag-select rectangle's fill and the two
   name-field focus rings read `tile_selected`. Each of those IS the highlight's
   colour seen somewhere else, which is why sharing is correct here and a
-  second key would not be.
+  second key would not be. **One consumer was missed by this migration and
+  shipped a live `AttributeError`** (found the hard way, live-testing the
+  tile-buying tutorial topic below): `ColorSwatchRow.submit`'s selection ring
+  (`building_ui.py`, the construct-preview building-colour picker) still read
+  the deleted `widgets.C_HIGHLIGHT` directly. Fixed the same way as the other
+  four — `highlight_color("tile_selected")`, the same "ring around the
+  selected thing" reading the two name-field focus rings already use.
 - `wall_edge` draws a LINE, not a diamond, so its `border_width` is the line
   width and its `fill_alpha` is unused — the one non-uniform member of an
   otherwise uniform block, documented in the schema.
@@ -1948,11 +2182,22 @@ trigger call sites in `main.py`, never unified into one state machine:
   sharing `shell.skinning` like the other seven gameplay screens;
   `data/ui/screens/tutorial_message.json` is the 14th screen override file,
   started `{}` like every other.
-- **`widgets.C_TUTORIAL_HIGHLIGHT`** (white, a plain code constant — NOT
-  palette-data-backed, unlike every other `C_*`) + **`submit_ui_box_highlight
+- **`widgets.highlight_color("tutorial_highlight")`** (white; VA-5 moved this
+  off the old `C_TUTORIAL_HIGHLIGHT` bare constant into
+  `procedural.highlights.tutorial_highlight` data — see this file's "seven
+  tile highlights are EFFECTS" section) + **`submit_ui_box_highlight
   (renderer, rect, color=None, width=3)`** (a highlight ring around a card /
-  Confirm / End Turn button, plain HUD-space `HudRect`) are the two new D8
-  primitives the guided chain draws with; no new render-backend work.
+  Confirm / End Turn / Unlock button, plain HUD-space `HudRect`) are the two
+  D8 primitives the guided chain draws with; no new render-backend work.
+  **Feature addition**: every guided-chain highlight (this ring AND the world
+  tile diamond, `submit_highlight("tutorial_highlight", …)`) now pulses/glows
+  — alpha and border width both breathe on a sine cycle, off a new sibling
+  `procedural.tutorial_highlight_pulse` block and `widgets.
+  tutorial_pulse_style(clock_ms)`. The two `main.py` call sites compute it
+  once per frame off the existing `deco_clock_ms` wall clock and pass it as
+  `pulse_color`/`pulse_width` (tile diamond) or `color`/`width` (UI box ring)
+  — no new per-frame state, no change to either primitive's default
+  behaviour for its six other, still-static, callers.
 - **`building_ui.py` gained three small, additive, read-only members** (no
   change to `_construct_click`/`open_for_tile`/any existing control flow):
   `card_rect(building_type)` (the construct-mode card's rect, or `None`),
@@ -1966,17 +2211,27 @@ trigger call sites in `main.py`, never unified into one state machine:
   from "the preview was merely cancelled" (both clear `panel.preview` the
   same way) and clears it back to `None` itself. TU-8 added a FOURTH:
   `close_rect()` (the panel's own CLOSE/X rect, or `None` when the panel
-  isn't open — same additive shape).
+  isn't open — same additive shape). The tile-buying tutorial topic added a
+  FIFTH pair: `action_rect()` (mirrors `close_rect()`, gated on `self.mode
+  == "unlock"` since `action_btn` is reused across unlock/construct-advance/
+  upgrade modes) and `self.last_unlocked` (the `last_placed_type` shape
+  exactly — set `True` in `_unlock_click` on a real `tm.do_unlock` success,
+  read/cleared once by `main.py` right after a successful
+  `panel.handle_click()`, never reset by `close()`).
 - **TU-8 added a second widgets primitive, `submit_tutorial_banner(renderer,
   text, view_w, view_h)`** — the `submit_ui_box_highlight` sibling for a
-  full-text hint rather than a ring: a big `C_TUTORIAL_HIGHLIGHT`-filled,
-  screen-centred box sized to the text, drawn with **no hit-test and no
-  input consumption** (unlike `TutorialMessageScreen`, which must never be
-  used for a hint instructing a right-click — that modal swallows every
-  click while visible, `main.py` `handle_world_click`'s top branch). Reads
-  its text from `TutorialDirector.banner_text()`, submitted independently of
-  (and alongside) `ui_highlight_rects`'s Close-button ring — see
+  full-text hint rather than a ring: a big
+  `highlight_color("tutorial_highlight")`-filled, screen-centred box sized to
+  the text, drawn with **no hit-test and no input consumption** (unlike
+  `TutorialMessageScreen`, which must never be used for a hint instructing a
+  right-click — that modal swallows every click while visible, `main.py`
+  `handle_world_click`'s top branch). Reads its text from
+  `TutorialDirector.banner_text()`, submitted independently of (and
+  alongside) `ui_highlight_rects`'s Close-button ring — see
   `game/CLAUDE.md`'s "Un-stick on panel close + close-panel hint" section.
+  **Deliberately excluded from the pulse above** — an instructional text box,
+  not a click-target border; pulsing a filled banner would read as
+  distracting rather than clarifying.
 - **Detail on the director/host wiring** (the three choke points, the event
   feed, the D6 zero-overhead contract, TU-8's revert/close-panel-hint
   additions) → `game/CLAUDE.md`'s Tutorial director section.

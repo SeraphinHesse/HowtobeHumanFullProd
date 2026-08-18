@@ -101,6 +101,7 @@ TIERS = {
     "test_coords": "core",
     "test_core": "core",
     "test_corpse": "core",
+    "test_crowd_spacing": "core",  # feature: tile-crowding visual offset
     "test_cutscene_player": "core",  # TU-5: CutscenePlayer + registry loader
     "test_cutscene_session": "core",  # TU-5: end_turn() pending_cutscene request
     "test_death_spawn": "core",
@@ -123,14 +124,20 @@ TIERS = {
     "test_hud_items": "core",
     "test_hud_panel": "core",
     "test_hud_render": "core",
+    "test_input_bindings": "core",  # feature: rebindable hotkeys — engine/input.py
+    "test_keybinds_screen": "core",  # feature: rebindable hotkeys — the Controls screen
     "test_kidnap": "core",  # Art/enemies: kidnapping
     "test_layout_h_invariant": "core",  # Fix 1 (phase-10L wave3): layout_h pin
     "test_levelup": "core",
     "test_lightning": "core",
     "test_map_overlays": "core",  # MapOverlays: the TIER OVERVIEW toggle pill
+    "test_master_registry": "core",   # MasterSheetColumnsPLAN C3
     # GpuAndMasterSheetsPLAN M3: editor/master_sheet_import.py + its picker
     # dialog. `editor` because half of it builds Qt widgets.
     "test_master_sheet_import": "editor",
+    # MasterSheetColumnsPLAN E5: editor/panels/master_sheets.py — the Master
+    # Sheets right-pane page. Qt-heavy, same tier as its import module.
+    "test_master_sheets_panel": "editor",
     "test_movement": "core",
     "test_names": "core",
     "test_nine_slice": "core",

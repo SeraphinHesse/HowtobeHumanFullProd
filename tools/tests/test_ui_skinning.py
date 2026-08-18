@@ -211,6 +211,36 @@ def _screen_captures():
 #: is unchanged — its position was never derived from the speed row's
 #: runtime visibility, only from its default layout) and every other
 #: screen's entry is byte-identical.
+#: Regenerated a TWELFTH time (boss-round indicator icon): ``hud`` gained a
+#: new BUILDING-phase-only icon immediately left of Pause (a
+#: `ui_icon_boss_next`/`ui_icon_boss_next_off` HudSprite, tinted while
+#: neither slot carries real art), so ONE primitive is INSERTED into that
+#: entry between END TURN and Pause — nothing already there moved, and every
+#: other screen's entry is byte-identical, which is what says the change was
+#: contained.
+#: Regenerated a THIRTEENTH time (feature: rebindable hotkeys): ``settings``
+#: gained a CONTROLS button (opens the new Controls/rebind screen) beside
+#: BACK. Three primitives are APPENDED to that entry; nothing already in it
+#: moved, and every other screen's entry is byte-identical — which is what
+#: says the change was contained. This entry and the TWELFTH above touch
+#: disjoint screens (``settings`` vs ``hud``), so the merge of the two
+#: features is the union of their two contained additions, not a
+#: re-baseline: both are present below, unmodified.
+#: Regenerated a FOURTEENTH time (cheat menu Unlock Speed): the cheat menu
+#: gained an ``unlock_speed`` row (bypasses the combat-speed round gate for
+#: the rest of the run) between ``Unlock Tech`` and ``Debug Log``, so the
+#: panel grew one row step (15px) and every row from ``Debug Log`` downward
+#: shifts. Only ``cheat_menu``'s entry moved; every other screen's entry is
+#: byte-identical, which is what says the change was contained.
+#: The TWELFTH, THIRTEENTH and FOURTEENTH regenerations landed on separate
+#: branches and met here at merges. They are independent: they rewrite only
+#: ``hud``'s, only ``settings``'s and only ``cheat_menu``'s entry
+#: respectively, so none supersedes another and the merged baseline carries
+#: ALL THREE. That disjointness is the merge's containment signal — if a
+#: future merge of two UI branches touches the SAME entry, the resolution is
+#: to re-capture from ``_screen_captures()``, never to pick a side.
+
+
 _BASELINE = {
     "main_menu": [
         HudRect(rect=(0, 0, 640, 360), color=(18, 30, 20), border_radius=0, width=0),
@@ -290,6 +320,9 @@ _BASELINE = {
         HudRect(rect=(270, 279, 100, 23), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(270, 279, 100, 23), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='BACK', pos=(320, 283), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(380, 279, 90, 23), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(380, 279, 90, 23), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='CONTROLS', pos=(425, 285), font_key='sm', color=(235, 225, 195), align='center'),
     ],
     "credits": [
         HudRect(rect=(0, 0, 640, 360), color=(12, 20, 14), border_radius=0, width=0),
@@ -390,6 +423,7 @@ _BASELINE = {
         HudRect(rect=(552, 322, 80, 30), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(552, 322, 80, 30), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='END TURN', pos=(592, 330), font_key='md', color=(235, 225, 195), align='center'),
+        HudSprite(slot_key='ui_icon_boss_next_off', dest=(568, 6), size=(15, 15), tint=(150, 150, 150, 255), flip=False, animation='idle', anim_time_ms=0),
         HudRect(rect=(587, 6, 45, 15), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(587, 6, 45, 15), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='PAUSE', pos=(609, 7), font_key='md', color=(235, 225, 195), align='center'),
@@ -401,38 +435,41 @@ _BASELINE = {
     ],
     "cheat_menu": [
         HudRect(rect=(0, 0, 640, 360), color=(0, 0, 0, 150), border_radius=0, width=0),
-        HudRect(rect=(258, 108, 124, 144), color=(42, 34, 68), border_radius=0, width=0),
-        HudRect(rect=(258, 108, 124, 144), color=(80, 65, 120), border_radius=0, width=1),
-        HudText(text='CHEATS', pos=(320, 112), font_key='lg', color=(255, 200, 50), align='center'),
-        HudRect(rect=(365, 111, 14, 13), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(365, 111, 14, 13), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='X', pos=(372, 111), font_key='md', color=(235, 225, 195), align='center'),
-        HudRect(rect=(263, 124, 114, 13), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(263, 124, 114, 13), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='+10 Love', pos=(320, 124), font_key='md', color=(235, 225, 195), align='center'),
-        HudRect(rect=(263, 139, 114, 13), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(263, 139, 114, 13), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='Skip Round', pos=(320, 139), font_key='md', color=(235, 225, 195), align='center'),
-        HudRect(rect=(263, 154, 114, 13), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(263, 154, 114, 13), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='LEVEL UP', pos=(320, 154), font_key='md', color=(235, 225, 195), align='center'),
-        HudRect(rect=(263, 169, 114, 13), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(263, 169, 114, 13), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='Infinite Money', pos=(320, 169), font_key='md', color=(235, 225, 195), align='center'),
-        HudRect(rect=(263, 184, 114, 13), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(263, 184, 114, 13), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='Unlock Tech', pos=(320, 184), font_key='md', color=(235, 225, 195), align='center'),
-        HudRect(rect=(263, 199, 114, 13), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(263, 199, 114, 13), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='Debug Log', pos=(320, 199), font_key='md', color=(235, 225, 195), align='center'),
-        HudRect(rect=(263, 216, 114, 1), color=(80, 65, 120), border_radius=0, width=0),
-        HudText(text='Jump to round:', pos=(263, 218), font_key='sm', color=(150, 140, 120), align='left'),
-        HudRect(rect=(263, 227, 48, 13), color=(40, 32, 58), border_radius=0, width=0),
-        HudRect(rect=(263, 227, 48, 13), color=(80, 65, 120), border_radius=0, width=1),
-        HudText(text='round', pos=(266, 229), font_key='sm', color=(150, 140, 120), align='left'),
-        HudRect(rect=(314, 227, 63, 13), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(314, 227, 63, 13), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='Round', pos=(345, 228), font_key='sm', color=(235, 225, 195), align='center'),
+        HudRect(rect=(258, 101, 124, 159), color=(42, 34, 68), border_radius=0, width=0),
+        HudRect(rect=(258, 101, 124, 159), color=(80, 65, 120), border_radius=0, width=1),
+        HudText(text='CHEATS', pos=(320, 105), font_key='lg', color=(255, 200, 50), align='center'),
+        HudRect(rect=(365, 104, 14, 13), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(365, 104, 14, 13), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='X', pos=(372, 104), font_key='md', color=(235, 225, 195), align='center'),
+        HudRect(rect=(263, 117, 114, 13), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(263, 117, 114, 13), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='+10 Love', pos=(320, 117), font_key='md', color=(235, 225, 195), align='center'),
+        HudRect(rect=(263, 132, 114, 13), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(263, 132, 114, 13), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='Skip Round', pos=(320, 132), font_key='md', color=(235, 225, 195), align='center'),
+        HudRect(rect=(263, 147, 114, 13), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(263, 147, 114, 13), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='LEVEL UP', pos=(320, 147), font_key='md', color=(235, 225, 195), align='center'),
+        HudRect(rect=(263, 162, 114, 13), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(263, 162, 114, 13), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='Infinite Money', pos=(320, 162), font_key='md', color=(235, 225, 195), align='center'),
+        HudRect(rect=(263, 177, 114, 13), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(263, 177, 114, 13), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='Unlock Tech', pos=(320, 177), font_key='md', color=(235, 225, 195), align='center'),
+        HudRect(rect=(263, 192, 114, 13), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(263, 192, 114, 13), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='Unlock Speed', pos=(320, 192), font_key='md', color=(235, 225, 195), align='center'),
+        HudRect(rect=(263, 207, 114, 13), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(263, 207, 114, 13), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='Debug Log', pos=(320, 207), font_key='md', color=(235, 225, 195), align='center'),
+        HudRect(rect=(263, 224, 114, 1), color=(80, 65, 120), border_radius=0, width=0),
+        HudText(text='Jump to round:', pos=(263, 226), font_key='sm', color=(150, 140, 120), align='left'),
+        HudRect(rect=(263, 235, 48, 13), color=(40, 32, 58), border_radius=0, width=0),
+        HudRect(rect=(263, 235, 48, 13), color=(80, 65, 120), border_radius=0, width=1),
+        HudText(text='round', pos=(266, 237), font_key='sm', color=(150, 140, 120), align='left'),
+        HudRect(rect=(314, 235, 63, 13), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(314, 235, 63, 13), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='Round', pos=(345, 236), font_key='sm', color=(235, 225, 195), align='center'),
     ],
     "game_log": [
         HudText(text='Test message', pos=(4, 344), font_key='sm', color=(220, 200, 155, 255), align='left'),

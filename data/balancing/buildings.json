@@ -164,7 +164,7 @@
     },
     "globals": {
       "flat_mode": false,
-      "range_shape": "plus",
+      "range_shape": "square",
       "range_tiles": 1,
       "starts_unlocked": false,
       "tier_card_explanations": [
@@ -185,10 +185,11 @@
       "base_moving_time": 1,
       "love_cost_increase": 10,
       "love_cost_increase_increment": 2,
-      "money_cost_enabled": true,
+      "money_cost_enabled": false,
       "moving_time_increase": 1,
       "moving_time_increase_increment": 2,
-      "time_cost_enabled": true
+      "time_cost_enabled": true,
+      "warning_text": "Warning: unavailable in combat while it is being moved."
     },
     "defence_range_pathfinding": {
       "enabled": true,

@@ -45,7 +45,8 @@ from types import SimpleNamespace
 
 from game.buildings import range_shape
 from game.buildings.components import (
-    BoostReceiver, Nameplate, RoundStats, TierState, YieldEconomy,
+    BoostReceiver, BuildingSprite, Nameplate, RoundStats, TierState,
+    YieldEconomy,
 )
 from game.buildings.movement import MoveError, is_movable, start_move
 from game.buildings.registry import (
@@ -70,7 +71,7 @@ from .strings import T
 from .widgets import (
     Button, anim_ms, contains, label_holder, submit_label, submit_panel,
     submit_tile_diamond, submit_tile_diamond_fill, submit_text, text_h,
-    text_size
+    text_size, wrap_text
 )
 from . import widgets
 
@@ -85,6 +86,20 @@ SCREEN_ID = "building_panel"
 #: a dynamic-count card list individually overridable; `_clear_card_ids` uses
 #: this same prefix to sweep the previous build's entries out of `self.ids`.
 _CARD_ID_PREFIX = "card_"
+
+#: MasterSheetColumnsPLAN B3 — id prefix for the upgrade panel's colour
+#: swatches, completed by `ColorSwatchRow` with `_<index>` (`upgrade_swatch_0`,
+#: …). The COUNT is dynamic (1..16 per master sheet) and the row is rebuilt per
+#: selection, so `_clear_colour_ids` sweeps this prefix exactly the way
+#: `_clear_card_ids` sweeps `card_` — a stale id would leave `skinning.apply`
+#: writing overrides onto a dead Button.
+_UPGRADE_COLOR_PREFIX = "upgrade_swatch"
+
+#: Gap between the swatch row's bottom and the upgrade action button's top.
+#: The row hangs off `action_btn.rect` (like `move_btn` hangs BELOW it), so it
+#: sits in the one free band the upgrade panel has — see `_build_colour_row`
+#: for the worked arithmetic.
+_COLOUR_ROW_GAP = 6
 
 #: Slot-key prefix for the OPTIONAL dedicated card-portrait art family
 #: (`data/slots.json`'s `ui` -> "Card Portraits"), completed by the card's
@@ -292,6 +307,138 @@ def _tier_name(b):
     return b.tier_data()["name"]
 
 
+#: MasterSheetColumnsPLAN B3 — the ONE key ``_swatch_rgb`` reads out of
+#: ``data/balancing/ui.json``. Optional in the schema on purpose (it is NOT in
+#: the root ``required`` list), so a balance document without it — the test
+#: fixture's, or an older save of the file — degrades to neutral swatches
+#: instead of raising.
+_BUILDING_COLORS_KEY = "BuildingColors"
+
+
+def _swatch_rgb(name, ui_balance=None):
+    """A colour NAME -> ``(r, g, b)`` for the swatch fill.
+
+    B3: the colours are DATA — ``ui.json``'s ``BuildingColors`` group, a
+    ``name -> [r, g, b]`` map a designer edits in the editor's balancing
+    panel (which picks the group up for free by recursing the schema). This
+    is the ONE place a colour name becomes an RGB; both callers
+    (``ConstructPreview``'s row and the upgrade panel's) pass the balance
+    dict they already hold.
+
+    **A miss degrades, it never raises** (E-37): an absent group, a `None`
+    balance (a bare row built by a tool or a test) or a ``columns`` name with
+    no entry all return the neutral ``widgets.C_PANEL_INSET`` — the swatch
+    still exists and still picks its column, it is just not tinted. Art may
+    declare any colour name it likes; the palette is not obliged to know it.
+
+    The neutral is read as ``widgets.<NAME>`` ATTRIBUTE ACCESS, never
+    import-bound: ``widgets.configure_palette`` rebinds every ``C_*``
+    constant in place at boot (widgets.py:92-104), which an early
+    ``from .widgets import C_PANEL_INSET`` could not see.
+    """
+    rgb = (ui_balance or {}).get(_BUILDING_COLORS_KEY, {}).get(name)
+    if rgb is None:
+        return widgets.C_PANEL_INSET
+    return tuple(rgb)
+
+
+class ColorSwatchRow:
+    """A right-aligned row of N square colour swatches (building colour).
+
+    Pure layout + hit-test + draw over ``widgets.Button``, factored out
+    because TWO screens use it: ``ConstructPreview`` (B2) and the
+    ``BuildingUI`` upgrade panel (B3). It owns no game state — the caller
+    keeps the selection and feeds it back in through ``submit``, which is
+    what lets B3 point it at a live building's ``SpriteAnimator.column``
+    while B2 points it at a pending int.
+
+    ``hit`` returns an INDEX, never a name (plan D5: the building stores the
+    column index). ``0`` is a real colour, so a miss is ``None`` — never a
+    falsy index.
+    """
+
+    SIZE = 12   # UR-5 floor exactly (tools/tests/test_ui_min_targets.py:55)
+    GAP = 2
+
+    def __init__(self, colors, left, right, top, id_prefix, ui_balance=None):
+        """``colors``    - tuple of colour NAMES from the host capability map
+                           (``()`` => an empty, inert row).
+        ``left``/``right`` - the horizontal band, in logical px; the row is
+                           RIGHT-aligned to ``right`` and clamped to the
+                           first ``(avail + GAP) // (SIZE + GAP)`` colours
+                           (the registry schema permits up to 16 names, and
+                           only ~8 twelve-px swatches fit this modal's band).
+        ``top``        - the row's top edge, logical px.
+        ``id_prefix``  - ``"preview_color"`` (B2) / ``"upgrade_color"`` (B3);
+                           widget ids are ``f"{id_prefix}_{i}"``.
+        ``ui_balance`` - passed straight to ``_swatch_rgb`` (B3's data hook).
+        """
+        self._id_prefix = id_prefix
+        pitch = self.SIZE + self.GAP
+        avail = max(0, int(right) - int(left))
+        max_fit = max(0, (avail + self.GAP) // pitch)
+        self.colors = tuple(colors or ())[:max_fit]
+        n = len(self.colors)
+        row_w = n * self.SIZE + (n - 1) * self.GAP if n else 0
+        x0 = int(right) - row_w
+        #: The swatch buttons, left to right; index i IS master column i.
+        self.buttons = [
+            Button((x0 + i * pitch, int(top), self.SIZE, self.SIZE), "", "sm")
+            for i in range(n)]
+        #: Per-swatch fill, resolved once at build time (the palette is
+        #: already configured by the time any screen constructs a row).
+        self.fills = [_swatch_rgb(name, ui_balance) for name in self.colors]
+
+    @property
+    def ids(self):
+        """``{widget_id: ("button", Button)}`` — merge into the screen's own
+        ``ids`` dict BEFORE it calls ``skinning.apply``. Empty when inert."""
+        return {f"{self._id_prefix}_{i}": ("button", btn)
+                for i, btn in enumerate(self.buttons)}
+
+    def __bool__(self):
+        """False when there is nothing to draw (no colours, or none fit)."""
+        return bool(self.buttons)
+
+    def hover(self, mx, my, mouse_down=False):
+        for btn in self.buttons:
+            btn.hover(mx, my, mouse_down)
+            btn.hovered = btn.hovered and is_visible(btn)
+
+    def update(self, dt):
+        for btn in self.buttons:
+            btn.update(dt)
+
+    def hit(self, mx, my):
+        """The colour INDEX under the cursor, or ``None``. Never returns 0
+        for a miss — 0 is a real colour (S1's sentinel rule)."""
+        for i, btn in enumerate(self.buttons):
+            if is_visible(btn) and btn.hit(mx, my):
+                return i
+        return None
+
+    def submit(self, renderer, selected, anim_ms=0):
+        """Draw the row. Call from the caller's BUTTON block ONLY, never the
+        text block. ``selected`` is the caller's current index (``None`` =>
+        none marked); the marker ring is drawn right after its own swatch —
+        the sanctioned "highlight ring after its own button" exception
+        (``overlays.py MapOverlays.submit_buttons``, game/ui/CLAUDE.md)."""
+        from engine.render import HudRect
+
+        for i, btn in enumerate(self.buttons):
+            if not is_visible(btn):
+                continue
+            kwargs = button_kwargs(btn)
+            # An override's own colour wins; otherwise the swatch IS its fill.
+            if kwargs.get("color") is None:
+                kwargs["color"] = self.fills[i]
+            btn.submit(renderer, anim_ms=anim_ms, **kwargs)
+            if selected is not None and i == selected:
+                renderer.submit_hud(
+                    HudRect(btn.rect, widgets.highlight_color("tile_selected"),
+                             width=1))
+
+
 class ConstructPreview:
     """Centered modal for placing a new building: name entry + stat preview +
     confirm/cancel (positioned per ``ui.Timing``). Modal — the host routes all
@@ -299,7 +446,7 @@ class ConstructPreview:
 
     def __init__(self, building_type, cost, buildings_balance, ui_balance,
                  view_w, view_h, count=1, tier_idx=0, repeat_count=0,
-                 skinning=None):
+                 skinning=None, *, building_colors=None):
         self.screen_id = SCREEN_ID
         self.skinning = skinning or ScreenSkinning.empty()
         self.building_type = building_type
@@ -330,6 +477,39 @@ class ConstructPreview:
         self.name_rect = (x + 8, y + 48, pw - 16 - 18, 15)
         self.dice_btn = Button((x + pw - 8 - 15, y + 48, 15, 15),
                                T("building.btn.dice"), "md")
+        # -- MasterSheetColumnsPLAN B2: the building-colour swatch row --------
+        # The HOST derives `{slot_key: (colour_name, ...)}` once at boot
+        # (`game/main.py _derive_colour_columns`) and publishes it down to
+        # `BuildingUI.colour_columns`; `game/ui` never reaches into the asset
+        # layer itself (D6/E-37). Fewer than 2 colours => no widgets at all,
+        # no ids, nothing drawn: there is no choice to offer, and a slot with
+        # exactly one colour still gets it from `place_building`'s own roll.
+        #
+        # Vertical fit — the row is `y+36 .. y+47` inclusive (SIZE 12):
+        #   cost line (md) occupies y+22 .. y+34   -> 1px of clearance above
+        #   name box top edge is y+48              -> exactly abuts, no overlap
+        #   stat list still starts at y+69         -> nothing below moves, so
+        #   `data/ui/screen_defaults.json` needs no regeneration.
+        # 12 is the UR-5 click-target floor exactly and the largest square the
+        # 13px band holds (11 would fail the floor, 13 would hit the name box).
+        colors = (building_colors or {}).get(temp.slot_key(), ())
+        if len(colors) < 2:
+            colors = ()
+        self.swatches = ColorSwatchRow(
+            colors,
+            # The only other thing in this band is the "Name:" label at x+8.
+            x + 8 + text_size(T("building.preview.name_label"), "sm")[0] + 4,
+            x + pw - 8, y + 36, "preview_color", ui_balance=ui_balance)
+        #: The colour column this modal will place at, or None when the slot
+        #: has no colours (then `place_building` leaves the animator's -1 "no
+        #: driver" sentinel). ROLLED HERE so the preview cannot lie: the
+        #: player sees the colour they get whether or not they touch a swatch,
+        #: and `_do_place` passes this index explicitly. Same `random` module
+        #: the name dice already draws from — no rng seam through the UI.
+        #: `0` is a real colour index, so this is always tested `is not None`.
+        self.chosen_column = (random.randrange(len(self.swatches.colors))
+                              if self.swatches else None)
+        # -- /B2 --
         self.close_btn = Button((x + pw - 17, y + 3, _CLOSE_W, _CLOSE_H),
                                 T("building.btn.close"), "md")
         # Font "md", not "lg": CONFIRM needs 79px at "lg" under the SHIPPED
@@ -365,6 +545,10 @@ class ConstructPreview:
                     "preview_dice_btn": ("button", self.dice_btn)}
         if self.cancel_btn is not None:
             self.ids["preview_cancel_btn"] = ("button", self.cancel_btn)
+        # B2: the swatches join the ids BEFORE apply, so a screen override can
+        # skin/hide them like any other widget. Empty when the row is inert,
+        # so a colourless building's id set is byte-identical to before.
+        self.ids.update(self.swatches.ids)
         self.skinning.apply(self.screen_id, self.ids)
         self.rect = self._panel.rect
 
@@ -392,6 +576,7 @@ class ConstructPreview:
             self.cancel_btn.hover(mx, my, mouse_down)
             self.cancel_btn.hovered = (self.cancel_btn.hovered
                                        and is_visible(self.cancel_btn))
+        self.swatches.hover(mx, my, mouse_down)   # B2 (a no-op when inert)
 
     def confirm_hovered(self):
         return self.confirm_btn.hovered
@@ -402,10 +587,13 @@ class ConstructPreview:
         self.dice_btn.update(dt)
         if self.cancel_btn is not None:
             self.cancel_btn.update(dt)
+        self.swatches.update(dt)                  # B2 (a no-op when inert)
 
     def handle_click(self, mx, my):
         """Return an action string (``confirm`` / ``cancel`` / ``close`` /
-        ``name`` / None). The host treats the modal as consuming every click.
+        ``name`` / ``color`` / None). The host treats the modal as consuming
+        every click, so ``color`` needs no host branch — it is only the
+        panel's own signal that the pick changed.
         An invisible button is never hit (10L-B)."""
         if is_visible(self.close_btn) and self.close_btn.hit(mx, my):
             return "close"
@@ -421,6 +609,14 @@ class ConstructPreview:
             self.name = random.choice(self._names)
             self.editing = True
             return "name"
+        # B2: BEFORE the name_rect branch. The swatches sit in the band
+        # directly above the name box, and `name_rect` is a plain containment
+        # test — the broadest branch here — so a later test would let a
+        # near-miss swatch click fall through into "click to name".
+        idx = self.swatches.hit(mx, my)
+        if idx is not None:                # 0 is a real colour: `is not None`
+            self.chosen_column = idx
+            return "color"
         if contains(self.name_rect, mx, my):
             if not self.editing:
                 self.editing = True
@@ -475,6 +671,9 @@ class ConstructPreview:
         if is_visible(self.close_btn):
             self.close_btn.submit(renderer, anim_ms=anim_ms,
                                   **button_kwargs(self.close_btn))
+        # B2: inside the BUTTON block, never the text block (the swatches ARE
+        # buttons). Its own selection ring rides immediately behind its swatch.
+        self.swatches.submit(renderer, self.chosen_column, anim_ms=anim_ms)
         cx = x + w // 2
         submit_text(renderer, self.title, (cx, y + 6), "lg", widgets.C_UI_TEXT,
                     align="center")
@@ -528,8 +727,8 @@ class MovePreview:
     ``panel.preview is not None`` modal branch and ``BuildingUI._preview_click``
     drive it with no preview-class-specific code."""
 
-    def __init__(self, building, dest_tile, cost, rounds, ui_balance,
-                 view_w, view_h, skinning=None):
+    def __init__(self, building, dest_tile, cost, rounds, warning_text,
+                 ui_balance, view_w, view_h, skinning=None):
         self.screen_id = SCREEN_ID
         self.skinning = skinning or ScreenSkinning.empty()
         self.building = building
@@ -543,7 +742,28 @@ class MovePreview:
         # nothing to type, so this stays False forever (handle_key is a no-op).
         self.editing = False
 
-        pw, ph = 170, 95
+        pw = 170
+        # Building Movement: a move in transit despawns the building until it
+        # lands (`movement.py`'s module docstring) — every combat phase that
+        # falls inside that window happens with the building gone. `rounds ==
+        # 0` (an instant relocation — the time cost off, or tuned to zero) is
+        # the one case that ISN'T true, so the warning is skipped there.
+        # Text is designer content (`BuildingsGlobal.Movement.warning_text`,
+        # `data/CLAUDE.md`) — wrapped at CONSTRUCT time, not draw time: unlike
+        # an id'd widget's `label`, this line is never captured by
+        # `screen_defaults.json`/the golden parity pin, so there is no
+        # Windows/Linux measurement-drift risk (`game/ui/CLAUDE.md`'s
+        # "layout_h, never a live font measurement" note doesn't apply here).
+        self._warning_lines = (
+            wrap_text(warning_text, "sm", pw - 16, max_lines=3)
+            if rounds > 0 and warning_text.strip() else [])
+        _warn_step = _row_step("sm", leading=0)
+        _warn_h = len(self._warning_lines) * _warn_step
+        # 83, not the pre-merge 95: the modal used to stack a separate Cost
+        # line and Time line (feature: move-building-time-only-cost merged
+        # them into the one `cost_text` line below), which freed exactly one
+        # `_row_step("sm")` == 12px row.
+        ph = 83 + (_warn_h + 4 if self._warning_lines else 0)
         x, y = view_w // 2 - pw // 2, view_h // 2 - ph // 2
         self.rect = (x, y, pw, ph)
         self.close_btn = Button((x + pw - 17, y + 3, _CLOSE_W, _CLOSE_H),
@@ -583,23 +803,30 @@ class MovePreview:
     @property
     def total_cost(self):
         """The ``ConstructPreview.total_cost`` alias: a single move has no
-        batch to sum, so this is just ``cost`` — but ``BuildingUI.hover``
-        reads ``self.preview.total_cost`` unconditionally on ANY preview
-        whose confirm button is hovered, so every preview class must carry
-        the name."""
+        batch to sum, so this is just ``cost`` (always 0 — ``money_cost_
+        enabled`` ships ``false``). Kept for the shared preview surface
+        (``ConstructPreview`` carries the same name) and for ``_do_move``'s
+        own affordability check via ``self.cost`` beside it — but
+        ``BuildingUI.hover`` no longer reads it FOR THIS CLASS specifically
+        (feature: move-building-time-only-cost — a move's cost is rounds,
+        not love, so hovering CONFIRM must not preview a love spend on the
+        HUD's pill; see the ``isinstance(self.preview, MovePreview)`` guard
+        there)."""
         return self.cost
 
     @property
     def cost_text(self):
-        return (T("building.move_preview.cost_free") if self.cost == 0
-                else T("building.move_preview.cost", cost=self.cost))
-
-    @property
-    def time_text(self):
+        """Moving costs only TIME now (feature: move-building-time-only-cost
+        — `BuildingsGlobal.Movement.money_cost_enabled` ships `false`), so
+        the modal's one Cost line quotes rounds, not love. `self.cost` (the
+        love figure, always 0 with the flag off but still read by
+        `total_cost`/`_do_move`'s affordability check) is deliberately not
+        shown here any more — a 0-love line would be a Cost/Free redundant
+        with this one."""
         if self.rounds == 0:
-            return T("building.move_preview.time_instant")
+            return T("building.move_preview.cost_instant")
         unit = "round" if self.rounds == 1 else "rounds"
-        return T("building.move_preview.time", rounds=self.rounds, unit=unit)
+        return T("building.move_preview.cost", rounds=self.rounds, unit=unit)
 
     def hover(self, mx, my, mouse_down=False):
         for btn in (self.confirm_btn, self.close_btn):
@@ -659,14 +886,25 @@ class MovePreview:
                     widgets.C_UI_TEXT, align="center")
         submit_text(renderer, self.title, (cx, y + 20), "md",
                     widgets.C_UI_TEXT_DIM, align="center")
+        # Blue, not the love-cost gold every other preview's cost line uses
+        # (feature: move-building-time-only-cost) — this line quotes ROUNDS,
+        # not love, so it takes the SAME `move_target` highlight cyan as the
+        # destination path-line preview (`BuildingUI.submit`'s move-path
+        # line, `game/ui/CLAUDE.md`), not a colour that reads as "currency".
         submit_text(renderer, self.cost_text, (cx, y + 36), "md",
-                    widgets.C_GOLD, align="center")
-        submit_text(renderer, self.time_text, (cx, y + 48), "md",
                     widgets.highlight_color("move_target"), align="center")
         submit_text(renderer,
                     T("building.move_preview.dest",
                       col=self.dest_tile.col, row=self.dest_tile.row),
-                    (cx, y + 60), "sm", widgets.C_UI_TEXT_DIM, align="center")
+                    (cx, y + 48), "sm", widgets.C_UI_TEXT_DIM, align="center")
+        # Building Movement: the "will miss combat" warning — only present
+        # (non-empty `_warning_lines`) once `rounds > 0`, see __init__.
+        wy = y + 48 + _row_step("sm")
+        step = _row_step("sm", leading=0)
+        for line in self._warning_lines:
+            submit_text(renderer, line, (cx, wy), "sm", widgets.C_HP_RED,
+                        align="center")
+            wy += step
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
                                     "over", self.skinning.state_of)
 
@@ -691,6 +929,10 @@ class BuildingUI:
         # it; NEVER reset in close() (open_for_tile()'s internal close() call
         # inside _do_place() would wipe it before the host gets to read it). --
         self.last_placed_type = None
+        # the last_placed_type precedent, for a successful tile unlock — the
+        # host reads it once right after a successful handle_click() and
+        # clears it; NEVER reset in close() for the same reentrancy reason.
+        self.last_unlocked = False
         self._selected = None
         self._session = None
         self._upgrade_hint = None
@@ -747,6 +989,22 @@ class BuildingUI:
         #: imported art. None (headless, tests, bare construction) reads as
         #: "no art" and keeps the tier-sprite fallback — never raises.
         self.assets = None
+        #: MasterSheetColumnsPLAN B2: `{slot_key: (colour_name, ...)}`, the
+        #: colour-capability map the HOST derives once at boot
+        #: (`game/main.py _derive_colour_columns`) and publishes with a plain
+        #: attribute assignment, exactly like `assets` above. `game/ui` never
+        #: reaches into the asset layer itself (D6/E-37). The `{}` default is
+        #: what keeps a bare `BuildingUI` (tests, tools) working: an empty map
+        #: means no building has colours, so no swatches and no `column=`.
+        self.colour_columns = {}
+        #: MasterSheetColumnsPLAN B3: the upgrade panel's colour-swatch row —
+        #: the SAME `ColorSwatchRow` B2's build-confirm modal uses, pointed at
+        #: the LIVE building's `BuildingSprite.column` instead of a pending
+        #: int. Rebuilt per selection by `_build_colour_row`; seeded INERT here
+        #: (no colours => no buttons, no ids, nothing drawn) so `hover`/
+        #: `update`/`hit`/`submit` are safe before the first build and in every
+        #: other panel mode.
+        self.colour_row = ColorSwatchRow((), 0, 0, 0, _UPGRADE_COLOR_PREFIX)
         # -- 10G boss: base_info "BOSS CHOICES" button + history popup --
         self.boss_btn = Button(
             (self.panel_x + 6, 210, self.panel_w - 12, 16),
@@ -906,6 +1164,7 @@ class BuildingUI:
         self._hover_cost = None
         self.cards = []
         self._card_parts = {}
+        self._clear_colour_ids()   # B3: the swatch row is per-selection
         self.scroll_offset = 0   # a fresh panel always opens at the top
         # -- 10J --
         self.selected_tiles = []
@@ -965,6 +1224,16 @@ class BuildingUI:
         panel isn't open (TU-8, Fix 2's close-panel-hint step). Read-only —
         never mutates panel state."""
         return self.close_btn.rect if self.visible else None
+
+    def action_rect(self):
+        """Screen rect of the panel's mode-independent action button while it
+        means "unlock this tile", or None otherwise (the tile-buying
+        tutorial topic's highlighted-button step). ``action_btn`` is reused
+        across unlock/construct-advance/upgrade modes, so this only resolves
+        in ``"unlock"`` mode — never highlights the wrong button in another
+        mode. Read-only — never mutates panel state."""
+        return self.action_btn.rect if (
+            self.visible and self.mode == "unlock") else None
 
     # -- /TU-6 ---------------------------------------------------------------
 
@@ -1372,6 +1641,7 @@ class BuildingUI:
         self._upgrade_hint = hint
         self._layout_upgrade_rows()
         self._build_move_btn()
+        self._build_colour_row()   # MasterSheetColumnsPLAN B3
 
     def _layout_upgrade_rows(self):
         """Stack the upgrade panel's text rows for the SELECTED building.
@@ -1433,6 +1703,84 @@ class BuildingUI:
                 self._upgrade_hint = T("building.hint.wall_rooted")
         else:
             self.move_btn.label = T("building.btn.move")
+
+    def _clear_colour_ids(self):
+        """Drop the last build's `upgrade_swatch_*` entries and make the row
+        inert (MasterSheetColumnsPLAN B3).
+
+        The `_clear_card_ids` rule, for the same reason: the swatch count is
+        dynamic and every swatch Button is rebuilt per selection, so an id left
+        pointing at a dead Button would have `skinning.apply` writing overrides
+        onto an object nothing draws — and a building with no colour-capable
+        art would keep the previous selection's ids forever."""
+        for key in [k for k in self.ids
+                    if k.startswith(_UPGRADE_COLOR_PREFIX)]:
+            del self.ids[key]
+        self.colour_row = ColorSwatchRow((), 0, 0, 0, _UPGRADE_COLOR_PREFIX)
+
+    def _build_colour_row(self):
+        """Build the upgrade panel's colour-swatch row (B3), or leave it inert.
+
+        THE SAME `ColorSwatchRow` B2's build-confirm modal uses — this panel
+        only points it at a different selection source (the LIVE building's
+        `BuildingSprite.column`) and a different band.
+
+        Shown only when ALL of these hold (D6). A building on placeholder or
+        single-column art shows nothing at all — no row, no gap, no
+        placeholder — and never raises:
+          * upgrade mode on a SINGLE selection (the `move_btn` rule: recolouring
+            a batch is not a feature this phase adds);
+          * the host wired a capability map (`colour_columns`, derived once at
+            boot by `game/main.py`; `{}` in tests/tools/the layout exporter
+            means "no colours" and is the quiet default);
+          * that map names >= 2 colours for THIS building's live slot key — one
+            colour is not a choice, the same gate `ConstructPreview` applies.
+
+        Vertical band, the ONE piece of dead space the upgrade panel has, all
+        of it derived from `action_btn.rect` so nothing already on the panel
+        moves (which is what keeps `data/ui/screen_defaults.json` a no-op):
+            stat column worst case bottom .......... y = 268 (_submit_upgrade)
+            THE SWATCH ROW ......................... y = 282..293 (SIZE 12)
+            action_btn top = view_h - 60 ........... y = 300 (6px clear)
+            move_btn, then the upgrade hint ........ y = 322+ (unchanged)
+        12px is the UR-5 click-target floor exactly (`ColorSwatchRow.SIZE`),
+        and the row is right-aligned into the panel's inner width, where the
+        helper's own clamp keeps the first `(118 + 2) // 14 = 8` colours."""
+        self._clear_colour_ids()
+        b = self._selected
+        if b is None or len(self.selected_tiles) != 1:
+            return
+        # The LIVE animator's slot key, not `b.slot_key()`: it is the key the
+        # host's map is built on (`registry.place_building` stamps the column
+        # off `anim.slot_key`), and `get_component` is None on the base
+        # building, which carries no animator at all. The sanctioned
+        # `game/ui -> game.buildings.components` read.
+        anim = b.get_component(BuildingSprite)
+        if anim is None:
+            return
+        names = (self.colour_columns or {}).get(anim.slot_key, ())
+        if len(names) < 2:
+            return
+        ax, ay, aw, _ah = self.action_btn.rect
+        self.colour_row = ColorSwatchRow(
+            names, ax, ax + aw,
+            ay - ColorSwatchRow.SIZE - _COLOUR_ROW_GAP,
+            _UPGRADE_COLOR_PREFIX, ui_balance=self._ui_balance)
+        # Merged BEFORE `skinning.apply` (which runs at submit), so a designer
+        # override can style/move an individual swatch — the ConstructPreview
+        # rule.
+        self.ids.update(self.colour_row.ids)
+
+    def _selected_column(self):
+        """The live building's colour column, or None when it has no driver.
+
+        `-1` is `SpriteAnimator`'s "no driver" SENTINEL and `0` is a REAL
+        colour index, so this is a `>= 0` test and never a truth test."""
+        b = self._selected
+        anim = b.get_component(BuildingSprite) if b is not None else None
+        if anim is None or anim.column < 0:
+            return None
+        return anim.column
 
     def _build_move_select(self, session):
         """Highlight every legal move destination: an unbuilt BUILDABLE tile
@@ -1545,7 +1893,13 @@ class BuildingUI:
         # -- /10I --
         if self.preview is not None:
             self.preview.hover(mx, my, mouse_down)
-            if self.preview.confirm_hovered():
+            # feature: move-building-time-only-cost — a MovePreview's cost is
+            # ROUNDS, not love (`money_cost_enabled` ships `false`), so
+            # hovering its CONFIRM must NOT preview a love spend against the
+            # HUD's top-left pill the way every other preview's confirm does;
+            # `_hover_cost` stays `None` and `hud.py`'s pill draws normally.
+            if (self.preview.confirm_hovered()
+                    and not isinstance(self.preview, MovePreview)):
                 # The BATCH total, not the first tile's unit price — matches
                 # what CONFIRM will actually charge (feature-storm-acolyte-
                 # multi-build's escalating sequence, or the familiar flat
@@ -1600,6 +1954,9 @@ class BuildingUI:
                 self.move_btn.hover(mx, my, mouse_down)
                 self.move_btn.hovered = (self.move_btn.hovered
                                          and is_visible(self.move_btn))
+                # B3: the colour swatches. A no-op when the row is inert, and
+                # it carries the same `is_visible` guard internally.
+                self.colour_row.hover(mx, my, mouse_down)
         elif self.mode == "base_info":
             # -- 10G boss: base_info button + popup row hover (desc tooltip) --
             self.boss_btn.hover(mx, my, mouse_down)
@@ -1692,10 +2049,13 @@ class BuildingUI:
                 self.action_btn.start_flash(self._flash_dur,
                                         T("building.flash.not_enough_love"))
             else:
+                unlocked_any = False
                 for tile, chunk_cost in chunks:
                     if tm.do_unlock(tile):
                         st.spend_love(chunk_cost)
+                        unlocked_any = True
                 self.close()
+                self.last_unlocked = unlocked_any  # TU-6: signal a real unlock
             return True
         return contains(self.panel_rect, mx, my)
 
@@ -1738,7 +2098,8 @@ class BuildingUI:
                     self.preview = ConstructPreview(
                         btype, cost, buildings_balance, self._ui_balance,
                         self.view_w, self.view_h, count=count, tier_idx=tier_idx,
-                        repeat_count=repeat_count, skinning=self.skinning)
+                        repeat_count=repeat_count, skinning=self.skinning,
+                        building_colors=self.colour_columns)  # B2
                 return True
         return contains(self.panel_rect, mx, my)
 
@@ -1774,6 +2135,19 @@ class BuildingUI:
         if self._name_editing:
             self._commit_rename()
         # -- /10J --
+        # MasterSheetColumnsPLAN B3: a colour swatch recolours the LIVE
+        # building immediately — the index the click writes IS the column the
+        # renderer reads, so the board updates next frame with no confirm step,
+        # nothing spent and nothing logged. Sits AFTER the rename defocus above
+        # (so a swatch click commits an in-progress rename exactly like a move
+        # click does) and BEFORE `move_btn`, whose rect it never overlaps.
+        # `0` is a real colour, so the miss test is `is not None`.
+        idx = self.colour_row.hit(mx, my)
+        if idx is not None:
+            anim = b.get_component(BuildingSprite) if b is not None else None
+            if anim is not None:
+                anim.column = idx
+            return True
         # Building Movement: enter destination-picking mode. The tile pick
         # itself happens in `game/main.py` (the panel only ever sees
         # panel-space clicks); this just arms the mode + the highlight set.
@@ -1949,7 +2323,16 @@ class BuildingUI:
             try:
                 building, cost = place_building(
                     session.tilemap, tile, p.building_type, st.love,
-                    buildings_balance, scene, occupancy, state=st)
+                    buildings_balance, scene, occupancy, state=st,
+                    # B2: the capability map AND the modal's own pick. The
+                    # pick is rolled when the modal opens and shown there, so
+                    # `column=` is what makes the placed building match the
+                    # preview — every tile of the batch gets the same colour.
+                    # `None` (a slot with no colours) falls through to B1's
+                    # own path, which leaves the -1 "no driver" sentinel;
+                    # `0` is a real colour and must never be read as "unset".
+                    colour_columns=self.colour_columns,
+                    column=getattr(p, "chosen_column", None))
             except PlacementError:
                 if not (p.building_type == "painter"
                         and (tile.col, tile.row) in
@@ -1989,6 +2372,7 @@ class BuildingUI:
         self.action_btn.update(dt)
         self.close_btn.update(dt)
         self.move_btn.update(dt)          # Building Movement
+        self.colour_row.update(dt)        # B3 (a no-op when inert)
         self._dice_up.update(dt)  # 10J rename dice
         self.boss_btn.update(dt)          # -- 10G boss --
         self._boss_close_btn.update(dt)   # -- 10G boss --
@@ -2299,6 +2683,11 @@ class BuildingUI:
         if is_visible(self.move_btn):
             self.move_btn.submit(renderer, anim_ms=anim_ms,
                                  **button_kwargs(self.move_btn))
+        # B3: the colour swatches, still inside the BUTTON block (they ARE
+        # buttons) and before the hint text. Inert => draws nothing. The
+        # selection ring rides right after its own swatch, inside the row.
+        self.colour_row.submit(renderer, self._selected_column(),
+                               anim_ms=anim_ms)
         if self._upgrade_hint:
             bx, by, bw, bh = self.action_btn.rect
             if is_visible(self.move_btn):

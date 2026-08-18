@@ -281,5 +281,37 @@ class TestStaticLabelFit(unittest.TestCase):
                          "static button label(s) are taller than their button")
 
 
+class TestColorSwatchMinSize(unittest.TestCase):
+    """MasterSheetColumnsPLAN B2: the construct modal's colour swatches.
+
+    The walker above only sees ids that ``export_ui_layouts``'s builders
+    produce, and the exporter's ``ConstructPreview`` is built with no
+    capability map — so it has no swatches and cannot cover them. This
+    constructs a colour-capable preview directly instead.
+    """
+
+    def test_every_swatch_clears_the_hard_floor(self):
+        from game.buildings.registry import build_cost, create
+        from game.core import load_balance
+        from game.ui.building_ui import ConstructPreview
+
+        build_bal, ui_bal = (load_balance(DATA, "buildings"),
+                             load_balance(DATA, "ui"))
+        view_w, view_h = export._logical_resolution(DATA)
+        slot = create("defence", 0, 0, build_bal, 0).slot_key()
+        preview = ConstructPreview(
+            "defence", build_cost("defence", build_bal, 0), build_bal, ui_bal,
+            view_w, view_h,
+            building_colors={slot: ("pink", "red", "purple", "yellow")})
+        swatches = preview.swatches
+        self.assertTrue(swatches, "the fixture must actually build swatches")
+        too_small = [f"preview_color_{i} {btn.rect}"
+                     for i, btn in enumerate(swatches.buttons)
+                     if min(btn.rect[2], btn.rect[3]) < MIN_HARD]
+        self.assertEqual(
+            [], too_small,
+            f"swatch(es) under the {MIN_HARD}px logical click-target floor")
+
+
 if __name__ == "__main__":
     unittest.main()

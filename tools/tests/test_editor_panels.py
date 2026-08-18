@@ -407,6 +407,27 @@ class TestSelectorTree(TempDataCase):
         self.assertEqual(nodes, [])            # never node_selected
         self.assertIn("ui", domains_seen)      # same "ui" domain as Screens/Theme
 
+    def test_master_sheets_is_a_top_level_item_with_its_own_signal(self):
+        """MasterSheetColumnsPLAN E5/D9: "Master Sheets" is a TOP-LEVEL item
+        (last one), not a leaf under any category — so it emits its own signal
+        and NEITHER node_selected NOR domain_selected: there is no
+        "master_sheets" balancing domain to gate one on."""
+        panel = self.make()
+        last = panel.topLevelItem(panel.topLevelItemCount() - 1)
+        self.assertEqual(last.text(0), "Master Sheets")
+        self.assertIs(panel._master_sheets_item, last)
+        self.assertIsNone(last.parent())
+        self.assertNotIn("master_sheets", panel.domains())
+
+        seen, nodes, domains_seen = [], [], []
+        panel.master_sheets_selected.connect(lambda: seen.append(True))
+        panel.node_selected.connect(lambda c, p: nodes.append((c, p)))
+        panel.domain_selected.connect(domains_seen.append)
+        panel.select_master_sheets()
+        self.assertEqual(seen, [True])
+        self.assertEqual(nodes, [])             # never node_selected
+        self.assertEqual(domains_seen, [])      # and never domain_selected (D9)
+
 
 class TestBalancingPanel(TempDataCase):
     def make_panel(self, domain):

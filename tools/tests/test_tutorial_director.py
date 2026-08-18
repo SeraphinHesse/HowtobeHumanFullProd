@@ -25,6 +25,11 @@ from tools.tests.fixture_data import FIXTURE_DATA, fixture_copy
 
 _FLUTE = {"col": 2, "row": 3}
 _STONE = {"col": 4, "row": 1}  # TU-7
+# The tile-buying topic's two markers. They are painted here for the same
+# reason _STONE is: the script's TERMINAL chain is now the tile-buying one,
+# so a map doc that leaves these null can never reach `finished` at all.
+_UNLOCK = {"col": 5, "row": 1}
+_STONE_2 = {"col": 5, "row": 2}
 
 MSG_LIVES_INTRO = (
     "Once the humans reach our hole the round is lost. You have only 3 "
@@ -33,16 +38,18 @@ MSG_LIVES_INTRO = (
     "defense buildings")
 
 
-def _map_doc(flute=_FLUTE, stone=_STONE):
+def _map_doc(flute=_FLUTE, stone=_STONE, unlock=_UNLOCK, stone_2=_STONE_2):
     return tilemap.TileMapDoc(
         map_id="synth", display_name="Synth", cols=6, rows=6,
         legend={}, terrain=[list("bbbbbb") for _ in range(6)],
         base={"col": 0, "row": 0, "slot": "base_hole"}, deco=[],
-        tutorial_flute=flute, tutorial_stone=stone)
+        tutorial_flute=flute, tutorial_stone=stone,
+        tutorial_unlock=unlock, tutorial_stone_2=stone_2)
 
 
-def _director(flute=_FLUTE, stone=_STONE, required=1, data_dir=FIXTURE_DATA):
-    return TutorialDirector(data_dir, _map_doc(flute, stone),
+def _director(flute=_FLUTE, stone=_STONE, required=1, data_dir=FIXTURE_DATA,
+              unlock=_UNLOCK, stone_2=_STONE_2):
+    return TutorialDirector(data_dir, _map_doc(flute, stone, unlock, stone_2),
                             {"economy_buildings_required": required})
 
 
@@ -60,6 +67,18 @@ def _walk_round_one(d):
     d.on_building_placed("economic")
     d.on_panel_closed()  # TU-8: advances past the close-panel-hint step
     d.on_end_turn()
+
+
+def _walk_tile_buying(d):
+    """Drives the tile-buying chain — the script's TERMINAL chain since the
+    tile-buying topic appended it after round 2's stone-thrower placement.
+    Round-2 tests that used to end at `finished` now end HERE instead."""
+    d.on_message_dismissed()                             # tile_buying_intro
+    d.on_tile_clicked(_UNLOCK["col"], _UNLOCK["row"])
+    d.on_tile_unlocked()                                 # the unlock button
+    d.on_tile_clicked(_STONE_2["col"], _STONE_2["row"])
+    d.on_card_selected("defence")
+    d.on_building_placed("defence")
 
 
 class FakePanel:
@@ -304,6 +323,11 @@ class TestPanelClosedRevert(unittest.TestCase):
         d.on_tile_clicked(4, 1)
         d.on_card_selected("defence")
         d.on_building_placed("defence")
+        # The stone chain no longer TERMINATES the script — the tile-buying
+        # chain follows it — so completing it lands on that chain's intro
+        # message. Walk it out to reach the real end.
+        self.assertTrue(d.message_visible)
+        _walk_tile_buying(d)
         self.assertTrue(d.finished)
 
 
@@ -329,8 +353,13 @@ class TestClosePanelHintStep(unittest.TestCase):
         self.assertIsNone(d.banner_text())
 
     def test_round_two_defence_placement_carries_no_close_panel_step(self):
-        """Deliberately NOT mirrored after the round-2 defence placement —
-        the tutorial ends there and input is released."""
+        """Deliberately NOT mirrored after the round-2 defence placement.
+
+        The ASSERTION this makes is unchanged — no close-panel hint step, no
+        banner — but its old rationale ("the tutorial ends there") is retired:
+        the tile-buying topic appended a third chain after this placement, so
+        what follows is that chain's intro message, not the end of the script.
+        """
         d = _director()
         _walk_round_one(d)
         d.on_round_end(1)
@@ -338,14 +367,21 @@ class TestClosePanelHintStep(unittest.TestCase):
         d.on_tile_clicked(4, 1)
         d.on_card_selected("defence")
         d.on_building_placed("defence")
-        self.assertTrue(d.finished)
+        # no close-panel hint: no banner, and the highlight is not the X
         self.assertIsNone(d.banner_text())
+        self.assertNotEqual(d.highlight_targets(), ("button:close",))
 
 
 class TestRoundTwoChain(unittest.TestCase):
     """TU-7: the round-1 chain flows straight into the scripted loss, message
     box #2, and the stone-thrower chain — driven with the same fake events
-    game/main.py feeds in response to real clicks/round-ends."""
+    game/main.py feeds in response to real clicks/round-ends.
+
+    The stone-thrower placement is NO LONGER the end of the script: the
+    tile-buying topic appended a third chain (intro message -> forced unlock
+    -> a second stone thrower) that is now the terminal one, so these tests
+    walk through to it rather than asserting `finished` at round 2's end.
+    """
 
     def test_scripted_loss_wait_step_gates_everything_and_no_highlight(self):
         d = _director()
@@ -391,6 +427,30 @@ class TestRoundTwoChain(unittest.TestCase):
         # -- confirm highlight --
         self.assertEqual(d.highlight_targets(), ("button:confirm",))
         self.assertTrue(d.allows(("confirm",)))
+        d.on_building_placed("defence")
+
+        # -- the tile-buying chain follows, and IS the terminal chain now --
+        self.assertFalse(d.finished)
+        self.assertTrue(d.message_visible)
+        d.on_message_dismissed()
+
+        # forced click on the locked tile, then its unlock button
+        self.assertEqual(d.highlight_targets(), ("tile:tutorial_unlock",))
+        self.assertEqual(d.tile_highlight_targets(), [(5, 1)])
+        self.assertFalse(d.allows(("tile", 4, 1)))
+        self.assertTrue(d.allows(("tile", 5, 1)))
+        d.on_tile_clicked(5, 1)
+        self.assertEqual(d.highlight_targets(), ("button:unlock",))
+        self.assertTrue(d.allows(("unlock",)))
+        d.on_tile_unlocked()
+
+        # the second stone-thrower, on the far corner of the bought chunk
+        self.assertEqual(d.highlight_targets(), ("tile:tutorial_stone_2",))
+        self.assertEqual(d.tile_highlight_targets(), [(5, 2)])
+        d.on_tile_clicked(5, 2)
+        self.assertEqual(d.highlight_targets(), ("card:defence",))
+        d.on_card_selected("defence")
+        self.assertEqual(d.highlight_targets(), ("button:confirm",))
         d.on_building_placed("defence")
 
         # -- finished: zero-overhead path, everything permissive again --

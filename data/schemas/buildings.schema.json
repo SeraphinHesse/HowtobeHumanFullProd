@@ -1294,6 +1294,10 @@
             "time_cost_enabled": {
               "description": "If false, moving a building is instant (0 rounds - the building relocates the moment the move is confirmed) and the base/increase time keys are ignored.",
               "type": "boolean"
+            },
+            "warning_text": {
+              "description": "Shown in the move confirmation modal whenever the move takes 1+ rounds (a move despawns the building for the whole transit, so it misses any combat phase inside that window - skipped entirely for an instant, 0-round move). Empty string suppresses the warning.",
+              "type": "string"
             }
           },
           "required": [
@@ -1304,7 +1308,8 @@
             "money_cost_enabled",
             "moving_time_increase",
             "moving_time_increase_increment",
-            "time_cost_enabled"
+            "time_cost_enabled",
+            "warning_text"
           ],
           "type": "object"
         },

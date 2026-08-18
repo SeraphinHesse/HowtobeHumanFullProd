@@ -150,7 +150,7 @@ def floater_params(fl):
         painter_finished_color=color(fl["painter_finished_color"]),
         painter_lost_color=color(fl["painter_lost_color"]),
         painter_life=fl["painter_life"],
-        boost_color=color(fl["boost_color"]))
+        boost_color=color(fl["boost_color"]), income_life=fl["income_life"])
 
 
 def projectile_params(pr):

@@ -27,7 +27,7 @@ engine task; if an engine change forces a caller change, tell the user
 | `core/` | `engine/core/CLAUDE.md` | GameObject/Component/Transform/Scene; serialization; `Movement`/`RangeSensor`; spatial queries |
 | `render/` | `engine/render/CLAUDE.md` | RenderItem→depth-sort→blit; backend throughput; HUD pass + fonts (G4: `flush(target, hud_target=…)` splits the HUD onto its own target + the Surface backend, for the GPU host's per-frame composite); the ground cache |
 | `physics/` | `engine/physics/CLAUDE.md` | SpatialGrid, TileOccupancy, waypoint `advance` (E-30..E-32) |
-| `assets/` | `engine/assets/CLAUDE.md` | slot registry, manifest v2, `playback_order`, grey-X placeholder |
+| `assets/` | `engine/assets/CLAUDE.md` | slot registry, manifest v2, `playback_order`, grey-X placeholder; the master-sheet registry loader (`master_registry.py` — `data/sprites/master_sheets.json`, read by game AND editor) |
 | `vfx/` | none yet (this table is its doc) | procedural particle/gold/slash/splatter emitters + `VfxSystem` (ESV-3a); beam/crater/lightning/announce param dataclasses (ESV-3b, no engine-side state — see below); `play_once` — the one-shot sprite VFX (ESV-5, no engine-side state either — see below); `FloaterParams` (ESV-6, floater colours/lifetimes — also no engine-side state); `variants` — the pure registry half of VFX variant selection (VA-2, vocabulary-free by design) |
 
 ## Top-level modules (`engine/*.py`) — this router IS their doc
@@ -54,6 +54,11 @@ engine task; if an engine change forces a caller change, tell the user
   more designer-painted single-tile markers of the same never-rendered shape
   — the tutorial's forced first-placement tiles, read by the game-side
   director (TU-6+), painted by the editor's fourth map paint mode (TU-2).
+  `tutorial_unlock`/`tutorial_stone_2` (the tile-buying tutorial topic) are
+  two more of the exact same shape, on the SAME editor paint page/eye: the
+  locked tile the player is forced to click-and-buy right after the first
+  stone-thrower placement, and the far corner of that newly-bought chunk the
+  second stone-thrower placement is forced onto.
   `spawnable_background` is the same never-rendered idea taken MULTI-cell and
   numbered: a per-cell overlay of `{(col, row): stage}` marks, held as a
   DICT in memory (O(1) paint) but serialized as a list sorted by (row, col) for
@@ -88,6 +93,10 @@ engine task; if an engine change forces a caller change, tell the user
       base/deco gated by a `tall_margin`). Pair with
       `CoordinateSystem.visible_tile_window` so game AND editor viewports only
       generate on-screen tiles — the reason a 1024² map stays at full fps.
+      Optional `column=` is an **opaque** master-sheet column copied onto every
+      item it emits, exactly as opaque as `tint_for_code` — the engine stays
+      season-ignorant (D12); `None` means "no live column" and `0` is a REAL
+      column, so never truthiness-test it.
     - `band_render_items(doc, d_min, d_max, s_min, s_max, …)` — ground only,
       addressed by rotated iso coords `d = col−row`, `s = col+row`, for a thin
       diagonal on-screen strip (the ground cache's scroll-fill; a rectangular
@@ -96,6 +105,7 @@ engine task; if an engine change forces a caller change, tell the user
       `code_overrides={(col,row): code}` consults the caller's RUNTIME zone
       state before `doc.terrain` (the game's unlock/recede visuals) so the doc
       stays pristine; overrides resolve through the same legend/checker rule.
+      Optional `column=` — the same opaque pass-through as above.
 - **`era_math.py`** (pure, stdlib-only — EnemyScalingReworkPLAN D7) — the era
   clock + per-era stat/count resolvers (`era_of_round`/`round_in_era`/
   `is_boss_round`/`resolve_era_row`/`stats_at_round`/`count_at_round`/
@@ -124,6 +134,22 @@ engine task; if an engine change forces a caller change, tell the user
 - **`data_io.py`** — the schema-validating JSON load/write (pure Python; used by
   coords to load geometry, by the editor/agents to write). Deterministic dumps:
   sorted keys, 2-space indent, trailing newline (D-3).
+- **`input.py`** (feature: rebindable hotkeys) — the generic rebindable-hotkey
+  capability: `load_keybindings`/`save_keybindings` (schema-validated,
+  tolerant load mirroring `game/core/highscores.py`'s "reads never raise"
+  contract for per-machine save data) and pure `find_conflict`/`rebind`
+  helpers. Vocabulary-free per D5 — action names are opaque strings the
+  caller supplies; this module never imports pygame or learns what
+  `"end_turn"` means. A binding is a plain lowercase string, optionally
+  `"ctrl+"`-prefixed (`"space"`, `"ctrl+l"`, `"h"`); translating a real
+  `pygame.KEYDOWN` into that string is `game/main.py`'s `_binding_key_name`.
+  The designer-editable DEFAULT for each action lives in
+  `data/balancing/ui.json`'s `Keybindings` group; a player's own rebind (via
+  the in-game Controls screen, `game/ui/keybinds_screen.py`) persists to the
+  gitignored `scores/keybindings.json`, both validated by the same
+  `data/schemas/keybindings.schema.json` (the `highscores.schema.json`
+  two-shape precedent — this schema pairs with no `data/` content file of its
+  own; `tools/smoke.py` never sees it).
 - **`audio.py`** — thin `pygame.mixer.music` wrapper
   (`play_music`/`stop_music`/`set_volume`). Every call **swallows ALL exceptions**
   → silent no-op when audio is unavailable (no device, missing file, mixer not

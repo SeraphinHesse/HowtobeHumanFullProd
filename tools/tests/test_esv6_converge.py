@@ -495,27 +495,33 @@ class TestFloaterParamsFromData(unittest.TestCase):
         fl = fm._vfx_params.floaters
         state = RunState()
 
-        state.income_events.append((0, 0, -5, "upkeep"))
-        fm.spawn_income_events(state)
-        self.assertEqual(fm._floaters[-1].color, fl.upkeep_color)
-
         state.xp_events.append((0.0, 0.0, 3))
         fm.spawn_xp_events(state)
         self.assertEqual(fm._floaters[-1].color, fl.xp_color)
         self.assertEqual(fm._floaters[-1].life, fl.xp_life)
 
+        # Upkeep/painter/boost now flow through the payout beat queue
+        # (begin_payout) instead of three standalone spawn_* methods —
+        # each _release_next_payout_beat() call fires the next beat,
+        # bypassing the stagger timer (test_vfx.py covers the timing/
+        # ordering itself; this test only cares that the colours/lifetimes
+        # still come from vfx.json).
+        state.income_events.append((0, 0, -5, "upkeep"))
         state.painter_events.append((0, 0, "x", "finished"))
-        fm.spawn_painter_events(state)
+        state.boost_events.append((1, 1, "x"))
+        fm.begin_payout(state)  # boost beat fires first (non-empty)
+        self.assertEqual(fm._floaters[-1].color, fl.boost_color)
+
+        fm._release_next_payout_beat()  # economy beat: the painter message
         self.assertEqual(fm._floaters[-1].color, fl.painter_finished_color)
         self.assertEqual(fm._floaters[-1].life, fl.painter_life)
 
-        state.painter_events.append((0, 0, "x", "lost"))
-        fm.spawn_painter_events(state)
-        self.assertEqual(fm._floaters[-1].color, fl.painter_lost_color)
+        fm._release_next_payout_beat()  # upkeep beat
+        self.assertEqual(fm._floaters[-1].color, fl.upkeep_color)
 
-        state.boost_events.append((0, 0, "x"))
-        fm.spawn_boost_events(state)
-        self.assertEqual(fm._floaters[-1].color, fl.boost_color)
+        state.painter_events.append((0, 0, "x", "lost"))
+        fm.begin_payout(state)  # boost ledger now empty -> economy fires first
+        self.assertEqual(fm._floaters[-1].color, fl.painter_lost_color)
 
     def test_g7_fence_no_module_constant_names_remain(self):
         src = (REPO / "game" / "ui" / "effects.py").read_text(encoding="utf-8")

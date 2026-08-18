@@ -1,6 +1,747 @@
 [
   {
     "description": "",
+    "id": "03947e02-248a-4f3e-8847-cd68b07864bb",
+    "name": "bggdsfg",
+    "snapshot": {
+      "BoostBuildings": {
+        "Damage": {
+          "building_type": "boost_damage",
+          "card_slots": [
+            "boost_damage_t1_lvl1",
+            "boost_damage_t2_lvl1",
+            "boost_damage_t3_lvl1"
+          ],
+          "tiers": [
+            {
+              "base_hp": 80,
+              "base_upkeep": 1,
+              "boost_increase_per_level": 0.02,
+              "boost_per_turn": 0.02,
+              "build_cost": 12,
+              "explanation": "Their support makes adjacent defenders hit harder.",
+              "hp_per_level": 20,
+              "levels": 3,
+              "name": "Attack Booster",
+              "upgrade_cost_base": 10,
+              "upgrade_cost_increment": 5,
+              "upkeep_per_level": 0
+            },
+            {
+              "base_hp": 150,
+              "base_upkeep": 8,
+              "boost_increase_per_level": 0.02,
+              "boost_per_turn": 0.06,
+              "build_cost": 25,
+              "explanation": "High-energy routines noticeably sharpen damage output.",
+              "hp_per_level": 40,
+              "levels": 3,
+              "name": "Raging Motivator",
+              "upgrade_cost_base": 15,
+              "upgrade_cost_increment": 6,
+              "upkeep_per_level": 2
+            },
+            {
+              "base_hp": 250,
+              "base_upkeep": 14,
+              "boost_increase_per_level": 0.03,
+              "boost_per_turn": 0.1,
+              "build_cost": 35,
+              "explanation": "The sergeant's discipline makes every hit count more.",
+              "hp_per_level": 60,
+              "levels": 3,
+              "name": "Drill Sergeant",
+              "upgrade_cost_base": 20,
+              "upgrade_cost_increment": 8,
+              "upkeep_per_level": 2
+            }
+          ]
+        },
+        "HP": {
+          "building_type": "boost_hp",
+          "card_slots": [
+            "boost_hp_t1_lvl1",
+            "boost_hp_t2_lvl1",
+            "boost_hp_t3_lvl1"
+          ],
+          "tiers": [
+            {
+              "base_hp": 80,
+              "base_upkeep": 1,
+              "boost_increase_per_level": 0.03,
+              "boost_per_turn": 0.03,
+              "build_cost": 12,
+              "explanation": "Their presence bolsters the toughness of nearby defenders.",
+              "hp_per_level": 20,
+              "levels": 3,
+              "name": "Health Booster",
+              "upgrade_cost_base": 10,
+              "upgrade_cost_increment": 5,
+              "upkeep_per_level": 2,
+              "wall_boost_increase_per_level": 0.03,
+              "wall_boost_per_turn": 0.03
+            },
+            {
+              "base_hp": 150,
+              "base_upkeep": 8,
+              "boost_increase_per_level": 0.03,
+              "boost_per_turn": 0.09,
+              "build_cost": 25,
+              "explanation": "Extra resilience for every defender in range.",
+              "hp_per_level": 40,
+              "levels": 3,
+              "name": "Comforting Motivator",
+              "upgrade_cost_base": 15,
+              "upgrade_cost_increment": 6,
+              "upkeep_per_level": 2,
+              "wall_boost_increase_per_level": 0.03,
+              "wall_boost_per_turn": 0.09
+            },
+            {
+              "base_hp": 250,
+              "base_upkeep": 14,
+              "boost_increase_per_level": 0.03,
+              "boost_per_turn": 0.15,
+              "build_cost": 35,
+              "explanation": "A hard-nosed trainer who dramatically toughens defenders.",
+              "hp_per_level": 60,
+              "levels": 3,
+              "name": "Therapist",
+              "upgrade_cost_base": 20,
+              "upgrade_cost_increment": 8,
+              "upkeep_per_level": 2,
+              "wall_boost_increase_per_level": 0.03,
+              "wall_boost_per_turn": 0.15
+            }
+          ]
+        },
+        "Speed": {
+          "building_type": "boost_speed",
+          "card_slots": [
+            "boost_speed_t1_lvl1",
+            "boost_speed_t2_lvl1",
+            "boost_speed_t3_lvl1"
+          ],
+          "tiers": [
+            {
+              "base_hp": 80,
+              "base_upkeep": 1,
+              "boost_increase_per_level": 0.001,
+              "boost_per_turn": 0.0015,
+              "build_cost": 12,
+              "explanation": "A passionate fan whose cheers make adjacent defenders attack faster.",
+              "hp_per_level": 20,
+              "levels": 3,
+              "name": "Speed Booster",
+              "upgrade_cost_base": 10,
+              "upgrade_cost_increment": 5,
+              "upkeep_per_level": 0
+            },
+            {
+              "base_hp": 150,
+              "base_upkeep": 1,
+              "boost_increase_per_level": 0.001,
+              "boost_per_turn": 0.0035,
+              "build_cost": 25,
+              "explanation": "Their routines inspire nearby defenders to move even faster.",
+              "hp_per_level": 40,
+              "levels": 3,
+              "name": "Energetic Motivator",
+              "upgrade_cost_base": 15,
+              "upgrade_cost_increment": 6,
+              "upkeep_per_level": 1
+            },
+            {
+              "base_hp": 250,
+              "base_upkeep": 2,
+              "boost_increase_per_level": 0.0015,
+              "boost_per_turn": 0.0055,
+              "build_cost": 35,
+              "explanation": "Drills adjacent defenders into peak attack performance.",
+              "hp_per_level": 60,
+              "levels": 3,
+              "name": "Personal Trainer",
+              "upgrade_cost_base": 20,
+              "upgrade_cost_increment": 8,
+              "upkeep_per_level": 1
+            }
+          ]
+        },
+        "globals": {
+          "flat_mode": false,
+          "range_shape": "square",
+          "range_tiles": 1,
+          "starts_unlocked": false,
+          "tier_card_explanations": [
+            "",
+            "Upgrades all three booster lines to their second tier.",
+            "Upgrades all three booster lines to their final tier."
+          ],
+          "tier_card_titles": [
+            "Boost Buildings",
+            "Motivators",
+            "Professionals"
+          ]
+        }
+      },
+      "BuildingsGlobal": {
+        "Movement": {
+          "base_love_cost": 10,
+          "base_moving_time": 1,
+          "love_cost_increase": 10,
+          "love_cost_increase_increment": 2,
+          "money_cost_enabled": true,
+          "moving_time_increase": 1,
+          "moving_time_increase_increment": 2,
+          "time_cost_enabled": true
+        },
+        "defence_range_pathfinding": {
+          "enabled": true,
+          "path_weight_add": 1
+        },
+        "random_names": [
+          "Serph",
+          "Fabian",
+          "Hendrik",
+          "Jakob",
+          "Johann",
+          "Joel",
+          "Benji",
+          "Varvara",
+          "Alicia",
+          "Pantelis",
+          "Alfons"
+        ],
+        "xp_on_death": {
+          "aoe_defence": 1,
+          "blocker": 1,
+          "boost_damage": 1,
+          "boost_hp": 1,
+          "boost_speed": 1,
+          "defence": 1,
+          "economic": 1,
+          "meditator": 1,
+          "painter": 1,
+          "storm_priest": 1,
+          "sun_scorcher": 1,
+          "wall": 1,
+          "wall_builder": 1
+        }
+      },
+      "DefenceBuildings": {
+        "AOEDefence": {
+          "building_type": "aoe_defence",
+          "card_slots": [
+            "maw_mortar_t1_lvl1",
+            "maw_mortar_t2_lvl1",
+            "maw_mortar_t3_lvl1"
+          ],
+          "starts_unlocked": false,
+          "tiers": [
+            {
+              "attack_speed": 2.9,
+              "base_dmg": 20,
+              "base_hp": 150,
+              "base_radius": 1.0,
+              "base_upkeep": 3,
+              "build_cost": 35,
+              "dmg_per_level": 4,
+              "explanation": "An organic mortar that deals area damage to enemy hordes.",
+              "hp_per_level": 50,
+              "levels": 3,
+              "name": "Maw Mortar",
+              "radius_per_level": 0.125,
+              "range_tiles": 3,
+              "upgrade_cost_base": 20,
+              "upgrade_cost_increment": 10,
+              "upkeep_per_level": 2
+            },
+            {
+              "attack_speed": 2.5,
+              "base_dmg": 40,
+              "base_hp": 350,
+              "base_radius": 1.5,
+              "base_upkeep": 6,
+              "build_cost": 40,
+              "dmg_per_level": 6,
+              "explanation": "A crude catapult flinging heavier payloads.",
+              "hp_per_level": 80,
+              "levels": 3,
+              "name": "Maw Catapult",
+              "radius_per_level": 0.2,
+              "range_tiles": 4,
+              "upgrade_cost_base": 35,
+              "upgrade_cost_increment": 15,
+              "upkeep_per_level": 3
+            },
+            {
+              "attack_speed": 2.0,
+              "base_dmg": 65,
+              "base_hp": 600,
+              "base_radius": 1.9,
+              "base_upkeep": 0,
+              "build_cost": 60,
+              "dmg_per_level": 10,
+              "explanation": "A heavy organic mortar. Stranger and more powerful.",
+              "hp_per_level": 120,
+              "levels": 3,
+              "name": "Maw Cannon",
+              "radius_per_level": 0.25,
+              "range_tiles": 5,
+              "upgrade_cost_base": 45,
+              "upgrade_cost_increment": 15,
+              "upkeep_per_level": 8
+            }
+          ],
+          "unlock_min_village_level": 1
+        },
+        "BasicDefence": {
+          "building_type": "defence",
+          "card_slots": [
+            "stone_thrower_t1_lvl1",
+            "slinger_t2_lvl1",
+            "pistoleer_t3_lvl1"
+          ],
+          "starts_unlocked": true,
+          "tiers": [
+            {
+              "attack_speed": 1.0,
+              "base_dmg": 28,
+              "base_hp": 120,
+              "base_upkeep": 0,
+              "build_cost": 10,
+              "dmg_per_level": 7,
+              "explanation": "Hurls rocks at anything that moves.",
+              "hp_per_level": 40,
+              "levels": 3,
+              "name": "Stone Thrower",
+              "range_tiles": 1,
+              "upgrade_cost_base": 10,
+              "upgrade_cost_increment": 5,
+              "upkeep_per_level": 0
+            },
+            {
+              "attack_speed": 0.6,
+              "base_dmg": 50,
+              "base_hp": 220,
+              "base_upkeep": 2,
+              "build_cost": 20,
+              "dmg_per_level": 10,
+              "explanation": "A small creature riding a bigger one, slinging shots.",
+              "hp_per_level": 60,
+              "levels": 3,
+              "name": "Slinger",
+              "range_tiles": 1,
+              "upgrade_cost_base": 30,
+              "upgrade_cost_increment": 10,
+              "upkeep_per_level": 2
+            },
+            {
+              "attack_speed": 0.5,
+              "base_dmg": 80,
+              "base_hp": 450,
+              "base_upkeep": 5,
+              "build_cost": 75,
+              "dmg_per_level": 20,
+              "explanation": "Packs a punch. Loud. Effective.",
+              "hp_per_level": 90,
+              "levels": 3,
+              "name": "Pistoleer",
+              "range_tiles": 2,
+              "upgrade_cost_base": 100,
+              "upgrade_cost_increment": 25,
+              "upkeep_per_level": 5
+            }
+          ]
+        },
+        "BeamDefence": {
+          "building_type": "sun_scorcher",
+          "card_slots": [
+            "sun_scorcher_t1_lvl1",
+            "radiant_beam_t2_lvl1",
+            "laser_beam_t3_lvl1"
+          ],
+          "starts_unlocked": false,
+          "target_death_cooldown": 1.4,
+          "tiers": [
+            {
+              "attack_speed": 0.2,
+              "base_dmg": 1,
+              "base_hp": 70,
+              "base_upkeep": 5,
+              "build_cost": 40,
+              "dmg_per_level": 1,
+              "dmg_ramp_max": 45,
+              "dmg_ramp_per_tick": 1,
+              "explanation": "Focuses sunlight into a burning beam. Slow to anger, deadly to tanks.",
+              "hp_per_level": 20,
+              "levels": 3,
+              "name": "Sun Scorcher",
+              "range_tiles": 2,
+              "upgrade_cost_base": 30,
+              "upgrade_cost_increment": 5,
+              "upkeep_per_level": 1
+            },
+            {
+              "attack_speed": 0.1,
+              "base_dmg": 3,
+              "base_hp": 150,
+              "base_upkeep": 8,
+              "build_cost": 50,
+              "dmg_per_level": 1,
+              "dmg_ramp_max": 60,
+              "dmg_ramp_per_tick": 2,
+              "explanation": "A fatter beam. A fatter guy. More pain.",
+              "hp_per_level": 40,
+              "levels": 3,
+              "name": "Radiant Beam",
+              "range_tiles": 2,
+              "upgrade_cost_base": 20,
+              "upgrade_cost_increment": 7,
+              "upkeep_per_level": 2
+            },
+            {
+              "attack_speed": 0.08,
+              "base_dmg": 5,
+              "base_hp": 280,
+              "base_upkeep": 14,
+              "build_cost": 45,
+              "dmg_per_level": 2,
+              "dmg_ramp_max": 75,
+              "dmg_ramp_per_tick": 2,
+              "explanation": "Many hold mirrors. One red beam. Nothing survives.",
+              "hp_per_level": 60,
+              "levels": 3,
+              "name": "Laser Beam",
+              "range_tiles": 3,
+              "upgrade_cost_base": 27,
+              "upgrade_cost_increment": 10,
+              "upkeep_per_level": 3
+            }
+          ]
+        },
+        "StormPriest": {
+          "building_type": "storm_priest",
+          "card_slots": [
+            "storm_priest_i_t1_lvl1",
+            "storm_priest_ii_t2_lvl1",
+            "storm_priest_iii_t3_lvl1"
+          ],
+          "repeat_cost_multiplier": 1.2,
+          "starts_unlocked": false,
+          "tiers": [
+            {
+              "attack_speed": 19.9999,
+              "base_dmg": 0,
+              "base_hp": 150,
+              "base_upkeep": 1,
+              "build_cost": 25,
+              "dmg_per_level": 0,
+              "explanation": "A quiet priest who calls down the occasional bolt.",
+              "hp_per_level": 45,
+              "levels": 3,
+              "name": "Storm Acolyte",
+              "range_tiles": 0,
+              "upgrade_cost_base": 20,
+              "upgrade_cost_increment": 10,
+              "upkeep_per_level": 2
+            },
+            {
+              "attack_speed": 19.9999,
+              "base_dmg": 0,
+              "base_hp": 280,
+              "base_upkeep": 5,
+              "build_cost": 55,
+              "dmg_per_level": 0,
+              "explanation": "Lightning gathers wherever this priest stands.",
+              "hp_per_level": 70,
+              "levels": 3,
+              "name": "Storm Priest",
+              "range_tiles": 0,
+              "upgrade_cost_base": 50,
+              "upgrade_cost_increment": 15,
+              "upkeep_per_level": 3
+            },
+            {
+              "attack_speed": 19.9999,
+              "base_dmg": 0,
+              "base_hp": 500,
+              "base_upkeep": 8,
+              "build_cost": 120,
+              "dmg_per_level": 0,
+              "explanation": "The sky itself answers to this high priest.",
+              "hp_per_level": 100,
+              "levels": 3,
+              "name": "Storm High Priest",
+              "range_tiles": 0,
+              "upgrade_cost_base": 130,
+              "upgrade_cost_increment": 30,
+              "upkeep_per_level": 6
+            }
+          ]
+        },
+        "globals": {
+          "min_attack_speed": 0.2,
+          "projectile_speed_tiles": 3.75
+        }
+      },
+      "EconomyBuildings": {
+        "Meditators": {
+          "building_type": "meditator",
+          "card_slots": [
+            "meditator_t1_lvl1",
+            "shaman_t2_lvl1",
+            "sun_priest_t3_lvl1"
+          ],
+          "starts_unlocked": false,
+          "tiers": [
+            {
+              "base_hp": 160,
+              "base_yield": 4,
+              "build_cost": 12,
+              "explanation": "Meditates for love — pays more each undisturbed turn.",
+              "hp_per_level": 40,
+              "levels": 3,
+              "name": "Meditator",
+              "streak_growth": 1.25,
+              "streak_max": 5,
+              "upgrade_cost_base": 15,
+              "upgrade_cost_increment": 5,
+              "yield_per_level": 2
+            },
+            {
+              "base_hp": 260,
+              "base_yield": 6,
+              "build_cost": 20,
+              "explanation": "Deeper trance, faster-compounding love.",
+              "hp_per_level": 70,
+              "levels": 3,
+              "name": "Shaman",
+              "streak_growth": 1.3,
+              "streak_max": 6,
+              "upgrade_cost_base": 22,
+              "upgrade_cost_increment": 8,
+              "yield_per_level": 4
+            },
+            {
+              "base_hp": 420,
+              "base_yield": 10,
+              "build_cost": 30,
+              "explanation": "An unbroken streak becomes a fortune.",
+              "hp_per_level": 110,
+              "levels": 3,
+              "name": "Sun Priest",
+              "streak_growth": 1.35,
+              "streak_max": 7,
+              "upgrade_cost_base": 34,
+              "upgrade_cost_increment": 12,
+              "yield_per_level": 6
+            }
+          ]
+        },
+        "Musicians": {
+          "building_type": "economic",
+          "card_slots": [
+            "flute_player_t1_lvl1",
+            "harp_player_t2_lvl1",
+            "trio_t3_lvl1"
+          ],
+          "starts_unlocked": true,
+          "tiers": [
+            {
+              "base_hp": 120,
+              "base_yield": 5,
+              "build_cost": 10,
+              "explanation": "Plays music for love.",
+              "hp_per_level": 20,
+              "levels": 3,
+              "name": "Flute Player",
+              "upgrade_cost_base": 5,
+              "upgrade_cost_increment": 5,
+              "yield_per_level": 4
+            },
+            {
+              "base_hp": 160,
+              "base_yield": 18,
+              "build_cost": 30,
+              "explanation": "A more refined sound, more love generated.",
+              "hp_per_level": 30,
+              "levels": 3,
+              "name": "Harp Player",
+              "upgrade_cost_base": 25,
+              "upgrade_cost_increment": 10,
+              "yield_per_level": 5
+            },
+            {
+              "base_hp": 260,
+              "base_yield": 40,
+              "build_cost": 60,
+              "explanation": "Three musicians. Three times the love.",
+              "hp_per_level": 50,
+              "levels": 3,
+              "name": "Trio",
+              "upgrade_cost_base": 70,
+              "upgrade_cost_increment": 5,
+              "yield_per_level": 10
+            }
+          ]
+        },
+        "Painters": {
+          "building_type": "painter",
+          "card_slots": [
+            "painter_t1_lvl1",
+            "painter_t2_lvl1",
+            "painter_t3_lvl1"
+          ],
+          "starts_unlocked": false,
+          "tiers": [
+            {
+              "base_hp": 160,
+              "base_payout": 40,
+              "build_cost": 20,
+              "explanation": "A risky artist who pays out a large amount after surviving 3 rounds.",
+              "goneforgood": true,
+              "hp_per_level": 10,
+              "levels": 3,
+              "name": "Cave Painter",
+              "payout_per_level": 5,
+              "rounds_to_payout": 3,
+              "upgrade_cost_base": 2,
+              "upgrade_cost_increment": 0
+            },
+            {
+              "base_hp": 200,
+              "base_payout": 110,
+              "build_cost": 30,
+              "explanation": "An easel and a sculptor — finer art, a fatter payout.",
+              "goneforgood": true,
+              "hp_per_level": 30,
+              "levels": 3,
+              "name": "Maestro",
+              "payout_per_level": 12,
+              "rounds_to_payout": 4,
+              "upgrade_cost_base": 5,
+              "upgrade_cost_increment": 0
+            },
+            {
+              "base_hp": 300,
+              "base_payout": 220,
+              "build_cost": 50,
+              "explanation": "Mass-produced masterpieces. The biggest payout of all.",
+              "goneforgood": true,
+              "hp_per_level": 100,
+              "levels": 3,
+              "name": "Art Factory",
+              "payout_per_level": 25,
+              "rounds_to_payout": 6,
+              "upgrade_cost_base": 10,
+              "upgrade_cost_increment": 0
+            }
+          ],
+          "unlock_min_village_level": 0
+        }
+      },
+      "StructureBuildings": {
+        "Blocker": {
+          "building_type": "blocker",
+          "card_slots": [
+            "blocker",
+            "blocker",
+            "blocker"
+          ],
+          "starts_unlocked": false,
+          "tiers": [
+            {
+              "base_hp": 500,
+              "build_cost": 25,
+              "explanation": "A stubborn lump. Stands in the way and takes a beating.",
+              "hp_per_level": 150,
+              "levels": 3,
+              "name": "Blocker",
+              "upgrade_cost_base": 10,
+              "upgrade_cost_increment": 4
+            },
+            {
+              "base_hp": 1200,
+              "build_cost": 20,
+              "explanation": "A reinforced sponge. Enemies spend a long time on this one.",
+              "hp_per_level": 200,
+              "levels": 3,
+              "name": "Bulwark",
+              "upgrade_cost_base": 15,
+              "upgrade_cost_increment": 7
+            },
+            {
+              "base_hp": 2100,
+              "build_cost": 35,
+              "explanation": "An immovable object. Good luck getting past this.",
+              "hp_per_level": 300,
+              "levels": 3,
+              "name": "Bastion",
+              "upgrade_cost_base": 25,
+              "upgrade_cost_increment": 10
+            }
+          ]
+        },
+        "WallBuilder": {
+          "building_type": "wall_builder",
+          "card_slots": [
+            "wall_builder",
+            "wall_builder",
+            "wall_builder"
+          ],
+          "starts_unlocked": false,
+          "tiers": [
+            {
+              "base_hp": 180,
+              "base_upkeep": 3,
+              "build_cost": 15,
+              "explanation": "Grows a hedge wall around every unlocked tile.",
+              "hp_per_level": 20,
+              "levels": 3,
+              "name": "Bush Wall Builder",
+              "upgrade_cost_base": 15,
+              "upgrade_cost_increment": 5,
+              "upkeep_per_level": 3,
+              "wall_hp": 75,
+              "wall_hp_per_level": 25
+            },
+            {
+              "base_hp": 280,
+              "base_upkeep": 3,
+              "build_cost": 25,
+              "explanation": "Raises wooden walls — tougher than hedges.",
+              "hp_per_level": 40,
+              "levels": 3,
+              "name": "Wooden Wall Builder",
+              "upgrade_cost_base": 20,
+              "upgrade_cost_increment": 10,
+              "upkeep_per_level": 3,
+              "wall_hp": 200,
+              "wall_hp_per_level": 50
+            },
+            {
+              "base_hp": 450,
+              "base_upkeep": 3,
+              "build_cost": 35,
+              "explanation": "Erects stone ramparts. The toughest perimeter of all.",
+              "hp_per_level": 50,
+              "levels": 3,
+              "name": "Stone Wall Builder",
+              "upgrade_cost_base": 30,
+              "upgrade_cost_increment": 30,
+              "upkeep_per_level": 3,
+              "wall_hp": 400,
+              "wall_hp_per_level": 100
+            }
+          ]
+        }
+      }
+    },
+    "timestamp": "2026-08-13T18:34:10"
+  },
+  {
+    "description": "",
     "id": "15e2a081-2de1-4ef4-9455-121832f85dfe",
     "name": "lighning cost reduce increment",
     "snapshot": {

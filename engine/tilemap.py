@@ -93,6 +93,13 @@ class TileMapDoc:
     # emitters — never rendered in-game; the editor draws its own overlay.
     tutorial_flute: dict = None
     tutorial_stone: dict = None
+    # {"col": int, "row": int, "slot": str} OR None — the tile-buying
+    # tutorial topic's two markers (same never-rendered shape as
+    # tutorial_flute/tutorial_stone): the locked tile the player is forced
+    # to click-and-buy, and the far corner of that newly-bought chunk the
+    # second stone-thrower placement is forced onto.
+    tutorial_unlock: dict = None
+    tutorial_stone_2: dict = None
 
     def __post_init__(self):
         # Collection fields are never None in memory: a doc built without a
@@ -146,6 +153,10 @@ def from_dict(data):
                         if data["tutorial_flute"] is not None else None),
         tutorial_stone=(dict(data["tutorial_stone"])
                         if data["tutorial_stone"] is not None else None),
+        tutorial_unlock=(dict(data["tutorial_unlock"])
+                         if data["tutorial_unlock"] is not None else None),
+        tutorial_stone_2=(dict(data["tutorial_stone_2"])
+                          if data["tutorial_stone_2"] is not None else None),
     )
 
 
@@ -190,6 +201,10 @@ def to_dict(doc):
                            if doc.tutorial_flute is not None else None),
         "tutorial_stone": (dict(doc.tutorial_stone)
                            if doc.tutorial_stone is not None else None),
+        "tutorial_stone_2": (dict(doc.tutorial_stone_2)
+                             if doc.tutorial_stone_2 is not None else None),
+        "tutorial_unlock": (dict(doc.tutorial_unlock)
+                            if doc.tutorial_unlock is not None else None),
     }
 
 
@@ -240,6 +255,18 @@ def validate_doc(doc):
             and 0 <= doc.tutorial_stone["row"] < doc.rows):
         raise ValueError(
             f"map {doc.map_id!r}: tutorial_stone {doc.tutorial_stone} outside "
+            f"{doc.cols}x{doc.rows}")
+    if doc.tutorial_unlock is not None and not (
+            0 <= doc.tutorial_unlock["col"] < doc.cols
+            and 0 <= doc.tutorial_unlock["row"] < doc.rows):
+        raise ValueError(
+            f"map {doc.map_id!r}: tutorial_unlock {doc.tutorial_unlock} outside "
+            f"{doc.cols}x{doc.rows}")
+    if doc.tutorial_stone_2 is not None and not (
+            0 <= doc.tutorial_stone_2["col"] < doc.cols
+            and 0 <= doc.tutorial_stone_2["row"] < doc.rows):
+        raise ValueError(
+            f"map {doc.map_id!r}: tutorial_stone_2 {doc.tutorial_stone_2} outside "
             f"{doc.cols}x{doc.rows}")
     for d in doc.deco:
         if not (0 <= d["col"] < doc.cols and 0 <= d["row"] < doc.rows):
@@ -321,7 +348,8 @@ def render_items(doc, *, terrain=True, base=True, deco=True, camera=False,
 
 def visible_render_items(doc, col_min, col_max, row_min, row_max, *,
                          terrain=True, base=True, deco=True, camera=False,
-                         tall_margin=3, tint_for_code=None, anim_time_ms=0):
+                         tall_margin=3, tint_for_code=None, anim_time_ms=0,
+                         column=None):
     """render_items bounded to a tile window (from
     CoordinateSystem.visible_tile_window) — windowed culling so an arbitrarily
     large map only ever generates the tiles that can be on screen. Identical
@@ -330,7 +358,14 @@ def visible_render_items(doc, col_min, col_max, row_min, row_max, *,
     within the window expanded by `tall_margin`, since they anchor up to ~2
     tile-heights above their own cell and stay visible slightly off the top
     edge. `anim_time_ms` — see render_items; same default-0 byte-identical
-    guarantee and deterministic per-prop phase."""
+    guarantee and deterministic per-prop phase.
+
+    `column` is an OPAQUE master-sheet column, copied unread onto every item
+    emitted — exactly like `tint_for_code`, this function does not know or
+    care what the caller's number means (a game might drive it from a season,
+    a colourway, anything). `None` (the default) means "no live column", which
+    the asset store reads as "use each slot's stored column"; note that `0` is
+    a REAL column, so never test this value for truthiness."""
     items = []
     if terrain:
         tints = tint_for_code or {}
@@ -343,31 +378,34 @@ def visible_render_items(doc, col_min, col_max, row_min, row_max, *,
             for col in range(c0, c1):
                 items.append(RenderItem(
                     slot_for_code(doc.legend, trow[col], col, row),
-                    (col, row), layer="ground", tint=tints.get(trow[col])))
+                    (col, row), layer="ground", tint=tints.get(trow[col]),
+                    column=column))
     tc0, tc1 = col_min - tall_margin, col_max + tall_margin
     tr0, tr1 = row_min - tall_margin, row_max + tall_margin
     if base and doc.base is not None \
             and tc0 <= doc.base["col"] <= tc1 and tr0 <= doc.base["row"] <= tr1:
         items.append(RenderItem(
-            doc.base["slot"], (doc.base["col"], doc.base["row"]), layer="entities"))
+            doc.base["slot"], (doc.base["col"], doc.base["row"]), layer="entities",
+            column=column))
     if camera and doc.camera_start is not None \
             and tc0 <= doc.camera_start["col"] <= tc1 \
             and tr0 <= doc.camera_start["row"] <= tr1:
         items.append(RenderItem(
             doc.camera_start["slot"],
-            (doc.camera_start["col"], doc.camera_start["row"]), layer="entities"))
+            (doc.camera_start["col"], doc.camera_start["row"]), layer="entities",
+            column=column))
     if deco:
         for d in doc.deco:
             if tc0 <= d["col"] <= tc1 and tr0 <= d["row"] <= tr1:
                 phase = (d["col"] * 131 + d["row"] * 197) % 997   # ms, deterministic & pure
                 items.append(RenderItem(d["slot"], (d["col"], d["row"]),
                                         layer="deco", anim_time_ms=anim_time_ms + phase,
-                                        flip=d.get("flip", False)))
+                                        flip=d.get("flip", False), column=column))
     return items
 
 
 def band_render_items(doc, d_min, d_max, s_min, s_max, *, tint_for_code=None,
-                      code_overrides=None):
+                      code_overrides=None, column=None):
     """Ground RenderItems for an ISO-DIAGONAL band, addressed by the rotated
     coordinates ``d = col - row`` and ``s = col + row`` (both integers, always
     the same parity for a real cell). ``visible_render_items`` takes an
@@ -383,7 +421,13 @@ def band_render_items(doc, d_min, d_max, s_min, s_max, *, tint_for_code=None,
     the doc's terrain: a caller whose RUNTIME state diverges from the static
     doc (e.g. a game unlocking tiles) passes its override map so the doc stays
     pristine (a fresh session re-reads the unmutated terrain). Overridden codes
-    resolve through the same legend/checker rule as painted ones."""
+    resolve through the same legend/checker rule as painted ones.
+
+    ``column`` — an OPAQUE master-sheet column copied unread onto every item,
+    exactly like ``tint_for_code``: this emitter has no idea what the caller's
+    number means (a season, a colourway, …). ``None`` (the default) means "no
+    live column" and leaves each slot's stored column in charge; ``0`` is a
+    REAL column, so this value is never tested for truthiness."""
     items = []
     tints = tint_for_code or {}
     cols, rows = doc.cols, doc.rows
@@ -399,7 +443,8 @@ def band_render_items(doc, d_min, d_max, s_min, s_max, *, tint_for_code=None,
                     code = code_overrides.get((col, row), code)
                 items.append(RenderItem(
                     slot_for_code(legend, code, col, row),
-                    (col, row), layer="ground", tint=tints.get(code)))
+                    (col, row), layer="ground", tint=tints.get(code),
+                    column=column))
     return items
 
 
@@ -468,6 +513,18 @@ def tutorial_stone_slot_from_schema(schema):
     return _object_slot_from_schema(schema, "tutorial_stone")
 
 
+def tutorial_unlock_slot_from_schema(schema):
+    """The const-pinned tile-buying-topic "tile to unlock" marker slot (the
+    editor's placement brush)."""
+    return _object_slot_from_schema(schema, "tutorial_unlock")
+
+
+def tutorial_stone_2_slot_from_schema(schema):
+    """The const-pinned tile-buying-topic "second stone" marker slot (the
+    editor's placement brush) — the far corner of the newly-bought chunk."""
+    return _object_slot_from_schema(schema, "tutorial_stone_2")
+
+
 def defaults_from_schema(schema):
     """(legend, base_slot) for a NEW map: the const-pinned ZONE codes (b/c/s)
     dug out of the schema, plus the module's DEFAULT_BACKGROUNDS (the schema no
@@ -528,6 +585,8 @@ def new_doc(map_id, display_name, cols, rows, schema_path):
         start_area=None,
         tutorial_flute=None,
         tutorial_stone=None,
+        tutorial_unlock=None,
+        tutorial_stone_2=None,
     )
 
 

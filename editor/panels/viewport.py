@@ -33,6 +33,7 @@ import copy
 import math
 import os
 import time
+from dataclasses import replace
 from pathlib import Path
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
@@ -43,12 +44,23 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QWidget
 
-from editor import anchor_ops, tilemap_ops, vfx_params, widget_tree
+from editor import (
+    anchor_ops,
+    master_sheet_import,
+    tilemap_ops,
+    vfx_params,
+    widget_tree,
+)
 from editor.panels import _screen_primitives
 from editor.panels.balancing import _NoWheelComboBox
 from editor.sprite_fit import slot_draw_fit
 from engine import data_io, tilemap, ui_layers
-from engine.assets import entry_from_dict, load_manifest, load_registry
+from engine.assets import (
+    entry_from_dict,
+    load_manifest,
+    load_registry,
+    master_registry,
+)
 from engine.assets.store import AssetStore
 from engine.coords import load_coordinate_system
 from engine.render import (
@@ -233,6 +245,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None  # the Start Area slot when armed
         self._armed_tutorial_flute = None  # the First Flute slot when armed
         self._armed_tutorial_stone = None  # the First Stone slot when armed
+        self._armed_tutorial_unlock = None  # the Unlock Tile slot when armed
+        self._armed_tutorial_stone_2 = None  # the Second Stone slot when armed
         # the Spawnable Background brush: True when armed (it has no slot —
         # a mark is an invisible overlay, not a sprite)
         self._armed_spawn_reserve = None
@@ -277,6 +291,8 @@ class ViewportPanel(QWidget):
         self._start_area_drag = False
         self._tutorial_flute_drag = False
         self._tutorial_stone_drag = False
+        self._tutorial_unlock_drag = False
+        self._tutorial_stone_2_drag = False
 
         # ED-21 animation dropdown: floating child pinned to the corner so
         # the paint surface keeps filling the whole widget.
@@ -284,6 +300,22 @@ class ViewportPanel(QWidget):
         self._anim_combo.move(8, 8)
         self._anim_combo.hide()
         self._anim_combo.currentTextChanged.connect(self.set_preview_animation)
+
+        # MasterSheetColumnsPLAN E4: a third floating combo, pinned beside the
+        # animation combo, previewing a master-sheet-linked slot's COLUMN
+        # (D3/D4). Visible only when the previewed slot links a master sheet
+        # (D2). Driven off the INDEX, not the text: the index IS what
+        # RenderItem.column wants, and column labels carry no uniqueness
+        # guarantee the way animation names do.
+        self._column_combo = _NoWheelComboBox(self)
+        self._column_combo.move(8, 40)   # stacked clear of the animation combo
+        self._column_combo.hide()
+        self._column_combo.currentIndexChanged.connect(
+            self._on_column_index_changed)
+        # int|None — rides straight onto the preview RenderItem.column. None =
+        # "no live driver, use the entry's own stored column"; 0 is a REAL
+        # column (season 0 / colour 0), never a sentinel.
+        self.preview_column = None
 
         # -- screen mode state (B4, R3): all mutation goes through the open
         # UIScreenSession's undo stack; all rect math in LOGICAL canvas
@@ -373,6 +405,7 @@ class ViewportPanel(QWidget):
         manifest = self._disk_manifest
         if self._draft is not None:
             manifest = manifest.override(*self._draft)
+        manifest = self._with_preview_column(manifest)
         self._manifest = manifest
         self._assets = AssetStore(manifest=manifest, registry=self._registry,
                                   sprites_dir=self._data_dir / "sprites")
@@ -387,6 +420,7 @@ class ViewportPanel(QWidget):
         self._draft = None
         self._build_store()
         self._refresh_anim_combo()
+        self._refresh_column_combo()
 
     def reload_registry(self):
         """Re-read data/slots.json (a variant slot was added) so the new slot
@@ -416,6 +450,9 @@ class ViewportPanel(QWidget):
             self._build_store()
             self._resolve_draw_fit()   # memoized; see _preview_draw_fit
             self.preview_animation = "idle"
+            # parity with the animation reset: a fresh slot must not inherit a
+            # stale numeric column index (_refresh_column_combo re-derives it)
+            self.preview_column = None
             self._reset_anim_clock()
             # ESV-2: a stale slot's handles/drag must not survive a switch
             # (the same rule that clears self._draft just above).
@@ -423,12 +460,53 @@ class ViewportPanel(QWidget):
             self._anchor_selected = None
             self._anchor_drag = None
         self._refresh_anim_combo()
+        self._refresh_column_combo()
 
     def set_preview_animation(self, name):
         if not name or name == self.preview_animation:
             return
         self.preview_animation = name
         self._reset_anim_clock()
+
+    def _on_column_index_changed(self, index):
+        """The column combo's live driver: the selected INDEX is the column
+        (D3). -1 (an empty combo) means "no driver" -> None.
+
+        Rebuilds the store because `_with_preview_column` resolves the manual
+        case into the in-memory entry — passing `column=` on the RenderItem
+        alone only ever moved a `season`/`building_color` slot."""
+        self.preview_column = index if index >= 0 else None
+        self._build_store()
+
+    def _with_preview_column(self, manifest):
+        """EDITOR-ONLY: let the column combo preview ANY column, including on a
+        `manual` slot.
+
+        The store resolves a `manual` entry to its own STORED column and
+        ignores the caller's live one (D3) — correct for the game, and the
+        reason the combo used to look dead on the majority of slots, which are
+        manual. A preview control that silently does nothing is not honest
+        about the art; the designer is asking "what is in column 2 of this
+        sheet", a question every mode can answer. So for a manual entry the
+        chosen column is folded into the previewed COPY of the entry, where
+        `manual` reads it as authoritative.
+
+        This touches the viewport's in-memory manifest only. `DetailsPanel.
+        draft_entry()` builds the saved entry from its OWN state, so nothing
+        here can be written to disk, and the store's D3 rule is untouched — the
+        game still resolves a manual slot to its stored column."""
+        # `getattr`, not attribute access: `_build_store()` runs during
+        # __init__, BEFORE the preview attributes are assigned.
+        slot = getattr(self, "preview_slot", None)
+        column = getattr(self, "preview_column", None)
+        if slot is None or column is None:
+            return manifest
+        entry = manifest.entry(slot)
+        if (entry is None or entry.column_width <= 0
+                or entry.column_mode != "manual"
+                or entry.column == column):
+            return manifest
+        return manifest.override(slot, replace(entry, column=column))
 
     def set_anchors(self, mapping):
         """The panel's authoritative {name: (x, y)} mapping for the
@@ -454,6 +532,43 @@ class ViewportPanel(QWidget):
         entry = self._manifest.entry(self.preview_slot)
         return tuple(entry.animations) if entry is not None else ()
 
+    def _preview_column_labels(self):
+        """Column-switcher combo labels for the previewed slot's EFFECTIVE
+        (draft-aware) entry: the linked master sheet's declared `columns`
+        names (D4), in stored sheet order, when it has any — else "Column N"
+        for N in range(the sheet's real master-column count). `()` when the
+        slot has no entry or its sheet is not a master sheet (D2).
+
+        Draft-awareness is free: `self._manifest` is already the
+        draft-applied manifest (`_build_store`), exactly like
+        `preview_animations()`.
+
+        The count formula is deliberately the SAME one
+        `engine/assets/store.py`'s render-time clamp ceiling uses
+        (`sheet_width // (column_width * frame_w)`) — kept in lockstep on
+        purpose, and derived only from the master-sheet registry's already-
+        landed interface so this panel owns no second notion of "how many
+        columns does a sheet have".
+        """
+        if self.preview_slot is None:
+            return ()
+        entry = self._manifest.entry(self.preview_slot)
+        if entry is None or not entry.sheet.startswith(
+                master_registry.MASTER_PREFIX):
+            return ()
+        doc = master_sheet_import.load_registry_doc(self._data_dir)
+        names = master_registry.columns_for(doc, entry.sheet)
+        if names:
+            return names
+        column_width = master_registry.column_width_for(doc, entry.sheet)
+        if column_width <= 0:
+            return ()
+        for sheet in master_sheet_import.master_sheets(self._data_dir):
+            if sheet.ref == entry.sheet:
+                count = sheet.width // (column_width * sheet.frame_w)
+                return tuple(f"Column {i}" for i in range(count))
+        return ()
+
     def set_preview_draft(self, slot_key, entry_dict):
         """Live unsaved-edit preview: override one slot with the import
         panel's draft (in memory only). An unusable draft (e.g. every frame
@@ -467,6 +582,7 @@ class ViewportPanel(QWidget):
                 self._draft = None
         self._build_store()
         self._refresh_anim_combo()
+        self._refresh_column_combo()
 
     def _reset_anim_clock(self):
         self._anim_ms = 0.0
@@ -492,13 +608,17 @@ class ViewportPanel(QWidget):
         self._start_area_drag = False
         self._tutorial_flute_drag = False
         self._tutorial_stone_drag = False
+        self._tutorial_unlock_drag = False
+        self._tutorial_stone_2_drag = False
         if self.in_map_mode():
             doc = self._map_session.doc
             self._coords = self._load_coords(map_cols=doc.cols, map_rows=doc.rows)
             self._anim_combo.hide()
+            self._column_combo.hide()
         else:
             self._coords = self._load_coords()
             self._refresh_anim_combo()
+            self._refresh_column_combo()
         w, h = max(1, self.width()), max(1, self.height())
         if self.in_map_mode():
             self._center_on_camera_start(w, h)
@@ -543,6 +663,7 @@ class ViewportPanel(QWidget):
         self._reset_screen_anim_clock()
         if self.in_screen_mode():
             self._anim_combo.hide()
+            self._column_combo.hide()
             self._refresh_state_combo()
             self._state_combo.show()
         else:
@@ -1321,6 +1442,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
@@ -1335,6 +1458,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
@@ -1351,6 +1476,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
@@ -1367,6 +1494,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
@@ -1385,6 +1514,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
@@ -1401,6 +1532,8 @@ class ViewportPanel(QWidget):
         self._armed_camera_limit_center = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
@@ -1418,6 +1551,8 @@ class ViewportPanel(QWidget):
         self._armed_camera_limit_center = None
         self._armed_start_area = None
         self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
@@ -1435,6 +1570,48 @@ class ViewportPanel(QWidget):
         self._armed_camera_limit_center = None
         self._armed_start_area = None
         self._armed_tutorial_flute = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
+        self._armed_spawn_reserve = None
+        self._armed_despawn = None
+        self._armed_stage = None
+        self._armed_condition = None
+
+    def arm_tutorial_unlock(self, slot):
+        """Arm the Unlock Tile brush (paint = place/move the tile-buying
+        topic's "tile to unlock" marker, erase = remove it). Mirrors
+        arm_base; clears any other armed brush, including the sibling
+        Second Stone brush."""
+        self._armed_tutorial_unlock = slot
+        self._armed_code = None
+        self._armed_deco = None
+        self._armed_base = None
+        self._armed_camera = None
+        self._armed_camera_limit_center = None
+        self._armed_start_area = None
+        self._armed_tutorial_flute = None
+        self._armed_tutorial_stone = None
+        self._armed_tutorial_stone_2 = None
+        self._armed_spawn_reserve = None
+        self._armed_despawn = None
+        self._armed_stage = None
+        self._armed_condition = None
+
+    def arm_tutorial_stone_2(self, slot):
+        """Arm the Second Stone brush (paint = place/move the tile-buying
+        topic's second stone-thrower marker, erase = remove it). Mirrors
+        arm_base; clears any other armed brush, including the sibling
+        Unlock Tile brush."""
+        self._armed_tutorial_stone_2 = slot
+        self._armed_code = None
+        self._armed_deco = None
+        self._armed_base = None
+        self._armed_camera = None
+        self._armed_camera_limit_center = None
+        self._armed_start_area = None
+        self._armed_tutorial_flute = None
+        self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
@@ -1454,6 +1631,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
         self._armed_despawn = None
         self._armed_stage = None
         self._armed_condition = None
@@ -1475,6 +1654,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
         self._armed_spawn_reserve = None
         self._armed_stage = None
         self._armed_condition = None
@@ -1497,6 +1678,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_condition = None
@@ -1521,6 +1704,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_tutorial_unlock = None
+        self._armed_tutorial_stone_2 = None
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
@@ -1606,6 +1791,22 @@ class ViewportPanel(QWidget):
             elif self._tool == "erase":
                 self._map_session.push_tutorial_stone_remove()
             return
+        if self._armed_tutorial_unlock is not None:
+            # the tile-buying topic's "tile to unlock" marker is placed like
+            # the Hole (single object, single tile, no clamp)
+            if self._tool == "paint":
+                self._map_session.push_tutorial_unlock_place(cell[0], cell[1])
+            elif self._tool == "erase":
+                self._map_session.push_tutorial_unlock_remove()
+            return
+        if self._armed_tutorial_stone_2 is not None:
+            # the tile-buying topic's second stone-thrower marker is placed
+            # like the Hole (single object, single tile, no clamp)
+            if self._tool == "paint":
+                self._map_session.push_tutorial_stone_2_place(cell[0], cell[1])
+            elif self._tool == "erase":
+                self._map_session.push_tutorial_stone_2_remove()
+            return
         if self._eyes["base"] and doc.base is not None \
                 and cell == (doc.base["col"], doc.base["row"]):
             self._base_drag = True   # the single draggable map object;
@@ -1632,6 +1833,15 @@ class ViewportPanel(QWidget):
                 and cell == (doc.tutorial_stone["col"], doc.tutorial_stone["row"]):
             self._tutorial_stone_drag = True   # single tile, no brush armed;
             return                             # hide the eye to paint under it
+        if self._eyes["tutorial"] and doc.tutorial_unlock is not None \
+                and cell == (doc.tutorial_unlock["col"], doc.tutorial_unlock["row"]):
+            self._tutorial_unlock_drag = True  # single tile, no brush armed;
+            return                             # hide the eye to paint under it
+        if self._eyes["tutorial"] and doc.tutorial_stone_2 is not None \
+                and cell == (doc.tutorial_stone_2["col"],
+                             doc.tutorial_stone_2["row"]):
+            self._tutorial_stone_2_drag = True  # single tile, no brush armed;
+            return                              # hide the eye to paint under it
         if self._armed_deco is not None:
             if self._tool == "paint":
                 self._map_session.push_deco_place(
@@ -1816,6 +2026,14 @@ class ViewportPanel(QWidget):
             if cell is not None:
                 self._map_session.push_tutorial_stone_place(cell[0], cell[1])
             self._tutorial_stone_drag = False
+        elif self._tutorial_unlock_drag:
+            if cell is not None:
+                self._map_session.push_tutorial_unlock_place(cell[0], cell[1])
+            self._tutorial_unlock_drag = False
+        elif self._tutorial_stone_2_drag:
+            if cell is not None:
+                self._map_session.push_tutorial_stone_2_place(cell[0], cell[1])
+            self._tutorial_stone_2_drag = False
         elif self._reserve_stroke is not None:
             self._map_session.push_reserve_stroke(
                 self._reserve_stroke, "spawn reserve stroke")
@@ -1894,8 +2112,11 @@ class ViewportPanel(QWidget):
         if self._start_area_drag or self._armed_start_area is not None:
             return   # its ghost is an OUTLINE, drawn by _submit_map_items
         if (self._tutorial_flute_drag or self._tutorial_stone_drag
+                or self._tutorial_unlock_drag or self._tutorial_stone_2_drag
                 or self._armed_tutorial_flute is not None
-                or self._armed_tutorial_stone is not None):
+                or self._armed_tutorial_stone is not None
+                or self._armed_tutorial_unlock is not None
+                or self._armed_tutorial_stone_2 is not None):
             return   # its ghost is an OUTLINE, drawn by _submit_map_items
         if self._armed_spawn_reserve is not None:
             return   # its ghost is the OUTLINE drawn by the reserve overlay
@@ -1951,6 +2172,20 @@ class ViewportPanel(QWidget):
             combo.setCurrentText(self.preview_animation)
         combo.blockSignals(False)
         combo.setVisible(bool(animations))
+
+    def _refresh_column_combo(self):
+        """`_refresh_anim_combo`'s twin on the COLUMN axis (E4)."""
+        labels = self._preview_column_labels()
+        combo = self._column_combo
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItems(list(labels))
+        if self.preview_column is None or self.preview_column >= len(labels):
+            self.preview_column = 0 if labels else None
+        if labels:
+            combo.setCurrentIndex(self.preview_column)
+        combo.blockSignals(False)
+        combo.setVisible(bool(labels))
 
     # -- anchor handles (ESV-2): entity-preview fallback only, ED-22 clean --
     # A VIEW of the panel's mapping (self._anchors) plus a live drag delta;
@@ -2195,6 +2430,7 @@ class ViewportPanel(QWidget):
                     anim_time_ms=int(self._anim_ms),
                     fit_tiles=fit_tiles,
                     scale=scale,
+                    column=self.preview_column,
                 ))
                 self._submit_muzzle_projectile()
                 self._submit_anchor_handles()
@@ -2318,7 +2554,11 @@ class ViewportPanel(QWidget):
                 (doc.tutorial_flute, "First Flute",
                  self._tutorial_flute_drag, self._armed_tutorial_flute),
                 (doc.tutorial_stone, "First Stone",
-                 self._tutorial_stone_drag, self._armed_tutorial_stone)):
+                 self._tutorial_stone_drag, self._armed_tutorial_stone),
+                (doc.tutorial_unlock, "Unlock Tile",
+                 self._tutorial_unlock_drag, self._armed_tutorial_unlock),
+                (doc.tutorial_stone_2, "Second Stone",
+                 self._tutorial_stone_2_drag, self._armed_tutorial_stone_2)):
             if self._eyes["tutorial"] and marker is not None and not dragging:
                 outline(marker["col"], marker["row"], TUTORIAL_COLOR)
                 caption(marker["col"], marker["row"], label, TUTORIAL_COLOR)
@@ -2806,7 +3046,9 @@ class ViewportPanel(QWidget):
                 if self._tool == "none" and not self._base_drag \
                         and not self._start_area_drag \
                         and not self._tutorial_flute_drag \
-                        and not self._tutorial_stone_drag:
+                        and not self._tutorial_stone_drag \
+                        and not self._tutorial_unlock_drag \
+                        and not self._tutorial_stone_2_drag:
                     self._drag_pos = event.position()
             elif event.button() == Qt.MouseButton.RightButton:
                 self._drag_pos = event.position()

@@ -60,7 +60,9 @@ sys.path.insert(0, str(REPO))
 import pygame
 
 from engine import data_io, tilemap
+from engine import input as key_input  # feature: rebindable hotkeys
 from engine.assets import load_manifest, load_registry
+from engine.assets import master_registry  # B1: the colour-column registry
 from engine.assets.store import AssetStore
 from engine.audio import play_music
 from engine.coords import CameraLimit, load_coordinate_system
@@ -73,6 +75,8 @@ from game.buildings import BaseBuilding, attach_base
 # -- 10I: defence-range coverage producer (injected into the tilemap) --
 from game.buildings.coverage import wire_defence_coverage
 # -- /10I --
+# -- B1: the slots.json category whose slots may carry a colour column --
+from game.buildings.registry import BUILDINGS_CATEGORY
 # -- Building Movement: the in-transit sign slot + the cost/time formulas the
 # destination-pick preview quotes --
 from game.buildings.movement import (
@@ -87,8 +91,8 @@ from game.debug import (  # debug-mode-telemetry
 )
 from game.debug import events as dbg
 from game.enemies import (
-    DEATH_ANIM, KIDNAP_ANIM, Spawner, resolve_combat, set_kidnap_pose,
-    spawn_corpse,
+    DEATH_ANIM, KIDNAP_ANIM, Spawner, apply_crowd_spacing, resolve_combat,
+    restore_crowd_positions, set_kidnap_pose, spawn_corpse,
 )
 from game.enemies.components import (  # debug-mode-telemetry Phase 3 + 5
     set_damage_hook, set_wall_damage_hook,
@@ -121,6 +125,48 @@ _KEY_NAMES = None  # lazily built (needs pygame constants)
 _log = logging.getLogger(__name__)
 
 
+def _derive_colour_columns(registry, manifest, data_dir):
+    """``{slot_key: (colour_name, ...)}`` for every BUILDINGS slot whose art is
+    actually driven by a live colour column (MasterSheetColumnsPLAN B1).
+
+    THE HOST DOES THIS LOOKUP, ONCE, AND PASSES THE RESULT DOWN. ``game/ui``
+    and ``game/buildings`` may never reach into the asset layer themselves
+    (D6) — the same rule (and the same derive-once-at-boot argument: art cannot
+    change mid-run) that puts ``condition_art``/``tree_slots``/``wall_art`` in
+    ``main()`` rather than in their consumers.
+
+    A SLOT IS COLOUR-CAPABLE IFF BOTH HOLD:
+      1. its master sheet declares ``columns`` (``columns_for`` is non-empty) —
+         D6's stated rule; and
+      2. its manifest entry has ``column_mode == "building_color"``.
+    Condition 2 is the conjunct D6 does not state, and it is required by D3:
+    under ``column_mode == "manual"`` the entry's own STORED ``column`` wins and
+    a live column is ignored, so a manual slot would offer the player swatches
+    that change nothing. It is recorded as an open finding for the section
+    orchestrator; S4 faces the identical question for ``season``.
+
+    E-37: a missing or unreadable registry degrades to an EMPTY map with ONE
+    logged warning and never raises. An empty map simply means no building has
+    colours — exactly the escape hatch the three derived-art blocks above use.
+    """
+    try:
+        master_doc = master_registry.load_registry(data_dir)
+    except Exception as exc:                       # noqa: BLE001 — E-37
+        _log.warning(
+            "master-sheet registry unreadable (%s) — no building has colour "
+            "columns this run; the run itself is unaffected", exc)
+        return {}
+    colours = {}
+    for slot in registry.group_slots(BUILDINGS_CATEGORY):
+        entry = manifest.entry(slot)
+        if entry is None or entry.column_mode != "building_color":
+            continue
+        names = master_registry.columns_for(master_doc, entry.sheet)
+        if names:
+            colours[slot] = names
+    return colours
+
+
 def _key_name(key):
     """Map a pygame keycode to the neutral name game/ui expects (keeps game/ui
     pygame-free). Unknown keys -> None (treated as a typed character)."""
@@ -137,6 +183,78 @@ def _key_name(key):
             pygame.K_DOWN: "down",
         }
     return _KEY_NAMES.get(key)
+
+
+#: Keys `_binding_key_name` names explicitly, beyond bare letters/digits
+#: (pygame's keycodes for the basic ASCII range equal the character's
+#: ordinal, so `chr(event.key)` already gives "a".."z"/"0".."9" for those).
+_BINDING_KEY_NAMES = None  # lazily built (needs pygame constants)
+
+
+def _binding_key_names_table():
+    """The pygame-keycode -> neutral-name table `_binding_key_name` and its
+    reverse, `_binding_pygame_key`, both share — built once (needs pygame
+    constants)."""
+    global _BINDING_KEY_NAMES
+    if _BINDING_KEY_NAMES is None:
+        _BINDING_KEY_NAMES = {
+            pygame.K_SPACE: "space",
+            pygame.K_RETURN: "return",
+            pygame.K_KP_ENTER: "return",
+            pygame.K_ESCAPE: "escape",
+            pygame.K_BACKSPACE: "backspace",
+        }
+    return _BINDING_KEY_NAMES
+
+
+def _binding_key_name(event):
+    """A KEYDOWN event's NEUTRAL binding string — "space", "ctrl+l", "h",
+    "1", "return" — the vocabulary ``engine.input``'s bindings dict and
+    ``data/keybindings.json`` use (feature: rebindable hotkeys). ``None`` for
+    a key with no binding representation (arrow keys, function keys, …).
+
+    ``game/ui`` never sees this (D5/G6): only this module's hotkey dispatch
+    and the Controls screen's rebind-capture routing resolve a keypress
+    through it, so a captured rebind and a dispatched hotkey can never
+    disagree about what a key means. Numpad digits are deliberately NOT
+    named here — they stay a fixed always-on alias in the combat-speed
+    dispatch, outside the rebindable set (rebinding only ever changes the
+    primary key)."""
+    name = _binding_key_names_table().get(event.key)
+    if name is None and 0 < event.key < 128 and chr(event.key).isalnum():
+        name = chr(event.key)
+    if name is None:
+        return None
+    if event.mod & pygame.KMOD_CTRL:
+        return f"ctrl+{name}"
+    return name
+
+
+def _binding_pygame_key(binding):
+    """Reverse of `_binding_key_name`: a binding string ("w", "ctrl+l") -> the
+    base pygame keycode to poll, or `None` if it can't be resolved. The
+    movement hotkeys are POLLED every frame via `pygame.key.get_pressed()`
+    (held-down panning), not KEYDOWN-dispatched like every other action, so
+    they need this reverse lookup instead of a live event's `.key`."""
+    name = binding[len("ctrl+"):] if binding.startswith("ctrl+") else binding
+    if len(name) == 1 and name.isalnum():
+        return ord(name)
+    for key, mapped in _binding_key_names_table().items():
+        if mapped == name:
+            return key
+    return None
+
+
+def _binding_held(binding, keys_pressed):
+    """True while the (possibly rebound) key for `binding` is currently held
+    down — the `keys[pygame.K_SPACE]` cutscene-hold-to-skip precedent,
+    generalized to any binding string for the movement hotkeys."""
+    base = _binding_pygame_key(binding)
+    if base is None or not keys_pressed[base]:
+        return False
+    if binding.startswith("ctrl+"):
+        return bool(pygame.key.get_mods() & pygame.KMOD_CTRL)
+    return True
 
 
 def _apply_display_mode(mode, view_w, view_h, caption):
@@ -482,19 +600,39 @@ class _World:
         # -- /10I --
 
 
+def _recenter_zoom(cs, new_zoom, view_w, view_h):
+    """Apply `new_zoom`, keeping the world point at the viewport centre fixed
+    (coords authority only, E-5) — the shared body of `step_zoom` (a relative
+    step) and `set_zoom_level` (an absolute jump, feature: rebindable
+    hotkeys)."""
+    cx, cy = view_w / 2, view_h / 2
+    anchor = cs.screen_to_world(cx, cy)
+    cs.set_zoom(new_zoom)
+    px, py = cs.world_to_screen(*anchor)
+    cs.pan(px - cx, py - cy)
+    cs.clamp(view_w, view_h)
+
+
 def step_zoom(cs, direction, view_w, view_h):
     """Move one step through the data-driven zoom levels, keeping the world
-    point at the viewport centre fixed (coords authority only, E-5)."""
+    point at the viewport centre fixed."""
     levels = sorted(cs.geometry.zoom_levels)
     i = levels.index(cs.camera.zoom) + direction
     if not 0 <= i < len(levels):
         return
-    cx, cy = view_w / 2, view_h / 2
-    anchor = cs.screen_to_world(cx, cy)
-    cs.set_zoom(levels[i])
-    px, py = cs.world_to_screen(*anchor)
-    cs.pan(px - cx, py - cy)
-    cs.clamp(view_w, view_h)
+    _recenter_zoom(cs, levels[i], view_w, view_h)
+
+
+def set_zoom_level(cs, index, view_w, view_h):
+    """Jump straight to the zoom level at `index` (0-based, sorted ascending)
+    — `step_zoom`'s ABSOLUTE-jump sibling for the zoom-level hotkeys (feature:
+    rebindable hotkeys). A silent no-op if that index doesn't exist (fewer
+    zoom levels authored than hotkeys) — the combat-speed round-gate
+    precedent."""
+    levels = sorted(cs.geometry.zoom_levels)
+    if not 0 <= index < len(levels):
+        return
+    _recenter_zoom(cs, levels[index], view_w, view_h)
 
 
 def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
@@ -618,6 +756,13 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # here) — False means the slot has no imported sheet and the overlay draws
     # only its round countdown, never the grey-X placeholder (E-37).
     moving_sign_art = manifest.entry(MOVING_SIGN_SLOT) is not None
+    # B1: which building slots offer master-sheet colour columns, and their
+    # names. Derived once here for the same reason as the four blocks above —
+    # art cannot change mid-run — and handed down to the placement seam
+    # (`place_building(..., colour_columns=...)`) and to the construct panel.
+    # An empty map (today's live data, which declares no `columns` yet) means
+    # no building rolls a colour and every animator keeps its -1 sentinel.
+    colour_columns = _derive_colour_columns(registry, manifest, data_dir)
     widgets.set_skin_hit_test(assets.hit_opaque)  # R2: pixel-perfect click targets
     # D5/UH-6: theme data, loaded + schema-validated once at boot, before the
     # Shell/screens are built (so every screen's FIRST submit already sees
@@ -671,6 +816,18 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     enemies_balance = load_balance(data_dir, "enemies")
     ui_balance = load_balance(data_dir, "ui")
     vfx_balance = load_balance(data_dir, "vfx")  # ESV-3a: procedural VFX params
+    # feature: rebindable hotkeys — `ui.json`'s `Keybindings` group is the
+    # DESIGNER-EDITABLE default for every rebindable action (indexed
+    # directly, never `.get` — the schema requires the key, D-2, the
+    # `ui_balance["Debug"]` precedent just below). The player's LIVE bindings
+    # (any in-Settings rebind) live in the gitignored `scores/` dir, the
+    # `highscores.json` precedent — read tolerantly (a corrupt save file
+    # falls back to the defaults, one logged warning, never crashes boot).
+    keybindings_schema_path = data_dir / "schemas" / "keybindings.schema.json"
+    keybindings_defaults = ui_balance["Keybindings"]
+    keybindings_path = REPO / "scores" / "keybindings.json"
+    key_bindings = key_input.load_keybindings(
+        keybindings_path, keybindings_schema_path, keybindings_defaults)
     # VA-5: the seven tile highlights are effects now — colour/outline/fill and
     # their sprite bindings come from this same doc. Same fail-loud-on-mismatch
     # shape as configure_palette above, and the same boot slot, which is where
@@ -701,7 +858,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # launcher rows and the identity prompt. Indexed directly, never `.get` —
     # the schema requires the key, so missing data must fail LOUD (D-2).
     shell = Shell(view_w, view_h, ui_balance, start_state=start,
-                 skinning=skinning, debug_balance=core_balance["Debug"])
+                 skinning=skinning, debug_balance=core_balance["Debug"],
+                 key_bindings=key_bindings)
     shell.set_pool_count(len(buildings_balance["BuildingsGlobal"]["random_names"]))
     # player-identity: the run history lives in the gitignored `scores/` dir at
     # the repo root, NOT in `data/` — it is per-machine play history. Read once
@@ -849,6 +1007,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         # building's own tier sprite (the `floaters.assets` precedent below;
         # None-safe, so a bare BuildingUI in a test needs no store).
         gp["panel"].assets = assets
+        # B1: the colour-capability map, published to the construct flow the
+        # same host-sets-an-attribute way `assets` above and
+        # `overlays.condition_art` are. B2 is what READS it (swatches in the
+        # construct-confirm modal, then `place_building(..., column=...)`), so
+        # on this branch it is deliberately published and not yet consumed.
+        gp["panel"].colour_columns = colour_columns
         gp["floaters"].log = gp["game_log"]
         # -- /10J --
         # -- ESV-5/6: the handles _play/_anchored need to spawn a sprite
@@ -937,6 +1101,36 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             shell.set_highscores(doc)
             shell.prefill_identity(*highscores.last_player(doc))
 
+    # -- feature: rebindable hotkeys ----------------------------------------
+    def _handle_capture_key(event):
+        """The Controls screen is armed (``shell.controls_screen.capturing``
+        names the action awaiting a keypress) — resolve THIS keydown as the
+        new binding, through the SAME ``_binding_key_name`` hotkey dispatch
+        uses, so a captured rebind and a dispatched hotkey can never
+        disagree. Esc cancels with no change; a key already bound to another
+        action flashes red and drops capture; otherwise the binding is
+        written into the shared ``key_bindings`` dict (mutated in place, so
+        the screen's next frame sees it for free) and persisted to
+        ``scores/keybindings.json``."""
+        screen = shell.controls_screen
+        if event.key == pygame.K_ESCAPE:
+            screen.stop_capture()
+            return
+        new_key = _binding_key_name(event)
+        if new_key is None:
+            return  # not a representable key (e.g. an arrow key) — ignored
+        action = screen.capturing
+        if key_input.find_conflict(key_bindings, action, new_key) is not None:
+            screen.flash_conflict()
+            return
+        updated = key_input.rebind(key_bindings, action, new_key)
+        key_bindings.clear()
+        key_bindings.update(updated)
+        key_input.save_keybindings(keybindings_path, keybindings_schema_path,
+                                   key_bindings)
+        screen.stop_capture()
+    # -- /feature: rebindable hotkeys ----------------------------------------
+
     # -- 10H: lightning + cheat menu --------------------------------------
     def _execute_cheat(action):
         """Map a cheat-menu action onto the Session cheat methods. The
@@ -966,6 +1160,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             session.cheat_add_love(999999)
         elif action == "unlock_all":
             session.cheat_unlock_all()
+        elif action == "unlock_speed":
+            session.cheat_unlock_speeds()
         elif action == "toggle_debug":
             if recorder is not None:
                 # Mark the point capture STOPS, then write the artifacts.
@@ -1002,10 +1198,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
 
     def _tutorial_allows_panel_click(mx, my):
         """True when the tutorial is inactive/finished, OR the click lands on
-        a target the current step allows (musician card / Confirm). Every
-        other click inside the panel (close, cancel, the name box, the dice
-        reroll) passes through UNGATED — only the actual whitelisted target
-        is checked (TU-6 §3.3)."""
+        a target the current step allows (musician card / Confirm / the
+        tile-buying topic's unlock button). Every other click inside the
+        panel (close, cancel, the name box, the dice reroll) passes through
+        UNGATED — only the actual whitelisted target is checked (TU-6 §3.3)."""
         tutorial = gp["tutorial"]
         if tutorial.finished:  # fast path, D6
             return True
@@ -1019,7 +1215,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 if btn.hit(mx, my):
                     return tutorial.allows(("card", btype))
             return True  # clicking the panel body/close, not a card
-        return True  # unlock/upgrade/base_info modes: untouched by TU-6
+        if panel.mode == "unlock":
+            if panel.action_btn.hit(mx, my):
+                return tutorial.allows(("unlock",))
+            return True  # clicking the panel body/close, not the action button
+        return True  # upgrade/base_info modes: untouched by TU-6
 
     def handle_world_click(mx, my):
         """The in-round click-consume priority ladder (prototype-exact order),
@@ -1129,6 +1329,9 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 world.occupancy):
             if panel.mode == "construct" and panel.preview is not None:
                 gp["tutorial"].on_card_selected(panel.preview.building_type)
+            elif panel.last_unlocked:
+                gp["tutorial"].on_tile_unlocked()
+                panel.last_unlocked = False
             elif was_visible and not panel.visible:
                 gp["tutorial"].on_panel_closed()
             return
@@ -1183,8 +1386,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                                  tile.col, tile.row)
         panel.preview = MovePreview(
             building, tile, move_cost(distance, movement),
-            move_time(distance, movement), ui_balance, view_w, view_h,
-            skinning=shell.skinning)
+            move_time(distance, movement), movement["warning_text"],
+            ui_balance, view_w, view_h, skinning=shell.skinning)
 
     def handle_world_right_click(mx, my):
         """Right-click is a universal DISMISS, never a world action — it peels
@@ -1381,7 +1584,14 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 continue
             if shell.in_menu or st == GameState.PAUSED:
                 if event.type == pygame.KEYDOWN:
-                    execute(shell.handle_key(event.unicode, _key_name(event.key)))
+                    # feature: rebindable hotkeys — while the Controls screen
+                    # is waiting for a keypress, THIS key is the rebind
+                    # capture, not a menu navigation key.
+                    if (shell.state == GameState.SETTINGS and shell.controls_open
+                            and shell.controls_screen.capturing is not None):
+                        _handle_capture_key(event)
+                    else:
+                        execute(shell.handle_key(event.unicode, _key_name(event.key)))
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == _LEFT:
                     execute(shell.handle_click(*event.pos))
                 elif event.type == pygame.MOUSEWHEEL and event.y:
@@ -1414,8 +1624,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 # prototype's Ctrl+P — bare P is the quick-skip key here);
                 # while open the menu consumes ALL keys. --
                 if session.state.state == GameState.GAMEPLAY:
-                    if (event.key == pygame.K_l
-                            and pygame.key.get_mods() & pygame.KMOD_CTRL):
+                    if _binding_key_name(event) == key_bindings["toggle_cheat_menu"]:
                         gp["cheat"].toggle()
                         continue
                     if gp["cheat"].visible:
@@ -1439,6 +1648,25 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                     if event.key == pygame.K_ESCAPE and not panel.preview.editing:
                         panel.preview = None
                         gp["tutorial"].on_panel_closed()  # TU-8 Fix 1
+                    elif (not panel.preview.editing and _binding_key_name(event)
+                          == key_bindings["confirm_purchase"]):
+                        # feature: rebindable hotkeys — Enter confirms the
+                        # open preview exactly like clicking CONFIRM: the
+                        # SAME public entry point (and TU-6/TU-8 gate) a real
+                        # mouse click on that button goes through, aimed at
+                        # the button's own centre point.
+                        cbx, cby, cbw, cbh = panel.preview.confirm_btn.rect
+                        px, py = cbx + cbw // 2, cby + cbh // 2
+                        if (_tutorial_allows_panel_click(px, py)
+                                and panel.handle_click(
+                                    px, py, session, buildings_balance,
+                                    world.scene, world.occupancy)):
+                            if panel.last_placed_type is not None:
+                                gp["tutorial"].on_building_placed(
+                                    panel.last_placed_type)
+                                panel.last_placed_type = None
+                            elif panel.preview is None:  # cancel/close
+                                gp["tutorial"].on_panel_closed()
                     else:
                         panel.handle_key(event.unicode, _key_name(event.key))
                 elif panel.name_editing:  # 10J: upgrade-panel rename capture
@@ -1449,21 +1677,51 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                         gp["tutorial"].on_panel_closed()  # TU-8 Fix 1
                     else:
                         shell.state = GameState.PAUSED  # Esc opens pause
-                elif event.key == pygame.K_SPACE:
+                elif _binding_key_name(event) == key_bindings["end_turn"]:
                     session.end_turn()  # dev convenience beside the button
                     gp["overlays"].path_heatmap.clear()  # fix/highlight-render-order
                     gp["tutorial"].on_end_turn()  # TU-6: no-op unless gated step
+                elif _binding_key_name(event) == key_bindings["toggle_heatmap"]:
+                    # feature: rebindable hotkeys — the same flip
+                    # MapOverlays.hit() does for the HEATMAP pill's own click.
+                    gp["overlays"].show_heatmap = not gp["overlays"].show_heatmap
+                elif _binding_key_name(event) == key_bindings["toggle_tier_overview"]:
+                    # feature: rebindable hotkeys — the same flip
+                    # MapOverlays.hit() does for the TIERS pill's own click.
+                    gp["overlays"].show_tier_overview = (
+                        not gp["overlays"].show_tier_overview)
+                elif _binding_key_name(event) == key_bindings["toggle_range"]:
+                    # feature: rebindable hotkeys — the same flip
+                    # MapOverlays.hit() does for the RANGE pill's own click.
+                    gp["overlays"].show_range = not gp["overlays"].show_range
+                elif _binding_key_name(event) == key_bindings["toggle_drag_select"]:
+                    # feature: rebindable hotkeys — the same flip
+                    # handle_world_click's "drag_select" HUD action does for
+                    # the DRAG SEL button's own click.
+                    gp["drag_select_enabled"] = not gp["drag_select_enabled"]
+                elif _binding_key_name(event) == key_bindings["zoom_level_1"]:
+                    set_zoom_level(cs, 0, view_w, view_h)
+                elif _binding_key_name(event) == key_bindings["zoom_level_2"]:
+                    set_zoom_level(cs, 1, view_w, view_h)
+                elif _binding_key_name(event) == key_bindings["zoom_level_3"]:
+                    set_zoom_level(cs, 2, view_w, view_h)
                 elif session.state.phase == GamePhase.ENEMY:
                     # Combat-speed shortcuts + quick-skip (10F). 1.5x/2x are
                     # round-gated inside Session, so a locked key is a no-op.
-                    # The 1x/1.5x/2x/pause BUTTONS are 10L.
-                    if event.key in (pygame.K_1, pygame.K_KP1):
+                    # The 1x/1.5x/2x/pause BUTTONS are 10L. Numpad 1/2/3 stay
+                    # a fixed always-on alias, outside the rebindable set —
+                    # rebinding only ever changes the primary key.
+                    key_name = _binding_key_name(event)
+                    if (event.key == pygame.K_KP1
+                            or key_name == key_bindings["combat_speed_1"]):
                         session.set_combat_speed(0)
-                    elif event.key in (pygame.K_2, pygame.K_KP2):
+                    elif (event.key == pygame.K_KP2
+                          or key_name == key_bindings["combat_speed_2"]):
                         session.set_combat_speed(1)   # 1.5x
-                    elif event.key in (pygame.K_3, pygame.K_KP3):
+                    elif (event.key == pygame.K_KP3
+                          or key_name == key_bindings["combat_speed_3"]):
                         session.set_combat_speed(2)   # 2x
-                    elif event.key == pygame.K_p:
+                    elif key_name == key_bindings["quick_skip_combat"]:
                         session.quick_skip_combat(world.scene)
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == _LEFT:
                 mouse_down = event.pos
@@ -1557,6 +1815,35 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         # cutscene hold-to-skip: left click, space, or esc held continuously
         skip_held = held or keys[pygame.K_SPACE] or keys[pygame.K_ESCAPE]
 
+        # feature: rebindable hotkeys — WASD/arrow-key camera panning, held
+        # continuously (polled every frame via `keys`, the skip_held pattern
+        # above, not a single KEYDOWN dispatch like every other hotkey).
+        # Gated the same way mouse drag-panning already is: only while a
+        # world state is live, never while the sim is frozen (LEVELUP/
+        # BOSS_CUTSCENE/ENEMY_INTRO), the cheat menu is open, a construct/
+        # move preview modal has focus (which also captures typed characters
+        # — WASD must not leak into a name field), or the upgrade panel's
+        # rename row is capturing keys. Arrow keys ALWAYS pan too, a fixed
+        # always-on alias outside the rebindable set (the numpad precedent).
+        world = gp["world"]
+        if (world is not None and shell.state in _WORLD_STATES
+                and not world.session.frozen and not gp["cheat"].visible
+                and gp["panel"].preview is None
+                and not gp["panel"].name_editing):
+            pan_speed = core_balance["Camera"]["keyboard_pan_speed"]
+            dx = dy = 0.0
+            if _binding_held(key_bindings["move_left"], keys) or keys[pygame.K_LEFT]:
+                dx -= pan_speed * dt
+            if _binding_held(key_bindings["move_right"], keys) or keys[pygame.K_RIGHT]:
+                dx += pan_speed * dt
+            if _binding_held(key_bindings["move_up"], keys) or keys[pygame.K_UP]:
+                dy -= pan_speed * dt
+            if _binding_held(key_bindings["move_down"], keys) or keys[pygame.K_DOWN]:
+                dy += pan_speed * dt
+            if dx or dy:
+                cs.pan(dx, dy)
+                cs.clamp(view_w, view_h)
+
         # 2. simulate / update — per state
         _t_sim0 = time.perf_counter()
         st = shell.state
@@ -1642,7 +1929,16 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                         # A wall carries no Health and no RoundStats, so its
                         # damage is invisible to `on_damage` — its own seam.
                         set_wall_damage_hook(_debug_on_wall_damage)
+                    # Tile-crowding visual offset (feature): undo last
+                    # frame's offset BEFORE Movement runs (inside
+                    # scene.update) so it steps from the clean path
+                    # position, then re-apply the offset AFTER — see
+                    # game/enemies/crowd_spacing.py's module docstring for
+                    # why this can't be a single per-enemy Component.update().
+                    restore_crowd_positions(world.scene)
                     world.scene.update(sim_dt)
+                    apply_crowd_spacing(world.scene, sim_dt,
+                                        enemies_balance["CrowdSpacing"])
                     # The flat boss-bonus story damage (Boss1A/1B/3A/3B),
                     # computed once per frame and threaded as a plain int.
                     dmg_bonus = story_damage_bonus(session.state, world.tile_map,
@@ -1716,12 +2012,26 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                         set_damage_hook(None)
                         set_wall_damage_hook(None)
                     session.post_sim(world.scene)
-                # payday fills state.income_events + flips to INCOME; spawn once
+                # payday fills state.income_events + flips to INCOME; queue
+                # the payout beat sequence once (boost -> economy(+painter)
+                # -> upkeep — game/ui/effects.py FloaterManager.begin_payout).
                 if (session.state.phase == GamePhase.INCOME
                         and gp["prev_phase"] != GamePhase.INCOME):
-                    gp["floaters"].spawn_income_events(session.state)
-                    gp["floaters"].spawn_painter_events(session.state)
-                    gp["floaters"].spawn_boost_events(session.state)
+                    gp["floaters"].begin_payout(session.state)
+                    # -- N1: the season clock ---------------------------------
+                    # payday already ran (it does round++ then flips to INCOME,
+                    # game/core/payday.py:277-280), so THIS edge is the round
+                    # edge: one frame per round, never per frame. The key is
+                    # schema-REQUIRED, so index it — a missing group must fail
+                    # loud here, not ship a whole run of wrong ground art.
+                    # The invalidate is conditional ON PURPOSE: repainting the
+                    # cached ground layer costs a full re-blit, so it fires only
+                    # when the season actually turns (once every
+                    # rounds_per_season rounds), not on every round edge.
+                    if session.state.update_season(
+                            core_balance["Seasons"]["rounds_per_season"]):
+                        ground_cache.invalidate()
+                    # -- /N1 --
                     # VA-4: same edge, same drained-by-UI contract — payday's
                     # revive slot filled it a few steps earlier in the very
                     # transition this branch is reacting to.
@@ -1800,7 +2110,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 gp["panel"].hover(mx, my, mouse_down=held)
                 gp["panel"].update(dt)
                 gp["overlays"].update(dt, mx, my, mouse_down=held)   # 10I: toggle-pill hover
-                gp["floaters"].update(dt)
+                gp["floaters"].update(dt, session.state)
                 # -- 10J: game log + FX watchers (building deaths -> purple burst
                 # + kill message; enemy attack cadence -> muzzle/slash; enemy
                 # deaths -> blood splatters, double-gated on gore) --
@@ -1891,7 +2201,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 view_w, view_h,
                 lambda dmn, dmx, smn, smx: tilemap.band_render_items(
                     map_doc, dmn, dmx, smn, smx,
-                    code_overrides=world.tile_map.terrain_overrides))
+                    code_overrides=world.tile_map.terrain_overrides,
+                    # Read INSIDE the lambda body, never bound as a default
+                    # argument: the cache calls this back only on a rebuild,
+                    # so the season must be sampled when the repaint happens.
+                    column=session.state.season))
             # The GPU cache IGNORES this argument by design (it always draws
             # through the SDL Renderer it was built with — see
             # ground_cache_gpu.blit's docstring), so both classes take the same
@@ -1901,7 +2215,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             cmin, cmax, rmin, rmax = cs.visible_tile_window(view_w, view_h, margin=4)
             for item in tilemap.visible_render_items(
                     map_doc, cmin, cmax, rmin, rmax, terrain=False,
-                    camera=show_camera_start, anim_time_ms=int(deco_clock_ms)):
+                    camera=show_camera_start, anim_time_ms=int(deco_clock_ms),
+                    column=session.state.season):
                 renderer.submit(item)
             # Spawn-band tree deco on the `deco` layer — draws ABOVE enemies
             # (`entities`), so units emerging from the treeline are partly
@@ -1911,14 +2226,16 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # emitter reads `tile.state` live).
             for item in spawn_deco_render_items(
                     world.tile_map, cmin, cmax, rmin, rmax, tree_slots,
-                    anim_time_ms=int(deco_clock_ms)):
+                    anim_time_ms=int(deco_clock_ms),
+                    column=session.state.season):
                 renderer.submit(item)
             # Condition art on the `terrain` layer — above the ground tiles,
             # below everything on `entities`/`deco`. Reuses the window above;
             # emits nothing for conditions with no imported sheet.
             for item in condition_render_items(
                     world.tile_map, cmin, cmax, rmin, rmax, condition_art,
-                    anim_time_ms=int(deco_clock_ms)):
+                    anim_time_ms=int(deco_clock_ms),
+                    column=session.state.season):
                 renderer.submit(item)
             # Edge-wall art (fix/depth-sorted-world-fills) — every wall item
             # is on the SAME `entities` layer as buildings now, so it sorts
@@ -1960,10 +2277,15 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                                   (cmin, cmax, rmin, rmax))
             # -- TU-6: the guided-chain tile highlight (0 or 1 tiles) — world
             # overlay, before buildings and before the panel's own selection
-            # highlights --
+            # highlights. Pulses/glows (tile-buying-topic ask): alpha + border
+            # width both breathe off the same deco_clock_ms wall clock. --
+            tutorial_pulse_rgba, tutorial_pulse_width = \
+                widgets.tutorial_pulse_style(deco_clock_ms)
             for col, row in gp["tutorial"].tile_highlight_targets():
-                widgets.submit_highlight(renderer, "tutorial_highlight",
-                                         col, row, assets=assets)
+                widgets.submit_highlight(
+                    renderer, "tutorial_highlight", col, row, assets=assets,
+                    pulse_color=tutorial_pulse_rgba,
+                    pulse_width=tutorial_pulse_width)
             # -- /TU-6 --
             # -- drag-select: the live rectangle, same world-overlay slot as
             # the tutorial highlight. It runs the SAME _SEL_CATEGORY filter
@@ -2059,12 +2381,17 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             gp["floaters"].submit_announce(renderer, view_w, view_h)    # 10G
             gp["hud"].submit(renderer, session, view_w, view_h,
                              hover_cost=gp["panel"].hover_cost,
+                             love_display=gp["floaters"].love_display,
                              scene=world.scene,
                              drag_select_enabled=gp["drag_select_enabled"])
-            # -- TU-6: UI-box highlights (card/Confirm/End Turn/Close) + the
-            # message box, over the HUD --
+            # -- TU-6: UI-box highlights (card/Confirm/End Turn/Close/Unlock)
+            # + the message box, over the HUD. Same pulse/glow as the world
+            # tile highlight above, off the same deco_clock_ms wall clock. --
+            ui_pulse_rgba, ui_pulse_width = \
+                widgets.tutorial_pulse_style(deco_clock_ms)
             for rect in gp["tutorial"].ui_highlight_rects(gp["panel"], gp["hud"]):
-                widgets.submit_ui_box_highlight(renderer, rect)
+                widgets.submit_ui_box_highlight(
+                    renderer, rect, color=ui_pulse_rgba, width=ui_pulse_width)
             # -- TU-8: the non-modal close-panel-hint banner — NOT the
             # message box, so it never consumes the right-click it names --
             banner_text = gp["tutorial"].banner_text()

@@ -251,6 +251,22 @@ class TestVisibleRenderItems(unittest.TestCase):
         deco = [i for i in items if i.layer == "deco"]
         self.assertTrue(deco[0].flip)
 
+    def test_column_rides_every_item_and_defaults_to_none(self):
+        # N2: an OPAQUE master-sheet column lands on EVERY item this emitter
+        # builds (terrain, base, camera marker, deco) — the engine never reads
+        # it. Default is None ("no live column"), NOT 0, because 0 is a real
+        # column that must stay addressable.
+        doc = make_doc(cols=10, rows=10)   # base at (1,1)
+        doc.camera_start = {"col": 2, "row": 2, "slot": "camera_startpoint"}
+        doc.deco.append({"col": 3, "row": 3, "slot": "deco_tree"})
+        items = tilemap.visible_render_items(doc, 0, 5, 0, 5, camera=True,
+                                             column=2)
+        self.assertEqual({i.layer for i in items},
+                         {"ground", "entities", "deco"})
+        self.assertTrue(all(i.column == 2 for i in items))
+        plain = tilemap.visible_render_items(doc, 0, 5, 0, 5, camera=True)
+        self.assertTrue(all(i.column is None for i in plain))
+
 
 class TestCameraStart(unittest.TestCase):
     """The camera-startpoint object mirrors the base: a single nullable movable
@@ -636,6 +652,16 @@ class TestBandRenderItems(unittest.TestCase):
             if pos not in ((2, 1), (3, 1)):
                 self.assertEqual(over[pos].slot_key, item.slot_key)
         self.assertEqual(doc.terrain[1][2], "f")   # doc untouched
+
+    def test_column_rides_every_item_and_defaults_to_none(self):
+        # N2: the ground-cache emitter passes an OPAQUE column through onto
+        # every item; default None ("no live column"), never 0.
+        doc = make_doc(cols=6, rows=6)
+        items = tilemap.band_render_items(doc, -100, 100, -100, 100, column=2)
+        self.assertTrue(items)
+        self.assertTrue(all(i.column == 2 for i in items))
+        plain = tilemap.band_render_items(doc, -100, 100, -100, 100)
+        self.assertTrue(all(i.column is None for i in plain))
 
 
 class TestNewAndDuplicate(unittest.TestCase):

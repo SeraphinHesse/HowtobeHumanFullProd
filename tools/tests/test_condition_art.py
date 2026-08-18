@@ -294,6 +294,19 @@ class TestConditionRenderItems(unittest.TestCase):
                          [i.anim_time_ms for i in b])
         self.assertGreater(len({i.anim_time_ms for i in a}), 1)
 
+    def test_column_rides_every_item_and_defaults_to_none(self):
+        # N2: an OPAQUE master-sheet column (the host drives it from
+        # RunState.season) rides every emitted item. Default None ("no live
+        # column"), never 0 — 0 is a real column, i.e. the first season.
+        art = {s: False for s in ALL_SLOTS}
+        items = condition_render_items(self.tm, 0, self.tm.cols - 1,
+                                       0, self.tm.rows - 1, art, column=2)
+        self.assertTrue(items)   # guard: an empty list would pass vacuously
+        self.assertTrue(all(i.column == 2 for i in items))
+        plain = condition_render_items(self.tm, 0, self.tm.cols - 1,
+                                       0, self.tm.rows - 1, art)
+        self.assertTrue(all(i.column is None for i in plain))
+
 
 # ---------------------------------------------------------------------------
 # 3. The tint fallback (shared by the emitter's caller and MapOverlays)

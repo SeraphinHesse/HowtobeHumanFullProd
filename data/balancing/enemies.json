@@ -1,4 +1,18 @@
 {
+  "CrowdSpacing": {
+    "Raider": {
+      "dwell_threshold_seconds": 0.3,
+      "max_offset_tiles": 0.2,
+      "max_slots": 5,
+      "offset_ease_seconds": 0.25
+    },
+    "Standard": {
+      "dwell_threshold_seconds": 0.4,
+      "max_offset_tiles": 0.22,
+      "max_slots": 6,
+      "offset_ease_seconds": 0.4
+    }
+  },
   "EnemyScaling": {
     "boss_round_in_era": 10,
     "endgame_scaling": {
