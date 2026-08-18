@@ -64,7 +64,6 @@ from engine import input as key_input  # feature: rebindable hotkeys
 from engine.assets import load_manifest, load_registry
 from engine.assets import master_registry  # B1: the colour-column registry
 from engine.assets.store import AssetStore
-from engine.audio import play_music
 from engine.coords import CameraLimit, load_coordinate_system
 from engine.core import Scene, SpriteAnimator
 from engine.physics import TileOccupancy
@@ -114,6 +113,7 @@ from game.map import (
 from game.map.tiles import CONDITION_CATEGORY
 from game.map.tiles import TileState  # 10J: multi-select category
 from game.map.wall_render import FRONT_SIDES, WALL_CATEGORY
+from game.music_director import MusicDirector, round_outcome  # SD-7
 from game.tutorial import TutorialDirector  # TU-6
 from game.ui import (
     BossCutscene, BuildingUI, CheatMenu, EnemyIntroWindow, FloaterManager,
@@ -995,8 +995,18 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     print(backend_log)
     clock = pygame.time.Clock()
 
-    if max_frames is None:  # windowed run only — headless tests stay silent/fast
-        play_music(data_dir / "audio" / "Bass_and_drum_Duo.wav", loop=True)
+    # -- SD-7: the hardcoded boot track is RETIRED. The same WAV is now the
+    # seeded clip of `core.Sounds.Music.default`, so a windowed boot still
+    # plays it — because the data resolves to it, not because a path is baked
+    # in here. `enabled` is the SAME windowed-only seam the old block used
+    # (`max_frames is None`), so a headless boot (tools/smoke.py) does zero
+    # mixer/filesystem work: every director entry point is a no-op. --
+    director = MusicDirector(core_balance, enabled=max_frames is None)
+    director.start_ambient()  # D6: ambient rides the sfx bus, under the music
+    # per-run audio deltas (SD-7 §1.3). A dict local to main() rather than gp
+    # keys: the round outcome and the level-up sting are host-side deltas, and
+    # `game/core` stays pygame-pure. Reset in build_gameplay().
+    run_audio = {"prev_village_level": None, "lives_at_wave_start": None}
 
     # A large map builds one Tile per cell (a 1024² map = ~1M long-lived
     # objects); the per-frame render/sim churn (RenderItems, DrawCalls, dying
@@ -1139,6 +1149,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         gp["floaters"].cs = cs
         # -- /ESV-5/6 --
         gp["prev_phase"] = gp["world"].session.state.phase
+        # -- SD-7: the per-run audio deltas, seeded beside `prev_phase` (same
+        # edge-detection idiom, same per-run reset). --
+        run_audio["prev_village_level"] = gp["world"].session.state.village_level
+        run_audio["lives_at_wave_start"] = gp["world"].session.state.base_lives
         # BU-3 3.4 (#8 thorns): the standard BU-3 hook pair, spelled off the
         # fresh run's Session exactly like every other hook site — but
         # installed through a module-level seam, because its ONE hook site
@@ -1151,6 +1165,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                               gp["world"].session.boss_upgrades_balance)
         frame_camera()  # re-centre on the startpoint / map for the fresh run
         freeze_static()  # exclude the fresh tile grid from GC scans
+        director.play_game_event("game_start")  # SD-7
         shell.enter_gameplay()
 
     def teardown_gameplay():
@@ -2023,11 +2038,22 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         # 2. simulate / update — per state
         _t_sim0 = time.perf_counter()
         st = shell.state
+        # -- SD-7: one music arbitration per frame. Repeats are absorbed by
+        # engine.audio.music (already-playing = no-op), so this never
+        # restarts the stream; PAUSED/GAME_OVER resolve to "hold". --
+        director.tick(st,
+                      (gp["world"].session.state.phase
+                       if gp["world"] is not None else None),
+                      gp["cutscene"] is not None)
         if st == GameState.CUTSCENE:
+            # SD-7: stack the (silent, at boot) previous track under the intro
+            # — idempotent, so this per-frame branch pushes exactly once.
+            director.enter_cutscene(cutscene_registry.get("intro"))
             intro_player.update(dt)
             intro_player.update_skip_hold(dt, skip_held)
             if intro_player.done:
                 intro_player.release()
+                director.leave_cutscene()  # SD-7: resume what was playing
                 shell.to_main_menu()
         elif st in _WORLD_STATES:
             world = gp["world"]
@@ -2037,10 +2063,14 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # (the wave IS queued by Session.end_turn() before this fires —
             # the freeze just withholds it visually until skip/done). --
             if gp["cutscene"] is None and session.state.pending_cutscene:
-                requested = cutscenes.get(
-                    session.state.pending_cutscene.get("id"))
+                requested_id = session.state.pending_cutscene.get("id")
+                requested = cutscenes.get(requested_id)
                 session.state.pending_cutscene = None
                 if requested is not None and requested.enabled:
+                    # SD-7: push BEFORE start(), so the phase track is stacked
+                    # and the player's own companion audio wins the stream.
+                    director.enter_cutscene(
+                        cutscene_registry.get(requested_id))
                     requested.start()
                     gp["cutscene"] = requested
                     mouse_idle_t = 0.0  # skip prompt starts fully visible
@@ -2049,6 +2079,9 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 gp["cutscene"].update_skip_hold(dt, skip_held)
                 if gp["cutscene"].done:
                     gp["cutscene"].release()
+                    # SD-7: same edge as release() — including the SKIPPED
+                    # path, which reaches `done` through this same branch.
+                    director.leave_cutscene()
                     gp["cutscene"] = None
             if gp["cutscene"] is None:
                 # Combat speed (10F) scales the ENEMY-phase sim ONLY — spawner,
@@ -2223,6 +2256,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 if (session.state.phase == GamePhase.ENEMY
                         and gp["prev_phase"] != GamePhase.ENEMY):
                     gp["floaters"].clear_splatters()
+                    # -- SD-7: the wave actually spawns here. Snapshot lives
+                    # on the same edge — the ROUND_END edge below reads the
+                    # delta to tell round_win from round_loss. --
+                    director.play_game_event("round_start")
+                    run_audio["lives_at_wave_start"] = session.state.base_lives
                 # -- /10J --
                 # pre_sim rolled the cards when it entered LEVELUP; open on the edge
                 if (session.state.phase == GamePhase.LEVELUP
@@ -2252,6 +2290,24 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 gp["overlays"].track(session.state.phase, gp["prev_phase"],
                                      world.scene)
                 # -- /10I --
+                # -- SD-7: round outcome + level-up stings, both host-side
+                # deltas (game/core is pygame-pure, so the round machine
+                # cannot fire them itself — the hud.py lives-delta
+                # precedent). The FATAL breach never reaches ROUND_END
+                # (Session.on_base_hit sets GAME_OVER without _wipe_pending),
+                # so `game_over` below fires alone, never under a
+                # `round_loss`. --
+                if (session.state.phase == GamePhase.ROUND_END
+                        and gp["prev_phase"] != GamePhase.ROUND_END):
+                    director.play_game_event("round_" + round_outcome(
+                        run_audio["lives_at_wave_start"],
+                        session.state.base_lives))
+                if (run_audio["prev_village_level"] is not None
+                        and session.state.village_level
+                        > run_audio["prev_village_level"]):
+                    director.play_game_event("level_up")
+                run_audio["prev_village_level"] = session.state.village_level
+                # -- /SD-7 --
                 gp["prev_phase"] = session.state.phase
                 gp["floaters"].spawn_xp_events(session.state)
                 gp["floaters"].spawn_boss_events(session.state)  # 10G announcement
@@ -2259,6 +2315,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 if (st == GameState.GAMEPLAY
                         and session.state.state == GameState.GAME_OVER):
                     gp["cheat"].close()  # 10H: never hide the game-over screen
+                    # -- SD-7: the game-over sting, ALONE — an sfx one-shot
+                    # over the HELD combat track. No music call here: the
+                    # music bus holds through GAME_OVER and only changes when
+                    # the player returns to the menu. --
+                    director.play_game_event("game_over")
                     shell.enter_game_over()
                     # debug-mode-telemetry: write the reports as soon as THIS
                     # run ends, not just at process exit. close() is

@@ -345,7 +345,14 @@
         "pick": "random"
       },
       "default": {
-        "clips": [],
+        "clips": [
+          {
+            "end": 0.0,
+            "file": "Bass_and_drum_Duo.wav",
+            "start": 0.0,
+            "volume": 1.0
+          }
+        ],
         "loop": true,
         "pick": "random"
       },

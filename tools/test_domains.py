@@ -139,6 +139,7 @@ DOMAINS = {
         "test_projectile_sprites.py",
         "test_right_click_dismiss.py",
         "test_shell.py",
+        "test_sound_music.py",  # SD-7: music arbitration + game stings
         "test_tutorial_director.py",
         "test_ui_align.py",
         "test_ui_layer_click.py",
