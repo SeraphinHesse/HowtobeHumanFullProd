@@ -51,7 +51,13 @@ else.
   duplicated twin of `game/core/xp_curve.py`, since this package may never
   import `game/`; pinned equal by a cross-package drift test), `timeline_ops.py`
   (TimelinePLAN T5 — `progression.json` load/assign/clear/add/remove/save,
-  enforcing the two uniqueness invariants JSON Schema can't express) — all
+  enforcing the two uniqueness invariants JSON Schema can't express),
+  `boss_upgrades_ops.py` (BossUpgradeTimelinePLAN BU-5 — `boss_upgrades.json`
+  load/assign/clear/retaliation/`set_catalog_field`/`placements`/
+  `validate_uniqueness`/save; `timeline_ops`'s twin, except its
+  `validate_uniqueness` RETURNS the double-placed ids instead of raising and
+  Save never consults it, and its `catalog_param_specs`/`retaliation_bounds`
+  read the SCHEMA so the panel's spin ranges have one home, ED-30) — all
   Qt-free/pygame-free, in `TestPurity`.
   `master_sheet_import.py` (GpuAndMasterSheetsPLAN M3 — the MASTER-spritesheet
   registry: copy one big multi-character PNG into `data/sprites/master/`, write

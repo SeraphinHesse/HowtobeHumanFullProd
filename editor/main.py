@@ -65,6 +65,7 @@ from editor.spawnclaude import SpawnClaudeDialog
 from editor.ui_screen_session import UIScreenSession, ordered_views
 from editor.panels.anchors_panel import AnchorsPanel
 from editor.panels.balancing import BalancingPanel
+from editor.panels.boss_upgrades import BossUpgradesPanel
 from editor.panels.cutscenes import CutscenesPanel
 from editor.panels.details import DetailsPanel
 from editor.panels.game_theme import GameThemePanel
@@ -185,6 +186,7 @@ class MainWindow(QMainWindow):
         self.strings_panel = StringsPanel(data_dir=data_dir)  # Phase C: Strings leaf
         self.timeline = TimelinePanel(data_dir=data_dir)  # TimelinePLAN T5: Timeline leaf
         self.master_sheets = MasterSheetsPanel(data_dir=data_dir)  # MasterSheetColumnsPLAN E5
+        self.boss_upgrades = BossUpgradesPanel(data_dir=data_dir)  # BU-5: Bosses leaf
         self._screen_defaults = {}   # cached data/ui/screen_defaults.json (B3)
         self._screen_previews = {}   # cached data/ui/screen_previews.json (UT-2)
         self._preview_dir = None     # UT-2 scratch dir, created on first render
@@ -344,6 +346,11 @@ class MainWindow(QMainWindow):
         # convention as every other selection-driven panel.
         self.selector.master_sheets_selected.connect(
             self._on_master_sheets_selected)
+        # Boss Upgrade Timeline wiring (BossUpgradeTimelinePLAN BU-5): the
+        # "Bosses" branch's single leaf -> right_stack; reload on entry, the
+        # same convention as every other selection-driven panel.
+        self.selector.boss_upgrades_selected.connect(
+            self._on_boss_upgrades_selected)
 
         # ED-24: THE global undo stack, Ctrl+Z / Ctrl+Y everywhere (order
         # swappable from Settings — _apply_undo_redo_shortcuts sets the
@@ -529,6 +536,7 @@ class MainWindow(QMainWindow):
         self.right_stack.addWidget(self.strings_panel)   # index 6: Strings (Phase C)
         self.right_stack.addWidget(self.timeline)        # index 7: Timeline (TimelinePLAN T5)
         self.right_stack.addWidget(self.master_sheets)   # index 8: Master Sheets (MasterSheetColumnsPLAN E5)
+        self.right_stack.addWidget(self.boss_upgrades)   # index 9: Boss Upgrade Timeline (BossUpgradeTimelinePLAN BU-5)
 
         split = QSplitter(Qt.Orientation.Horizontal)
         split.addWidget(self.selector)
@@ -1425,6 +1433,18 @@ class MainWindow(QMainWindow):
         selection-driven panel follows — and show the panel."""
         self.master_sheets.reload_sheets()
         self.right_stack.setCurrentWidget(self.master_sheets)
+
+    # -- Boss Upgrade Timeline panel (BossUpgradeTimelinePLAN BU-5) ------------
+
+    def _on_boss_upgrades_selected(self):
+        """The selector's Boss Upgrade Timeline leaf (under the top-level
+        "Bosses" branch, D11): reload fresh from disk — the "reload on entry"
+        convention every other selection-driven panel follows — and show the
+        panel. No saved-signal consumer: boss_upgrades.json has no editor-side
+        render to reconfigure (the Timeline/strings.json precedent); the game
+        re-reads it at its own next boot."""
+        self.boss_upgrades.set_boss_upgrades()
+        self.right_stack.setCurrentWidget(self.boss_upgrades)
 
     # -- frame drive ---------------------------------------------------------
 

@@ -1751,6 +1751,54 @@ calls):
   the Testing section above describes (two of them had already gone red that
   way).
 
+## Boss Upgrade Timeline panel (`panels/boss_upgrades.py`, `boss_upgrades_ops.py`; BossUpgradeTimelinePLAN BU-5)
+The Timeline panel's sibling one document over (`data/balancing/
+boss_upgrades.json`): a browse list of the 12 boss-upgrade cards on the left,
+a 4×3 milestone grid on the right, staged edits through the pure
+`editor/boss_upgrades_ops.py`, ONE "Save Boss Upgrades" button as the sole
+`write_validated` call site. Everything the Timeline bullets above say about
+drag-and-drop applies verbatim (a custom MIME type — here
+`application/x-htbh-boss-upgrade` carrying the bare upgrade id — `_SlotWidget.
+dropEvent` accepting only that type, and a drop onto an occupied slot
+replacing it with no confirmation, D10). Four things are genuinely different:
+- **Selection is a TOP-LEVEL "Bosses" branch (D11)**, not a leaf under a
+  category — `boss_upgrades` is deliberately not a `slots.json` category (the
+  `progression` precedent), and a boss upgrade is not a building. So its
+  single leaf emits `boss_upgrades_selected()` **alone**: never
+  `node_selected` (the single-document-leaf rule) and, unlike Timeline's
+  `domain_selected("buildings")`, never `domain_selected` either — there is
+  no `bosses` domain to gate one on (the Master Sheets argument). Its payload
+  `category_key` is the placeholder `"bosses"`, which matches no registry
+  category, so `domains()`/`refresh_markers()` skip it with no special case.
+  It is added outside the category loop, immediately BEFORE the Master Sheets
+  item, which stays the LAST top-level item. `right_stack` index 9.
+- **The CATALOG is inline-editable — this panel's one new capability.** A
+  building card's title comes from `buildings.json`; a boss upgrade's `name`/
+  `description`/`params` are this document's own designer content, so each
+  browse card carries a `QLineEdit` per text field (commit on
+  `editingFinished`) and one spin per param (commit on `valueChanged`) — the
+  `balancing.py` signal convention, and its `_NoWheel*` widgets, imported not
+  copied. **Which spin, and its range, come from the SCHEMA** via
+  `boss_upgrades_ops.catalog_param_specs` (ED-30): an `integer` param gets a
+  `_NoWheelSpinBox`, a `number` one a `_NoWheelDoubleSpinBox`, and
+  `set_catalog_field` additionally coerces to the type already in the doc, so
+  an int param can never be staged as a float that fails the schema at Save.
+  A card edit deliberately does NOT rebuild the card (that would destroy the
+  widget being typed into — `set_level_round`'s rule); only the milestone
+  slots, which display the name, refresh.
+- **A placed card stays draggable.** Timeline DISABLES an already-placed
+  browse card because a duplicate there is a Save-time `ValueError`. Here the
+  roster is a fixed 12 and moving an upgrade between milestones is the normal
+  gesture, so a placed card is MARKED ("in milestone 2 · slot 1") instead, and
+  a real double-placement surfaces in the warning label under the toolbar.
+- **`validate_uniqueness` WARNS, it never blocks** — it returns the list of
+  double-placed ids and `save_boss_upgrades` deliberately ignores it (D3, the
+  `round_warnings` stance, the opposite of `timeline_ops.validate_uniqueness`).
+  Blocking Save would trap a designer halfway through moving a card between
+  two milestones, which is exactly the state silent overwrite exists to allow.
+- **Text-only, no icons (D9)**: no `set_icon_provider`, no `slot_qimage`, no
+  art path anywhere in this panel — do not add one.
+
 ## Master-sheet dialog (`panels/master_sheet_dialog.py`, `master_sheet_import.py`; GpuAndMasterSheetsPLAN M3)
 - **What a master sheet is**: ONE committed PNG under `data/sprites/master/`
   holding many characters' rows stacked in one grid, registered in
