@@ -2237,8 +2237,29 @@ trigger call sites in `main.py`, never unified into one state machine:
   partial credit) and no-ops once `done` (never double-fires `skip()` the
   same frame the video ends naturally). `widgets.submit_progress_ring`
   (`widgets.py`, composed from `HudLines` — no arc/pie HUD primitive exists)
-  draws the small ring at a FIXED screen point (`view_w // 2, view_h - 60`),
-  identical whether the hold is mouse or keyboard.
+  draws the ring; identical whether the hold is mouse or keyboard.
+  **fix: cutscene skip UI polish** moved both call sites (`main.py`'s
+  `_submit_cutscene_skip`) from the old fixed bottom-center point to the
+  bottom-right corner (8px margin, matching the End Turn button
+  convention), stacked with the ring above the "hold to skip" text so a
+  bigger ring never overflows the row this close to the bottom edge. It
+  also fades the whole prompt out after `_SKIP_FADE_DELAY` (2.5s) of no
+  mouse movement, over `_SKIP_FADE_DURATION` (0.5s) — reappearing
+  instantly on the next movement — tracked via a `main.py`-local
+  `mouse_idle_t`/`last_mouse_pos` pair (host-only state, since `game/ui`
+  stays pygame-free). `HudLines` carries no per-pixel alpha, so the ring's
+  fade is a colour lerp toward black by the same fraction the text's real
+  alpha is fading by, not a true alpha fade.
+  **The same fix also reworked `submit_progress_ring`'s arc-point
+  generation** (a real bug fix, not just the reposition): the old version
+  re-subdivided the WHOLE arc every frame at `round(segments * ratio)`
+  steps, so every already-drawn point's angle shifted slightly as `ratio`
+  grew, not just the tip — the entire curve visibly "re-flowed" frame to
+  frame, which read as jitter no matter how high `segments` was set.
+  Points now sit on a FIXED angular grid (`i * (2*pi/segments)`,
+  independent of `ratio`), so a point's screen position is identical every
+  frame from the moment it first appears — only one trailing fractional
+  point (the exact tip) is recomputed each call.
 
 ## Tutorial message box + guided-chain highlights (Phase TU-6)
 - **`game/ui/tutorial_message.py`** (`TutorialMessageScreen`) — the
