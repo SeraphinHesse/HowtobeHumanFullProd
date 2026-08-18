@@ -217,13 +217,17 @@ def is_custom(widget_id, custom_widgets):
 def custom_widgets_in_band(custom_widgets, band):
     """`[(id, entry), ...]` for the custom widgets drawn in `band`, ascending
     `z` — a LITERAL mirror of `game/ui/skinning.py::_custom_in_band` (absent
-    band == "over", absent z == 0, `sorted` stable so authoring order is the
+    band == "under", absent z == 0, `sorted` stable so authoring order is the
     tie-break). Duplicated rather than imported: `editor/` may never import
-    `game/`, the same accepted drift `_screen_primitives` records."""
+    `game/`, the same accepted drift `_screen_primitives` records.
+
+    The absent-band default is "under" — see that method for why it differs
+    from an undecorated LAYER entry's "over"."""
     if not custom_widgets:
         return []
     rows = [(name, entry) for name, entry in custom_widgets.items()
-            if isinstance(entry, dict) and (entry.get("band") or "over") == band]
+            if isinstance(entry, dict)
+            and (entry.get("band") or "under") == band]
     return sorted(rows, key=lambda pair: pair[1].get("z") or 0)
 
 

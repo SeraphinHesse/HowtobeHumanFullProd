@@ -564,6 +564,13 @@ class UIScreenSession(QObject):
         editor's flat placeholder box and NOTHING in the game: a preview that
         lies. The geometry entry and the starter override go out as ONE
         `_DocFieldsCommand`, so creation is a single Ctrl+Z.
+
+        **Creation also writes `band: "under"` explicitly**, even though that
+        is now the absent-band default on both sides
+        (`skinning._custom_in_band`, `_screen_rules.custom_widgets_in_band`).
+        Written rather than left implicit so the file states which band it is
+        drawn in — a designer reading the JSON, and the Band combo, agree with
+        the game without anyone having to know a fallback.
         """
         if self.doc is None or kind not in self.CUSTOM_ID_STEMS:
             return None
@@ -572,7 +579,7 @@ class UIScreenSession(QObject):
         if not widget_id or widget_id in self._custom_widgets_raw() \
                 or widget_id in set(code_owned_ids):
             return None
-        entry = {"kind": kind, "rect": list(rect) if rect
+        entry = {"band": "under", "kind": kind, "rect": list(rect) if rect
                  else self._default_custom_rect(kind)}
         changes = [(("custom_widgets", widget_id), None, entry)]
         if kind == "label":

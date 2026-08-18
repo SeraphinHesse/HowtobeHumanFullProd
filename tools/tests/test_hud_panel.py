@@ -141,27 +141,6 @@ class TestPanelOccludesHudButtons(unittest.TestCase):
         self.assertIn(hud.end_turn.rect, r.rects())
 
 
-class TestHudButtonZOrder(unittest.TestCase):
-    """``panel -> button -> text`` (game/ui/CLAUDE.md, engine/render/CLAUDE.md
-    "HUD pass": submission order IS draw order). The round-cluster separator
-    used to be submitted AFTER the End Turn button, so it drew ON TOP of the
-    button's top edge; it must draw BEHIND it instead."""
-
-    def test_separator_precedes_end_turn_button(self):
-        session, panel, hud = build()
-        hud.update(0.016, 0, 0, session, panel)
-        r = RecordingRenderer()
-        hud.submit(r, session, VIEW_W, VIEW_H)
-        bx, by, bw, _bh = hud.end_turn.rect
-        separator = HudRect((bx, by - 2, bw, 1), widgets.C_UI_BORDER)
-        sep_idx = r.items.index(separator)
-        btn_idx = next(i for i, item in enumerate(r.items)
-                       if isinstance(item, HudRect)
-                       and item.rect == hud.end_turn.rect)
-        self.assertLess(sep_idx, btn_idx,
-                        "separator must draw BEHIND (before) the End Turn button")
-
-
 class TestButtonStates(unittest.TestCase):
     """UL-5: a ``states`` offset patch nudges what is DRAWN and nothing else.
     ``self.rect`` is the hit-test truth (``_surface_hit``/``hit`` read it on

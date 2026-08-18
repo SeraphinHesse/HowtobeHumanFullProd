@@ -50,9 +50,11 @@ BP_VIEW_ORDER = ("unlock", "construct", "upgrade", "base_info", "preview")
 BP_VIEW_IDS = {
     "unlock": ("panel", "close_btn", "action_btn",
                "unlock_title", "unlock_hint", "unlock_blocked"),
-    "construct": ("panel", "close_btn", "construct_title"),
+    "construct": ("panel", "close_btn", "construct_title",
+                  "cond_badge", "cond_badge_text", "cond_effect_box"),
     "upgrade": ("panel", "close_btn", "action_btn", "rename_dice_btn",
                 "move_btn",
+                "cond_badge", "cond_badge_text", "cond_effect_box",
                 "upgrade_title", "upgrade_name", "upgrade_tier_level",
                 "dmg_dealt_label", "dmg_dealt_value",
                 "dmg_taken_label", "dmg_taken_value",
@@ -73,8 +75,12 @@ BP_VIEW_IDS = {
 #:   * `construct`/`card_` — one construct card per building type; a new
 #:     `/add-building` type is covered automatically.
 BP_VIEW_ID_PREFIXES = {
-    "upgrade": ("stat_",),
-    "construct": ("card_",),
+    "upgrade": ("stat_", "cond_effect_line_"),
+    "construct": ("card_", "cond_effect_line_"),
+    # The terrain cards are unlock mode's own dynamic-count family — one card
+    # tree per DISTINCT condition in the purchase. `_all_conditions_chunk`
+    # below forces all four onto the mock chunk so every card is recorded.
+    "unlock": ("cond_card_",),
 }
 
 #: Back-compat aliases for the pre-generalization single-family rule.
@@ -213,6 +219,27 @@ def _unlock_every_type(session):
             1, state.tiers_unlocked.get(btype, 0))
 
 
+def _all_conditions_chunk(tilemap, tile):
+    """Force ``tile``'s 2x2 chunk to carry all four `TileCondition` members.
+
+    `_build_cond_cards` emits one card tree per DISTINCT condition in the
+    purchase, so a chunk that rolled four Grass tiles would record ONE card
+    and leave the other three with no `screen_defaults.json` entry — i.e.
+    invisible to the editor and un-overridable on disk. Same argument, and
+    same fix, as `_unlock_every_type` makes for the construct cards.
+
+    Writes `condition` directly rather than going through the roll: the roll
+    is chance-driven and this file's whole contract is byte-identical output
+    on every call.
+    """
+    from game.map.tiles import TileCondition
+
+    chunk = tilemap.get_chunk_for_tile(tile)
+    for t, condition in zip(chunk, TileCondition):
+        t.condition = condition
+        t.condition_rolled = True
+
+
 def build_bp_view(view, view_w, view_h, balances, session, skinning=None):
     """Construct ONE `building_panel` view's mock. See `BP_VIEW_ORDER`."""
     from game.buildings.registry import build_cost, create
@@ -231,9 +258,13 @@ def build_bp_view(view, view_w, view_h, balances, session, skinning=None):
         tile = _first_tile_in_state(tm, TileState.COMBAT)
         panel.mode, panel.tile = "unlock", tile
         panel.selected_tiles = [tile]
+        _all_conditions_chunk(tm, tile)
         panel._build_unlock(session)
         note = (f"{COMMON_NOTE}; the lowest-(row,col) COMBAT tile of the "
-                f"{PINNED_MAP!r} map, its real 2x2 chunk and unlock cost")
+                f"{PINNED_MAP!r} map, its real 2x2 chunk and unlock cost, "
+                "with the chunk's four tiles forced to the four distinct "
+                "tile conditions so every `cond_card_<condition>` tree is "
+                "recorded — the count is dynamic in game, the ids are not")
     elif view in ("construct", "preview"):
         tile = _first_tile_in_state(tm, TileState.BUILDABLE)
         panel.mode, panel.tile = "construct", tile

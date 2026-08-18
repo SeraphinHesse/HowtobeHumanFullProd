@@ -1584,9 +1584,15 @@ sets one).
     extra primitives. `apply()` and the real-widget loops need no change —
     both iterate `ids` (the game's own widget objects), so a custom id is
     simply never matched there.
-  - **Order**: band first (absent = `over`, so `under` puts it behind
-    EVERYTHING on the screen — the same no-depth-sort trade-off as a layer),
-    then ascending `z` (absent = 0) among the custom widgets of that band, ties
+  - **Order**: band first — **absent = `under`**, so by default a custom
+    widget goes behind EVERYTHING on the screen (the same no-depth-sort
+    trade-off as a layer). Note this is the OPPOSITE of an undecorated LAYER
+    entry, which `engine/ui_layers.ordered` still defaults to `over`, and the
+    difference is deliberate: a custom widget is decoration a designer
+    invented, and a decorative box defaulting on top of the screen's own
+    readouts, counters and buttons hides the information the player needs.
+    `over` is still authorable per widget. Then ascending `z` (absent = 0)
+    among the custom widgets of that band, ties
     keeping the file's own authoring order. `z` never orders a custom widget
     against a code-owned one; the band alone decides that.
   - **Kind → primitives.** `panel`: `skin` (falling back to this screen's

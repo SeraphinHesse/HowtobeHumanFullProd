@@ -31,7 +31,7 @@ class RecordingRenderer:
         self.items.append(item)
 
 
-def _emit(doc, band="over"):
+def _emit(doc, band="under"):
     """The HUD primitives ``submit_layers`` emits for ``doc`` in ``band``.
 
     ``ids`` is deliberately EMPTY: a custom widget has no game-side widget
@@ -53,13 +53,15 @@ class CustomWidgetDrawTests(unittest.TestCase):
             },
             "widgets": {"deco_box": {"color": [1, 2, 3], "label": "Hi"}},
         }
-        items = _emit(doc, "over")
+        items = _emit(doc, "under")
         self.assertEqual([type(i) for i in items], [HudRect, HudText])
         self.assertEqual(items[0], HudRect((10, 20, 100, 40), (1, 2, 3)))
         self.assertEqual(items[1].text, "Hi")
         self.assertEqual(items[1].align, "center")
-        # band defaults to "over", so the under pass draws nothing at all.
-        self.assertEqual(_emit(doc, "under"), [])
+        # band defaults to "under" (NOT a layer's "over") — a custom widget
+        # is decoration and must never default on top of the screen's own
+        # readouts — so the over pass draws nothing at all.
+        self.assertEqual(_emit(doc, "over"), [])
 
     def test_panel_skin_falls_back_to_screen_panel_default(self):
         doc = {

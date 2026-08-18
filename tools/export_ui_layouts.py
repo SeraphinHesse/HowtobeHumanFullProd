@@ -41,7 +41,9 @@ if str(REPO) not in sys.path:
 
 from engine import data_io  # noqa: E402
 from game.ui import strings  # noqa: E402
-from game.ui.building_ui import _CARD_ID_PREFIX  # noqa: E402
+from game.ui.building_ui import (  # noqa: E402
+    _CARD_ID_PREFIX, _COND_CARD_ID_PREFIX, _COND_EFFECT_LINES,
+)
 from tools import screen_mocks  # noqa: E402
 
 # Alphabetical, stable order (plan line 282's 12 screen ids, + Phase 3's
@@ -61,6 +63,9 @@ SCREEN_IDS = [
 # so the preview generator builds from the SAME objects this file reads
 # default geometry off; these are re-exported names, not a second copy.
 _COMMON_NOTE = screen_mocks.COMMON_NOTE
+#: Id prefixes whose children nest under a tree ROOT rather than the screen's
+#: container (`_derived_parent`): construct cards and unlock's terrain cards.
+_CARD_TREE_PREFIXES = (_CARD_ID_PREFIX, _COND_CARD_ID_PREFIX)
 _MOCK_BUILDING_TYPE = screen_mocks.MOCK_BUILDING_TYPE
 
 # -- UH-4: cosmetic human names for widget ids (D4 — the id stays the on-disk
@@ -105,6 +110,15 @@ _DISPLAY_NAMES = {
         "move_hint_1": "Move hint line 1",
         "move_hint_2": "Move hint line 2",
         "move_hint_cancel": "Move cancel instruction",
+        # The terrain badge + its effect box. Both were bare rects drawn
+        # around a live text measurement until they became widgets; the five
+        # effect rows are reserved slots (`_COND_EFFECT_LINES`), so a
+        # condition with fewer effects leaves the tail undrawn.
+        "cond_badge": "Terrain badge box",
+        "cond_badge_text": "Terrain badge text",
+        "cond_effect_box": "Terrain effect box",
+        **{f"cond_effect_line_{i}": f"Terrain effect line {i + 1}"
+           for i in range(_COND_EFFECT_LINES)},
     },
     "main_menu": {
         "backdrop": "Background backdrop",
@@ -324,19 +338,23 @@ def _apply_display_names(screen_id, entry):
 def _derived_parent(widget_id, widgets):
     """The parent of a widget whose id ENCODES it, or None.
 
-    One rule today: a construct card is a widget tree (`card_<btype>` holding
+    Two families today: a construct card is a widget tree (`card_<btype>` holding
     `card_<btype>_portrait` / `_name` / `_name_2` / `_price` / `_price_icon` /
     `_price_text`), and the card ids are DYNAMIC — one per buildable building
     type — so `_PARENTS` cannot spell the pairs out the way it does for the
     preview modal's four fixed buttons. The longest matching card id wins, so
     a building type whose name is a prefix of another's could not steal a
-    child.
+    child. An unlock-mode TERRAIN card (`cond_card_<condition>` holding
+    `_sprite` / `_name` / `_count` / `_effect_<i>`) is the same shape, keyed
+    by condition instead of building type — hence the prefix tuple.
     """
-    if not widget_id.startswith(_CARD_ID_PREFIX):
+    prefix = next((p for p in _CARD_TREE_PREFIXES
+                   if widget_id.startswith(p)), None)
+    if prefix is None:
         return None
     candidates = [w for w in widgets
                   if w != widget_id and widget_id.startswith(w + "_")
-                  and w.startswith(_CARD_ID_PREFIX)]
+                  and w.startswith(prefix)]
     return max(candidates, key=len) if candidates else None
 
 
@@ -404,10 +422,34 @@ def _card_part_display_name(widget_id, card_names):
     return f"{human} card {part}"
 
 
+def _cond_card_display_name(widget_id):
+    """``"Grass terrain card"`` / ``"Grass terrain card effect line 2"`` for
+    any id in an unlock-mode terrain card's tree, or None.
+
+    Derived from the id rather than listed in `_DISPLAY_NAMES`, for the same
+    reason the construct cards are: the SET of cards is dynamic (one per
+    condition the purchase covers), so a hand-written table would go stale the
+    day `TileCondition` grows a member. The card's condition is its own id
+    suffix, which is also exactly the word a designer looks for."""
+    if not widget_id.startswith(_COND_CARD_ID_PREFIX):
+        return None
+    rest = widget_id[len(_COND_CARD_ID_PREFIX):]
+    condition, _, part = rest.partition("_")
+    if not condition:
+        return None
+    card = f"{condition.capitalize()} terrain card"
+    if not part:
+        return card
+    if part.startswith("effect_"):
+        return f"{card} effect line {int(part[len('effect_'):]) + 1}"
+    return f"{card} {part.replace('_', ' ')}"
+
+
 def _name_widgets(names, widgets):
     card_names = _card_human_names(widgets)
     for widget_id, spec in widgets.items():
         name = (names.get(widget_id)
+                or _cond_card_display_name(widget_id)
                 or _card_part_display_name(widget_id, card_names)
                 or _derived_display_name(widget_id, spec))
         if name:

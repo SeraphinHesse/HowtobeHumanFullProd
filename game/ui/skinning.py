@@ -370,14 +370,22 @@ class ScreenSkinning:
 
     def _custom_in_band(self, screen_id, band):
         """``[(name, entry), ...]`` for this screen's custom widgets whose
-        band matches, ascending ``z`` (absent band == ``"over"``, absent
+        band matches, ascending ``z`` (absent band == ``"under"``, absent
         ``z`` == 0). Ties keep authoring (dict/JSON) order — ``sorted`` is
-        stable — so a designer's file order is the tie-break, not chance."""
+        stable — so a designer's file order is the tie-break, not chance.
+
+        **The absent-band default is ``"under"``, NOT the ``"over"`` an
+        undecorated LAYER entry gets** (``engine/ui_layers.ordered``, which is
+        unchanged). A custom widget is decoration a designer invented; the
+        screen's own readouts, counters and buttons are the information the
+        player needs, and a decorative box defaulting on top of them hides
+        the game. Over is still authorable per widget — it is just no longer
+        what you get by saying nothing."""
         table = self.custom_widgets(screen_id)
         if not table:
             return []
         rows = [(n, e) for n, e in table.items()
-                if (e.get("band") or "over") == band]
+                if (e.get("band") or "under") == band]
         return sorted(rows, key=lambda pair: pair[1].get("z") or 0)
 
     def _submit_custom_widget(self, renderer, screen_id, name, entry,

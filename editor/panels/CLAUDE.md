@@ -1478,13 +1478,27 @@ this section is the authoring half.
   custom panel's Color picker would be disabled as "hardcoded in game code",
   which is exactly backwards — its `color` is the only thing the game has to
   draw it with.
-- **Viewport draw order respects `band`/`z`, and custom widgets composite ON
-  TOP of the `screen_previews.json` replay.** `_submit_screen_layer_band` draws
+- **Viewport draw order respects `band`/`z`, and which PATH draws a custom
+  widget depends on `_preview_in_sync()`.** `_submit_screen_layer_band` draws
   its band's customs (box, then that widget's own layers) at the TAIL of the
   band, mirroring `skinning.submit_layers`; the plain widget loops SKIP custom
-  ids so nothing is drawn twice. That file is override-free by design, so a
-  custom widget can never be in the recording — **never bake one into it**, the
-  same rule and the same reason as layers.
+  ids so nothing is drawn twice. But that runs on the OUT-OF-SYNC path only.
+  **In sync, the viewport draws nothing but the replay** (plus
+  `_submit_drag_preview` for whatever is under an in-flight drag), because the
+  live re-record passes the open doc as `--overrides` and therefore ran the
+  real `submit_layers` — every layer and custom widget is already in the
+  recording at the game's own depth. It did not always work this way: the
+  in-sync path used to call `_submit_screen_layers` as well, which drew all of
+  them a SECOND time on top of the replay, so an `under` custom widget always
+  appeared over the screen and the Band control looked dead. The COMMITTED
+  `screen_previews.json` is still override-free by design — **never bake a
+  custom widget or a layer into it**, the same rule and the same reason as
+  before; that is what makes the out-of-sync path's compositing honest.
+- **A custom widget's `band` defaults to `under`, unlike a layer's `over`.**
+  `_screen_rules.custom_widgets_in_band` mirrors
+  `skinning._custom_in_band`; `ui_screen_session.add_custom_widget` also
+  writes `band: "under"` into the entry explicitly, and the Band combo lists
+  Under first so index 0 (its `findData` miss fallback) agrees.
 
 ## Phase UT-2/UT-6 — the real screen preview + the Text-template row
 

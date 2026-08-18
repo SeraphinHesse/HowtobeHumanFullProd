@@ -943,7 +943,10 @@ validating writer; don't hand-edit the JSON.
   - Keys: `kind` (REQUIRED, the closed enum `panel | label | backdrop` — a
     SUBSET of the six-value widget kind enum, since only these three have a
     meaningful code-free draw), `rect` (REQUIRED, `[x, y, w, h]`, 4 ints),
-    `band` (`under | over`, absent = `over`), `z` (int, absent = 0, ordering
+    `band` (`under | over`, **absent = `under`** — the opposite of a LAYER
+    entry's absent-band `over`, because a custom widget is decoration and must
+    not default on top of the screen's own readouts; the editor writes the key
+    explicitly on creation), `z` (int, absent = 0, ordering
     among custom widgets of the same band only), `display_name` (non-empty
     string, editor-outliner label the game never reads).
   - **The entry is DEFAULT GEOMETRY ONLY.** Everything paintable — `skin`,

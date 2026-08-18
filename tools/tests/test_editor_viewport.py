@@ -721,6 +721,66 @@ class TestViewportScreenMode(TempDataCase):
         self.assertEqual(sprites[0].animation, "hover")
 
 
+class TestInSyncReplayDoesNotRedrawCustomWidgets(TempDataCase):
+    """UL-13 band fix: when the recording describes the OPEN doc, it already
+    contains every custom widget at the game's own depth — the live re-record
+    passes the doc as `--overrides`, so the real `submit_layers` ran inside
+    it. Drawing them again on top is what made an `under` custom widget appear
+    over the whole screen and the Band control look dead."""
+
+    def setUp(self):
+        super().setUp()
+        self.empty_screens("main_menu")
+
+    def _panel_with_custom_widget(self, in_sync):
+        import copy
+
+        session = self.track(UIScreenSession(data_dir=self.data_dir))
+        session.open("main_menu")
+        widget_id = session.add_custom_widget("panel")
+        panel = self.track(ViewportPanel(data_dir=self.data_dir))
+        panel.resize(SCREEN_W, SCREEN_H)
+        panel.show()
+        _APP.processEvents()
+        panel.set_screen_mode(session, FIXTURE_DEFAULTS)
+        # A one-primitive stand-in recording. `recorded_doc` is what decides
+        # sync; `{}` never equals a doc carrying a custom widget.
+        panel.refresh_screen_previews(
+            {"main_menu": {"items": [{"type": "rect", "rect": [0, 0, 8, 8],
+                                      "color": [1, 2, 3],
+                                      "border_radius": 0, "width": 0}]}},
+            recorded_doc=copy.deepcopy(session.doc) if in_sync else {})
+        _APP.processEvents()
+        return panel, widget_id
+
+    def _starter_rects(self, panel):
+        """Every HudRect painted in the custom widget's STARTER colour — the
+        editor's own draw of it, which the replay can never contain."""
+        from editor.ui_screen_session import STARTER_CUSTOM_COLOR
+
+        calls = []
+        original = panel._renderer.submit_hud
+
+        def wrapper(item):
+            calls.append(item)
+            return original(item)
+
+        panel._renderer.submit_hud = wrapper
+        panel.render_frame()
+        return [c for c in calls
+                if isinstance(c, HudRect) and c.color == STARTER_CUSTOM_COLOR]
+
+    def test_in_sync_draws_the_replay_only(self):
+        panel, _ = self._panel_with_custom_widget(in_sync=True)
+        self.assertEqual(self._starter_rects(panel), [])
+
+    def test_out_of_sync_still_composites_it_on_top(self):
+        """The stale-picture path is unchanged: a doc the recording does not
+        describe must never have an invisible widget."""
+        panel, _ = self._panel_with_custom_widget(in_sync=False)
+        self.assertTrue(self._starter_rects(panel))
+
+
 class TestScreenScaleOffset(TempDataCase):
     """UR-3: the ONE fit triple every screen-mode consumer reads — hit-test,
     drag and the scaled blit alike. Below 1.0 it is a fractional downscale

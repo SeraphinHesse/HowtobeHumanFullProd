@@ -9,6 +9,44 @@
         200,
         120
       ]
+    },
+    "custom_panel_2": {
+      "kind": "panel",
+      "rect": [
+        220,
+        120,
+        200,
+        120
+      ]
+    },
+    "custom_panel_3": {
+      "band": "under",
+      "kind": "panel",
+      "rect": [
+        220,
+        120,
+        200,
+        120
+      ]
+    },
+    "custom_panel_4": {
+      "kind": "panel",
+      "rect": [
+        220,
+        120,
+        200,
+        120
+      ]
+    },
+    "custom_panel_5": {
+      "band": "under",
+      "kind": "panel",
+      "rect": [
+        220,
+        120,
+        200,
+        120
+      ]
     }
   },
   "defaults": {
@@ -17,18 +55,26 @@
   },
   "widgets": {
     "btn_drag_select": {
+      "font": "md",
+      "label": "DRAG",
       "rect": [
-        4,
-        111,
-        45,
-        14
+        8,
+        70,
+        70,
+        23
+      ],
+      "skin": "ui_button_panel",
+      "text_color": [
+        198,
+        81,
+        151
       ]
     },
     "btn_end_turn": {
       "label": "",
       "rect": [
-        568,
-        310,
+        569,
+        288,
         72,
         50
       ],
@@ -50,31 +96,34 @@
       "skin": "ui_button_pause"
     },
     "btn_speed_1_5x": {
+      "parent": "custom_panel_5",
       "rect": [
         38,
         92,
         28,
         14
       ],
-      "skin": "ui_button_pill"
+      "skin": "ui_button_panel"
     },
     "btn_speed_1x": {
+      "parent": "custom_panel_5",
       "rect": [
         6,
         92,
         28,
         14
       ],
-      "skin": "ui_button_pill"
+      "skin": "ui_button_panel"
     },
     "btn_speed_2x": {
+      "parent": "custom_panel_5",
       "rect": [
         68,
         92,
         28,
         14
       ],
-      "skin": "ui_button_pill"
+      "skin": "ui_button_panel"
     },
     "custom_panel_1": {
       "color": [
@@ -82,19 +131,80 @@
         70,
         100
       ],
+      "parent": "love_panel",
       "rect": [
-        220,
-        120,
-        200,
-        120
+        0,
+        -18,
+        112,
+        50
       ],
       "skin": "ui_panel_v3"
+    },
+    "custom_panel_2": {
+      "color": [
+        70,
+        70,
+        100
+      ],
+      "parent": "love_panel",
+      "rect": [
+        1,
+        3,
+        102,
+        45
+      ],
+      "skin": "ui_panel_v4"
+    },
+    "custom_panel_3": {
+      "color": [
+        70,
+        70,
+        100
+      ],
+      "parent": "love_panel",
+      "rect": [
+        -4,
+        24,
+        77,
+        44
+      ],
+      "skin": "ui_panel_v5"
+    },
+    "custom_panel_4": {
+      "color": [
+        70,
+        70,
+        100
+      ],
+      "parent": "btn_end_turn",
+      "rect": [
+        531,
+        316,
+        112,
+        50
+      ],
+      "skin": "ui_panel_v3"
+    },
+    "custom_panel_5": {
+      "color": [
+        70,
+        70,
+        100
+      ],
+      "rect": [
+        7,
+        89,
+        89,
+        27
+      ],
+      "skin": "ui_button",
+      "visible": false
     },
     "icon_lives": {
       "parent": "lives_text",
       "rect": [
-        49,
-        185,
+        -1,
+        287,
         13,
         11
       ]
@@ -102,123 +212,160 @@
     "icon_love": {
       "parent": "love_text",
       "rect": [
-        263,
-        196,
+        18,
+        8,
         16,
         12
+      ],
+      "tint": [
+        198,
+        81,
+        151
       ]
     },
     "icon_xp": {
       "rect": [
-        235,
-        10,
+        201,
+        -10,
         9,
         9
       ]
     },
     "income_text": {
-      "parent": "love_panel",
+      "font": "md",
+      "parent": "custom_panel_2",
       "rect": [
-        151,
-        119,
+        21,
+        27,
         0,
         0
       ]
     },
     "life_1": {
       "rect": [
-        75,
-        166,
+        25,
+        268,
         9,
         9
       ]
     },
     "life_2": {
       "rect": [
-        86,
-        166,
+        36,
+        268,
         9,
         9
       ]
     },
     "life_3": {
       "rect": [
-        97,
-        166,
+        47,
+        268,
         9,
         9
       ]
     },
     "lives_text": {
       "rect": [
-        63,
-        183,
+        13,
+        285,
         0,
         0
       ]
     },
     "love_panel": {
       "rect": [
-        8,
-        6,
-        95,
-        42
+        -26,
+        -14,
+        171,
+        113
       ],
       "skin": "ui_panel_v3",
       "visible": false
     },
     "love_text": {
+      "align": "left",
+      "font": "hud_phase",
       "parent": "custom_panel_1",
       "rect": [
-        281,
-        190,
+        37,
+        5,
         0,
         0
+      ],
+      "text_color": [
+        198,
+        81,
+        151
       ]
     },
     "lvl_label": {
+      "font": "md",
+      "parent": "custom_panel_3",
       "rect": [
-        109,
-        6,
+        23,
+        51,
+        0,
+        0
+      ],
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "phase_label": {
+      "rect": [
+        242,
+        340,
         0,
         0
       ]
     },
     "readout_panel": {
       "rect": [
-        46,
-        177,
+        -4,
+        279,
         84,
         36
       ]
     },
     "round_label": {
-      "text_color": [
-        0,
+      "parent": "custom_panel_4",
+      "rect": [
+        579,
+        342,
         0,
         0
+      ],
+      "text_color": [
+        198,
+        81,
+        151
       ]
     },
     "tiles_text": {
+      "parent": "custom_panel_4",
       "rect": [
-        51,
-        195,
+        547,
+        360,
         0,
         0
-      ]
+      ],
+      "visible": false
     },
     "xp_bar": {
       "rect": [
-        250,
-        12,
+        216,
+        -8,
         55,
         4
       ]
     },
     "xp_text": {
       "rect": [
-        238,
-        23,
+        204,
+        3,
         0,
         0
       ]

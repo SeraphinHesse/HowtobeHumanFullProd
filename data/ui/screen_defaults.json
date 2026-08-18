@@ -1508,6 +1508,110 @@
               13
             ]
           },
+          "cond_badge": {
+            "display_name": "Terrain badge box",
+            "kind": "panel",
+            "label": "",
+            "parent": "panel",
+            "rect": [
+              516,
+              340,
+              118,
+              15
+            ]
+          },
+          "cond_badge_text": {
+            "align": "center",
+            "display_name": "Terrain badge text",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "panel",
+            "rect": [
+              575,
+              342,
+              0,
+              0
+            ],
+            "text_id": "building.terrain_badge"
+          },
+          "cond_effect_box": {
+            "display_name": "Terrain effect box",
+            "kind": "panel",
+            "label": "",
+            "parent": "panel",
+            "rect": [
+              516,
+              320,
+              118,
+              17
+            ]
+          },
+          "cond_effect_line_0": {
+            "display_name": "Terrain effect line 1",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "panel",
+            "rect": [
+              520,
+              322,
+              0,
+              0
+            ]
+          },
+          "cond_effect_line_1": {
+            "display_name": "Terrain effect line 2",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "panel",
+            "rect": [
+              520,
+              334,
+              0,
+              0
+            ]
+          },
+          "cond_effect_line_2": {
+            "display_name": "Terrain effect line 3",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "panel",
+            "rect": [
+              520,
+              346,
+              0,
+              0
+            ]
+          },
+          "cond_effect_line_3": {
+            "display_name": "Terrain effect line 4",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "panel",
+            "rect": [
+              520,
+              358,
+              0,
+              0
+            ]
+          },
+          "cond_effect_line_4": {
+            "display_name": "Terrain effect line 5",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "panel",
+            "rect": [
+              520,
+              370,
+              0,
+              0
+            ]
+          },
           "construct_title": {
             "display_name": "Build header",
             "font_key": "lg",
@@ -1605,13 +1709,13 @@
         }
       },
       "unlock": {
-        "mock_note": "love=123, round=7; the lowest-(row,col) COMBAT tile of the 'first_light' map, its real 2x2 chunk and unlock cost",
+        "mock_note": "love=123, round=7; the lowest-(row,col) COMBAT tile of the 'first_light' map, its real 2x2 chunk and unlock cost, with the chunk's four tiles forced to the four distinct tile conditions so every `cond_card_<condition>` tree is recorded — the count is dynamic in game, the ids are not",
         "widgets": {
           "action_btn": {
             "display_name": "Unlock / Build / Upgrade button",
             "font_key": "lg",
             "kind": "button",
-            "label": "UNLOCK  7",
+            "label": "BUY TILES  7",
             "parent": "panel",
             "rect": [
               516,
@@ -1631,6 +1735,478 @@
               4,
               14,
               13
+            ]
+          },
+          "cond_card_forest": {
+            "display_name": "Forest terrain card",
+            "kind": "panel",
+            "label": "",
+            "parent": "panel",
+            "rect": [
+              516,
+              214,
+              118,
+              30
+            ]
+          },
+          "cond_card_forest_count": {
+            "align": "right",
+            "display_name": "Forest terrain card count",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_forest",
+            "rect": [
+              631,
+              217,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.count"
+          },
+          "cond_card_forest_effect_0": {
+            "display_name": "Forest terrain card effect line 1",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_forest",
+            "rect": [
+              546,
+              229,
+              0,
+              0
+            ]
+          },
+          "cond_card_forest_effect_1": {
+            "display_name": "Forest terrain card effect line 2",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_forest",
+            "rect": [
+              546,
+              241,
+              0,
+              0
+            ]
+          },
+          "cond_card_forest_effect_2": {
+            "display_name": "Forest terrain card effect line 3",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_forest",
+            "rect": [
+              546,
+              253,
+              0,
+              0
+            ]
+          },
+          "cond_card_forest_effect_3": {
+            "display_name": "Forest terrain card effect line 4",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_forest",
+            "rect": [
+              546,
+              265,
+              0,
+              0
+            ]
+          },
+          "cond_card_forest_effect_4": {
+            "display_name": "Forest terrain card effect line 5",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_forest",
+            "rect": [
+              546,
+              277,
+              0,
+              0
+            ]
+          },
+          "cond_card_forest_name": {
+            "display_name": "Forest terrain card name",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_forest",
+            "rect": [
+              546,
+              217,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.name"
+          },
+          "cond_card_forest_sprite": {
+            "display_name": "Forest terrain card sprite",
+            "kind": "panel",
+            "label": "",
+            "parent": "cond_card_forest",
+            "rect": [
+              519,
+              217,
+              24,
+              24
+            ]
+          },
+          "cond_card_grass": {
+            "display_name": "Grass terrain card",
+            "kind": "panel",
+            "label": "",
+            "parent": "panel",
+            "rect": [
+              516,
+              112,
+              118,
+              30
+            ]
+          },
+          "cond_card_grass_count": {
+            "align": "right",
+            "display_name": "Grass terrain card count",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_grass",
+            "rect": [
+              631,
+              115,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.count"
+          },
+          "cond_card_grass_effect_0": {
+            "display_name": "Grass terrain card effect line 1",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_grass",
+            "rect": [
+              546,
+              127,
+              0,
+              0
+            ]
+          },
+          "cond_card_grass_effect_1": {
+            "display_name": "Grass terrain card effect line 2",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_grass",
+            "rect": [
+              546,
+              139,
+              0,
+              0
+            ]
+          },
+          "cond_card_grass_effect_2": {
+            "display_name": "Grass terrain card effect line 3",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_grass",
+            "rect": [
+              546,
+              151,
+              0,
+              0
+            ]
+          },
+          "cond_card_grass_effect_3": {
+            "display_name": "Grass terrain card effect line 4",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_grass",
+            "rect": [
+              546,
+              163,
+              0,
+              0
+            ]
+          },
+          "cond_card_grass_effect_4": {
+            "display_name": "Grass terrain card effect line 5",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_grass",
+            "rect": [
+              546,
+              175,
+              0,
+              0
+            ]
+          },
+          "cond_card_grass_name": {
+            "display_name": "Grass terrain card name",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_grass",
+            "rect": [
+              546,
+              115,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.name"
+          },
+          "cond_card_grass_sprite": {
+            "display_name": "Grass terrain card sprite",
+            "kind": "panel",
+            "label": "",
+            "parent": "cond_card_grass",
+            "rect": [
+              519,
+              115,
+              24,
+              24
+            ]
+          },
+          "cond_card_mountain": {
+            "display_name": "Mountain terrain card",
+            "kind": "panel",
+            "label": "",
+            "parent": "panel",
+            "rect": [
+              516,
+              146,
+              118,
+              30
+            ]
+          },
+          "cond_card_mountain_count": {
+            "align": "right",
+            "display_name": "Mountain terrain card count",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_mountain",
+            "rect": [
+              631,
+              149,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.count"
+          },
+          "cond_card_mountain_effect_0": {
+            "display_name": "Mountain terrain card effect line 1",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_mountain",
+            "rect": [
+              546,
+              161,
+              0,
+              0
+            ]
+          },
+          "cond_card_mountain_effect_1": {
+            "display_name": "Mountain terrain card effect line 2",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_mountain",
+            "rect": [
+              546,
+              173,
+              0,
+              0
+            ]
+          },
+          "cond_card_mountain_effect_2": {
+            "display_name": "Mountain terrain card effect line 3",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_mountain",
+            "rect": [
+              546,
+              185,
+              0,
+              0
+            ]
+          },
+          "cond_card_mountain_effect_3": {
+            "display_name": "Mountain terrain card effect line 4",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_mountain",
+            "rect": [
+              546,
+              197,
+              0,
+              0
+            ]
+          },
+          "cond_card_mountain_effect_4": {
+            "display_name": "Mountain terrain card effect line 5",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_mountain",
+            "rect": [
+              546,
+              209,
+              0,
+              0
+            ]
+          },
+          "cond_card_mountain_name": {
+            "display_name": "Mountain terrain card name",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_mountain",
+            "rect": [
+              546,
+              149,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.name"
+          },
+          "cond_card_mountain_sprite": {
+            "display_name": "Mountain terrain card sprite",
+            "kind": "panel",
+            "label": "",
+            "parent": "cond_card_mountain",
+            "rect": [
+              519,
+              149,
+              24,
+              24
+            ]
+          },
+          "cond_card_pond": {
+            "display_name": "Pond terrain card",
+            "kind": "panel",
+            "label": "",
+            "parent": "panel",
+            "rect": [
+              516,
+              180,
+              118,
+              30
+            ]
+          },
+          "cond_card_pond_count": {
+            "align": "right",
+            "display_name": "Pond terrain card count",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_pond",
+            "rect": [
+              631,
+              183,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.count"
+          },
+          "cond_card_pond_effect_0": {
+            "display_name": "Pond terrain card effect line 1",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_pond",
+            "rect": [
+              546,
+              195,
+              0,
+              0
+            ]
+          },
+          "cond_card_pond_effect_1": {
+            "display_name": "Pond terrain card effect line 2",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_pond",
+            "rect": [
+              546,
+              207,
+              0,
+              0
+            ]
+          },
+          "cond_card_pond_effect_2": {
+            "display_name": "Pond terrain card effect line 3",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_pond",
+            "rect": [
+              546,
+              219,
+              0,
+              0
+            ]
+          },
+          "cond_card_pond_effect_3": {
+            "display_name": "Pond terrain card effect line 4",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_pond",
+            "rect": [
+              546,
+              231,
+              0,
+              0
+            ]
+          },
+          "cond_card_pond_effect_4": {
+            "display_name": "Pond terrain card effect line 5",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_pond",
+            "rect": [
+              546,
+              243,
+              0,
+              0
+            ]
+          },
+          "cond_card_pond_name": {
+            "display_name": "Pond terrain card name",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "cond_card_pond",
+            "rect": [
+              546,
+              183,
+              0,
+              0
+            ],
+            "text_id": "building.cond_card.name"
+          },
+          "cond_card_pond_sprite": {
+            "display_name": "Pond terrain card sprite",
+            "kind": "panel",
+            "label": "",
+            "parent": "cond_card_pond",
+            "rect": [
+              519,
+              183,
+              24,
+              24
             ]
           },
           "panel": {
@@ -1718,6 +2294,110 @@
               4,
               14,
               13
+            ]
+          },
+          "cond_badge": {
+            "display_name": "Terrain badge box",
+            "kind": "panel",
+            "label": "",
+            "parent": "panel",
+            "rect": [
+              516,
+              45,
+              118,
+              15
+            ]
+          },
+          "cond_badge_text": {
+            "align": "center",
+            "display_name": "Terrain badge text",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "panel",
+            "rect": [
+              575,
+              47,
+              0,
+              0
+            ],
+            "text_id": "building.terrain_badge"
+          },
+          "cond_effect_box": {
+            "display_name": "Terrain effect box",
+            "kind": "panel",
+            "label": "",
+            "parent": "panel",
+            "rect": [
+              516,
+              63,
+              118,
+              17
+            ]
+          },
+          "cond_effect_line_0": {
+            "display_name": "Terrain effect line 1",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "panel",
+            "rect": [
+              520,
+              65,
+              0,
+              0
+            ]
+          },
+          "cond_effect_line_1": {
+            "display_name": "Terrain effect line 2",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "panel",
+            "rect": [
+              520,
+              77,
+              0,
+              0
+            ]
+          },
+          "cond_effect_line_2": {
+            "display_name": "Terrain effect line 3",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "panel",
+            "rect": [
+              520,
+              89,
+              0,
+              0
+            ]
+          },
+          "cond_effect_line_3": {
+            "display_name": "Terrain effect line 4",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "panel",
+            "rect": [
+              520,
+              101,
+              0,
+              0
+            ]
+          },
+          "cond_effect_line_4": {
+            "display_name": "Terrain effect line 5",
+            "font_key": "sm",
+            "kind": "label",
+            "label": "",
+            "parent": "panel",
+            "rect": [
+              520,
+              113,
+              0,
+              0
             ]
           },
           "died_last_round": {
@@ -2451,7 +3131,7 @@
         "display_name": "Unlock / Build / Upgrade button",
         "font_key": "lg",
         "kind": "button",
-        "label": "UNLOCK  7",
+        "label": "BUY TILES  7",
         "parent": "panel",
         "rect": [
           516,
@@ -3592,6 +4272,582 @@
           4,
           14,
           13
+        ]
+      },
+      "cond_badge": {
+        "display_name": "Terrain badge box",
+        "kind": "panel",
+        "label": "",
+        "parent": "panel",
+        "rect": [
+          516,
+          340,
+          118,
+          15
+        ]
+      },
+      "cond_badge_text": {
+        "align": "center",
+        "display_name": "Terrain badge text",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "panel",
+        "rect": [
+          575,
+          342,
+          0,
+          0
+        ],
+        "text_id": "building.terrain_badge"
+      },
+      "cond_card_forest": {
+        "display_name": "Forest terrain card",
+        "kind": "panel",
+        "label": "",
+        "parent": "panel",
+        "rect": [
+          516,
+          214,
+          118,
+          30
+        ]
+      },
+      "cond_card_forest_count": {
+        "align": "right",
+        "display_name": "Forest terrain card count",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_forest",
+        "rect": [
+          631,
+          217,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.count"
+      },
+      "cond_card_forest_effect_0": {
+        "display_name": "Forest terrain card effect line 1",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_forest",
+        "rect": [
+          546,
+          229,
+          0,
+          0
+        ]
+      },
+      "cond_card_forest_effect_1": {
+        "display_name": "Forest terrain card effect line 2",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_forest",
+        "rect": [
+          546,
+          241,
+          0,
+          0
+        ]
+      },
+      "cond_card_forest_effect_2": {
+        "display_name": "Forest terrain card effect line 3",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_forest",
+        "rect": [
+          546,
+          253,
+          0,
+          0
+        ]
+      },
+      "cond_card_forest_effect_3": {
+        "display_name": "Forest terrain card effect line 4",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_forest",
+        "rect": [
+          546,
+          265,
+          0,
+          0
+        ]
+      },
+      "cond_card_forest_effect_4": {
+        "display_name": "Forest terrain card effect line 5",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_forest",
+        "rect": [
+          546,
+          277,
+          0,
+          0
+        ]
+      },
+      "cond_card_forest_name": {
+        "display_name": "Forest terrain card name",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_forest",
+        "rect": [
+          546,
+          217,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.name"
+      },
+      "cond_card_forest_sprite": {
+        "display_name": "Forest terrain card sprite",
+        "kind": "panel",
+        "label": "",
+        "parent": "cond_card_forest",
+        "rect": [
+          519,
+          217,
+          24,
+          24
+        ]
+      },
+      "cond_card_grass": {
+        "display_name": "Grass terrain card",
+        "kind": "panel",
+        "label": "",
+        "parent": "panel",
+        "rect": [
+          516,
+          112,
+          118,
+          30
+        ]
+      },
+      "cond_card_grass_count": {
+        "align": "right",
+        "display_name": "Grass terrain card count",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_grass",
+        "rect": [
+          631,
+          115,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.count"
+      },
+      "cond_card_grass_effect_0": {
+        "display_name": "Grass terrain card effect line 1",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_grass",
+        "rect": [
+          546,
+          127,
+          0,
+          0
+        ]
+      },
+      "cond_card_grass_effect_1": {
+        "display_name": "Grass terrain card effect line 2",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_grass",
+        "rect": [
+          546,
+          139,
+          0,
+          0
+        ]
+      },
+      "cond_card_grass_effect_2": {
+        "display_name": "Grass terrain card effect line 3",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_grass",
+        "rect": [
+          546,
+          151,
+          0,
+          0
+        ]
+      },
+      "cond_card_grass_effect_3": {
+        "display_name": "Grass terrain card effect line 4",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_grass",
+        "rect": [
+          546,
+          163,
+          0,
+          0
+        ]
+      },
+      "cond_card_grass_effect_4": {
+        "display_name": "Grass terrain card effect line 5",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_grass",
+        "rect": [
+          546,
+          175,
+          0,
+          0
+        ]
+      },
+      "cond_card_grass_name": {
+        "display_name": "Grass terrain card name",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_grass",
+        "rect": [
+          546,
+          115,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.name"
+      },
+      "cond_card_grass_sprite": {
+        "display_name": "Grass terrain card sprite",
+        "kind": "panel",
+        "label": "",
+        "parent": "cond_card_grass",
+        "rect": [
+          519,
+          115,
+          24,
+          24
+        ]
+      },
+      "cond_card_mountain": {
+        "display_name": "Mountain terrain card",
+        "kind": "panel",
+        "label": "",
+        "parent": "panel",
+        "rect": [
+          516,
+          146,
+          118,
+          30
+        ]
+      },
+      "cond_card_mountain_count": {
+        "align": "right",
+        "display_name": "Mountain terrain card count",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_mountain",
+        "rect": [
+          631,
+          149,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.count"
+      },
+      "cond_card_mountain_effect_0": {
+        "display_name": "Mountain terrain card effect line 1",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_mountain",
+        "rect": [
+          546,
+          161,
+          0,
+          0
+        ]
+      },
+      "cond_card_mountain_effect_1": {
+        "display_name": "Mountain terrain card effect line 2",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_mountain",
+        "rect": [
+          546,
+          173,
+          0,
+          0
+        ]
+      },
+      "cond_card_mountain_effect_2": {
+        "display_name": "Mountain terrain card effect line 3",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_mountain",
+        "rect": [
+          546,
+          185,
+          0,
+          0
+        ]
+      },
+      "cond_card_mountain_effect_3": {
+        "display_name": "Mountain terrain card effect line 4",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_mountain",
+        "rect": [
+          546,
+          197,
+          0,
+          0
+        ]
+      },
+      "cond_card_mountain_effect_4": {
+        "display_name": "Mountain terrain card effect line 5",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_mountain",
+        "rect": [
+          546,
+          209,
+          0,
+          0
+        ]
+      },
+      "cond_card_mountain_name": {
+        "display_name": "Mountain terrain card name",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_mountain",
+        "rect": [
+          546,
+          149,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.name"
+      },
+      "cond_card_mountain_sprite": {
+        "display_name": "Mountain terrain card sprite",
+        "kind": "panel",
+        "label": "",
+        "parent": "cond_card_mountain",
+        "rect": [
+          519,
+          149,
+          24,
+          24
+        ]
+      },
+      "cond_card_pond": {
+        "display_name": "Pond terrain card",
+        "kind": "panel",
+        "label": "",
+        "parent": "panel",
+        "rect": [
+          516,
+          180,
+          118,
+          30
+        ]
+      },
+      "cond_card_pond_count": {
+        "align": "right",
+        "display_name": "Pond terrain card count",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_pond",
+        "rect": [
+          631,
+          183,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.count"
+      },
+      "cond_card_pond_effect_0": {
+        "display_name": "Pond terrain card effect line 1",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_pond",
+        "rect": [
+          546,
+          195,
+          0,
+          0
+        ]
+      },
+      "cond_card_pond_effect_1": {
+        "display_name": "Pond terrain card effect line 2",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_pond",
+        "rect": [
+          546,
+          207,
+          0,
+          0
+        ]
+      },
+      "cond_card_pond_effect_2": {
+        "display_name": "Pond terrain card effect line 3",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_pond",
+        "rect": [
+          546,
+          219,
+          0,
+          0
+        ]
+      },
+      "cond_card_pond_effect_3": {
+        "display_name": "Pond terrain card effect line 4",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_pond",
+        "rect": [
+          546,
+          231,
+          0,
+          0
+        ]
+      },
+      "cond_card_pond_effect_4": {
+        "display_name": "Pond terrain card effect line 5",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_pond",
+        "rect": [
+          546,
+          243,
+          0,
+          0
+        ]
+      },
+      "cond_card_pond_name": {
+        "display_name": "Pond terrain card name",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "cond_card_pond",
+        "rect": [
+          546,
+          183,
+          0,
+          0
+        ],
+        "text_id": "building.cond_card.name"
+      },
+      "cond_card_pond_sprite": {
+        "display_name": "Pond terrain card sprite",
+        "kind": "panel",
+        "label": "",
+        "parent": "cond_card_pond",
+        "rect": [
+          519,
+          183,
+          24,
+          24
+        ]
+      },
+      "cond_effect_box": {
+        "display_name": "Terrain effect box",
+        "kind": "panel",
+        "label": "",
+        "parent": "panel",
+        "rect": [
+          516,
+          320,
+          118,
+          17
+        ]
+      },
+      "cond_effect_line_0": {
+        "display_name": "Terrain effect line 1",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "panel",
+        "rect": [
+          520,
+          322,
+          0,
+          0
+        ]
+      },
+      "cond_effect_line_1": {
+        "display_name": "Terrain effect line 2",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "panel",
+        "rect": [
+          520,
+          334,
+          0,
+          0
+        ]
+      },
+      "cond_effect_line_2": {
+        "display_name": "Terrain effect line 3",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "panel",
+        "rect": [
+          520,
+          346,
+          0,
+          0
+        ]
+      },
+      "cond_effect_line_3": {
+        "display_name": "Terrain effect line 4",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "panel",
+        "rect": [
+          520,
+          358,
+          0,
+          0
+        ]
+      },
+      "cond_effect_line_4": {
+        "display_name": "Terrain effect line 5",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "panel",
+        "rect": [
+          520,
+          370,
+          0,
+          0
         ]
       },
       "construct_title": {

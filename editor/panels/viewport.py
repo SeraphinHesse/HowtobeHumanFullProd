@@ -2846,16 +2846,18 @@ class ViewportPanel(QWidget):
                 self._renderer.submit_hud(item)
             if self._preview_in_sync():
                 # The recording already shows the open doc, so drawing the
-                # widgets again would only double them. The one exception is
-                # the widget under an in-flight drag, whose live rect no
-                # recording can know yet.
-                dragging = self._selected_widget if (
-                    self._drag_start and self._selected_layer is None) else None
-                if dragging in defaults.get("widgets", {}):
-                    self._submit_screen_widget(
-                        dragging, defaults["widgets"][dragging], doc, scale,
-                        ox, oy, hidden)
-                self._submit_screen_layers(defaults, scale, ox, oy, hidden)
+                # widgets again would only double them. That is equally true
+                # of LAYERS and CUSTOM widgets: the editor re-records against
+                # the open doc (`MainWindow._render_screen_preview` passes it
+                # as `--overrides`), so `submit_layers` ran for real inside
+                # the recording and both bands are already in it, in the
+                # game's own order. Re-drawing them here composited every
+                # layer and custom widget ON TOP of the replay — which is why
+                # an `under` custom widget never went under anything and the
+                # Band control looked broken. Only an in-flight drag needs a
+                # live draw, because no recording can know a rect that is
+                # still moving.
+                self._submit_drag_preview(defaults, doc, scale, ox, oy, hidden)
                 return
             for widget_id, spec in defaults.get("widgets", {}).items():
                 if widget_id in customs:
@@ -2971,21 +2973,48 @@ class ViewportPanel(QWidget):
                     text_color=text_color, fill=fill):
                 self._renderer.submit_hud(item)
 
+    def _submit_drag_preview(self, defaults, doc, scale, ox, oy, hidden=()):
+        """The ONE thing an in-sync replay cannot show: whatever is under an
+        in-flight drag, at its live rect.
+
+        Only the dragged widget is drawn (its box when the drag is on the
+        widget itself, and its own layers either way) — everything else is
+        already in the recording at the right depth, and re-drawing it would
+        put it back on top. It ghosts against its recorded self for the
+        duration of the drag; the re-record on release settles it. That is
+        the same trade `_preview_in_sync` documents, now paid by one widget
+        instead of the whole screen."""
+        widget_id = self._selected_widget
+        if not self._drag_start or widget_id is None:
+            return
+        spec = defaults.get("widgets", {}).get(widget_id)
+        if spec is None:
+            return
+        if self._selected_layer is None:
+            self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy,
+                                       hidden)
+        for band in ("under", "over"):
+            self._submit_widget_band_layers(widget_id, defaults, band, scale,
+                                            ox, oy, hidden)
+
     def _submit_screen_layers(self, defaults, scale, ox, oy, hidden=()):
-        """Both bands, `under` first — the PREVIEW-REPLAY path (UL-7).
+        """Both bands, `under` first — the OUT-OF-SYNC replay path (UL-7).
 
-        `data/ui/screen_previews.json` is override-free by design: a layer can
-        never be baked into it, so layers composite ON TOP of the whole replay
-        and an `under` layer cannot actually get behind a recorded widget. It
-        is still drawn before the `over` ones, so the two bands' relative order
-        is honest even where their relation to the widget is not. (Baking
-        layers into the recording instead would mean regenerating a file this
-        phase is explicitly forbidden to touch — and the recording describes
-        the SHIPPED screen, not the doc being edited.)
+        Reached only when the recording does NOT describe the open doc (an
+        edit has landed and the re-record has not finished, or none ran). The
+        committed `data/ui/screen_previews.json` is override-free by design,
+        so a layer or custom widget can never be baked into THAT file, and
+        here they composite ON TOP of the whole replay: an `under` entry
+        cannot get behind a recorded widget. It is still drawn before the
+        `over` ones, so the two bands' relative order is honest even where
+        their relation to the widget is not. This is the same stale-picture
+        trade `_preview_in_sync` documents — a frame that hides your edit is
+        worse than one that draws it at the wrong depth.
 
-        UL-13: the same argument, verbatim, for CUSTOM widgets — they live in
-        the override doc, so the recording cannot know them either, and each
-        band pass draws its own customs at its tail."""
+        The IN-SYNC path no longer calls this at all: a live re-record runs
+        the real `submit_layers`, so both bands are already in the recording
+        at the right depth. Calling it there is what made `under` look
+        broken."""
         self._submit_screen_layer_band(defaults, "under", scale, ox, oy, hidden)
         self._submit_screen_layer_band(defaults, "over", scale, ox, oy, hidden)
 

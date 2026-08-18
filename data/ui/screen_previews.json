@@ -1662,9 +1662,9 @@
               58
             ],
             "rect": [
-              536,
+              516,
               340,
-              78,
+              118,
               15
             ],
             "type": "rect",
@@ -1678,16 +1678,16 @@
               80
             ],
             "rect": [
-              536,
+              516,
               340,
-              78,
+              118,
               15
             ],
             "type": "rect",
             "width": 1
           },
           {
-            "align": "left",
+            "align": "center",
             "color": [
               100,
               180,
@@ -1695,7 +1695,7 @@
             ],
             "font_key": "sm",
             "pos": [
-              540,
+              575,
               342
             ],
             "text": "Terrain: Grass",
@@ -2683,9 +2683,9 @@
               58
             ],
             "rect": [
-              536,
+              516,
               340,
-              78,
+              118,
               15
             ],
             "type": "rect",
@@ -2699,16 +2699,16 @@
               80
             ],
             "rect": [
-              536,
+              516,
               340,
-              78,
+              118,
               15
             ],
             "type": "rect",
             "width": 1
           },
           {
-            "align": "left",
+            "align": "center",
             "color": [
               100,
               180,
@@ -2716,7 +2716,7 @@
             ],
             "font_key": "sm",
             "pos": [
-              540,
+              575,
               342
             ],
             "text": "Terrain: Grass",
@@ -3341,7 +3341,7 @@
               575,
               76
             ],
-            "text": "UNLOCK  7",
+            "text": "BUY TILES  7",
             "type": "text"
           },
           {
@@ -3352,10 +3352,10 @@
               58
             ],
             "rect": [
-              536,
-              340,
-              78,
-              15
+              516,
+              112,
+              118,
+              30
             ],
             "type": "rect",
             "width": 0
@@ -3368,10 +3368,10 @@
               80
             ],
             "rect": [
-              536,
-              340,
-              78,
-              15
+              516,
+              112,
+              118,
+              30
             ],
             "type": "rect",
             "width": 1
@@ -3385,10 +3385,271 @@
             ],
             "font_key": "sm",
             "pos": [
-              540,
-              342
+              546,
+              115
             ],
-            "text": "Terrain: Grass",
+            "text": "Grass",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "sm",
+            "pos": [
+              631,
+              115
+            ],
+            "text": "×1",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "sm",
+            "pos": [
+              546,
+              127
+            ],
+            "text": "No terrain effect",
+            "type": "text"
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              40,
+              32,
+              58
+            ],
+            "rect": [
+              516,
+              146,
+              118,
+              30
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              160,
+              130,
+              90
+            ],
+            "rect": [
+              516,
+              146,
+              118,
+              30
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "left",
+            "color": [
+              160,
+              130,
+              90
+            ],
+            "font_key": "sm",
+            "pos": [
+              546,
+              149
+            ],
+            "text": "Mountain",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "sm",
+            "pos": [
+              631,
+              149
+            ],
+            "text": "×1",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "sm",
+            "pos": [
+              546,
+              161
+            ],
+            "text": "+1 range for defenders",
+            "type": "text"
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              40,
+              32,
+              58
+            ],
+            "rect": [
+              516,
+              180,
+              118,
+              30
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              80,
+              160,
+              220
+            ],
+            "rect": [
+              516,
+              180,
+              118,
+              30
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "left",
+            "color": [
+              80,
+              160,
+              220
+            ],
+            "font_key": "sm",
+            "pos": [
+              546,
+              183
+            ],
+            "text": "Pond",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "sm",
+            "pos": [
+              631,
+              183
+            ],
+            "text": "×1",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "sm",
+            "pos": [
+              546,
+              195
+            ],
+            "text": "Unbuildable tile",
+            "type": "text"
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              40,
+              32,
+              58
+            ],
+            "rect": [
+              516,
+              214,
+              118,
+              30
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              70,
+              160,
+              70
+            ],
+            "rect": [
+              516,
+              214,
+              118,
+              30
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "left",
+            "color": [
+              70,
+              160,
+              70
+            ],
+            "font_key": "sm",
+            "pos": [
+              546,
+              217
+            ],
+            "text": "Forest",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "sm",
+            "pos": [
+              631,
+              217
+            ],
+            "text": "×1",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "sm",
+            "pos": [
+              546,
+              229
+            ],
+            "text": "+10%/round for economy",
             "type": "text"
           }
         ]
@@ -3606,9 +3867,9 @@
               58
             ],
             "rect": [
-              536,
+              516,
               45,
-              78,
+              118,
               15
             ],
             "type": "rect",
@@ -3622,16 +3883,16 @@
               80
             ],
             "rect": [
-              536,
+              516,
               45,
-              78,
+              118,
               15
             ],
             "type": "rect",
             "width": 1
           },
           {
-            "align": "left",
+            "align": "center",
             "color": [
               100,
               180,
@@ -3639,7 +3900,7 @@
             ],
             "font_key": "sm",
             "pos": [
-              540,
+              575,
               47
             ],
             "text": "Terrain: Grass",
@@ -5160,7 +5421,7 @@
           107,
           6
         ],
-        "text": "LVL 1",
+        "text": "Lv. 1",
         "type": "text"
       },
       {
@@ -5272,7 +5533,7 @@
           8,
           25
         ],
-        "text": "+5/round",
+        "text": "+ 5",
         "type": "text"
       },
       {
@@ -5406,22 +5667,6 @@
         ],
         "text": "ROUND 1",
         "type": "text"
-      },
-      {
-        "border_radius": 0,
-        "color": [
-          80,
-          65,
-          120
-        ],
-        "rect": [
-          552,
-          320,
-          80,
-          1
-        ],
-        "type": "rect",
-        "width": 0
       },
       {
         "border_radius": 3,

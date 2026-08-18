@@ -842,34 +842,46 @@
                   "key": "ui_panel_v5"
                 },
                 "ui_panel_v6",
-                "ui_panel_v7",
-                "ui_panel_v8",
                 {
+                  "display_name": "Picture 64x64",
+                  "key": "ui_panel_v7"
+                },
+                {
+                  "display_name": "Stats Name 64x64",
+                  "key": "ui_panel_v8"
+                },
+                {
+                  "display_name": "StatsBlock 2 by 2",
                   "frame_h": 64,
                   "frame_w": 66,
                   "key": "ui_panel_v9"
                 },
                 {
+                  "display_name": "StatsBlock 1 by 2",
                   "frame_h": 64,
                   "frame_w": 66,
                   "key": "ui_panel_v10"
                 },
                 {
+                  "display_name": "Stats Name 66x64",
                   "frame_h": 64,
                   "frame_w": 66,
                   "key": "ui_panel_v11"
                 },
                 {
+                  "display_name": "Picture Backgrnd",
                   "frame_h": 100,
                   "frame_w": 100,
                   "key": "ui_panel_v12"
                 },
                 {
+                  "display_name": "PictureFrame",
                   "frame_h": 101,
                   "frame_w": 104,
                   "key": "ui_panel_v13"
                 },
                 {
+                  "display_name": "Tile Condition Stats",
                   "frame_h": 30,
                   "frame_w": 100,
                   "key": "ui_panel_v14"
@@ -879,23 +891,30 @@
                   "frame_w": 167,
                   "key": "ui_panel_v15"
                 },
-                "ui_panel_v16",
                 {
+                  "display_name": "Name Panel/Textbox",
+                  "key": "ui_panel_v16"
+                },
+                {
+                  "display_name": "Picture Backgrnd 77x75",
                   "frame_h": 75,
                   "frame_w": 77,
                   "key": "ui_panel_v17"
                 },
                 {
+                  "display_name": "Picture Frame 83 x 81",
                   "frame_h": 81,
                   "frame_w": 83,
                   "key": "ui_panel_v18"
                 },
                 {
+                  "display_name": "Stats 3 by 2",
                   "frame_h": 60,
                   "frame_w": 83,
                   "key": "ui_panel_v19"
                 },
                 {
+                  "display_name": "Stats 3 by 3",
                   "frame_h": 60,
                   "frame_w": 113,
                   "key": "ui_panel_v20"

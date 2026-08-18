@@ -115,11 +115,14 @@ TOOLTIP_LAYER_BAND = (
     "Under layers sit behind EVERYTHING on this screen, not just behind "
     "their owner widget. Use Over for backgrounds between stacked panels.")
 
-# UL-13: the SAME warning, on a custom widget's own Band control. A custom
-# widget rides the screen's two layer passes, so `under` means behind
-# everything the screen draws — the identical surprise the layer band carries,
-# met in the editor rather than in a bug report.
-TOOLTIP_CUSTOM_BAND = TOOLTIP_LAYER_BAND
+# UL-13: the same geometry on a custom widget's own Band control, but the
+# DEFAULT is the other way round — a custom widget is decoration, so it is
+# created Under and never hides the screen's own readouts until a designer
+# deliberately says Over. Spelled out here because the two-word combo cannot.
+TOOLTIP_CUSTOM_BAND = (
+    "Under (the default) draws this widget behind EVERYTHING on the screen, "
+    "so it can never cover the screen's own text or buttons. Over draws it "
+    "in front of everything — use it only for decoration meant to sit on top.")
 
 # UL-13: widget ids are GLOBAL to a screen (D2) and the runtime has no notion
 # of building_panel's editor-only views, so a custom widget authored while one
@@ -1018,8 +1021,11 @@ class ScreenDetailsPanel(QWidget):
 
         form = QFormLayout()
         self.custom_band_combo = _NoWheelComboBox(self)
-        self.custom_band_combo.addItem("Over", "over")
+        # "Under" FIRST — it is the default a new custom widget is created
+        # with, and index 0 is also the fallback `_refresh_custom_controls`
+        # lands on when `findData` misses.
         self.custom_band_combo.addItem("Under", "under")
+        self.custom_band_combo.addItem("Over", "over")
         self.custom_band_combo.setToolTip(TOOLTIP_CUSTOM_BAND)
         self.custom_band_combo.activated.connect(self._on_custom_band_changed)
         self.custom_band_row_label = QLabel("Band", self)
@@ -1100,7 +1106,7 @@ class ScreenDetailsPanel(QWidget):
         self.custom_band_combo.blockSignals(True)
         self.custom_band_combo.setCurrentIndex(
             max(0, self.custom_band_combo.findData(
-                entry.get("band") or "over")))
+                entry.get("band") or "under")))
         self.custom_band_combo.blockSignals(False)
         self.custom_z_spin.blockSignals(True)
         self.custom_z_spin.setValue(entry.get("z") or 0)

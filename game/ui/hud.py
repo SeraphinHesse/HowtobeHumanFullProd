@@ -713,7 +713,6 @@ class Hud:
         # leave the round label floating over the panel.
         boss_tooltip = None  # set below, read at the deferred draw at the end
         if not self._panel_open:
-            bx, by, bw, bh = self.end_turn.rect
             # -- phase readout (bottom-right, directly above the round label).
             # Unclickable: a plain label holder, never hit-tested. It joins the
             # right-edge cluster's _panel_open gate rather than drawing
@@ -736,11 +735,6 @@ class Hud:
                               if st.round_num == 0 else None)
                 submit_label(renderer, self._round_label, text=round_text,
                              n=st.round_num)
-            # a faint separator under the round text keeps the corner legible
-            # (panel-kind — submitted before the button it sits near so it
-            # never draws on top of it; game/ui/CLAUDE.md "panel -> button ->
-            # text").
-            renderer.submit_hud(HudRect((bx, by - 2, bw, 1), widgets.C_UI_BORDER))
             if is_visible(self.end_turn):
                 self.end_turn.submit(renderer, anim_ms=t,
                                      **button_kwargs(self.end_turn))
