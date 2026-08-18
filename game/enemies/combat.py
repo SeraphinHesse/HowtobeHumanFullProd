@@ -38,6 +38,7 @@ from .components import (
     EnemyCombat, Kidnap, PathAgent, apply_slow, on_non_grass_condition,
 )
 from .kidnap import begin_kidnap
+from .sounds import DEATH, play_enemy_sound
 
 # AOE_TRAVEL_TIME / BEAM_MIN_TICK are SIMULATION TIMING, not balancing (NOT
 # cosmetics — D4, ESV-3b §1.3): the mortar shell's fixed flight time (feeds
@@ -692,6 +693,12 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
             # 10A: the session counts the kill + awards XP here. Base arrivals
             # left through `on_base_hit` above and were already despawned, so
             # they can never reach this sweep — no double award.
+            # SD-5: the ONE death-sound seam, for every type (the Boss's own
+            # `EnemyTypes.Boss.sounds.death` resolves here too — no
+            # type-specific call site exists). Fired BEFORE the despawn, while
+            # the object is still fully readable; a base arrival is silent by
+            # the same reasoning as the no-double-award note above.
+            play_enemy_sound(enemy, DEATH)
             if on_enemy_death is not None:
                 on_enemy_death(enemy)
             scene.despawn(enemy)

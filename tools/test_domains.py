@@ -101,6 +101,7 @@ DOMAINS = {
         "test_phase_loop.py",
         "test_prey_hunting.py",
         "test_scenarios.py",
+        "test_sound_triggers_enemies.py",
     ),
     "map": (
         "test_condition_art.py",

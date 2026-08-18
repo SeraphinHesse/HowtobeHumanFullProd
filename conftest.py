@@ -173,6 +173,7 @@ TIERS = {
     "test_sound_slot_widget": "editor",
     "test_sound_slots_data": "core",
     "test_sound_triggers_buildings": "core",  # SD-4: game/sounds.py dispatcher
+    "test_sound_triggers_enemies": "core",  # SD-5: enemy death/attack/spawn triggers
     "test_strings_data": "core",  # Phase C: string-table data + T() parity pins
     "test_structure": "core",
     "test_theme_data": "core",  # UH-6: fonts/palette data + tint parity pins
