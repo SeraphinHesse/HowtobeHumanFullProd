@@ -288,6 +288,74 @@
   "Seasons": {
     "rounds_per_season": 10
   },
+  "Sounds": {
+    "Ambient": {
+      "default": {
+        "clips": [],
+        "loop": true,
+        "pick": "random"
+      }
+    },
+    "Game": {
+      "game_over": {
+        "clips": [],
+        "loop": false,
+        "pick": "random"
+      },
+      "game_start": {
+        "clips": [],
+        "loop": false,
+        "pick": "random"
+      },
+      "level_up": {
+        "clips": [],
+        "loop": false,
+        "pick": "random"
+      },
+      "round_loss": {
+        "clips": [],
+        "loop": false,
+        "pick": "random"
+      },
+      "round_start": {
+        "clips": [],
+        "loop": false,
+        "pick": "random"
+      },
+      "round_win": {
+        "clips": [],
+        "loop": false,
+        "pick": "random"
+      }
+    },
+    "Music": {
+      "building_phase": {
+        "clips": [],
+        "loop": true,
+        "pick": "random"
+      },
+      "combat_phase": {
+        "clips": [],
+        "loop": true,
+        "pick": "random"
+      },
+      "cutscene": {
+        "clips": [],
+        "loop": true,
+        "pick": "random"
+      },
+      "default": {
+        "clips": [],
+        "loop": true,
+        "pick": "random"
+      },
+      "menu": {
+        "clips": [],
+        "loop": true,
+        "pick": "random"
+      }
+    }
+  },
   "TheHole": {
     "base_hp": 10,
     "base_income": 5,
