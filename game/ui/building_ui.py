@@ -1020,7 +1020,10 @@ class BuildingUI:
             (self.panel_x + 7 + self.panel_w - 32 + 3, 20, 14, 15),
             T("building.btn.dice"), "md")
         self.log = None               # GameLog, wired by the host
-        self.on_build_vfx = None      # (col, row, kind) -> None, wired by host
+        # (col, row, kind, building) -> None, wired by the host. The 4th
+        # arg is the building the celebration is FOR — the vfx sheet is cut
+        # in its colour column.
+        self.on_build_vfx = None
         # SD-4: (kind, building) -> None, wired by the host to the game's sound
         # dispatcher. The panel never imports game.sounds and knows nothing
         # about buses or slots — it only names the EVENT that just succeeded.
@@ -2332,7 +2335,8 @@ class BuildingUI:
                     if self.on_build_vfx is not None:
                         lvl = tb.get_component(TierState).current_level_in_tier
                         self.on_build_vfx(tb.col, tb.row,
-                                          "level1" if lvl == 2 else "level2")
+                                          "level1" if lvl == 2 else "level2",
+                                          tb)
             elif advance_targets:
                 # Stage B: every selected building already at level 3 —
                 # advance whichever can reach their next tier now, one
@@ -2358,7 +2362,7 @@ class BuildingUI:
                             tier=tb.get_component(TierState).current_tier,
                             cost=c)
                     if self.on_build_vfx is not None:
-                        self.on_build_vfx(tb.col, tb.row, "tier")
+                        self.on_build_vfx(tb.col, tb.row, "tier", tb)
             elif mode not in ("in_tier", "tier_upgrade"):
                 return True  # max / not researched / round-gated: inert
             elif mode == "tier_upgrade":
@@ -2380,7 +2384,7 @@ class BuildingUI:
                         tier=b.get_component(TierState).current_tier,
                         cost=cost)
                 if self.on_build_vfx is not None:
-                    self.on_build_vfx(b.col, b.row, "tier")
+                    self.on_build_vfx(b.col, b.row, "tier", b)
             else:
                 # Single-selection in-tier upgrade (a multi-select is
                 # handled by `upgrade_targets` above; `_batch_upgrade_targets`
@@ -2399,7 +2403,8 @@ class BuildingUI:
                     if self.on_build_vfx is not None:
                         lvl = tb.get_component(TierState).current_level_in_tier
                         self.on_build_vfx(tb.col, tb.row,
-                                          "level1" if lvl == 2 else "level2")
+                                          "level1" if lvl == 2 else "level2",
+                                          tb)
             # SD-4: ONE upgrade sound per successful click. All four success
             # branches above (batch level-up, batch advance, single advance,
             # single level-up) fall through to here; every failure path (not
@@ -2517,7 +2522,9 @@ class BuildingUI:
             if i == 0:
                 building.set_name(p.chosen_name)
             if self.on_build_vfx is not None:  # 10J: sparks + gold highlight
-                self.on_build_vfx(tile.col, tile.row, "place")
+                # 4th arg: the building just placed — the vfx sheet is cut
+                # in ITS colour column, not the entry's stored one.
+                self.on_build_vfx(tile.col, tile.row, "place", building)
         if not placed_any:
             msg = (T("building.flash.painter_tile_used") if painter_blocked
                    else T("building.flash.not_enough_love"))

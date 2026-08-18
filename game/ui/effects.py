@@ -919,19 +919,27 @@ class FloaterManager:
 
     # -- /ESV-6 ---------------------------------------------------------------
 
-    def spawn_building_vfx(self, col, row, kind):
+    def spawn_building_vfx(self, col, row, kind, source=None):
         """Placement/upgrade celebration (prototype ``spawn_building_vfx``,
         game.py:619-626): always a spark burst; ``place``/``tier`` add the
         gold tile highlight. ``kind`` in place / level1 / level2 / tier.
         ESV-5: routed through the trigger table — ``place``/``tier`` map 1:1
         to their own event, ``level1``/``level2`` collapse to the single
         ``building_level_up`` event (they differ only by PRESET, not by
-        effect identity; the preset lookup below is unchanged either way)."""
+        effect identity; the preset lookup below is unchanged either way).
+
+        ``source`` is the building the celebration is FOR, when the call site
+        has one (every one of them does — the panel holds the object it just
+        placed or upgraded). Only its COLOUR is read from it: these three
+        events keep resolving their variant at index 0 (D4), so the object is
+        deliberately NOT passed on as ``source=`` — a `building_placed` sheet
+        cut in the building's colour is the ask, a silent switch of variant
+        mode is not."""
         preset = self._spark_presets.get(kind, self._spark_presets["place"])
         wx, wy = col + 0.5, row + 0.5
         event = {"place": "building_placed",
                  "tier": "building_tier_up"}.get(kind, "building_level_up")
-        self._play(event, wx, wy, preset=preset)
+        self._play(event, wx, wy, column=_source_column(source), preset=preset)
         if kind in ("place", "tier"):
             self._vfx.emit_gold(col, row)
 

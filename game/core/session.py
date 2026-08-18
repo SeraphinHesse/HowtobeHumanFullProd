@@ -460,7 +460,8 @@ class Session:
                 else:
                     run_payday(st, self.tilemap, self.core_balance,
                                self.occupancy, scene, self.debug,
-                               self.boss_upgrades_balance)  # -> INCOME
+                               self.boss_upgrades_balance,
+                               self.buildings_balance)  # -> INCOME
         elif st.phase == GamePhase.INCOME:
             st.phase_timer -= dt
             if st.phase_timer <= 0:
@@ -571,7 +572,8 @@ class Session:
         # -- /10H --
         run_payday(st, self.tilemap, self.core_balance,
                    self.occupancy, scene, self.debug,
-                   self.boss_upgrades_balance)  # -> INCOME
+                   self.boss_upgrades_balance,
+                   self.buildings_balance)  # -> INCOME
 
     def _emit_levelup_option(self, option):
         """debug-mode-telemetry: the level-up reward IS the natural source of
@@ -630,7 +632,8 @@ class Session:
         else:
             run_payday(st, self.tilemap, self.core_balance,
                        self.occupancy, scene, self.debug,
-                       self.boss_upgrades_balance)  # -> INCOME
+                       self.boss_upgrades_balance,
+                       self.buildings_balance)  # -> INCOME
 
     # -- ENEMY_INTRO (feature-enemy-intro-dialogue) ------------------------
 

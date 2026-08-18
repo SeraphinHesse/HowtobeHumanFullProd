@@ -37,7 +37,14 @@ class BuildingSprite(SpriteAnimator):
     so the building's occupancy/stats/combat are all live immediately while
     only its VISUAL appearance is held back a beat (giving the placement VFX,
     ``triggers.building_placed``, a moment to play before the sprite itself
-    pops in). It counts down every frame in ``update`` alongside the existing
+    pops in). Payday's revive sweep (``game/core/payday.py`` slot 9) stamps
+    the SAME value on a building that just came back from the dead, for the
+    same reason and with the same guarantee: the respawn is complete and
+    fully live the instant the slot runs — HP, occupancy, boosts, walls — and
+    only the sprite waits out the beat while ``triggers.building_respawn``
+    plays. It fits inside the INCOME phase (``PhaseLoop`` opens that phase for
+    ``income_phase_duration`` = 1.805s, longer than the 1.2s delay), so the
+    reveal never spills past the phase it belongs to. It counts down every frame in ``update`` alongside the existing
     animation clock — no host wiring needed, the same "component renders
     conditionally" shape the dead-building guard above already uses; it is
     just a second condition on the same early-return.
