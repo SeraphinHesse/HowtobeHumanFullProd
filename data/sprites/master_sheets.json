@@ -130,6 +130,19 @@
       "file": "master/ts_alltiles.png",
       "frame_h": 32,
       "frame_w": 64
+    },
+    "vfx_spawn": {
+      "column_width": 20,
+      "columns": [
+        "pink",
+        "red",
+        "purple",
+        "yellow"
+      ],
+      "display_name": "VFX_Spawn",
+      "file": "master/vfx_spawn.png",
+      "frame_h": 96,
+      "frame_w": 64
     }
   },
   "version": 1

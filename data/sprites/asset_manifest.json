@@ -10371,10 +10371,12 @@
       "sheet": "imported/vfx_shell.png"
     },
     "vfx_respawn": {
+      "column_mode": "building_color",
+      "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -16,
+      "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
@@ -10386,7 +10388,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/vfx_respawn.png"
+      "sheet": "master/vfx_spawn.png"
     },
     "vfx_section_2x2": {
       "frame_h": 96,
