@@ -43,6 +43,7 @@ from engine import data_io  # noqa: E402
 from game.ui import strings  # noqa: E402
 from game.ui.building_ui import (  # noqa: E402
     _CARD_ID_PREFIX, _COND_CARD_ID_PREFIX, _COND_EFFECT_LINES,
+    _UPGRADE_COLOR_PREFIX,
 )
 from tools import screen_mocks  # noqa: E402
 
@@ -74,6 +75,19 @@ _CARD_TREE_ROOTS = {
 }
 _CARD_TREE_PREFIXES = tuple(_CARD_TREE_ROOTS)
 _MOCK_BUILDING_TYPE = screen_mocks.MOCK_BUILDING_TYPE
+
+# MasterSheetColumnsPLAN B2/B3 — the two colour-swatch id families. The
+# construct modal's prefix is a bare string inside `ConstructPreview.__init__`
+# (the upgrade panel's is the module constant imported above), so it is spelled
+# out here; both are completed by `ColorSwatchRow` with `_<index>`.
+_PREVIEW_COLOR_PREFIX = "preview_color"
+#: How many swatch ids the display-name / parent tables cover. A master sheet
+#: may declare up to 16 colour names (`master_sheets.schema.json`) and only
+#: ~8 twelve-px swatches fit either band, so 16 covers every row the exporter
+#: could ever record. Entries for ids this run did NOT record are inert:
+#: `_name_widgets` only annotates ids present in the map, and `_parent_widgets`
+#: only writes a parent that is present too.
+_MAX_SWATCHES = 16
 
 # -- UH-4: cosmetic human names for widget ids (D4 — the id stays the on-disk
 # contract everywhere; this mapping only feeds an OPTIONAL `display_name` that
@@ -128,6 +142,16 @@ _DISPLAY_NAMES = {
         "cond_effect_box": "Terrain effect box",
         **{f"cond_effect_line_{i}": f"Terrain effect line {i + 1}"
            for i in range(_COND_EFFECT_LINES)},
+        # MasterSheetColumnsPLAN B2/B3: the building-colour swatch rows. Both
+        # families are DYNAMIC-count (one swatch per colour the selected
+        # building's master sheet declares), which is why they are generated
+        # here rather than listed — the same reason the card trees derive
+        # theirs. The number in the name is the master COLUMN index the swatch
+        # picks, 1-based for a human.
+        **{f"{_PREVIEW_COLOR_PREFIX}_{i}": f"Construct colour swatch {i + 1}"
+           for i in range(_MAX_SWATCHES)},
+        **{f"{_UPGRADE_COLOR_PREFIX}_{i}": f"Building colour swatch {i + 1}"
+           for i in range(_MAX_SWATCHES)},
     },
     "main_menu": {
         "backdrop": "Background backdrop",
@@ -290,6 +314,12 @@ _PARENTS = {
         "preview_cancel_btn": "preview_panel",
         "preview_close_btn": "preview_panel",
         "preview_dice_btn": "preview_panel",
+        # B2's swatch row sits INSIDE the modal, on the "Name:" line — so it
+        # belongs to `preview_panel`, not to the building panel behind it.
+        # (B3's `upgrade_swatch_*` needs no pair: `_PARENT_CONTAINERS` already
+        # gives every other building_panel widget `panel`, which is right.)
+        **{f"{_PREVIEW_COLOR_PREFIX}_{i}": "preview_panel"
+           for i in range(_MAX_SWATCHES)},
     },
 }
 

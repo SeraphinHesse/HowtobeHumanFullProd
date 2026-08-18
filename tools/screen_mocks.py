@@ -37,6 +37,12 @@ LOVE = 123
 ROUND = 7
 COMMON_NOTE = f"love={LOVE}, round={ROUND}"
 
+#: Seed for the module-global `random` any mock construction rolls off (the
+#: construct modal's starting colour column). The session gets its own
+#: `random.Random(3)`; this is the same determinism promise for the one roll
+#: that does not take an rng argument.
+MOCK_SEED = 3
+
 #: A starts-unlocked building type (Stone Thrower) — a safe, always-buildable
 #: pick for the building_panel's upgrade/preview mocks (`game/buildings/
 #: CLAUDE.md`: "only defence/economic start unlocked").
@@ -76,8 +82,14 @@ BP_VIEW_IDS = {
 #:     is covered automatically.
 #:   * `construct`/`card_` — one construct card per building type; a new
 #:     `/add-building` type is covered automatically.
+#:   * `upgrade`/`upgrade_swatch` — MasterSheetColumnsPLAN B3's colour-swatch
+#:     row. The count is one per colour the selected building's master sheet
+#:     declares (`build_colour_columns` below wires the capability map the
+#:     game's host wires), so a sheet that grows a colour is covered without
+#:     an edit here. The `preview` view's own `preview_color_*` twin needs no
+#:     prefix rule: that view records the modal's whole `ids` dict.
 BP_VIEW_ID_PREFIXES = {
-    "upgrade": ("stat_", "cond_effect_line_"),
+    "upgrade": ("stat_", "cond_effect_line_", "upgrade_swatch"),
     "construct": ("card_", "cond_effect_line_"),
     # The terrain cards are unlock mode's own dynamic-count family — one card
     # tree per DISTINCT condition in the purchase. `_all_conditions_chunk`
@@ -284,6 +296,37 @@ def build_asset_store(data_root=None):
         registry=load_registry(data_root))
 
 
+def build_colour_columns(registry, data_root=None):
+    """``{slot_key: (colour_name, ...)}`` for the mock — the SAME capability
+    map the game's host derives at boot (MasterSheetColumnsPLAN B1).
+
+    Wired through `game.main._derive_colour_columns` rather than re-derived
+    here on purpose: the two rules that make a slot colour-capable (its master
+    sheet declares `columns` AND its manifest entry is `column_mode ==
+    "building_color"`) live in ONE place, so a mock can never offer swatches
+    the game would not, or hide swatches it would.
+
+    Without this the panel's `colour_columns` stayed `{}` and the construct
+    modal's `building_colors` stayed `None`, so `ColorSwatchRow` built zero
+    buttons, contributed zero ids, and the swatches were absent from BOTH
+    generated artifacts — invisible in the editor and impossible to override,
+    though the game draws them on every colour-capable building.
+
+    `registry` is the slot registry the mock's `AssetStore` already holds
+    (`store.registry`); the manifest is re-read here because the store keeps
+    its own private.
+
+    E-37: `_derive_colour_columns` already degrades an unreadable registry to
+    an empty map with one warning, which simply means "no swatches recorded".
+    """
+    from engine.assets.manifest import load_manifest
+    from game.main import _derive_colour_columns
+
+    data_root = Path(data_root if data_root is not None else DEFAULT_DATA_ROOT)
+    manifest = load_manifest(data_root / "sprites" / "asset_manifest.json")
+    return _derive_colour_columns(registry, manifest, data_root)
+
+
 def build_bp_view(view, view_w, view_h, balances, session, skinning=None,
                   data_root=None):
     """Construct ONE `building_panel` view's mock. See `BP_VIEW_ORDER`."""
@@ -301,6 +344,12 @@ def build_bp_view(view, view_w, view_h, balances, session, skinning=None,
     # its sprite. `defaults.use_card_portrait_slot` is the only OTHER thing
     # on this panel that consults the store, and it ships off.
     panel.assets = build_asset_store(data_root)
+    # MasterSheetColumnsPLAN B2/B3: the capability map the HOST wires at boot
+    # (`game/main.py:1134`). Without it the upgrade panel's swatch row and the
+    # construct modal's both build inert, so neither contributes ids and the
+    # swatches are missing from every generated artifact.
+    panel.colour_columns = build_colour_columns(panel.assets.registry,
+                                                data_root)
     preview = None
 
     if view == "unlock":
@@ -325,16 +374,30 @@ def build_bp_view(view, view_w, view_h, balances, session, skinning=None,
                 "each construct card (`card_<building_type>`) is recorded — "
                 "the count is dynamic in game, the ids are not")
         if view == "preview":
+            # `ConstructPreview.__init__` rolls its starting colour column off
+            # the MODULE-GLOBAL `random` (MasterSheetColumnsPLAN B2 rolls it
+            # there so the modal cannot show a colour the placement will not
+            # use). Once the swatch row is non-empty that roll decides which
+            # swatch gets the selection ring, i.e. it decides the recorded
+            # draw list — so the global is pinned here, exactly as the session
+            # pins its own `random.Random(3)`. Without this the previews
+            # artifact differs run to run and
+            # `test_previews_are_deterministic` fails.
+            random.seed(MOCK_SEED)
             tier_idx = 0
             cost = build_cost(MOCK_BUILDING_TYPE, buildings, tier_idx)
             preview = ConstructPreview(
                 MOCK_BUILDING_TYPE, cost, buildings, ui, view_w, view_h,
-                count=1, tier_idx=tier_idx, skinning=skinning)
+                count=1, tier_idx=tier_idx, skinning=skinning,
+                building_colors=panel.colour_columns)
             panel.preview = preview
             note = (f"{COMMON_NOTE}; ConstructPreview({MOCK_BUILDING_TYPE!r}) "
                     "modal open over the construct panel, count=1, tier_idx=0 "
                     "(preview_cancel_btn present iff "
-                    "ui.Timing.construct_show_cancel)")
+                    "ui.Timing.construct_show_cancel), with the live colour "
+                    "columns of that building's tier-0 slot wired so every "
+                    "`preview_color_<i>` swatch is recorded — the count is "
+                    "dynamic in game, the ids are not")
     elif view == "upgrade":
         tile = _first_tile_in_state(tm, TileState.BUILDABLE)
         building = create(MOCK_BUILDING_TYPE, tile.col, tile.row, buildings)
@@ -344,7 +407,9 @@ def build_bp_view(view, view_w, view_h, balances, session, skinning=None,
         panel._build_upgrade()
         note = (f"{COMMON_NOTE}; a freshly created {MOCK_BUILDING_TYPE!r} "
                 "building (tier 0, level 1) — upgrade_gate resolves "
-                "'in_tier' deterministically")
+                "'in_tier' deterministically, with that slot's live colour "
+                "columns wired so every `upgrade_swatch_<i>` is recorded — "
+                "the count is dynamic in game, the ids are not")
     elif view == "base_info":
         tile = tm.get(tm.base_col, tm.base_row)
         panel.mode, panel.tile = "base_info", tile

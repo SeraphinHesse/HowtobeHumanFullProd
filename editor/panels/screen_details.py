@@ -58,13 +58,14 @@ from editor.panels.balancing import (
     _NoWheelComboBox,
     _NoWheelSpinBox,
 )
-from editor.ui_screen_session import NO_PARENT, parent_override
+from editor.ui_screen_session import NO_PARENT, ordered_views, parent_override
 from editor.panels._screen_rules import (
     TOOLTIP_COLOR_CODE_OWNED,
     TOOLTIP_LABEL_CODE_OWNED,
     color_is_code_owned,
     custom_color_is_code_owned,
     custom_label_is_code_owned,
+    custom_widgets_for_view,
     custom_tint_applies,
     is_custom,
     label_is_code_owned,
@@ -145,9 +146,23 @@ _BANDABLE_KINDS = ("panel", "backdrop", "label")
 # view is showing is drawn in every one of them. Stated inline on that screen,
 # where it is the only place the surprise can bite.
 CUSTOM_EVERY_VIEW_NOTE = (
-    "A custom widget you add here appears in EVERY view of this panel "
-    "(unlock, construct, upgrade, base info, preview) — the game has no "
-    "view concept, and widget ids are shared across them.")
+    "A custom widget you add here belongs to the view that was open when "
+    "you added it, and the game draws it only in that view. Set View to "
+    "\"Every view\" if you want it on all of them — but note that widget "
+    "ids are still shared across views, so two views cannot both own an id.")
+
+#: Item text for the unscoped choice in the View combo — the `view` key
+#: ABSENT, which is what a single-view screen means and what every widget
+#: authored before the key existed still means.
+CUSTOM_EVERY_VIEW_ITEM = "Every view"
+
+TOOLTIP_CUSTOM_VIEW = (
+    "Which view of this screen draws this widget. A screen id is shared by "
+    "every mode of its panel and by the modals that declare it, so an "
+    "unscoped custom widget appears in all of them at once — including on "
+    "top of an open preview. Naming a view is how you say which one it "
+    "belongs to. Changing this moves the widget out of the view you are "
+    "looking at.")
 
 # UL-8 ruling 1: `ScreenSkinning.state_of` (game/ui/skinning.py) answers
 # "idle" for anything that is not a `Button` — a panel/label/backdrop holder
@@ -750,10 +765,18 @@ class ScreenDetailsPanel(QWidget):
 
     def _custom_widgets(self):
         """The open doc's `custom_widgets` table (a copy — the session hands
-        one out), `{}` when the screen authors none."""
+        one out), filtered to the ACTIVE VIEW; `{}` when the screen authors
+        none.
+
+        The same filter the viewport applies, at the same one read, so the
+        outliner and the canvas can never disagree about which custom widgets
+        this view has. A widget scoped to another view is not hidden-but-
+        selectable — it is simply not part of this view, exactly as a
+        code-owned widget of another view is not."""
         if self._session is None or self._session.doc is None:
             return {}
-        return self._session.custom_widgets()
+        return custom_widgets_for_view(self._session.custom_widgets(),
+                                       self._session.view)
 
     def _is_custom(self, widget_id):
         return is_custom(widget_id, self._custom_widgets())
@@ -1036,6 +1059,14 @@ class ScreenDetailsPanel(QWidget):
         box_layout.addWidget(self.custom_view_note)
 
         form = QFormLayout()
+        # View sits above Band/Z: all three are authoring metadata living in
+        # `custom_widgets/<id>`, and this one decides whether the widget is
+        # on this screen at all before the other two decide where in it.
+        self.custom_view_combo = _NoWheelComboBox(self)
+        self.custom_view_combo.setToolTip(TOOLTIP_CUSTOM_VIEW)
+        self.custom_view_combo.activated.connect(self._on_custom_view_changed)
+        self.custom_view_row_label = QLabel("View", self)
+        form.addRow(self.custom_view_row_label, self.custom_view_combo)
         self.custom_band_combo = _NoWheelComboBox(self)
         # "Under" FIRST — it is the default a new custom widget is created
         # with, and index 0 is also the fallback `_refresh_custom_controls`
@@ -1065,8 +1096,12 @@ class ScreenDetailsPanel(QWidget):
         makes it visible in the game as well as here."""
         if self._session is None or self._session.doc is None:
             return
+        # Stamped with the view that is OPEN, so a decoration a designer
+        # draws on the build list belongs to the build list — not to every
+        # mode of the panel and every modal that shares its screen id.
         widget_id = self._session.add_custom_widget(
-            kind, code_owned_ids=self._code_owned_ids())
+            kind, code_owned_ids=self._code_owned_ids(),
+            view=self._session.view if self._screen_view_ids() else None)
         if widget_id is None:
             return
         self._refresh_widget_list()
@@ -1127,6 +1162,56 @@ class ScreenDetailsPanel(QWidget):
             return kind
         return kind if kind in _BANDABLE_KINDS else None
 
+    def _screen_view_ids(self):
+        """This screen's view ids in game-mode order, `()` when it has none.
+
+        Read off `screen_defaults.json` rather than off the doc: the views
+        are what the EXPORTER recorded, so a designer can only scope a widget
+        to a view the game actually has."""
+        if self._session is None:
+            return ()
+        entry = self._all_defaults.get(self._session.screen_id, {}) or {}
+        return ordered_views(entry.get("views") or {})
+
+    def _rebuild_view_items(self):
+        """Repopulate the View combo for the open screen. Rebuilds only when
+        the item set actually differs, so moving the selection between two
+        custom widgets of the same screen touches nothing."""
+        wanted = [(CUSTOM_EVERY_VIEW_ITEM, None)]
+        wanted += [(view.replace("_", " ").capitalize(), view)
+                   for view in self._screen_view_ids()]
+        current = [(self.custom_view_combo.itemText(i),
+                    self.custom_view_combo.itemData(i))
+                   for i in range(self.custom_view_combo.count())]
+        if current == wanted:
+            return
+        self.custom_view_combo.clear()
+        for text, data in wanted:
+            self.custom_view_combo.addItem(text, data)
+
+    def _on_custom_view_changed(self, index):
+        """Move the selected custom widget to another view (or to none).
+
+        Deselects afterwards when the widget left the view being looked at —
+        it is no longer part of this screen's content, so leaving it selected
+        would leave the form editing something the canvas does not draw."""
+        if self._populating or self._session is None:
+            return
+        widget_id = self._current_widget
+        if widget_id is None or not self._is_custom(widget_id):
+            return
+        entry = self._custom_widgets().get(widget_id, {})
+        new_view = self.custom_view_combo.itemData(index)
+        self._session.set_custom_field(widget_id, "view",
+                                       entry.get("view"), new_view)
+        self._refresh_widget_list()
+        still_here = widget_id in self._custom_widgets()
+        self.select_widget(widget_id if still_here else None)
+        if not still_here:
+            self._current_widget = None
+            self.widget_selected.emit(None)
+        self._refresh_custom_controls()
+
     def _on_custom_band_changed(self, index):
         if self._populating or self._band_target_kind() is None:
             return
@@ -1161,6 +1246,21 @@ class ScreenDetailsPanel(QWidget):
                 self._session.screen_id, {}) or {}).get("views")))
         custom = open_screen and self._is_custom(self._current_widget)
         self.custom_remove_button.setEnabled(bool(custom))
+        # View is CUSTOM-only and only meaningful on a screen that HAS views:
+        # a code-owned widget is already view-scoped by construction (its
+        # mode is what put it in `ids`), and a single-view screen has nothing
+        # to choose between.
+        has_views = bool(self._screen_view_ids())
+        self.custom_view_row_label.setVisible(has_views)
+        self.custom_view_combo.setVisible(has_views)
+        self.custom_view_combo.setEnabled(bool(custom) and has_views)
+        self.custom_view_combo.blockSignals(True)
+        self._rebuild_view_items()
+        self.custom_view_combo.setCurrentIndex(
+            max(0, self.custom_view_combo.findData(
+                (self._custom_widgets().get(self._current_widget) or {})
+                .get("view") if custom else None)))
+        self.custom_view_combo.blockSignals(False)
         # UL-14: Band/Z follow anything BANDABLE now, not just a custom
         # widget — a code-owned panel/backdrop/label may be relocated into a
         # band so a custom widget can sort in front of it by z. Remove stays

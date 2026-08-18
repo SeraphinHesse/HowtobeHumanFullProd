@@ -1708,6 +1708,22 @@ sets one).
     extra primitives. `apply()` and the real-widget loops need no change —
     both iterate `ids` (the game's own widget objects), so a custom id is
     simply never matched there.
+  - **`view` scopes an entry to ONE of the screen's views** — the keys of
+    `screen_defaults.json`'s `views` (`construct`, `unlock`, `upgrade`,
+    `base_info`, `preview` on `building_panel`). **Absent = every view**,
+    which is the single-view screen and what every entry authored before the
+    key meant. It exists because a screen ID is not a screen: `building_panel`
+    is five `BuildingUI.mode`s plus `ConstructPreview`/`MovePreview`, all
+    declaring the same id, so an unscoped custom widget is drawn by every one
+    of them — a plate authored for the build list also landing on the unlock
+    and upgrade panels, and again on top of an open preview. `submit_layers`
+    takes a `view=` and drops entries naming a different one; a screen that
+    passes none filters nothing. `BuildingUI` passes `self.mode` (its view ids
+    ARE its mode names) and the two modals pass `_PREVIEW_VIEW`. `move_select`
+    is a mode the exporter records no view for, so a scoped widget simply
+    never draws there. Only CUSTOM widgets need this — a code-owned widget is
+    already view-scoped by construction, because a mode only puts the widgets
+    it built into `ids`.
   - **Order**: band first — **absent = `under`**, so by default a custom
     widget goes behind EVERYTHING on the screen (the same no-depth-sort
     trade-off as a layer). Note this is the OPPOSITE of an undecorated LAYER
@@ -2213,21 +2229,45 @@ instead of two) changed, not its code.
 above.** A card used to bake the building's name and its price into a single
 string; it is now a parent holding a creature portrait, a two-row name block
 and a price pill with the baked love icon — each part independently id'd,
-placeable and skinnable in the UI editor. Seven ids per buildable type, all
+placeable and skinnable in the UI editor. NINE ids per buildable type, all
 sharing the ONE `card_` prefix, so `_clear_card_ids()` needed no change:
 
-Widths below are the **no-override** ones (`cw` = 118); with a `panel` rect
-authored they follow it — see "the card column FOLLOWS the `panel` container".
+The card SLOT is 140×77 (`_CARD_W` × `_CARD_H`), positioned off
+`construct_card_list`'s box. Offsets below are from the slot's top-left.
 
-| id | kind | rect (relative to the card at `(cx, y)`) |
+The list pitch is `_CARD_PITCH`, its OWN number and deliberately not
+`_CARD_H + gap`: the plate and the frame are 64 tall inside the 77-tall slot,
+so what the eye reads as the gap between two cards is `pitch - 64`, not
+`pitch - 77`. At the shipped 72 that is an 8px gap, and a slot overlaps its
+neighbour's by 5px — harmless, since the frame's bottom band and the next
+plate's top band share exactly one column of x. Spelling it as a negative
+`_CARD_GAP` would be a name that lies about what it measures.
+
+| id | kind | rect (relative to the slot at `(cx, y)`) |
 |---|---|---|
-| `card_<btype>` | button | `(cx, y, 118, 40)` — the parent, and the click target |
-| `card_<btype>_portrait` | panel | `(+3, +3, 34, 34)`, `skin` = the sprite slot |
-| `card_<btype>_name` | label | `(+41, +2, 0, 0)`, `sm` |
-| `card_<btype>_name2` | label | `(+41, +14, 0, 0)`, `sm` |
-| `card_<btype>_price` | button | `(+41, +24, 74, 14)` |
-| `card_<btype>_price_icon` | panel | `(+44, +26, 10, 10)`, `skin` = `ui_icon_love` |
-| `card_<btype>_price_text` | label | `(+57, +26, 0, 0)`, `sm`, `building.stat.value` |
+| `card_<btype>_plate` | panel | `(+63, +0, 77, 64)`, `skin` = `ui_panel_v11` |
+| `card_<btype>` | button | `(+10, +24, 44, 45)` — the click target |
+| `card_<btype>_portrait` | panel | `(+14, +28, 34, 34)`, `skin` = the sprite slot |
+| `card_<btype>_frame` | panel | `(+0, +13, 64, 64)`, `skin` = `ui_panel_v7` |
+| `card_<btype>_name` | label | `(+69, +26, 0, 0)`, `sm` |
+| `card_<btype>_name2` | label | `(+69, +26 + step, 0, 0)`, `sm` |
+| `card_<btype>_price` | button | `(+62, +46, 74, 23)` |
+| `card_<btype>_price_icon` | panel | price `+14, +8`, `10×10`, `ui_icon_love` |
+| `card_<btype>_price_text` | label | price `+28, +7`, `sm`, `building.stat.value` |
+
+- **The BODY is not the card.** It is a 44×45 portrait backing that happens to
+  be the only click target; the card's visual extent is the plate+frame union,
+  i.e. the slot. Anything asking "is this inside the card" — `_card_in_viewport`
+  above all — must ask about the SLOT, which it recovers from the body by
+  subtracting `_CARD_BODY`'s offset. Windowing on the body instead lets a
+  card's plate and frame spill out of the group.
+- **The plate and the frame are ordinary code-owned parts, and must stay
+  that way.** They were authored as CUSTOM widgets first, which put them on
+  every mode of this screen — `unlock`, `upgrade`, `base_info`,
+  `move_select` — and on top of `ConstructPreview`/`MovePreview` as well,
+  because a custom widget is drawn by `ScreenSkinning.submit_layers` off the
+  SCREEN id and all of those share `building_panel`. A custom widget is the
+  wrong tool for anything that belongs to one mode's content.
 
 - **Rects are ABSOLUTE, as everywhere else here.** `parent` is editor
   authoring metadata nothing in `game/` reads (`editor/widget_tree.py`);
@@ -2251,13 +2291,16 @@ authored they follow it — see "the card column FOLLOWS the `panel` container".
   changed the committed file.
 - **The love icon is a sprite, not a glyph** (`ui_icon_love`, the `hud.py`
   idiom) — `widgets.HEART` stays deleted.
-- **The card BODY is submitted first, then the portrait on top of it.**
+- **The stack is plate → body → portrait → frame → price → icon → text.**
   `Renderer.submit_hud` appends and nothing sorts it, so submission order IS
-  z-order, and the portrait sits wholly inside the body's rect — submit the
-  portrait first and a skinned body hides it outright. This is latent while
+  z-order. The plate is the backdrop the name and price sit on and the frame
+  is a border in FRONT of the portrait — which is exactly what those two meant
+  as custom widgets banded `"under"` and `"over"`. The body before the
+  portrait for the older reason: the portrait sits wholly inside the body's
+  rect, so submit it first and a skinned body hides it outright. Latent while
   `defaults.button_skin` is unset (the body draws as a flat rect and the
-  portrait survives) and breaks the screen the moment a designer skins the
-  card, so it is pinned by `TestCardDrawOrder` rather than left to the eye.
+  portrait survives), a screen-breaker the moment a designer skins the card —
+  so the whole order is pinned by `TestCardDrawOrder`, not left to the eye.
 - **The card column FOLLOWS the `panel` container** (`_card_column()`, reading
   `ScreenSkinning.widget_rect(screen_id, "panel")`), so `cx`/`cw` above are the
   authored panel inset by `_CARD_INSET`, not the ctor's `panel_x`/`panel_w`.
@@ -2271,27 +2314,41 @@ authored they follow it — see "the card column FOLLOWS the `panel` container".
   code defaults**, so `screen_defaults.json` (recorded with the disk-free
   `ScreenSkinning.empty()`) is byte-unchanged by any of this.
   - **Hand-pinning the 12 `card_<btype>` rects is NOT the way to move the
-    column, and actively breaks it**: an authored rect reaches only the card
-    BODY, while that card's portrait/name/price children stay on the code
-    layout — so the parts of every card drift apart down the list. A designer
-    who did this against the pre-tree 21px card left twelve stale pins behind
-    that tore the whole screen up; `TestCardColumnFollowsThePanel` guards it.
-- **The price pill names its own skin** (`_CARD_PRICE_SKIN`, `ui_button_pill`)
-  instead of inheriting the body's `defaults.button_skin`: the body art is a
-  full-card 9-slice and stretching it through a 74×14 pill reads as a squashed
-  card. Baked for the same reason `_CARD_LOVE_ICON` is — it names one specific
-  piece of art; a designer wanting another overrides `card_<btype>_price`'s
-  `skin` per card, leaving the body alone.
+    column, and actively breaks it** — three ways, all of which have shipped:
+    (1) an authored rect reaches only the card BODY while that card's
+    portrait/name/price children stay on the code layout, so the parts of
+    every card drift apart down the list; (2) `BuildingUI.submit` runs
+    `skinning.apply` EVERY FRAME, so the pin overwrites the scroll-adjusted
+    rect `_build_construct` just computed — the wheel moves `scroll_offset`
+    and nothing on screen moves; (3) a card pinned outside
+    `construct_card_list`'s window is culled at draw AND at hit, i.e. that
+    building type is unbuyable. Twelve pins once did all three at once, with
+    five types unclickable. `TestCardColumnFollowsThePanel` guards the first
+    and `TestNoPinnedCardRects` the other two.
+- **The price pill, the plate and the frame name their own skins**
+  (`_CARD_PRICE_SKIN` = `ui_button_panel`, `_CARD_PLATE_SKIN` =
+  `ui_panel_v11`, `_CARD_FRAME_SKIN` = `ui_panel_v7`) instead of inheriting
+  `defaults.button_skin` / `defaults.panel_skin`: the body art is a small
+  portrait backing and stretching it through a 74×23 pill reads as a squashed
+  card, while `panel_skin` is shared with the panel body, the terrain badge
+  and the effect box, so inheriting it would tie a card's chrome to theirs.
+  Baked for the same reason `_CARD_LOVE_ICON` is — each names one specific
+  piece of art; a designer wanting another overrides
+  `card_<btype>_price`/`_plate`/`_frame`'s `skin` per card, leaving the body
+  alone.
 - **Two screen-level bools**, both in `data/ui/screens/building_panel.json`'s
   `defaults` (read fresh via `_card_defaults()`, the `defaults.button_skin`
   precedent — `defaults` values are never id-validated, so `ScreenSkinning`
   needed no change), both defaulting **false**:
   - `price_is_click_target` — on, ONLY the price pill opens the construct
-    preview and the portrait/name go inert; off, the whole card is the click
-    target as it always was and the pill is drawn but never hit-tested.
-    Nothing downstream of the hit changes. The NOT-ENOUGH-LOVE flash always
-    lands on the card body either way — it is the only part wide enough to
-    read a sentence.
+    preview and the body goes inert. Off (the default), **both** the pill and
+    the body open it: the pill is the obvious "press me" on a card, and the
+    body is a 44px portrait backing that is not. It did not always work this
+    way — off used to mean the pill was drawn but never hit-tested, which
+    made the one part of the card that looks like a button do nothing.
+    Nothing downstream of the hit changes. The NOT-ENOUGH-LOVE flash lands on
+    the PILL either way: it is a sentence, and since the body shrank the 74px
+    pill is the widest `Button` in the tree.
   - `use_card_portrait_slot` — on, the portrait draws
     `card_portrait_<btype>` (`data/slots.json`'s `ui` → "Card Portraits"),
     falling back to the building's own tier sprite whenever that slot has no

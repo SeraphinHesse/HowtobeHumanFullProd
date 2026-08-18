@@ -844,12 +844,20 @@ class ViewportPanel(QWidget):
         return self._with_custom_widgets(entry)
 
     def _custom_widgets(self):
-        """The open doc's `custom_widgets` table (UL-13) — the LIVE dict, read
-        every frame, so never mutated here."""
+        """The open doc's `custom_widgets` table (UL-13), filtered to the
+        ACTIVE VIEW — the LIVE dict when nothing is dropped, so never mutated
+        here.
+
+        Filtering at this ONE read is what keeps a view-scoped widget out of
+        the preview, the hit-test, the selection chrome and the band passes
+        together: every one of them goes through here."""
         if self._screen_session is None or self._screen_session.doc is None:
             return {}
         table = self._screen_session.doc.get("custom_widgets")
-        return table if isinstance(table, dict) else {}
+        if not isinstance(table, dict):
+            return {}
+        return _screen_rules.custom_widgets_for_view(
+            table, self._screen_session.view)
 
     def _banded_widget_ids(self, defaults):
         """Every CODE-OWNED widget id the open doc relocated into a band

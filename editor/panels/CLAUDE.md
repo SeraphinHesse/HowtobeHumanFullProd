@@ -1462,11 +1462,32 @@ this section is the authoring half.
 - **`TOOLTIP_CUSTOM_BAND` is `TOOLTIP_LAYER_BAND`**, deliberately the same
   words: `under` means behind EVERYTHING on the screen, not behind the widget,
   and that has to be met in the editor for exactly the reason UL-8 met it there.
-- **Ruling: a custom widget appears in EVERY view of `building_panel`.** Ids
-  are global to the screen (D2) and the runtime has no view concept, so
-  `CUSTOM_EVERY_VIEW_NOTE` states it inline beside the Add buttons on any screen
-  that has views. `_code_owned_ids()` accordingly unions the ids of ALL views,
-  not just the active one, before the add guard runs.
+- **A custom widget belongs to ONE view — the one that was open when you
+  added it.** This REVERSES the old ruling ("a custom widget appears in EVERY
+  view of `building_panel`; the runtime has no view concept"), which was true
+  only until the runtime got one: `custom_widgets/<id>.view` is a real schema
+  key that `game/ui/skinning.py::submit_layers` filters on, given the view its
+  caller's own `submit()` passes in. It had to change — a screen id is shared
+  by all five `BuildingUI` modes and by `ConstructPreview`/`MovePreview`, so an
+  unscoped widget was drawn by every one of them at once, including on top of
+  an open preview. Three consequences here:
+  - `_on_add_custom_widget` passes `self._session.view` to
+    `add_custom_widget`, but only on a screen that HAS views — a single-view
+    screen writes no `view` key and behaves exactly as before.
+  - The **View** combo (above Band/Z, which it joins as the third piece of
+    authoring metadata in `custom_widgets/<id>`) moves one between views, or
+    back to "Every view" — the absent key. Changing it deselects, because the
+    widget is no longer part of the view being looked at.
+  - `_custom_widgets()` in BOTH `screen_details` and `viewport` filters
+    through `_screen_rules.custom_widgets_for_view`. That one read feeds the
+    outliner, the per-field form, the canvas, the hit-test, the selection
+    chrome and the band passes, so they cannot disagree about which custom
+    widgets a view has.
+  `CUSTOM_EVERY_VIEW_NOTE` still exists and still shows on any screen with
+  views — its WORDS now say the opposite, and it warns about the thing that is
+  still true: ids remain global to the screen (D2), so two views cannot both
+  own an id. `_code_owned_ids()` accordingly still unions the ids of ALL
+  views, not just the active one, before the add guard runs.
 - **Honest controls get a custom branch, not a special case inside the existing
   rules.** `color_is_code_owned`/`label_is_code_owned` answer by citing what
   game code does at a specific holder's draw site; a custom widget has no such

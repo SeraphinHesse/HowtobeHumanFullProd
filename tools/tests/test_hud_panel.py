@@ -472,5 +472,18 @@ class TestBossNextIndicatorIcon(unittest.TestCase):
                              for i in r2.items))
 
 
+class TestLoveHoverCostDraws(unittest.TestCase):
+    """Hovering any cost feeds `hover_cost` into Hud.submit; that path once
+    crashed with NameError because the "over" layer pass had been captured
+    into `_submit_love_hover_cost`, where `t` does not exist."""
+
+    def test_submit_with_hover_cost_does_not_raise(self):
+        session, panel, hud = build()
+        hud.update(0.016, 0, 0, session, panel)
+        r = RecordingRenderer()
+        hud.submit(r, session, VIEW_W, VIEW_H, hover_cost=25)
+        self.assertTrue(r.items)
+
+
 if __name__ == "__main__":
     unittest.main()

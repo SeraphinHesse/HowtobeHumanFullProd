@@ -545,7 +545,7 @@ class UIScreenSession(QObject):
         return f"{stem}_{index}"
 
     def add_custom_widget(self, kind, widget_id=None, code_owned_ids=(),
-                          rect=None):
+                          rect=None, view=None):
         """Create one designer-authored widget, undoably, and return its id
         (or None when refused).
 
@@ -565,6 +565,14 @@ class UIScreenSession(QObject):
         lies. The geometry entry and the starter override go out as ONE
         `_DocFieldsCommand`, so creation is a single Ctrl+Z.
 
+        **`view` scopes the widget to ONE of the screen's views** when the
+        caller passes one (the details panel passes whichever view is open).
+        Absent means every view — the single-view case, and what every widget
+        authored before the key existed still means. It matters because a
+        screen id is shared by every MODE of its panel and by the modals that
+        declare it, so an unscoped custom widget is drawn in all of them at
+        once; the game filters on the view its own `submit()` passes in.
+
         **Creation also writes `band: "under"` explicitly**, even though that
         is now the absent-band default on both sides
         (`skinning._custom_in_band`, `_screen_rules.custom_widgets_in_band`).
@@ -581,6 +589,8 @@ class UIScreenSession(QObject):
             return None
         entry = {"band": "under", "kind": kind, "rect": list(rect) if rect
                  else self._default_custom_rect(kind)}
+        if view:
+            entry["view"] = view
         changes = [(("custom_widgets", widget_id), None, entry)]
         if kind == "label":
             changes.append((("widgets", widget_id, "label"), None, "New text"))
@@ -617,7 +627,7 @@ class UIScreenSession(QObject):
 
     def set_custom_field(self, widget_id, key, old_value, new_value):
         """Set ONE base-only key on a custom widget's geometry entry —
-        `band`, `z` or `display_name`. These live in `custom_widgets/<id>`,
+        `band`, `z`, `view` or `display_name`. These live in `custom_widgets/<id>`,
         never in `widgets/<id>`: they are authoring metadata (paint order and
         a friendly name), not overrides, exactly like the layer inspector's
         `Z`/`Band` rows, which are likewise never state-patch keys."""

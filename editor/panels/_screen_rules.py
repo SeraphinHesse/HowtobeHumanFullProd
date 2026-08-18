@@ -214,6 +214,26 @@ def is_custom(widget_id, custom_widgets):
     return bool(custom_widgets) and widget_id in custom_widgets
 
 
+def custom_widgets_for_view(custom_widgets, view):
+    """`custom_widgets` minus every entry scoped to a DIFFERENT view — the
+    editor twin of the `view` filter in `game/ui/skinning.py::_custom_in_band`
+    (matched BY EYE; `editor/` may never import `game/`).
+
+    An entry with no `view` is unscoped and always kept: that is the
+    single-view screen, and every widget authored before the key existed. A
+    `view` of None (a screen with no views open) keeps everything, so nothing
+    filters where there is nothing to filter by.
+
+    Returns the SAME object when nothing is dropped — this runs every frame
+    from the viewport."""
+    if not custom_widgets or view is None:
+        return custom_widgets
+    kept = {name: entry for name, entry in custom_widgets.items()
+            if not isinstance(entry, dict) or not entry.get("view")
+            or entry.get("view") == view}
+    return custom_widgets if len(kept) == len(custom_widgets) else kept
+
+
 def custom_widgets_in_band(custom_widgets, band):
     """`[(id, entry), ...]` for the custom widgets drawn in `band`, ascending
     `z` — a LITERAL mirror of `game/ui/skinning.py::_custom_in_band` (absent

@@ -73,6 +73,11 @@
               "minItems": 4,
               "type": "array"
             },
+            "view": {
+              "description": "Restrict this custom widget to ONE of the screen's VIEWS (screen_defaults.json's `views` keys -- `construct`, `unlock`, `upgrade`, `base_info`, `preview` on building_panel). ABSENT means every view, which is what a single-view screen wants and what this key meant before it existed. A screen id is shared by every MODE of its panel and by the modals that declare it, so an unscoped custom widget -- drawn off the screen id alone at the tail of submit_layers -- appears in all of them at once; naming a view is how a designer says \"this decoration belongs to the build list\", not \"to the building panel\". The editor stamps whichever view was open when the widget was created and lets you change it; the game filters on the view its own submit() passes in, and a screen that passes none draws every custom widget regardless.",
+              "minLength": 1,
+              "type": "string"
+            },
             "z": {
               "description": "Paint order among the custom widgets of the SAME band, ascending; absent means 0. It orders custom widgets against each other only -- never against the screen's own code-owned widgets, which the band alone decides.",
               "type": "integer"

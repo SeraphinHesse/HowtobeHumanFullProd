@@ -81,6 +81,16 @@ from . import widgets
 # colliding with BuildingUI's own).
 SCREEN_ID = "building_panel"
 
+#: The VIEW id (`data/ui/screen_defaults.json`'s `views` keys, ordered by
+#: `tools/screen_mocks.BP_VIEW_ORDER`) the two MODALS draw under. Every other
+#: view id is a `BuildingUI.mode` verbatim — `construct`, `unlock`, `upgrade`,
+#: `base_info` — which is why the panel passes `self.mode` straight through
+#: and only the modals need a name of their own. `move_select` is a real mode
+#: with no recorded view, so a view-scoped custom widget never draws there;
+#: that is the honest answer for a mode the exporter does not record, not a
+#: gap to paper over.
+_PREVIEW_VIEW = "preview"
+
 #: Id prefix for a construct card, completed by the card's `building_type`
 #: (`card_defence`, `card_economic`, …). The type is the stable key that makes
 #: a dynamic-count card list individually overridable; `_clear_card_ids` uses
@@ -114,43 +124,84 @@ _CARD_PORTRAIT_PREFIX = "card_portrait_"
 _CARD_LOVE_ICON = "ui_icon_love"
 
 # -- Construct-card geometry (the widget-tree card) ------------------------
-# A card is a PARENT holding four children: a square creature portrait on the
-# left, a wrapped name block top-right, and a price button under it carrying a
-# love icon + the number. Every rect below is ABSOLUTE — `parent` is EDITOR
-# authoring metadata that nothing in `game/` reads (`editor/widget_tree.py`),
-# so `_build_construct` lays its own children out and no cascade exists at
-# runtime.
+# A card is a THREE-PIECE composition holding nine id'd parts: a decorative
+# PLATE on the right carrying the name rows and the price pill, a small square
+# BODY behind the creature portrait on the left, and a FRAME drawn in front of
+# that portrait. The body is the only click target — it is deliberately much
+# smaller than the card, because the card's visual extent is the plate+frame
+# union and none of that is meant to be pressable.
 #
-# The vertical fit, at "sm" (`layout_h` 11, so `_row_step("sm")` == 12):
-#   portrait   y+3  .. y+37   (34 square)
-#   name       two rows from y+2 -> last row ends y+2+12+11 = y+25
-#   price btn  y+24 .. y+38   (14 tall: over the 12px click-target floor and
-#                              over its own layout_h 11 — `test_ui_min_targets`)
-# The name's second row and the price button share one pixel of the card's
-# 40px height; the glyphs themselves do not touch, since "sm" draws 9px tall
-# inside its 11px layout box.
+# Every rect below is an OFFSET from the card SLOT's top-left, and the slot is
+# positioned off `construct_card_list`'s box (`_card_column` /
+# `_card_list_viewport`) — so moving or resizing that ONE group container in
+# the editor moves all twelve cards together. `parent` in the screen JSON is
+# EDITOR authoring metadata that nothing in `game/` reads
+# (`editor/widget_tree.py`); `_build_construct` lays every part out itself and
+# no cascade exists at runtime.
+#
+# NEVER hand-pin a `card_<btype>` rect in `data/ui/screens/building_panel.json`.
+# `BuildingUI.submit` runs `skinning.apply` every frame, so a stored rect
+# overwrites the scroll-adjusted one this module just computed: the wheel moves
+# `scroll_offset`, `_build_construct` re-runs, and `apply` clobbers the result.
+# A pinned card is a card that cannot scroll, and one pinned outside
+# `construct_card_list`'s window is culled at draw AND at hit — i.e. unbuyable.
+#
+# The slot, 140x77 (`_CARD_W` x `_CARD_H`), at "sm" (`layout_h` 11, so
+# `_row_step("sm")` == 12):
+#   plate     +63,+0   77x64   the name/price backdrop; drawn FIRST, under all
+#   body      +10,+24  44x45   the portrait backing + the click target
+#   portrait  +14,+28  34 sq   the creature, inside the body
+#   frame     +0,+13   64x64   drawn AFTER the portrait — a border in front
+#   name      +69,+26          two rows, stepping `_row_step("sm")`
+#   price     +62,+46  74x23   over the 12px click-target floor and over its
+#                              own layout_h 11 — `test_ui_min_targets`
+# The union of every part is exactly the slot: the plate's right edge lands on
+# +140 and the frame's bottom on +77, which is what lets `_card_in_viewport`
+# window the list on the slot and know nothing spills out of the group.
 _CARD_INSET = 6            # card column inset inside the panel (`_card_column`)
-_CARD_H = 40
-_CARD_GAP = 4              # list pitch = _CARD_H + _CARD_GAP
-_CARD_PAD = 3              # portrait inset from the card's top-left corner
+_CARD_W = 140              # the card SLOT: the union of every part
+_CARD_H = 77
+# The pitch is its own number, NOT `_CARD_H + gap`, because the gap the eye
+# sees is not the gap between SLOTS. The plate and the frame are 64 tall
+# inside a 77-tall slot, so two cards a pitch P apart show `P - 64` of empty
+# space between them: P = 81 read as a 17px gap, and halving that to 8 gives
+# P = 72. At 72 a slot overlaps its neighbour's by 5px, which is harmless —
+# the frame's bottom band and the next plate's top band share exactly one
+# column of x (the frame ends at +64, the plate starts at +63), so there is
+# nothing to collide. Spelling this as a `_CARD_GAP` of -5 would be a name
+# that lies about what it measures.
+_CARD_PITCH = 72           # 64 visible + 8 gap — see the note above
+_CARD_PLATE = (63, 0, 77, 64)    # name/price backdrop, relative to the slot
+_CARD_FRAME = (0, 13, 64, 64)    # portrait frame, relative to the slot
+_CARD_BODY = (10, 24, 44, 45)    # click target + portrait backing
+_CARD_PORTRAIT_AT = (14, 28)     # portrait top-left, relative to the slot
 _CARD_PORTRAIT = 34        # square portrait side
-_CARD_COL_X = 41           # right column x, relative to the card's left edge
-_CARD_PRICE_TOP = 24       # price button top, relative to the card's top
-_CARD_PRICE_H = 14
+_CARD_COL_X = 69           # right column x, relative to the slot's left edge
+_CARD_NAME_TOP = 26        # first name row's y, relative to the slot's top
+_CARD_PRICE = (62, 46, 74, 23)   # price button, relative to the slot
 _CARD_ICON = 10            # love icon side, inside the price button
-_CARD_LIST_TOP = 32        # first card's y at scroll offset 0
-_CARD_LIST_BOTTOM_PAD = 30 # clearance for the terrain badge at the panel foot
+_CARD_ICON_AT = (14, 8)    # love icon top-left, inside the price button
+_CARD_TEXT_AT = (28, 7)    # price text anchor, inside the price button
+_CARD_LIST_TOP = 8         # first card's y at scroll offset 0
+_CARD_LIST_BOTTOM_PAD = 32 # clearance for the terrain badge at the panel foot
 # Construct-panel-only grey fill alpha for a tile already barred from hosting
 # another Painter (widgets.C_PAINTER_USED) — same alpha-tuple pattern as
 # overlays.py's _TIER_OVERVIEW_ALPHA.
 _PAINTER_USED_ALPHA = 130
 # The price pill carries its OWN skin rather than inheriting the card body's
-# `defaults.button_skin`: the body is a full-card 9-slice, and stretching that
-# same art through a 74x14 pill reads as a squashed card. Baked here for the
-# same reason `_CARD_LOVE_ICON` is — it names a specific piece of art, and a
-# designer who wants another one overrides `card_<btype>_price`'s `skin` in the
-# editor, per card, without touching the body.
-_CARD_PRICE_SKIN = "ui_button_pill"
+# `defaults.button_skin`: the body is a small portrait backing, and stretching
+# that same art through a 74x23 pill reads as a squashed card. Baked here for
+# the same reason `_CARD_LOVE_ICON` is — it names a specific piece of art, and
+# a designer who wants another one overrides `card_<btype>_price`'s `skin` in
+# the editor, per card, without touching the body.
+_CARD_PRICE_SKIN = "ui_button_panel"
+# The plate and the frame carry their own skins for the same reason, and for
+# one more: `defaults.panel_skin` is shared with every other panel on this
+# screen (the panel body, the terrain badge, the effect box), so inheriting it
+# here would tie a card's chrome to theirs. Overridable per card in the editor
+# as `card_<btype>_plate` / `card_<btype>_frame`.
+_CARD_PLATE_SKIN = "ui_panel_v11"
+_CARD_FRAME_SKIN = "ui_panel_v7"
 # -- /construct-card geometry ---------------------------------------------
 
 # -- Tile-condition cards (unlock mode) + the editable terrain box ---------
@@ -772,7 +823,8 @@ class ConstructPreview:
         from engine.render import HudRect
 
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "under", self.skinning.state_of)
+                                    "under", self.skinning.state_of,
+                                    view=_PREVIEW_VIEW)
         x, y, w, h = self.rect
         # Submission order (game/ui/CLAUDE.md "panel -> button -> text"):
         # ALL panel/background submissions first, THEN all buttons, THEN all
@@ -846,7 +898,8 @@ class ConstructPreview:
                         align="right")
             sy += step
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "over", self.skinning.state_of)
+                                    "over", self.skinning.state_of,
+                                    view=_PREVIEW_VIEW)
 
 
 class MovePreview:
@@ -998,7 +1051,8 @@ class MovePreview:
 
     def submit(self, renderer, anim_ms=0):
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "under", self.skinning.state_of)
+                                    "under", self.skinning.state_of,
+                                    view=_PREVIEW_VIEW)
         x, y, w, h = self.rect
         # Submission order (game/ui/CLAUDE.md "panel -> button -> text").
         if is_visible(self._panel):
@@ -1040,7 +1094,8 @@ class MovePreview:
                         align="center")
             wy += step
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "over", self.skinning.state_of)
+                                    "over", self.skinning.state_of,
+                                    view=_PREVIEW_VIEW)
 
 
 class BuildingUI:
@@ -1323,8 +1378,11 @@ class BuildingUI:
         self.ids["cond_badge"] = ("panel", self._cond_badge)
         self.ids["cond_effect_box"] = ("panel", self._cond_effect_box)
         # -- the two card GROUPS (see `_TERRAIN_LIST_ID`) --------------------
+        # The construct group is `_CARD_W` wide, not the panel column `cw`:
+        # a card IS 140px across (plate + frame union), so a group narrower
+        # than one card would window a list its own cards spill out of.
         self._construct_list = SimpleNamespace(
-            rect=(cx, _CARD_LIST_TOP, cw,
+            rect=(cx, _CARD_LIST_TOP, _CARD_W,
                   self.view_h - _CARD_LIST_BOTTOM_PAD - _CARD_LIST_TOP),
             skin=None, visible=True)
         self._terrain_list = SimpleNamespace(
@@ -1824,12 +1882,27 @@ class BuildingUI:
 
     def _cards_visible(self):
         """How many cards fit in the viewport at once (at least 1, so a very
-        short surface still shows the card the wheel is scrolled to)."""
+        short surface still shows the card the wheel is scrolled to).
+
+        A card occupies `_CARD_H`, but only the GAPS between cards cost extra
+        — so it is one card plus however many whole pitches fit in what is
+        left, NOT `height // pitch`. The plain division under-counts by one
+        whenever the trailing gap does not fit, which would let the wheel
+        scroll a step past the end of the list."""
         top, bottom = self._card_list_viewport()
-        return max(1, (bottom - top) // (_CARD_H + _CARD_GAP))
+        room = bottom - top - _CARD_H
+        return max(1, room // _CARD_PITCH + 1) if room >= 0 else 1
 
     def _card_in_viewport(self, rect):
         """Is this card fully inside the scrolling list's window?
+
+        ``rect`` is the card BODY's rect (what every call site has to hand),
+        but the window is tested against the card SLOT — the body is a 44x45
+        sub-box sitting `_CARD_BODY`'s offset into a 140x77 slot, so windowing
+        on it would let a card's plate and frame spill out of the group. The
+        slot top is recovered by subtracting that offset, which stays correct
+        even after `skinning.apply` has written a designer's rect override
+        onto the body.
 
         Gated on at DRAW and at HIT, ANDed with `is_visible` — deliberately
         NOT expressed by setting `visible = False` on the off-window cards:
@@ -1838,7 +1911,8 @@ class BuildingUI:
         frame regardless of scroll, so `self.ids` (and therefore
         `skinning.apply` and the exporter) always sees the full id set."""
         top, bottom = self._card_list_viewport()
-        return rect[1] >= top and rect[1] + rect[3] <= bottom
+        slot_top = rect[1] - _CARD_BODY[1]
+        return slot_top >= top and slot_top + _CARD_H <= bottom
 
     def _card_portrait_slot(self, btype, tier_idx):
         """The sprite slot a card's portrait panel draws.
@@ -1921,10 +1995,13 @@ class BuildingUI:
         repeat_count = count_tag(self._session.tilemap, LIGHTNING_SOURCE_TAG)
         cx, cw = self._card_column()
         col_x = cx + _CARD_COL_X                 # the right column's left edge
-        col_w = cw - _CARD_COL_X - _CARD_PAD     # name wrap width + price width
+        # Name WRAP width only — the price pill carries its own `_CARD_PRICE`
+        # width now. Derived off the group's width so widening the group in
+        # the editor widens the name block with it.
+        col_w = max(1, cw - _CARD_COL_X)
         step = _row_step("sm")
         top, _bottom = self._card_list_viewport()
-        y = top - self.scroll_offset * (_CARD_H + _CARD_GAP)
+        y = top - self.scroll_offset * _CARD_PITCH
         for btype in BUILDING_CLASSES:
             if not buildable(state, btype):
                 continue  # type not unlocked / tier 1 not researched (10A)
@@ -1939,12 +2016,30 @@ class BuildingUI:
             # is on) the click target. Its own label is empty — the name is
             # its own child widget now, so a designer can place the two
             # independently.
-            btn = Button((cx, y, cw, _CARD_H), "", "sm", skin=skin)
+            # `(cx, y)` is the card SLOT's top-left; every part below is that
+            # plus its own offset from the geometry block.
+            btn = Button((cx + _CARD_BODY[0], y + _CARD_BODY[1],
+                          _CARD_BODY[2], _CARD_BODY[3]), "", "sm", skin=skin)
+            # The plate and the frame are ordinary CODE-OWNED card parts —
+            # they were custom widgets once, which put them on every mode of
+            # this screen (unlock, upgrade, base_info, move_select) and on top
+            # of the previews, because a custom widget is drawn by
+            # `submit_layers` off the SCREEN id and this whole panel shares
+            # one. Built here, they exist only while construct mode does.
+            plate = SimpleNamespace(
+                rect=(cx + _CARD_PLATE[0], y + _CARD_PLATE[1],
+                      _CARD_PLATE[2], _CARD_PLATE[3]),
+                skin=_CARD_PLATE_SKIN, visible=True)
+            frame = SimpleNamespace(
+                rect=(cx + _CARD_FRAME[0], y + _CARD_FRAME[1],
+                      _CARD_FRAME[2], _CARD_FRAME[3]),
+                skin=_CARD_FRAME_SKIN, visible=True)
             portrait = SimpleNamespace(
-                rect=(cx + _CARD_PAD, y + _CARD_PAD,
+                rect=(cx + _CARD_PORTRAIT_AT[0], y + _CARD_PORTRAIT_AT[1],
                       _CARD_PORTRAIT, _CARD_PORTRAIT),
                 skin=self._card_portrait_slot(btype, tier_idx), visible=True)
-            price = Button((col_x, y + _CARD_PRICE_TOP, col_w, _CARD_PRICE_H),
+            price = Button((cx + _CARD_PRICE[0], y + _CARD_PRICE[1],
+                            _CARD_PRICE[2], _CARD_PRICE[3]),
                            "", "sm", skin=_CARD_PRICE_SKIN)
             # Painter, every selected tile already barred (`used_painter_tiles`):
             # disable the card outright rather than let the player click through
@@ -1961,12 +2056,14 @@ class BuildingUI:
                 btn.enabled = False
                 price.enabled = False
             icon = SimpleNamespace(
-                rect=(col_x + _CARD_PAD, y + _CARD_PRICE_TOP + 2,
+                rect=(price.rect[0] + _CARD_ICON_AT[0],
+                      price.rect[1] + _CARD_ICON_AT[1],
                       _CARD_ICON, _CARD_ICON),
                 skin=_CARD_LOVE_ICON, visible=True)
             price_text = label_holder(
-                (col_x + _CARD_PAD + _CARD_ICON + 3, y + _CARD_PRICE_TOP + 2,
-                 0, 0), text_id="building.stat.value", font_key="sm")
+                (price.rect[0] + _CARD_TEXT_AT[0],
+                 price.rect[1] + _CARD_TEXT_AT[1], 0, 0),
+                text_id="building.stat.value", font_key="sm")
             # The name occupies TWO id'd rows so a designer can place them
             # independently. `cost` is passed even though the shipped template
             # no longer spends it: `T` is `str.format`, which ignores a surplus
@@ -1985,26 +2082,30 @@ class BuildingUI:
             # DRAW time, where a live metric is allowed. Row 2's stored label
             # is always empty for the same reason.
             name = T("building.construct.card", name=tier_name, cost=cost)
-            name_1 = label_holder((col_x, y + 2, 0, 0), label=name,
-                                  font_key="sm")
+            name_1 = label_holder((col_x, y + _CARD_NAME_TOP, 0, 0),
+                                  label=name, font_key="sm")
             # `_name2`, NOT `_name_2`: the exporter derives a card child's
             # parent from its id prefix, and `card_x_name_2` would nest under
             # `card_x_name` instead of sitting beside it as a sibling row.
-            name_2 = label_holder((col_x, y + 2 + step, 0, 0), font_key="sm")
+            name_2 = label_holder((col_x, y + _CARD_NAME_TOP + step, 0, 0),
+                                  font_key="sm")
             self.cards.append((btype, btn))
             self._card_parts[btype] = SimpleNamespace(
+                plate=plate, frame=frame,
                 portrait=portrait, price=price, icon=icon,
                 price_text=price_text, name_1=name_1, name_2=name_2,
                 name_w=col_w, cost=cost)
             key = f"{_CARD_ID_PREFIX}{btype}"
             self.ids[key] = ("button", btn)
+            self.ids[f"{key}_plate"] = ("panel", plate)
+            self.ids[f"{key}_frame"] = ("panel", frame)
             self.ids[f"{key}_portrait"] = ("panel", portrait)
             self.ids[f"{key}_name"] = ("label", name_1)
             self.ids[f"{key}_name2"] = ("label", name_2)
             self.ids[f"{key}_price"] = ("button", price)
             self.ids[f"{key}_price_icon"] = ("panel", icon)
             self.ids[f"{key}_price_text"] = ("label", price_text)
-            y += _CARD_H + _CARD_GAP
+            y += _CARD_PITCH
         # The construct panel's own selected tile(s) — the SELECTION
         # highlight, not a batch (see the note at the upgrade-batch site).
         self._highlight_tiles = [(t.col, t.row, "tile_selected")
@@ -2573,13 +2674,17 @@ class BuildingUI:
         price_clicks = bool(self._card_defaults().get("price_is_click_target"))
         for btype, btn in self.cards:
             parts = self._card_parts.get(btype)
-            if price_clicks:
-                target = parts.price if parts is not None else None
-            else:
-                target = btn
-            if (target is not None and is_visible(target)
-                    and self._card_in_viewport(btn.rect)
-                    and target.hit(mx, my)):
+            # The price pill is ALWAYS a click target: clicking the button on
+            # a card is the obvious way to buy it, and the body shrank to a
+            # 44px portrait backing that is not an obvious "press me". The
+            # body comes along too unless `price_is_click_target` is on,
+            # which keeps that flag's original meaning — ONLY the pill —
+            # rather than turning it into a no-op.
+            targets = [parts.price] if parts is not None else []
+            if not price_clicks:
+                targets.append(btn)
+            if (any(is_visible(t) and t.hit(mx, my) for t in targets)
+                    and self._card_in_viewport(btn.rect)):
                 tier_idx = tiers_unlocked_for(session.state, btype) - 1
                 # feature-storm-acolyte-multi-build: the same already-placed
                 # count `_build_construct` priced the card off.
@@ -2597,11 +2702,15 @@ class BuildingUI:
                 total = _batch_cost(btype, buildings_balance, tier_idx,
                                     repeat_count, count, session.state, bub)
                 if session.state.love < total:
-                    # Always flash the CARD, never the price pill, whichever
-                    # was clicked: the message is a sentence and the card body
-                    # is the only part of the tree wide enough to read it.
-                    btn.start_flash(self._flash_dur,
-                                        T("building.flash.not_enough_love"))
+                    # Always flash the PRICE PILL, whichever part was clicked:
+                    # the message is a sentence, and since the body shrank to
+                    # a 44px portrait backing the 74px pill is the widest
+                    # Button in the tree — the only one wide enough to read
+                    # it. (This flashed the body while the body WAS the card.)
+                    flash_on = parts.price if parts is not None else btn
+                    flash_on.start_flash(
+                        self._flash_dur,
+                        T("building.flash.not_enough_love"))
                 else:
                     self.preview = ConstructPreview(
                         btype, cost, buildings_balance, self._ui_balance,
@@ -2948,7 +3057,8 @@ class BuildingUI:
         self.skinning.submit_background(renderer, self.screen_id,
                                         self.view_w, self.view_h)
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "under", self.skinning.state_of)
+                                    "under", self.skinning.state_of,
+                                    view=self.mode)
         if is_visible(self._panel):
             submit_panel(renderer, self.panel_rect, skin=self._panel.skin,
                         tint=getattr(self._panel, "tint", None), anim_ms=t)
@@ -2972,7 +3082,8 @@ class BuildingUI:
         if self.preview is not None:
             self.preview.submit(renderer, anim_ms=t)
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "over", self.skinning.state_of)
+                                    "over", self.skinning.state_of,
+                                    view=self.mode)
 
     def _submit_unlock(self, renderer, session, anim_ms=0):
         txt = self._text
@@ -3006,14 +3117,27 @@ class BuildingUI:
             parts = self._card_parts.get(btype)
             if parts is None or not self._card_in_viewport(btn.rect):
                 continue
-            # The card BODY first: it is this tree's background, and the HUD
-            # queue is drawn in pure submission order (`Renderer.submit_hud`
-            # appends; nothing sorts), so anything submitted after it lands on
-            # top. Drawing the portrait first instead hides it completely the
-            # moment the body carries real art — the whole 34x34 sits inside
-            # the body's rect. That stayed invisible for as long as
-            # `defaults.button_skin` was unset and the body drew as a flat
-            # rect, and broke the screen the day a designer skinned the card.
+            # Order matters and there is no sorting to fall back on: the HUD
+            # queue draws in pure submission order (`Renderer.submit_hud`
+            # appends; nothing sorts), so anything submitted later lands on
+            # top. The card's back-to-front stack is
+            #   plate -> body -> portrait -> frame -> price -> icon -> text
+            # which is what the plate and the frame meant while they were
+            # custom widgets banded "under" and "over": the plate is the
+            # backdrop the name and price sit on, and the frame is a BORDER in
+            # front of the portrait, not behind it.
+            #
+            # The body before the portrait, for the older reason: the whole
+            # 34x34 portrait sits inside the body's rect, so drawing it first
+            # hides it completely the moment the body carries real art. That
+            # stayed invisible for as long as `defaults.button_skin` was unset
+            # and the body drew as a flat rect, and broke the screen the day a
+            # designer skinned the card.
+            if is_visible(parts.plate):
+                submit_panel(renderer, parts.plate.rect,
+                             skin=parts.plate.skin,
+                             tint=getattr(parts.plate, "tint", None),
+                             anim_ms=anim_ms)
             if is_visible(btn):
                 btn.submit(renderer, anim_ms=anim_ms, **button_kwargs(btn))
             # then the portrait, on top of the body it sits in
@@ -3021,6 +3145,12 @@ class BuildingUI:
                 submit_panel(renderer, parts.portrait.rect,
                              skin=parts.portrait.skin,
                              tint=getattr(parts.portrait, "tint", None),
+                             anim_ms=anim_ms)
+            # and the frame in front of the portrait it borders
+            if is_visible(parts.frame):
+                submit_panel(renderer, parts.frame.rect,
+                             skin=parts.frame.skin,
+                             tint=getattr(parts.frame, "tint", None),
                              anim_ms=anim_ms)
             if is_visible(parts.price):
                 parts.price.submit(renderer, anim_ms=anim_ms,

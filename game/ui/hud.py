@@ -958,6 +958,15 @@ class Hud:
         # the scene's placed casters now, not a single RunState field) ------
         self._submit_lightning(renderer, session, view_h, scene)
 
+        # -- authored per-widget "over" layers (UL-4), after every widget has
+        # drawn and before the tooltips, which stay topmost. This pass used to
+        # sit at the very end of this method; inserting
+        # `_submit_love_hover_cost` directly above it captured it into that
+        # method's body instead, where `t` is not defined — so hovering any
+        # cost raised NameError and crashed the frame.
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "over", self.skinning.state_of, t)
+
         # -- income tooltip, LAST: topmost HUD layer (see the deferral above)
         if tooltip is not None:
             self._submit_income_tooltip(renderer, tooltip, income_pill)
@@ -1010,9 +1019,6 @@ class Hud:
         current_w, _h = text_size(current_text, holder.font_key)
         submit_text(renderer, price_text, (x + current_w, y), holder.font_key,
                    widgets.C_RED)
-
-        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "over", self.skinning.state_of, t)
 
     def _submit_income_tooltip(self, renderer, sources, anchor):
         """The 10J per-source breakdown below the income line (prototype
