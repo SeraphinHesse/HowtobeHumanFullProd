@@ -912,6 +912,30 @@ validating writer; don't hand-edit the JSON.
   optional, read off `schemas/ui_screen.schema.json`): `align`, `color`,
   `font`, `label`, `layers`, `parent`, `rect`, `skin`, `states`, `text_color`,
   `text_id`, `tint`, `visible`.
+- **`custom_widgets` (UL-13) — a FOURTH top-level key**, beside `background`,
+  `defaults` and `widgets`: `{<id>: {...}}`, ids on the same
+  `^[a-z][a-z0-9_]*$` pattern, `additionalProperties: false`. These are
+  DESIGNER-AUTHORED widgets no code owns — a hand-written twin of one
+  `screen_defaults.json` record, for decoration the game has no widget object
+  for.
+  - Keys: `kind` (REQUIRED, the closed enum `panel | label | backdrop` — a
+    SUBSET of the six-value widget kind enum, since only these three have a
+    meaningful code-free draw), `rect` (REQUIRED, `[x, y, w, h]`, 4 ints),
+    `band` (`under | over`, absent = `over`), `z` (int, absent = 0, ordering
+    among custom widgets of the same band only), `display_name` (non-empty
+    string, editor-outliner label the game never reads).
+  - **The entry is DEFAULT GEOMETRY ONLY.** Everything paintable — `skin`,
+    `color`, `label`, `text_id`, `font`, `text_color`, `tint`, `align`,
+    `visible`, `parent`, `layers`, `states` — is an ORDINARY entry under
+    `widgets/<the same id>`, exactly as for a code-owned widget, INCLUDING
+    `rect` (an override rect wins over the creation rect). There is no second
+    styling vocabulary here, and `parent` on a custom widget is authoring-only
+    metadata, so it belongs on the override, not in this table.
+  - Custom widgets are never click targets, and `screen_defaults.json` never
+    lists them (nothing exports them — they exist only in this file). The
+    game's `_validate_ids` folds `custom_widgets` ids into the known set so a
+    `widgets/<custom id>` override validates; behaviour →
+    `game/ui/CLAUDE.md`'s customization section.
 - **`layers` (UL-3/UL-4/UL-5/UL-9) — an ARRAY of layer entries on a widget
   override**, and it lives ONLY here (never in `screen_defaults.json`, never in
   `screen_previews.json`). Each entry is a dict, every key optional,
