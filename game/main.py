@@ -77,6 +77,7 @@ from game.buildings.coverage import wire_defence_coverage
 # -- /10I --
 # -- B1: the slots.json category whose slots may carry a colour column --
 from game.buildings.registry import BUILDINGS_CATEGORY
+from game.buildings import painter as painter_art  # progress-art seam
 # -- Building Movement: the in-transit sign slot + the cost/time formulas the
 # destination-pick preview quotes --
 from game.buildings.movement import (
@@ -835,6 +836,15 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # An empty map (today's live data, which declares no `columns` yet) means
     # no building rolls a colour and every animator keeps its -1 sentinel.
     colour_columns = _derive_colour_columns(registry, manifest, data_dir)
+    # Painter progress art: which `painter_*` stages actually have an imported
+    # sheet. Derived once here for the same reason as the blocks above, and
+    # installed on the leaf's module seam because `game/buildings/**` may not
+    # read the asset layer itself (D6/E-37). A stage with no art falls back to
+    # the highest lower stage that has some, so a half-imported painting chain
+    # never shows a grey X mid-canvas.
+    painter_art.set_art_slots(frozenset(
+        s for s in registry.group_slots(BUILDINGS_CATEGORY)
+        if s.startswith("painter_") and manifest.entry(s) is not None))
     widgets.set_skin_hit_test(assets.hit_opaque)  # R2: pixel-perfect click targets
 
     # -- SD-6: the UI sound seam. `game/ui` is pygame-free, so it never

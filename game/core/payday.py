@@ -95,6 +95,11 @@ def _process_painters(state, tilemap, occupancy, scene):
         if getattr(b, "building_type", None) != "painter":
             continue
         b.advance_progress()
+        # The Painter's art tracks its progress, not its upgrade level
+        # (`game/buildings/painter.py`), so the canvas has to be re-derived
+        # here — `refresh_slot_key` and NOT `apply_tier_stats`, which would
+        # full-heal a painter every single payday.
+        b.refresh_slot_key()
         if not b.is_ready():
             continue
         payout = b.payout_amount()
@@ -312,6 +317,7 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None,
                     _free_tile(tilemap, tile, occupancy, scene)
                     continue
                 b.get_component(PainterProgress).progress = 0
+                b.refresh_slot_key()   # blank canvas again (see slot 6)
             # VA-4: read `alive` BEFORE rebuild. This slot full-heals every
             # LIVING building too, and only one that was actually DEAD and
             # came back is a "respawn" — a cosmetic-only ledger append, no
