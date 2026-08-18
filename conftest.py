@@ -124,6 +124,7 @@ TIERS = {
     "test_font_presets": "core",  # UL-2: designer-defined font presets (schema + derived layout_h)
     "test_footprint_path": "core",
     "test_game_boot": "core",
+    "test_game_state_savegame": "core",  # SaveGamePLAN SG-2: RunState.to_dict/from_dict
     "test_ground_cache": "core",
     "test_hp_bar_anchors": "core",  # ESV-1: hp_bar anchor composes with the D3 baseline
     "test_hud_items": "core",

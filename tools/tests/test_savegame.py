@@ -1,10 +1,10 @@
 """SaveGamePLAN SG-1: save-slot storage primitives.
 
-Slot/index file mechanics only, against hand-built dicts — no RunState/
-TileMap/Building serialization (SG-2/SG-3/SG-4). Mirrors
-test_player_identity.py's TestHighscoreRoundTrip shape: a tempdir for the
-disk half, FIXTURE_DATA for schema resolution (test_fixture_guard.py forbids
-a new test from reading live data/).
+Slot/index file mechanics, against real (but empty-run) RunState/Session
+dicts — TileMap/Building serialization is still a loose placeholder here
+(SG-3/SG-4). Mirrors test_player_identity.py's TestHighscoreRoundTrip shape:
+a tempdir for the disk half, FIXTURE_DATA for schema resolution
+(test_fixture_guard.py forbids a new test from reading live data/).
 """
 import tempfile
 import unittest
@@ -13,6 +13,7 @@ from pathlib import Path
 from tools.tests.fixture_data import FIXTURE_DATA
 
 from game.core import savegame
+from game.core.game_state import RunState
 
 
 def _slot_doc(slot_id="a", round_num=5, pinned=False, unlocked_tiles=None):
@@ -21,8 +22,9 @@ def _slot_doc(slot_id="a", round_num=5, pinned=False, unlocked_tiles=None):
         map_id="first_light",
         round_num=round_num,
         unlocked_tiles=unlocked_tiles or [[0, 0], [1, 0]],
-        run_state={},
-        session={},
+        run_state=RunState().to_dict(),   # a bare RunState is already at the
+                                          # round boundary (BUILDING/GAMEPLAY)
+        session={"combat_speed_idx": 0},
         tile_map={"cols": 10, "rows": 10},
         buildings=[],
         pinned=pinned,

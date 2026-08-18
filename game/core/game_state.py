@@ -299,3 +299,102 @@ class RunState:
             return False
         self.season = new
         return True
+
+    # -- Save-game serialization (SaveGamePLAN SG-2) -------------------------
+    # Only the DURABLE fields round-trip; every ledger commented "never
+    # serialized" above resets to its dataclass default on load (D8), which
+    # ``from_dict`` gets for free by never passing those as constructor
+    # kwargs. Must be called at a round boundary — the only point the host's
+    # autosave hook (SG-5) ever calls this — so a mid-combat call raises
+    # loud rather than silently capturing a snapshot that would mislead on
+    # load (D1).
+
+    def to_dict(self, buildings=()):
+        """Save-slot serialization. ``buildings`` is the run's live Building
+        list, needed ONLY to translate ``mortar_slow_snapshot_ids``: that set
+        stores raw ``id(building)`` values (Python object identity, i.e. a
+        memory address), which are meaningless across a save/load boundary,
+        so this rewrites them to the buildings' stable ``GameObject.id``
+        uuids (D5). A snapshot id with no matching live building (one that
+        died and was fully removed since the snapshot was taken) is dropped
+        rather than raising — it can no longer affect anything a load would
+        restore.
+        """
+        if self.phase is not GamePhase.BUILDING or self.state is not GameState.GAMEPLAY:
+            raise ValueError(
+                "RunState.to_dict() must be called at a round boundary "
+                f"(phase=BUILDING, state=GAMEPLAY); got phase={self.phase!r}, "
+                f"state={self.state!r}")
+
+        id_to_uuid = {id(b): b.id for b in buildings}
+        mortar_ids = sorted(id_to_uuid[i] for i in self.mortar_slow_snapshot_ids
+                            if i in id_to_uuid)
+
+        return {
+            "phase": self.phase.name,
+            "state": self.state.name,
+            "round_num": self.round_num,
+            "season": self.season,
+            "love": self.love,
+            "base_lives": self.base_lives,
+            "enemies_killed": self.enemies_killed,
+            "buildings_placed": self.buildings_placed,
+            "player_xp": self.player_xp,
+            "village_level": self.village_level,
+            "xp_threshold": self.xp_threshold,
+            "xp_threshold_inc": self.xp_threshold_inc,
+            "tiers_unlocked": dict(self.tiers_unlocked),
+            "unlocked_buildings": dict(self.unlocked_buildings),
+            "lightning_level": self.lightning_level,
+            "boss_upgrade_stacks": dict(self.boss_upgrade_stacks),
+            "boss_upgrade_choices": [list(c) for c in self.boss_upgrade_choices],
+            "love_spent_on_tiles": self.love_spent_on_tiles,
+            "used_painter_tiles": sorted([col, row]
+                                         for col, row in self.used_painter_tiles),
+            "mortar_slow_snapshot_ids": mortar_ids,
+            "boss_lives_snapshot": self.boss_lives_snapshot,
+            "boss_love_snapshot": self.boss_love_snapshot,
+            "first_end_turn_cutscene_requested":
+                self.first_end_turn_cutscene_requested,
+            "tutorial_intros_shown": self.tutorial_intros_shown,
+            "levelup_pending": self.levelup_pending,
+        }
+
+    @classmethod
+    def from_dict(cls, data, buildings=()):
+        """Inverse of ``to_dict`` — see its docstring for the ``buildings``
+        parameter (the ``id()`` <-> uuid translation). Every field absent
+        from the save-column list above is left at its dataclass default
+        (D8) rather than being passed through."""
+        uuid_to_id = {b.id: id(b) for b in buildings}
+        mortar_ids = {uuid_to_id[u] for u in data["mortar_slow_snapshot_ids"]
+                      if u in uuid_to_id}
+
+        return cls(
+            phase=GamePhase[data["phase"]],
+            state=GameState[data["state"]],
+            round_num=data["round_num"],
+            season=data["season"],
+            love=data["love"],
+            base_lives=data["base_lives"],
+            enemies_killed=data["enemies_killed"],
+            buildings_placed=data["buildings_placed"],
+            player_xp=data["player_xp"],
+            village_level=data["village_level"],
+            xp_threshold=data["xp_threshold"],
+            xp_threshold_inc=data["xp_threshold_inc"],
+            tiers_unlocked=dict(data["tiers_unlocked"]),
+            unlocked_buildings=dict(data["unlocked_buildings"]),
+            lightning_level=data["lightning_level"],
+            boss_upgrade_stacks=dict(data["boss_upgrade_stacks"]),
+            boss_upgrade_choices=[tuple(c) for c in data["boss_upgrade_choices"]],
+            love_spent_on_tiles=data["love_spent_on_tiles"],
+            used_painter_tiles={tuple(t) for t in data["used_painter_tiles"]},
+            mortar_slow_snapshot_ids=mortar_ids,
+            boss_lives_snapshot=data["boss_lives_snapshot"],
+            boss_love_snapshot=data["boss_love_snapshot"],
+            first_end_turn_cutscene_requested=
+                data["first_end_turn_cutscene_requested"],
+            tutorial_intros_shown=data["tutorial_intros_shown"],
+            levelup_pending=data["levelup_pending"],
+        )

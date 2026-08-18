@@ -2,7 +2,7 @@
   "$id": "savegame.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "scores/saves/<slot_id>.json (gitignored runtime save-slot body; no data/ content file pairs with this schema - validate_data skips data/schemas/). Written ONLY by game/core/savegame.py through engine.data_io.write_validated. The 'run_state', 'session', 'tile_map' and 'buildings' sub-objects are intentionally loose placeholders as of SaveGamePLAN SG-1 - SG-2/SG-3/SG-4 each tighten their own node in place as they land, per that plan's phased build order.",
+  "description": "scores/saves/<slot_id>.json (gitignored runtime save-slot body; no data/ content file pairs with this schema - validate_data skips data/schemas/). Written ONLY by game/core/savegame.py through engine.data_io.write_validated. 'run_state' (RunState.to_dict, SG-2) and 'session' (SG-2) are now tight; 'tile_map' and 'buildings' remain intentionally loose placeholders as of SG-2 - SG-3/SG-4 each tighten their own node in place as they land, per SaveGamePLAN's phased build order.",
   "properties": {
     "buildings": {
       "description": "One entry per live building at save time, via game/buildings/registry.py::save_building. Placeholder item shape as of SG-1 - SG-3 defines the real item schema here.",
@@ -31,11 +31,216 @@
       "type": "integer"
     },
     "run_state": {
-      "description": "RunState.to_dict() output. Placeholder shape as of SG-1 - SG-2 defines its real properties/required list here.",
+      "additionalProperties": false,
+      "description": "RunState.to_dict() output (SG-2) - the DURABLE fields only. Every other RunState field is a transient/drained-by-UI ledger that resets to its dataclass default on load (D8) and is never written here.",
+      "properties": {
+        "base_lives": {
+          "description": "Lives remaining.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boss_lives_snapshot": {
+          "description": "Base lives snapshotted at the last boss round's End Turn, for the win/loss compare.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boss_love_snapshot": {
+          "description": "Love snapshotted at the last boss round's End Turn.",
+          "maximum": 2147483647,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boss_upgrade_choices": {
+          "description": "Per-run history of (boss_num, upgrade_id, outcome) triples the base-info popup reads.",
+          "items": {
+            "items": {},
+            "maxItems": 3,
+            "minItems": 3,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "boss_upgrade_stacks": {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "description": "upgrade_id -> pick_count, the whole implementation of every persistent boss-upgrade passive.",
+          "type": "object"
+        },
+        "buildings_placed": {
+          "description": "Buildings placed over the whole run (a run stat).",
+          "maximum": 2147483647,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "enemies_killed": {
+          "description": "Enemies killed over the whole run (a run stat).",
+          "maximum": 2147483647,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "first_end_turn_cutscene_requested": {
+          "description": "One-shot latch: whether the run's first End Turn already requested the first_end_turn cutscene.",
+          "type": "boolean"
+        },
+        "levelup_pending": {
+          "description": "Whether an XP level-up is queued to open at the next ROUND_END (XP leveling mode only).",
+          "type": "boolean"
+        },
+        "lightning_level": {
+          "description": "0 = lightning locked; >0 = unlocked, a pure UI/gating signal (each firing building reads its own tier for damage/radius/cooldown).",
+          "maximum": 10,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "love": {
+          "description": "Current love (currency).",
+          "maximum": 2147483647,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "love_spent_on_tiles": {
+          "description": "Running total of love spent unlocking tiles this run (the tile_refund boss upgrade's payback source).",
+          "maximum": 2147483647,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "mortar_slow_snapshot_ids": {
+          "description": "GameObject.id uuids of every mortar alive when the mortar_slow boss upgrade was picked - id(building) memory addresses translated to stable uuids for this save (D5), translated back to id() on load.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "phase": {
+          "description": "Always BUILDING - RunState.to_dict() only ever saves at a round boundary (D1).",
+          "enum": [
+            "BUILDING"
+          ],
+          "type": "string"
+        },
+        "player_xp": {
+          "description": "Current XP toward the next village level.",
+          "maximum": 2147483647,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "round_num": {
+          "description": "The round this run is on.",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "season": {
+          "description": "0-based ground-art season index, derived from round_num.",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "state": {
+          "description": "Always GAMEPLAY - RunState.to_dict() only ever saves a live, non-game-over run.",
+          "enum": [
+            "GAMEPLAY"
+          ],
+          "type": "string"
+        },
+        "tiers_unlocked": {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "description": "building_type -> researched tier count.",
+          "type": "object"
+        },
+        "tutorial_intros_shown": {
+          "description": "Whether this run's tutorial-round enemy-intro entries have already been shown (suppresses their authored-round repeat).",
+          "type": "boolean"
+        },
+        "unlocked_buildings": {
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "description": "building_type -> whether that type is unlocked.",
+          "type": "object"
+        },
+        "used_painter_tiles": {
+          "description": "[col, row] of every tile that hosted a completed Painter payout - permanently barred from hosting another.",
+          "items": {
+            "items": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "village_level": {
+          "description": "Current village level.",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "xp_threshold": {
+          "description": "XP required to reach the next village level.",
+          "maximum": 2147483647,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "xp_threshold_inc": {
+          "description": "How much xp_threshold grows per level.",
+          "maximum": 2147483647,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "base_lives",
+        "boss_lives_snapshot",
+        "boss_love_snapshot",
+        "boss_upgrade_choices",
+        "boss_upgrade_stacks",
+        "buildings_placed",
+        "enemies_killed",
+        "first_end_turn_cutscene_requested",
+        "levelup_pending",
+        "lightning_level",
+        "love",
+        "love_spent_on_tiles",
+        "mortar_slow_snapshot_ids",
+        "phase",
+        "player_xp",
+        "round_num",
+        "season",
+        "state",
+        "tiers_unlocked",
+        "tutorial_intros_shown",
+        "unlocked_buildings",
+        "used_painter_tiles",
+        "village_level",
+        "xp_threshold",
+        "xp_threshold_inc"
+      ],
       "type": "object"
     },
     "session": {
-      "description": "Session-level save fields (e.g. combat_speed_idx). Placeholder shape as of SG-1 - SG-2 defines its real properties/required list here.",
+      "additionalProperties": false,
+      "description": "Session-level save fields (SG-2). Everything else on Session is a balance reference re-attached at load time from the currently-loaded balancing files, never serialized.",
+      "properties": {
+        "combat_speed_idx": {
+          "description": "Index into Session.COMBAT_SPEEDS (1x/1.5x/2x/pause) - persists across rounds within a run.",
+          "maximum": 3,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "combat_speed_idx"
+      ],
       "type": "object"
     },
     "slot_id": {

@@ -82,6 +82,10 @@ DOMAINS = {
         "test_buildings_state_in_components.py",
         "test_buildings_tier_math.py",
         "test_defence_aoe_beam.py",
+        # SaveGamePLAN SG-2: RunState.to_dict/from_dict is economy/
+        # progression state (rule-5 tie-breaker), same bucket as levelup/
+        # boss_upgrades below.
+        "test_game_state_savegame.py",
         "test_levelup.py",
         "test_lightning.py",
         "test_painter_meditator.py",
