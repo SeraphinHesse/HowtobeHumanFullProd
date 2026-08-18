@@ -169,6 +169,8 @@ class EnemyIntroWindow:
         if not self.visible or self.entry is None:
             return
         self.layout(view_w, view_h)
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "under", self.skinning.state_of)
         alpha = self._alpha()
         x, y, w, h = self._panel.rect
         submit_panel(renderer, (x, y, w, h), skin=self._panel.skin,
@@ -207,3 +209,5 @@ class EnemyIntroWindow:
             submit_centered(renderer, line, cx, cursor, "sm",
                             (*widgets.C_UI_TEXT, alpha))
             cursor += layout_h("sm") + 2
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "over", self.skinning.state_of)

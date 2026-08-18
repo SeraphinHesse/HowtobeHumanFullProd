@@ -251,6 +251,17 @@ def _screen_captures():
 #: to re-capture from ``_screen_captures()``, never to pick a side.
 
 
+#: Regenerated a TWELFTH time (UL-11: three life counters): ``hud`` gained
+#: ``life_1``/``life_2``/``life_3`` — three id'd, individually placeable and
+#: skinnable widgets (D10), laid out on the lives row to the right of
+#: ``icon_lives``/``lives_text``, which both STAY untouched. Three sprite
+#: primitives are APPENDED to that entry (all three lives alive, so all three
+#: draw the default ``ui_icon_lives`` art); nothing already in it moved, and
+#: every other screen's entry is byte-identical — which is what says the
+#: change was contained. Regenerated mechanically from ``_screen_captures()``.
+#: This is also the ONE sanctioned D5 exception in section S4:
+#: ``data/ui/screen_defaults.json``/``screen_previews.json`` legitimately gain
+#: the same three widgets, because this phase adds real default geometry.
 _BASELINE = {
     "main_menu": [
         HudRect(rect=(0, 0, 640, 360), color=(18, 30, 20), border_radius=0, width=0),
@@ -426,6 +437,9 @@ _BASELINE = {
         HudText(text='+5/round', pos=(8, 25), font_key='sm', color=(214, 96, 136), align='left'),
         HudSprite(slot_key='ui_icon_lives', dest=(8, 41), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
         HudText(text='LIVES 3', pos=(19, 41), font_key='md', color=(200, 55, 55), align='left'),
+        HudSprite(slot_key='ui_icon_lives', dest=(30, 41), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
+        HudSprite(slot_key='ui_icon_lives', dest=(41, 41), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
+        HudSprite(slot_key='ui_icon_lives', dest=(52, 41), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
         HudText(text='0/4 tiles', pos=(8, 57), font_key='md', color=(150, 140, 120), align='left'),
         HudText(text='Building Phase', pos=(552, 287), font_key='hud_phase', color=(150, 140, 120), align='left'),
         HudText(text='ROUND 1', pos=(592, 307), font_key='md', color=(150, 140, 120), align='center'),

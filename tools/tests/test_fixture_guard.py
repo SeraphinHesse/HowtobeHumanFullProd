@@ -49,6 +49,11 @@ ALLOWED = {
     "test_editor_tutorial_paint.py": "MapModeCase write-isolation on the real "
                                       "tree, same reason as test_editor_map_mode.py",
     "test_editor_run_controls.py": "TempDataCase-style copy of the real tree",
+    "test_font_presets.py": "the live committed fonts.schema.json IS the "
+                            "subject (UL-2 opens it to designer-defined "
+                            "presets) — a frozen fixture copy of a schema can "
+                            "never catch that schema regressing, same "
+                            "rationale as test_balancing_data.py",
     "test_game_boot.py": "the 'does today's data actually boot' smoke",
     "test_layout_h_invariant.py": "regenerates the committed screen_defaults.json "
                                   "under a simulated font-metric drift (same "

@@ -760,6 +760,11 @@
                   "frame_h": 30,
                   "frame_w": 103,
                   "key": "ui_button_panel_v3"
+                },
+                {
+                  "frame_h": 100,
+                  "frame_w": 245,
+                  "key": "ui_button_panel_v4"
                 }
               ]
             },
@@ -859,8 +864,8 @@
               "label": "Main Menu",
               "slots": [
                 {
-                  "frame_h": 270,
-                  "frame_w": 480,
+                  "frame_h": 360,
+                  "frame_w": 640,
                   "key": "ui_bg_main_menu"
                 }
               ]
@@ -1504,7 +1509,11 @@
         {
           "label": "Main Menu",
           "slots": [
-            "main_menu_bg"
+            {
+              "frame_h": 360,
+              "frame_w": 640,
+              "key": "main_menu_bg"
+            }
           ]
         }
       ],

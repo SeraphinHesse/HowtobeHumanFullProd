@@ -1239,8 +1239,28 @@ imports:
   `FloaterManager._vfx_params.projectile`; the "has art" check is the same
   `assets.animation_total_ms(slot, "idle") is not None` signal
   `engine.vfx.spawn_play_once` uses, so the two paths can never disagree
-  about "imported". Deliberately NOT a `triggers` row — a projectile is
-  continuous, like a beam or a lightning bolt, not a one-shot.
+  about "imported". **feat-projectile-variant-select gave it a `triggers.
+  projectile` row after all** — but a CONTINUOUS one, the seven VA-5 tile
+  highlights' shape rather than `_play`'s: the row contributes ONLY
+  `variant_select`, so `sprite_slot` (the stone/shell choice is the shot's
+  own kind, and those two slots are independent by design), `procedural`
+  (the fallback is the `procedural.projectile` dot right here, not a
+  one-shot kind) and `draw_in_front` (this function emits on the HUD pass,
+  which has no depth sort) are all INERT on it and say so in the schema.
+  A row was the right home anyway because the VFX panel's Binding strip is
+  generated from `vfx.schema.json`'s `triggers` properties
+  (`editor/panels/vfx_preview.py::_trigger_events`), so a schema property
+  buys the whole Event/Pick-mode/misc-key UI with zero editor code.
+  **The resolve is CACHED on the projectile GameObject** (`p._vfx_slot`, an
+  E-11 underscore transient) by `_projectile_slot`, because this function
+  runs every frame for every live shot: resolving inline would re-roll
+  `"random"` per frame (a bullet flickering through its flight) and draw
+  from the shared `self._rng` once per projectile per frame. `"level"` mode
+  needs no new plumbing — both projectile components already retain the
+  firing building as `_shooter`, so tier 1/2/3 can each get their own
+  bullet art. Honouring `draw_in_front` would mean moving every bullet off
+  the HUD pass onto `submit_world_fill`; that changes how every shot in the
+  game depth-sorts against buildings and is deliberately NOT done here.
   **feat-projectile-anchored-flight: the lift is gone from this function —
   `submit_projectiles` is now a pure projection of `p.transform.world_pos`,
   no `int(tile_h*zoom*lift_frac)` subtracted at draw time.** It moved into
@@ -1432,6 +1452,96 @@ file emits the exact HUD-primitive stream it emitted before B2,
 background(screen_id)` / `submit_background(...)` add an OPTIONAL full-view
 background layer (slot or flat color) — a no-op today (no shipped screen JSON
 sets one).
+
+- **Per-widget `layers` (UL-4)**: a widget's override may carry a `layers`
+  array (`data/ui/screens/<id>.json` ONLY — never `screen_defaults.json`), each
+  entry an OFFSET `[dx, dy, w, h]` from its owner's post-override rect (`0`
+  w/h inherits the owner's), resolved by the pure `engine/ui_layers.py`. Every
+  screen's `submit()` calls `self.skinning.submit_layers(renderer,
+  self.screen_id, self.ids, band, self.skinning.state_of)` **exactly twice** —
+  `"under"` as early as possible (right after `submit_background`, but after
+  any `ids`-building or nothing-to-draw guard) and `"over"` as the LAST
+  statement. The HUD pass has no depth sort, so an `under` layer sits behind
+  EVERYTHING on that screen, not just behind its own owner: that is the
+  documented trade-off of two bands per screen, not a bug. `z` orders layers
+  within a band. A layer picks ONE role, first match wins: `slot` → `HudSprite`,
+  else `text_id`/`label` → `HudText` (through `strings.T`, empty string draws
+  nothing), else `color` → `HudRect`, else nothing. **No `layers` authored ⇒
+  ZERO primitives**, which is what keeps the golden parity pin byte-identical.
+  `state_of(widget)` is the per-widget draw state passed BY REFERENCE (a bound
+  method, never a hardcoded `"idle"` at a call site): a `Button` answers
+  through its own `_state()`; every other widget (a plain `SimpleNamespace`/
+  label holder with no state machine) always resolves to `"idle"`.
+
+- **Per-state appearance, layer and owner (UL-5)**: a `layers` entry, and a
+  widget's own override object, may each carry a `states` object keyed
+  `idle`/`hover`/`pressed`/`disabled` (D9's existing four-state vocabulary —
+  no new one), each value a PARTIAL PATCH of the same appearance keys as its
+  owner, plus its own `offset`. Fallback: `states[state]` if that KEY IS
+  PRESENT (even an empty `{}` patch counts — "this state looks like the
+  base"), else `states["idle"]` if present, else no patch at all — presence
+  drives the fallback, not truthiness. A patch's `offset` REPLACES the base
+  offset for that resolution when 4 elements are given; a 2-element `[dx, dy]`
+  form moves without resizing (keeps the base offset's w/h). `engine/
+  ui_layers.py::resolve(layer_spec, owner_rect, state)` applies this for a
+  LAYER; `game/ui/widgets.py`'s own `_state_patch`/`_state_offset` apply the
+  identical ladder for the OWNER — `Button.submit` patches `text_color` and
+  nudges the DRAW position only (never mutates `self.rect`, so next-frame
+  hit-testing is untouched), and an explicit `text_color=`/`color=` kwarg at
+  the call site still wins over the patch (a caller passing one is more
+  specific than the screen doc). `submit_label` mirrors this for a non-Button
+  holder, but since `state_of` always resolves such a holder to `"idle"`, only
+  `states.idle` is ever reachable there today — `hover`/`pressed`/`disabled`
+  on a label/panel/backdrop are validated by the schema but dead code (no
+  hover/press tracking exists for non-Button widgets). **No `states` key ⇒
+  identical output for every state**, preserving the golden parity pin.
+
+- **Clickable layers (UL-10)**: a `layers` entry may carry `clickable: bool`
+  and `target: str`, which turn that layer into a real click target.
+  `game/ui/skinning.py::hit_layer(ids, widgets_spec, mx, my, state_of,
+  actions)` is the click-path twin of `submit_layers`: it asks the pure
+  `engine.ui_layers.hit` which clickable layer a point lands on and maps its
+  `target` onto an ACTION VALUE. **It is PURE** — that is load-bearing, not
+  style: `main.py` calls `Hud.hit()` twice per click (the MOUSEBUTTONDOWN
+  pan-arming probe, then MOUSEBUTTONUP), the same reason the drag-select
+  toggle is a pure read.
+  - **Resolution, in order**: `target` is one of the three reserved tokens
+    `close_window`/`back`/`noop` → returned verbatim for the caller to route;
+    `target` names another widget id in the SAME screen → that widget's own
+    action (a **retarget**); anything else, missing target included →
+    `"noop"`. A layer with `clickable` falsy is transparent — the click falls
+    through to the widget under it, which is every shipped screen today (D5).
+  - **A dead target SWALLOWS the click; it never falls through.** A
+    fall-through would make a typo'd target behave exactly as if the layer
+    were never clickable, silently unmaking what the designer configured. A
+    swallowed click reads honestly as "this decal does nothing" — the same
+    thing `noop` means.
+  - **The retarget table is each screen's OWN action table, reversed** —
+    `hud.Hud._LAYER_ACTIONS`, `pause._ACTION_IDS`, `main_menu`'s
+    `_SLOT_IDS`/`self.actions`, `cheat_menu._ACTION_IDS`. Never hand-roll a
+    second copy: the whole point is that a layer targeting `btn_end_turn`
+    cannot disagree with what clicking End Turn does.
+  - **Which screens are wired.** `Hud.hit` (after the `_panel_open` guard),
+    `BuildingUI.handle_click` (after the explicit close, before the mode
+    dispatch — reserved tokens only there, since its contract is
+    bool-consumed and it has no flat action table across its three classes),
+    and the eleven `hit()`-returns-an-action-string menu screens. **Three are
+    deliberately NOT wired**: `levelup.py` returns an option DICT,
+    `enemy_intro.py` a BOOL, and `boss_cutscene.py`'s `"A"`/`"B"` goes
+    straight into `session.resolve_boss_cutscene` — an action STRING from any
+    of the three would be a type/contract violation at the host, not a
+    routed click. Wiring one means giving it a safe host branch first.
+  - Where a branch MUTATES inside `hit()` (`settings.py`'s display-mode
+    arrows and FX toggles, `cheat_menu`'s round-field commit), that widget is
+    left OUT of the retarget table on purpose — returning its action string
+    from `hit_layer` would report a change that never happened, so a layer
+    aimed at it swallows instead.
+  - **Min-target lint**: clickable layers join
+    `test_ui_min_targets.py`'s NON-BLOCKING under-16px lint only, never the
+    hard ≥12px floor. A clickable layer is usually decorative art retargeted
+    onto an already-floor-checked button, and the "do not mass-resize
+    controls to silence the lint" rule above forbids the only fix a hard
+    failure would pressure a designer into.
 
 - **Non-`Button` widgets get a `types.SimpleNamespace` holder** (`rect`,
   `skin`, `font_key`, `text_color`, `label`, `visible` as needed) that
@@ -1728,6 +1838,20 @@ data, so the two can never silently drift apart.
   drawn via `HudRect` (no sheet), so a `tint` on it no-ops — the same deferred
   skin-on-a-non-skinnable-widget quirk as `backdrop`/`bar`. See
   `editor/panels/CLAUDE.md` "Reconciled rule".
+- **Optional per-widget `align` (UL-1)** — `data/ui/screens/<id>.json`'s
+  `widgets.<id>.align`, `left|center|right`, the designer-facing twin of the
+  holder attribute the section "`hud.round_label` carries its own alignment"
+  describes. **Zero game-side code changed to enable it**: `submit_label`
+  already resolves `getattr(holder, "align", "left")`, and `apply`'s generic
+  setattr loop threads any override key onto the widget (same as
+  `skin`/`tint`/`text_id` — no `_SPEC_TO_ATTR` entry). All that was missing
+  was the schema key. **Absent = `"left"` = today's rendering, pinned** — no
+  shipped screen doc authors it, so `test_ui_skinning.py`'s golden stream is
+  unmoved. Do not confuse this with `screen_defaults.json`'s `align`: that is
+  a GENERATED editor-only measuring hint the exporter reads off the code
+  holder, on a different file and a different schema, which the game never
+  reads back. The editor prefers the override over that hint when it sizes an
+  anchor's hit box (`_screen_primitives.resolve_align`).
 - **The editor's screen-mode preview honesty fix (ties to UH-3)**: the
   editor used to tint a skinned widget's preview from its `color` override
   — a lie, since the game has always ignored `color` on a skinned widget

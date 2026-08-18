@@ -66,7 +66,7 @@ from game.map.tiles import (
 
 from engine.render.fonts import layout_h
 
-from .skinning import ScreenSkinning, button_kwargs, is_visible
+from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .strings import T
 from .widgets import (
     Button, anim_ms, contains, label_holder, submit_label, submit_panel,
@@ -676,6 +676,8 @@ class ConstructPreview:
     def submit(self, renderer, anim_ms=0):
         from engine.render import HudRect
 
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "under", self.skinning.state_of)
         x, y, w, h = self.rect
         # Submission order (game/ui/CLAUDE.md "panel -> button -> text"):
         # ALL panel/background submissions first, THEN all buttons, THEN all
@@ -748,6 +750,8 @@ class ConstructPreview:
             submit_text(renderer, str(value), (x + w - 8, sy), "sm", widgets.C_UI_TEXT,
                         align="right")
             sy += step
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "over", self.skinning.state_of)
 
 
 class MovePreview:
@@ -898,6 +902,8 @@ class MovePreview:
         uniform `preview.handle_key(...)` routing needs no branch."""
 
     def submit(self, renderer, anim_ms=0):
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "under", self.skinning.state_of)
         x, y, w, h = self.rect
         # Submission order (game/ui/CLAUDE.md "panel -> button -> text").
         if is_visible(self._panel):
@@ -938,6 +944,8 @@ class MovePreview:
             submit_text(renderer, line, (cx, wy), "sm", widgets.C_HP_RED,
                         align="center")
             wy += step
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "over", self.skinning.state_of)
 
 
 class BuildingUI:
@@ -2060,6 +2068,24 @@ class BuildingUI:
         if is_visible(self.close_btn) and self.close_btn.hit(mx, my):
             self.close()
             return True
+        # -- UL-10: a clickable layer on THIS panel's own widgets. Consulted
+        # after the explicit close (so a stray layer can never reinterpret an
+        # X click) and before the mode dispatch. This screen's return contract
+        # is bool-consumed, not an action string, and it has no single flat
+        # action table spanning its three classes — so only the three RESERVED
+        # tokens route here, and every other target (including a widget id in
+        # this screen) swallows per Ruling 1. Widget-id RETARGET on the
+        # building panel is a deliberate follow-up, not silent scope loss. --
+        layer_action = hit_layer(
+            self.ids, self.skinning.widgets_spec(self.screen_id), mx, my,
+            self.skinning.state_of)
+        if layer_action is not None:
+            if layer_action == "close_window":
+                self.close()
+            elif layer_action == "back" and self.mode == "move_select":
+                self._back_to_upgrade(session)
+            return True   # "noop"/"back"-with-nowhere-to-go still CONSUME
+        # -- /UL-10 --
         if self.mode == "unlock":
             return self._unlock_click(mx, my, session)
         if self.mode == "construct":
@@ -2510,6 +2536,8 @@ class BuildingUI:
         self.panel_rect = self._panel.rect
         self.skinning.submit_background(renderer, self.screen_id,
                                         self.view_w, self.view_h)
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "under", self.skinning.state_of)
         if is_visible(self._panel):
             submit_panel(renderer, self.panel_rect, skin=self._panel.skin,
                         tint=getattr(self._panel, "tint", None), anim_ms=t)
@@ -2532,6 +2560,8 @@ class BuildingUI:
         # -- /10I --
         if self.preview is not None:
             self.preview.submit(renderer, anim_ms=t)
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "over", self.skinning.state_of)
 
     def _submit_unlock(self, renderer, session, anim_ms=0):
         txt = self._text

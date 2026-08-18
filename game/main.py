@@ -1396,6 +1396,15 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             gp["drag_select_enabled"] = not gp["drag_select_enabled"]
             return
         # -- /drag-select --
+        # -- UL-10: the three reserved clickable-layer tokens. All three are
+        # SWALLOW on the HUD: it is a persistent overlay, not a window, so it
+        # has no "close" and no "back" of its own — the screens that DO own
+        # those semantics (building_ui's close()/_back_to_upgrade) handle them
+        # on their own hit path. Swallowing is the point: a clickable layer
+        # must never fall through to the world underneath it. --
+        if hud_action in ("noop", "close_window", "back"):
+            return
+        # -- /UL-10 --
         # -- 10I: RANGE/HEATMAP overlay toggles consume the click --
         if gp["overlays"].hit(mx, my):
             return

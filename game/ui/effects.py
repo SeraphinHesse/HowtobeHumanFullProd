@@ -157,6 +157,11 @@ from engine.vfx import (
     VfxParams, VfxSystem, spawn_play_once,
 )
 from game.buildings.components import BeamAttacker, Nameplate, TierState
+# feat-projectile-variant-select: read-only, at DRAW time, purely to reach a
+# live shot's `_shooter` for "level" variant mode — the same shape this module
+# already uses on BeamAttacker._target above. No cycle: game/enemies/ imports
+# game/buildings/ + engine/, never game/ui/.
+from game.enemies.combat import ProjectileArc, ProjectileHoming
 from game.core.lightning import LightningCaster
 from game.core.phases import GamePhase
 from game import vfx_variants
@@ -1071,6 +1076,56 @@ class FloaterManager:
         the ``VfxSystem`` (ESV-3a)."""
         self._vfx.submit_gold_highlights(renderer)
 
+    def _projectile_slot(self, p, shell):
+        """The vfx slot in-flight projectile ``p`` draws this frame, resolved
+        ONCE per shot (feat-projectile-variant-select).
+
+        The BASE slot is unchanged and stays here rather than in the trigger
+        row: ``vfx_shell`` for a mortar's shell, ``vfx_projectile`` for every
+        defender's stone. Those two are independent shared slots by design
+        (``data/CLAUDE.md``), and one row carries one ``sprite_slot``, so the
+        row contributes only ``variant_select`` — which of the base slot's
+        interchangeable ``_v<k>`` variants actually plays.
+
+        **Resolved once and cached, never per frame.** ``submit_projectiles``
+        runs for every live shot on every frame; calling ``resolve`` there
+        would re-roll ``"random"`` mode each frame (a bullet that flickers
+        through its whole flight) and — worse — draw from ``self._rng`` once
+        per projectile per frame, desyncing the shared stream from what the
+        game did before this feature. ``game/vfx_variants.resolve``'s
+        ``len(variants) < 2`` short-circuit hides that today, but it stops
+        firing the moment a designer authors the second variant this feature
+        exists to let them author. The cache is an underscore transient on the
+        GameObject (E-11, explicitly allowed by ``GameObject.__setattr__``);
+        it lives and dies with the shot, so it needs no invalidation.
+
+        ``source=`` is the FIRING BUILDING, so ``"level"`` mode gives tier 1 /
+        2 / 3 their own bullet art: both projectile components already retain
+        it as ``_shooter``, and it is read only on the resolve frame. A shot
+        whose component or shooter is missing (a hand-built test projectile)
+        resolves to variant 0 under ``"level"``, the same D4 fallback the five
+        point-only events take.
+        """
+        slot = getattr(p, "_vfx_slot", None)
+        if slot is not None:
+            return slot
+        base = "vfx_shell" if shell else "vfx_projectile"
+        row = self._triggers.get("projectile", _NO_TRIGGER)
+        shooter = None
+        for cls in (ProjectileHoming, ProjectileArc):
+            comp = p.get_component(cls)
+            if comp is not None:
+                shooter = getattr(comp, "_shooter", None)
+                break
+        # `getattr(..., "registry", None)`, not `.registry`: `self.assets` is
+        # the same duck-typed host-wired handle `_play` guards this way, and
+        # is None outright in every bare-constructed test.
+        slot = vfx_variants.resolve(
+            getattr(self.assets, "registry", None), base, row.variant_mode,
+            row.misc_key, rng=self._rng, source=shooter)
+        p._vfx_slot = slot
+        return slot
+
     def submit_projectiles(self, renderer, cs, scene):
         """In-flight shots (10J): the plain defender stone as a small light
         dot, the mortar shell darker and larger (prototype's procedural
@@ -1084,11 +1139,15 @@ class FloaterManager:
         The "has art" signal is the SAME one ``engine.vfx.spawn_play_once``
         uses — ``assets.animation_total_ms(slot, "idle")`` returning
         ``None`` means no imported art (E-37) — so the two paths can never
-        disagree about what "imported" means. Not a trigger-table event:
-        projectiles are continuous in-flight objects, like beams and
-        lightning, so this never spawns a ``PlayOnceVfx``. ``self.assets``
-        is ``None`` in every bare-constructed test and degrades to the dot,
-        never raises.
+        disagree about what "imported" means. Still never spawns a
+        ``PlayOnceVfx``: projectiles are continuous in-flight objects, like
+        beams and lightning. ``self.assets`` is ``None`` in every
+        bare-constructed test and degrades to the dot, never raises.
+
+        feat-projectile-variant-select: which of a slot's interchangeable
+        VARIANTS draws now comes from the ``projectile`` trigger row's
+        ``variant_select``, through ``_projectile_slot`` below — resolved
+        ONCE per shot, never per frame.
 
         feat-projectile-anchored-flight: the draw-time lift is GONE — this
         is now a pure projection of ``p.transform.world_pos``. The cosmetic
@@ -1104,7 +1163,7 @@ class FloaterManager:
             wx, wy = p.transform.world_pos
             cx, cy = cs.world_to_screen(wx, wy)
             shell = p.name == "shell"
-            slot = "vfx_shell" if shell else "vfx_projectile"
+            slot = self._projectile_slot(p, shell)
             color = pr.shell_color if shell else pr.stone_color
             size = max(2, int((pr.shell_size if shell else pr.stone_size)
                               * zoom))

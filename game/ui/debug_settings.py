@@ -28,7 +28,7 @@ from engine.render import HudRect
 
 from game.debug import ALL_OUTPUTS, LEVEL_BASIC, LEVEL_VERBOSE
 
-from .skinning import ScreenSkinning, button_kwargs, is_visible
+from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .widgets import Button, anim_ms, submit_centered, submit_text
 from . import widgets
 
@@ -149,6 +149,13 @@ class DebugSettingsScreen:
         """``"back"`` or ``None`` — the cycler and the toggles mutate
         ``settings`` in place (the ``SettingsScreen`` contract). An invisible
         button is never hit (10L-B)."""
+        # UL-10: clickable layers first. BACK only, for the same reason as
+        # ``settings.py`` — the cycler/toggles mutate inside their branch.
+        layer_action = hit_layer(
+            self.ids, self.skinning.widgets_spec(self.screen_id), mx, my,
+            self.skinning.state_of, {"btn_back": "back"})
+        if layer_action is not None:
+            return layer_action
         if is_visible(self.back_btn) and self.back_btn.hit(mx, my):
             return "back"
         i = LEVELS.index(self.settings.level) if self.settings.level in LEVELS else 0

@@ -246,6 +246,8 @@ class BossCutscene:
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
         self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "under", self.skinning.state_of)
         renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
         won = self.outcome == "win"
         # Phase C: the TEXT is now string-table content (boss_cutscene.
@@ -274,6 +276,8 @@ class BossCutscene:
             label, desc = (self._card(upgrade_id) if upgrade_id is not None
                            else ("", ""))
             self._submit_box(renderer, box, label, desc, i == self.hovered, t)
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "over", self.skinning.state_of)
 
     @staticmethod
     def _submit_box(renderer, box, label, desc, hovered, anim_ms_):

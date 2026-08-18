@@ -88,11 +88,11 @@
       "description": "ESV-5: one event's sprite/procedural binding. Resolution order at every dispatch site: a non-empty sprite_slot whose slot has imported art spawns a one-shot PlayOnceVfx sprite (engine.vfx.spawn_play_once); otherwise the named procedural kind runs; procedural \"\" (or the event's row absent from the table entirely) is a silent no-op (E-37) - never a raise.",
       "properties": {
         "draw_in_front": {
-          "description": "VfxAuthoringPLAN VA-2/D5: true draws this effect IN FRONT of a building or enemy sharing its tile, false behind it. It is a same-tile TIE-BREAK, not a layer switch - the effect still depth-sorts by its own world position against everything else, so an effect on a near tile keeps drawing over a building on a far one. Buildings and enemies share the `entities` layer and sort by iso depth, which is why this is ONE bool and not a separate one per kind: no sort order can put an effect in front of one and behind the other. Ships true on every row, reproducing the always-on-top behaviour every procedural effect had before (D10).",
+          "description": "VfxAuthoringPLAN VA-2/D5: true draws this effect IN FRONT of a building or enemy sharing its tile, false behind it. It is a same-tile TIE-BREAK, not a layer switch - the effect still depth-sorts by its own world position against everything else, so an effect on a near tile keeps drawing over a building on a far one. Buildings and enemies share the `entities` layer and sort by iso depth, which is why this is ONE bool and not a separate one per kind: no sort order can put an effect in front of one and behind the other. Ships true on every row, reproducing the always-on-top behaviour every procedural effect had before (D10). INERT on the `projectile` row: an in-flight shot is submitted on the HUD pass (game/ui/effects.py submit_projectiles emits HudSprite/HudRect), which has no depth sort and always draws over the world, so there is no same-tile tie-break left to make. It ships true there to match every other row rather than to do anything; honouring it would mean moving every bullet in the game onto the depth-sorted world layer, which is a separate visual decision, not a tunable.",
           "type": "boolean"
         },
         "procedural": {
-          "description": "The procedural VFX kind to run when sprite_slot is empty or has no imported art yet, or \"\" for a silent no-op. spark_place/spark_level/spark_tier all resolve through the same emit_burst call, keyed by the caller's kind argument - the three names exist so each of the three building-vfx events can be independently retuned/disabled without collapsing to one shared string. \"crater\" names the mortar shell's OWN continuous fade mark (game/enemies/combat.py's Crater/CraterFade), which always spawns unconditionally regardless of this table - naming it here is documentation, not a second spawn. \"highlight\" (VA-5) means \"draw this event's own procedural.highlights entry\" - the seven continuous tile highlights all name it, and each is tuned by its OWN block, so unlike the spark_* trio they need no separate kind each.",
+          "description": "The procedural VFX kind to run when sprite_slot is empty or has no imported art yet, or \"\" for a silent no-op. spark_place/spark_level/spark_tier all resolve through the same emit_burst call, keyed by the caller's kind argument - the three names exist so each of the three building-vfx events can be independently retuned/disabled without collapsing to one shared string. \"crater\" names the mortar shell's OWN continuous fade mark (game/enemies/combat.py's Crater/CraterFade), which always spawns unconditionally regardless of this table - naming it here is documentation, not a second spawn. \"highlight\" (VA-5) means \"draw this event's own procedural.highlights entry\" - the seven continuous tile highlights all name it, and each is tuned by its OWN block, so unlike the spark_* trio they need no separate kind each. The `projectile` row ships \"\" because an in-flight shot has no one-shot procedural kind: its fallback is the continuous `procedural.projectile` dot submit_projectiles already draws whenever the shot's slot has no imported art, chosen there rather than named here.",
           "enum": [
             "",
             "spark_place",
@@ -109,7 +109,7 @@
           "type": "string"
         },
         "sprite_slot": {
-          "description": "The vfx_* slot key to play as a one-shot sprite when it has imported art, or \"\" to always use the procedural fallback. A bound slot with no art imported yet also falls through to the procedural fallback (E-37) - this is what keeps a fresh checkout byte-identical to today.",
+          "description": "The vfx_* slot key to play as a one-shot sprite when it has imported art, or \"\" to always use the procedural fallback. A bound slot with no art imported yet also falls through to the procedural fallback (E-37) - this is what keeps a fresh checkout byte-identical to today. Also inert on the `projectile` row: an in-flight shot picks between the two SHARED slots vfx_projectile (every defender's stone) and vfx_shell (every mortar's shell) by which kind of shot it is, and those two are independent by design - one row's single sprite_slot cannot express both. That row contributes variant_select and nothing else.",
           "enum": [
             "",
             "vfx_attack_range",
@@ -1035,7 +1035,7 @@
     },
     "triggers": {
       "additionalProperties": false,
-      "description": "ESV-5: per-event sprite-slot / procedural-fallback binding, a sibling of procedural. Every key names a cosmetic EVENT (never a JSON-key vocabulary the engine sees); game/ui/effects.py's _triggers_from_balance is the ONE place these key names are read. VfxAuthoringPLAN VA-4: a non-base building revived by the payday building_revive slot (game/core/payday.py step 9). Fires once per building that was actually DEAD and came back - not for the full-heal every living building also gets in that slot - at its tile, drained on the INCOME phase edge beside the income/painter/boost floaters. VfxAuthoringPLAN VA-5 added seven CONTINUOUS rows - tile_selected, section_2x2, attack_range, move_target, wall_edge, upgrade_batch, tutorial_highlight. Unlike every row above them these are not one-shots: they are drawn every frame for as long as the tile is highlighted, so they dispatch through game/ui/widgets.py's submit_highlight rather than _play/PlayOnceVfx (whose despawn clock would respawn them each frame).",
+      "description": "ESV-5: per-event sprite-slot / procedural-fallback binding, a sibling of procedural. Every key names a cosmetic EVENT (never a JSON-key vocabulary the engine sees); game/ui/effects.py's _triggers_from_balance is the ONE place these key names are read. VfxAuthoringPLAN VA-4: a non-base building revived by the payday building_revive slot (game/core/payday.py step 9). Fires once per building that was actually DEAD and came back - not for the full-heal every living building also gets in that slot - at its tile, drained on the INCOME phase edge beside the income/painter/boost floaters. VfxAuthoringPLAN VA-5 added seven CONTINUOUS rows - tile_selected, section_2x2, attack_range, move_target, wall_edge, upgrade_batch, tutorial_highlight. Unlike every row above them these are not one-shots: they are drawn every frame for as long as the tile is highlighted, so they dispatch through game/ui/widgets.py's submit_highlight rather than _play/PlayOnceVfx (whose despawn clock would respawn them each frame). feat-projectile-variant-select added one more CONTINUOUS row, `projectile` - the in-flight defender stone / mortar shell. Like the VA-5 highlights above it, it never reaches _play/PlayOnceVfx (submit_projectiles draws it every frame, so a despawn clock is the wrong mechanism), and unlike every other row it contributes ONLY variant_select: sprite_slot, procedural and draw_in_front are all inert there for the reasons their own descriptions give. The chosen variant is resolved on a shot's FIRST drawn frame and cached on the projectile GameObject, so it is stable for the whole flight and costs at most one rng draw per shot rather than one per frame.",
       "properties": {
         "attack_range": {
           "$ref": "#/$defs/trigger_row"
@@ -1068,6 +1068,9 @@
           "$ref": "#/$defs/trigger_row"
         },
         "move_target": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "projectile": {
           "$ref": "#/$defs/trigger_row"
         },
         "projectile_hit": {
@@ -1104,6 +1107,7 @@
         "enemy_attack_ranged",
         "enemy_death",
         "move_target",
+        "projectile",
         "projectile_hit",
         "section_2x2",
         "splash_impact",

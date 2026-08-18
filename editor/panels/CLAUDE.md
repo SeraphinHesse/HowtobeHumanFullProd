@@ -1135,6 +1135,175 @@ default each frame with no cascade.
     the recorder the hierarchy, i.e. giving the exporter a runtime notion of
     parenting, which is exactly what D2/D4 keep out.
 
+## Widget layers in the outliner (UiLayeredWidgetsPLAN UL-6)
+
+A LAYER is extra art/text drawn under or over one widget, stored as an entry in
+that widget's `layers` ARRAY in the open screen doc (schema + pure resolver
+landed in UL-3/UL-4/UL-5: `engine/ui_layers.py`'s `resolve`/`ordered`/
+`validate_offsets`). UL-6 is the authoring half — the outliner shows them and
+`ScreenDetailsPanel`'s Layers section adds/removes/reorders them.
+
+- **`layers` is an ARRAY, so a layer op cannot use a per-layer command path.**
+  `_DocFieldCommand`'s `_set_at` walks DICTS: a path ending in a layer id
+  (`widgets/<id>/layers/<layer_id>`) would silently write an OBJECT where the
+  schema demands an array, and the next `save()` would fail validation. Every
+  op therefore pushes ONE command at `("widgets", <id>, "layers")` carrying the
+  FULL old and FULL new array — the same "never a delta" contract as
+  `push_move`, and still exactly one undo step per op. An emptied array is
+  pushed as `None`, so the "None = absent" pruning removes the key (and
+  `widgets/<id>` when it was the only override) rather than leaving `[]`.
+- **The session owns all five entry points** (`editor/ui_screen_session.py`):
+  `layers(widget_id)` (a deep COPY — reading cannot mutate the doc),
+  `add_layer`, `remove_layer`, `set_layer_field(..., old, new, text=None)` and
+  `reorder_layer(..., new_z)`, which is `set_layer_field` on `z` alone. The
+  panel never touches the array itself, exactly as it never writes a rect.
+- **A layer id is the only handle** remove/reorder/inspect have, and
+  `ordered()` silently DROPS a duplicate non-empty id — so `add_layer` refuses
+  an empty or already-used id rather than creating a layer that draws but
+  cannot be edited. The panel generates `layer_1`, `layer_2`, … (first free
+  index — deterministic and readable, not a uuid), so that guard is a backstop.
+- **A layer node's `UserRole` is a `(widget_id, layer_id)` TUPLE**; widget nodes
+  keep the bare-id-string contract unchanged. `isinstance(role, tuple)` is what
+  tells them apart in `_on_widget_list_selected`, `startDrag` and
+  `_drop_parent`. `self._layer_items[(widget_id, layer_id)] -> item` is the
+  layer twin of `_tree_items`.
+- **Selecting a layer still selects its OWNER widget everywhere else** — the
+  form keeps showing the widget's controls and `widget_selected` still emits
+  the widget id (per-layer inspection is UL-8). Only the Layers buttons and the
+  read-only "Selected layer:" line change. Layers are NOT re-parentable: a drag
+  from a layer node is refused, and a drop ON one targets its owner widget.
+- **Listed in PAINT order** — `ordered(layers, "under")` then
+  `ordered(layers, "over")`, i.e. the game's own order, so the outliner cannot
+  claim a stacking the screen does not have. Up/Down set `z` to the
+  neighbour's z ∓ 1, never the neighbour's z itself: `ordered` sorts STABLY, so
+  an equal z would leave the pair in source order and the button would appear
+  to do nothing.
+
+## Layers in the viewport (UiLayeredWidgetsPLAN UL-7)
+
+UL-6 authors layers in the outliner; UL-7 is the direct-manipulation half —
+`panels/viewport.py` draws every layer where the game will draw it, hit-tests
+it and drags/resizes it, through `panels/_screen_primitives.
+layer_interaction_rect`.
+
+- **Selection has TWO LEVELS, not two selections.** `_selected_widget` is
+  ALWAYS the owner widget; `_selected_layer` is the layer id within it, or
+  `None`. So the caption, the P-3 subtree outline, the details form and the
+  existing `widget_selected` signal keep working untouched while the mouse is
+  actually holding a layer. The new `layer_selected(widget_id, layer_id|None)`
+  signal is emitted ALONGSIDE (never instead of) `widget_selected` — UL-8's
+  per-layer inspector is its intended consumer.
+- **Hit-test order: the selected widget's layers, then every other widget's
+  layers, then the widgets** (`_hit_layer`, falling through to `_hit_widget`).
+  Within a tier the SMALLEST candidate wins — `_hit_widget`'s own rule for its
+  own reason — and an area tie goes to the highest `z`, i.e. the one painted
+  last. Consequence, deliberate: a widget fully covered by its own `over` layer
+  is only selectable from the outliner.
+- **All geometry goes through `engine.ui_layers` (D3).** `resolve` is the only
+  place `owner + dx` happens, and `layer_interaction_rect` therefore takes the
+  RESOLVED rect rather than the raw offset + owner rect. It adds exactly one
+  thing: the zero-extent growth `interaction_rect` already gives a widget
+  anchor (a layer inherits its owner's w/h from a `0`, so it is zero-extent
+  precisely when its owner is an anchor).
+- **Release restores the pre-drag offset BEFORE pushing.** The drag
+  live-mutates `doc[...]["layers"][i]["offset"]` (the layer twin of a widget
+  drag writing `rect`), but UL-6's `set_layer_field` builds its command's OLD
+  value from the array AS IT IS AT PUSH TIME — so without the restore, undo
+  would "restore" the dragged value. A widget drag dodges the same trap by
+  handing `push_move` an explicitly captured `old_rect`.
+- **Handles are exclusive**: a layer selection owns them, and
+  `_hit_resize_handle` refuses the widget's while `_selected_layer` is set —
+  two handle sets on one corner would be a coin flip. A zero-extent layer gets
+  a single anchor-point marker and no handles, like an anchor widget.
+- **`screen_previews.json` is override-free by design**, so a layer can never
+  be in the replay: on the preview path both bands composite ON TOP of it
+  (`under` still before `over`, so their relative order is honest even though
+  neither can get behind a recorded widget). Only the no-preview path can put
+  `under` genuinely behind its widget. Never bake layers into that file.
+
+### UL-8 — the per-layer, per-state inspector
+
+Sits BELOW the Layers buttons, in the same box: a state selector plus one row
+per layer key, on B4's per-field immediate-undoable-push convention
+(`_field_row` + `_make_reset_button`), never `balancing.py`'s staged edits.
+
+- **The state selector decides the SCOPE of every row.** `Idle` writes the
+  layer entry itself (`layers[i][key]`); `Hover`/`Pressed`/`Disabled` write
+  `layers[i].states[<state>][key]` and leave every other state's patch alone.
+  Both go out through the ONE `session.set_layer_field` call — for a state the
+  key written is `states` and the value is the whole rebuilt object, so it is
+  still exactly one undo step per edit.
+- **An emptied state patch is REMOVED, not left as `{}`.** `{}` is PRESENT and
+  therefore means "this state looks like the base"
+  (`engine.ui_layers._state_patch` — presence drives the fallback, not
+  truthiness), which is not what a reset was asked for.
+- **`z` and `band` are not state-patch keys**, so those two rows always write
+  the base entry whatever the selector says.
+- **Ruling 1 — hover/pressed/disabled are greyed on a NON-Button holder**, with
+  `TOOLTIP_STATE_BUTTON_ONLY`, and the rows stay pinned to Idle:
+  `ScreenSkinning.state_of` resolves anything that is not a `Button` to `idle`
+  forever, so per-state values on a label/panel/backdrop holder are schema-valid
+  and permanently unreachable (ED-30).
+- **Ruling 2 does NOT apply to layers.** S2's "a Button's `color`/`tint`/`font`/
+  `label` per-state keys are inert" is about the WIDGET-level `states` patch
+  (`widgets.py Button.submit` wires only `text_color`/`offset`). A LAYER's state
+  patch goes through `engine.ui_layers.resolve`, which merges every appearance
+  key, so nothing is hidden here.
+- **What IS honest-controlled is PRECEDENCE, and it is the whole chain.**
+  `skinning._submit_one_layer` draws ONE primitive and returns: `slot` →
+  `HudSprite` (reads `tint`, nothing else), else `text_id`/`label` → `HudText`
+  (reads `font`/`align`/`text_color`), else `color` → `HudRect`. So, computed
+  from the SELECTED state's effective values in `_refresh_layer_inspector`:
+  Tint is live only with a slot; Text dies behind a slot (and stays editable
+  otherwise — typing in it is how the text branch is created); Text Color is
+  live only with no slot AND some text; Color is live only with no slot AND no
+  text. Each dead row carries its own reason (`TOOLTIP_LAYER_*`). Disabling
+  only the Color-behind-a-slot case was a HIGH review finding on this phase —
+  the other three rows silently accepted values the game never reads.
+- **`TOOLTIP_LAYER_BAND` (D4) is on BOTH band controls** — the add-picker and
+  the per-layer row: `under` is behind the whole SCREEN, not behind the owner
+  widget, and that has to be met in the editor rather than in a bug report.
+- The inspector's state selector is the PANEL's own combo. **UL-10 LINKED it
+  to `viewport.py`'s floating preview-state dropdown** (the cross-panel wiring
+  UL-8 deferred): both directions are connected in `editor/main.py` beside the
+  `widget_selected` cross-connect, and both are loop-guarded — the viewport's
+  `set_screen_state` early-returns on an unchanged name, and the panel's new
+  `sync_layer_state(name)` sets the combo with `blockSignals` before calling
+  `_refresh_layer_inspector()`. A name the panel's combo does not carry is
+  ignored rather than snapping the selector to Idle. `viewport.layer_selected`
+  (UL-7's signal, unconsumed until now) is connected to
+  `screen_details.select_layer` there too — one direction only, since the
+  panel has no matching signal to send back.
+
+### UL-10 — Clickable + Target rows
+
+Two more BASE-ONLY rows at the bottom of the layer inspector (the `Z`/`Band`
+pattern — neither is a state-patch key, and "clickable on hover only" is not
+something the resolver expresses), plus an inline warning label.
+
+- **Clickable** is a checkbox; `False` is the schema default, so only an
+  explicit `True` is stored (`visible`'s idle-scope convention).
+- **Target** is an EDITABLE `_NoWheelComboBox` pre-filled with the open
+  screen's widget ids (`_current_screen_defaults()["widgets"]`, the same
+  source `_refresh_parent_combo` reads) plus the three reserved tokens
+  `close_window`/`back`/`noop`. It is a convenience list, never a closed enum:
+  **D7 as amended lets an id-shaped target naming neither still SAVE.** Free
+  text commits on the line edit's `editingFinished` (the `label_edit` rule) or
+  on `activated`.
+- **`RESERVED_TARGETS` is restated in this module, not imported from
+  `game.ui.skinning`** — `editor/` may never import `game/` (D5). The game
+  module's docstring names this file as its twin.
+- **The warning is required, and it never gates the write.** Every value
+  change recomputes routability (a widget id in THIS screen, or a reserved
+  token) and sets `layer_target_warning` — amber, word-wrapped — saying the
+  click will be SWALLOWED, not passed through. That wording matters: the game
+  side's Ruling 1 makes a dead target stop the click, so "does nothing" is the
+  honest description, not "falls through".
+- Both write through `session.set_layer_field` (S3's path) via
+  `_push_layer_base_field`, so undo/dirty need no special case, and both join
+  `_layer_inspector_controls()`/`_layer_reset_buttons()` so they enable,
+  disable and reset with every other row.
+
 ## Phase UT-2/UT-6 — the real screen preview + the Text-template row
 
 - **`ViewportPanel` REPLAYS a recorded draw list** (`data/ui/screen_previews

@@ -22,7 +22,7 @@ from game.core.lightning import LightningCaster
 from game.core.phases import GamePhase, GameState
 from game.core.xp import scaled_base_income
 
-from .skinning import ScreenSkinning, button_kwargs, is_visible
+from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .widgets import (
     Button, anim_ms, contains, label_holder, submit_bar, submit_centered,
     submit_label, submit_panel, submit_text, text_h, text_size
@@ -43,6 +43,12 @@ _LIGHTNING_COOLING = (120, 120, 140)
 _BOSS_NEXT_TINT_ON = (255, 140, 140, 255)
 _BOSS_NEXT_TINT_OFF = (150, 150, 150, 255)
 # -- /boss-round indicator icon --
+# -- UL-11: the three life counters' death-transition duration. A hardcoded
+# module constant (the _LIGHTNING_READY precedent above), NOT a
+# data/balancing/ui.json key: there is no art to time it against yet, so this
+# is a placeholder to be promoted to a tunable once one exists. --
+_LIFE_TRANSITION_MS = 600
+# -- /UL-11 --
 
 # The phase readout's two-state copy. It used to be a six-way GamePhase ->
 # string-id map (``_PHASE_LABEL_ID``) resolved through the Phase C string
@@ -313,6 +319,34 @@ class Hud:
                                                tint=None, visible=True)
         self._boss_next = False
         # -- /boss-round indicator icon --
+        # -- UL-11 (D10): the three life counters are THREE id'd widgets, not
+        # one repeated draw, so a designer positions and skins each one
+        # individually. Three separate attrs (the _icon_love/_icon_xp/
+        # _icon_lives precedent), not a list. The default skin reuses the
+        # existing lives art so an unauthored screen still shows something
+        # recognisable; per-state art arrives as a `layers` override.
+        # Each carries its own `_state` callable, which is the SAME seam
+        # ScreenSkinning.state_of/submit_layers already dispatch through for
+        # Buttons -- zero changes needed in skinning.py. --
+        self._life_1 = SimpleNamespace(rect=(0, 0, 0, 0),
+                                       skin="ui_icon_lives", visible=True)
+        self._life_2 = SimpleNamespace(rect=(0, 0, 0, 0),
+                                       skin="ui_icon_lives", visible=True)
+        self._life_3 = SimpleNamespace(rect=(0, 0, 0, 0),
+                                       skin="ui_icon_lives", visible=True)
+        # base_lives DELTA tracking, not the life_lost_events ledger: main.py
+        # runs the floaters' effects step (which DRAINS state.life_lost_events)
+        # BEFORE Hud.update() every frame, so the ledger is already empty on
+        # the exact frame the loss happened. base_lives detects the same event
+        # (same guarded `if` block in Session.on_base_hit) without the race,
+        # and adds no second ledger -- Effects keeps its sole consumer.
+        self._prev_base_lives = None
+        self._life_transition_idx = None   # 1-based; which life is mid-death
+        self._life_transition_age = 0.0
+        self._life_1._state = lambda: self._life_state_token(1)
+        self._life_2._state = lambda: self._life_state_token(2)
+        self._life_3._state = lambda: self._life_state_token(3)
+        # -- /UL-11 --
         self.ids = {}
         # -- /10L-B --
         self.layout(view_w, view_h)  # lay out now so hit() works before submit()
@@ -393,6 +427,16 @@ class Hud:
         self._icon_lives.rect = (pill[0] + 2, row0 + step, _ICON_SIZE, _ICON_SIZE)
         lives_x = self._icon_lives.rect[0] + _ICON_SIZE + _ICON_GAP
         self._lives_text.rect = (lives_x, row0 + step, 0, 0)
+        # -- UL-11: the three life counters sit in a row to the RIGHT of the
+        # lives icon + numeric readout, on the same row and the same
+        # _ICON_SIZE/_ICON_GAP grid. This becomes the new baked default in
+        # screen_defaults.json; a designer moves them wherever they like. --
+        life_x = lives_x + _ICON_SIZE + _ICON_GAP
+        life_step = _ICON_SIZE + _ICON_GAP
+        for i, holder in enumerate((self._life_1, self._life_2, self._life_3)):
+            holder.rect = (life_x + i * life_step, row0 + step,
+                           _ICON_SIZE, _ICON_SIZE)
+        # -- /UL-11 --
         self._tiles_text.rect = (pill[0] + 2, row0 + 2 * step, 0, 0)
         # The readout pill wraps the three rows above (income / lives / tiles)
         # off their DEFAULT anchors — the "no cascade" convention: a rect
@@ -429,12 +473,48 @@ class Hud:
             "icon_love": ("panel", self._icon_love),
             "icon_xp": ("panel", self._icon_xp),
             "icon_lives": ("panel", self._icon_lives),
+            # -- UL-11 (D10): three id'd life counters. lives_text/icon_lives
+            # above STAY -- these are added beside them, never in place of
+            # them (removing an id breaks the on-disk contract). --
+            "life_1": ("panel", self._life_1),
+            "life_2": ("panel", self._life_2),
+            "life_3": ("panel", self._life_3),
         })
         self.skinning.apply(self.screen_id, self.ids)
+
+    # -- UL-11 ------------------------------------------------------------
+    def _life_state_token(self, idx):
+        """One life counter's per-state key, on the pinned four-token
+        vocabulary (the schema is untouched by this phase):
+        alive -> ``idle`` (loops), dying -> ``pressed`` (plays once),
+        dead -> ``disabled`` (static). ``hover`` is never produced -- a
+        designer may author it, but nothing selects it."""
+        if idx == self._life_transition_idx:
+            return "pressed"
+        lives = self._prev_base_lives
+        if lives is None:
+            return "idle"   # before the first update(): nothing observed yet
+        return "idle" if idx <= lives else "disabled"
+
+    def _update_life_states(self, dt, base_lives):
+        """Drive the life counters off base_lives DELTAS (see __init__ on why
+        not life_lost_events). The first call only seeds: a run that STARTS
+        below full lives shows dead-and-static lives, never a transition."""
+        if self._life_transition_idx is not None:
+            self._life_transition_age += dt
+            if self._life_transition_age >= _LIFE_TRANSITION_MS / 1000.0:
+                self._life_transition_idx = None
+                self._life_transition_age = 0.0
+        if self._prev_base_lives is not None and base_lives < self._prev_base_lives:
+            self._life_transition_idx = base_lives + 1  # the life that died
+            self._life_transition_age = 0.0
+        self._prev_base_lives = base_lives
+    # -- /UL-11 -----------------------------------------------------------
 
     def update(self, dt, mx, my, session, panel, mouse_down=False):
         self._mx, self._my = mx, my  # 10H: the cursor cooldown-bar anchor
         st = session.state
+        self._update_life_states(dt, st.base_lives)  # UL-11
         self._clock += dt
         # unlock / construct / upgrade / base_info, plus the construct preview
         # modal — any of them owns the right column.
@@ -491,9 +571,30 @@ class Hud:
         self.drag_select_btn.update(dt)
         # -- /drag-select --
 
+    #: UL-10 retarget table: widget id -> the action THIS screen's own hit()
+    #: returns for it. One source of truth with the branches below — a
+    #: clickable layer targeting `btn_end_turn` fires exactly "end_turn".
+    _LAYER_ACTIONS = {
+        "btn_pause": "pause",
+        "btn_end_turn": "end_turn",
+        "btn_speed_1x": ("speed", 0),
+        "btn_speed_1_5x": ("speed", 1),
+        "btn_speed_2x": ("speed", 2),
+        "btn_drag_select": "drag_select",
+    }
+
     def hit(self, mx, my):
         if self._panel_open:
             return None
+        # -- UL-10: a clickable LAYER wins over the widget under it. Still a
+        # PURE READ (see the drag-select note below) — hit_layer never
+        # mutates, so main.py's two calls per click stay identical. --
+        layer_action = hit_layer(
+            self.ids, self.skinning.widgets_spec(self.screen_id), mx, my,
+            self.skinning.state_of, self._LAYER_ACTIONS)
+        if layer_action is not None:
+            return layer_action
+        # -- /UL-10 --
         if is_visible(self.pause) and self.pause.hit(mx, my):
             return "pause"
         # -- 10L: speed buttons — hidden in build mode, see update() --
@@ -525,6 +626,8 @@ class Hud:
         self.layout(view_w, view_h)
         self._layout_readouts()  # 10L-B: second apply() pass (pill-relative)
         self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "under", self.skinning.state_of)
         t = anim_ms(self._clock)  # 10L-A skin anim clock, shared by every skin draw
 
         # -- love pill (top-left) -----------------------------------------
@@ -591,6 +694,15 @@ class Hud:
                         skin=self._icon_lives.skin,
                         tint=getattr(self._icon_lives, "tint", None), anim_ms=t)
         submit_label(renderer, self._lives_text, count=st.base_lives)
+        # -- UL-11: the three counters' default (unauthored) draw -- the same
+        # skinned submit_panel path icon_lives uses, one call per holder. The
+        # per-state layer stack that replaces this is authored as an override
+        # and rides Hud.submit()'s existing submit_layers calls, which already
+        # cover every id in self.ids. --
+        for _life in (self._life_1, self._life_2, self._life_3):
+            if is_visible(_life):
+                submit_panel(renderer, _life.rect, skin=_life.skin,
+                             tint=getattr(_life, "tint", None), anim_ms=t)
         built, unlocked = _tile_counts(session.tilemap)
         submit_label(renderer, self._tiles_text, built=built,
                      unlocked=unlocked)
@@ -737,6 +849,9 @@ class Hud:
         current_w, _h = text_size(current_text, holder.font_key)
         submit_text(renderer, price_text, (x + current_w, y), holder.font_key,
                    widgets.C_RED)
+
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "over", self.skinning.state_of)
 
     def _submit_income_tooltip(self, renderer, sources, anchor):
         """The 10J per-source breakdown below the income line (prototype

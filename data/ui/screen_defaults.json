@@ -416,7 +416,7 @@
         "mock_note": "love=123, round=7; the lowest-(row,col) BUILDABLE tile of the 'first_light' map, with EVERY building type unlocked so each construct card (`card_<building_type>`) is recorded — the count is dynamic in game, the ids are not",
         "widgets": {
           "card_aoe_defence": {
-            "display_name": "Maw Mortar card",
+            "display_name": "Mortar card",
             "font_key": "sm",
             "kind": "button",
             "label": "",
@@ -429,10 +429,10 @@
             ]
           },
           "card_aoe_defence_name": {
-            "display_name": "Maw Mortar card name",
+            "display_name": "Mortar card name",
             "font_key": "sm",
             "kind": "label",
-            "label": "Maw Mortar",
+            "label": "Mortar",
             "parent": "card_aoe_defence",
             "rect": [
               557,
@@ -442,7 +442,7 @@
             ]
           },
           "card_aoe_defence_name2": {
-            "display_name": "Maw Mortar card name2",
+            "display_name": "Mortar card name2",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -455,7 +455,7 @@
             ]
           },
           "card_aoe_defence_portrait": {
-            "display_name": "Maw Mortar card portrait",
+            "display_name": "Mortar card portrait",
             "kind": "panel",
             "label": "",
             "parent": "card_aoe_defence",
@@ -467,7 +467,7 @@
             ]
           },
           "card_aoe_defence_price": {
-            "display_name": "Maw Mortar card price",
+            "display_name": "Mortar card price",
             "font_key": "sm",
             "kind": "button",
             "label": "",
@@ -480,7 +480,7 @@
             ]
           },
           "card_aoe_defence_price_icon": {
-            "display_name": "Maw Mortar card price icon",
+            "display_name": "Mortar card price icon",
             "kind": "panel",
             "label": "",
             "parent": "card_aoe_defence_price",
@@ -492,7 +492,7 @@
             ]
           },
           "card_aoe_defence_price_text": {
-            "display_name": "Maw Mortar card price text",
+            "display_name": "Mortar card price text",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -2502,7 +2502,7 @@
         ]
       },
       "card_aoe_defence": {
-        "display_name": "Maw Mortar card",
+        "display_name": "Mortar card",
         "font_key": "sm",
         "kind": "button",
         "label": "",
@@ -2515,10 +2515,10 @@
         ]
       },
       "card_aoe_defence_name": {
-        "display_name": "Maw Mortar card name",
+        "display_name": "Mortar card name",
         "font_key": "sm",
         "kind": "label",
-        "label": "Maw Mortar",
+        "label": "Mortar",
         "parent": "card_aoe_defence",
         "rect": [
           557,
@@ -2528,7 +2528,7 @@
         ]
       },
       "card_aoe_defence_name2": {
-        "display_name": "Maw Mortar card name2",
+        "display_name": "Mortar card name2",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -2541,7 +2541,7 @@
         ]
       },
       "card_aoe_defence_portrait": {
-        "display_name": "Maw Mortar card portrait",
+        "display_name": "Mortar card portrait",
         "kind": "panel",
         "label": "",
         "parent": "card_aoe_defence",
@@ -2553,7 +2553,7 @@
         ]
       },
       "card_aoe_defence_price": {
-        "display_name": "Maw Mortar card price",
+        "display_name": "Mortar card price",
         "font_key": "sm",
         "kind": "button",
         "label": "",
@@ -2566,7 +2566,7 @@
         ]
       },
       "card_aoe_defence_price_icon": {
-        "display_name": "Maw Mortar card price icon",
+        "display_name": "Mortar card price icon",
         "kind": "panel",
         "label": "",
         "parent": "card_aoe_defence_price",
@@ -2578,7 +2578,7 @@
         ]
       },
       "card_aoe_defence_price_text": {
-        "display_name": "Maw Mortar card price text",
+        "display_name": "Mortar card price text",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -5068,6 +5068,42 @@
           0
         ],
         "text_id": "hud.income_net"
+      },
+      "life_1": {
+        "display_name": "Life 1",
+        "kind": "panel",
+        "label": "",
+        "parent": "readout_panel",
+        "rect": [
+          30,
+          41,
+          9,
+          9
+        ]
+      },
+      "life_2": {
+        "display_name": "Life 2",
+        "kind": "panel",
+        "label": "",
+        "parent": "readout_panel",
+        "rect": [
+          41,
+          41,
+          9,
+          9
+        ]
+      },
+      "life_3": {
+        "display_name": "Life 3",
+        "kind": "panel",
+        "label": "",
+        "parent": "readout_panel",
+        "rect": [
+          52,
+          41,
+          9,
+          9
+        ]
       },
       "lives_text": {
         "display_name": "Lives counter",
