@@ -29,9 +29,11 @@ validating writer; don't hand-edit the JSON.
   frame sizes, animation vocabularies, editor grouping) (D-32, E-34; see
   the Phase 5 section for why it is NOT under `schemas/`).
 - `balancing/` — one file per domain (`buildings.json`, `enemies.json`,
-  `map.json`, `ui.json`, `core.json`, `vfx.json`) (D-10).
-- `balancing_history/` — one file per domain (`buildings.json`, …, matching
-  `balancing/`'s stems), each a flat newest-first JSON array of full-document
+  `map.json`, `ui.json`, `core.json`, `vfx.json`, `progression.json`,
+  `boss_upgrades.json`) (D-10).
+- `balancing_history/` — one file per **generic-panel** domain
+  (`buildings.json`, `core.json`, `enemies.json`, `map.json`, `vfx.json` —
+  stems from `balancing/`), each a flat newest-first JSON array of full-document
   snapshots appended only by the editor's explicit "Save Balancing Changes"
   action (`editor/balancing_history.py`, `editor/panels/balancing.py`). The
   **second schema-pairing exception** (see the three-exception rule below):
@@ -54,9 +56,59 @@ validating writer; don't hand-edit the JSON.
   PNGs (committed — they are content, not build artifacts).
 
 ## Balancing files (Phase 4 D-10/11/12, restructured Phase 9A)
-- Seven domains exist: `balancing/{buildings,enemies,map,ui,core,vfx,
-  progression}.json`, each with `schemas/<domain>.schema.json`.
-  **`progression` is the newest (TimelinePLAN T2)**: the Timeline editor
+- Eight domains exist: `balancing/{buildings,enemies,map,ui,core,vfx,
+  progression,boss_upgrades}.json`, each with `schemas/<domain>.schema.json`.
+  **`boss_upgrades` is the newest (BossUpgradeTimelinePLAN BU-1)**: the
+  boss-fight upgrade the player picks from 3 cards after every bossfight, and
+  the love a LOST bossfight pays back. One top-level `BossUpgrades` group with
+  exactly two children.
+  - **`Catalog` is a CLOSED set of 12 fixed named keys**
+    (`additionalProperties: false` + all twelve `required`) — `restock_lives`,
+    `wall_cost_discount`, `mortar_slow`, `move_time_cap`,
+    `musician_auto_level`, `tile_discount`, `stormpriest_slow`, `thorns`,
+    `stone_thrower_sync`, `boost_double_trigger`, `condition_dmg_bonus`,
+    `tile_refund`. Each is `{name, description, params}` and **only those three
+    fields are designer-editable; the ROSTER is not** — every upgrade needs its
+    own bespoke hook code in `game/`, so a new id is a schema change, never a
+    content one (the same argument that keeps `enemies.json`'s type blocks
+    named rather than an open array). `name`/`description` are the cutscene
+    card's copy (TEXT ONLY — boss upgrade cards carry no art, D9); the
+    description is `.format()`ed live against that entry's own `params`, so a
+    `{param_name}` placeholder always advertises the magnitude the math
+    actually uses. `params` is itself closed per upgrade, and the three
+    one-time upgrades (`restock_lives`/`stone_thrower_sync`/`tile_refund`)
+    carry a REQUIRED but empty `params: {}` so every entry has the identical
+    shape.
+  - **`Timeline.milestones` is a FIXED-LENGTH-4 array** (`minItems`/`maxItems`
+    both 4 — the 4-cycle is a design decision, D1, not a designer dial), each
+    row `{slots, retaliation_bonus_love}`. `slots` is exactly 3 entries
+    (always 3 offered, never randomized — D2), each a `$defs/upgrade_ref`:
+    one of the 12 Catalog keys, or `null` for an empty, still-persisted slot.
+    Milestone `(boss_num - 1) % 4` is what a bossfight shows, so boss 5
+    re-offers milestone 1's identical three cards forever.
+    `retaliation_bonus_love` is the **sole source of truth** for the
+    consolation love a LOST bossfight pays (D7) — see the retired
+    `enemies.json` `loss_love_reward` note below; a win pays nothing.
+  - **D3 uniqueness — an upgrade id may sit in at most ONE slot across the
+    whole timeline — is an authoring-time constraint JSON Schema cannot
+    express.** It lives in `editor/boss_upgrades_ops.py::validate_uniqueness`,
+    which **WARNS rather than blocks** (unlike `timeline_ops`' raising twin):
+    a designer mid-way through dragging a card from one milestone to another
+    is legitimately double-placed for a moment. Nothing at runtime cares — a
+    duplicated id is simply offered twice.
+  - Registered in `game/core/balance.py::DOMAINS` for runtime loading
+    (`game/main.py` and `tools/simrun.py` both load it and thread it onto
+    `Session.boss_upgrades_balance`). Like `progression` it is deliberately
+    **not** a `data/slots.json` category, so it does not auto-render as a
+    generic recursive form in the editor's balancing panel — it gets its own
+    bespoke drag-and-drop panel under a new TOP-LEVEL "Bosses" selector branch
+    (`editor/panels/boss_upgrades.py`, BU-5; that panel is also the only place
+    the Catalog's copy/params are editable at all).
+  - Seeded content: all 12 upgrades at the plan's §2 default magnitudes, the
+    four milestones assigning all 12 ids three-at-a-time with no repeats, and
+    placeholder retaliation values 30/60/100/150. Those four numbers are a
+    starting schedule for the user to tune in the panel, not a derived value.
+  **`progression` was the previous newest (TimelinePLAN T2)**: the Timeline editor
   feature's authored building-unlock schedule — `Timeline.levels[]`, one
   sparse entry per player `village_level` that has offer slots authored,
   each slot an `assignment` object (`kind: "unlock"|"tier"`, `building_type`,
@@ -147,10 +199,41 @@ validating writer; don't hand-edit the JSON.
   and two new `vfx` category slots in `slots.json`'s `Effects` group,
   `vfx_projectile`/`vfx_shell` (shared across every defender/every mortar
   respectively, never per-building art), both bare strings inheriting the
-  category's 64×64/`["idle"]` shape like every other `vfx_*` slot. It is
-  NOT a `triggers` row — a projectile is a continuous in-flight object, like
-  a beam or a lightning bolt, not a one-shot sprite. The same follow-up fixed
-  a Fix-1 anchor/offset composition bug (`engine/assets/store.py`'s new
+  category's 64×64/`["idle"]` shape like every other `vfx_*` slot. It shipped
+  with NO `triggers` row — a projectile is a continuous in-flight object, like
+  a beam or a lightning bolt, not a one-shot sprite — which meant a designer
+  could author a `vfx_projectile_v2` variant and nothing would ever draw it.
+  **feat-projectile-variant-select** added the row, `triggers.projectile`,
+  on the VA-5 tile-highlight precedent (continuous effects that take a
+  `triggers` row anyway and bypass `_play`/`PlayOnceVfx`). It ships
+  `{sprite_slot: "", procedural: "projectile", draw_in_front: true,
+  variant_select: {mode: …, misc_key: ""}}` and contributes **only
+  `variant_select`**:
+  the slot still comes from the shot's own kind (`vfx_projectile` vs
+  `vfx_shell`, independent by design), and `draw_in_front` cannot bite because
+  `submit_projectiles` emits on the HUD pass, which has no depth sort. Both
+  inert keys say so in `$defs/trigger_row`'s own descriptions rather than
+  sitting in the editor looking live. **`procedural` ships `"projectile"`,
+  a new enum value that is DOCUMENTATION exactly as `"crater"` is**: it names
+  the continuous `procedural.projectile` dot `submit_projectiles` draws
+  unconditionally for an art-less shot, and is absent from
+  `_run_procedural`'s ladder so naming it cannot double-draw. It ships that
+  way because `""` left the editor showing an empty row beside a visibly-live
+  `projectile` procedural family, which reads as "this control is broken"
+  (found live). A `triggers` property (not a new
+  key under `procedural.projectile`) because the VFX panel's Binding strip is
+  generated from the schema — `editor/panels/vfx_preview.py::_trigger_events`
+  — so the row buys the whole Event/Pick-mode/misc-key UI with zero editor
+  code. The resolved variant is cached on the projectile GameObject at first
+  draw, so `"random"` costs one rng draw per shot and is stable for the
+  flight; `"level"` indexes by the firing building's GLOBAL level through the
+  components' existing `_shooter`. **`variant_select.mode: "level"` read the
+  building's TIER until this feature** — so levelling a building three times
+  inside one tier changed nothing and the mode read as dead. It now reads
+  `Building.level` (`game/vfx_variants.py::source_level`), the same number
+  the level-up UI shows, so variant N is level N; this applies to EVERY
+  trigger row's level mode, not just the projectile's. The fix-anchor-offset-and-bullet-sprites
+  follow-up also fixed a Fix-1 anchor/offset composition bug (`engine/assets/store.py`'s new
   `offset()` accessor, `game/anchors.py`, `editor/panels/viewport.py`) that
   touches no schema. **The Drummer buff-range telegraph feature** added a
   sibling `procedural.drummer_aura` block (`color`/`alpha_min`/`alpha_max`/
@@ -226,6 +309,20 @@ validating writer; don't hand-edit the JSON.
   `ui:FX/bg_art/enabled`, `ui:FX/income_floaters_enabled`,
   `ui:FX/boss_announce/enabled`, `core:TheHole/building_revive`,
   `core:XP/xp_from_buildings`).
+- **`core.json`'s `BossBonuses` group is DELETED (BossUpgradeTimelinePLAN
+  BU-4/D6), schema and content** — the nine magnitudes behind the six hidden
+  boss A/B story bonuses (`dmg_per_building`, `dmg_per_unbuilt_tile`,
+  `love_chunk_size`, …). Their only reader, `game/core/boss_bonuses.py`, is
+  gone; the visible 3-card picker fed by `balancing/boss_upgrades.json`
+  replaces the whole mechanism. Do not reintroduce the group — a boss
+  upgrade's numbers belong in its own catalog entry there, not in a parallel
+  `core` table. **`balancing_history/core.json` still contains `BossBonuses`
+  inside its `snapshot` objects and MUST keep it**: a snapshot is a verbatim
+  record of what the file was at save time, its schema deliberately types it
+  as an unconstrained object (so a retired key can never make the audit log
+  fail validation), and rewriting it would be falsifying the log. The same
+  holds for `balancing_history/enemies.json` and the retired
+  `loss_love_reward` below.
 - **`buildings.json`'s `BuildingsGlobal.Movement` group (Building Movement)**
   — the 9 tunables for moving an already-placed building: `money_cost_enabled`
   / `time_cost_enabled` (the two off-switches; off ⇒ that axis is a flat 0),
@@ -348,6 +445,14 @@ validating writer; don't hand-edit the JSON.
     `round_counts[]` (BossReworkPLAN's territory) — and since **BR-1** its
     `footprint`, `sprite_scale` and `shake` are DELETED from the type root and
     live inside each `stats[]` row, so every boss variable is per-era.
+    **`loss_love_reward` joined the deleted list in BossUpgradeTimelinePLAN
+    BU-4/D7** — both homes (`$defs/boss_stat`, i.e. all five `Boss.stats[]`
+    rows, AND `$defs/boss_endgame_scaling`'s matching factor) are gone from
+    schema and content. The consolation love a LOST boss round pays now comes
+    SOLELY from `balancing/boss_upgrades.json`'s per-milestone
+    `retaliation_bonus_love`; re-adding a per-era key here would create a
+    second, silently-unread source of truth. (`endgame_boss_scaling` is 13
+    factors again as a result — the count the BR-4 bullet below states.)
   - **Kept FLAT at the type root, deliberately** (D10, exhaustive):
     `start_round`, `death_spawn`, `registry_group`, `kidnapping`, `hunts`,
     `condition_path_weights`, `mix_ratio`, `queue_lead_count`. Only numbers
@@ -377,6 +482,14 @@ validating writer; don't hand-edit the JSON.
     leaf multiplied by `factor ** N`. **All ship 1.0**, so they are
     behaviour-neutral until a designer tunes them; that is the intended knob for
     "what happens after round 50", replacing the old freeze-forever cliff.
+    **`0.0` is NOT a valid "stop growing" value here — it zeroes the stat
+    outright the instant `N ≥ 1`, not a clamp.** A 2026-08-10 edit shipped
+    `move_speed: 0.0` on most enemy types, which froze every enemy on its
+    spawn tile from round 51 onward (`game/enemies/CLAUDE.md`'s D5 section
+    has the full incident writeup). Every `*_endgame_scaling` factor's schema
+    field (`boss_endgame_scaling`/`pacing_endgame_scaling`/
+    `type_endgame_scaling`) now declares `exclusiveMinimum: 0` instead of
+    `minimum: 0` specifically so `0.0` can never be saved here again.
     - **`Boss.endgame_boss_scaling` (BR-4) is the Boss's own version** — one
       block for all THREE of its per-era arrays (`stats[]`, `round_counts[]`,
       `second_phase.spawns[]`), 13 factors, all 1.0. Its KEY NAMES are the LEAF
@@ -505,14 +618,16 @@ validating writer; don't hand-edit the JSON.
   either a bare key string (inherits the category's `frame_w`/`frame_h`) or
   `{key, frame_w, frame_h}` overriding it for that ONE slot. Bare is the norm; the
   object form exists for art whose sheet is cut at a different size than its
-  category — `ui_bg_main_menu` (480×270, a whole-sheet background in the 64×64
-  `ui` category) is the one committed user, and without the override the importer
-  would grid-slice that one frame into a 7×4 grid. It describes **slicing, not
+  category — `ui_bg_main_menu` (640×360, a whole-sheet background in the 64×64
+  `ui` category) is the headline user, and without the override the importer
+  would grid-slice that one frame into a grid of 64×64 cells. (`main_menu_bg`
+  overrides too, to the same 640×360, against its own category's 480×270
+  default — the two describe the same painting and move together.) It describes **slicing, not
   drawing** — on-screen size comes from the render fit
   (`engine/render/CLAUDE.md`).
   - **The override DOES propagate to "+ Variant"** (A7): `registry_ops.add_variant`
     now inherits the family stem's frame-size override on creation, so
-    `ui_bg_main_menu_v2` inherits the `ui_bg_main_menu` 480×270 override.
+    `ui_bg_main_menu_v2` inherits the `ui_bg_main_menu` 640×360 override.
     Bare stems stay bare (regression pin for enemies/deco); independently
     resizable afterwards via the Frame W/H spinboxes.
   - **`uniqueItems` no longer implies key uniqueness**: it compares whole values,
@@ -584,8 +699,9 @@ validating writer; don't hand-edit the JSON.
   type. Deco types are added as whole leaf subgroups (`Prop <n>` holding
   `deco_prop_<n>`), never appended to a flat list.
 - **Frame sizes (SPEC §9.1 resolved)**: buildings / enemies / deco / core
-  64×96; map tiles 64×32; ui / vfx 64×64 (except `ui_bg_main_menu`, 480×270 by
-  per-slot override); backgrounds 480×270 (10K full-frame menu art, drawn as a
+  64×96; map tiles 64×32; ui / vfx 64×64 (except `ui_bg_main_menu`, 640×360 by
+  per-slot override); backgrounds 480×270 by default, with its one slot
+  `main_menu_bg` overridden to 640×360 (10K full-frame menu art, drawn as a
   screen-space `HudSprite` — not a world sprite). All data — edit `slots.json`.
 - **`ui` → "Card Portraits" (construct-card-widget-tree)**: twelve leaf
   children, one per building type, each holding a single
@@ -799,8 +915,84 @@ validating writer; don't hand-edit the JSON.
   `defaults` values are never id-validated, so neither needed editor code.
   Behaviour → `game/ui/CLAUDE.md`'s construct-card section.
   Finally,
-  `widgets: {<id>: {rect?, skin?, font?, color?, text_color?, label?,
-  visible?}}` overrides any named widget's properties.
+  `widgets: {<id>: {...}}` overrides any named widget's properties. The FULL
+  current per-widget key list (`additionalProperties: false`, every key
+  optional, read off `schemas/ui_screen.schema.json`): `align`, `color`,
+  `font`, `label`, `layers`, `parent`, `rect`, `skin`, `states`, `text_color`,
+  `text_id`, `tint`, `visible`.
+- **`custom_widgets` (UL-13) — a FOURTH top-level key**, beside `background`,
+  `defaults` and `widgets`: `{<id>: {...}}`, ids on the same
+  `^[a-z][a-z0-9_]*$` pattern, `additionalProperties: false`. These are
+  DESIGNER-AUTHORED widgets no code owns — a hand-written twin of one
+  `screen_defaults.json` record, for decoration the game has no widget object
+  for.
+  - Keys: `kind` (REQUIRED, the closed enum `panel | label | backdrop` — a
+    SUBSET of the six-value widget kind enum, since only these three have a
+    meaningful code-free draw), `rect` (REQUIRED, `[x, y, w, h]`, 4 ints),
+    `band` (`under | over`, absent = `over`), `z` (int, absent = 0, ordering
+    among custom widgets of the same band only), `display_name` (non-empty
+    string, editor-outliner label the game never reads).
+  - **The entry is DEFAULT GEOMETRY ONLY.** Everything paintable — `skin`,
+    `color`, `label`, `text_id`, `font`, `text_color`, `tint`, `align`,
+    `visible`, `parent`, `layers`, `states` — is an ORDINARY entry under
+    `widgets/<the same id>`, exactly as for a code-owned widget, INCLUDING
+    `rect` (an override rect wins over the creation rect). There is no second
+    styling vocabulary here, and `parent` on a custom widget is authoring-only
+    metadata, so it belongs on the override, not in this table.
+  - Custom widgets are never click targets, and `screen_defaults.json` never
+    lists them (nothing exports them — they exist only in this file). The
+    game's `_validate_ids` folds `custom_widgets` ids into the known set so a
+    `widgets/<custom id>` override validates; behaviour →
+    `game/ui/CLAUDE.md`'s customization section.
+- **`layers` (UL-3/UL-4/UL-5/UL-9) — an ARRAY of layer entries on a widget
+  override**, and it lives ONLY here (never in `screen_defaults.json`, never in
+  `screen_previews.json`). Each entry is a dict, every key optional,
+  `additionalProperties: false`: `align`, `band`, `clickable`, `color`, `font`,
+  `id`, `label`, `offset`, `slot`, `states`, `target`, `text_color`, `text_id`,
+  `tint`, `visible`, `z`.
+  - `offset` is an OFFSET from the owner's POST-override rect, `[dx, dy, w, h]`
+    (4 ints, D2); a `0` for `w`/`h` means "match the owner's". A malformed
+    offset resolves to `[0,0,0,0]` rather than raising.
+  - `band` is the closed enum `under | over` (D4) — `under` draws behind
+    EVERYTHING on the screen, not just behind the owner (the HUD pass has no
+    depth sort); `z` orders within a band.
+  - `states` is the per-state patch object (UL-5, D9), keys `idle | hover |
+    pressed | disabled`, each a partial patch of `align`, `color`, `font`,
+    `label`, `offset`, `slot`, `text_color`, `text_id`, `tint`, `visible`.
+    A patch's `offset` REPLACES the base offset (a 2-element `[dx, dy]` form
+    moves without resizing). PRESENCE drives the fallback, not truthiness: an
+    explicit `{}` counts as "this state looks like the base".
+  - `clickable` (bool, absent = false) makes the layer a click target; a
+    non-clickable layer is TRANSPARENT to a click rather than blocking it. It
+    is static per layer, never per state — the four states govern appearance
+    only, so `clickable`/`target` are not `states` sub-keys.
+  - `target` (string, `^[a-z][a-z0-9_]*$`) is what a click MEANS (UL-9, D7 as
+    amended): a widget id in the SAME screen (fires that widget's own action),
+    or one of the reserved tokens `close_window` / `back` / `noop`.
+    **Deliberately NOT a closed enum** — an id-shaped string matching neither
+    still validates and SAVES; the editor WARNS about an unroutable target
+    instead of failing validation, and at runtime such a click is SWALLOWED,
+    not passed through (`game/ui/CLAUDE.md`).
+- **`states` on the WIDGET itself (UL-5, D9) is a SMALLER key set than a
+  layer's** — `color`, `font`, `label`, `offset`, `text_color`, `tint`, and
+  nothing else. A layer's state patch also takes `align`, `slot`, `text_id`
+  and `visible`; the widget's does not, because the owner's art/text binding
+  is resolved by its screen's own `submit()` before any patch is applied.
+  Same four state keys, same presence-not-truthiness fallback. Do not read the
+  layer list above and assume the widget accepts the same keys —
+  `additionalProperties: false` rejects the extras.
+  - Reachability, not validity, is the catch: `ScreenSkinning.state_of`
+    resolves anything that is not a `Button` to `idle` forever, so
+    `hover`/`pressed`/`disabled` on a label/panel/backdrop holder validate and
+    are permanently dead. The editor greys those rows rather than letting a
+    designer author them (`editor/panels/CLAUDE.md`, UL-8 Ruling 1).
+- **`align` (UL-1/S1) is a REAL override key now, not just a draw hint.**
+  `left | center | right`, absent = `left`. It rode into `screen_defaults.json`
+  as an editor measuring hint first (see that file's entry below); since UL-1
+  it is also a per-widget override the GAME honours at draw time, through
+  `widgets.submit_label`'s `getattr(holder, "align", "left")`. The two are
+  separate values with the same name: the default is what the CODE lays out,
+  the override is what the designer chose.
 - **`data/ui/screen_defaults.json`**: generated-but-committed file, written by
   `tools/export_ui_layouts.py` (B3) and validated by a test that re-runs the
   exporter (B3). FLAT shape, keyed directly by screen id at the root:
@@ -913,16 +1105,26 @@ validating writer; don't hand-edit the JSON.
 - **`data/ui/fonts.json`** ↔ `schemas/fonts.schema.json` (normal stem
   pairing, no directory exception): exactly the 7 keys
   `engine/render/fonts.py`'s `_FONT_SPECS` ships (`sm/md/lg/xl/xxl/hud_phase/
-  hud_lvl`), each `{"size": int 4-72, "bold": bool}`, all required
-  (`additionalProperties: false` — a designer cannot invent a new preset key
-  through this schema; adding one is a schema change). The game loads +
+  hud_lvl`), each `{"size": int 4-72, "bold": bool}`, all required — the game
+  names them by key, so none may be renamed or removed. **The set is OPEN at
+  the top since UL-2 (D6)**: `additionalProperties: false` was replaced by
+  `patternProperties: {"^[a-z][a-z0-9_]*$": font_spec}`, so a designer may add
+  any number of EXTRA presets with the same `{size, bold}` shape (the editor's
+  Theme panel is the only writer), while a key that does not match that
+  pattern is still rejected outright. A custom preset's `_LAYOUT_H` entry is
+  derived ONCE inside `configure_fonts` and stored — never measured live at a
+  call site, because `SysFont` measures ±1px differently per platform and
+  stored layout must not drift (the pinned-height invariant,
+  `engine/render/CLAUDE.md`). The game loads +
   validates it at boot (`game/main.py`, before the `Shell`/screens are
   built) and calls `engine.render.fonts.configure_fonts(doc)`; a missing/
   invalid file fails LOUD (D-2 — this is data, not art; E-37 does not
   apply). The editor's Theme panel (`editor/panels/game_theme.py`) is the
   only writer, through `write_validated`, staged like `balancing.py`.
-  `configure_fonts` never moves `layout_h`/`_LAYOUT_H` (`engine/render/
-  CLAUDE.md`) — font size is drawn-glyph-only, not stored layout.
+  `configure_fonts` never moves the 7 PINNED `layout_h`/`_LAYOUT_H` entries
+  (`engine/render/CLAUDE.md`) — for them, font size is drawn-glyph-only, not
+  stored layout. It only ever ADDS a derived entry for a designer-defined key,
+  which had none to begin with.
 - **`data/ui/palette.json`** ↔ `schemas/palette.schema.json` (same normal
   pairing): one key per `game/ui/widgets.py` `C_*` constant, snake_case with
   the `C_` prefix dropped (`gold`, `ui_panel`, `panel_stone`, …), each an RGB

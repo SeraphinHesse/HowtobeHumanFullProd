@@ -1,5 +1,13 @@
 """Phase 10G: Boss — queue composition, era stats, death swarm, pathing guard,
-A/B bonuses (story damage + payday slot 3), cutscene flow, XP.
+the ``resolve_combat`` flat-damage seam, cutscene flow, XP.
+
+(BossUpgradeTimelinePLAN BU-4/D6 retired the A/B story bonuses this module
+used to cover — ``game/core/boss_bonuses.py``, ``RunState.boss_stacks`` and
+payday's slot-3 love payout are all deleted, so their suite is gone with them.
+What survives here is the part that is still live: ``resolve_combat``'s generic
+``dmg_bonus`` parameter, and the cutscene flow, which now resolves a BOSS
+UPGRADE id. The new engine's own coverage is BU-6's
+``tools/tests/test_boss_upgrades.py``.)
 
 Pure-Python, headless — the ``test_phase_loop.py`` fixture style: a synth
 ``TileMapDoc`` -> ``TileMap`` board, real balancing via ``load_balance``, and a
@@ -22,8 +30,7 @@ from engine import tilemap
 from engine.core import Health, Movement, Scene
 from engine.physics import TileOccupancy
 from game.buildings import BaseBuilding, attach_base, place_building
-from game.core import RunState, Session, load_balance, run_payday
-from game.core import boss_bonuses as bb
+from game.core import Session, load_balance
 from game.core.phases import GamePhase, GameState
 from game.enemies import Spawner, create_enemy, resolve_combat
 from game.enemies.combat import _chebyshev, _fp_offset
@@ -59,7 +66,6 @@ BOSS = ENEM["EnemyTypes"]["Boss"]
 SCALE = ENEM["EnemyScaling"]
 RAIDER = ENEM["EnemyTypes"]["Raider"]
 SIEGE = ENEM["EnemyTypes"]["SiegeCannon"]
-HOLE = CORE["TheHole"]
 PHASE = CORE["PhaseLoop"]
 INTERVAL = SCALE["rounds_per_era"]   # boss_round_in_era == the era's last
 
@@ -699,120 +705,13 @@ class TestBossPathing(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# 5. Bonus payout math — pure helpers, dmg_bonus threading, payday slot 3
+# 5. The flat whole-board damage seam (`resolve_combat(dmg_bonus=...)`)
 # ---------------------------------------------------------------------------
-BB = CORE["BossBonuses"]
-
-
-class TestBossBonuses(unittest.TestCase):
-    """The reworked six. Magnitudes come from ``core.json``'s ``BossBonuses``,
-    so every expectation is ``count * magnitude * stacks`` — never a literal."""
-
-    def _state(self, **stacks):
-        st = RunState.from_balance(CORE, BUILD)
-        for key, value in stacks.items():
-            st.boss_stacks[key] = value
-        return st
-
-    # -- 1A/1B/3A/3B: the four story-damage contributors -------------------
-
-    def test_boss1a_pays_per_unbuilt_tile(self):
-        tm, _scene, _occ = build_board(["bbbb"])
-        st = self._state(boss1a=2)
-        n = len(tm.buildable_tiles())
-        self.assertGreater(n, 0)
-        self.assertEqual(bb.story_damage_bonus(st, tm, CORE),
-                         n * BB["dmg_per_unbuilt_tile"] * 2)
-        st.boss_stacks["boss1a"] = 0
-        self.assertEqual(bb.story_damage_bonus(st, tm, CORE), 0)
-
-    def test_boss1b_pays_per_alive_building(self):
-        tm, scene, occ = build_board(["bbbb"])
-        place_building(tm, tm.get(1, 0), "defence", 9999, BUILD, scene, occ)
-        place_building(tm, tm.get(2, 0), "economic", 9999, BUILD, scene, occ)
-        st = self._state(boss1b=3)
-        self.assertEqual(bb.story_damage_bonus(st, tm, CORE),
-                         2 * BB["dmg_per_building"] * 3)
-
-    def test_boss3a_pays_per_love_chunk_of_the_end_turn_snapshot(self):
-        tm, _scene, _occ = build_board(["bbbb"])
-        chunk = BB["love_chunk_size"]
-        st = self._state(boss3a=2)
-        st.boss_love_snapshot = chunk * 3 + 1     # the remainder never pays
-        self.assertEqual(bb.story_damage_bonus(st, tm, CORE),
-                         3 * BB["dmg_per_love_chunk"] * 2)
-
-    def test_boss3b_pays_per_lightning_building(self):
-        tm, scene, occ = build_board(["bbbb"])
-        priest, _ = place_building(tm, tm.get(1, 0), "storm_priest", 9999,
-                                   BUILD, scene, occ)
-        self.assertIn("lightning_source", priest.tags)
-        place_building(tm, tm.get(2, 0), "defence", 9999, BUILD, scene, occ)
-        st = self._state(boss3b=2)
-        self.assertEqual(bb.story_damage_bonus(st, tm, CORE),
-                         1 * BB["dmg_per_lightning_building"] * 2)
-
-    # -- 2A/2B: paid through payday slot 3, silently ------------------------
-
-    def test_boss2a_pays_per_level_past_the_threshold_through_payday(self):
-        tm, scene, occ = build_board(["bbb"])
-        defender, _ = place_building(tm, tm.get(1, 0), "defence", 9999,
-                                     BUILD, scene, occ)
-        defender.upgrade()
-        defender.upgrade()          # in-tier level 3
-        levels_past = max(0, 3 - BB["level_past_threshold"])
-        st = self._state(boss2a=2)
-        story = levels_past * BB["love_per_level_past"] * 2
-        self.assertEqual(bb.love_bonus_income(st, tm, CORE), story)
-        love0 = st.love
-        run_payday(st, tm, CORE)
-        self.assertEqual(
-            st.love,
-            love0 + story + HOLE["base_income"] - defender.upkeep())
-        # Slot 3 pays SILENTLY — only base income leaves an income floater.
-        self.assertEqual(
-            len([e for e in st.income_events if e[3] == "income"]), 1)
-
-    def test_boss2b_pays_per_low_level_building_through_payday(self):
-        tm, scene, occ = build_board(["bbbb"])
-        low, _ = place_building(tm, tm.get(1, 0), "defence", 9999, BUILD,
-                                scene, occ)
-        high, _ = place_building(tm, tm.get(2, 0), "defence", 9999, BUILD,
-                                 scene, occ)
-        for _ in range(BB["low_level_target"]):
-            high.upgrade()          # past the target level
-        st = self._state(boss2b=2)
-        story = BB["love_per_low_level_building"] * 2      # exactly one match
-        self.assertEqual(bb.love_bonus_income(st, tm, CORE), story)
-        love0 = st.love
-        run_payday(st, tm, CORE)
-        self.assertEqual(
-            st.love,
-            love0 + story + HOLE["base_income"]
-            - low.upkeep() - high.upkeep())
-        self.assertEqual(
-            len([e for e in st.income_events if e[3] == "income"]), 1)
-
-    def test_a_dead_building_drops_out_of_every_count(self):
-        """The rework's deliberate change from 10G's un-filtered counts: a
-        destroyed building stops counting (1B / 2A / 2B / 3B) until revive."""
-        tm, scene, occ = build_board(["bbbb"])
-        priest, _ = place_building(tm, tm.get(1, 0), "storm_priest", 9999,
-                                   BUILD, scene, occ)
-        defender, _ = place_building(tm, tm.get(2, 0), "defence", 9999,
-                                     BUILD, scene, occ)
-        defender.upgrade()
-        defender.upgrade()          # in-tier level 3, so 2A has something
-        st = self._state(boss1b=1, boss2a=1, boss2b=1, boss3b=1)
-        alive_dmg = bb.story_damage_bonus(st, tm, CORE)
-        alive_love = bb.love_bonus_income(st, tm, CORE)
-        self.assertGreater(alive_dmg, 0)
-        self.assertGreater(alive_love, 0)
-        priest.get_component(Health).damage(10 ** 9)
-        defender.get_component(Health).damage(10 ** 9)
-        self.assertFalse(priest.alive or defender.alive)
-        self.assertEqual(bb.story_damage_bonus(st, tm, CORE), 0)
-        self.assertEqual(bb.love_bonus_income(st, tm, CORE), 0)
+class TestFlatDamageBonus(unittest.TestCase):
+    """`dmg_bonus` is a generic additive seam on every defender's shot. Its ONE
+    caller used to be the retired boss story damage (BU-4/D6 deleted both that
+    sum and its `boss_stacks` counters); the parameter itself stays, defaulted
+    to 0, so this pins the seam rather than the caller."""
 
     def _projectile_delta(self, dmg_bonus):
         tm, scene, occ = build_board(["bbs"])
@@ -837,30 +736,43 @@ class TestBossBonuses(unittest.TestCase):
         defender, boosted = self._projectile_delta(7)
         self.assertEqual(boosted, defender.damage() + 7)
 
-    def test_stacking_and_set_cycling(self):
-        st = RunState.from_balance(CORE, BUILD)
-        bb.apply_choice(st, 0, "A")
-        bb.apply_choice(st, 0, "A")               # same pick twice = doubled
-        self.assertEqual(st.boss_stacks["boss1a"], 2)
-        self.assertEqual((4 - 1) % 3, 0)          # boss 4 -> set 0 again
-        bb.apply_choice(st, (4 - 1) % 3, "B")
-        self.assertEqual(st.boss_stacks["boss1b"], 1)
-        # The copy quotes the LIVE magnitude, so it can never advertise a
-        # number the math no longer uses.
-        desc = bb.choice_desc(2, "A", CORE)
-        self.assertEqual(len(desc.split("\n")), 2)
-        self.assertIn(str(BB["love_chunk_size"]), desc)
-        self.assertIn(str(BB["dmg_per_love_chunk"]), desc)
-
 
 # ---------------------------------------------------------------------------
 # 6. Cutscene phase flow — priority over LEVELUP, chain, payday exactly once
 # ---------------------------------------------------------------------------
+#: A hand-pinned `boss_upgrades` balance (BU-4). Written out here rather than
+#: loaded, for the same reason every other expectation in this module comes
+#: from the fixture: the retaliation numbers a designer edits live must never
+#: decide whether this suite is green. Two real catalog ids so a pick can be
+#: asserted end to end; both are PERSISTENT passives, so `apply_pick` does
+#: nothing here beyond counting the stack.
+BOSS_UPGRADES = {
+    "BossUpgrades": {
+        "Catalog": {
+            "tile_discount": {"name": "Cheap Ground",
+                              "description": "-{discount_pct}% tiles",
+                              "params": {"discount_pct": 20}},
+            "thorns": {"name": "Thorns",
+                       "description": "reflect {reflect_pct}%",
+                       "params": {"reflect_pct": 10}},
+        },
+        "Timeline": {"milestones": [
+            {"slots": ["tile_discount", "thorns", None],
+             "retaliation_bonus_love": 30},
+            {"slots": [None, None, None], "retaliation_bonus_love": 60},
+            {"slots": [None, None, None], "retaliation_bonus_love": 100},
+            {"slots": [None, None, None], "retaliation_bonus_love": 150},
+        ]},
+    }
+}
+
+
 class TestBossCutsceneFlow(unittest.TestCase):
     def _session(self, round_num):
         tm, scene, occ = build_board(["bs"])
         session = Session.create(Spawner(), tm, ENEM, CORE, BUILD,
-                                 rng=random.Random(3), occupancy=occ)
+                                 rng=random.Random(3), occupancy=occ,
+                                 boss_upgrades_balance=BOSS_UPGRADES)
         session.state.round_num = round_num
         return session, scene, tm
 
@@ -897,9 +809,11 @@ class TestBossCutsceneFlow(unittest.TestCase):
         self.assertEqual(phase, GamePhase.BOSS_CUTSCENE)  # NOT LEVELUP
         self.assertTrue(session.frozen)
         round_before = st.round_num
-        session.resolve_boss_cutscene("A", scene)
-        self.assertEqual(st.boss_stacks["boss1a"], 1)
-        self.assertEqual(st.boss_choices, [(1, "A", "win")])
+        # BU-4: the pick is a boss-upgrade catalog id, not "A"/"B".
+        session.resolve_boss_cutscene("tile_discount", scene)
+        self.assertEqual(st.boss_upgrade_stacks["tile_discount"], 1)
+        self.assertEqual(st.boss_upgrade_choices,
+                         [(1, "tile_discount", "win")])
         self.assertIsNone(st.pending_boss_cutscene)
         # levelup was pending -> the chain lands in LEVELUP, payday DEFERRED.
         self.assertEqual(st.phase, GamePhase.LEVELUP)
@@ -916,10 +830,10 @@ class TestBossCutsceneFlow(unittest.TestCase):
         self._ride_to_cutscene(session, scene, tm)
         self.assertEqual(st.phase, GamePhase.BOSS_CUTSCENE)
         round_before = st.round_num
-        session.resolve_boss_cutscene("B", scene)
+        session.resolve_boss_cutscene("thorns", scene)
         self.assertEqual(st.phase, GamePhase.INCOME)      # payday ran
         self.assertEqual(st.round_num, round_before + 1)
-        self.assertEqual(st.boss_stacks["boss1b"], 1)
+        self.assertEqual(st.boss_upgrade_stacks["thorns"], 1)
 
     def test_outcome_is_loss_when_a_life_was_lost(self):
         session, scene, tm = self._session(INTERVAL)
@@ -933,15 +847,33 @@ class TestBossCutsceneFlow(unittest.TestCase):
         session.post_sim(scene)                   # wipe -> ROUND_END
         self.assertEqual(st.pending_boss_cutscene["outcome"], "loss")
 
-    def test_loss_pays_this_eras_consolation_love(self):
-        """A LOST boss round pays `stats[era].loss_love_reward` once; a WIN
-        pays nothing. The fixture authors no reward, so the value is written
-        onto a deep copy here (the fixture stays pinned)."""
-        enem = copy.deepcopy(ENEM)
-        for i, row in enumerate(enem["EnemyTypes"]["Boss"]["stats"]):
-            row["loss_love_reward"] = 30 * (i + 1)
+    def test_loss_pays_this_milestones_retaliation_love(self):
+        """A LOST boss round pays the boss-upgrade TIMELINE's retaliation love
+        for this milestone, once (BU-4/D7 — it replaced `enemies.json`'s
+        per-era `loss_love_reward`); a WIN pays nothing. Boss 1 is milestone 0,
+        whose pinned value is 30 (see `BOSS_UPGRADES`)."""
+        session, scene, _tm = self._session(INTERVAL)
+        st = session.state
+        self._end_turn_past_any_intro(session)
+        love_before = st.love
+
+        class _Dummy:
+            ETYPE = "standard"
+            dmg = 5
+        session.on_base_hit(_Dummy())             # lose a life -> loss
+        session.post_sim(scene)                   # -> ROUND_END
+        reward = (BOSS_UPGRADES["BossUpgrades"]["Timeline"]
+                  ["milestones"][0]["retaliation_bonus_love"])
+        self.assertEqual(st.pending_boss_cutscene["outcome"], "loss")
+        self.assertEqual(st.pending_boss_cutscene["love_reward"], reward)
+        self.assertEqual(st.love, love_before + reward)
+
+    def test_no_balance_wired_pays_nothing(self):
+        """A bare `Session` a logic test builds carries no `boss_upgrades`
+        balance; the loss must pay 0 rather than crash (the module's
+        "host-set optional" tolerance)."""
         tm, scene, occ = build_board(["bs"])
-        session = Session.create(Spawner(), tm, enem, CORE, BUILD,
+        session = Session.create(Spawner(), tm, ENEM, CORE, BUILD,
                                  rng=random.Random(3), occupancy=occ)
         st = session.state
         st.round_num = INTERVAL
@@ -951,21 +883,14 @@ class TestBossCutsceneFlow(unittest.TestCase):
         class _Dummy:
             ETYPE = "standard"
             dmg = 5
-        session.on_base_hit(_Dummy())             # lose a life -> loss
-        session.post_sim(scene)                   # -> ROUND_END
-        self.assertEqual(st.pending_boss_cutscene["outcome"], "loss")
-        self.assertEqual(st.pending_boss_cutscene["love_reward"], 30)  # era 0
-        self.assertEqual(st.love, love_before + 30)
+        session.on_base_hit(_Dummy())
+        session.post_sim(scene)
+        self.assertEqual(st.pending_boss_cutscene["love_reward"], 0)
+        self.assertEqual(st.love, love_before)
 
     def test_win_pays_no_consolation_love(self):
-        enem = copy.deepcopy(ENEM)
-        for row in enem["EnemyTypes"]["Boss"]["stats"]:
-            row["loss_love_reward"] = 30
-        tm, scene, occ = build_board(["bs"])
-        session = Session.create(Spawner(), tm, enem, CORE, BUILD,
-                                 rng=random.Random(3), occupancy=occ)
+        session, scene, _tm = self._session(INTERVAL)
         st = session.state
-        st.round_num = INTERVAL
         self._end_turn_past_any_intro(session)
         love_before = st.love
         session.quick_skip_combat(scene)          # wave over, no life lost

@@ -266,7 +266,7 @@
         "font_key": "xxl",
         "pos": [
           320,
-          101
+          81
         ],
         "text": "Cutscene: Round Won :)",
         "type": "text"
@@ -281,7 +281,7 @@
         "font_key": "md",
         "pos": [
           320,
-          139
+          119
         ],
         "text": "How will we react?",
         "type": "text"
@@ -294,10 +294,10 @@
           68
         ],
         "rect": [
-          225,
-          158,
-          90,
-          65
+          8,
+          138,
+          200,
+          104
         ],
         "type": "rect",
         "width": 0
@@ -310,58 +310,13 @@
           120
         ],
         "rect": [
-          225,
-          158,
-          90,
-          65
+          8,
+          138,
+          200,
+          104
         ],
         "type": "rect",
         "width": 1
-      },
-      {
-        "align": "center",
-        "color": [
-          235,
-          225,
-          195
-        ],
-        "font_key": "lg",
-        "pos": [
-          270,
-          164
-        ],
-        "text": "WinA",
-        "type": "text"
-      },
-      {
-        "align": "center",
-        "color": [
-          150,
-          140,
-          120
-        ],
-        "font_key": "sm",
-        "pos": [
-          270,
-          184
-        ],
-        "text": "Per unbuilt tile, buildings",
-        "type": "text"
-      },
-      {
-        "align": "center",
-        "color": [
-          150,
-          140,
-          120
-        ],
-        "font_key": "sm",
-        "pos": [
-          270,
-          197
-        ],
-        "text": "deal +1 extra damage",
-        "type": "text"
       },
       {
         "border_radius": 0,
@@ -371,10 +326,10 @@
           68
         ],
         "rect": [
-          325,
-          158,
-          90,
-          65
+          220,
+          138,
+          200,
+          104
         ],
         "type": "rect",
         "width": 0
@@ -387,58 +342,45 @@
           120
         ],
         "rect": [
-          325,
-          158,
-          90,
-          65
+          220,
+          138,
+          200,
+          104
         ],
         "type": "rect",
         "width": 1
       },
       {
-        "align": "center",
+        "border_radius": 0,
         "color": [
-          235,
-          225,
-          195
+          42,
+          34,
+          68
         ],
-        "font_key": "lg",
-        "pos": [
-          370,
-          164
+        "rect": [
+          432,
+          138,
+          200,
+          104
         ],
-        "text": "WinB",
-        "type": "text"
+        "type": "rect",
+        "width": 0
       },
       {
-        "align": "center",
+        "border_radius": 0,
         "color": [
-          150,
-          140,
+          80,
+          65,
           120
         ],
-        "font_key": "sm",
-        "pos": [
-          370,
-          184
+        "rect": [
+          432,
+          138,
+          200,
+          104
         ],
-        "text": "Per building placed, buildings",
-        "type": "text"
-      },
-      {
-        "align": "center",
-        "color": [
-          150,
-          140,
-          120
-        ],
-        "font_key": "sm",
-        "pos": [
-          370,
-          197
-        ],
-        "text": "deal +1 extra damage",
-        "type": "text"
+        "type": "rect",
+        "width": 1
       }
     ]
   },
@@ -1723,7 +1665,7 @@
               536,
               340,
               78,
-              14
+              15
             ],
             "type": "rect",
             "width": 0
@@ -1739,7 +1681,7 @@
               536,
               340,
               78,
-              14
+              15
             ],
             "type": "rect",
             "width": 1
@@ -2744,7 +2686,7 @@
               536,
               340,
               78,
-              14
+              15
             ],
             "type": "rect",
             "width": 0
@@ -2760,7 +2702,7 @@
               536,
               340,
               78,
-              14
+              15
             ],
             "type": "rect",
             "width": 1
@@ -3413,7 +3355,7 @@
               536,
               340,
               78,
-              14
+              15
             ],
             "type": "rect",
             "width": 0
@@ -3429,7 +3371,7 @@
               536,
               340,
               78,
-              14
+              15
             ],
             "type": "rect",
             "width": 1
@@ -3667,7 +3609,7 @@
               536,
               45,
               78,
-              14
+              15
             ],
             "type": "rect",
             "width": 0
@@ -3683,7 +3625,7 @@
               536,
               45,
               78,
-              14
+              15
             ],
             "type": "rect",
             "width": 1
@@ -4039,9 +3981,9 @@
         ],
         "rect": [
           258,
-          108,
+          101,
           124,
-          144
+          159
         ],
         "type": "rect",
         "width": 0
@@ -4055,9 +3997,9 @@
         ],
         "rect": [
           258,
-          108,
+          101,
           124,
-          144
+          159
         ],
         "type": "rect",
         "width": 1
@@ -4072,7 +4014,7 @@
         "font_key": "lg",
         "pos": [
           320,
-          112
+          105
         ],
         "text": "CHEATS",
         "type": "text"
@@ -4086,7 +4028,7 @@
         ],
         "rect": [
           365,
-          111,
+          104,
           14,
           13
         ],
@@ -4102,7 +4044,7 @@
         ],
         "rect": [
           365,
-          111,
+          104,
           14,
           13
         ],
@@ -4119,7 +4061,7 @@
         "font_key": "md",
         "pos": [
           372,
-          111
+          104
         ],
         "text": "X",
         "type": "text"
@@ -4133,7 +4075,7 @@
         ],
         "rect": [
           263,
-          124,
+          117,
           114,
           13
         ],
@@ -4149,7 +4091,7 @@
         ],
         "rect": [
           263,
-          124,
+          117,
           114,
           13
         ],
@@ -4166,7 +4108,7 @@
         "font_key": "md",
         "pos": [
           320,
-          124
+          117
         ],
         "text": "+10 Love",
         "type": "text"
@@ -4180,7 +4122,7 @@
         ],
         "rect": [
           263,
-          139,
+          132,
           114,
           13
         ],
@@ -4196,7 +4138,7 @@
         ],
         "rect": [
           263,
-          139,
+          132,
           114,
           13
         ],
@@ -4213,7 +4155,7 @@
         "font_key": "md",
         "pos": [
           320,
-          139
+          132
         ],
         "text": "Skip Round",
         "type": "text"
@@ -4227,7 +4169,7 @@
         ],
         "rect": [
           263,
-          154,
+          147,
           114,
           13
         ],
@@ -4243,7 +4185,7 @@
         ],
         "rect": [
           263,
-          154,
+          147,
           114,
           13
         ],
@@ -4260,7 +4202,7 @@
         "font_key": "md",
         "pos": [
           320,
-          154
+          147
         ],
         "text": "LEVEL UP",
         "type": "text"
@@ -4274,7 +4216,7 @@
         ],
         "rect": [
           263,
-          169,
+          162,
           114,
           13
         ],
@@ -4290,7 +4232,7 @@
         ],
         "rect": [
           263,
-          169,
+          162,
           114,
           13
         ],
@@ -4307,7 +4249,7 @@
         "font_key": "md",
         "pos": [
           320,
-          169
+          162
         ],
         "text": "Infinite Money",
         "type": "text"
@@ -4321,7 +4263,7 @@
         ],
         "rect": [
           263,
-          184,
+          177,
           114,
           13
         ],
@@ -4337,7 +4279,7 @@
         ],
         "rect": [
           263,
-          184,
+          177,
           114,
           13
         ],
@@ -4354,7 +4296,7 @@
         "font_key": "md",
         "pos": [
           320,
-          184
+          177
         ],
         "text": "Unlock Tech",
         "type": "text"
@@ -4368,7 +4310,7 @@
         ],
         "rect": [
           263,
-          199,
+          192,
           114,
           13
         ],
@@ -4384,7 +4326,7 @@
         ],
         "rect": [
           263,
-          199,
+          192,
           114,
           13
         ],
@@ -4401,7 +4343,54 @@
         "font_key": "md",
         "pos": [
           320,
-          199
+          192
+        ],
+        "text": "Unlock Speed",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          263,
+          207,
+          114,
+          13
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          263,
+          207,
+          114,
+          13
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          320,
+          207
         ],
         "text": "Debug Log",
         "type": "text"
@@ -4415,7 +4404,7 @@
         ],
         "rect": [
           263,
-          216,
+          224,
           114,
           1
         ],
@@ -4432,7 +4421,7 @@
         "font_key": "sm",
         "pos": [
           263,
-          218
+          226
         ],
         "text": "Jump to round:",
         "type": "text"
@@ -4446,7 +4435,7 @@
         ],
         "rect": [
           263,
-          227,
+          235,
           48,
           13
         ],
@@ -4462,7 +4451,7 @@
         ],
         "rect": [
           263,
-          227,
+          235,
           48,
           13
         ],
@@ -4479,7 +4468,7 @@
         "font_key": "sm",
         "pos": [
           266,
-          229
+          237
         ],
         "text": "round",
         "type": "text"
@@ -4493,7 +4482,7 @@
         ],
         "rect": [
           314,
-          227,
+          235,
           63,
           13
         ],
@@ -4509,7 +4498,7 @@
         ],
         "rect": [
           314,
-          227,
+          235,
           63,
           13
         ],
@@ -4526,7 +4515,7 @@
         "font_key": "sm",
         "pos": [
           345,
-          228
+          236
         ],
         "text": "Round",
         "type": "text"
@@ -5236,7 +5225,7 @@
           118,
           28
         ],
-        "text": "0/40",
+        "text": "0/50",
         "type": "text"
       },
       {
@@ -5318,6 +5307,60 @@
         ],
         "text": "LIVES 3",
         "type": "text"
+      },
+      {
+        "anim_time_ms": 0,
+        "animation": "idle",
+        "crop": null,
+        "dest": [
+          30,
+          41
+        ],
+        "flip": false,
+        "hidden_frames": [],
+        "size": [
+          9,
+          9
+        ],
+        "slot_key": "ui_icon_lives",
+        "tint": null,
+        "type": "sprite"
+      },
+      {
+        "anim_time_ms": 0,
+        "animation": "idle",
+        "crop": null,
+        "dest": [
+          41,
+          41
+        ],
+        "flip": false,
+        "hidden_frames": [],
+        "size": [
+          9,
+          9
+        ],
+        "slot_key": "ui_icon_lives",
+        "tint": null,
+        "type": "sprite"
+      },
+      {
+        "anim_time_ms": 0,
+        "animation": "idle",
+        "crop": null,
+        "dest": [
+          52,
+          41
+        ],
+        "flip": false,
+        "hidden_frames": [],
+        "size": [
+          9,
+          9
+        ],
+        "slot_key": "ui_icon_lives",
+        "tint": null,
+        "type": "sprite"
       },
       {
         "align": "left",
@@ -7147,6 +7190,53 @@
           283
         ],
         "text": "BACK",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          380,
+          279,
+          90,
+          23
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          380,
+          279,
+          90,
+          23
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "sm",
+        "pos": [
+          425,
+          285
+        ],
+        "text": "CONTROLS",
         "type": "text"
       }
     ]

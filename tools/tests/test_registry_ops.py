@@ -139,16 +139,23 @@ class TestAddVariant(TempDataCase):
         self.assertEqual(reg.frame_size("enemy_stage_2_v2"), (128, 128))
 
     def test_ui_frame_size_override_propagates_to_variant(self):
-        # ui_bg_main_menu is 480x270 (an override; ui default is 64x64).
-        # "+ Variant" yields a variant that inherits the same size.
+        # ui_bg_main_menu carries a per-slot frame-size OVERRIDE (the ui
+        # category default is 64x64). "+ Variant" yields a variant that
+        # inherits that same size, whatever it currently is: the literal is
+        # read from the tree rather than pinned here, because it is live art
+        # a designer re-cuts (it went 480x270 -> 640x360 once already).
+        stem_size = load_registry(self.data_dir).frame_size("ui_bg_main_menu")
+        self.assertNotEqual(stem_size, (64, 64),
+                            "stem must be an override, not the ui default")
+
         new_key = registry_ops.add_variant(
             self.data_dir, "ui", ("Backgrounds",), "Main Menu")
         # e.g., ui_bg_main_menu_v2
 
         reg = load_registry(self.data_dir)
-        # The variant inherits the stem's 480x270.
-        self.assertEqual(reg.frame_size(new_key), (480, 270))
-        self.assertEqual(reg.frame_size("ui_bg_main_menu"), (480, 270))
+        # The variant inherits the stem's override.
+        self.assertEqual(reg.frame_size(new_key), stem_size)
+        self.assertEqual(reg.frame_size("ui_bg_main_menu"), stem_size)
 
     def test_bare_stem_yields_bare_variant(self):
         # Walker -> Era 2 has enemy_stage_2 (no override; inherits enemies'
@@ -174,24 +181,30 @@ class TestAddVariant(TempDataCase):
         self.assertIsInstance(era2["slots"][-1], str)  # the appended variant
 
     def test_variant_is_independently_resizable(self):
-        # Create a ui_bg_main_menu variant at 480x270 (inherited).
+        # Create a ui_bg_main_menu variant at the stem's inherited size (a
+        # live override -- read, not pinned; see the test above).
+        stem_size = load_registry(self.data_dir).frame_size("ui_bg_main_menu")
+        self.assertNotEqual(stem_size, (240, 135),
+                            "the resize below must change something")
+
         new_key = registry_ops.add_variant(
             self.data_dir, "ui", ("Backgrounds",), "Main Menu")
 
         reg = load_registry(self.data_dir)
-        self.assertEqual(reg.frame_size(new_key), (480, 270))
+        self.assertEqual(reg.frame_size(new_key), stem_size)
 
         # Now resize the variant to 240x135 via the existing API.
         registry_ops.set_slot_frame_size(self.data_dir, new_key, 240, 135)
 
-        # Reload and verify: variant is 240x135, stem is still 480x270.
+        # Reload and verify: variant is 240x135, stem is untouched.
         reg = load_registry(self.data_dir)
         self.assertEqual(reg.frame_size(new_key), (240, 135))
-        self.assertEqual(reg.frame_size("ui_bg_main_menu"), (480, 270))
+        self.assertEqual(reg.frame_size("ui_bg_main_menu"), stem_size)
 
     def test_written_doc_reloads_without_frame_size_agreement_error(self):
-        # ui_bg_main_menu is 480x270; "+ Variant" yields ui_bg_main_menu_v2
-        # also 480x270 (same key form: both dicts with agreed size).
+        # ui_bg_main_menu carries a size override; "+ Variant" yields
+        # ui_bg_main_menu_v2 at the same size (same key form: both dicts
+        # with agreed size).
         new_key = registry_ops.add_variant(
             self.data_dir, "ui", ("Backgrounds",), "Main Menu")
 

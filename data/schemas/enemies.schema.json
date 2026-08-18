@@ -6,84 +6,91 @@
       "properties": {
         "attack_range_tiles": {
           "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to attack_range_tiles; the leaf is an integer, so the result is floored to whole tiles.",
+          "exclusiveMinimum": 0,
           "maximum": 1000,
           "minimum": 0,
           "type": "number"
         },
         "attack_speed": {
           "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to attack_speed - SECONDS BETWEEN ATTACKS, so a factor below 1.0 makes a late boss attack faster.",
+          "exclusiveMinimum": 0,
           "maximum": 1000,
           "minimum": 0,
           "type": "number"
         },
         "commander": {
           "description": "Compounding multiplier applied once per era past the last authored row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to the commander count in round_counts and second_phase.spawns; floored to whole enemies.",
+          "exclusiveMinimum": 0,
           "maximum": 1000,
           "minimum": 0,
           "type": "number"
         },
         "dmg": {
           "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to dmg; floored to a whole number (x10 combat scale, D-12).",
+          "exclusiveMinimum": 0,
           "maximum": 1000,
           "minimum": 0,
           "type": "number"
         },
         "footprint": {
           "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to footprint; floored to whole tiles, so a factor just above 1.0 grows the boss only every few eras.",
+          "exclusiveMinimum": 0,
           "maximum": 1000,
           "minimum": 0,
           "type": "number"
         },
         "hp": {
           "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to hp; floored to a whole number (x10 combat scale, D-12).",
+          "exclusiveMinimum": 0,
           "maximum": 1000,
           "minimum": 0,
           "type": "number"
         },
         "interval": {
           "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to the shake.interval leaf - SECONDS BETWEEN shake impulses, so a factor below 1.0 shakes the screen more often.",
-          "maximum": 1000,
-          "minimum": 0,
-          "type": "number"
-        },
-        "loss_love_reward": {
-          "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to loss_love_reward, the consolation love a LOST boss round pays; floored to whole love.",
+          "exclusiveMinimum": 0,
           "maximum": 1000,
           "minimum": 0,
           "type": "number"
         },
         "move_speed": {
           "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to move_speed (tiles per second).",
+          "exclusiveMinimum": 0,
           "maximum": 1000,
           "minimum": 0,
           "type": "number"
         },
         "raiders": {
           "description": "Compounding multiplier applied once per era past the last authored row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to the raiders count in round_counts and second_phase.spawns; floored to whole enemies.",
+          "exclusiveMinimum": 0,
           "maximum": 1000,
           "minimum": 0,
           "type": "number"
         },
         "regular": {
           "description": "Compounding multiplier applied once per era past the last authored row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to the regular (Standard) count in round_counts and second_phase.spawns; floored to whole enemies.",
+          "exclusiveMinimum": 0,
           "maximum": 1000,
           "minimum": 0,
           "type": "number"
         },
         "siege": {
           "description": "Compounding multiplier applied once per era past the last authored row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to the siege count in round_counts and second_phase.spawns; floored to whole enemies.",
+          "exclusiveMinimum": 0,
           "maximum": 1000,
           "minimum": 0,
           "type": "number"
         },
         "sprite_scale": {
           "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to sprite_scale (the post-fit render scale).",
+          "exclusiveMinimum": 0,
           "maximum": 1000,
           "minimum": 0,
           "type": "number"
         },
         "strength": {
           "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to the shake.strength leaf (amplitude as a fraction of a tile).",
+          "exclusiveMinimum": 0,
           "maximum": 1000,
           "minimum": 0,
           "type": "number"
@@ -97,7 +104,6 @@
         "footprint",
         "hp",
         "interval",
-        "loss_love_reward",
         "move_speed",
         "raiders",
         "regular",
@@ -137,12 +143,6 @@
         },
         "hp": {
           "description": "Boss hit points (x10 combat scale, D-12).",
-          "maximum": 100000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "loss_love_reward": {
-          "description": "Consolation love paid ONCE when the player LOSES this era's boss round (lost at least one life while the boss was up). 0 pays nothing. Per-era like every other boss variable, so a later boss can console harder; past the last authored row it grows by endgame_boss_scaling.loss_love_reward.",
           "maximum": 100000,
           "minimum": 0,
           "type": "integer"
@@ -194,7 +194,6 @@
         "dmg",
         "footprint",
         "hp",
-        "loss_love_reward",
         "move_speed",
         "name",
         "shake",
@@ -312,12 +311,14 @@
       "properties": {
         "batch_size": {
           "description": "Compounding multiplier applied once per era past the last authored era row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to batch_size (floored to a whole number of enemies).",
+          "exclusiveMinimum": 0,
           "maximum": 1000,
           "minimum": 0,
           "type": "number"
         },
         "spawn_interval": {
           "description": "Compounding multiplier applied once per era past the last authored era row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to spawn_interval.",
+          "exclusiveMinimum": 0,
           "maximum": 1000,
           "minimum": 0,
           "type": "number"
@@ -420,6 +421,74 @@
       ],
       "type": "object"
     },
+    "sound_clip": {
+      "additionalProperties": false,
+      "description": "One audio clip in a sound slot's playlist: a file plus its volume and trim window.",
+      "properties": {
+        "end": {
+          "description": "Trim out-point in seconds. 0.0 is the SENTINEL for 'play to the end of the file' (never null -- a nullable/union node breaks the balancing panel). Bounded at 3600 s for the same reason as start.",
+          "maximum": 3600.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "file": {
+          "description": "Path relative to data/audio/ (e.g. 'imported/building_death_a.ogg'). Empty string = no clip.",
+          "type": "string"
+        },
+        "start": {
+          "description": "Trim in-point in seconds; 0.0 plays from the beginning. Bounded at 3600 s (one hour), a deliberate approved deviation from the 0-60 s convention, which was written for VFX timings -- music tracks run minutes.",
+          "maximum": 3600.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "volume": {
+          "description": "Clip gain as a fraction 0..1, multiplied by the bus volume and the master volume.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "end",
+        "file",
+        "start",
+        "volume"
+      ],
+      "type": "object"
+    },
+    "sound_slot": {
+      "additionalProperties": false,
+      "description": "A sound event: zero or more clips plus how to play them. Empty clips on a global default means silence; empty clips on a per-element override means inherit the global default.",
+      "properties": {
+        "clips": {
+          "description": "The clips this event may play. Empty on a global default = silence; empty on a per-element override = inherit the global default.",
+          "items": {
+            "$ref": "#/$defs/sound_clip"
+          },
+          "minItems": 0,
+          "type": "array"
+        },
+        "loop": {
+          "description": "Repeat the chosen clip until stopped (music and ambience) rather than playing it once.",
+          "type": "boolean"
+        },
+        "pick": {
+          "description": "How the next clip is chosen when the slot holds more than one: 'random' picks any, 'sequential' cycles in order.",
+          "enum": [
+            "random",
+            "sequential"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "clips",
+        "loop",
+        "pick"
+      ],
+      "type": "object",
+      "x-widget": "sound_slot"
+    },
     "spawn_counts": {
       "additionalProperties": false,
       "description": "A mix of enemy counts by type. SHARED by every death_spawn.spawns row and by Boss.round_counts, so a key added here appears on all of them (BR-1/D3 accepted that cost for commander, deliberately overriding the standing argument against widening this $def).",
@@ -463,24 +532,28 @@
       "properties": {
         "count": {
           "description": "Compounding multiplier applied once per era past the last authored era row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to count_start and count_per_round; resolved counts are floored to whole enemies.",
+          "exclusiveMinimum": 0,
           "maximum": 1000,
           "minimum": 0,
           "type": "number"
         },
         "dmg": {
           "description": "Compounding multiplier applied once per era past the last authored era row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to dmg.",
+          "exclusiveMinimum": 0,
           "maximum": 1000,
           "minimum": 0,
           "type": "number"
         },
         "hp": {
           "description": "Compounding multiplier applied once per era past the last authored era row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to hp.",
+          "exclusiveMinimum": 0,
           "maximum": 1000,
           "minimum": 0,
           "type": "number"
         },
         "move_speed": {
           "description": "Compounding multiplier applied once per era past the last authored era row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to move_speed.",
+          "exclusiveMinimum": 0,
           "maximum": 1000,
           "minimum": 0,
           "type": "number"
@@ -685,6 +758,30 @@
       ],
       "type": "object"
     },
+    "EnemySounds": {
+      "additionalProperties": false,
+      "description": "Global enemy sound defaults, used by any type whose matching override slot is empty.",
+      "properties": {
+        "attack": {
+          "$ref": "#/$defs/sound_slot",
+          "description": "Played when the enemy attacks."
+        },
+        "death": {
+          "$ref": "#/$defs/sound_slot",
+          "description": "Played when the enemy dies."
+        },
+        "spawn": {
+          "$ref": "#/$defs/sound_slot",
+          "description": "Played when the enemy spawns."
+        }
+      },
+      "required": [
+        "attack",
+        "death",
+        "spawn"
+      ],
+      "type": "object"
+    },
     "EnemyTypes": {
       "additionalProperties": false,
       "description": "Per-type enemy stats.",
@@ -731,6 +828,30 @@
             "second_phase": {
               "$ref": "#/$defs/second_phase"
             },
+            "sounds": {
+              "additionalProperties": false,
+              "description": "Per-type sound overrides. An empty slot inherits EnemySounds.",
+              "properties": {
+                "attack": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy attacks."
+                },
+                "death": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy dies."
+                },
+                "spawn": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy spawns."
+                }
+              },
+              "required": [
+                "attack",
+                "death",
+                "spawn"
+              ],
+              "type": "object"
+            },
             "stats": {
               "description": "Per-era boss combat stats -- since BR-1 this row carries EVERY boss variable, including footprint, sprite_scale and shake (which used to be single global values shared by all five bosses).",
               "items": {
@@ -749,6 +870,7 @@
             "registry_group",
             "round_counts",
             "second_phase",
+            "sounds",
             "stats"
           ],
           "type": "object"
@@ -794,6 +916,30 @@
               "minLength": 1,
               "type": "string"
             },
+            "sounds": {
+              "additionalProperties": false,
+              "description": "Per-type sound overrides. An empty slot inherits EnemySounds.",
+              "properties": {
+                "attack": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy attacks."
+                },
+                "death": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy dies."
+                },
+                "spawn": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy spawns."
+                }
+              },
+              "required": [
+                "attack",
+                "death",
+                "spawn"
+              ],
+              "type": "object"
+            },
             "start_round": {
               "description": "First round commanders appear. 0 with the shipped all-zero era counts means the schedule is armed but emits nothing (BR-2 keeps the type dormant).",
               "maximum": 1000,
@@ -809,6 +955,7 @@
             "hunts",
             "kidnapping",
             "registry_group",
+            "sounds",
             "start_round"
           ],
           "type": "object"
@@ -878,6 +1025,30 @@
               "minLength": 1,
               "type": "string"
             },
+            "sounds": {
+              "additionalProperties": false,
+              "description": "Per-type sound overrides. An empty slot inherits EnemySounds.",
+              "properties": {
+                "attack": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy attacks."
+                },
+                "death": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy dies."
+                },
+                "spawn": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy spawns."
+                }
+              },
+              "required": [
+                "attack",
+                "death",
+                "spawn"
+              ],
+              "type": "object"
+            },
             "start_round": {
               "description": "First round Diggers appear.",
               "maximum": 1000,
@@ -890,14 +1061,15 @@
             "death_spawn",
             "dig_range_tiles",
             "dig_speed",
+            "emerge_cooldown",
             "endgame_scaling",
             "eras",
             "hunts",
             "kidnapping",
             "min_target_distance_tiles",
             "registry_group",
-            "start_round",
-            "emerge_cooldown"
+            "sounds",
+            "start_round"
           ],
           "type": "object"
         },
@@ -966,6 +1138,30 @@
               "minLength": 1,
               "type": "string"
             },
+            "sounds": {
+              "additionalProperties": false,
+              "description": "Per-type sound overrides. An empty slot inherits EnemySounds.",
+              "properties": {
+                "attack": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy attacks."
+                },
+                "death": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy dies."
+                },
+                "spawn": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy spawns."
+                }
+              },
+              "required": [
+                "attack",
+                "death",
+                "spawn"
+              ],
+              "type": "object"
+            },
             "start_round": {
               "description": "First round drummers appear.",
               "maximum": 1000,
@@ -997,6 +1193,7 @@
             "kidnapping",
             "move_speed_increase",
             "registry_group",
+            "sounds",
             "start_round",
             "support_range",
             "support_range_increase"
@@ -1044,6 +1241,30 @@
               "minLength": 1,
               "type": "string"
             },
+            "sounds": {
+              "additionalProperties": false,
+              "description": "Per-type sound overrides. An empty slot inherits EnemySounds.",
+              "properties": {
+                "attack": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy attacks."
+                },
+                "death": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy dies."
+                },
+                "spawn": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy spawns."
+                }
+              },
+              "required": [
+                "attack",
+                "death",
+                "spawn"
+              ],
+              "type": "object"
+            },
             "start_round": {
               "description": "First round formations appear.",
               "maximum": 1000,
@@ -1059,6 +1280,7 @@
             "hunts",
             "kidnapping",
             "registry_group",
+            "sounds",
             "start_round"
           ],
           "type": "object"
@@ -1104,6 +1326,30 @@
               "minLength": 1,
               "type": "string"
             },
+            "sounds": {
+              "additionalProperties": false,
+              "description": "Per-type sound overrides. An empty slot inherits EnemySounds.",
+              "properties": {
+                "attack": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy attacks."
+                },
+                "death": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy dies."
+                },
+                "spawn": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy spawns."
+                }
+              },
+              "required": [
+                "attack",
+                "death",
+                "spawn"
+              ],
+              "type": "object"
+            },
             "start_round": {
               "description": "First round raiders appear.",
               "maximum": 1000,
@@ -1119,6 +1365,7 @@
             "hunts",
             "kidnapping",
             "registry_group",
+            "sounds",
             "start_round"
           ],
           "type": "object"
@@ -1176,6 +1423,30 @@
               "minLength": 1,
               "type": "string"
             },
+            "sounds": {
+              "additionalProperties": false,
+              "description": "Per-type sound overrides. An empty slot inherits EnemySounds.",
+              "properties": {
+                "attack": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy attacks."
+                },
+                "death": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy dies."
+                },
+                "spawn": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy spawns."
+                }
+              },
+              "required": [
+                "attack",
+                "death",
+                "spawn"
+              ],
+              "type": "object"
+            },
             "start_round": {
               "description": "First round siege cannons appear.",
               "maximum": 1000,
@@ -1193,6 +1464,7 @@
             "mix_ratio",
             "queue_lead_count",
             "registry_group",
+            "sounds",
             "start_round"
           ],
           "type": "object"
@@ -1238,6 +1510,30 @@
               "minLength": 1,
               "type": "string"
             },
+            "sounds": {
+              "additionalProperties": false,
+              "description": "Per-type sound overrides. An empty slot inherits EnemySounds.",
+              "properties": {
+                "attack": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy attacks."
+                },
+                "death": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy dies."
+                },
+                "spawn": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy spawns."
+                }
+              },
+              "required": [
+                "attack",
+                "death",
+                "spawn"
+              ],
+              "type": "object"
+            },
             "stand_off_range": {
               "description": "NE-1: how many tiles short of its COMMITTED target this type halts and opens fire, instead of walking until something physically blocks it. Chebyshev, measured block-to-block (the same nearest-tile rule the defender range gate uses), re-checked every frame while a non-base target is committed. 0 is the ordinary melee behaviour every other enemy type has, and is why this leaf lives only on the blocks of types that actually have the mechanic. Deliberately FLAT/per-type like footprint and kidnapping, NOT an era-row leaf: standing off is this type's identity, not a number that scales with the round. Keep it at or below attack_range_tiles or the unit halts outside its own reach and plinks at nothing - there is deliberately no runtime guard, the editor bounds are the fence.",
               "maximum": 1000,
@@ -1259,6 +1555,7 @@
             "hunts",
             "kidnapping",
             "registry_group",
+            "sounds",
             "stand_off_range",
             "start_round"
           ],
@@ -1305,6 +1602,30 @@
               "minLength": 1,
               "type": "string"
             },
+            "sounds": {
+              "additionalProperties": false,
+              "description": "Per-type sound overrides. An empty slot inherits EnemySounds.",
+              "properties": {
+                "attack": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy attacks."
+                },
+                "death": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy dies."
+                },
+                "spawn": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy spawns."
+                }
+              },
+              "required": [
+                "attack",
+                "death",
+                "spawn"
+              ],
+              "type": "object"
+            },
             "start_round": {
               "description": "First round standard walkers appear.",
               "maximum": 1000,
@@ -1320,6 +1641,7 @@
             "hunts",
             "kidnapping",
             "registry_group",
+            "sounds",
             "start_round"
           ],
           "type": "object"
@@ -1364,6 +1686,30 @@
               "minLength": 1,
               "type": "string"
             },
+            "sounds": {
+              "additionalProperties": false,
+              "description": "Per-type sound overrides. An empty slot inherits EnemySounds.",
+              "properties": {
+                "attack": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy attacks."
+                },
+                "death": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy dies."
+                },
+                "spawn": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the enemy spawns."
+                }
+              },
+              "required": [
+                "attack",
+                "death",
+                "spawn"
+              ],
+              "type": "object"
+            },
             "start_round": {
               "description": "First round commanders appear. 0 with the shipped all-zero era counts means the schedule is armed but emits nothing (BR-2 keeps the type dormant).",
               "maximum": 1000,
@@ -1379,6 +1725,7 @@
             "hunts",
             "kidnapping",
             "registry_group",
+            "sounds",
             "start_round"
           ],
           "type": "object"
@@ -1416,6 +1763,7 @@
   "required": [
     "CrowdSpacing",
     "EnemyScaling",
+    "EnemySounds",
     "EnemyTypes",
     "MortarTargeting"
   ],

@@ -14,7 +14,7 @@ from types import SimpleNamespace
 
 from engine.render import HudRect
 
-from .skinning import ScreenSkinning, button_kwargs, is_visible
+from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .widgets import Button, anim_ms, submit_centered
 from . import widgets
 
@@ -82,8 +82,19 @@ class PauseScreen:
             btn.update(dt)
 
     def hit(self, mx, my):
+        # UL-10 reference implementation: a clickable layer is consulted
+        # FIRST and falls through unchanged on None. `_ACTION_IDS` reversed
+        # is this screen's retarget table — no second copy of the actions.
+        layer_action = hit_layer(
+            self.ids, self.skinning.widgets_spec(self.screen_id), mx, my,
+            self.skinning.state_of,
+            {wid: action for action, wid in _ACTION_IDS.items()})
+        if layer_action is not None:
+            return layer_action
+        # SD-6: the ROUTED-click seam (emits the click sound once); `btn.hit`
+        # stays probe-only.
         for btn, action in self.buttons:
-            if is_visible(btn) and btn.hit(mx, my):
+            if widgets.click(btn, mx, my):
                 return action
         return None
 
@@ -92,6 +103,8 @@ class PauseScreen:
         t = anim_ms(self._clock)
         px, py, pw, ph = self.rect
         self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "under", self.skinning.state_of)
         # 10J: the prototype's (0,0,0,150) pause dim over the frozen world
         renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
         renderer.submit_hud(HudRect(self.rect, (24, 20, 40), border_radius=6))
@@ -104,3 +117,5 @@ class PauseScreen:
         for btn, _ in self.buttons:
             if is_visible(btn):
                 btn.submit(renderer, anim_ms=t, **button_kwargs(btn))
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "over", self.skinning.state_of)

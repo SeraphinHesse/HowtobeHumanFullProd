@@ -89,6 +89,47 @@ class TestCutscenePlayerAudio(unittest.TestCase):
         player.release()
 
 
+class TestCutscenePlayerReplay(unittest.TestCase):
+    """A run torn down at the main menu leaves the PLAYER alive (one per
+    registry id for the whole process) while its VideoSource is spent —
+    release() frees the capture and done latches True. start() must
+    therefore open a fresh source for every playback, or the next run's
+    cutscene ends on the frame it was requested. The fixture ships no video
+    files, so this asserts the swap itself, not decoded frames."""
+
+    def setUp(self):
+        pygame.init()
+        self.registry = load_cutscene_registry(FIXTURE_DATA)
+
+    def test_start_opens_a_fresh_source_after_a_finished_playback(self):
+        player = CutscenePlayer(FIXTURE_DATA, self.registry["first_end_turn"])
+        player.start()
+        spent = player._video
+        player.skip()          # run 1 ends (timer or manual close)
+        player.release()
+        player.start()         # run 2's first End Turn
+        self.assertIsNot(player._video, spent)
+
+    def test_start_opens_a_fresh_source_after_a_mid_playback_quit(self):
+        # Quit-to-menu releases the capture WITHOUT marking it done — the
+        # case a "rewind only when done" guard would miss.
+        player = CutscenePlayer(FIXTURE_DATA, self.registry["first_end_turn"])
+        player.start()
+        player._video.done = False
+        abandoned = player._video
+        player.release()
+        player.start()
+        self.assertIsNot(player._video, abandoned)
+
+    def test_start_resets_the_hold_to_skip_accumulator(self):
+        player = CutscenePlayer(FIXTURE_DATA, self.registry["intro"])
+        player._video.done = False
+        player.update_skip_hold(SKIP_HOLD_SECONDS - 0.1, True)
+        self.assertGreater(player.skip_progress, 0.0)
+        player.start()
+        self.assertEqual(player.skip_progress, 0.0)
+
+
 class TestCutscenePlayerSkipHold(unittest.TestCase):
     """cutscene-hold-to-skip: the 2s hold timer lives on CutscenePlayer
     itself, so it's exercised directly rather than through main.py's event

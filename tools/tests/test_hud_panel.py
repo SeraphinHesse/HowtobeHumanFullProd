@@ -162,6 +162,28 @@ class TestHudButtonZOrder(unittest.TestCase):
                         "separator must draw BEHIND (before) the End Turn button")
 
 
+class TestButtonStates(unittest.TestCase):
+    """UL-5: a ``states`` offset patch nudges what is DRAWN and nothing else.
+    ``self.rect`` is the hit-test truth (``_surface_hit``/``hit`` read it on
+    the very next frame), so a state that moved it would make a hovered
+    button un-clickable at the position it appears to occupy."""
+
+    def test_hover_state_patch_offsets_draw_not_rect(self):
+        btn = widgets.Button((40, 50, 60, 20), "END TURN")
+        btn.states = {"hover": {"offset": [0, -4]}}
+        btn.hover(45, 55, mouse_down=False)          # inside -> hovered
+        self.assertTrue(btn.hovered)
+        before = btn.rect
+
+        r = RecordingRenderer()
+        btn.submit(r)
+
+        drawn = [i for i in r.items if isinstance(i, HudRect)][0]
+        self.assertEqual(drawn.rect, (40, 46, 60, 20))
+        self.assertEqual(btn.rect, before)
+        self.assertTrue(btn.hit(45, 55))             # still hit-tests as laid out
+
+
 class TestConstructPreviewZOrder(unittest.TestCase):
     """``ConstructPreview.submit()`` used to intersperse TEXT submissions
     between the panel/name-box and the confirm/cancel/close/dice BUTTONS.
@@ -433,6 +455,55 @@ class TestUpgradePanelSwatches(unittest.TestCase):
                 x, y, w, h = btn.rect
                 self.assertLessEqual(y + h, top)      # above the button
                 self.assertGreaterEqual(min(w, h), 12)   # UR-5 floor
+
+
+#: feature: boost buildings excluded from colour — a booster's own slot,
+#: paired with a capability map naming colours for it. If the exclusion ever
+#: regressed, this map alone would be enough to make swatches appear.
+BOOST_SLOT = create("boost_speed", 0, 0, BUILD, 0).slot_key()
+
+
+class TestBoosterColourExclusion(unittest.TestCase):
+    """A booster is excluded from colour entirely (`game/buildings/CLAUDE.md`),
+    even when the host hands both screens a capability map naming colours for
+    its own slot — mirroring `TestConstructPreviewSwatches`/
+    `TestUpgradePanelSwatches` above, but for `boost_speed` instead of
+    `defence`."""
+
+    def test_construct_preview_builds_no_swatches_for_a_booster(self):
+        cost = build_cost("boost_speed", BUILD, 0)
+        preview = ConstructPreview(
+            "boost_speed", cost, BUILD, UI, VIEW_W, VIEW_H,
+            building_colors={BOOST_SLOT: COLOUR_NAMES})
+        self.assertFalse(preview.swatches)
+        self.assertEqual([], [k for k in preview.ids
+                              if k.startswith("preview_color")])
+        self.assertIsNone(preview.chosen_column)
+
+    def test_upgrade_panel_builds_no_swatches_for_a_placed_booster(self):
+        session, panel, _hud, scene, occ = build_world()
+        tile = session.tilemap.get(2, 2)
+        session.tilemap.set_tile_state(tile, TileState.BUILDABLE)
+        place_building(session.tilemap, tile, "boost_speed", 9999, BUILD,
+                       scene, occ)
+        panel.colour_columns = {BOOST_SLOT: COLOUR_NAMES}
+        panel.open_for_tile(tile, session, BUILD)
+        self.assertEqual("upgrade", panel.mode)
+        self.assertFalse(panel.colour_row)
+        self.assertEqual([], [k for k in panel.ids
+                              if k.startswith("upgrade_swatch")])
+
+    def test_an_explicit_column_still_never_lands_on_a_booster(self):
+        # Defence-in-depth: even a caller that bypasses the UI and passes an
+        # explicit column (which the UI never actually offers a booster)
+        # cannot recolour one -- registry.place_building's own tag guard.
+        session, _panel, _hud, scene, occ = build_world()
+        tile = session.tilemap.get(2, 2)
+        session.tilemap.set_tile_state(tile, TileState.BUILDABLE)
+        building, _cost = place_building(
+            session.tilemap, tile, "boost_speed", 9999, BUILD, scene, occ,
+            colour_columns={BOOST_SLOT: COLOUR_NAMES}, column=2)
+        self.assertEqual(-1, building.get_component(SpriteAnimator).column)
 
 
 class TestBossNextIndicatorIcon(unittest.TestCase):

@@ -37,7 +37,7 @@ from types import SimpleNamespace
 
 from engine.render import HudRect, HudSprite
 
-from .skinning import ScreenSkinning, button_kwargs, is_visible
+from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .widgets import Button, anim_ms, submit_centered
 from . import widgets
 
@@ -204,10 +204,23 @@ class MainMenu:
             btn.update(dt)
 
     def hit(self, mx, my):
-        if is_visible(self.debug_gear) and self.debug_gear.hit(mx, my):
+        # UL-10: clickable layers first. The retarget table is built from the
+        # SAME id/action decoupling ``hit()`` uses below (``_SLOT_IDS`` names
+        # the id, ``self.actions`` names what it emits) — never a second copy.
+        layer_actions = {_SLOT_IDS[slot]: self.actions.get(slot, slot)
+                         for _btn, slot in self.buttons}
+        layer_actions[_GEAR_ID] = _GEAR_ACTION
+        layer_action = hit_layer(
+            self.ids, self.skinning.widgets_spec(self.screen_id), mx, my,
+            self.skinning.state_of, layer_actions)
+        if layer_action is not None:
+            return layer_action
+        # SD-6: `widgets.click` is the ROUTED-click seam — it emits the click
+        # sound exactly once. `btn.hit` stays probe-only.
+        if widgets.click(self.debug_gear, mx, my):
             return _GEAR_ACTION
         for btn, slot in self.buttons:
-            if is_visible(btn) and btn.hit(mx, my):
+            if widgets.click(btn, mx, my):
                 # The slot names the id; ``actions`` names what it emits.
                 return self.actions.get(slot, slot)
         return None
@@ -216,6 +229,8 @@ class MainMenu:
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
         self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "under", self.skinning.state_of)
         renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
         renderer.submit_hud(HudSprite(_BG_SLOT, (0, 0), (view_w, view_h)))
         if self._title.visible:
@@ -229,3 +244,5 @@ class MainMenu:
         for btn in self._all_buttons():
             if is_visible(btn):
                 btn.submit(renderer, anim_ms=t, **button_kwargs(btn))
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "over", self.skinning.state_of)

@@ -1,453 +1,516 @@
-<!-- active-plan: VfxAuthoringPLAN.md | set: 2026-08-13 -->
-> **Active plan:** VfxAuthoringPLAN.md (mirror). Source of truth:
-> `planning/VfxAuthoringPLAN.md`. Do **not** edit this file directly — edit the
+<!-- active-plan: SoundEditorPLAN.md | set: 2026-08-18 -->
+> **Active plan:** SoundEditorPLAN.md (mirror). Source of truth:
+> `planning/SoundEditorPLAN.md`. Do **not** edit this file directly — edit the
 > source in `planning/` and re-run `/setcurrentplan`, or pick a different
 > plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
 > screen).
 
-<!-- status: COMPLETE — 8/8 phases (VA-1–VA-8), authored + completed 2026-08-13 -->
-<!-- plan-scale: medium -->
+<!-- status: NOT STARTED — SD-1–SD-7 -->
 
-# VfxAuthoringPLAN.md — Authoring the VFX roster
+# SoundEditorPLAN.md — Sound slots in balancing, audio in the game
 
-Phased, agent-executable plan (same family as `EntitySceneVfxPLAN.md` /
-`AgentDispatchPLAN.md`). Base branch: `Development`; work branch
-`vfx-authoring`. Runnable via `/execute-plan-phases planning/VfxAuthoringPLAN.md
-VA-1-VA-8` or phase-by-phase. Four packages: **data · engine · game · editor**.
+Phased, agent-executable plan (same family as `AgentDispatchPLAN.md` /
+`VfxAuthoringPLAN.md`). Base branch: `Development`. Runnable via
+`/execute-plan-phases planning/SoundEditorPLAN.md SD-1-SD-7` or phase-by-phase.
 
-Direct successor to `planning/completed plans/EntitySceneVfxPLAN.md`. Read that
-plan's §7 (post-plan live-testing follow-ups) before touching anchors or draw
-order — it records four bugs this area has already produced.
+**Source**: `Sound checklist.md` (21 sound rows) plus the scoping session of
+2026-08-18. This document **replaces** an earlier draft of the same name that
+designed a central `data/audio/sound_bank.json` and a separate editor **Sound**
+menu. That design is dropped: sounds belong *inside the balancing of the element
+that makes them*, not in a bank off to the side.
 
 ## 1. Vision
 
-ESV gave the designer control over how each effect *looks*: procedural params in
-`data/balancing/vfx.json`, a live preview panel, a `triggers` table binding ten
-game events to a `vfx_*` spritesheet or a procedural kind.
+Every sound in the game is a **slot inside the balancing of the thing that makes
+it**. Open `buildings` in the editor's balancing form and each building family
+has a **Sounds** section: placement, selection, upgrade, death, attack,
+upkeep/boost. Each slot is a composite widget — *Import…* / *Use existing…*, a
+clip list (several clips = random variation), per-clip volume and in/out trim, a
+loop toggle, and a ▶ preview. Global defaults sit on the domain's globals; a
+per-element slot left empty **inherits the default**, so one imported clip
+covers everything until you want a specific one.
 
-It gave no control over the **roster**. You cannot add an effect, remove one,
-rename one, or give one alternate art. Three things the designer wants are not
-in the system at all — the building respawn, the tile-selection outline, and the
-2×2 section outline. And no effect can say whether it draws over or under the
-things on the map.
+The game never names an audio file. It calls `sfx.play(...)` with a resolved
+slot; the resolver walks **element override → global default → silence**.
 
-After this plan a designer can, without an agent:
+Today there is effectively **no sound system** to build on *(all verified in the
+`SoundEditor` worktree, 2026-08-18)*:
 
-- **Add, remove and rename** VFX effects and their variants from the editor,
-  with the imported art, the manifest entry and the trigger bindings following
-  the rename.
-- **Give an effect alternate art** and choose how a variant is picked at play
-  time — at random, by the source's level (era for enemies, tier for buildings),
-  or by a named misc value that code hooks up later.
-- **Author the respawn effect and all seven tile highlights** the same way as
-  every other effect: tunable, previewable, replaceable by a spritesheet.
-- **Say whether an effect draws in front of or behind** the buildings and
-  enemies, per effect.
+- `engine/audio.py:15,27,35` — three functions (`play_music` / `stop_music` /
+  `set_volume`). Music only. No `pygame.mixer.Sound` anywhere in the repo.
+- `game/main.py:66,785` — one hardcoded boot track.
+- `game/ui/cutscene_player.py:16,69` — cutscene companion audio; it uses the
+  same `music` channel and nothing restores the previous track (`:66`).
+- `game/ui/settings.py:71` — `volume: float = 0.8  # inert (no audio system)`,
+  drawn at `:112-113,229-235` with the label `"(no audio yet)"`.
+- No audio schema. `data/audio/` holds one 49 MB `.wav` and no JSON.
+
+### Scoping decisions (taken with the user)
+
+- **D1 — Global default + per-element override.** Untouched elements inherit;
+  no phantom copies. (Rejected: global-only, which forecloses per-building and
+  per-enemy variation; per-element-only, which makes every element silent until
+  individually filled.)
+- **D2 — Slots live inside the existing balancing domains** (`core` / `ui` /
+  `map` / `buildings` / `enemies`), not in a new bank file. This is the whole
+  point: the sound sits with the thing it belongs to, and the editor's existing
+  schema-driven balancing form, save path, and history come for free.
+- **D3 — Per-slot features**: preview ▶ button, random variation (several clips
+  per slot), in/out trim, loop toggle — on top of file + volume.
+- **D4 — Music**: a **default** music slot with **building-phase** and
+  **combat-phase** overrides, plus **menu** and **cutscene** slots. **Ambient is
+  a separate slot**, not part of music.
+- **D5 — Button click**: a global default plus a per-button override, carried by
+  the existing per-widget override object in `data/ui/screens/*.json` (which
+  already takes optional `font` / `skin` / `tint` / `text_id` patches — see
+  `data/schemas/ui_screen.schema.json:46,110,127`).
+- **D6 — Settings gets Master + Music + SFX sliders**, replacing the inert one.
+  **Ambient plays on the SFX bus.**
+- **D7 — Enemy overrides are per enemy type** — the ten `EnemyTypes` entries
+  (Boss, Commander, Digger, Drummer, Formation, Raider, SiegeCannon, Sniper,
+  Standard, Tutorial) — *not* per type × era.
+- **D8 — Import copies `.ogg` / `.wav` / `.mp3` as-is**, with an optional
+  **transcode-to-.ogg** checkbox powered by **`soundfile`** (added to
+  `requirements.txt` as OPTIONAL; the checkbox greys out if it is absent).
+  Rejected: ffmpeg-on-PATH — *measured*: no ffmpeg on this machine, so the
+  option would be dead out of the box.
+- **D9 — Plan scale: flat.** Seven phases on a mostly linear chain.
 
 ## 2. Architecture
 
 ```
-data/                              engine/                        game/ + editor/
-─────                              ───────                        ───────────────
-slots.json  vfx category           coords/system.py               game/vfx_misc.py   (NEW)
-  Effects ▸ per-effect leaf          depth_key(..., rank)  ◄──┐     misc provider registry
-  groups  (RESTRUCTURE, VA-1)                                 │
-    └─ variants <stem>_v<k>        render/item.py             ├─► game/ui/effects.py
-                                     WorldRect (NEW)          │     _play  (one-shot)
-schemas/vfx.schema.json              screen-px size,          │     _submit_highlight (NEW,
-  trigger_row                        world depth, rank        │        continuous)
-    + variant_select {mode,        vfx/system.py              │     variant resolve site
-        misc_key}                    submit_world (NEW) ──────┘
-    + draw_in_front                                             editor/registry_ops.py
-    sprite_slot enum: GENERATED    vfx/params.py                  add_vfx_effect (NEW)
-                                     +8 param dataclasses         remove_slot    (NEW)
-balancing/vfx.json                                                rename_slot    (NEW)
-  procedural.respawn      (NEW)                                 editor/panels/vfx_preview.py
-  procedural.highlights.* (NEW ×7)                                roster strip, trigger bind,
-  triggers +8 rows                                                variant-select, layer bool
-ui/palette.json
-  −highlight −highlight2 −range_highlight   (move to vfx.json)
+data/balancing/                          engine/audio/   (audio.py → package)
+────────────────                         ─────────────
+core.json      Sounds.Music/Ambient/Game  __init__.py  re-exports play_music,
+ui.json        Sounds.*                                stop_music, set_volume
+map.json       Sounds.*                   bank.py      PURE: resolve override→
+buildings.json BuildingsGlobal.Sounds                  default→silence, random
+               + <family>.sounds                       pick (injected rng),
+enemies.json   EnemySounds (defaults)                  volume math. No pygame.
+               + EnemyTypes.<type>.sounds  sfx.py      Sound cache, channel pool,
+data/audio/imported/*.ogg  ◄── clips                   cooldown, trim, buses
+data/ui/screens/*.json     ◄── per-button  music.py    streaming channel, phase/
+                               click override          menu/cutscene switching
+
+editor/                                   game/
+───────                                   ─────
+sound_import.py  (new, pure)              main.py   sfx.init() after pygame.init;
+  copy/transcode → data/audio/imported/             gp["sfx"]
+panels/sound_slot.py (new)                buildings/, enemies/, ui/, core/
+  SoundSlotWidget                           ~20 trigger call sites
+panels/balancing.py  += x-widget hook     ui/settings.py  Master/Music/SFX
 ```
 
-### Decisions (with rationale)
+**Flow**: designer opens a domain in the balancing panel → a `sound_slot` node
+renders as `SoundSlotWidget` → *Import…* copies the clip into
+`data/audio/imported/` via `editor/sound_import.py` → the widget commits the
+whole slot object through the panel's existing `_commit` → Save writes through
+`engine.data_io.write_validated` → at runtime the game's dispatch seam resolves
+**element override → global default → silence** and calls
+`engine.audio.sfx.play(clip, bus)`.
 
-- **D1 — The `vfx` slot category becomes one leaf child group per effect.**
-  Variants in this repo are `<stem>_v<k>` slots inside a leaf *child* group;
-  `selection.variant_target()` returns `None` for a flat `slots` list, so
-  `registry_ops.add_variant` is unreachable and "+ Variant" silently dies.
-  `data/CLAUDE.md` already states this as the reason every `ui` group is a
-  parent-with-children. `walls` and `conditions` set the same precedent. **Zero
-  schema change** — `$defs/group_node` already recurses.
+### Load-bearing facts this design rests on
 
-- **D2 — `vfx.schema.json`'s `sprite_slot` enum becomes generated.** It is
-  hand-typed and already stale: six keys against thirteen real slots. Add,
-  remove and rename each break it, silently, in the direction that matters
-  (a valid binding rejected, or a dangling one accepted). `tools/
-  gen_sprite_slot_enum.py` already regenerates `core.schema.json`'s slot enum
-  from the live `SlotRegistry`, with `tools/tests/test_schema_slot_sync.py` as
-  the CI drift gate. Extend both rather than growing a second mechanism.
-  **`trigger_row.procedural` is NOT generated** — a correction made during
-  VA-1, which had planned to generate both. Its values name game-code kinds
-  (`game/ui/effects.py::_run_procedural`'s if/elif ladder), not `procedural.*`
-  balancing keys: `spark_place`/`spark_level`/`spark_tier` are spark PRESETS
-  with no key of their own, and several `procedural.*` blocks (`floaters`,
-  `projectile`, `drummer_aura`, …) are not one-shot kinds at all. Generating
-  it from the balancing doc would rewrite the enum into something the shipped
-  trigger rows fail against. The kind vocabulary is code-owned (D9); only the
-  slot list is data.
+- `editor/panels/balancing.py` is a **generic schema-walking form generator** —
+  `_build_object:361`, `_add_leaf_row:522`, and the one widget switch
+  `_make_widget:670`. It already supports composite rendering steered by schema
+  extensions: `x-paired` (`:372`), `x-toggle` (`_build_toggle_checkbox:638`),
+  `x-array-editable` (`:419`). An `x-widget: "sound_slot"` hook is the same move,
+  and it is why D2 costs almost no editor code.
+- **`data/CLAUDE.md:410-412` — never use `oneOf` or a type-less node; it crashes
+  the balancing panel for the whole domain.** Hence no nullable trim: `end: 0.0`
+  is the "play to the end" sentinel.
+- **`data/CLAUDE.md:438-455` — local `#/$defs/` refs only, never cross-file.**
+  So the `sound_slot` `$defs` block is *duplicated* into each domain schema and
+  pinned identical by a generator + drift test. Precedent:
+  `tools/gen_sprite_slot_enum.py` + `tools/tests/test_schema_slot_sync.py`.
+- **`editor/panels/viewport.py` sets `SDL_AUDIODRIVER=dummy` at module level for
+  the whole editor process** — in-editor preview therefore cannot use
+  `pygame.mixer`. It uses QtMultimedia, lazily imported, degrading to a disabled
+  button (precedent `editor/thats_my_producer.py:15-32`). *Verified: QtMultimedia
+  imports cleanly on this machine.*
+- `editor/cutscene_import.py:93-151` (`audio_dest`, `import_audio`) is the
+  existing audio-file import-copy flow; `editor/asset_import.py:55-71`
+  (`sheet_users` / `unreferenced_sheets`) is the refcounting model.
+- `tools/tests/temp_data.py:9` stubs `.wav/.mp3/.ogg/.mp4` to zero bytes in the
+  temp `data/` copy; a test that actually decodes must set `DECODES_MEDIA:119`.
+- `game/main.py:588` `pygame.init()` is where the mixer initialises; `gp` (built
+  at `:825`) is the de-facto system registry — audio joins as `gp["sfx"]`.
+- *Verified*: numpy 2.4.6 imports, but only transitively via the OPTIONAL
+  `opencv-python`. Start-trim must feature-detect it (§5).
 
-- **D3 — Variants are spritesheet-only** (user's call). A procedural effect
-  keeps its single param block. A "procedural variant" would mean N param sets
-  per family, which multiplies the schema, the dataclasses and the preview by
-  the variant count for a lever the designer did not ask for.
+### 2.1 The slot shape (`$defs/sound_slot`, duplicated per domain schema)
 
-- **D4 — Level mode resolves to variant 0 where no source object is in hand**
-  (user's call). Five of the ten events carry only a world point; only
-  `building_destroyed`, `enemy_attack_melee` and `enemy_attack_ranged` hold the
-  object (`watch_buildings`/`watch_enemies`). Widening `RunState.*_events` and
-  the `resolve_combat` callbacks to thread a tier through is a real cost for a
-  cosmetic lever, and the fallback is visible and explainable in the editor.
+```json
+"death": {
+  "clips": [
+    {"file": "imported/building_death_a.ogg", "volume": 0.8, "start": 0.0, "end": 0.0}
+  ],
+  "loop": false,
+  "pick": "random"
+}
+```
 
-- **D5 — ONE `draw_in_front` bool, implemented as a depth-key rank, not a
-  layer switch.** Buildings and enemies share the `entities` layer and sort by
-  iso depth, so no layer choice can express "in front of buildings but behind
-  enemies" — which is why there is one bool and not two. `depth_key` gains a
-  fourth element: `(layer_index, wx+wy, wy, rank)`. Entities keep rank 0; an
-  effect submits ±1. The effect stays on `entities`, so real iso depth survives
-  — an effect on a near tile still draws over a building on a far one — and the
-  bool decides only the same-tile tie, which is where front/behind is actually
-  visible. Switching the effect to `deco`/`terrain` instead would discard iso
-  depth entirely. The layer-primary invariant the ground cache depends on is
-  untouched: layer is still element 0.
+- `file` — path relative to `data/audio/`. Empty string = no clip.
+- `volume` — 0.0–1.0, multiplied by the bus volume and the master volume.
+- `start` / `end` — seconds. `end: 0.0` means *play to the end* (a sentinel, not
+  `null` — see the `oneOf` rule above).
+- `loop` — one-shot vs looping (ambient, music).
+- `pick` — `"random"` | `"sequential"`, used when `clips` has more than one entry.
+- **`clips: []` on a global default = silence. `clips: []` on an element
+  override = inherit the default.** Both layers are always present in the JSON
+  (full `required` per `data/CLAUDE.md`), so the form always renders them and no
+  "create the override key" machinery is needed.
 
-- **D6 — Procedural effects need a screen-pixel-sized, world-depth-sorted
-  primitive: `WorldRect`.** Sparks, slashes and muzzle motes are `HudRect`s
-  drawn dead last, so they cannot participate in D5 at all. `submit_world_fill`
-  is the existing depth-sorted primitive but its polygon is world-space and
-  scales with zoom — wrong for a particle, which is a fixed pixel size.
-  `WorldRect` is `WorldFill`'s shape with a pixel rect instead of world points.
+### 2.2 Buses
 
-- **D7 — The tile highlights are CONTINUOUS, so they get their own dispatcher.**
-  `_play` spawns a `PlayOnceVfx` with a despawn clock; a selection outline is
-  drawn every frame for as long as the tile is selected. `_submit_highlight
-  (event, col, row)` is its sibling: the bound slot's sheet as a looping
-  `RenderItem` when it has art (the same `animation_total_ms(...) is not None`
-  test every art-tolerant site uses), else the existing `submit_tile_diamond`.
-  Forcing a highlight through `PlayOnceVfx` would respawn it every frame.
+The bus is fixed by *where the slot lives*, not by a data field a designer can
+mis-set:
 
-- **D8 — The three palette highlight colours MOVE to `vfx.json`; they are not
-  copied.** `highlight`, `highlight2` and `range_highlight` are in
-  `data/ui/palette.json` today. Leaving them there and adding them to `vfx.json`
-  is two homes for one value (G-7) — the exact dead-data gap ESV-3a opened with
-  `procedural.floaters` and ESV-6 had to close. `configure_palette` raises on a
-  key-set mismatch, so removing them from `_PALETTE_KEYS` is loud, never silent.
-  `C_MOVE_HIGHLIGHT`/`C_TUTORIAL_HIGHLIGHT` are bare code constants and move the
-  same way.
+| Bus | Slots | Channel |
+|---|---|---|
+| `music` | `core.Sounds.Music.*` | `pygame.mixer.music` (streaming, one at a time) |
+| `sfx` | everything else, including `core.Sounds.Ambient` (D6) | `pygame.mixer.Sound` on a pooled channel |
 
-- **D9 — The event vocabulary stays code-owned; bindings are open** (user's
-  call). `triggers` keeps its closed, all-required schema; this plan adds eight
-  keys to it and no mechanism for a designer to invent a ninth. An open registry
-  would let a designer author a row nothing ever fires — inert data that looks
-  live. `/add-vfx`'s `triggers_by_type` proposal is explicitly NOT adopted here.
+Effective volume = `master × bus × clip.volume`.
 
-- **D11 — `building_respawn` is a fourth `spark` PRESET, not a new
-  `procedural.respawn` block** (corrected during VA-4, on reading the data).
-  `spark_place`/`spark_level`/`spark_tier` already prove the shape for
-  "another one-shot burst at a tile, independently tunable": three names, ONE
-  emitter, one shared velocity/ramp/size block, differing only by a `presets`
-  entry — and `_params_from_balance` builds that dict generically from
-  `spark["presets"].items()`. So a fourth preset costs a schema entry and zero
-  code, where a new block costs a dataclass, a required `VfxParams` field
-  (breaking every direct construction), an `editor/vfx_params.py` mirror and a
-  preview path. It also shrinks VA-8 by one family: respawn previews for free
-  as a spark preset. The row ships DOING something rather than inert —
-  a respawn effect that plays nothing is the feature not being there.
+### 2.3 Checklist → slot map (all 21 rows)
 
-- **D10 — Every trigger row ships `draw_in_front: true`.** That reproduces
-  today's always-on-top behaviour exactly, so VA-3 is a visual no-op and nothing
-  moves until a designer unticks a box. Same doctrine as ESV-1/ESV-3 landing
-  byte-identical.
-
-## 3. Package routing (read the ONE doc per phase)
-
-| Phase touches | Read |
+| Checklist row | Slot |
 |---|---|
-| `slots.json` restructure, vfx schema, balancing rows | `data/CLAUDE.md` |
-| `depth_key`, `WorldRect`, `VfxSystem` | `engine/CLAUDE.md`, `engine/render/CLAUDE.md` |
-| respawn ledger, highlight dispatcher, palette move | `game/CLAUDE.md`, `game/ui/CLAUDE.md` |
-| registry ops, VFX panel | `editor/CLAUDE.md`, `editor/panels/CLAUDE.md` |
+| Music / ambient | `core.Sounds.Music.default` + `core.Sounds.Ambient.loop` |
+| game start sound | `core.Sounds.Game.game_start` |
+| round win / loss | `core.Sounds.Game.round_win` / `.round_loss` |
+| round start (humans screaming) | `core.Sounds.Game.round_start` |
+| level up sound | `core.Sounds.Game.level_up` |
+| buying plot | `map.Sounds.buy_plot` |
+| tile placement sound | `map.Sounds.tile_placement` |
+| cutscene sound/music | `core.Sounds.Music.cutscene` |
+| menu music | `core.Sounds.Music.menu` |
+| not enough love | `ui.Sounds.not_enough_love` |
+| button click | `ui.Sounds.button_click` + per-widget `sound` in `data/ui/screens/*.json` |
+| Building death sound | `buildings.BuildingsGlobal.Sounds.death` (+ per-family) |
+| Building upgrade sounds | `…Sounds.upgrade` (+ per-family) |
+| upkeep/boost | `…Sounds.upkeep_boost` (+ per-family) |
+| selection sound | `…Sounds.selection` (+ per-family) |
+| placement sound | `…Sounds.placement` (+ per-family) |
+| boss death sound | `enemies.EnemyTypes.Boss.sounds.death` |
+| cannon/boss attack sound | `EnemyTypes.Boss.sounds.attack` + `EnemyTypes.SiegeCannon.sounds.attack` |
+| boss spawn | `EnemyTypes.Boss.sounds.spawn` |
+| Enemy death sound | `enemies.EnemySounds.death` (+ per-type) |
+| Enemy attack sound | `enemies.EnemySounds.attack` (+ per-type) |
+| *(D4, beyond the checklist)* | `core.Sounds.Music.building_phase`, `core.Sounds.Music.combat_phase` |
 
-VA-2, VA-4 and VA-5 are cross-package — tell the user; they decide whether the
-executing agent reads both docs.
+Building sound events also include `attack`; economy buildings that never attack
+simply stay silent.
 
-## 4. Build order
+## 3. Build order (flat)
 
-| Phase | Scope | Package | Depends on | Status |
-|-------|-------|---------|------------|--------|
-| VA-1 | vfx slot restructure + generated schema enums | data + tools | — | **done** |
-| VA-2 | `variant_select`/`draw_in_front` schema; resolver; `vfx_misc` | data + game | VA-1 | **done** |
-| VA-3 | `depth_key` rank; `WorldRect`; `submit_world` | engine | — | **done** (also `WorldLines` — a slash is lines, so the world submit needed both) |
-| VA-4 | `building_respawn` trigger | game + data | VA-2 | **done** (a 4th `spark` PRESET, not a new `procedural.respawn` block — see D11) |
-| VA-5 | seven highlights → trigger-driven; palette move | game + data | VA-2, VA-3 | **done** |
-| VA-6 | `registry_ops` add/remove/rename; vfx variants | editor | VA-1 | **done** (+ the ops resync the generated enum) |
-| VA-7 | VFX panel roster/binding/variant/layer UI | editor | VA-6, VA-2 | **done** |
-| VA-8 | preview paths for the new families | editor | VA-4, VA-5, VA-7 | **done** (ONE family, not eight — respawn rides `spark` per D11) |
+| Phase | Scope (package) | Status |
+|-------|-----------------|--------|
+| SD-1 | Slot schema + `$defs` generator + all balancing subtrees (data) | not started |
+| SD-2 | `engine/audio/` package: pure bank + sfx + music channels (engine) | not started |
+| SD-3 | Editor: `sound_import.py`, `SoundSlotWidget`, `x-widget` hook, preview (editor) | not started |
+| SD-4 | Triggers: buildings + map (game) | not started |
+| SD-5 | Triggers: enemies + boss (game) | not started |
+| SD-6 | Triggers: UI + per-button override + Master/Music/SFX sliders (game + data) | not started |
+| SD-7 | Music & round/game events; retire the hardcoded boot track (game) | not started |
 
-Ordering rule, inherited: **nothing changes visible behaviour until the piece
-behind it is real.** VA-1 through VA-4 land as visual no-ops.
-
----
-
-## VA-1 — Slot restructure + generated enums
-
-**Goal.** The `vfx` category can host variants, and the schema's slot enum stops
-being a hand-typed list that add/remove/rename would silently break.
-
-**Files.** Modified: `data/slots.json` (the `vfx` category's `Effects` group
-gains `children`, one leaf per effect, replacing the flat `slots` list — the
-`vfx_crater` frame-size override rides along);
-`tools/gen_sprite_slot_enum.py` (also regenerate `vfx.schema.json`'s
-`$defs/trigger_row.sprite_slot` enum, plus the `procedural` enum from the live
-`procedural.*` keys); `data/schemas/vfx.schema.json` (enums become generated
-output); `tools/tests/test_schema_slot_sync.py`.
-
-**Tests.** The registry still resolves all 13 slots and their frame sizes after
-the restructure; `selection.variant_target()` now returns a target for a vfx
-node; the generated `sprite_slot` enum equals the live vfx slot key set; the
-drift gate fails on a hand-edited enum.
-
-**Exit gate.** `py tools/smoke.py` ·
-`py -m pytest tools/tests/test_registry.py tools/tests/test_schema_slot_sync.py -q` ·
-Quick Test: `py editor/main.py`, open the VFX node — every effect still lists and
-its art still resolves.
+SD-1 gates everything. SD-2 and SD-3 depend only on SD-1 and are independent of
+each other. SD-4 – SD-7 need SD-2.
 
 ---
 
-## VA-2 — Variant selection + the layering bool
+### Phase SD-1 — Slot schema + balancing subtrees (data)
 
-**Goal.** A trigger row can say how to pick among a slot's variants, and whether
-its effect draws in front of or behind the entities. Nothing reads the bool yet
-(VA-3 does); the resolver picks variant 0 for every un-varianted slot, so this
-lands as a no-op.
+**Goal**: the data model exists and validates. No engine, no editor, no sound.
 
-**Files.** Modified: `data/schemas/vfx.schema.json` (`$defs/trigger_row` gains
-`variant_select` — `{mode: "random"|"level"|"misc", misc_key: string}` — and
-`draw_in_front: boolean`, both required, D9's closed-object style);
-`data/balancing/vfx.json` (all ten rows get `{"mode":"random","misc_key":""}`
-and `draw_in_front: true`, D10); `game/ui/effects.py` (`_triggers_from_balance`
-carries the two new fields; resolve the variant before `spawn_play_once`).
-New: `game/vfx_misc.py` (`register(key, fn)` / `resolve(key) -> int`, unregistered
-→ 0); a pure variant resolver beside it.
+**Read**: `data/CLAUDE.md`.
 
-**Tests.** A slot with no variants resolves to itself under every mode; random
-mode with an injected seeded rng picks deterministically from the family; level
-mode clamps an out-of-range tier and returns variant 0 at an object-less event
-(D4); an unregistered misc key returns 0 and never raises; the ten shipped rows
-validate.
+**Files** — new: `tools/gen_sound_slot_defs.py` (writes the identical
+`$defs/sound_slot` + `$defs/sound_clip` block into every domain schema that uses
+it — the `tools/gen_sprite_slot_enum.py` pattern),
+`tools/tests/test_sound_slots_data.py`.
+Modified: `data/schemas/{core,ui,map,buildings,enemies}.schema.json` (the `$defs`
+block, the `Sounds` subtrees, every slot site marked `x-widget: "sound_slot"`,
+per-key `description` + `minimum`/`maximum` per D-12),
+`data/balancing/{core,ui,map,buildings,enemies}.json` (the subtrees, all slots
+empty). Imported clips stay committed content (D-31) — do **not** gitignore them.
 
-**Exit gate.** `py tools/smoke.py` ·
-`py -m pytest tools/tests/test_vfx.py -q` ·
-Quick Test: `py game/main.py` — every effect plays exactly as before.
+**Tests** (`test_sound_slots_data.py`): the `$defs` block is byte-identical
+across all five schemas (drift test); every checklist slot in §2.3 exists at its
+stated path; an empty slot validates; a slot with two clips validates; an
+out-of-range `volume`, an unknown key, and a `null` trim value each fail; no
+node added to the touched schemas is type-less or uses `oneOf`; the `pick` enum
+is exactly `["random", "sequential"]`.
+
+**Exit gate**: `py tools/smoke.py` +
+`py -m pytest tools/tests/test_sound_slots_data.py -q`.
+**Quick test**: `py editor/main.py` → select `buildings` → the new `Sounds`
+sections render (as plain nested fields at this phase — the composite widget is
+SD-3) and the domain does not crash.
+
+### Phase SD-2 — `engine/audio/` package (engine)
+
+**Goal**: sound can be played by code, headlessly safe, with no game vocabulary
+in `engine/`.
+
+**Read**: `engine/CLAUDE.md`.
+
+**Files** — new: `engine/audio/__init__.py` (re-exports `play_music`,
+`stop_music`, `set_volume` **exactly** — `game/main.py:66`,
+`game/ui/cutscene_player.py:16` and `tools/tests/test_audio.py` all import from
+`engine.audio`), `engine/audio/bank.py` (pure: `resolve(default_slot,
+override_slot)`, `pick_clip(slot, rng)`, `effective_volume(clip, bus, master)`),
+`engine/audio/sfx.py` (`init()`, `play(clip, bus)`, `set_bus_volume`,
+`stop_all`; `pygame.mixer.Sound` cache keyed by `(file, start, end)`, channel
+pool, per-slot cooldown and max-concurrent cap), `engine/audio/music.py`
+(`play(clip)`, `stop()`, `push`/`pop` so a cutscene restores the previous track —
+fixing the clobber noted at `game/ui/cutscene_player.py:66`),
+`tools/tests/test_audio_bank.py`, `tools/tests/test_audio_sfx.py`.
+Deleted: `engine/audio.py` (becomes the package).
+
+**Decisions**: every entry point keeps `engine/audio.py`'s swallow-and-continue
+guard, so `SDL_AUDIODRIVER=dummy` and machines with no device degrade to silence
+rather than crashing. `bank.py` is pure — no pygame, no globals, `rng` injected,
+`data_dir`-injectable. **Start-trim needs numpy** (`pygame.sndarray` slicing) and
+numpy is only a transitive optional here, so `sfx.py` feature-detects it and
+falls back to `end`-only trim (`Sound.play(maxtime=…)`); it must never add a hard
+dependency.
+
+**Tests**: `bank.py` tests are headless and pure (override wins; empty override
+falls through to default; empty default → `None`; `random`/`sequential` picking
+with a seeded rng; volume math). `sfx` tests assert the graceful-degradation
+invariant already pinned by `tools/tests/test_audio.py` (never raises with the
+mixer quit / a missing file) plus cache, cooldown and cap behaviour against a
+fake mixer. `tools/tests/test_audio.py` must keep passing verbatim — it pins the
+re-export surface.
+
+**Exit gate**: `py tools/smoke.py` +
+`py -m pytest tools/tests/test_audio.py tools/tests/test_audio_bank.py tools/tests/test_audio_sfx.py -q`.
+**Quick test**: `py game/main.py` boots and the existing music still plays.
+
+### Phase SD-3 — Editor sound slot (editor)
+
+**Goal**: a designer imports a clip, sets volume/trim/loop, adds variations, and
+hears it — without leaving the balancing form.
+
+**Read**: `editor/CLAUDE.md`.
+
+**Files** — new: `editor/sound_import.py` (PURE — Qt-free and pygame-free:
+`clip_ref(name)`, `import_clip(data_dir, src, name, transcode=False)` copying
+into `data/audio/imported/`, `imported_clips(data_dir)` for the reuse picker,
+`clip_users` / `unreferenced_clips` refcounting modelled on
+`editor/asset_import.py:55-71`, `transcode_available()`),
+`editor/panels/sound_slot.py` (`SoundSlotWidget`),
+`tools/tests/test_sound_import.py`, `tools/tests/test_sound_slot_widget.py`.
+Modified: `editor/panels/balancing.py` — `_build_object:361` intercepts
+`prop.get("x-widget") == "sound_slot"` and emits a `SoundSlotWidget` instead of
+recursing; the widget commits the whole slot object through the existing
+`_commit:725`, and `_set_widget_value:795` / `_apply_snapshot:806` learn the new
+widget type. `tools/tests/test_editor_viewport.py` (`TestPurity` += the two new
+modules — editor rule 2). `requirements.txt` (+ `soundfile`, marked OPTIONAL in
+the same style as `opencv-python`).
+
+**Decisions**: preview uses **QtMultimedia**, lazily imported inside a `try`
+(precedent `editor/thats_my_producer.py:15-32`), because
+`editor/panels/viewport.py` sets `SDL_AUDIODRIVER=dummy` process-wide —
+`pygame.mixer` in the editor is silent by construction. Missing QtMultimedia ⇒
+the ▶ button disables itself. The transcode checkbox is enabled only when
+`soundfile` imports; the raw-copy path always works. Files above a size
+threshold get a warning (`data/audio/Bass_and_drum_Duo.wav` is already 49 MB).
+`QFileDialog` stays confined to one `_on_*_clicked` method and dialog
+construction is split from display, so no test `exec()`s (editor rule 12).
+
+**Tests**: `test_sound_import.py` (pure, no Qt) — copy into a temp `data_dir`,
+`clip_ref` shape, refcounting, transcode skipped cleanly when `soundfile` is
+absent, non-audio extension rejected. `test_sound_slot_widget.py` — the widget
+renders from a slot dict and round-trips it through `_commit`; adding/removing a
+clip restructures the list; volume/trim bounds come from the schema;
+`QtCase.track` destroys every widget (editor rule 17); assert against a pinned
+fixture, never live `data/` (rule 18). Any test that actually decodes a clip must
+set `DECODES_MEDIA` (`tools/tests/temp_data.py:119`) — audio is stubbed to zero
+bytes in the temp copy.
+
+**Exit gate**: `py tools/smoke.py` +
+`py -m pytest tools/tests/test_sound_import.py tools/tests/test_sound_slot_widget.py tools/tests/test_editor_viewport.py -q`.
+**Quick test**: `py editor/main.py` → `buildings` → *DefenceBuildings →
+BasicDefence → Sounds → attack* → **Import…** a short clip → ▶ plays it → set
+volume 0.5 → Save → reopen the editor and confirm it persisted into
+`data/balancing/buildings.json`.
+
+### Phase SD-4 — Triggers: buildings + map (game)
+
+**Goal**: placement, selection, upgrade, death, attack and upkeep/boost sounds
+fire; buying a plot and placing a tile make a noise.
+
+**Read**: `game/CLAUDE.md`, then `game/buildings/CLAUDE.md`.
+
+**Files** — modified: `game/main.py` (`sfx.init(data_dir)` after
+`pygame.init():588`; `gp["sfx"]`), `game/buildings/*` (placement, upgrade,
+death, attack, selection, upkeep/boost call sites), `game/map/*` and
+`game/ui/building_ui.py` (buy-plot, tile placement), `game/core/balance.py` if a
+loader seam is needed. New: `tools/tests/test_sound_triggers_buildings.py`.
+
+**Decisions**: game code resolves through **one seam** — a
+`game/ui/effects.py`-style dispatcher (`play_building_sound(kind, family)`) that
+looks up the family override then the global default, mirroring how
+`game/ui/effects.py::_play` / `_play_typed` already dispatches VFX. No `game/`
+module ever names an audio file, and `engine/` never branches on a building type
+string (D5, layering). **Locate every call site fresh** — the previous draft of
+this plan cited line numbers that no longer resolve.
+
+**Tests**: a fake `sfx` records `(slot_path, clip)` calls; assert the right slot
+fires on place / upgrade / death / attack / select / upkeep, that an empty
+override falls back to the default, and that an empty default is a silent no-op
+rather than a crash.
+
+**Exit gate**: `py tools/smoke.py` +
+`py -m pytest tools/tests/test_sound_triggers_buildings.py -q`.
+**Quick test**: `py game/main.py` → buy a plot (sound) → place a defence building
+(placement) → select it (selection) → upgrade it (upgrade) → let it shoot
+(attack) → let it die (death).
+
+### Phase SD-5 — Triggers: enemies + boss (game)
+
+**Goal**: enemy spawn/attack/death and the three boss rows fire, with per-type
+overrides.
+
+**Read**: `game/CLAUDE.md`, then `game/enemies/CLAUDE.md`.
+
+**Files** — modified: `game/enemies/*` (spawner, walker, combat sweep),
+`game/core/session.py` / `game/core/boss_bonuses.py` for boss spawn.
+New: `tools/tests/test_sound_triggers_enemies.py`.
+
+**Decisions**: the override key is the `EnemyTypes` entry (D7), reached via the
+existing `registry_group` / type mapping — **not** a new string convention.
+`data/schemas/enemies.schema.json:663-667` warns explicitly that the registry
+label is not the `EnemyTypes` key (`Standard → "Walker"`,
+`SiegeCannon → "Siege Cannon"`); match by field, never by convention. Boss spawn,
+boss attack and boss death are the `Boss` type's override rows; the cannon attack
+is `SiegeCannon`'s. A 40-enemy wipe in one frame is the load case — SD-2's
+per-slot cooldown and max-concurrent cap are load-bearing here, not polish.
+
+**Tests**: fake-`sfx` assertions per type; a mass-death burst plays at most the
+cap; `SiegeCannon` and `Boss` attacks resolve to their overrides while an
+un-overridden type falls back to `EnemySounds`.
+
+**Exit gate**: `py tools/smoke.py` +
+`py -m pytest tools/tests/test_sound_triggers_enemies.py -q`.
+**Quick test**: `py game/main.py` → reach a wave with siege cannons (their attack
+differs from the default) → reach a boss round (spawn, attack, death).
+
+### Phase SD-6 — UI triggers, per-button override, volume sliders (game + data)
+
+**Goal**: buttons click, "not enough love" is audible, and the settings screen
+has working Master / Music / SFX sliders.
+
+**Read**: `game/CLAUDE.md`, then `game/ui/CLAUDE.md`.
+
+**Files** — modified: `data/schemas/ui_screen.schema.json` (an **optional**
+`sound` key on the per-widget override object — optional by omission from
+`required`, so every existing `data/ui/screens/*.json` stays byte-identical),
+`game/ui/widgets.py` + `game/ui/shell.py` (`_main_menu_click:205`,
+`_settings_click:246`, `_pause_click:255`) for the click seam,
+`game/ui/overlays.py` (or wherever `ui.Timing.not_enough_love_duration` is
+consumed), `game/ui/settings.py` (three sliders replacing the inert `volume:71`
+and the `_audio_note` label at `:112-113,229-235`), `game/ui/strings.py` +
+`data/ui/strings.json` (retire `settings.no_audio`, add music/SFX labels), and a
+regeneration of `data/ui/screen_defaults.json` / `screen_previews.json` via
+`tools/export_ui_layouts.py` if the settings layout changes.
+New: `tools/tests/test_sound_triggers_ui.py`.
+
+**Decisions**: the per-button override resolves once, in the widget click seam —
+the widget's own `sound` if set, else `ui.Sounds.button_click`. Each slider sets
+a bus volume through `engine.audio.sfx.set_bus_volume` / `music.set_volume`, and
+persists wherever the settings screen already persists. Ambient is on the SFX bus
+(D6). `screen_defaults.json` / `screen_previews.json` are generated-but-committed
+— regenerate them in this phase or the drift test fails.
+
+**Tests**: the click seam plays the global slot; a widget carrying a `sound`
+override plays that instead; bus volume multiplies correctly; the schema still
+validates every unmodified `data/ui/screens/*.json`.
+
+**Exit gate**: `py tools/smoke.py` +
+`py -m pytest tools/tests/test_sound_triggers_ui.py tools/tests/test_ui_screens.py -q`.
+**Quick test**: `py game/main.py` → click menu buttons (click sound) → Settings →
+drag Music to 0 (music stops, SFX keeps playing) → drag SFX to 0 → in game, try
+to place a building you cannot afford (not-enough-love sound at SFX volume).
+
+### Phase SD-7 — Music and round/game events (game)
+
+**Goal**: every remaining checklist row plays, and no audio path is hardcoded.
+
+**Read**: `game/CLAUDE.md`, then `game/core/CLAUDE.md`.
+
+**Files** — modified: `game/main.py` (**delete** the hardcoded
+`play_music(data_dir / "audio" / "Bass_and_drum_Duo.wav", loop=True)` at `:785`;
+that track becomes the imported clip of `core.Sounds.Music.default`),
+`game/core/phases.py` + `game/core/session.py` (building-phase / combat-phase
+music switch; round start / win / loss), `game/core/levelup.py` (level-up sound),
+`game/ui/shell.py` (menu music on `to_main_menu:116` / `enter_gameplay:108`;
+game-start sound), `game/ui/cutscene_player.py` (cutscene music slot, using
+`music.push`/`pop` so the previous track resumes), `data/balancing/core.json`
+(seed the default music slot with the existing WAV).
+New: `tools/tests/test_sound_music.py`.
+
+**Decisions**: music resolution is `phase override → default`, exactly like every
+other slot — building phase and combat phase are overrides of
+`core.Sounds.Music.default` (D4). Ambient loops on the SFX bus concurrently with
+music. Switching to a track that is already playing is a no-op — never restart it
+on every phase tick.
+
+**Tests**: a fake music channel records `play`/`stop`; the phase machine switches
+tracks on transition and only on transition; an empty phase override falls back
+to the default; the cutscene push/pop restores the prior track; round win/loss
+and level-up fire exactly once each.
+
+**Exit gate**: `py tools/smoke.py` +
+`py -m pytest tools/tests/test_sound_music.py -q`.
+**Quick test**: `py game/main.py` → menu music at the main menu → start a game
+(game-start sound, then building-phase music) → end turn (round-start scream,
+combat-phase music) → clear the wave (round-win) → level up (level-up sound) →
+trigger a cutscene (its music plays, then the previous track resumes).
 
 ---
 
-## VA-3 — Depth rank + `WorldRect`
+## 4. Verification (whole plan)
 
-**Goal.** The render layer can express "this draws behind the thing on its tile"
-for a fixed-pixel-size item. Byte-identical output until something passes a
-non-zero rank.
+Each phase's own gate is written above, and that is what the executing agent
+runs — `py tools/smoke.py` plus the named test files, then the Quick Test.
 
-**Files.** Modified: `engine/coords/system.py` (`depth_key(wx, wy,
-layer_index=0, rank=0)` → 4-tuple); `engine/render/item.py` (`WorldRect`
-beside `WorldFill`; `rank` field on the depth-participating items);
-`engine/render/renderer.py` (`submit_world_rect`; the `flush` sort passes
-`rank`); `engine/vfx/system.py` (`submit_world` beside `submit_hud`).
+The **single** full `py tools/testgate.py check` happens once, in the main
+session, at handoff. §"Test Suite Policy" in the root `CLAUDE.md` is the only
+authority on this; do not restate a different rule here.
 
-**Re-read `engine/render/` before starting** — `Development` gained
-`backend_gpu.py`, `ground_cache_gpu.py`, `backend_api.py` and a
-`flush(target, hud_target=…)` split since this plan's exploration. Both backends
-must draw a `WorldRect`.
-
-**Tests.** `depth_key` with default rank sorts identically to the 3-tuple on a
-representative queue; equal-depth items order by rank; a rank never outranks the
-layer (the ground-cache invariant); a `WorldRect` renders through both backends;
-`VfxSystem.submit_world` emits the same rects `submit_hud` does, at the same
-screen positions.
-
-**Exit gate.** `py tools/smoke.py` ·
-`py -m pytest tools/tests/test_render.py tools/tests/test_coords.py tools/tests/test_vfx.py -q` ·
-Quick Test: `py game/main.py` — sparks, slashes and muzzle motes look unchanged.
-
----
-
-## VA-4 — `building_respawn`
-
-**Goal.** A building revived by payday plays an effect at its tile.
-
-**Files.** Modified: `game/core/payday.py` (the slot-9 `b.rebuild()` loop
-appends to a new ledger — the building and its tile are both already in scope);
-`game/core/run_state.py` (`building_respawn_events`, the `painter_events` shape);
-`game/main.py` (drain on the INCOME phase edge, beside `spawn_painter_events`);
-`game/ui/effects.py` (`spawn_building_respawn_events` + the `_play` call);
-`data/schemas/vfx.schema.json` + `data/balancing/vfx.json` (the trigger row and
-a `procedural.respawn` block); `engine/vfx/params.py` (its dataclass — APPEND
-only, and every direct `VfxParams(...)` construction needs the new argument:
-`editor/vfx_params.py` and `tools/tests/test_vfx.py`'s `VFX_PARAMS`);
-`data/slots.json` (a `vfx_respawn` effect group).
-
-**Tests.** A payday that revives a building fills the ledger once per building;
-a payday with `building_revive` off fills nothing; the drain plays the effect at
-the building's tile and clears the ledger; with no art the procedural fallback
-runs (E-37).
-
-**Exit gate.** `py tools/smoke.py` ·
-`py -m pytest tools/tests/test_payday.py tools/tests/test_vfx.py -q` ·
-Quick Test: `py game/main.py`, lose a building, reach a payday with revive
-unlocked — the effect plays where it comes back.
-
----
-
-## VA-5 — The seven tile highlights
-
-**Goal.** `tile_selected`, `section_2x2`, `attack_range`, `move_target`,
-`wall_edge`, `upgrade_batch` and `tutorial_highlight` become effects: tunable,
-bindable to a spritesheet, and subject to the layering bool.
-
-**Files.** Modified: `game/ui/effects.py` (`_submit_highlight`, D7);
-`game/ui/building_ui.py` (`_highlight_tiles` entries carry the event name, not a
-colour — the five fill sites and the `submit()` draw loop);
-`game/main.py` (the tutorial and drag-select highlight sites);
-`game/ui/widgets.py` (drop `C_MOVE_HIGHLIGHT`/`C_TUTORIAL_HIGHLIGHT` and the
-three palette-backed keys from `_PALETTE_KEYS`, D8);
-`data/ui/palette.json` (remove the three keys);
-`data/schemas/palette.schema.json`; `data/schemas/vfx.schema.json` +
-`data/balancing/vfx.json` (seven trigger rows + `procedural.highlights.*`);
-`engine/vfx/params.py`; `editor/vfx_params.py`; `data/slots.json` (seven slots).
-
-**Tests.** Each highlight draws with the colour from `vfx.json`, not a constant;
-`configure_palette` still raises on a mismatched key set (the removal is
-coordinated, not silent); a highlight with imported art draws the sheet and
-without it draws the diamond; the 2×2 section still highlights the clicked tile
-plus its three chunk siblings; `draw_in_front: false` puts a highlight behind a
-same-tile building **asserted against the depth queue, not by reordering submits**
-(reordering an overlay submit is a documented no-op).
-
-**Exit gate.** `py tools/smoke.py` ·
-`py -m pytest tools/tests/test_vfx.py tools/tests/test_building_ui.py -q` ·
-Quick Test: `py editor/main.py` retint the selection outline; `py game/main.py`
-select a tile and a 2×2 section and see it.
-
----
-
-## VA-6 — Add, remove, rename
-
-**Goal.** The three verbs exist as pure ops, tested, before any UI calls them.
-
-**Files.** Modified: `editor/registry_ops.py` — `add_vfx_effect(data_dir,
-name)` (the `add_button_family` stack: slug derivation, validate-before-any-write,
-`_append_child_group`), `remove_slot(data_dir, slot_key)` (refuse while bound in
-any `triggers` row; drop the manifest entry; drop the leaf group when it empties;
-unlink the PNG **only** when `asset_import.unreferenced_sheets` clears it),
-`rename_slot(data_dir, old_key, new_key)` (rekey `slots.json` and the manifest
-entry, rename `data/sprites/imported/<old>.png` and rewrite `sheet`, rewrite every
-matching `triggers[*].sprite_slot`; validate the new key is free across the whole
-registry first). `editor/main.py` (`"vfx"` into `_VARIANT_TARGETS`).
-
-**Tests.** Add produces a schema-valid `slots.json` and a reachable variant
-target; a duplicate name and a name that slugs to nothing both raise before any
-write; remove refuses a bound slot; remove leaves a PNG that another slot links;
-rename migrates all four references and is a no-op on a free-standing slot;
-every op leaves the tree schema-valid; new modules join `TestPurity`.
-
-**Exit gate.** `py tools/smoke.py` ·
-`py -m pytest tools/tests/test_registry_ops.py -q` ·
-Quick Test: drive the three ops from `py -c` against a temp data dir and diff the
-JSON.
-
----
-
-## VA-7 — The panel
-
-**Goal.** The feature, visible: roster controls, trigger binding, variant-select,
-layering bool.
-
-**Files.** Modified: `editor/panels/vfx_preview.py` (roster strip with the
-live-slug dialog and confirm-before-delete — **wrap the delete connect in a
-lambda**, `clicked(bool)` lands in `confirm=` and skips the dialog; a
-trigger-binding row; mode combo + misc key field + misc value scrubber; the
-`draw_in_front` checkbox); `editor/main.py` (wiring + `_reload_registries()`
-after each registry op); `tools/tests/test_vfx_preview.py`.
-
-**Re-read `vfx_preview.py` first** — it gained 205 lines on `Development` since
-this plan's exploration.
-
-**Tests** (offscreen Qt, temp data dir): each roster control calls its op with
-the right arguments and refreshes the tree; delete asks first; a mode change
-stages into `vfx.json` and does not write; the misc scrubber changes the preview
-without touching data; `TestPurity` covers every new module.
-
-**Exit gate.** `py tools/smoke.py` ·
-`py -m pytest tools/tests/test_vfx_preview.py -q` ·
-Quick Test: the five live steps in §6.
-
----
-
-## VA-8 — Preview the new families
-
-**Goal.** Respawn and the seven highlights render live in the preview instead of
-the E-37 placeholder.
-
-**Files.** Modified: `editor/panels/vfx_preview.py` (preview paths beside
-`_EMIT_FAMILIES`/`_POINT_FX_FAMILIES`); `tools/tests/test_vfx_preview.py`.
-
-**Tests.** Each of the eight families selects without the placeholder and
-requests the engine emitter/primitive with the staged params (assert the params,
-never pixels); an unknown family still degrades to the placeholder.
-
-**Exit gate.** `py tools/smoke.py` ·
-`py -m pytest tools/tests/test_vfx_preview.py -q` ·
-Quick Test: `py editor/main.py`, step the family combo through all eight.
-
----
+Tests must never write into `data/` (`TempDataCase`; a session fixture hashes
+`data/` and fails the run if it changed) and must never assert against live
+`data/` content — pin the fixture.
 
 ## 5. Risks / open items
 
-- **The palette split (D8)** removes three colours from the editor's theme
-  screen. The alternative — leave them in `palette.json` and have the VFX panel
-  write palette values — is a cross-domain write from a panel that today has
-  zero writers. Flagged to the user at plan time; revisit only if they ask.
-- **Moving particles into the depth queue (D6)** is the largest visual-regression
-  risk here. D10's `draw_in_front: true` default is the guard: nothing moves
-  until a box is unticked.
-- **`VfxParams` is append-only with no defaults.** Eight new families is eight
-  coordinated edits across `engine/vfx/params.py`, `editor/vfx_params.py` and
-  `tools/tests/test_vfx.py`'s fixture. It breaks loudly at construction, which
-  is the design — but ESV-6 and two later features each hit it, so expect it.
-- **The 2×2 "outline" is four diamonds**, not a perimeter. Nothing in the game
-  draws a true 2×2 perimeter (only the editor does, for `start_area`, via raw
-  `submit_overlay_lines`). If the designer wants a real perimeter that is a new
-  primitive and a new phase.
-- **Editor-tier tests are flaky under the gate's parallel workers** — an ESV
-  open item, not caused here, but VA-7/VA-8 land in exactly those modules.
-- **`tools/tests/fixtures/data/` is stale** (an ESV open item). VA-1 changes
-  `slots.json`'s shape, so the vfx part of the fixture must be mirrored
-  deliberately.
-
-Test policy for every phase is root `CLAUDE.md` §"Test Suite Policy" and nothing
-else. The single full `py tools/testgate.py check` happens ONCE, in the main
-session, at `/commitpushpr` stage 5 — after the PR is up and after `Development`
-has been merged down.
-
-## 6. Live acceptance (the whole plan, end to end)
-
-1. `py editor/main.py` → VFX node → **Add effect** "Shockwave" → `vfx_shockwave`
-   appears in `slots.json` and the tree. **Add variant** → `_v2`.
-2. Import a sheet into it; **Rename** to `vfx_ripple`; confirm the PNG, the
-   manifest entry and the trigger binding all followed.
-3. Bind `building_respawn` to it, set **random**, untick **draw in front**.
-4. `py game/main.py` → let a payday revive a building → the effect plays at its
-   tile and passes **behind** the building.
-5. Select a tile and a 2×2 section → both outlines render from `vfx.json`.
-   Retint them in the editor and see it in game.
-6. Delete `vfx_ripple` while still bound → refused with a message. Unbind,
-   delete → gone, and a shared PNG survives if another slot links it.
+- **Start-trim depends on numpy**, which is present only transitively via the
+  OPTIONAL `opencv-python` (*measured*: numpy 2.4.6 imports today). SD-2 must
+  feature-detect it and ship `end`-only trim when it is missing; the editor greys
+  the `start` field out in that case. Do **not** promote numpy to a hard
+  dependency without asking.
+- **`soundfile` is a new dependency** (D8). It must be OPTIONAL — the transcode
+  checkbox disables itself if the import fails, and the raw-copy path always
+  works.
+- **Repo size.** Audio is committed content. `data/audio/Bass_and_drum_Duo.wav`
+  is already 49 MB; 21 more uncompressed clips would hurt. The transcode option
+  and the import-size warning are mitigation, not a guarantee.
+- **`engine/audio.py` → package conversion** is the one backwards-compat risk
+  (SD-2). Three importers depend on the exact re-export surface.
+- **Channel exhaustion / mix mud** on a mass enemy wipe — SD-2's cooldown and
+  max-concurrent cap are load-bearing for SD-5.
+- **Empty-clips semantics differ by layer** (default = silence, override =
+  inherit). Deliberate and cheap, but it must be stated in the `SoundSlotWidget`
+  tooltip or a designer will be confused by it.
+- **`screen_defaults.json` / `screen_previews.json` are generated-but-committed**
+  — SD-6 regenerates them if it changes the settings layout, or the drift test
+  fails.
+- Every file:line in this document was re-verified in the `SoundEditor` worktree
+  on **2026-08-18**. The previous draft's citations had drifted badly (including
+  a reference to `editor/main_window.py`, which does not exist) — re-check before
+  executing if much time passes.

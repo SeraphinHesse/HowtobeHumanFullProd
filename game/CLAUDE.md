@@ -194,6 +194,54 @@ preset names (D5).
   package may never import `game/`) — the sanctioned duplication
   `editor/vfx_params.py` and `editor/timeline_curve.py` already are.
 
+## Sound triggers (`sounds.py`, SoundEditorPLAN SD-4)
+The GAME half of "which sound does this event play", against `engine/audio/`'s
+pure half — the same split as `vfx_variants.py` against `engine/vfx/`, and for
+the same reason (D5: `engine/` must never branch on a building-type string).
+`engine/audio/bank.py` knows slots, clips and volume math; `game/sounds.py` is
+the only place the words `"placement"`/`"upgrade"`/`"buy_plot"` and the
+`SUBTREE` family lookup exist.
+- **`GameSounds` makes exactly one engine call per event**:
+  `engine.audio.play_slot(default_slot, override_slot, bus="sfx", key=<slot
+  path>, rng=…)`. It computes the two slot dicts and the key string and nothing
+  else. The override→default→silence rule is `bank.resolve`'s, called for us by
+  `play_slot` — **never re-derive "is this slot empty" here**, and never
+  pre-resolve. `key` is an opaque cooldown/concurrency bucket; passing the slot
+  path is what makes SD-2's per-slot cooldown and max-concurrent cap bucket
+  correctly, so `game/` adds no rate limit of its own.
+- **The balancing key case is SPLIT on purpose**: capital `Sounds` on
+  `buildings.BuildingsGlobal` (matching its sibling groups) and lowercase
+  `sounds` on each of the 12 leaf families (matching their own field naming).
+  `_family_sounds()` reads the lowercase one, `_global_sounds()` the capital
+  one. "Correcting" either stops the data resolving.
+- **Lifetime is the PROCESS, not the run.** `gp["sfx"]` is built at BOOT next to
+  the balancing loads — not in `build_gameplay()` — and is deliberately ABSENT
+  from `teardown_gameplay()`'s key tuple, so the main menu, Settings and the
+  game-over screen stay audible before the first run and after a quit-to-menu.
+  It holds no run state; its two `id()`-keyed watcher caches self-evict every
+  frame (the `FloaterManager.watch_enemies` pattern), so a torn-down world's
+  ids drain on the next run's first frame. Do not "fix" that by clearing it.
+- **The panel reaches the seam through a host-set callback**, exactly like
+  `on_build_vfx`: `BuildingUI.on_sound = gp["sfx"].play_building_event`, called
+  as `self.on_sound(kind, building)` behind an `is not None` guard. `game/ui/`
+  never imports `game.sounds` and knows nothing about buses or slots — it only
+  names the event that just succeeded. Placement and upgrade fire **once per
+  click**, never once per tile of a batch.
+- **`attack` is an `Attacker.cooldown` watcher, not a callback.**
+  `resolve_combat(on_defender_fire=…)` carries only `(wx, wy)` — no shooter,
+  hence no family — and is deliberately not widened (the same ruling telemetry
+  got). The watcher yields the building OBJECT, which is what the per-family
+  override needs. `death` mirrors `FloaterManager.watch_buildings`; both live in
+  `GameSounds.watch(scene)` so `game/ui/effects.py` stays VFX-only.
+- **Payday reads the ledgers from the host side**, by coordinate:
+  `"upkeep"`-tagged `state.income_events` rows plus every `state.boost_events`
+  row, deduped to ≤1 `upkeep_boost` play per distinct `SUBTREE` family.
+  Nothing is added inside `game/core/payday.py` — that ordering is sacrosanct.
+- **Silence is a first-class outcome**: an unfilled slot, a missing balancing
+  node, a `SUBTREE`-less building or a machine with no audio device are all a
+  silent return. `play_slot` returning `False` is the NORMAL answer, never an
+  error to log.
+
 ## Host conventions (`main.py`, Phase 2 → 10A)
 - `main(max_frames=None)` is importable so `tools/smoke.py` can drive the same code
   headlessly (G-8); `py game/main.py` runs it windowed. `main(autostart=True)`
@@ -721,6 +769,30 @@ The feature's rules are `game/buildings/movement.py`
   exactly like `condition_art`/`tree_slots`/`wall_art` — E-37: an unimported
   slot draws only the countdown, never a grey X. `moving_orders` is empty on
   effectively every frame, so this costs one list check.
+
+## Boss Upgrade Timeline — host wiring (BossUpgradeTimelinePLAN)
+The feature's rules live across `game/core/CLAUDE.md` (the balancing domain,
+`RunState` fields, the milestone-cycle engine, retirement of `boss_bonuses.py`),
+`game/buildings/CLAUDE.md` (the hook-threading pattern), `game/enemies/CLAUDE.md`
+(the shared slow-debuff ledger + thorns), `game/ui/CLAUDE.md` (the 3-card
+cutscene, the debuff-arrow indicator). `main.py` is where every seam gets
+INSTALLED at boot (`build_gameplay()`, mirrored by a matching clear in
+`teardown_gameplay()` where noted) — nothing here is a new subsystem, just the
+one place a subsystem doc can't itself reach:
+- `boss_upgrades.set_one_time_hook("stone_thrower_sync", sync_stone_throwers)`
+  and `boss_upgrades.set_one_time_hook("mortar_slow", <snapshot fn>)` — the
+  pick-time actions `game/core/boss_upgrades.py`'s `apply_pick` cannot perform
+  itself (it never imports `game.buildings`/`game.enemies`, D5's layering rule).
+- `components.set_boss_upgrade_pair(session.state, boss_upgrades_balance)` in
+  `build_gameplay()`, **cleared** in `teardown_gameplay()` — the module-level
+  seam `EnemyCombat.update` (thorns, #8) reads, since that method has no call
+  site to thread the pair through directly (`game/enemies/CLAUDE.md`).
+- `lightning.set_slow_hook(<fn calling game.enemies.components.apply_slow>)` —
+  the same "no direct import" problem, one level up: `game/core` may never
+  import `game/enemies`, so `stormpriest_slow` (#7) reaches the slow ledger
+  through this seam instead.
+- `floaters.submit_debuff_arrows(...)`, wired immediately after the existing
+  `submit_buff_arrows(...)` call in the overlay pass.
 
 ## Large-map performance — INVARIANTS (why/detail → `game/PERF.md`)
 These are load-bearing; a regression drops a 1024² map to ~2 fps. Rules only here:

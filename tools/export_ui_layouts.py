@@ -133,6 +133,14 @@ _DISPLAY_NAMES = {
         "btn_toggle_income_floaters": "Income Floaters toggle",
         "btn_toggle_bg_art": "Background Art toggle",
         "btn_toggle_gore": "Gore toggle",
+        # SD-6: the three audio rows (`audio_label` is the Master row's label,
+        # kept under its shipped id).
+        "audio_label": "Master volume label",
+        "bar_master_volume": "Master volume bar",
+        "label_music_volume": "Music volume label",
+        "bar_music_volume": "Music volume bar",
+        "label_sfx_volume": "SFX volume label",
+        "bar_sfx_volume": "SFX volume bar",
     },
     "credits": {
         "backdrop": "Background backdrop",
@@ -171,8 +179,9 @@ _DISPLAY_NAMES = {
         "backdrop": "Background backdrop",
         "headline": "Headline label",
         "subtitle": "Subtitle label",
-        "box_a": "Boss option A box",
-        "box_b": "Boss option B box",
+        "box_a": "Boss upgrade slot 1 box",
+        "box_b": "Boss upgrade slot 2 box",
+        "box_c": "Boss upgrade slot 3 box",
     },
     "overlays": {
         "btn_range": "Range overlay toggle",
@@ -209,6 +218,10 @@ _DISPLAY_NAMES = {
         "icon_love": "Love icon",
         "icon_xp": "XP icon",
         "icon_lives": "Lives icon",
+        # UL-11: three individually placeable/skinnable life counters.
+        "life_1": "Life 1",
+        "life_2": "Life 2",
+        "life_3": "Life 3",
     },
     "levelup": {
         "backdrop": "Background backdrop",
@@ -248,6 +261,10 @@ _PARENTS = {
         "income_text": "readout_panel",
         "lives_text": "readout_panel",
         "icon_lives": "readout_panel",
+        # UL-11: laid out on the lives row, inside the readout pill's group.
+        "life_1": "readout_panel",
+        "life_2": "readout_panel",
+        "life_3": "readout_panel",
         "tiles_text": "readout_panel",
         "round_label": "btn_end_turn",
     },
@@ -652,8 +669,12 @@ def _build_boss_cutscene(view_w, view_h, data_root):
     from game.core import load_balance
     from game.ui.boss_cutscene import BossCutscene
 
-    # The option descs format live BossBonuses magnitudes in — geometry only
-    # lands in the export, but the screen still needs a real core balance.
+    # Only GEOMETRY lands in the export, and the screen still takes a core
+    # balance as its third positional. BU-4: `boss_upgrades_balance` is
+    # deliberately NOT passed — the milestone a bossfight offers is run state,
+    # not screen state, so the recorded default is the three EMPTY card boxes
+    # (frames only, `boss_cutscene.py`'s empty-slot rule). The rects are what a
+    # designer skins, and they are identical either way.
     screen = BossCutscene(view_w, view_h, load_balance(data_root, "core"))
     screen.open(1, "win")  # R3 contract: open(1, "win") + layout(640, 360)
     return _widgets_from_ids(screen.ids), "open(1, 'win')"

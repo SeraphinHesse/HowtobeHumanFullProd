@@ -43,6 +43,12 @@ REPO = Path(__file__).resolve().parents[1]
 # authority.
 VIEW_ORDER = ("unlock", "construct", "upgrade", "base_info", "preview")
 
+# UL-13: the fill a freshly created custom `panel`/`backdrop` is given, as an
+# ORDINARY `widgets/<id>/color` override. A custom widget with no appearance
+# override at all draws the editor's flat placeholder box and NOTHING in the
+# game, so creation seeds one — see `add_custom_widget`.
+STARTER_CUSTOM_COLOR = (70, 70, 100)
+
 
 def ordered_views(view_ids):
     """Sort an iterable of view ids: known VIEW_ORDER names first (in that
@@ -357,3 +363,258 @@ class UIScreenSession(QObject):
             return
         self._push_doc(self.strings_doc, (text_id,), old_value, new_value,
                        f"edit text {text_id}")
+
+    # -- UL-6: layer operations ------------------------------------------------
+    # A widget's `layers` is an ARRAY of layer-spec dicts (see
+    # data/schemas/ui_screen.schema.json), NOT an id-keyed object, so a layer
+    # op cannot address one entry with a `_DocFieldCommand` path the way
+    # push_field addresses `widgets/<id>/<key>`: `_set_at` walks dicts only,
+    # and a path ending in a layer id would write an OBJECT where the schema
+    # demands an array. Every layer op therefore pushes ONE command at
+    # ("widgets", <widget_id>, "layers") carrying the FULL old array and the
+    # FULL new array — the same "never a delta" contract as every other push_*,
+    # and still exactly one undo step per op. `None` for the new value (an
+    # emptied array) prunes the key, and `widgets/<id>` with it when that was
+    # the widget's only override.
+
+    def layers(self, widget_id):
+        """The widget's layer array — a DEEP COPY, so a caller cannot edit the
+        doc by mutating what it reads back. Empty list when the widget has no
+        layers (or no override at all)."""
+        return copy.deepcopy(self._layers_raw(widget_id))
+
+    def _layers_raw(self, widget_id):
+        """The live array inside the doc (never mutated here — every op builds
+        a new list and pushes it). `[]` when absent."""
+        if self.doc is None:
+            return []
+        entry = self.doc.get("widgets", {}).get(widget_id, {})
+        value = entry.get("layers", [])
+        return value if isinstance(value, list) else []
+
+    def _layer_index(self, layers, layer_id):
+        """Index of the FIRST entry whose non-empty `id` matches, else None —
+        the same first-wins rule `engine.ui_layers.ordered` dedupes by."""
+        if not layer_id:
+            return None
+        for i, entry in enumerate(layers):
+            if isinstance(entry, dict) and entry.get("id") == layer_id:
+                return i
+        return None
+
+    def _push_layers(self, widget_id, old_layers, new_layers, text):
+        """Push ONE command replacing the whole array. An empty new array is
+        pushed as `None` so `_apply_field` prunes the key (and the widget
+        entry when nothing else is overridden) instead of leaving `[]`."""
+        old = list(old_layers) if old_layers else None
+        new = list(new_layers) if new_layers else None
+        self._push(("widgets", widget_id, "layers"), old, new, text)
+
+    def add_layer(self, widget_id, layer_id, layer_spec):
+        """Append one layer to `widget_id`, undoably.
+
+        `layer_spec` is a complete layer dict (offset/z/band/slot/... — keys
+        pinned by the schema); its `id` is forced to `layer_id` so the array
+        and the caller can never disagree about what the entry is called.
+        Ignored (no command pushed) when `layer_id` is empty or already used
+        by this widget: ids are the only handle remove/reorder/set have, and
+        `ordered()` silently drops a duplicate, so admitting one would create
+        a layer that draws but cannot be edited. The PANEL generates unique
+        ids, so this guard is a backstop, not the normal path.
+        """
+        if not layer_id or self.doc is None:
+            return
+        old = self._layers_raw(widget_id)
+        if self._layer_index(old, layer_id) is not None:
+            return
+        entry = copy.deepcopy(layer_spec) if layer_spec else {}
+        entry["id"] = layer_id
+        self._push_layers(widget_id, old, list(old) + [entry],
+                          f"add layer {layer_id} to {widget_id}")
+
+    def remove_layer(self, widget_id, layer_id):
+        """Drop one layer from `widget_id`, undoably. Removing the last layer
+        prunes the `layers` key entirely (and `widgets/<id>` when that was its
+        only override) — the same "None = absent" rule every reset follows."""
+        old = self._layers_raw(widget_id)
+        index = self._layer_index(old, layer_id)
+        if index is None:
+            return
+        new = list(old)
+        del new[index]
+        self._push_layers(widget_id, old, new,
+                          f"remove layer {layer_id} from {widget_id}")
+
+    def set_layer_field(self, widget_id, layer_id, field_key, old_value,
+                        new_value, text=None):
+        """Set (or clear, with `new_value=None`) ONE key on ONE layer.
+
+        Mirrors `push_field`'s signature — the caller passes the FULL old and
+        new values and the old==new guard refuses a no-op. `old_value` is the
+        caller's record of what the key held; it is used only for that guard
+        (the command itself stores whole arrays), so a caller that does not
+        track it may pass the current value.
+        """
+        if old_value == new_value:
+            return
+        old = self._layers_raw(widget_id)
+        index = self._layer_index(old, layer_id)
+        if index is None:
+            return
+        entry = copy.deepcopy(old[index])
+        if new_value is None:
+            entry.pop(field_key, None)
+        else:
+            entry[field_key] = copy.deepcopy(new_value)
+        new = list(old)
+        new[index] = entry
+        self._push_layers(widget_id, old, new,
+                          text or f"edit layer {layer_id}.{field_key}")
+
+    def reorder_layer(self, widget_id, layer_id, new_z):
+        """Move one layer within its band by rewriting only its `z` (D2 —
+        paint order is z within band, so nothing else needs to move)."""
+        old = self._layers_raw(widget_id)
+        index = self._layer_index(old, layer_id)
+        if index is None:
+            return
+        self.set_layer_field(widget_id, layer_id, "z",
+                             old[index].get("z", 0), new_z,
+                             text=f"reorder layer {layer_id}")
+
+    # -- UL-13: designer-authored CUSTOM widgets -------------------------------
+    # `custom_widgets` (data/schemas/ui_screen.schema.json) is a table of
+    # widgets no code owns. An entry is the widget's DEFAULT GEOMETRY ONLY
+    # (`kind` + `rect`, plus the authoring-only `band`/`z`/`display_name`) —
+    # the designer-authored twin of ONE screen_defaults.json widget entry.
+    # Everything paintable is an ORDINARY override under `widgets/<the same
+    # id>`, so the whole per-field form, its reset buttons, the layer array
+    # and the parenting resolver work on a custom widget with no new code:
+    # `editor/panels/_screen_rules.merge_custom_widgets` folds the table into
+    # the code-owned defaults and every consumer sees one widget map.
+    #
+    # These four methods mirror the layer ops' contract exactly: full old/new
+    # values, never a delta, and EXACTLY ONE undo step per operation.
+
+    def custom_widgets(self):
+        """The open doc's `custom_widgets` table — a DEEP COPY, so a caller
+        cannot edit the doc by mutating what it reads back. `{}` when the
+        screen authors none (the common case)."""
+        return copy.deepcopy(self._custom_widgets_raw())
+
+    def _custom_widgets_raw(self):
+        if self.doc is None:
+            return {}
+        table = self.doc.get("custom_widgets")
+        return table if isinstance(table, dict) else {}
+
+    def _default_custom_rect(self, kind):
+        """A starting rect near the middle of the logical canvas, sized by
+        kind. The canvas size is read from `data/display.json` — the same
+        single source of truth `viewport.logical_resolution` reads, re-read
+        here rather than imported because that module sets SDL env vars and
+        imports pygame at module scope, which this Qt-only session must not
+        drag in. An unreadable file degrades to the shipped 640x360 (E-37);
+        it is a starting rect the designer immediately drags, not data."""
+        try:
+            display = data_io.load_json(Path(self._data_dir) / "display.json")
+            width = int(display["window_w"])
+            height = int(display["window_h"])
+        except Exception:
+            width, height = 640, 360
+        w, h = (160, 24) if kind == "label" else (200, 120)
+        return [(width - w) // 2, (height - h) // 2, w, h]
+
+    #: kind -> the stem its auto-generated ids are numbered off. The three
+    #: buttons a designer sees say Panel / Text / Image, and the ids follow
+    #: those words rather than the schema's `kind` enum, so what the outliner
+    #: shows matches what was clicked.
+    CUSTOM_ID_STEMS = {"panel": "custom_panel",
+                       "label": "custom_text",
+                       "backdrop": "custom_image"}
+
+    def next_custom_widget_id(self, kind, taken=()):
+        """`custom_panel_1`, `custom_panel_2`, … — the FIRST FREE index, the
+        `_next_layer_id` rule (deterministic and readable, never a uuid).
+        `taken` is any further reserved ids (the screen's code-owned ones)."""
+        stem = self.CUSTOM_ID_STEMS.get(kind, "custom_widget")
+        used = set(self._custom_widgets_raw()) | set(taken)
+        index = 1
+        while f"{stem}_{index}" in used:
+            index += 1
+        return f"{stem}_{index}"
+
+    def add_custom_widget(self, kind, widget_id=None, code_owned_ids=(),
+                          rect=None):
+        """Create one designer-authored widget, undoably, and return its id
+        (or None when refused).
+
+        Refused when: the id is empty, this screen already carries a custom
+        widget of that id, or the id collides with a CODE-OWNED widget
+        (`code_owned_ids` — the caller's `screen_defaults.json` id set; the
+        session holds only the override doc, so it cannot know them itself).
+        A collision is refused rather than merged because the merge resolves
+        it in the code-owned widget's favour, which would leave a designer
+        with an entry that exists on disk and draws nothing.
+
+        **Creation also writes a STARTER APPEARANCE OVERRIDE** — a `color`
+        for `panel`/`backdrop`, a `label` string for `label` — under
+        `widgets/<id>`, so the new widget is immediately visible in the game
+        as well as the editor. Without it a fresh custom panel would draw the
+        editor's flat placeholder box and NOTHING in the game: a preview that
+        lies. The geometry entry and the starter override go out as ONE
+        `_DocFieldsCommand`, so creation is a single Ctrl+Z.
+        """
+        if self.doc is None or kind not in self.CUSTOM_ID_STEMS:
+            return None
+        widget_id = widget_id or self.next_custom_widget_id(kind,
+                                                            code_owned_ids)
+        if not widget_id or widget_id in self._custom_widgets_raw() \
+                or widget_id in set(code_owned_ids):
+            return None
+        entry = {"kind": kind, "rect": list(rect) if rect
+                 else self._default_custom_rect(kind)}
+        changes = [(("custom_widgets", widget_id), None, entry)]
+        if kind == "label":
+            changes.append((("widgets", widget_id, "label"), None, "New text"))
+        else:
+            changes.append((("widgets", widget_id, "color"), None,
+                            list(STARTER_CUSTOM_COLOR)))
+        self.undo_stack.push(_DocFieldsCommand(
+            self.doc, changes, f"add custom widget {widget_id}"))
+        return widget_id
+
+    def remove_custom_widget(self, widget_id):
+        """Delete one custom widget as ONE undo step, covering all THREE
+        things it can leave behind: its `custom_widgets` entry, its
+        `widgets/<id>` overrides (including its whole `layers` array), and
+        any OTHER widget's `parent` override naming it — those children are
+        re-rooted rather than left pointing at an id that no longer exists.
+        """
+        if self.doc is None or widget_id not in self._custom_widgets_raw():
+            return
+        changes = [(("custom_widgets", widget_id),
+                    copy.deepcopy(self._custom_widgets_raw()[widget_id]), None)]
+        widgets = self.doc.get("widgets", {})
+        if widget_id in widgets:
+            changes.append((("widgets", widget_id),
+                            copy.deepcopy(widgets[widget_id]), None))
+        for other, override in widgets.items():
+            if other == widget_id or not isinstance(override, dict):
+                continue
+            if override.get(PARENT_KEY) == widget_id:
+                changes.append((("widgets", other, PARENT_KEY), widget_id,
+                                None))
+        self.undo_stack.push(_DocFieldsCommand(
+            self.doc, changes, f"remove custom widget {widget_id}"))
+
+    def set_custom_field(self, widget_id, key, old_value, new_value):
+        """Set ONE base-only key on a custom widget's geometry entry —
+        `band`, `z` or `display_name`. These live in `custom_widgets/<id>`,
+        never in `widgets/<id>`: they are authoring metadata (paint order and
+        a friendly name), not overrides, exactly like the layer inspector's
+        `Z`/`Band` rows, which are likewise never state-patch keys."""
+        if widget_id not in self._custom_widgets_raw():
+            return
+        self._push(("custom_widgets", widget_id, key), old_value, new_value,
+                   f"edit {widget_id}.{key}")

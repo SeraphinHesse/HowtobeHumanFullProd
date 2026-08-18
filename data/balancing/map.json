@@ -41,6 +41,18 @@
       "top_n": 3
     }
   },
+  "Sounds": {
+    "buy_plot": {
+      "clips": [],
+      "loop": false,
+      "pick": "random"
+    },
+    "tile_placement": {
+      "clips": [],
+      "loop": false,
+      "pick": "random"
+    }
+  },
   "SpawnDeco": {
     "tree_chance": 0.3
   },

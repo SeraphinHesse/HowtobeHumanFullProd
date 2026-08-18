@@ -469,6 +469,15 @@
         "mode": "random"
       }
     },
+    "projectile": {
+      "draw_in_front": true,
+      "procedural": "projectile",
+      "sprite_slot": "",
+      "variant_select": {
+        "misc_key": "",
+        "mode": "level"
+      }
+    },
     "projectile_hit": {
       "draw_in_front": false,
       "procedural": "",

@@ -126,6 +126,16 @@ def _screen_captures():
 #: live ``core.json BossBonuses`` magnitudes). Only those four HudText strings
 #: moved — every rect/pos/colour in the entry is untouched, which is what says
 #: the change was contained.
+#: Regenerated a TWELFTH time (BossUpgradeTimelinePLAN BU-4): ``boss_cutscene``
+#: is now the 3-card boss-UPGRADE picker, so its entry gains a third box and
+#: the two existing boxes move + grow (90x65 -> 200x104, to hold a wrapped
+#: catalog description instead of 10G's pre-broken two-liner), which also
+#: lifts the headline/subtitle anchored above them. The four option HudTexts
+#: are GONE from this capture on purpose: the cards' copy comes from the
+#: ``boss_upgrades`` balance, which this driver does not load (it is run
+#: state, not screen state — ``tools/export_ui_layouts._build_boss_cutscene``
+#: says the same), so all three slots record as EMPTY frames. Only
+#: ``boss_cutscene`` changed; every other entry is byte-identical.
 #: Regenerated a THIRD time (player-identity): ``main_menu`` gained the
 #: HIGHSCORES row, so every row below it in the stack shifts down one slot
 #: (52 + 14 px) and its DEFAULT geometry moved on purpose. Only ``main_menu``
@@ -239,8 +249,27 @@ def _screen_captures():
 #: ALL THREE. That disjointness is the merge's containment signal — if a
 #: future merge of two UI branches touches the SAME entry, the resolution is
 #: to re-capture from ``_screen_captures()``, never to pick a side.
+#: Regenerated a FIFTEENTH time (SD-6: UI sound + volume sliders): ``settings``
+#: replaced its ONE inert audio bar and its "(no audio yet)" note with THREE
+#: real rows (Master / Music / SFX), so the audio block re-laid out and BACK /
+#: CONTROLS dropped 17px to clear the third row (279 -> 296, matching the
+#: user-approved ``btn_back`` rect move in ``data/ui/screens/settings.json``).
+#: Only ``settings``'s entry moved; every other screen's entry is
+#: byte-identical, which is what says the change was contained. Regenerated
+#: mechanically from ``_screen_captures()``.
 
 
+#: Regenerated a TWELFTH time (UL-11: three life counters): ``hud`` gained
+#: ``life_1``/``life_2``/``life_3`` — three id'd, individually placeable and
+#: skinnable widgets (D10), laid out on the lives row to the right of
+#: ``icon_lives``/``lives_text``, which both STAY untouched. Three sprite
+#: primitives are APPENDED to that entry (all three lives alive, so all three
+#: draw the default ``ui_icon_lives`` art); nothing already in it moved, and
+#: every other screen's entry is byte-identical — which is what says the
+#: change was contained. Regenerated mechanically from ``_screen_captures()``.
+#: This is also the ONE sanctioned D5 exception in section S4:
+#: ``data/ui/screen_defaults.json``/``screen_previews.json`` legitimately gain
+#: the same three widgets, because this phase adds real default geometry.
 _BASELINE = {
     "main_menu": [
         HudRect(rect=(0, 0, 640, 360), color=(18, 30, 20), border_radius=0, width=0),
@@ -313,16 +342,21 @@ _BASELINE = {
         HudRect(rect=(350, 212, 45, 20), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(350, 212, 45, 20), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='ON', pos=(372, 214), font_key='lg', color=(235, 225, 195), align='center'),
-        HudText(text='Master Audio', pos=(245, 237), font_key='md', color=(235, 225, 195), align='left'),
-        HudRect(rect=(275, 249, 90, 6), color=(80, 65, 120), border_radius=0, width=0),
-        HudRect(rect=(275, 249, 72, 6), color=(75, 60, 115), border_radius=0, width=0),
-        HudText(text='(no audio yet)', pos=(320, 259), font_key='sm', color=(150, 140, 120), align='center'),
-        HudRect(rect=(270, 279, 100, 23), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(270, 279, 100, 23), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='BACK', pos=(320, 283), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(380, 279, 90, 23), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(380, 279, 90, 23), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='CONTROLS', pos=(425, 285), font_key='sm', color=(235, 225, 195), align='center'),
+        HudText(text='Master Audio', pos=(190, 245), font_key='md', color=(235, 225, 195), align='left'),
+        HudRect(rect=(275, 248, 90, 6), color=(80, 65, 120), border_radius=0, width=0),
+        HudRect(rect=(275, 248, 72, 6), color=(75, 60, 115), border_radius=0, width=0),
+        HudText(text='Music', pos=(190, 257), font_key='md', color=(235, 225, 195), align='left'),
+        HudRect(rect=(275, 260, 90, 6), color=(80, 65, 120), border_radius=0, width=0),
+        HudRect(rect=(275, 260, 72, 6), color=(75, 60, 115), border_radius=0, width=0),
+        HudText(text='SFX', pos=(190, 269), font_key='md', color=(235, 225, 195), align='left'),
+        HudRect(rect=(275, 272, 90, 6), color=(80, 65, 120), border_radius=0, width=0),
+        HudRect(rect=(275, 272, 72, 6), color=(75, 60, 115), border_radius=0, width=0),
+        HudRect(rect=(270, 296, 100, 23), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(270, 296, 100, 23), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='BACK', pos=(320, 300), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(380, 296, 90, 23), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(380, 296, 90, 23), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='CONTROLS', pos=(425, 302), font_key='sm', color=(235, 225, 195), align='center'),
     ],
     "credits": [
         HudRect(rect=(0, 0, 640, 360), color=(12, 20, 14), border_radius=0, width=0),
@@ -416,6 +450,9 @@ _BASELINE = {
         HudText(text='+5/round', pos=(8, 25), font_key='sm', color=(214, 96, 136), align='left'),
         HudSprite(slot_key='ui_icon_lives', dest=(8, 41), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
         HudText(text='LIVES 3', pos=(19, 41), font_key='md', color=(200, 55, 55), align='left'),
+        HudSprite(slot_key='ui_icon_lives', dest=(30, 41), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
+        HudSprite(slot_key='ui_icon_lives', dest=(41, 41), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
+        HudSprite(slot_key='ui_icon_lives', dest=(52, 41), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
         HudText(text='0/4 tiles', pos=(8, 57), font_key='md', color=(150, 140, 120), align='left'),
         HudText(text='Building Phase', pos=(552, 287), font_key='hud_phase', color=(150, 140, 120), align='left'),
         HudText(text='ROUND 1', pos=(592, 307), font_key='md', color=(150, 140, 120), align='center'),
@@ -476,18 +513,14 @@ _BASELINE = {
     ],
     "boss_cutscene": [
         HudRect(rect=(0, 0, 640, 360), color=(0, 0, 0, 210), border_radius=0, width=0),
-        HudText(text='Cutscene: Round Won :)', pos=(320, 101), font_key='xxl', color=(100, 220, 100), align='center'),
-        HudText(text='How will we react?', pos=(320, 139), font_key='md', color=(150, 140, 120), align='center'),
-        HudRect(rect=(225, 158, 90, 65), color=(42, 34, 68), border_radius=0, width=0),
-        HudRect(rect=(225, 158, 90, 65), color=(80, 65, 120), border_radius=0, width=1),
-        HudText(text='WinA', pos=(270, 164), font_key='lg', color=(235, 225, 195), align='center'),
-        HudText(text='Per unbuilt tile, buildings', pos=(270, 184), font_key='sm', color=(150, 140, 120), align='center'),
-        HudText(text='deal +1 extra damage', pos=(270, 197), font_key='sm', color=(150, 140, 120), align='center'),
-        HudRect(rect=(325, 158, 90, 65), color=(42, 34, 68), border_radius=0, width=0),
-        HudRect(rect=(325, 158, 90, 65), color=(80, 65, 120), border_radius=0, width=1),
-        HudText(text='WinB', pos=(370, 164), font_key='lg', color=(235, 225, 195), align='center'),
-        HudText(text='Per building placed, buildings', pos=(370, 184), font_key='sm', color=(150, 140, 120), align='center'),
-        HudText(text='deal +1 extra damage', pos=(370, 197), font_key='sm', color=(150, 140, 120), align='center'),
+        HudText(text='Cutscene: Round Won :)', pos=(320, 81), font_key='xxl', color=(100, 220, 100), align='center'),
+        HudText(text='How will we react?', pos=(320, 119), font_key='md', color=(150, 140, 120), align='center'),
+        HudRect(rect=(8, 138, 200, 104), color=(42, 34, 68), border_radius=0, width=0),
+        HudRect(rect=(8, 138, 200, 104), color=(80, 65, 120), border_radius=0, width=1),
+        HudRect(rect=(220, 138, 200, 104), color=(42, 34, 68), border_radius=0, width=0),
+        HudRect(rect=(220, 138, 200, 104), color=(80, 65, 120), border_radius=0, width=1),
+        HudRect(rect=(432, 138, 200, 104), color=(42, 34, 68), border_radius=0, width=0),
+        HudRect(rect=(432, 138, 200, 104), color=(80, 65, 120), border_radius=0, width=1),
     ],
 }
 

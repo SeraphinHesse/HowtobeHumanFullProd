@@ -32,6 +32,7 @@ from game.map.pathfinder import (
 from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition
 
 from .dirt_pile import spawn_dirt_pile
+from .sounds import ATTACK, play_enemy_sound
 
 # Chunk 4: hunt-string ("EnemyTypes.<type>.hunts") -> the goal-set pathfinder
 # query it dispatches to. "base" is NOT in here — it is handled separately by
@@ -93,12 +94,155 @@ def set_wall_damage_hook(fn):
     _wall_damage_hook = fn
 
 
+# BossUpgradeTimelinePLAN BU-3 3.4 (#8 ``thorns``): the standard BU-3 hook
+# PAIR (``run_state``, ``boss_upgrades_balance``) — same contract, same
+# both-or-nothing rule, same ``hook_stacks`` reader as every other hook site
+# (``game/core/boss_upgrades.py``'s "THE BU-3 HOOK THREADING PATTERN") — but
+# delivered through a module-level seam instead of an optional trailing
+# parameter, for EXACTLY the reason ``_damage_hook`` above needs one:
+# ``EnemyCombat.update(dt)`` is called by ``Scene.update``'s generic component
+# sweep, whose signature is fixed at ``dt`` alone. There is no call site to
+# thread a pair through — the host cannot reach this method any more than it
+# can reach ``on_damage`` here. So the pair is installed ONCE per run by
+# ``game/main.py``'s ``build_gameplay()`` (and cleared by
+# ``teardown_gameplay()``), the ``set_damage_hook`` / ``lightning.
+# set_slow_hook`` precedent.
+#
+# Unset by default, so a bare ``EnemyCombat.update()`` — every headless test,
+# every logic-only ``Session`` — is byte-identical to pre-BU-3: one tuple
+# unpack and two ``is None`` tests per attack tick, and the lazy
+# ``game.core.boss_upgrades`` import is never even reached.
+_boss_upgrade_pair = (None, None)
+
+
+def set_boss_upgrade_pair(run_state=None, boss_upgrades_balance=None):
+    """Install (or clear, with no arguments) the BU-3 hook pair the one
+    boss-upgrade hook site inside ``Scene.update`` reads — see the comment
+    above for why this is a seam and not a parameter.
+
+    Spelled off the ``Session`` at the call site exactly like every other BU-3
+    hook: ``set_boss_upgrade_pair(session.state,
+    session.boss_upgrades_balance)``.
+    """
+    global _boss_upgrade_pair
+    _boss_upgrade_pair = (run_state, boss_upgrades_balance)
+
+
+def _apply_thorns(attacker, dmg):
+    """#8 ``thorns`` — reflect part of a landed blow back onto its ATTACKER.
+
+    Called from BOTH damage branches of ``EnemyCombat.update`` (D13: a hit on
+    a building AND a hit on an edge wall reflect alike), at exactly the site
+    each branch already spends the victim's HP — so the reflected amount can
+    never disagree with the amount actually dealt.
+
+    Magnitude is ``dmg * reflect_pct/100 * stacks``: a repeat pick stacks
+    ADDITIVELY (D4), through the standard ``hook_stacks`` reader. Truncated
+    with a plain ``int()`` and skipped when that rounds to 0 — thorns are a
+    proportion of a real blow, never a flat chip.
+
+    ``game.core`` is imported LAZILY, inside the body, exactly as every other
+    BU-3 hook site does it: a module-level import from ``game.enemies`` would
+    close a real cycle through ``game.core.__init__`` -> ``payday``.
+
+    Returns the reflected damage (0 when inert), so a caller can stay silent
+    rather than guess.
+    """
+    run_state, balance = _boss_upgrade_pair
+    if run_state is None or balance is None or dmg <= 0 or attacker is None:
+        return 0
+    from game.core import boss_upgrades
+
+    n, params = boss_upgrades.hook_stacks(run_state, balance, "thorns")
+    if not n:
+        return 0
+    reflect = int(dmg * n * params.get("reflect_pct", 10) / 100.0)
+    if reflect <= 0:
+        return 0
+    health = attacker.get_component(Health)
+    if health is None:
+        return 0
+    health.damage(reflect)
+    return reflect
+
+
+def on_non_grass_condition(enemy):
+    """True iff ``enemy`` currently stands on a NON-Grass tile condition —
+    Mountain / Pond / Forest (BU-3 3.5, D15; Grass never counts).
+
+    The one place that question is answered, so ``game/enemies/combat.py``'s
+    ``condition_dmg_bonus`` (#11) hook and this module read the same
+    definition. It reuses ``PathAgent._current_condition`` — the tile the unit
+    last ARRIVED at, which is already the game's own model of "the condition
+    this enemy is standing in" (``_condition_speed`` and ``_effective_dmg``
+    both read it) rather than a second, subtly different tile lookup.
+
+    Fully guarded: a stub enemy with no ``PathAgent`` (the combat tests build
+    those) reads as Grass, i.e. no bonus, never a crash.
+    """
+    get = getattr(enemy, "get_component", None)
+    pa = get(PathAgent) if get is not None else None
+    cond = getattr(pa, "_current_condition", None)
+    return cond is not None and cond != TileCondition.GRASS
+
+
 # NE-3 (Drummer): how long ONE source's contribution survives after the
 # Drummer stops sustaining it — the D7 "4 seconds after leaving the radius"
 # decay. A cosmetic-tier module constant (the CARRY_OFFSET_TILES /
 # AOE_TRAVEL_TIME precedent), deliberately NOT a balancing leaf: the design's
 # own variable list names nine Drummer knobs and this is not one of them.
 BUFF_DECAY_SECONDS = 4.0
+
+
+# BossUpgradeTimelinePLAN BU-3 3.3 (D19): the lowest speed MULTIPLIER a
+# ``move_speed`` contribution may leave a unit at. A slow is a DEBUFF, i.e. a
+# NEGATIVE fraction, and additive stacking (D4/D7) can drive the sum past -1.0
+# — at which point `_condition_speed` would return 0 (or a negative), and a
+# unit at speed 0 never advances `Movement.index`, which is the ONLY thing that
+# refreshes `_current_condition`: the exact LATCH BP-1's own floor was added to
+# kill (see `_condition_speed`'s docstring). Provably a no-op for every
+# POSITIVE bonus and for any negative sum above -0.9, i.e. for everything the
+# game ships today. A cosmetic-tier module constant like `BUFF_DECAY_SECONDS`
+# beside it — a slow that stops a unit dead is a bug, not a designer lever.
+MIN_SPEED_MULTIPLIER = 0.1
+
+
+def apply_slow(owner, source, slow_fraction, duration):
+    """Apply (or REFRESH) a timed move-speed SLOW on ``owner`` — the shared
+    debuff seam BU-3's ``mortar_slow`` (#3) and ``stormpriest_slow`` (#7) both
+    land through (plan D19).
+
+    It is deliberately ``BuffState``, not a parallel mechanism: that ledger is
+    already per-source, additive and self-expiring, and its ``move_speed``
+    contribution is already read at the ONE right site
+    (``PathAgent._condition_speed``). A slow is simply a NEGATIVE fraction —
+    ``slow_fraction`` is taken as a magnitude and negated here, so no caller
+    can accidentally speed an enemy up through this door.
+
+    ``source`` is an opaque key, exactly as it is for the Drummer's aura. Every
+    contribution today is keyed by a buffing ``GameObject.id`` (a uuid hex);
+    these two are keyed by a plain SLOT STRING (``"boss_upgrade:mortar_slow"``,
+    …) — which the ledger supports with zero changes, and which keeps
+    ``BuffState.sources`` JSON-safe (E-11) exactly as before. One key per
+    UPGRADE (never per firing mortar) is what stops N mortars hitting one enemy
+    from stacking into a full stop; the upgrade's own repeat picks still stack,
+    additively, inside the fraction the caller computes.
+
+    ``duration`` re-pins that source's decay clock on every application, so a
+    sustained bombardment keeps the slow alive on the same "the fourth second
+    after the last frame anything re-pinned it" rule the aura uses.
+
+    Returns True when a contribution was actually written (False for an owner
+    with no ``BuffState`` — a stub, a building — or an inert magnitude), so a
+    caller can stay silent rather than guess.
+    """
+    if owner is None or not slow_fraction or duration <= 0:
+        return False
+    buffs = owner.get_component(BuffState)
+    if buffs is None:
+        return False
+    buffs.apply(source, 0.0, 0.0, -abs(slow_fraction), 0.0, decay=duration)
+    return True
 
 
 def buff_total(owner, key):
@@ -116,6 +260,30 @@ def buff_total(owner, key):
     if bs is None or not bs.sources:
         return 0.0
     return bs.total(key)
+
+
+def buff_signs(owner, key):
+    """``(has_positive, has_negative)`` — whether ANY live source contributes
+    a positive/negative ``key``, read INDEPENDENTLY of each other.
+
+    This is deliberately NOT ``buff_total(owner, key) > 0`` /
+    ``< 0``: the netted aggregate can only ever carry one sign, so a unit
+    that is simultaneously buffed by one source and debuffed by another
+    (e.g. a Drummer's aura raising ``move_speed`` while a mortar's
+    ``mortar_slow`` lowers it, BossUpgradeTimelinePLAN D20 follow-up) would
+    show only the net direction, hiding whichever effect is smaller. The two
+    HUD arrows this feeds (``game/ui/effects.py``) are meant to show
+    TOGETHER in that case — a real buff AND a real slow — so the gate has to
+    look at the individual sources, not their sum. ``(False, False)`` for an
+    owner with no ``BuffState``/no sources, same guard as ``buff_total``.
+    """
+    if owner is None:
+        return False, False
+    bs = owner.get_component(BuffState)
+    if bs is None or not bs.sources:
+        return False, False
+    values = [c[key] for c in bs.sources.values()]
+    return any(v > 0 for v in values), any(v < 0 for v in values)
 
 
 # Kidnapping (Art/enemies): the carried-sprite world offset. Pure iso
@@ -578,11 +746,17 @@ class PathAgent(Component):
         floor are applied, so a buffed unit keeps the same relationship to
         both. Writing a bonus into ``Movement.speed`` directly would be
         overwritten by this method on the very next walking frame — this is
-        the only durable place to put it."""
+        the only durable place to put it.
+
+        BossUpgradeTimelinePLAN BU-3 3.3 (D19): the same multiplier now also
+        carries SLOWS (a negative ``move_speed`` contribution, written by
+        ``apply_slow``), which is why it is clamped at ``MIN_SPEED_MULTIPLIER``
+        — see that constant's own comment. Provably a no-op for every positive
+        bonus and for any negative sum above -0.9."""
         real = self._real_speed
         bonus = buff_total(getattr(self, "_owner", None), "move_speed")
         if bonus:
-            real *= (1.0 + bonus)
+            real *= max(MIN_SPEED_MULTIPLIER, 1.0 + bonus)
         mods = _condition_mods(getattr(self, "_tilemap", None),
                                self._current_condition)
         penalised = real - mods.get("enemy_speed_penalty", 0)
@@ -732,7 +906,15 @@ class EnemyCombat(Component):
                         _wall_damage_hook(getattr(owner, "ETYPE", None), wall,
                                          dmg, 0 if edge is None else edge.hp,
                                          bool(broke))
+                    # BU-3 3.4 (#8 thorns, D13): a WALL reflects exactly like a
+                    # building does. Reflected off `dmg` — the blow this swing
+                    # actually spent — never off a wall's remaining HP, which
+                    # this branch cannot see (walls carry no Health).
+                    _apply_thorns(owner, dmg)
                 self.cooldown = self.buffed_attack_speed   # NE-3
+                # SD-5: one swing = one attack sound. Fired where the cooldown
+                # is re-armed, so a blocked-but-cooling unit is silent.
+                play_enemy_sound(owner, ATTACK)
             return
         target = pa._target
         if target is None and pa.in_range:
@@ -760,7 +942,17 @@ class EnemyCombat(Component):
                 _damage_hook(getattr(owner, "ETYPE", None),
                             getattr(target, "building_type", None),
                             dmg, health.hp)
+            # BU-3 3.4 (#8 thorns, D13): the BUILDING branch of the same
+            # reflection — same site, same `dmg`, same helper as the wall
+            # branch above.
+            _apply_thorns(owner, dmg)
             self.cooldown = self.buffed_attack_speed   # NE-3
+            # SD-5: the melee AND ranged attack sound. NE-1 widened the gate
+            # above to `pa.blocked or pa.in_range`, so the Sniper's stand-off
+            # shot is this same swing — there is no second attack path, and
+            # the Boss/SiegeCannon overrides resolve right here with no
+            # type-name branch.
+            play_enemy_sound(owner, ATTACK)
             # Kidnapping (Art/enemies): a killing blow on a kidnap-capable
             # type ARMS the transition here; this component never touches the
             # scene — the combat sweep's kidnap pass (combat.py) owns the
@@ -1065,6 +1257,9 @@ class BurrowAgent(Component):
             _damage_hook(getattr(owner, "ETYPE", None),
                          getattr(target, "building_type", None),
                          dmg, health.hp)
+        # SD-5: the eruption IS an attack (this method is EnemyCombat.update's
+        # damage application verbatim), so it gets the same attack sound.
+        play_enemy_sound(owner, ATTACK)
 
     # -- targeting -----------------------------------------------------------
 

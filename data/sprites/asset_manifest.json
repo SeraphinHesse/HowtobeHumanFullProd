@@ -4845,54 +4845,14 @@
           -27
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 17,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 3,
       "rows": [
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [
-            0,
-            1,
-            2,
-            3,
-            5,
-            6
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
         {
           "animation": "idle",
           "fps": 6,
@@ -4911,45 +4871,9 @@
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "master/ss_fluteplayer.png"
     },
     "harp_player_t2_lvl3": {
       "anchors": {
@@ -4962,63 +4886,14 @@
           -27
         ]
       },
+      "column_mode": "building_color",
+      "column_width": 17,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 4,
       "rows": [
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            6
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
         {
           "animation": "idle",
           "fps": 6,
@@ -5037,36 +4912,9 @@
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "master/ss_fluteplayer.png"
     },
     "laser_beam_t3_lvl1": {
       "anchors": {
@@ -5181,6 +5029,7 @@
           -12
         ]
       },
+      "column_mode": "building_color",
       "column_width": 25,
       "frame_h": 96,
       "frame_w": 64,
@@ -5248,6 +5097,7 @@
           -9
         ]
       },
+      "column_mode": "building_color",
       "column_width": 25,
       "frame_h": 96,
       "frame_w": 64,
@@ -5317,6 +5167,7 @@
           -6
         ]
       },
+      "column_mode": "building_color",
       "column_width": 25,
       "frame_h": 96,
       "frame_w": 64,
@@ -5392,6 +5243,7 @@
           -24
         ]
       },
+      "column_mode": "building_color",
       "column_width": 25,
       "frame_h": 96,
       "frame_w": 64,
@@ -5435,6 +5287,7 @@
       "sheet": "master/ss_mortar.png"
     },
     "maw_mortar_t2_lvl2": {
+      "column_mode": "building_color",
       "column_width": 25,
       "frame_h": 96,
       "frame_w": 64,
@@ -5492,6 +5345,7 @@
       "sheet": "master/ss_mortar.png"
     },
     "maw_mortar_t2_lvl3": {
+      "column_mode": "building_color",
       "column_width": 25,
       "frame_h": 96,
       "frame_w": 64,
@@ -5559,6 +5413,7 @@
           -25
         ]
       },
+      "column_mode": "building_color",
       "column_width": 25,
       "frame_h": 96,
       "frame_w": 64,
@@ -5699,6 +5554,7 @@
           -27
         ]
       },
+      "column_mode": "building_color",
       "column_width": 25,
       "frame_h": 96,
       "frame_w": 64,
@@ -6832,6 +6688,7 @@
           -10
         ]
       },
+      "column_mode": "building_color",
       "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
@@ -6891,6 +6748,7 @@
           -12
         ]
       },
+      "column_mode": "building_color",
       "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
@@ -6950,6 +6808,7 @@
           -12
         ]
       },
+      "column_mode": "building_color",
       "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
@@ -7722,6 +7581,7 @@
           -5
         ]
       },
+      "column_mode": "building_color",
       "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
@@ -7807,6 +7667,7 @@
           -7
         ]
       },
+      "column_mode": "building_color",
       "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
@@ -7874,6 +7735,7 @@
           -7
         ]
       },
+      "column_mode": "building_color",
       "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
@@ -8201,6 +8063,7 @@
           -7
         ]
       },
+      "column_mode": "building_color",
       "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
@@ -8284,6 +8147,7 @@
           -5
         ]
       },
+      "column_mode": "building_color",
       "column_width": 20,
       "frame_h": 96,
       "frame_w": 64,
@@ -10272,7 +10136,7 @@
           -24
         ]
       },
-      "column_mode": "season",
+      "column_mode": "building_color",
       "column_width": 1,
       "frame_h": 96,
       "frame_w": 64,

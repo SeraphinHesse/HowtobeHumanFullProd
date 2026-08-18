@@ -29,6 +29,7 @@ from game.core import RunState, Session, load_balance
 from game.core import lightning as lt
 from game.core.phases import GamePhase, GameState
 from game.enemies import Spawner, create_enemy, resolve_combat
+from game.enemies.components import apply_slow, buff_total
 from game.map.tile_map import TileMap
 from game.ui.cheat_menu import CheatMenu
 
@@ -818,6 +819,107 @@ class TestPurity(unittest.TestCase):
             self.assertFalse(
                 s.startswith(("import pygame", "from pygame")),
                 f"cheat_menu.py imports pygame directly: {s}")
+
+
+# ---------------------------------------------------------------------------
+# BossUpgradeTimelinePLAN BU-3 3.3 — #7 `stormpriest_slow` through the SEAM
+# ---------------------------------------------------------------------------
+#: Hand-pinned (BU-6): the magnitudes a designer edits in the new editor panel
+#: must never decide whether this module is green (`data/CLAUDE.md`).
+SLOW_PCT, SLOW_SECONDS = 20, 2.5
+BOSS_UPGRADES = {
+    "BossUpgrades": {
+        "Catalog": {
+            "stormpriest_slow": {
+                "name": "Chilling Storm", "description": "",
+                "params": {"slow_pct": SLOW_PCT,
+                           "duration_seconds": SLOW_SECONDS}},
+        },
+        "Timeline": {"milestones": [
+            {"slots": ["stormpriest_slow", None, None],
+             "retaliation_bonus_love": 30},
+        ] * 4},
+    }
+}
+
+
+class TestStormpriestSlow(unittest.TestCase):
+    """`game/core` imports NOTHING from `game/enemies`, so the applier arrives
+    through `lightning.set_slow_hook` — the `components.set_damage_hook`
+    precedent. Unset by default, installed once by the HOST at boot; with no
+    hook installed the strike is as inert as an unpicked upgrade."""
+
+    def setUp(self):
+        self.addCleanup(lt.set_slow_hook, None)
+
+    def _board(self, picks=0):
+        tm, scene, occ = build_board(FIELD)
+        priest = spawn_storm_priest(scene)
+        enemy = spawn_enemy(scene, tm, 1, 1)
+        scene.update(0.0)
+        st = RunState.from_balance(CORE, BUILD)
+        lt.unlock_from_placement(st, priest)
+        if picks:
+            st.boss_upgrade_stacks["stormpriest_slow"] = picks
+        return tm, scene, st, enemy
+
+    def _strike_at(self, st, scene, enemy, balance):
+        wx, wy = enemy.transform.world_pos
+        return lt.strike(st, CORE, VFX, scene, make_cs(), wx, wy,
+                         boss_upgrades_balance=balance)
+
+    def test_no_hook_installed_is_a_silent_no_op(self):
+        _tm, scene, st, enemy = self._board(picks=1)
+        self.assertTrue(self._strike_at(st, scene, enemy, BOSS_UPGRADES))
+        self.assertEqual(buff_total(enemy, "move_speed"), 0.0)
+
+    def test_no_balance_threaded_leaves_the_strike_byte_identical(self):
+        calls = []
+        lt.set_slow_hook(lambda *a: calls.append(a))
+        _tm, scene, st, enemy = self._board(picks=1)
+        self.assertTrue(self._strike_at(st, scene, enemy, None))
+        self.assertEqual(calls, [])
+
+    def test_an_unpicked_upgrade_slows_nothing(self):
+        lt.set_slow_hook(apply_slow)
+        _tm, scene, st, enemy = self._board(picks=0)
+        self.assertTrue(self._strike_at(st, scene, enemy, BOSS_UPGRADES))
+        self.assertEqual(buff_total(enemy, "move_speed"), 0.0)
+
+    def test_a_damaged_enemy_is_slowed_by_the_authored_fraction(self):
+        lt.set_slow_hook(apply_slow)
+        _tm, scene, st, enemy = self._board(picks=1)
+        self.assertTrue(self._strike_at(st, scene, enemy, BOSS_UPGRADES))
+        self.assertAlmostEqual(buff_total(enemy, "move_speed"),
+                               -SLOW_PCT / 100)
+
+    def test_repeat_picks_deepen_the_slow(self):
+        lt.set_slow_hook(apply_slow)
+        _tm, scene, st, enemy = self._board(picks=2)
+        self._strike_at(st, scene, enemy, BOSS_UPGRADES)
+        self.assertAlmostEqual(buff_total(enemy, "move_speed"),
+                               -2 * SLOW_PCT / 100)
+
+    def test_several_casters_in_one_click_read_as_ONE_slow(self):
+        """`STORMPRIEST_SLOW_SOURCE` is a module constant — one BuffState
+        source key for the whole upgrade, never one per firing acolyte."""
+        lt.set_slow_hook(apply_slow)
+        tm, scene, st, enemy = self._board(picks=1)
+        spawn_storm_priest(scene, col=2)
+        spawn_storm_priest(scene, col=3)
+        scene.update(0.0)
+        self._strike_at(st, scene, enemy, BOSS_UPGRADES)
+        self.assertAlmostEqual(buff_total(enemy, "move_speed"),
+                               -SLOW_PCT / 100)
+
+    def test_an_enemy_outside_the_blast_is_untouched(self):
+        lt.set_slow_hook(apply_slow)
+        tm, scene, st, enemy = self._board(picks=1)
+        far = spawn_enemy(scene, tm, 5, 5)
+        scene.update(0.0)
+        self._strike_at(st, scene, enemy, BOSS_UPGRADES)
+        self.assertLess(buff_total(enemy, "move_speed"), 0)
+        self.assertEqual(buff_total(far, "move_speed"), 0.0)
 
 
 if __name__ == "__main__":

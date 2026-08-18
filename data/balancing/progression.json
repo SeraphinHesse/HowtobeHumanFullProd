@@ -60,7 +60,7 @@
             }
           }
         ],
-        "round": 7,
+        "round": 4,
         "village_level": 2
       },
       {
@@ -80,7 +80,7 @@
             }
           }
         ],
-        "round": 10,
+        "round": 8,
         "village_level": 3
       },
       {
@@ -93,7 +93,7 @@
             }
           }
         ],
-        "round": 13,
+        "round": 10,
         "village_level": 4
       },
       {
@@ -113,7 +113,7 @@
             }
           }
         ],
-        "round": 17,
+        "round": 13,
         "village_level": 5
       },
       {
@@ -133,7 +133,7 @@
             }
           }
         ],
-        "round": 20,
+        "round": 17,
         "village_level": 6
       },
       {
@@ -146,7 +146,7 @@
             }
           }
         ],
-        "round": 23,
+        "round": 20,
         "village_level": 7
       },
       {
@@ -180,7 +180,7 @@
             }
           }
         ],
-        "round": 27,
+        "round": 23,
         "village_level": 8
       },
       {
@@ -214,7 +214,7 @@
             }
           }
         ],
-        "round": 30,
+        "round": 27,
         "village_level": 9
       },
       {
@@ -234,7 +234,7 @@
             }
           }
         ],
-        "round": 33,
+        "round": 30,
         "village_level": 10
       },
       {
@@ -275,7 +275,7 @@
             }
           }
         ],
-        "round": 37,
+        "round": 33,
         "village_level": 11
       },
       {
@@ -323,37 +323,37 @@
             }
           }
         ],
-        "round": 40,
+        "round": 37,
         "village_level": 12
       },
       {
         "offer_slots": [],
-        "round": 43,
+        "round": 40,
         "village_level": 13
       },
       {
         "offer_slots": [],
-        "round": 45,
+        "round": 43,
         "village_level": 14
       },
       {
         "offer_slots": [],
-        "round": 50,
+        "round": 47,
         "village_level": 15
       },
       {
         "offer_slots": [],
-        "round": 53,
+        "round": 50,
         "village_level": 16
       },
       {
         "offer_slots": [],
-        "round": 57,
+        "round": 54,
         "village_level": 17
       },
       {
         "offer_slots": [],
-        "round": 60,
+        "round": 57,
         "village_level": 18
       },
       {
