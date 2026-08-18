@@ -19,7 +19,8 @@ from engine import data_io
 from engine.assets import load_registry
 
 REPO = Path(__file__).resolve().parents[2]
-DOMAINS = ("buildings", "enemies", "map", "ui", "core", "progression")  # canonical D-10 order
+DOMAINS = ("buildings", "enemies", "map", "ui", "core", "progression",
+           "boss_upgrades")  # canonical D-10 order
 
 
 def paths(domain):
