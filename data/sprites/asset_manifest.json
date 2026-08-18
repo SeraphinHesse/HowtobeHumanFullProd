@@ -9175,6 +9175,70 @@
       ],
       "sheet": "imported/ui_button_panel_v7.png"
     },
+    "ui_button_panel_v8": {
+      "frame_h": 36,
+      "frame_w": 100,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 6,
+          "hidden": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hover",
+          "fps": 6,
+          "frames": 6,
+          "hidden": [
+            3,
+            4,
+            5
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "pressed",
+          "fps": 6,
+          "frames": 6,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "disabled",
+          "fps": 6,
+          "frames": 6,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "disabled",
+          "fps": 6,
+          "frames": 6,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/ui_button_panel_v8.png"
+    },
     "ui_button_pause": {
       "frame_h": 49,
       "frame_w": 48,
