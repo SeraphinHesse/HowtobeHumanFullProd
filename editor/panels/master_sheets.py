@@ -19,12 +19,25 @@ carries ``users``. **THE REFCOUNT HAS EXACTLY ONE HOME**
 (``asset_import.sheet_users``, reached through ``MasterSheet.users``); this
 panel never computes a second one.
 
-D10 — AN IN-USE SHEET'S SLICING IS LOCKED IN THE FORM. With one or more linking
-slots the frame_w/frame_h/column_width/colours editors are DISABLED and a label
-names the slots to Clear first. That is a convenience, not the enforcement: the
+D10 — AN IN-USE SHEET'S **FRAME GRID** IS LOCKED IN THE FORM. With one or more
+linking slots the frame_w/frame_h editors are DISABLED and a label names the
+slots to Clear first. That is a convenience, not the enforcement: the
 enforcement is ``GridInUseError`` inside ``import_master_sheet``, which is why
 Re-import stays attemptable at all times and answers a grid change on a linked
 sheet with a message naming the slots, before touching the PNG or the registry.
+
+**COLUMN WIDTH IS EDITABLE AT ALL TIMES, USERS OR NOT**, and it used to be the
+third locked field. It is not a frame-grid value: it is a per-sheet number that
+every linking manifest entry merely COPIES at link time, and getting it wrong
+on import is the most common master-sheet mistake — invisible until a slot
+links and animates, at which point the lock had already closed. The only route
+back was "clear every linking slot, re-import, re-link them all", so in
+practice the number was never fixed. Saving it now re-stamps every linking
+entry through ``master_sheet_import.restamp_column_width`` (the registry alone
+is a NO-OP: ``engine/assets/store`` slices from the manifest and never opens
+the registry) and emits ``manifest_changed``, so open previews re-cut without
+an editor restart (the ED-42 ``reload_assets`` path). See ``GridInUseError``
+for why the row axis stays locked and this one does not.
 
 WRITES GO THROUGH ``master_sheet_import`` ONLY (ED-31) — ``write_registry_doc``
 for a slicing edit, ``import_master_sheet`` for a re-import. This module never
@@ -47,7 +60,7 @@ without the modal.
 """
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QFileDialog,
     QFormLayout,
@@ -70,6 +83,14 @@ from editor.panels.sheet_preview import SheetPreview
 
 class MasterSheetsPanel(QWidget):
     """The Master Sheets right-pane page. ``selected_sheet()`` is the model."""
+
+    #: Emitted after a save/re-import rewrote linking manifest entries — a
+    #: column-width change re-stamps them, so every AssetStore in the editor is
+    #: now slicing from a stale manifest. Carries the empty slot key that
+    #: ``MainWindow._on_manifest_changed`` already ignores (it takes a
+    #: `_slot_key` it never reads), so this reuses the ONE ED-42 reload path
+    #: rather than minting a second one.
+    manifest_changed = Signal(str)
 
     def __init__(self, data_dir=None, parent=None):
         super().__init__(parent)
@@ -222,17 +243,34 @@ class MasterSheetsPanel(QWidget):
         is touched. Returns the sheet id, or None when there is nothing to
         write.
 
-        **D10 locks the SLICING values, not the colour NAMES.** With users, the
-        three slicing fields (`frame_w`/`frame_h`/`column_width`) keep their
-        stored values verbatim — defense in depth behind the disabled controls,
-        the same rule ``GridInUseError`` enforces on the re-import path — but
-        `columns` is still written. Naming a sheet's columns re-cuts nothing:
-        it maps an INDEX the art already has to a label, so no linking slot's
-        window moves by a pixel. Refusing it wholesale is what made a
+        **D10 locks the FRAME GRID, not the colour names and not the column
+        width.** With users, `frame_w`/`frame_h` keep their stored values
+        verbatim — defense in depth behind the disabled controls, the same rule
+        ``GridInUseError`` enforces on the re-import path.
+
+        `columns` is written regardless. Naming a sheet's columns re-cuts
+        nothing: it maps an INDEX the art already has to a label, so no linking
+        slot's window moves by a pixel. Refusing it wholesale is what made a
         colour-capable sheet impossible to declare after its first slot linked,
         which in turn left the building-colour swatches permanently unbuildable
         (D6 needs a non-empty `columns`), with the only escape being to clear
-        every linking slot first."""
+        every linking slot first.
+
+        `column_width` is written regardless TOO, and this is the one place
+        that write is not self-contained. A linking manifest entry stores its
+        own copy (`panels/details._save` writes `entry["column_width"]`,
+        because `engine/assets/store` slices from the manifest and never opens
+        the master registry), so the registry write ALONE would be a silent
+        no-op for every slot already using the sheet — precisely the sheets
+        worth editing. ``restamp_column_width`` re-derives those copies, and
+        the resulting ``manifest_changed`` is what makes the change visible in
+        open previews without an editor restart (ED-42).
+
+        REGISTRY FIRST, MANIFEST SECOND. If the manifest write fails the sheet
+        is left on the new width with its slots on the old one — visibly wrong
+        and fixed by pressing Save again. The other order leaves slots pointing
+        at a width the registry never adopted, which a later re-link would
+        silently revert."""
         sheet = self.selected_sheet()
         if sheet is None:
             return None
@@ -245,7 +283,8 @@ class MasterSheetsPanel(QWidget):
         if not sheet.users:
             entry["frame_w"] = self._frame_w.value()
             entry["frame_h"] = self._frame_h.value()
-            entry["column_width"] = self._column_width.value()
+        column_width = self._column_width.value()
+        entry["column_width"] = column_width
         # Omit-at-default (the `slice`/`tint_overlay`/`row_start` convention):
         # an unnamed sheet carries no `columns` key at all, which the schema's
         # `minItems: 1` requires anyway.
@@ -254,7 +293,14 @@ class MasterSheetsPanel(QWidget):
         else:
             entry.pop("columns", None)
         master_sheet_import.write_registry_doc(self._data_dir, doc)
+        # `sheet.ref` is the entry's STORED file path, not a re-derived
+        # `master_ref(sheet_id)` — that is what linking manifest entries
+        # literally hold (`master_ref`'s docstring: never re-derive it).
+        restamped = master_sheet_import.restamp_column_width(
+            self._data_dir, sheet.ref, column_width)
         self.reload_sheets()
+        if restamped:
+            self.manifest_changed.emit("")
         return sheet.sheet_id
 
     def reimport_selected(self, png_path, frame_w=None, frame_h=None,
@@ -265,9 +311,11 @@ class MasterSheetsPanel(QWidget):
         selected.
 
         Goes through ``import_master_sheet(..., sheet_id=sheet.sheet_id)`` —
-        the one write path (ED-31) — so D10's ``GridInUseError`` guard runs
-        unchanged: a grid change while slots link raises before the PNG copy
-        and before the registry write, naming the slots to Clear."""
+        the one write path (ED-31) — so the ``GridInUseError`` guard runs
+        unchanged: a FRAME-SIZE change while slots link raises before the PNG
+        copy and before the registry write, naming the slots to Clear. A
+        COLUMN-WIDTH change is allowed and re-stamps the linking entries there,
+        exactly as ``save_selected`` does here."""
         sheet = self.selected_sheet()
         if sheet is None:
             return None
@@ -280,6 +328,10 @@ class MasterSheetsPanel(QWidget):
             sheet_id=sheet.sheet_id)
         self.reload_sheets()
         self.select_sheet(sheet_id)
+        # Unconditional: a re-import swapped the PNG under every AssetStore
+        # that has it cached, and a re-stamped column width makes the manifest
+        # stale on top of that. One signal covers both.
+        self.manifest_changed.emit("")
         return sheet_id
 
     def reimport_source(self):
@@ -330,6 +382,9 @@ class MasterSheetsPanel(QWidget):
             self._detail.setText("No master spritesheet is registered yet.")
             self._lock_label.setText("")
             self._set_slicing_enabled(False)
+            # Not in `_slicing_widgets` any more (it is never D10-locked), so
+            # the no-selection case has to grey it explicitly.
+            self._column_width.setEnabled(False)
             self._reimport.setEnabled(False)
             self._reimport_browse.setEnabled(False)
             return
@@ -356,32 +411,46 @@ class MasterSheetsPanel(QWidget):
         self._reimport_browse.setEnabled(True)
 
         self._set_slicing_enabled(not sheet.users)
+        # Editable with or without users — the D10 lock is the frame grid only.
+        self._column_width.setEnabled(True)
         if sheet.users:
             names = ", ".join(sheet.users)
             self._lock_label.setText(
-                f"Locked: {len(sheet.users)} slot(s) cut windows out of this "
-                f"sheet — {names}. Clear them first to change its slicing. "
-                f"Colour names stay editable — naming a column re-cuts "
-                f"nothing.")
+                f"Frame size locked: {len(sheet.users)} slot(s) cut windows "
+                f"out of this sheet — {names}. Clear them first to change "
+                f"frame width/height. Column width and colour names stay "
+                f"editable: saving a new column width re-stamps all "
+                f"{len(sheet.users)} slot(s) to match, and naming a column "
+                f"re-cuts nothing.")
             for widget in self._slicing_widgets():
                 widget.setToolTip(f"Locked by: {names}")
         else:
             self._lock_label.setText(
-                "No slot links to this sheet, so its slicing is free to edit.")
+                "No slot links to this sheet, so every field is free to edit.")
             for widget in self._slicing_widgets():
                 widget.setToolTip("")
 
     def _slicing_widgets(self):
-        """The three SLICING fields D10 locks while slots link.
+        """The two FRAME-GRID fields D10 locks while slots link.
 
-        `_colours` and `_save` are deliberately NOT here. A colour name maps an
-        index the art already has to a label — it moves no window and re-cuts
-        no frame — so locking it with the slicing values made a colour-capable
-        sheet undeclarable the moment its first slot linked, and the building
-        swatches (which D6 gates on a non-empty `columns`) permanently
-        unreachable. `save_selected` keeps the stored slicing values verbatim
-        while there are users, so an enabled Save cannot write one."""
-        return (self._frame_w, self._frame_h, self._column_width)
+        `_colours`, `_column_width` and `_save` are deliberately NOT here.
+
+        A colour name maps an index the art already has to a label — it moves
+        no window and re-cuts no frame — so locking it with the grid made a
+        colour-capable sheet undeclarable the moment its first slot linked, and
+        the building swatches (which D6 gates on a non-empty `columns`)
+        permanently unreachable.
+
+        `_column_width` came out for a different reason: it DOES move windows,
+        but it is per-sheet metadata every linking entry only copies, so the
+        move is fully re-derivable (`save_selected` re-stamps the copies) and
+        the edit is the whole point. Locking it meant an import-time typo — the
+        mistake this field is most prone to, and one that only becomes visible
+        after a slot links — could never be corrected in place.
+
+        `save_selected` keeps the stored `frame_w`/`frame_h` verbatim while
+        there are users, so an enabled Save cannot write one."""
+        return (self._frame_w, self._frame_h)
 
     def _set_slicing_enabled(self, enabled):
         for widget in self._slicing_widgets():
