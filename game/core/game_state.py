@@ -232,6 +232,14 @@ class RunState:
     # open the new head entry, and returns the phase to ENEMY once the
     # queue drains.
     pending_enemy_intros: list = field(default_factory=list)
+    # TU-9 pairing: set the moment the tutorial's OWN combat round (round 0)
+    # queued the entries that opted into it via
+    # ``show_on_tutorial_round``, so those same entries do not fire a second
+    # time on their authored round right after the tutorial. False on every
+    # other path, including the mid-tutorial Skip that rewrites round_num
+    # 0 -> 1 before the first End Turn (the entry then fires once, on
+    # round 1). Never serialized.
+    tutorial_intros_shown: bool = False
     # -- /feature-enemy-intro-dialogue --
     # -- Payout-phase sequencing: love-counter checkpoints ------------------
     # Two transient values `run_payday` stamps at its step 12 (never

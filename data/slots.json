@@ -823,7 +823,8 @@
             {
               "label": "Love",
               "slots": [
-                "ui_icon_love"
+                "ui_icon_love",
+                "ui_icon_love_v2"
               ]
             },
             {

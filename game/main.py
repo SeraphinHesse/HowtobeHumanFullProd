@@ -1169,6 +1169,13 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         set_boss_upgrade_pair()
         if tune_gc:
             gc.unfreeze()  # let the old world's tile grid become collectable
+        # TU-5: quitting DURING a cutscene must hand its capture back — the
+        # players themselves outlive the run (one per registry id, built
+        # once at boot), and only `gp["cutscene"]` is per-run. `start()`
+        # re-opens from scratch next time either way, so this is about
+        # freeing the cv2 handle + stopping the track, not about rewinding.
+        if gp["cutscene"] is not None:
+            gp["cutscene"].release()
         for k in ("world", "hud", "panel", "floaters", "game_over", "levelup",
                   "boss_cutscene", "enemy_intro", "cheat", "overlays",
                   "game_log", "cutscene", "tutorial", "tutorial_message"):
