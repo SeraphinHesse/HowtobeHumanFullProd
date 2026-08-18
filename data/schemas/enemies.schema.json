@@ -8,78 +8,91 @@
           "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to attack_range_tiles; the leaf is an integer, so the result is floored to whole tiles.",
           "exclusiveMinimum": 0,
           "maximum": 1000,
+          "minimum": 0,
           "type": "number"
         },
         "attack_speed": {
           "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to attack_speed - SECONDS BETWEEN ATTACKS, so a factor below 1.0 makes a late boss attack faster.",
           "exclusiveMinimum": 0,
           "maximum": 1000,
+          "minimum": 0,
           "type": "number"
         },
         "commander": {
           "description": "Compounding multiplier applied once per era past the last authored row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to the commander count in round_counts and second_phase.spawns; floored to whole enemies.",
           "exclusiveMinimum": 0,
           "maximum": 1000,
+          "minimum": 0,
           "type": "number"
         },
         "dmg": {
           "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to dmg; floored to a whole number (x10 combat scale, D-12).",
           "exclusiveMinimum": 0,
           "maximum": 1000,
+          "minimum": 0,
           "type": "number"
         },
         "footprint": {
           "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to footprint; floored to whole tiles, so a factor just above 1.0 grows the boss only every few eras.",
           "exclusiveMinimum": 0,
           "maximum": 1000,
+          "minimum": 0,
           "type": "number"
         },
         "hp": {
           "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to hp; floored to a whole number (x10 combat scale, D-12).",
           "exclusiveMinimum": 0,
           "maximum": 1000,
+          "minimum": 0,
           "type": "number"
         },
         "interval": {
           "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to the shake.interval leaf - SECONDS BETWEEN shake impulses, so a factor below 1.0 shakes the screen more often.",
           "exclusiveMinimum": 0,
           "maximum": 1000,
+          "minimum": 0,
           "type": "number"
         },
         "move_speed": {
           "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to move_speed (tiles per second).",
           "exclusiveMinimum": 0,
           "maximum": 1000,
+          "minimum": 0,
           "type": "number"
         },
         "raiders": {
           "description": "Compounding multiplier applied once per era past the last authored row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to the raiders count in round_counts and second_phase.spawns; floored to whole enemies.",
           "exclusiveMinimum": 0,
           "maximum": 1000,
+          "minimum": 0,
           "type": "number"
         },
         "regular": {
           "description": "Compounding multiplier applied once per era past the last authored row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to the regular (Standard) count in round_counts and second_phase.spawns; floored to whole enemies.",
           "exclusiveMinimum": 0,
           "maximum": 1000,
+          "minimum": 0,
           "type": "number"
         },
         "siege": {
           "description": "Compounding multiplier applied once per era past the last authored row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to the siege count in round_counts and second_phase.spawns; floored to whole enemies.",
           "exclusiveMinimum": 0,
           "maximum": 1000,
+          "minimum": 0,
           "type": "number"
         },
         "sprite_scale": {
           "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to sprite_scale (the post-fit render scale).",
           "exclusiveMinimum": 0,
           "maximum": 1000,
+          "minimum": 0,
           "type": "number"
         },
         "strength": {
           "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to the shake.strength leaf (amplitude as a fraction of a tile).",
           "exclusiveMinimum": 0,
           "maximum": 1000,
+          "minimum": 0,
           "type": "number"
         }
       },
@@ -300,12 +313,14 @@
           "description": "Compounding multiplier applied once per era past the last authored era row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to batch_size (floored to a whole number of enemies).",
           "exclusiveMinimum": 0,
           "maximum": 1000,
+          "minimum": 0,
           "type": "number"
         },
         "spawn_interval": {
           "description": "Compounding multiplier applied once per era past the last authored era row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to spawn_interval.",
           "exclusiveMinimum": 0,
           "maximum": 1000,
+          "minimum": 0,
           "type": "number"
         }
       },
@@ -519,24 +534,28 @@
           "description": "Compounding multiplier applied once per era past the last authored era row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to count_start and count_per_round; resolved counts are floored to whole enemies.",
           "exclusiveMinimum": 0,
           "maximum": 1000,
+          "minimum": 0,
           "type": "number"
         },
         "dmg": {
           "description": "Compounding multiplier applied once per era past the last authored era row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to dmg.",
           "exclusiveMinimum": 0,
           "maximum": 1000,
+          "minimum": 0,
           "type": "number"
         },
         "hp": {
           "description": "Compounding multiplier applied once per era past the last authored era row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to hp.",
           "exclusiveMinimum": 0,
           "maximum": 1000,
+          "minimum": 0,
           "type": "number"
         },
         "move_speed": {
           "description": "Compounding multiplier applied once per era past the last authored era row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to move_speed.",
           "exclusiveMinimum": 0,
           "maximum": 1000,
+          "minimum": 0,
           "type": "number"
         }
       },
