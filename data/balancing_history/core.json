@@ -1,6 +1,335 @@
 [
   {
     "description": "",
+    "id": "a5d2b857-f43a-45d5-b144-de3bd8615b1e",
+    "name": "Introduction text boxes",
+    "snapshot": {
+      "Camera": {
+        "default_zoom": 1.0,
+        "keyboard_pan_speed": 300,
+        "max_offset_tiles_x": 30.0,
+        "max_offset_tiles_y": 30.0,
+        "zoom_levels": [
+          0.5,
+          1.0,
+          2.0
+        ]
+      },
+      "Debug": {
+        "ask_player_identity": false,
+        "debug_mode_available": true,
+        "default_level": 1,
+        "default_output_csv": true,
+        "default_output_html": true,
+        "default_output_jsonl": true,
+        "default_output_md": true,
+        "regular_mode_available": true
+      },
+      "EnemyIntro": {
+        "entries": [
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Our scouts have reported that more humans are on their way to take us. The Hunter is a normal acting human, but their number is far more concerning than their individual abilities. It seems like their goal is to reach our core, the hole",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Standard",
+            "hidden_frames": [],
+            "round": 1,
+            "show_on_tutorial_round": true,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "enemy_stage_1_v1",
+            "sprite_w": 110,
+            "title": "THE HUNTERS HAVE RETURNED"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "The Raider are way faster than other humans. Our scouts reported that this human cant take many hits, but it is faster, it strikes harder and it aims for our most unpretected ones",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Raider",
+            "hidden_frames": [],
+            "round": 5,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "raider_stage_1",
+            "sprite_w": 110,
+            "title": "STOP THEM BEFORE THEY REACH US"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Something big is coming. It doesn't care what's in its way, and it hits far harder than anything you've faced so far.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Boss",
+            "hidden_frames": [],
+            "round": 10,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "boss_era_0",
+            "sprite_w": 110,
+            "title": "A boss approaches"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "A Commander only ever shows up at a boss's side, summoned partway through the fight. It rallies whatever's left on the field — expect the fight to get harder, not easier, from here.",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Commander",
+            "hidden_frames": [],
+            "round": 10,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "commander_stage_1",
+            "sprite_w": 110,
+            "title": "The boss calls for backup"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "These things are not even human. Our scouts reported that these Canons surpasses everything we know in terms of durability and strength. At least this power takes its time",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "SiegeCannon",
+            "hidden_frames": [],
+            "round": 31,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "siege_cannon_t2",
+            "sprite_w": 110,
+            "title": "WHAT ARE THEY MADE OF?"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Our scouts reported that there are human soldiers approaching, whoever is in charge around here, theyre pissed of, and sending their troops. The humans now group together in Formations. they hit harder than any of them could alone. We have to thin them out before they reach our core",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Formation",
+            "hidden_frames": [],
+            "round": 11,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "formation_stage_2",
+            "sprite_w": 110,
+            "title": "THE ARMY IS COMING"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "Our scouts reported that the Drummer is not a direct threat. But everyone else around them becomes way stronger. We have to kill them early",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Drummer",
+            "hidden_frames": [],
+            "round": 21,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "drummer_stage_3",
+            "sprite_w": 110,
+            "title": "WHAT IS THAT NOISE?"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "This cowardly human attacks from a distance. Our scouts reported that the Sniper targets our defense systemso taht other enemies can breach into our base easier",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Sniper",
+            "hidden_frames": [],
+            "round": 25,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "sniper_stage_3",
+            "sprite_w": 110,
+            "title": "THEY ARE ATTACKING FROM THE DISTANCE"
+          },
+          {
+            "anim_speed": 1.0,
+            "animation": "idle",
+            "background_tint": [
+              0,
+              0,
+              0,
+              0
+            ],
+            "body": "This human is digging through the ground to attack. Our scouts reported that we only can kill the Digger when he is on the surface",
+            "crop_h": 0,
+            "crop_w": 0,
+            "crop_x": 0,
+            "crop_y": 0,
+            "enemy_label": "Digger",
+            "hidden_frames": [],
+            "round": 15,
+            "show_on_tutorial_round": false,
+            "sprite_flip_h": false,
+            "sprite_h": 130,
+            "sprite_offset_x": 0,
+            "sprite_offset_y": 0,
+            "sprite_slot": "digger_stage_4",
+            "sprite_w": 110,
+            "title": "ITS BENEATH US"
+          }
+        ],
+        "window": {
+          "close_seconds": 0.4,
+          "height": 310,
+          "hold_seconds": 10.0,
+          "open_seconds": 0.5,
+          "width": 160
+        }
+      },
+      "General": {
+        "game_scale_rounds": 15,
+        "starting_currency": 32
+      },
+      "LightningStrike": {
+        "cooldown": [
+          4,
+          3,
+          2
+        ],
+        "damage": [
+          12,
+          18,
+          38
+        ],
+        "max_level": 3,
+        "radius": [
+          1,
+          2,
+          3
+        ]
+      },
+      "PhaseLoop": {
+        "income_phase_duration": 1.805,
+        "payout_stagger_interval": 1.0,
+        "round_end_delay": 1.4,
+        "speed_1_5x_min_round": 10,
+        "speed_2x_min_round": 20
+      },
+      "Seasons": {
+        "rounds_per_season": 10
+      },
+      "TheHole": {
+        "base_hp": 10,
+        "base_income": 5,
+        "base_kills_enemies": true,
+        "base_lives": 3,
+        "building_revive": true
+      },
+      "Tutorial": {
+        "economy_buildings_required": 1
+      },
+      "XP": {
+        "base_income_per_village_level": 2,
+        "levelup_love_reward": 20,
+        "village_xp_base_threshold": 40,
+        "village_xp_threshold_inc": 20,
+        "village_xp_threshold_inc_growth": 2,
+        "xp_from_buildings": true,
+        "xp_on_base_damage_kill": true,
+        "xp_per_boss": 20,
+        "xp_per_raider": 1,
+        "xp_per_siege_enemy": 5,
+        "xp_per_standard_enemy": 1
+      }
+    },
+    "timestamp": "2026-08-18T16:20:29"
+  },
+  {
+    "description": "",
     "id": "47645f51-25a5-4e73-ba9b-de5988a7d233",
     "name": "textboxes names",
     "snapshot": {

@@ -135,7 +135,7 @@
           0,
           0
         ],
-        "body": "Slow, heavily armored, and built to knock out your defenders at range. They'll ignore everything else to get a shot at your guns.",
+        "body": "These things are not even human. Our scouts reported that these Canons surpasses everything we know in terms of durability and strength. At least this power takes its time",
         "crop_h": 0,
         "crop_w": 0,
         "crop_x": 0,
@@ -150,7 +150,7 @@
         "sprite_offset_y": 0,
         "sprite_slot": "siege_cannon_t2",
         "sprite_w": 110,
-        "title": "Siege cannons roll in"
+        "title": "WHAT ARE THEY MADE OF?"
       },
       {
         "anim_speed": 1.0,
@@ -161,7 +161,7 @@
           0,
           0
         ],
-        "body": "Enemies that move and fight in a tight group. They hit harder together than any one of them could alone — thin out the group before it reaches the hole.",
+        "body": "Our scouts reported that there are human soldiers approaching, whoever is in charge around here, theyre pissed of, and sending their troops. The humans now group together in Formations. they hit harder than any of them could alone. We have to thin them out before they reach our core",
         "crop_h": 0,
         "crop_w": 0,
         "crop_x": 0,
@@ -176,7 +176,7 @@
         "sprite_offset_y": 0,
         "sprite_slot": "formation_stage_2",
         "sprite_w": 110,
-        "title": "Formations march in"
+        "title": "THE ARMY IS COMING"
       },
       {
         "anim_speed": 1.0,
@@ -187,7 +187,7 @@
           0,
           0
         ],
-        "body": "They barely fight themselves, but every enemy nearby gets stronger while a Drummer is alive. Kill the Drummer first, or the whole group outpaces you.",
+        "body": "Our scouts reported that the Drummer is not a direct threat. But everyone else around them becomes way stronger. We have to kill them early",
         "crop_h": 0,
         "crop_w": 0,
         "crop_x": 0,
@@ -202,7 +202,7 @@
         "sprite_offset_y": 0,
         "sprite_slot": "drummer_stage_3",
         "sprite_w": 110,
-        "title": "Drummers join the ranks"
+        "title": "WHAT IS THAT NOISE?"
       },
       {
         "anim_speed": 1.0,
@@ -213,7 +213,7 @@
           0,
           0
         ],
-        "body": "The first enemy that fights at range. It'll stand off and pick apart your defenders from a distance instead of walking into them — close the gap or out-range it first.",
+        "body": "This cowardly human attacks from a distance. Our scouts reported that the Sniper targets our defense systemso taht other enemies can breach into our base easier",
         "crop_h": 0,
         "crop_w": 0,
         "crop_x": 0,
@@ -228,7 +228,7 @@
         "sprite_offset_y": 0,
         "sprite_slot": "sniper_stage_3",
         "sprite_w": 110,
-        "title": "Snipers take position"
+        "title": "THEY ARE ATTACKING FROM THE DISTANCE"
       },
       {
         "anim_speed": 1.0,
@@ -239,7 +239,7 @@
           0,
           0
         ],
-        "body": "They burrow in near a building, dig for a while, then surface to strike — and they're untargetable while buried. Watch for the dirt pile and hit them the moment they emerge.",
+        "body": "This human is digging through the ground to attack. Our scouts reported that we only can kill the Digger when he is on the surface",
         "crop_h": 0,
         "crop_w": 0,
         "crop_x": 0,
@@ -254,7 +254,7 @@
         "sprite_offset_y": 0,
         "sprite_slot": "digger_stage_4",
         "sprite_w": 110,
-        "title": "Diggers go underground"
+        "title": "ITS BENEATH US"
       }
     ],
     "window": {
