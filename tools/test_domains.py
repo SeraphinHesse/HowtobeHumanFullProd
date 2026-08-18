@@ -73,6 +73,10 @@ DOMAINS = {
     "buildings": (
         "test_base_building.py",
         "test_boost.py",
+        # BossUpgradeTimeline BU-6: a progression/upgrade system
+        # (rule-5 tie-breaker), even though the trigger is a boss round
+        # -- test_boss.py itself stays under `enemies`.
+        "test_boss_upgrades.py",
         "test_building_movement.py",
         "test_buildings_placement.py",
         "test_buildings_state_in_components.py",
@@ -116,6 +120,7 @@ DOMAINS = {
         "test_button_skin.py",
         "test_combat_anchors.py",
         "test_combat_speed.py",
+        "test_buff_debuff_arrows.py",
         "test_construct_card.py",
         "test_cutscene_player.py",
         "test_cutscene_session.py",
@@ -193,6 +198,7 @@ DOMAINS = {
         "test_run_controls.py",
         "test_screen_honest_controls.py",
         "test_tilemap_ops.py",
+        "test_editor_boss_upgrades.py",
         "test_timeline_ops.py",
         "test_timeline_panel.py",
         "test_ui_text_binding.py",
