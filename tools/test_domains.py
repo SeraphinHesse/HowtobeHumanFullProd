@@ -85,6 +85,8 @@ DOMAINS = {
         "test_levelup.py",
         "test_lightning.py",
         "test_painter_meditator.py",
+        # SD-4: the building/map sound trigger dispatcher (game/sounds.py)
+        "test_sound_triggers_buildings.py",
         "test_structure.py",
         "test_xp_curve.py",
     ),
