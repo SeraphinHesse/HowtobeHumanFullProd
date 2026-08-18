@@ -629,6 +629,28 @@ validating writer; don't hand-edit the JSON.
     must AGREE on its frame size or the loader raises `ValueError`. Schemas for
     what schemas can express; loader cross-checks for what they cannot (the
     `engine/tilemap.py` precedent).
+- **`slots[]` entries can also carry a `display_name`** — the designer-facing
+  name of ONE slot, written by the slot editor's **Name** field
+  (`editor/registry_ops.py::set_slot_display_name`) and read back by
+  `SlotRegistry.display_name(slot_key)`. It exists because a variant family's
+  members are distinguishable only by key (`ui_panel_v2` vs `ui_panel_v3`),
+  and the UI screen editor's Skin pickers had nothing else to show. **It is
+  EDITOR-ONLY — nothing in `game/` reads it**, and it is deliberately NOT a
+  required field: absent means "the key is its own label".
+  - Storing one needs the object form, so a bare-key slot is promoted to
+    `{key, display_name}` and demoted back to a bare string when the name is
+    cleared and it carries no frame-size override either (the same "never
+    store an override that overrides nothing" rule `set_slot_frame_size`
+    follows).
+  - **That is why `frame_w`/`frame_h` are no longer `required` in
+    `slot_entry`** — they are a `dependentRequired` PAIR instead (both or
+    neither), so an object entry that exists only to name a slot still
+    inherits its category's frame size. `_slot_frame_override` in
+    `engine/assets/registry.py` is the one place that distinction is read.
+  - A key repeated across groups of one category keeps the FIRST name it was
+    given — unlike frame size, two labels for one slot are cosmetic, not a
+    data error, so the loader does not raise. The editor's writer updates
+    EVERY occurrence, so it cannot author that disagreement in the first place.
 - **`conditions` (Tile Conditions) is an asset-only category** (no
   `balancing/conditions.json`, no `schemas/conditions.schema.json`) holding the
   art for the four runtime tile conditions, restructured so each condition

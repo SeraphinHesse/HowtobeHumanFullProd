@@ -26,6 +26,7 @@ from editor.panels.level_bar import LevelBar
 from editor.panels.sheet_picker import SheetPickerDialog
 from editor.panels.sheet_preview import SheetPreview
 from engine import data_io
+from engine.assets import load_registry
 from tools.tests.test_editor_panels import TempDataCase
 
 
@@ -1275,6 +1276,57 @@ class TestMasterSheetColumns(DetailsCase):
         self.assertEqual(self.panel._column_width, self.WIDTH)
         self.assertEqual(self.panel._column_spin.maximum(),
                          self.COLS // self.WIDTH - 1)
+
+
+class TestDisplayName(DetailsCase):
+    """The Name field: naming a variant so the UI screen editor can offer it by
+    something other than `ui_panel_v3`."""
+
+    def test_typing_a_name_writes_it_and_reports_the_registry_change(self):
+        self.panel.set_slot("ui_panel_v3")
+        seen = []
+        self.panel.registry_changed.connect(seen.append)
+        self.panel._name_edit.setText("Wide stone panel")
+        self.panel._on_display_name_changed()
+
+        self.assertEqual(seen, ["ui_panel_v3"])
+        self.assertEqual(
+            load_registry(self.data_dir).display_name("ui_panel_v3"),
+            "Wide stone panel")
+
+    def test_selecting_a_slot_shows_its_name_and_no_slot_hides_the_row(self):
+        self.panel.set_slot("ui_panel_v3")
+        self.panel._name_edit.setText("Wide stone panel")
+        self.panel._on_display_name_changed()
+
+        self.panel.set_slot("ui_panel")
+        self.assertEqual(self.panel._name_edit.text(), "")
+        self.panel.set_slot("ui_panel_v3")
+        self.assertEqual(self.panel._name_edit.text(), "Wide stone panel")
+        self.panel.set_slot(None)
+        self.assertFalse(self.panel._name_row.isVisibleTo(self.panel))
+
+
+class TestDisplayNameReachesTheScreenEditor(DetailsCase):
+    """The point of the Name field: a named ui slot is offered BY NAME in the
+    UI screen editor's skin pickers, with the key kept as the item DATA (a
+    rename relabels a picker, it never rewrites a screen override)."""
+
+    def test_named_slot_is_labelled_in_the_skin_combo(self):
+        from editor.panels.screen_details import ScreenDetailsPanel
+
+        self.panel.set_slot("ui_panel_v3")
+        self.panel._name_edit.setText("Wide stone panel")
+        self.panel._on_display_name_changed()
+
+        screen_panel = self.track(ScreenDetailsPanel(data_dir=self.data_dir))
+        combo = screen_panel.skin_combo
+        index = combo.findData("ui_panel_v3")
+        self.assertGreaterEqual(index, 0)
+        self.assertIn("Wide stone panel", combo.itemText(index))
+        self.assertIn("ui_panel_v3", combo.itemText(index))
+        # an unnamed slot is still labelled by its bare key
+        self.assertEqual(combo.itemText(combo.findData("ui_panel")), "ui_panel")
 
 
 if __name__ == "__main__":
