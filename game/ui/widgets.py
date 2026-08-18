@@ -238,6 +238,46 @@ def label_holder(rect=(0, 0, 0, 0), *, text_id=None, label="", font_key="md",
                            align=align, visible=visible)
 
 
+def _state_patch(widget, state):
+    """The per-state appearance patch off ``widget.states`` (UL-5), or ``{}``.
+
+    ``states`` reaches a widget through ``ScreenSkinning.apply``'s generic
+    setattr loop the same way ``skin``/``tint`` do — a widget whose screen doc
+    never named it simply has no attribute, hence the ``getattr``.
+
+    The D9 fallback ladder, identical to ``engine.ui_layers``' own: the
+    resolved state key wins when PRESENT (an explicitly-authored empty patch
+    means "this state looks like the base"), an ABSENT key falls back to
+    ``"idle"``, and an absent/empty ``states`` means no patch at all — which
+    is what keeps an un-authored widget byte-identical to pre-UL-5.
+    """
+    states = getattr(widget, "states", None) or {}
+    if not isinstance(states, dict):
+        return {}
+    if state in states:
+        return states[state] or {}
+    return states.get("idle") or {}
+
+
+def _state_offset(patch):
+    """A state patch's ``offset`` as ``(dx, dy, dw, dh)`` — a DRAW-TIME nudge.
+
+    ``[dx, dy]`` moves without resizing (``dw``/``dh`` 0); ``[dx, dy, dw,
+    dh]`` also resizes. Relative to the widget's OWN rect, never an absolute
+    rect, and never written back onto it: ``self.rect`` stays the hit-test
+    truth (``Button._surface_hit``/``hit`` read it directly the very next
+    frame and know nothing about a state nudge). Anything malformed degrades
+    to no nudge rather than raising — ``engine.ui_layers.validate_offsets``'
+    rule, applied at the widget level.
+    """
+    value = patch.get("offset")
+    if not isinstance(value, (list, tuple)) or len(value) not in (2, 4):
+        return (0, 0, 0, 0)
+    if not all(isinstance(v, int) and not isinstance(v, bool) for v in value):
+        return (0, 0, 0, 0)
+    return (value[0], value[1], 0, 0) if len(value) == 2 else tuple(value)
+
+
 def submit_label(renderer, holder, *, text=None, color=None, align=None, **fmt):
     """Draw an id'd label holder (UT-1) — THE idiom for text a screen names in
     its ``ids`` dict.
@@ -273,10 +313,28 @@ def submit_label(renderer, holder, *, text=None, color=None, align=None, **fmt):
     tcol = getattr(holder, "text_color", None)
     if tcol is None:
         tcol = color if color is not None else C_UI_TEXT
+    # UL-5: a plain holder has no ``_state()``, so its state is always
+    # "idle" (``ScreenSkinning.state_of``'s rule) — an "idle" patch is the
+    # only one a label/panel/backdrop can ever select. The patch is more
+    # specific than the holder's own static ``text_color``, so it wins over
+    # it; both spellings are accepted (``text_color`` is the holder's own
+    # attribute name, ``color`` this function's parameter name). It does NOT
+    # win over an explicit call-site ``color=``, mirroring ``Button.submit``'s
+    # ``text_color=`` rule: a caller passing a computed semantic colour (the
+    # ~13 ``C_UI_TEXT_DIM``/``C_GOLD`` sites in building_ui/settings/levelup/
+    # boss_cutscene) is being more specific than the screen doc.
+    patch = _state_patch(holder, "idle")
+    pcol = patch.get("text_color", patch.get("color"))
+    if color is None and pcol is not None:
+        tcol = tuple(pcol)
     if align is None:
         align = getattr(holder, "align", "left") or "left"
     rect = holder.rect
-    renderer.submit_hud(HudText(text, (rect[0], rect[1]),
+    # Draw-time nudge only: ``holder.rect`` is the exporter's/editor's stored
+    # truth and is never rewritten from here (dw/dh are meaningless for a
+    # text anchor, whose w/h are nominal 0 — see game/ui/CLAUDE.md).
+    dx, dy, _dw, _dh = _state_offset(patch)
+    renderer.submit_hud(HudText(text, (rect[0] + dx, rect[1] + dy),
                                 holder.font_key, tcol, align=align))
 
 
@@ -311,6 +369,15 @@ _HIGHLIGHTS = {
 # event -> (sprite_slot, draw_in_front), from the same doc's `triggers`.
 _HIGHLIGHT_TRIGGERS = {name: ("", True) for name in _HIGHLIGHTS}
 
+# The tile-buying tutorial topic's pulse/glow overlay on TOP of
+# _HIGHLIGHTS["tutorial_highlight"]'s base colour/width (VfxAuthoringPLAN
+# VA-5's configure/fallback shape, applied to a second, independent block —
+# see tutorial_pulse_style below). The literals are the UNCONFIGURED
+# FALLBACK, equal to the committed `procedural.tutorial_highlight_pulse`;
+# `test_highlight_data.py` pins them against it.
+_TUTORIAL_PULSE = {"alpha_min": 140, "alpha_max": 255,
+                   "width_min": 2, "width_max": 4, "pulse_period_s": 0.8}
+
 
 def configure_highlights(vfx_doc):
     """Rebind the highlight params + their trigger bindings from a loaded,
@@ -338,6 +405,12 @@ def configure_highlights(vfx_doc):
         if row is not None:
             _HIGHLIGHT_TRIGGERS[name] = (row["sprite_slot"],
                                          row["draw_in_front"])
+    pulse = vfx_doc["procedural"]["tutorial_highlight_pulse"]
+    _TUTORIAL_PULSE["alpha_min"] = pulse["alpha_min"]
+    _TUTORIAL_PULSE["alpha_max"] = pulse["alpha_max"]
+    _TUTORIAL_PULSE["width_min"] = pulse["width_min"]
+    _TUTORIAL_PULSE["width_max"] = pulse["width_max"]
+    _TUTORIAL_PULSE["pulse_period_s"] = pulse["pulse_period_s"]
 
 
 def highlight_color(event):
@@ -358,7 +431,8 @@ def highlight_params(event):
     return _HIGHLIGHTS[event]
 
 
-def submit_highlight(renderer, event, col, row, assets=None, anim_time_ms=0):
+def submit_highlight(renderer, event, col, row, assets=None, anim_time_ms=0,
+                     pulse_color=None, pulse_width=None):
     """Draw one continuous tile highlight for ``event`` at ``(col, row)``.
 
     The sibling of ``FloaterManager._play`` for effects that are NOT one-shots
@@ -375,6 +449,11 @@ def submit_highlight(renderer, event, col, row, assets=None, anim_time_ms=0):
 
     ``draw_in_front`` becomes the depth rank (VA-3): +1 draws over a
     same-tile building, -1 behind it.
+
+    ``pulse_color``/``pulse_width`` (the tile-buying tutorial topic's pulse,
+    ``tutorial_pulse_style`` below) override the static border colour/width
+    ONLY on the procedural-diamond fallback below — imported art still wins
+    exactly as it does for every other event, unaffected by either.
     """
     slot, in_front = _HIGHLIGHT_TRIGGERS.get(event, ("", True))
     rank = 1 if in_front else -1
@@ -388,12 +467,36 @@ def submit_highlight(renderer, event, col, row, assets=None, anim_time_ms=0):
     if params is None:
         return                      # unknown event: a silent no-op (E-37)
     color, width = params["color"], params["border_width"]
+    border_color = pulse_color if pulse_color is not None else color
+    border_width = pulse_width if pulse_width is not None else width
     alpha = params["fill_alpha"]
     if alpha:
         submit_tile_diamond_fill(renderer, col, row, color + (alpha,),
-                                 border=color, border_width=width, rank=rank)
+                                 border=border_color,
+                                 border_width=border_width, rank=rank)
     else:
-        submit_tile_diamond(renderer, col, row, color, width=width, rank=rank)
+        submit_tile_diamond(renderer, col, row, border_color,
+                            width=border_width, rank=rank)
+
+
+def tutorial_pulse_style(clock_ms):
+    """``(rgba, width)`` for the pulsing/glowing tutorial highlight at
+    wall-clock time ``clock_ms`` milliseconds — border alpha AND width both
+    breathe on a smooth sine cycle over ``procedural.tutorial_highlight_
+    pulse``'s ``pulse_period_s`` seconds (``data/balancing/vfx.json``, the
+    Drummer aura's alpha-breathe precedent, ``game/ui/CLAUDE.md``), composed
+    onto ``highlight_color("tutorial_highlight")`` rather than a second
+    colour home. Feeds every tutorial highlight draw call: the tile diamonds
+    (``submit_highlight``'s ``pulse_color``/``pulse_width``) and the card/
+    button UI-box rings (``submit_ui_box_highlight``'s ``color``/``width``).
+    """
+    p = _TUTORIAL_PULSE
+    phase = (math.sin(2 * math.pi * (clock_ms / 1000.0)
+                      / p["pulse_period_s"]) + 1) / 2
+    alpha = round(p["alpha_min"] + phase * (p["alpha_max"] - p["alpha_min"]))
+    width = round(p["width_min"] + phase * (p["width_max"] - p["width_min"]))
+    color = highlight_color("tutorial_highlight") + (alpha,)
+    return color, width
 
 
 def submit_tile_diamond(renderer, col, row, color, width=2, rank=0):
@@ -466,7 +569,7 @@ def submit_bar(renderer, x, y, w, h, ratio, *, bg, fill, border=None):
 
 
 def submit_progress_ring(renderer, cx, cy, radius, ratio, *,
-                          bg=None, fill=None, width=2, segments=32):
+                          bg=None, fill=None, width=2, segments=96):
     """A small circular hold-progress indicator (cutscene hold-to-skip): a
     dim full ring plus a bright arc from 12 o'clock clockwise proportional
     to ``ratio`` (clamped to [0, 1]). Composed from ``HudLines`` — no arc/pie
@@ -474,7 +577,18 @@ def submit_progress_ring(renderer, cx, cy, radius, ratio, *,
     ``submit_ui_box_highlight``/``submit_tutorial_banner`` above compose
     from existing primitives instead of adding a new engine one. Colors
     default to ``None`` and resolve here, not at def time — the UH-6
-    rebind-safety convention every helper in this file follows."""
+    rebind-safety convention every helper in this file follows.
+
+    The arc's points sit on a FIXED angular grid (``i * (2*pi/segments)``,
+    independent of ``ratio``) rather than being re-subdivided every frame —
+    a point's screen position is therefore identical every frame from the
+    moment it first appears; only one trailing fractional point (the exact
+    tip) is recomputed each call. The previous version divided the arc into
+    ``round(segments * ratio)`` steps, i.e. it re-subdivided the WHOLE arc
+    on every call — since that step count changes every frame as ``ratio``
+    grows, every already-drawn point's angle shifted slightly too, not just
+    the tip, so the whole curve visibly "re-flowed" frame to frame. That,
+    not the segment count, was the actual cause of the reported jitter."""
     if bg is None:
         bg = C_UI_TEXT_DIM
     if fill is None:
@@ -486,12 +600,18 @@ def submit_progress_ring(renderer, cx, cy, radius, ratio, *,
         for i in range(segments + 1))
     renderer.submit_hud(HudLines(bg_pts, bg, width=width, closed=True))
     if ratio > 0:
-        n = max(1, round(segments * ratio))
-        arc_pts = tuple(
-            (cx + radius * math.sin(2 * math.pi * ratio * i / n),
-             cy - radius * math.cos(2 * math.pi * ratio * i / n))
-            for i in range(n + 1))
-        renderer.submit_hud(HudLines(arc_pts, fill, width=width))
+        step = 2 * math.pi / segments
+        target_angle = 2 * math.pi * ratio
+        full = int(target_angle / step)
+        arc_pts = [
+            (cx + radius * math.sin(i * step),
+             cy - radius * math.cos(i * step))
+            for i in range(full + 1)
+        ]
+        if target_angle > full * step + 1e-9:
+            arc_pts.append((cx + radius * math.sin(target_angle),
+                            cy - radius * math.cos(target_angle)))
+        renderer.submit_hud(HudLines(tuple(arc_pts), fill, width=width))
 
 
 class Button:
@@ -575,6 +695,10 @@ class Button:
 
     def submit(self, renderer, *, color=None, text_color=None, anim_ms=0):
         x, y, w, h = self.rect
+        # UL-5: the per-state appearance patch, resolved through the SAME
+        # ``_state()`` the skinned sprite row uses below — so the flat fill,
+        # the skin row and this patch can never disagree about the state.
+        patch = _state_patch(self, self._state())
         if self.flash > 0:
             fill, tcol = C_RED, C_UI_TEXT
             label = self.flash_label or self.label
@@ -584,6 +708,16 @@ class Button:
             fill = color or (C_UI_BTN_HOVER if self.hovered else C_UI_BTN)
             tcol = text_color or C_UI_TEXT
             label = self.label
+        if text_color is None and patch.get("text_color") is not None:
+            # An explicit per-call ``text_color=`` is MORE specific than a
+            # state patch (``skinning.button_kwargs``' override), so it wins;
+            # otherwise the patch recolours the label for this state.
+            tcol = tuple(patch["text_color"])
+        # The nudge applies to what is DRAWN this frame only. ``self.rect`` is
+        # never reassigned: ``_surface_hit``/``hit`` read it directly on the
+        # next frame and have no notion of "the rect I drew offset by".
+        dx, dy, dw, dh = _state_offset(patch)
+        x, y, w, h = x + dx, y + dy, w + dw, h + dh
         if self.skin:
             # 10L-A: the sprite replaces both rects; ``color`` (a fill
             # override) has nothing to fill and is ignored. Label unchanged.

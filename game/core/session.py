@@ -29,7 +29,7 @@ import random
 from engine import era_math
 from game.debug import events as dbg  # debug-mode-telemetry Phase 2
 
-from . import boss_bonuses as bb
+from . import boss_upgrades as bu  # BossUpgradeTimelinePLAN BU-2/BU-4
 from . import levelup as lv
 from . import lightning as lt  # 10H
 from . import xp as xpmod
@@ -47,7 +47,7 @@ PAUSE_SPEED_IDX = 3
 class Session:
     def __init__(self, state, spawner, tilemap, enemies_balance, core_balance,
                  buildings_balance, registry=None, rng=None, occupancy=None,
-                 progression_balance=None):
+                 progression_balance=None, boss_upgrades_balance=None):
         self.state = state
         self.spawner = spawner
         self.tilemap = tilemap
@@ -65,6 +65,12 @@ class Session:
         state.scripted_leveling = bool(
             progression_balance is not None
             and progression_balance["Timeline"]["scripted_leveling"])
+        # BossUpgradeTimelinePLAN BU-1: data/balancing/boss_upgrades.json —
+        # the 12-upgrade catalog + the 4-milestone timeline (which 3 cards a
+        # bossfight offers, and the retaliation love a LOST one pays, D7/D8).
+        # Optional, host-set, None-safe — the progression_balance shape
+        # exactly: a bare Session a logic test builds is untouched.
+        self.boss_upgrades_balance = boss_upgrades_balance
         self.registry = registry
         self.rng = rng if rng is not None else random
         # Occupancy handle so the payday Painter slot can free a completed
@@ -115,12 +121,12 @@ class Session:
     @classmethod
     def create(cls, spawner, tilemap, enemies_balance, core_balance,
                buildings_balance, registry=None, rng=None, occupancy=None,
-               progression_balance=None):
+               progression_balance=None, boss_upgrades_balance=None):
         """Fresh session with a run-state seeded from the ``core`` balance."""
         return cls(RunState.from_balance(core_balance, buildings_balance),
                    spawner, tilemap, enemies_balance, core_balance,
                    buildings_balance, registry, rng, occupancy,
-                   progression_balance)
+                   progression_balance, boss_upgrades_balance)
 
     @property
     def frozen(self):
@@ -201,7 +207,14 @@ class Session:
         ``vfx.json`` dict, passed straight through to ``lightning.strike``
         for the FX marker's cosmetic fade lifetimes. Not stored on
         ``Session`` — the host already holds it and passes it per call, the
-        same way it passes ``scene``/``cs``."""
+        same way it passes ``scene``/``cs``.
+
+        BossUpgradeTimelinePLAN BU-3 3.3: the strike also carries
+        ``self.boss_upgrades_balance`` for upgrade #7 ``stormpriest_slow``.
+        Only the BALANCE half of the standard hook pair travels — ``st`` is
+        already the ``RunState`` ``strike``'s first argument, the documented
+        ``place_building`` exception. ``None`` on a bare ``Session`` a logic
+        test builds, which keeps the strike byte-identical there."""
         st = self.state
         if st.state != GameState.GAMEPLAY or st.phase != GamePhase.ENEMY:
             return False
@@ -212,7 +225,8 @@ class Session:
         hits = []
         on_hit = (lambda dmg: hits.append(dmg)) if self.debug is not None else None
         fired = lt.strike(st, self.core_balance, vfx_balance, scene, cs, wx, wy,
-                          on_hit=on_hit)
+                          on_hit=on_hit,
+                          boss_upgrades_balance=self.boss_upgrades_balance)
         if self.debug is not None and fired:
             total = sum(hits)
             n = len(hits)
@@ -425,7 +439,8 @@ class Session:
                     self._begin_levelup()
                 else:
                     run_payday(st, self.tilemap, self.core_balance,
-                               self.occupancy, scene, self.debug)  # -> INCOME
+                               self.occupancy, scene, self.debug,
+                               self.boss_upgrades_balance)  # -> INCOME
         elif st.phase == GamePhase.INCOME:
             st.phase_timer -= dt
             if st.phase_timer <= 0:
@@ -535,7 +550,8 @@ class Session:
             return
         # -- /10H --
         run_payday(st, self.tilemap, self.core_balance,
-                   self.occupancy, scene, self.debug)  # -> INCOME
+                   self.occupancy, scene, self.debug,
+                   self.boss_upgrades_balance)  # -> INCOME
 
     def _emit_levelup_option(self, option):
         """debug-mode-telemetry: the level-up reward IS the natural source of
@@ -558,22 +574,32 @@ class Session:
     # -- BOSS_CUTSCENE (10G) -----------------------------------------------
 
     def _begin_boss_cutscene(self):
-        """Enter the fully modal A/B phase. ``pending_boss_cutscene`` stays set
+        """Enter the fully modal pick phase. ``pending_boss_cutscene`` stays set
         (the host reads boss_num/outcome to open the window on the phase edge —
         the LEVELUP pattern); ``resolve_boss_cutscene`` consumes it."""
         self.state.phase = GamePhase.BOSS_CUTSCENE
 
     def resolve_boss_cutscene(self, option, scene=None):
-        """Apply the ``"A"``/``"B"`` choice (choice sets cycle every 3 bosses),
-        log it to the run history, then chain into the LEVELUP the cutscene
-        deferred — or straight to payday (prototype game.py:947-963). Payday
-        runs exactly once either way."""
+        """Apply the picked BOSS UPGRADE (``option`` is a catalog upgrade id —
+        BU-4 replaced 10G's ``"A"``/``"B"``), log it to the run history, then
+        chain into the LEVELUP the cutscene deferred — or straight to payday
+        (prototype game.py:947-963). Payday runs exactly once either way.
+
+        ``apply_pick`` is THE seam: it counts the stack every persistent
+        passive's hook site reads and fires the one-time effects (and the
+        injected pick-time hooks) for the ids that carry them. ``tilemap`` is
+        the Session's own; ``scene`` is the host's, and both are needed before
+        a hook (``stone_thrower_sync``'s building sweep, ``mortar_slow``'s
+        snapshot) will run at all — a headless resolve passing no scene is a
+        silent no-op there, by that module's contract.
+        """
         st = self.state
         pending = st.pending_boss_cutscene or {}
         boss_num = pending.get("boss_num", 1)
         outcome = pending.get("outcome", "win")
-        bb.apply_choice(st, (boss_num - 1) % 3, option)
-        st.boss_choices.append((boss_num, option, outcome))
+        bu.apply_pick(st, option, self.boss_upgrades_balance,
+                      self.core_balance, tilemap=self.tilemap, scene=scene)
+        st.boss_upgrade_choices.append((boss_num, option, outcome))
         st.pending_boss_cutscene = None
         if self.debug is not None:
             self.debug.emit(dbg.BOSS_CHOICE, boss_num=boss_num, option=option,
@@ -583,7 +609,8 @@ class Session:
             self._begin_levelup()
         else:
             run_payday(st, self.tilemap, self.core_balance,
-                       self.occupancy, scene, self.debug)  # -> INCOME
+                       self.occupancy, scene, self.debug,
+                       self.boss_upgrades_balance)  # -> INCOME
 
     # -- ENEMY_INTRO (feature-enemy-intro-dialogue) ------------------------
 
@@ -729,16 +756,18 @@ class Session:
     # -- helpers ----------------------------------------------------------
 
     def _boss_loss_reward(self, era):
-        """This era's consolation love for a LOST boss round (0 = none).
+        """The retaliation love a LOST boss round pays (0 = none).
 
-        Resolved through ``era_math.resolve_era_row`` with the boss's own
-        ``endgame_boss_scaling``, i.e. the exact path ``Boss._stat_row`` takes
-        — game/core cannot import game.enemies (it would close an import
-        cycle), so it calls the shared engine helper instead of the class."""
-        block = self.enemies_balance["EnemyTypes"]["Boss"]
-        row = era_math.resolve_era_row(block["stats"], max(0, int(era)),
-                                       block["endgame_boss_scaling"])
-        return int(row.get("loss_love_reward", 0))
+        BU-4/D7: sourced from the boss-upgrade TIMELINE's own 4-cycle table
+        (``retaliation_bonus_love``, one per milestone), which is now the sole
+        source of truth — ``enemies.json``'s per-era ``loss_love_reward`` and
+        its ``era_math.resolve_era_row`` lookup are retired. ``era`` is
+        0-indexed here (``_begin_round_end``'s ``era_of_round``) and
+        ``retaliation_love`` takes a 1-BASED boss number, hence ``era + 1`` —
+        the same conversion ``pending_boss_cutscene["boss_num"]`` already
+        makes two lines below its call site. 0 when no balance is wired (a
+        bare ``Session`` a logic test builds)."""
+        return bu.retaliation_love(self.boss_upgrades_balance, int(era) + 1)
 
     def _begin_round_end(self):
         st = self.state
@@ -754,12 +783,11 @@ class Session:
             era = era_math.era_of_round(st.round_num, rounds_per_era)
             outcome = ("win" if st.base_lives >= st.boss_lives_snapshot
                        else "loss")
-            # A LOST boss round pays consolation love, straight off THIS era's
-            # boss stat row (`loss_love_reward`) — the same clamped/endgame-
-            # scaled resolve the Boss itself uses for hp/dmg, so era 6+ keeps
-            # paying whatever `endgame_boss_scaling` says. Paid here, once,
-            # the moment the outcome is known: the cutscene shows the number
-            # and the payday that follows it already sees the love.
+            # A LOST boss round pays retaliation love, off the boss-upgrade
+            # timeline's own 4-cycle table (BU-4/D7 — see
+            # `_boss_loss_reward`). Paid here, once, the moment the outcome is
+            # known: the cutscene shows the number and the payday that follows
+            # it already sees the love.
             reward = self._boss_loss_reward(era) if outcome == "loss" else 0
             if reward:
                 st.add_love(reward)

@@ -1,6 +1,3267 @@
 [
   {
     "description": "",
+    "id": "fb5ed2c1-4c67-47ca-9a4f-91dd2de30241",
+    "name": "LevelboundBullet selection",
+    "snapshot": {
+      "procedural": {
+        "announce": {
+          "color": [
+            220,
+            40,
+            40
+          ],
+          "max_alpha": 255
+        },
+        "beam": {
+          "colors": {
+            "stop_0": [
+              255,
+              200,
+              40
+            ],
+            "stop_1": [
+              255,
+              110,
+              15
+            ],
+            "stop_2": [
+              210,
+              20,
+              10
+            ]
+          },
+          "origin_lift_tiles": 1.0,
+          "width_base": 2
+        },
+        "crater": {
+          "alpha": 150,
+          "color": [
+            120,
+            78,
+            66
+          ],
+          "life": 0.0,
+          "segments": 12
+        },
+        "death_burst": {
+          "colors": {
+            "stop_0": [
+              150,
+              90,
+              200
+            ],
+            "stop_1": [
+              120,
+              70,
+              170
+            ],
+            "stop_2": [
+              180,
+              120,
+              230
+            ]
+          },
+          "count": 14,
+          "gravity": 60.0,
+          "life": 0.65,
+          "size_h_max": 5,
+          "size_h_min": 2,
+          "size_w_max": 4,
+          "size_w_min": 2,
+          "vx_max": 45.0,
+          "vx_min": -45.0,
+          "vy_max": -10.0,
+          "vy_min": -80.0
+        },
+        "drummer_aura": {
+          "alpha_max": 150,
+          "alpha_min": 30,
+          "color": [
+            90,
+            200,
+            220
+          ],
+          "pulse_period_s": 0.5,
+          "segments": 16
+        },
+        "floaters": {
+          "boost_color": [
+            255,
+            255,
+            255
+          ],
+          "income_life": 2.6,
+          "painter_finished_color": [
+            255,
+            255,
+            100
+          ],
+          "painter_life": 1.5,
+          "painter_lost_color": [
+            255,
+            100,
+            100
+          ],
+          "upkeep_color": [
+            120,
+            170,
+            230
+          ],
+          "xp_color": [
+            202,
+            140,
+            245
+          ],
+          "xp_life": 0.9
+        },
+        "gold_highlight": {
+          "border_color": [
+            222,
+            158,
+            65
+          ],
+          "border_width": 2,
+          "fade_in": 1.0,
+          "fill_alpha": 90,
+          "fill_color": [
+            232,
+            193,
+            112
+          ],
+          "hold": 0.15,
+          "life": 2.0
+        },
+        "highlights": {
+          "attack_range": {
+            "border_width": 2,
+            "color": [
+              180,
+              40,
+              40
+            ],
+            "fill_alpha": 0
+          },
+          "move_target": {
+            "border_width": 2,
+            "color": [
+              80,
+              200,
+              255
+            ],
+            "fill_alpha": 0
+          },
+          "section_2x2": {
+            "border_width": 2,
+            "color": [
+              255,
+              180,
+              60
+            ],
+            "fill_alpha": 0
+          },
+          "tile_selected": {
+            "border_width": 2,
+            "color": [
+              255,
+              230,
+              60
+            ],
+            "fill_alpha": 0
+          },
+          "tutorial_highlight": {
+            "border_width": 2,
+            "color": [
+              255,
+              255,
+              255
+            ],
+            "fill_alpha": 0
+          },
+          "upgrade_batch": {
+            "border_width": 2,
+            "color": [
+              255,
+              230,
+              60
+            ],
+            "fill_alpha": 0
+          },
+          "wall_edge": {
+            "border_width": 4,
+            "color": [
+              255,
+              230,
+              60
+            ],
+            "fill_alpha": 0
+          }
+        },
+        "lightning": {
+          "bolt_color_end": [
+            255,
+            240,
+            80
+          ],
+          "bolt_color_start": [
+            255,
+            255,
+            255
+          ],
+          "bolt_jitter_px": 6,
+          "bolt_life": 0.5,
+          "bolt_segments": 8,
+          "bolt_width": 2,
+          "flash_alpha": 200,
+          "flash_color": [
+            255,
+            250,
+            200
+          ],
+          "flash_radius_px": 20.0,
+          "marker_color": [
+            255,
+            240,
+            120
+          ],
+          "marker_fill_alpha": 120,
+          "marker_life": 1.0,
+          "marker_outline_width": 2,
+          "marker_segments": 12
+        },
+        "muzzle": {
+          "count": 8,
+          "count_strong": 13,
+          "gravity": 0.0,
+          "life": 0.2,
+          "life_strong": 0.32,
+          "ramp": {
+            "stop_0": [
+              255,
+              230,
+              120
+            ],
+            "stop_1": [
+              220,
+              90,
+              50
+            ],
+            "stop_2": [
+              130,
+              30,
+              20
+            ]
+          },
+          "size_h": 2,
+          "size_w": 2,
+          "smoke_chance": 0.25,
+          "smoke_color": [
+            100,
+            80,
+            80
+          ],
+          "vx_max": -30.0,
+          "vx_min": -90.0,
+          "vy_max": 35.0,
+          "vy_min": -35.0
+        },
+        "projectile": {
+          "lift_frac": 0.6,
+          "shell_color": [
+            70,
+            60,
+            55
+          ],
+          "shell_size": 32,
+          "stone_color": [
+            185,
+            180,
+            170
+          ],
+          "stone_size": 32
+        },
+        "slash": {
+          "colors": {
+            "stop_0": [
+              220,
+              230,
+              255
+            ],
+            "stop_1": [
+              200,
+              215,
+              245
+            ],
+            "stop_2": [
+              255,
+              255,
+              255
+            ]
+          },
+          "life": 0.28,
+          "lines_max": 3,
+          "lines_min": 2,
+          "ox_max": 6.0,
+          "ox_min": -6.0,
+          "oy_max": 2.0,
+          "oy_min": -10.0,
+          "size": 7,
+          "size_large": 11
+        },
+        "spark": {
+          "gravity": 55.0,
+          "presets": {
+            "level1": {
+              "count": 7,
+              "life": 0.55
+            },
+            "level2": {
+              "count": 16,
+              "life": 0.88
+            },
+            "place": {
+              "count": 10,
+              "life": 0.75
+            },
+            "respawn": {
+              "count": 10,
+              "life": 0.75
+            },
+            "tier": {
+              "count": 26,
+              "life": 1.2
+            }
+          },
+          "ramp": {
+            "stop_0": [
+              255,
+              230,
+              80
+            ],
+            "stop_1": [
+              255,
+              150,
+              40
+            ],
+            "stop_2": [
+              210,
+              60,
+              30
+            ]
+          },
+          "size_h": 2,
+          "size_w": 2,
+          "vx_max": 28.0,
+          "vx_min": -28.0,
+          "vy_max": -20.0,
+          "vy_min": -70.0
+        },
+        "splatter": {
+          "alpha": 170,
+          "color": [
+            180,
+            30,
+            30
+          ],
+          "jitter": 0.6,
+          "radius_px": 4.0
+        },
+        "tutorial_highlight_pulse": {
+          "alpha_max": 255,
+          "alpha_min": 140,
+          "pulse_period_s": 0.8,
+          "width_max": 4,
+          "width_min": 2
+        }
+      },
+      "triggers": {
+        "attack_range": {
+          "draw_in_front": false,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_destroyed": {
+          "draw_in_front": true,
+          "procedural": "death_burst",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_level_up": {
+          "draw_in_front": true,
+          "procedural": "spark_level",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_placed": {
+          "draw_in_front": true,
+          "procedural": "spark_place",
+          "sprite_slot": "vfx_respawn",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_respawn": {
+          "draw_in_front": true,
+          "procedural": "spark_respawn",
+          "sprite_slot": "vfx_respawn",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_tier_up": {
+          "draw_in_front": true,
+          "procedural": "spark_tier",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "defender_fire": {
+          "draw_in_front": true,
+          "procedural": "",
+          "sprite_slot": "vfx_muzzle",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "enemy_attack_melee": {
+          "draw_in_front": true,
+          "procedural": "slash",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "enemy_attack_ranged": {
+          "draw_in_front": true,
+          "procedural": "",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "enemy_death": {
+          "draw_in_front": true,
+          "procedural": "splatter",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "move_target": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "projectile": {
+          "draw_in_front": true,
+          "procedural": "",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "level"
+          }
+        },
+        "projectile_hit": {
+          "draw_in_front": false,
+          "procedural": "",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "section_2x2": {
+          "draw_in_front": false,
+          "procedural": "highlight",
+          "sprite_slot": "vfx_section_2x2",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "splash_impact": {
+          "draw_in_front": false,
+          "procedural": "crater",
+          "sprite_slot": "vfx_crater",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "tile_selected": {
+          "draw_in_front": false,
+          "procedural": "highlight",
+          "sprite_slot": "vfx_tile_selected",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "tutorial_highlight": {
+          "draw_in_front": false,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "upgrade_batch": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "wall_edge": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        }
+      }
+    },
+    "timestamp": "2026-08-18T12:21:39"
+  },
+  {
+    "description": "",
+    "id": "7c53b991-6d9f-438f-b2ff-dfc0894d0b7f",
+    "name": "z axis adjustments",
+    "snapshot": {
+      "procedural": {
+        "announce": {
+          "color": [
+            220,
+            40,
+            40
+          ],
+          "max_alpha": 255
+        },
+        "beam": {
+          "colors": {
+            "stop_0": [
+              255,
+              200,
+              40
+            ],
+            "stop_1": [
+              255,
+              110,
+              15
+            ],
+            "stop_2": [
+              210,
+              20,
+              10
+            ]
+          },
+          "origin_lift_tiles": 1.0,
+          "width_base": 2
+        },
+        "crater": {
+          "alpha": 150,
+          "color": [
+            120,
+            78,
+            66
+          ],
+          "life": 0.0,
+          "segments": 12
+        },
+        "death_burst": {
+          "colors": {
+            "stop_0": [
+              150,
+              90,
+              200
+            ],
+            "stop_1": [
+              120,
+              70,
+              170
+            ],
+            "stop_2": [
+              180,
+              120,
+              230
+            ]
+          },
+          "count": 14,
+          "gravity": 60.0,
+          "life": 0.65,
+          "size_h_max": 5,
+          "size_h_min": 2,
+          "size_w_max": 4,
+          "size_w_min": 2,
+          "vx_max": 45.0,
+          "vx_min": -45.0,
+          "vy_max": -10.0,
+          "vy_min": -80.0
+        },
+        "drummer_aura": {
+          "alpha_max": 150,
+          "alpha_min": 30,
+          "color": [
+            90,
+            200,
+            220
+          ],
+          "pulse_period_s": 0.5,
+          "segments": 16
+        },
+        "floaters": {
+          "boost_color": [
+            255,
+            255,
+            255
+          ],
+          "income_life": 2.6,
+          "painter_finished_color": [
+            255,
+            255,
+            100
+          ],
+          "painter_life": 1.5,
+          "painter_lost_color": [
+            255,
+            100,
+            100
+          ],
+          "upkeep_color": [
+            120,
+            170,
+            230
+          ],
+          "xp_color": [
+            202,
+            140,
+            245
+          ],
+          "xp_life": 0.9
+        },
+        "gold_highlight": {
+          "border_color": [
+            222,
+            158,
+            65
+          ],
+          "border_width": 2,
+          "fade_in": 1.0,
+          "fill_alpha": 90,
+          "fill_color": [
+            232,
+            193,
+            112
+          ],
+          "hold": 0.15,
+          "life": 2.0
+        },
+        "highlights": {
+          "attack_range": {
+            "border_width": 2,
+            "color": [
+              180,
+              40,
+              40
+            ],
+            "fill_alpha": 0
+          },
+          "move_target": {
+            "border_width": 2,
+            "color": [
+              80,
+              200,
+              255
+            ],
+            "fill_alpha": 0
+          },
+          "section_2x2": {
+            "border_width": 2,
+            "color": [
+              255,
+              180,
+              60
+            ],
+            "fill_alpha": 0
+          },
+          "tile_selected": {
+            "border_width": 2,
+            "color": [
+              255,
+              230,
+              60
+            ],
+            "fill_alpha": 0
+          },
+          "tutorial_highlight": {
+            "border_width": 2,
+            "color": [
+              255,
+              255,
+              255
+            ],
+            "fill_alpha": 0
+          },
+          "upgrade_batch": {
+            "border_width": 2,
+            "color": [
+              255,
+              230,
+              60
+            ],
+            "fill_alpha": 0
+          },
+          "wall_edge": {
+            "border_width": 4,
+            "color": [
+              255,
+              230,
+              60
+            ],
+            "fill_alpha": 0
+          }
+        },
+        "lightning": {
+          "bolt_color_end": [
+            255,
+            240,
+            80
+          ],
+          "bolt_color_start": [
+            255,
+            255,
+            255
+          ],
+          "bolt_jitter_px": 6,
+          "bolt_life": 0.5,
+          "bolt_segments": 8,
+          "bolt_width": 2,
+          "flash_alpha": 200,
+          "flash_color": [
+            255,
+            250,
+            200
+          ],
+          "flash_radius_px": 20.0,
+          "marker_color": [
+            255,
+            240,
+            120
+          ],
+          "marker_fill_alpha": 120,
+          "marker_life": 1.0,
+          "marker_outline_width": 2,
+          "marker_segments": 12
+        },
+        "muzzle": {
+          "count": 8,
+          "count_strong": 13,
+          "gravity": 0.0,
+          "life": 0.2,
+          "life_strong": 0.32,
+          "ramp": {
+            "stop_0": [
+              255,
+              230,
+              120
+            ],
+            "stop_1": [
+              220,
+              90,
+              50
+            ],
+            "stop_2": [
+              130,
+              30,
+              20
+            ]
+          },
+          "size_h": 2,
+          "size_w": 2,
+          "smoke_chance": 0.25,
+          "smoke_color": [
+            100,
+            80,
+            80
+          ],
+          "vx_max": -30.0,
+          "vx_min": -90.0,
+          "vy_max": 35.0,
+          "vy_min": -35.0
+        },
+        "projectile": {
+          "lift_frac": 0.6,
+          "shell_color": [
+            70,
+            60,
+            55
+          ],
+          "shell_size": 32,
+          "stone_color": [
+            185,
+            180,
+            170
+          ],
+          "stone_size": 32
+        },
+        "slash": {
+          "colors": {
+            "stop_0": [
+              220,
+              230,
+              255
+            ],
+            "stop_1": [
+              200,
+              215,
+              245
+            ],
+            "stop_2": [
+              255,
+              255,
+              255
+            ]
+          },
+          "life": 0.28,
+          "lines_max": 3,
+          "lines_min": 2,
+          "ox_max": 6.0,
+          "ox_min": -6.0,
+          "oy_max": 2.0,
+          "oy_min": -10.0,
+          "size": 7,
+          "size_large": 11
+        },
+        "spark": {
+          "gravity": 55.0,
+          "presets": {
+            "level1": {
+              "count": 7,
+              "life": 0.55
+            },
+            "level2": {
+              "count": 16,
+              "life": 0.88
+            },
+            "place": {
+              "count": 10,
+              "life": 0.75
+            },
+            "respawn": {
+              "count": 10,
+              "life": 0.75
+            },
+            "tier": {
+              "count": 26,
+              "life": 1.2
+            }
+          },
+          "ramp": {
+            "stop_0": [
+              255,
+              230,
+              80
+            ],
+            "stop_1": [
+              255,
+              150,
+              40
+            ],
+            "stop_2": [
+              210,
+              60,
+              30
+            ]
+          },
+          "size_h": 2,
+          "size_w": 2,
+          "vx_max": 28.0,
+          "vx_min": -28.0,
+          "vy_max": -20.0,
+          "vy_min": -70.0
+        },
+        "splatter": {
+          "alpha": 170,
+          "color": [
+            180,
+            30,
+            30
+          ],
+          "jitter": 0.6,
+          "radius_px": 4.0
+        },
+        "tutorial_highlight_pulse": {
+          "alpha_max": 255,
+          "alpha_min": 140,
+          "pulse_period_s": 0.8,
+          "width_max": 4,
+          "width_min": 2
+        }
+      },
+      "triggers": {
+        "attack_range": {
+          "draw_in_front": false,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_destroyed": {
+          "draw_in_front": true,
+          "procedural": "death_burst",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_level_up": {
+          "draw_in_front": true,
+          "procedural": "spark_level",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_placed": {
+          "draw_in_front": true,
+          "procedural": "spark_place",
+          "sprite_slot": "vfx_respawn",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_respawn": {
+          "draw_in_front": true,
+          "procedural": "spark_respawn",
+          "sprite_slot": "vfx_respawn",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_tier_up": {
+          "draw_in_front": true,
+          "procedural": "spark_tier",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "defender_fire": {
+          "draw_in_front": true,
+          "procedural": "",
+          "sprite_slot": "vfx_muzzle",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "enemy_attack_melee": {
+          "draw_in_front": true,
+          "procedural": "slash",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "enemy_attack_ranged": {
+          "draw_in_front": true,
+          "procedural": "",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "enemy_death": {
+          "draw_in_front": true,
+          "procedural": "splatter",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "move_target": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "projectile_hit": {
+          "draw_in_front": false,
+          "procedural": "",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "section_2x2": {
+          "draw_in_front": false,
+          "procedural": "highlight",
+          "sprite_slot": "vfx_section_2x2",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "splash_impact": {
+          "draw_in_front": false,
+          "procedural": "crater",
+          "sprite_slot": "vfx_crater",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "tile_selected": {
+          "draw_in_front": false,
+          "procedural": "highlight",
+          "sprite_slot": "vfx_tile_selected",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "tutorial_highlight": {
+          "draw_in_front": false,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "upgrade_batch": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "wall_edge": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        }
+      }
+    },
+    "timestamp": "2026-08-17T12:41:22"
+  },
+  {
+    "description": "",
+    "id": "cea9a659-aa81-4c53-8f56-439f4a9ab00d",
+    "name": "tutorial thing below",
+    "snapshot": {
+      "procedural": {
+        "announce": {
+          "color": [
+            220,
+            40,
+            40
+          ],
+          "max_alpha": 255
+        },
+        "beam": {
+          "colors": {
+            "stop_0": [
+              255,
+              200,
+              40
+            ],
+            "stop_1": [
+              255,
+              110,
+              15
+            ],
+            "stop_2": [
+              210,
+              20,
+              10
+            ]
+          },
+          "origin_lift_tiles": 1.0,
+          "width_base": 2
+        },
+        "crater": {
+          "alpha": 150,
+          "color": [
+            120,
+            78,
+            66
+          ],
+          "life": 0.0,
+          "segments": 12
+        },
+        "death_burst": {
+          "colors": {
+            "stop_0": [
+              150,
+              90,
+              200
+            ],
+            "stop_1": [
+              120,
+              70,
+              170
+            ],
+            "stop_2": [
+              180,
+              120,
+              230
+            ]
+          },
+          "count": 14,
+          "gravity": 60.0,
+          "life": 0.65,
+          "size_h_max": 5,
+          "size_h_min": 2,
+          "size_w_max": 4,
+          "size_w_min": 2,
+          "vx_max": 45.0,
+          "vx_min": -45.0,
+          "vy_max": -10.0,
+          "vy_min": -80.0
+        },
+        "drummer_aura": {
+          "alpha_max": 150,
+          "alpha_min": 30,
+          "color": [
+            90,
+            200,
+            220
+          ],
+          "pulse_period_s": 0.5,
+          "segments": 16
+        },
+        "floaters": {
+          "boost_color": [
+            255,
+            255,
+            255
+          ],
+          "income_life": 2.6,
+          "painter_finished_color": [
+            255,
+            255,
+            100
+          ],
+          "painter_life": 1.5,
+          "painter_lost_color": [
+            255,
+            100,
+            100
+          ],
+          "upkeep_color": [
+            120,
+            170,
+            230
+          ],
+          "xp_color": [
+            202,
+            140,
+            245
+          ],
+          "xp_life": 0.9
+        },
+        "gold_highlight": {
+          "border_color": [
+            222,
+            158,
+            65
+          ],
+          "border_width": 2,
+          "fade_in": 1.0,
+          "fill_alpha": 90,
+          "fill_color": [
+            232,
+            193,
+            112
+          ],
+          "hold": 0.15,
+          "life": 2.0
+        },
+        "highlights": {
+          "attack_range": {
+            "border_width": 2,
+            "color": [
+              180,
+              40,
+              40
+            ],
+            "fill_alpha": 0
+          },
+          "move_target": {
+            "border_width": 2,
+            "color": [
+              80,
+              200,
+              255
+            ],
+            "fill_alpha": 0
+          },
+          "section_2x2": {
+            "border_width": 2,
+            "color": [
+              255,
+              180,
+              60
+            ],
+            "fill_alpha": 0
+          },
+          "tile_selected": {
+            "border_width": 2,
+            "color": [
+              255,
+              230,
+              60
+            ],
+            "fill_alpha": 0
+          },
+          "tutorial_highlight": {
+            "border_width": 2,
+            "color": [
+              255,
+              255,
+              255
+            ],
+            "fill_alpha": 0
+          },
+          "upgrade_batch": {
+            "border_width": 2,
+            "color": [
+              255,
+              230,
+              60
+            ],
+            "fill_alpha": 0
+          },
+          "wall_edge": {
+            "border_width": 4,
+            "color": [
+              255,
+              230,
+              60
+            ],
+            "fill_alpha": 0
+          }
+        },
+        "lightning": {
+          "bolt_color_end": [
+            255,
+            240,
+            80
+          ],
+          "bolt_color_start": [
+            255,
+            255,
+            255
+          ],
+          "bolt_jitter_px": 6,
+          "bolt_life": 0.5,
+          "bolt_segments": 8,
+          "bolt_width": 2,
+          "flash_alpha": 200,
+          "flash_color": [
+            255,
+            250,
+            200
+          ],
+          "flash_radius_px": 20.0,
+          "marker_color": [
+            255,
+            240,
+            120
+          ],
+          "marker_fill_alpha": 120,
+          "marker_life": 1.0,
+          "marker_outline_width": 2,
+          "marker_segments": 12
+        },
+        "muzzle": {
+          "count": 8,
+          "count_strong": 13,
+          "gravity": 0.0,
+          "life": 0.2,
+          "life_strong": 0.32,
+          "ramp": {
+            "stop_0": [
+              255,
+              230,
+              120
+            ],
+            "stop_1": [
+              220,
+              90,
+              50
+            ],
+            "stop_2": [
+              130,
+              30,
+              20
+            ]
+          },
+          "size_h": 2,
+          "size_w": 2,
+          "smoke_chance": 0.25,
+          "smoke_color": [
+            100,
+            80,
+            80
+          ],
+          "vx_max": -30.0,
+          "vx_min": -90.0,
+          "vy_max": 35.0,
+          "vy_min": -35.0
+        },
+        "projectile": {
+          "lift_frac": 0.6,
+          "shell_color": [
+            70,
+            60,
+            55
+          ],
+          "shell_size": 32,
+          "stone_color": [
+            185,
+            180,
+            170
+          ],
+          "stone_size": 32
+        },
+        "slash": {
+          "colors": {
+            "stop_0": [
+              220,
+              230,
+              255
+            ],
+            "stop_1": [
+              200,
+              215,
+              245
+            ],
+            "stop_2": [
+              255,
+              255,
+              255
+            ]
+          },
+          "life": 0.28,
+          "lines_max": 3,
+          "lines_min": 2,
+          "ox_max": 6.0,
+          "ox_min": -6.0,
+          "oy_max": 2.0,
+          "oy_min": -10.0,
+          "size": 7,
+          "size_large": 11
+        },
+        "spark": {
+          "gravity": 55.0,
+          "presets": {
+            "level1": {
+              "count": 7,
+              "life": 0.55
+            },
+            "level2": {
+              "count": 16,
+              "life": 0.88
+            },
+            "place": {
+              "count": 10,
+              "life": 0.75
+            },
+            "respawn": {
+              "count": 10,
+              "life": 0.75
+            },
+            "tier": {
+              "count": 26,
+              "life": 1.2
+            }
+          },
+          "ramp": {
+            "stop_0": [
+              255,
+              230,
+              80
+            ],
+            "stop_1": [
+              255,
+              150,
+              40
+            ],
+            "stop_2": [
+              210,
+              60,
+              30
+            ]
+          },
+          "size_h": 2,
+          "size_w": 2,
+          "vx_max": 28.0,
+          "vx_min": -28.0,
+          "vy_max": -20.0,
+          "vy_min": -70.0
+        },
+        "splatter": {
+          "alpha": 170,
+          "color": [
+            180,
+            30,
+            30
+          ],
+          "jitter": 0.6,
+          "radius_px": 4.0
+        },
+        "tutorial_highlight_pulse": {
+          "alpha_max": 255,
+          "alpha_min": 140,
+          "pulse_period_s": 0.8,
+          "width_max": 4,
+          "width_min": 2
+        }
+      },
+      "triggers": {
+        "attack_range": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_destroyed": {
+          "draw_in_front": true,
+          "procedural": "death_burst",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_level_up": {
+          "draw_in_front": true,
+          "procedural": "spark_level",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_placed": {
+          "draw_in_front": true,
+          "procedural": "spark_place",
+          "sprite_slot": "vfx_respawn",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_respawn": {
+          "draw_in_front": true,
+          "procedural": "spark_respawn",
+          "sprite_slot": "vfx_respawn",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_tier_up": {
+          "draw_in_front": true,
+          "procedural": "spark_tier",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "defender_fire": {
+          "draw_in_front": true,
+          "procedural": "",
+          "sprite_slot": "vfx_muzzle",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "enemy_attack_melee": {
+          "draw_in_front": true,
+          "procedural": "slash",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "enemy_attack_ranged": {
+          "draw_in_front": true,
+          "procedural": "",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "enemy_death": {
+          "draw_in_front": true,
+          "procedural": "splatter",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "move_target": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "projectile_hit": {
+          "draw_in_front": false,
+          "procedural": "",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "section_2x2": {
+          "draw_in_front": false,
+          "procedural": "highlight",
+          "sprite_slot": "vfx_section_2x2",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "splash_impact": {
+          "draw_in_front": false,
+          "procedural": "crater",
+          "sprite_slot": "vfx_crater",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "tile_selected": {
+          "draw_in_front": false,
+          "procedural": "highlight",
+          "sprite_slot": "vfx_tile_selected",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "tutorial_highlight": {
+          "draw_in_front": false,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "upgrade_batch": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "wall_edge": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        }
+      }
+    },
+    "timestamp": "2026-08-17T12:40:35"
+  },
+  {
+    "description": "",
+    "id": "94ae71d8-26f0-4e74-976c-d5e19ece06a6",
+    "name": "splash impact 2",
+    "snapshot": {
+      "procedural": {
+        "announce": {
+          "color": [
+            220,
+            40,
+            40
+          ],
+          "max_alpha": 255
+        },
+        "beam": {
+          "colors": {
+            "stop_0": [
+              255,
+              200,
+              40
+            ],
+            "stop_1": [
+              255,
+              110,
+              15
+            ],
+            "stop_2": [
+              210,
+              20,
+              10
+            ]
+          },
+          "origin_lift_tiles": 1.0,
+          "width_base": 2
+        },
+        "crater": {
+          "alpha": 150,
+          "color": [
+            120,
+            78,
+            66
+          ],
+          "life": 0.0,
+          "segments": 12
+        },
+        "death_burst": {
+          "colors": {
+            "stop_0": [
+              150,
+              90,
+              200
+            ],
+            "stop_1": [
+              120,
+              70,
+              170
+            ],
+            "stop_2": [
+              180,
+              120,
+              230
+            ]
+          },
+          "count": 14,
+          "gravity": 60.0,
+          "life": 0.65,
+          "size_h_max": 5,
+          "size_h_min": 2,
+          "size_w_max": 4,
+          "size_w_min": 2,
+          "vx_max": 45.0,
+          "vx_min": -45.0,
+          "vy_max": -10.0,
+          "vy_min": -80.0
+        },
+        "drummer_aura": {
+          "alpha_max": 150,
+          "alpha_min": 30,
+          "color": [
+            90,
+            200,
+            220
+          ],
+          "pulse_period_s": 0.5,
+          "segments": 16
+        },
+        "floaters": {
+          "boost_color": [
+            255,
+            255,
+            255
+          ],
+          "income_life": 2.6,
+          "painter_finished_color": [
+            255,
+            255,
+            100
+          ],
+          "painter_life": 1.5,
+          "painter_lost_color": [
+            255,
+            100,
+            100
+          ],
+          "upkeep_color": [
+            120,
+            170,
+            230
+          ],
+          "xp_color": [
+            202,
+            140,
+            245
+          ],
+          "xp_life": 0.9
+        },
+        "gold_highlight": {
+          "border_color": [
+            222,
+            158,
+            65
+          ],
+          "border_width": 2,
+          "fade_in": 1.0,
+          "fill_alpha": 90,
+          "fill_color": [
+            232,
+            193,
+            112
+          ],
+          "hold": 0.15,
+          "life": 2.0
+        },
+        "highlights": {
+          "attack_range": {
+            "border_width": 2,
+            "color": [
+              180,
+              40,
+              40
+            ],
+            "fill_alpha": 0
+          },
+          "move_target": {
+            "border_width": 2,
+            "color": [
+              80,
+              200,
+              255
+            ],
+            "fill_alpha": 0
+          },
+          "section_2x2": {
+            "border_width": 2,
+            "color": [
+              255,
+              180,
+              60
+            ],
+            "fill_alpha": 0
+          },
+          "tile_selected": {
+            "border_width": 2,
+            "color": [
+              255,
+              230,
+              60
+            ],
+            "fill_alpha": 0
+          },
+          "tutorial_highlight": {
+            "border_width": 2,
+            "color": [
+              255,
+              255,
+              255
+            ],
+            "fill_alpha": 0
+          },
+          "upgrade_batch": {
+            "border_width": 2,
+            "color": [
+              255,
+              230,
+              60
+            ],
+            "fill_alpha": 0
+          },
+          "wall_edge": {
+            "border_width": 4,
+            "color": [
+              255,
+              230,
+              60
+            ],
+            "fill_alpha": 0
+          }
+        },
+        "lightning": {
+          "bolt_color_end": [
+            255,
+            240,
+            80
+          ],
+          "bolt_color_start": [
+            255,
+            255,
+            255
+          ],
+          "bolt_jitter_px": 6,
+          "bolt_life": 0.5,
+          "bolt_segments": 8,
+          "bolt_width": 2,
+          "flash_alpha": 200,
+          "flash_color": [
+            255,
+            250,
+            200
+          ],
+          "flash_radius_px": 20.0,
+          "marker_color": [
+            255,
+            240,
+            120
+          ],
+          "marker_fill_alpha": 120,
+          "marker_life": 1.0,
+          "marker_outline_width": 2,
+          "marker_segments": 12
+        },
+        "muzzle": {
+          "count": 8,
+          "count_strong": 13,
+          "gravity": 0.0,
+          "life": 0.2,
+          "life_strong": 0.32,
+          "ramp": {
+            "stop_0": [
+              255,
+              230,
+              120
+            ],
+            "stop_1": [
+              220,
+              90,
+              50
+            ],
+            "stop_2": [
+              130,
+              30,
+              20
+            ]
+          },
+          "size_h": 2,
+          "size_w": 2,
+          "smoke_chance": 0.25,
+          "smoke_color": [
+            100,
+            80,
+            80
+          ],
+          "vx_max": -30.0,
+          "vx_min": -90.0,
+          "vy_max": 35.0,
+          "vy_min": -35.0
+        },
+        "projectile": {
+          "lift_frac": 0.6,
+          "shell_color": [
+            70,
+            60,
+            55
+          ],
+          "shell_size": 32,
+          "stone_color": [
+            185,
+            180,
+            170
+          ],
+          "stone_size": 32
+        },
+        "slash": {
+          "colors": {
+            "stop_0": [
+              220,
+              230,
+              255
+            ],
+            "stop_1": [
+              200,
+              215,
+              245
+            ],
+            "stop_2": [
+              255,
+              255,
+              255
+            ]
+          },
+          "life": 0.28,
+          "lines_max": 3,
+          "lines_min": 2,
+          "ox_max": 6.0,
+          "ox_min": -6.0,
+          "oy_max": 2.0,
+          "oy_min": -10.0,
+          "size": 7,
+          "size_large": 11
+        },
+        "spark": {
+          "gravity": 55.0,
+          "presets": {
+            "level1": {
+              "count": 7,
+              "life": 0.55
+            },
+            "level2": {
+              "count": 16,
+              "life": 0.88
+            },
+            "place": {
+              "count": 10,
+              "life": 0.75
+            },
+            "respawn": {
+              "count": 10,
+              "life": 0.75
+            },
+            "tier": {
+              "count": 26,
+              "life": 1.2
+            }
+          },
+          "ramp": {
+            "stop_0": [
+              255,
+              230,
+              80
+            ],
+            "stop_1": [
+              255,
+              150,
+              40
+            ],
+            "stop_2": [
+              210,
+              60,
+              30
+            ]
+          },
+          "size_h": 2,
+          "size_w": 2,
+          "vx_max": 28.0,
+          "vx_min": -28.0,
+          "vy_max": -20.0,
+          "vy_min": -70.0
+        },
+        "splatter": {
+          "alpha": 170,
+          "color": [
+            180,
+            30,
+            30
+          ],
+          "jitter": 0.6,
+          "radius_px": 4.0
+        },
+        "tutorial_highlight_pulse": {
+          "alpha_max": 255,
+          "alpha_min": 140,
+          "pulse_period_s": 0.8,
+          "width_max": 4,
+          "width_min": 2
+        }
+      },
+      "triggers": {
+        "attack_range": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_destroyed": {
+          "draw_in_front": true,
+          "procedural": "death_burst",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_level_up": {
+          "draw_in_front": true,
+          "procedural": "spark_level",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_placed": {
+          "draw_in_front": true,
+          "procedural": "spark_place",
+          "sprite_slot": "vfx_respawn",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_respawn": {
+          "draw_in_front": true,
+          "procedural": "spark_respawn",
+          "sprite_slot": "vfx_respawn",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_tier_up": {
+          "draw_in_front": true,
+          "procedural": "spark_tier",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "defender_fire": {
+          "draw_in_front": true,
+          "procedural": "",
+          "sprite_slot": "vfx_muzzle",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "enemy_attack_melee": {
+          "draw_in_front": true,
+          "procedural": "slash",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "enemy_attack_ranged": {
+          "draw_in_front": true,
+          "procedural": "",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "enemy_death": {
+          "draw_in_front": true,
+          "procedural": "splatter",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "move_target": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "projectile_hit": {
+          "draw_in_front": false,
+          "procedural": "",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "section_2x2": {
+          "draw_in_front": false,
+          "procedural": "highlight",
+          "sprite_slot": "vfx_section_2x2",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "splash_impact": {
+          "draw_in_front": false,
+          "procedural": "crater",
+          "sprite_slot": "vfx_crater",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "tile_selected": {
+          "draw_in_front": false,
+          "procedural": "highlight",
+          "sprite_slot": "vfx_tile_selected",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "tutorial_highlight": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "upgrade_batch": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "wall_edge": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        }
+      }
+    },
+    "timestamp": "2026-08-17T12:40:23"
+  },
+  {
+    "description": "",
+    "id": "6e4ceeae-8816-44e7-a3f3-726c666332ea",
+    "name": "swirl below",
+    "snapshot": {
+      "procedural": {
+        "announce": {
+          "color": [
+            220,
+            40,
+            40
+          ],
+          "max_alpha": 255
+        },
+        "beam": {
+          "colors": {
+            "stop_0": [
+              255,
+              200,
+              40
+            ],
+            "stop_1": [
+              255,
+              110,
+              15
+            ],
+            "stop_2": [
+              210,
+              20,
+              10
+            ]
+          },
+          "origin_lift_tiles": 1.0,
+          "width_base": 2
+        },
+        "crater": {
+          "alpha": 150,
+          "color": [
+            120,
+            78,
+            66
+          ],
+          "life": 0.0,
+          "segments": 12
+        },
+        "death_burst": {
+          "colors": {
+            "stop_0": [
+              150,
+              90,
+              200
+            ],
+            "stop_1": [
+              120,
+              70,
+              170
+            ],
+            "stop_2": [
+              180,
+              120,
+              230
+            ]
+          },
+          "count": 14,
+          "gravity": 60.0,
+          "life": 0.65,
+          "size_h_max": 5,
+          "size_h_min": 2,
+          "size_w_max": 4,
+          "size_w_min": 2,
+          "vx_max": 45.0,
+          "vx_min": -45.0,
+          "vy_max": -10.0,
+          "vy_min": -80.0
+        },
+        "drummer_aura": {
+          "alpha_max": 150,
+          "alpha_min": 30,
+          "color": [
+            90,
+            200,
+            220
+          ],
+          "pulse_period_s": 0.5,
+          "segments": 16
+        },
+        "floaters": {
+          "boost_color": [
+            255,
+            255,
+            255
+          ],
+          "income_life": 2.6,
+          "painter_finished_color": [
+            255,
+            255,
+            100
+          ],
+          "painter_life": 1.5,
+          "painter_lost_color": [
+            255,
+            100,
+            100
+          ],
+          "upkeep_color": [
+            120,
+            170,
+            230
+          ],
+          "xp_color": [
+            202,
+            140,
+            245
+          ],
+          "xp_life": 0.9
+        },
+        "gold_highlight": {
+          "border_color": [
+            222,
+            158,
+            65
+          ],
+          "border_width": 2,
+          "fade_in": 1.0,
+          "fill_alpha": 90,
+          "fill_color": [
+            232,
+            193,
+            112
+          ],
+          "hold": 0.15,
+          "life": 2.0
+        },
+        "highlights": {
+          "attack_range": {
+            "border_width": 2,
+            "color": [
+              180,
+              40,
+              40
+            ],
+            "fill_alpha": 0
+          },
+          "move_target": {
+            "border_width": 2,
+            "color": [
+              80,
+              200,
+              255
+            ],
+            "fill_alpha": 0
+          },
+          "section_2x2": {
+            "border_width": 2,
+            "color": [
+              255,
+              180,
+              60
+            ],
+            "fill_alpha": 0
+          },
+          "tile_selected": {
+            "border_width": 2,
+            "color": [
+              255,
+              230,
+              60
+            ],
+            "fill_alpha": 0
+          },
+          "tutorial_highlight": {
+            "border_width": 2,
+            "color": [
+              255,
+              255,
+              255
+            ],
+            "fill_alpha": 0
+          },
+          "upgrade_batch": {
+            "border_width": 2,
+            "color": [
+              255,
+              230,
+              60
+            ],
+            "fill_alpha": 0
+          },
+          "wall_edge": {
+            "border_width": 4,
+            "color": [
+              255,
+              230,
+              60
+            ],
+            "fill_alpha": 0
+          }
+        },
+        "lightning": {
+          "bolt_color_end": [
+            255,
+            240,
+            80
+          ],
+          "bolt_color_start": [
+            255,
+            255,
+            255
+          ],
+          "bolt_jitter_px": 6,
+          "bolt_life": 0.5,
+          "bolt_segments": 8,
+          "bolt_width": 2,
+          "flash_alpha": 200,
+          "flash_color": [
+            255,
+            250,
+            200
+          ],
+          "flash_radius_px": 20.0,
+          "marker_color": [
+            255,
+            240,
+            120
+          ],
+          "marker_fill_alpha": 120,
+          "marker_life": 1.0,
+          "marker_outline_width": 2,
+          "marker_segments": 12
+        },
+        "muzzle": {
+          "count": 8,
+          "count_strong": 13,
+          "gravity": 0.0,
+          "life": 0.2,
+          "life_strong": 0.32,
+          "ramp": {
+            "stop_0": [
+              255,
+              230,
+              120
+            ],
+            "stop_1": [
+              220,
+              90,
+              50
+            ],
+            "stop_2": [
+              130,
+              30,
+              20
+            ]
+          },
+          "size_h": 2,
+          "size_w": 2,
+          "smoke_chance": 0.25,
+          "smoke_color": [
+            100,
+            80,
+            80
+          ],
+          "vx_max": -30.0,
+          "vx_min": -90.0,
+          "vy_max": 35.0,
+          "vy_min": -35.0
+        },
+        "projectile": {
+          "lift_frac": 0.6,
+          "shell_color": [
+            70,
+            60,
+            55
+          ],
+          "shell_size": 32,
+          "stone_color": [
+            185,
+            180,
+            170
+          ],
+          "stone_size": 32
+        },
+        "slash": {
+          "colors": {
+            "stop_0": [
+              220,
+              230,
+              255
+            ],
+            "stop_1": [
+              200,
+              215,
+              245
+            ],
+            "stop_2": [
+              255,
+              255,
+              255
+            ]
+          },
+          "life": 0.28,
+          "lines_max": 3,
+          "lines_min": 2,
+          "ox_max": 6.0,
+          "ox_min": -6.0,
+          "oy_max": 2.0,
+          "oy_min": -10.0,
+          "size": 7,
+          "size_large": 11
+        },
+        "spark": {
+          "gravity": 55.0,
+          "presets": {
+            "level1": {
+              "count": 7,
+              "life": 0.55
+            },
+            "level2": {
+              "count": 16,
+              "life": 0.88
+            },
+            "place": {
+              "count": 10,
+              "life": 0.75
+            },
+            "respawn": {
+              "count": 10,
+              "life": 0.75
+            },
+            "tier": {
+              "count": 26,
+              "life": 1.2
+            }
+          },
+          "ramp": {
+            "stop_0": [
+              255,
+              230,
+              80
+            ],
+            "stop_1": [
+              255,
+              150,
+              40
+            ],
+            "stop_2": [
+              210,
+              60,
+              30
+            ]
+          },
+          "size_h": 2,
+          "size_w": 2,
+          "vx_max": 28.0,
+          "vx_min": -28.0,
+          "vy_max": -20.0,
+          "vy_min": -70.0
+        },
+        "splatter": {
+          "alpha": 170,
+          "color": [
+            180,
+            30,
+            30
+          ],
+          "jitter": 0.6,
+          "radius_px": 4.0
+        },
+        "tutorial_highlight_pulse": {
+          "alpha_max": 255,
+          "alpha_min": 140,
+          "pulse_period_s": 0.8,
+          "width_max": 4,
+          "width_min": 2
+        }
+      },
+      "triggers": {
+        "attack_range": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_destroyed": {
+          "draw_in_front": true,
+          "procedural": "death_burst",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_level_up": {
+          "draw_in_front": true,
+          "procedural": "spark_level",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_placed": {
+          "draw_in_front": true,
+          "procedural": "spark_place",
+          "sprite_slot": "vfx_respawn",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_respawn": {
+          "draw_in_front": true,
+          "procedural": "spark_respawn",
+          "sprite_slot": "vfx_respawn",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_tier_up": {
+          "draw_in_front": true,
+          "procedural": "spark_tier",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "defender_fire": {
+          "draw_in_front": true,
+          "procedural": "",
+          "sprite_slot": "vfx_muzzle",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "enemy_attack_melee": {
+          "draw_in_front": true,
+          "procedural": "slash",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "enemy_attack_ranged": {
+          "draw_in_front": true,
+          "procedural": "",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "enemy_death": {
+          "draw_in_front": true,
+          "procedural": "splatter",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "move_target": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "projectile_hit": {
+          "draw_in_front": false,
+          "procedural": "",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "section_2x2": {
+          "draw_in_front": false,
+          "procedural": "highlight",
+          "sprite_slot": "vfx_section_2x2",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "splash_impact": {
+          "draw_in_front": true,
+          "procedural": "crater",
+          "sprite_slot": "vfx_crater",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "tile_selected": {
+          "draw_in_front": false,
+          "procedural": "highlight",
+          "sprite_slot": "vfx_tile_selected",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "tutorial_highlight": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "upgrade_batch": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "wall_edge": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        }
+      }
+    },
+    "timestamp": "2026-08-17T12:40:11"
+  },
+  {
+    "description": "",
+    "id": "a07b64eb-b7fe-42d3-b675-26fe947418c4",
+    "name": "removed pink swirtl",
+    "snapshot": {
+      "procedural": {
+        "announce": {
+          "color": [
+            220,
+            40,
+            40
+          ],
+          "max_alpha": 255
+        },
+        "beam": {
+          "colors": {
+            "stop_0": [
+              255,
+              200,
+              40
+            ],
+            "stop_1": [
+              255,
+              110,
+              15
+            ],
+            "stop_2": [
+              210,
+              20,
+              10
+            ]
+          },
+          "origin_lift_tiles": 1.0,
+          "width_base": 2
+        },
+        "crater": {
+          "alpha": 150,
+          "color": [
+            120,
+            78,
+            66
+          ],
+          "life": 0.0,
+          "segments": 12
+        },
+        "death_burst": {
+          "colors": {
+            "stop_0": [
+              150,
+              90,
+              200
+            ],
+            "stop_1": [
+              120,
+              70,
+              170
+            ],
+            "stop_2": [
+              180,
+              120,
+              230
+            ]
+          },
+          "count": 14,
+          "gravity": 60.0,
+          "life": 0.65,
+          "size_h_max": 5,
+          "size_h_min": 2,
+          "size_w_max": 4,
+          "size_w_min": 2,
+          "vx_max": 45.0,
+          "vx_min": -45.0,
+          "vy_max": -10.0,
+          "vy_min": -80.0
+        },
+        "drummer_aura": {
+          "alpha_max": 150,
+          "alpha_min": 30,
+          "color": [
+            90,
+            200,
+            220
+          ],
+          "pulse_period_s": 0.5,
+          "segments": 16
+        },
+        "floaters": {
+          "boost_color": [
+            255,
+            255,
+            255
+          ],
+          "income_life": 2.6,
+          "painter_finished_color": [
+            255,
+            255,
+            100
+          ],
+          "painter_life": 1.5,
+          "painter_lost_color": [
+            255,
+            100,
+            100
+          ],
+          "upkeep_color": [
+            120,
+            170,
+            230
+          ],
+          "xp_color": [
+            202,
+            140,
+            245
+          ],
+          "xp_life": 0.9
+        },
+        "gold_highlight": {
+          "border_color": [
+            222,
+            158,
+            65
+          ],
+          "border_width": 2,
+          "fade_in": 1.0,
+          "fill_alpha": 90,
+          "fill_color": [
+            232,
+            193,
+            112
+          ],
+          "hold": 0.15,
+          "life": 2.0
+        },
+        "highlights": {
+          "attack_range": {
+            "border_width": 2,
+            "color": [
+              180,
+              40,
+              40
+            ],
+            "fill_alpha": 0
+          },
+          "move_target": {
+            "border_width": 2,
+            "color": [
+              80,
+              200,
+              255
+            ],
+            "fill_alpha": 0
+          },
+          "section_2x2": {
+            "border_width": 2,
+            "color": [
+              255,
+              180,
+              60
+            ],
+            "fill_alpha": 0
+          },
+          "tile_selected": {
+            "border_width": 2,
+            "color": [
+              255,
+              230,
+              60
+            ],
+            "fill_alpha": 0
+          },
+          "tutorial_highlight": {
+            "border_width": 2,
+            "color": [
+              255,
+              255,
+              255
+            ],
+            "fill_alpha": 0
+          },
+          "upgrade_batch": {
+            "border_width": 2,
+            "color": [
+              255,
+              230,
+              60
+            ],
+            "fill_alpha": 0
+          },
+          "wall_edge": {
+            "border_width": 4,
+            "color": [
+              255,
+              230,
+              60
+            ],
+            "fill_alpha": 0
+          }
+        },
+        "lightning": {
+          "bolt_color_end": [
+            255,
+            240,
+            80
+          ],
+          "bolt_color_start": [
+            255,
+            255,
+            255
+          ],
+          "bolt_jitter_px": 6,
+          "bolt_life": 0.5,
+          "bolt_segments": 8,
+          "bolt_width": 2,
+          "flash_alpha": 200,
+          "flash_color": [
+            255,
+            250,
+            200
+          ],
+          "flash_radius_px": 20.0,
+          "marker_color": [
+            255,
+            240,
+            120
+          ],
+          "marker_fill_alpha": 120,
+          "marker_life": 1.0,
+          "marker_outline_width": 2,
+          "marker_segments": 12
+        },
+        "muzzle": {
+          "count": 8,
+          "count_strong": 13,
+          "gravity": 0.0,
+          "life": 0.2,
+          "life_strong": 0.32,
+          "ramp": {
+            "stop_0": [
+              255,
+              230,
+              120
+            ],
+            "stop_1": [
+              220,
+              90,
+              50
+            ],
+            "stop_2": [
+              130,
+              30,
+              20
+            ]
+          },
+          "size_h": 2,
+          "size_w": 2,
+          "smoke_chance": 0.25,
+          "smoke_color": [
+            100,
+            80,
+            80
+          ],
+          "vx_max": -30.0,
+          "vx_min": -90.0,
+          "vy_max": 35.0,
+          "vy_min": -35.0
+        },
+        "projectile": {
+          "lift_frac": 0.6,
+          "shell_color": [
+            70,
+            60,
+            55
+          ],
+          "shell_size": 32,
+          "stone_color": [
+            185,
+            180,
+            170
+          ],
+          "stone_size": 32
+        },
+        "slash": {
+          "colors": {
+            "stop_0": [
+              220,
+              230,
+              255
+            ],
+            "stop_1": [
+              200,
+              215,
+              245
+            ],
+            "stop_2": [
+              255,
+              255,
+              255
+            ]
+          },
+          "life": 0.28,
+          "lines_max": 3,
+          "lines_min": 2,
+          "ox_max": 6.0,
+          "ox_min": -6.0,
+          "oy_max": 2.0,
+          "oy_min": -10.0,
+          "size": 7,
+          "size_large": 11
+        },
+        "spark": {
+          "gravity": 55.0,
+          "presets": {
+            "level1": {
+              "count": 7,
+              "life": 0.55
+            },
+            "level2": {
+              "count": 16,
+              "life": 0.88
+            },
+            "place": {
+              "count": 10,
+              "life": 0.75
+            },
+            "respawn": {
+              "count": 10,
+              "life": 0.75
+            },
+            "tier": {
+              "count": 26,
+              "life": 1.2
+            }
+          },
+          "ramp": {
+            "stop_0": [
+              255,
+              230,
+              80
+            ],
+            "stop_1": [
+              255,
+              150,
+              40
+            ],
+            "stop_2": [
+              210,
+              60,
+              30
+            ]
+          },
+          "size_h": 2,
+          "size_w": 2,
+          "vx_max": 28.0,
+          "vx_min": -28.0,
+          "vy_max": -20.0,
+          "vy_min": -70.0
+        },
+        "splatter": {
+          "alpha": 170,
+          "color": [
+            180,
+            30,
+            30
+          ],
+          "jitter": 0.6,
+          "radius_px": 4.0
+        },
+        "tutorial_highlight_pulse": {
+          "alpha_max": 255,
+          "alpha_min": 140,
+          "pulse_period_s": 0.8,
+          "width_max": 4,
+          "width_min": 2
+        }
+      },
+      "triggers": {
+        "attack_range": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_destroyed": {
+          "draw_in_front": true,
+          "procedural": "death_burst",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_level_up": {
+          "draw_in_front": true,
+          "procedural": "spark_level",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_placed": {
+          "draw_in_front": true,
+          "procedural": "spark_place",
+          "sprite_slot": "vfx_respawn",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_respawn": {
+          "draw_in_front": true,
+          "procedural": "spark_respawn",
+          "sprite_slot": "vfx_respawn",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "building_tier_up": {
+          "draw_in_front": true,
+          "procedural": "spark_tier",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "defender_fire": {
+          "draw_in_front": true,
+          "procedural": "",
+          "sprite_slot": "vfx_muzzle",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "enemy_attack_melee": {
+          "draw_in_front": true,
+          "procedural": "slash",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "enemy_attack_ranged": {
+          "draw_in_front": true,
+          "procedural": "",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "enemy_death": {
+          "draw_in_front": true,
+          "procedural": "splatter",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "move_target": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "projectile_hit": {
+          "draw_in_front": true,
+          "procedural": "",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "section_2x2": {
+          "draw_in_front": false,
+          "procedural": "highlight",
+          "sprite_slot": "vfx_section_2x2",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "splash_impact": {
+          "draw_in_front": true,
+          "procedural": "crater",
+          "sprite_slot": "vfx_crater",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "tile_selected": {
+          "draw_in_front": false,
+          "procedural": "highlight",
+          "sprite_slot": "vfx_tile_selected",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "tutorial_highlight": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "upgrade_batch": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        },
+        "wall_edge": {
+          "draw_in_front": true,
+          "procedural": "highlight",
+          "sprite_slot": "",
+          "variant_select": {
+            "misc_key": "",
+            "mode": "random"
+          }
+        }
+      }
+    },
+    "timestamp": "2026-08-17T12:37:43"
+  },
+  {
+    "description": "",
     "id": "af6836ad-994d-4a81-967e-c3bbec66888c",
     "name": "respawn vfx",
     "snapshot": {

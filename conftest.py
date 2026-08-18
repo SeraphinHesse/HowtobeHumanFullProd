@@ -56,6 +56,7 @@ TIERS = {
     "test_editor_anchors": "editor",
     "test_editor_preview_footprint": "editor",  # fix-editor-preview-footprint: §4.1
     "test_editor_asset_import": "editor",
+    "test_editor_boss_upgrades": "editor",  # BU-5/BU-6: the Bosses panel
     "test_editor_map_mode": "editor",
     "test_editor_panels": "editor",
     "test_timeline_panel": "editor",  # TimelinePLAN T5: editor/panels/timeline.py
@@ -71,6 +72,7 @@ TIERS = {
     "test_vfx_highlight_preview": "editor",  # VA-8: the highlights preview path
     "test_run_controls": "editor",
     "test_screen_honest_controls": "editor",
+    "test_ui_layer_ops": "editor",  # UL-6: layer ops + layers in the outliner
     "test_vfx_preview": "editor",
 
     # --- core: engine + game + data. The 800-odd fast ones ------------------
@@ -87,9 +89,11 @@ TIERS = {
     "test_beam_crater_sprites": "core",  # vfx-projectile-spritesheets: has-art toggle
     "test_boost": "core",
     "test_boss": "core",
+    "test_boss_upgrades": "core",  # BU-6: the boss-upgrade engine + hooks
     "test_building_movement": "core",  # Building Movement: move_cost/start_move
     "test_buildings_placement": "core",
     "test_buildings_state_in_components": "core",
+    "test_buff_debuff_arrows": "core",  # BU-6/D20: the two status arrows
     "test_buildings_tier_math": "core",
     "test_button_skin": "core",
     "test_combat_anchors": "core",  # ESV-1: D4 guardrail (muzzle vs. flight timer)
@@ -100,6 +104,7 @@ TIERS = {
     "test_coords": "core",
     "test_core": "core",
     "test_corpse": "core",
+    "test_crowd_spacing": "core",  # feature: tile-crowding visual offset
     "test_cutscene_player": "core",  # TU-5: CutscenePlayer + registry loader
     "test_cutscene_session": "core",  # TU-5: end_turn() pending_cutscene request
     "test_death_spawn": "core",
@@ -114,6 +119,7 @@ TIERS = {
     "test_era_math": "core",  # ES-1: pure era clock / per-era stat + count math
     "test_esv6_converge": "core",  # ESV-6: anchored impact/muzzle VFX (D4 guardrail)
     "test_flow_field": "core",
+    "test_font_presets": "core",  # UL-2: designer-defined font presets (schema + derived layout_h)
     "test_footprint_path": "core",
     "test_game_boot": "core",
     "test_ground_cache": "core",
@@ -121,9 +127,12 @@ TIERS = {
     "test_hud_items": "core",
     "test_hud_panel": "core",
     "test_hud_render": "core",
+    "test_input_bindings": "core",  # feature: rebindable hotkeys — engine/input.py
+    "test_keybinds_screen": "core",  # feature: rebindable hotkeys — the Controls screen
     "test_kidnap": "core",  # Art/enemies: kidnapping
     "test_layout_h_invariant": "core",  # Fix 1 (phase-10L wave3): layout_h pin
     "test_levelup": "core",
+    "test_life_counters": "core",  # UL-11: the three id'd life counters + death state
     "test_lightning": "core",
     "test_map_overlays": "core",  # MapOverlays: the TIER OVERVIEW toggle pill
     "test_master_registry": "core",   # MasterSheetColumnsPLAN C3
@@ -169,6 +178,13 @@ TIERS = {
     "test_tutorial_data": "core",  # TU-1: tutorial script + cutscene registry data
     "test_tutorial_director": "core",  # TU-6: TutorialDirector fake-event chain
     "test_tutorial_engine": "core",  # TU-6: engine.tutorial step-sequencer
+    # UL-1: designer-authorable per-widget `align`. `core` despite importing
+    # editor.panels._screen_primitives — that module is Qt-free and
+    # editor/panels/__init__.py is empty, so no PySide6 is pulled.
+    "test_ui_align": "core",
+    "test_ui_layer_click": "core",  # UL-10: clickable-layer routing (pure game path)
+    "test_ui_layer_draw": "core",  # UL-4: ScreenSkinning.submit_layers (the caller)
+    "test_ui_layers": "core",  # UL-3: engine.ui_layers pure resolver (unused until UL-4)
     "test_ui_layout_export": "core",  # 10L-B phase B3: layout exporter staleness gate
     "test_ui_min_targets": "core",  # UR-5: click-target floor + static label fit
     "test_ui_skinning": "core",  # 10L-B phase B2: skinning + parity pin

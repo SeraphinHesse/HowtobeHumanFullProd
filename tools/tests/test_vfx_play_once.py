@@ -59,8 +59,16 @@ _HIGHLIGHT_EVENTS = (
     "tile_selected", "section_2x2", "attack_range", "move_target",
     "wall_edge", "upgrade_batch", "tutorial_highlight",
 )
+# feat-projectile-variant-select adds one more CONTINUOUS row, `projectile` —
+# the in-flight defender stone / mortar shell. Like the seven highlights it
+# never reaches `_play`/PlayOnceVfx (game/ui/effects.py's submit_projectiles
+# draws it every frame), and it contributes only `variant_select`: the slot is
+# picked by shot kind, so sprite_slot/procedural/draw_in_front are inert on it.
+# Listed here for the same reason the highlights are — this pin is over the
+# trigger TABLE's key set.
 _ALL_EVENTS = (_LIVE_EVENTS + ("defender_fire", "projectile_hit",
-                               "building_respawn") + _HIGHLIGHT_EVENTS)
+                               "building_respawn", "projectile")
+               + _HIGHLIGHT_EVENTS)
 
 
 class _FakeAssets:

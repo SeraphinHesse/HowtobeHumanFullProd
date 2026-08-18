@@ -29,6 +29,12 @@ ALLOWED = {
                               "the real imported/main_menu_bg.png binary the "
                               "ui_bg_main_menu entry shares, not in the JSON fixture",
     "test_balancing_data.py": "validates the live schema/content pairs (D-12)",
+    "test_boss_upgrades.py": "ONE class (TestShippedContent) pins the D1/D2/D3 "
+                             "authoring invariants JSON Schema cannot express "
+                             "on the LIVE boss_upgrades.json — same live-data "
+                             "subject as test_balancing_data.py; every "
+                             "behavioural assertion in the module reads a "
+                             "hand-pinned balance dict instead",
     "test_construct_card.py": "the card tree it pins must agree with the "
                               "committed screen_defaults.json, which is "
                               "exported from the LIVE tree (same subject as "
@@ -43,6 +49,11 @@ ALLOWED = {
     "test_editor_tutorial_paint.py": "MapModeCase write-isolation on the real "
                                       "tree, same reason as test_editor_map_mode.py",
     "test_editor_run_controls.py": "TempDataCase-style copy of the real tree",
+    "test_font_presets.py": "the live committed fonts.schema.json IS the "
+                            "subject (UL-2 opens it to designer-defined "
+                            "presets) — a frozen fixture copy of a schema can "
+                            "never catch that schema regressing, same "
+                            "rationale as test_balancing_data.py",
     "test_game_boot.py": "the 'does today's data actually boot' smoke",
     "test_layout_h_invariant.py": "regenerates the committed screen_defaults.json "
                                   "under a simulated font-metric drift (same "

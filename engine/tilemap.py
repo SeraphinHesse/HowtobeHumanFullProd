@@ -93,6 +93,13 @@ class TileMapDoc:
     # emitters — never rendered in-game; the editor draws its own overlay.
     tutorial_flute: dict = None
     tutorial_stone: dict = None
+    # {"col": int, "row": int, "slot": str} OR None — the tile-buying
+    # tutorial topic's two markers (same never-rendered shape as
+    # tutorial_flute/tutorial_stone): the locked tile the player is forced
+    # to click-and-buy, and the far corner of that newly-bought chunk the
+    # second stone-thrower placement is forced onto.
+    tutorial_unlock: dict = None
+    tutorial_stone_2: dict = None
 
     def __post_init__(self):
         # Collection fields are never None in memory: a doc built without a
@@ -146,6 +153,10 @@ def from_dict(data):
                         if data["tutorial_flute"] is not None else None),
         tutorial_stone=(dict(data["tutorial_stone"])
                         if data["tutorial_stone"] is not None else None),
+        tutorial_unlock=(dict(data["tutorial_unlock"])
+                         if data["tutorial_unlock"] is not None else None),
+        tutorial_stone_2=(dict(data["tutorial_stone_2"])
+                          if data["tutorial_stone_2"] is not None else None),
     )
 
 
@@ -190,6 +201,10 @@ def to_dict(doc):
                            if doc.tutorial_flute is not None else None),
         "tutorial_stone": (dict(doc.tutorial_stone)
                            if doc.tutorial_stone is not None else None),
+        "tutorial_stone_2": (dict(doc.tutorial_stone_2)
+                             if doc.tutorial_stone_2 is not None else None),
+        "tutorial_unlock": (dict(doc.tutorial_unlock)
+                            if doc.tutorial_unlock is not None else None),
     }
 
 
@@ -240,6 +255,18 @@ def validate_doc(doc):
             and 0 <= doc.tutorial_stone["row"] < doc.rows):
         raise ValueError(
             f"map {doc.map_id!r}: tutorial_stone {doc.tutorial_stone} outside "
+            f"{doc.cols}x{doc.rows}")
+    if doc.tutorial_unlock is not None and not (
+            0 <= doc.tutorial_unlock["col"] < doc.cols
+            and 0 <= doc.tutorial_unlock["row"] < doc.rows):
+        raise ValueError(
+            f"map {doc.map_id!r}: tutorial_unlock {doc.tutorial_unlock} outside "
+            f"{doc.cols}x{doc.rows}")
+    if doc.tutorial_stone_2 is not None and not (
+            0 <= doc.tutorial_stone_2["col"] < doc.cols
+            and 0 <= doc.tutorial_stone_2["row"] < doc.rows):
+        raise ValueError(
+            f"map {doc.map_id!r}: tutorial_stone_2 {doc.tutorial_stone_2} outside "
             f"{doc.cols}x{doc.rows}")
     for d in doc.deco:
         if not (0 <= d["col"] < doc.cols and 0 <= d["row"] < doc.rows):
@@ -486,6 +513,18 @@ def tutorial_stone_slot_from_schema(schema):
     return _object_slot_from_schema(schema, "tutorial_stone")
 
 
+def tutorial_unlock_slot_from_schema(schema):
+    """The const-pinned tile-buying-topic "tile to unlock" marker slot (the
+    editor's placement brush)."""
+    return _object_slot_from_schema(schema, "tutorial_unlock")
+
+
+def tutorial_stone_2_slot_from_schema(schema):
+    """The const-pinned tile-buying-topic "second stone" marker slot (the
+    editor's placement brush) — the far corner of the newly-bought chunk."""
+    return _object_slot_from_schema(schema, "tutorial_stone_2")
+
+
 def defaults_from_schema(schema):
     """(legend, base_slot) for a NEW map: the const-pinned ZONE codes (b/c/s)
     dug out of the schema, plus the module's DEFAULT_BACKGROUNDS (the schema no
@@ -546,6 +585,8 @@ def new_doc(map_id, display_name, cols, rows, schema_path):
         start_area=None,
         tutorial_flute=None,
         tutorial_stone=None,
+        tutorial_unlock=None,
+        tutorial_stone_2=None,
     )
 
 

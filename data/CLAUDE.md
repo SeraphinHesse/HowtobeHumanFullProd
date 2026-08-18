@@ -10,22 +10,30 @@ validating writer; don't hand-edit the JSON.
 
 ## What lives here
 - `schemas/` — one JSON Schema per file type.
-  `dispatch_handoff.schema.json` and `highscores.schema.json` are the TWO
-  schemas with no `data/` content file at all (handoffs are written to the
-  gitignored `.claude/dispatch/`, high scores to the gitignored `scores/`, both
-  still through `write_validated` — the single write path holds), which is
-  legal: `tools/smoke.py::validate_data` skips `data/schemas/` entirely. When a
-  schema governs per-machine runtime state rather than designer content, this
-  is the shape to copy. Three others
+  `dispatch_handoff.schema.json`, `highscores.schema.json` and
+  `keybindings.schema.json` are the THREE schemas with no `data/` content
+  file at all (handoffs are written to the gitignored `.claude/dispatch/`,
+  high scores AND a player's rebind overrides to the gitignored `scores/`,
+  all still through `write_validated` — the single write path holds), which
+  is legal: `tools/smoke.py::validate_data` skips `data/schemas/` entirely.
+  When a schema governs per-machine runtime state rather than designer
+  content, this is the shape to copy — `keybindings.schema.json` validates
+  `scores/keybindings.json` (feature: rebindable hotkeys, `engine/input.py`);
+  the DESIGNER-editable default for the same action set is a normal `data/`
+  content group instead, `balancing/ui.json`'s `Keybindings` (below), which
+  must declare the identical property set by hand (no cross-file `$ref` — see
+  the Schema shape rule). Three others
   (`map_file`, `balancing_history`, `agent_form`) pair with a whole **directory**
   rather than a stem-mate — see the directory rule below.
 - `slots.json` — the slot registry (which asset slots exist per category,
   frame sizes, animation vocabularies, editor grouping) (D-32, E-34; see
   the Phase 5 section for why it is NOT under `schemas/`).
 - `balancing/` — one file per domain (`buildings.json`, `enemies.json`,
-  `map.json`, `ui.json`, `core.json`, `vfx.json`) (D-10).
-- `balancing_history/` — one file per domain (`buildings.json`, …, matching
-  `balancing/`'s stems), each a flat newest-first JSON array of full-document
+  `map.json`, `ui.json`, `core.json`, `vfx.json`, `progression.json`,
+  `boss_upgrades.json`) (D-10).
+- `balancing_history/` — one file per **generic-panel** domain
+  (`buildings.json`, `core.json`, `enemies.json`, `map.json`, `vfx.json` —
+  stems from `balancing/`), each a flat newest-first JSON array of full-document
   snapshots appended only by the editor's explicit "Save Balancing Changes"
   action (`editor/balancing_history.py`, `editor/panels/balancing.py`). The
   **second schema-pairing exception** (see the three-exception rule below):
@@ -48,9 +56,59 @@ validating writer; don't hand-edit the JSON.
   PNGs (committed — they are content, not build artifacts).
 
 ## Balancing files (Phase 4 D-10/11/12, restructured Phase 9A)
-- Seven domains exist: `balancing/{buildings,enemies,map,ui,core,vfx,
-  progression}.json`, each with `schemas/<domain>.schema.json`.
-  **`progression` is the newest (TimelinePLAN T2)**: the Timeline editor
+- Eight domains exist: `balancing/{buildings,enemies,map,ui,core,vfx,
+  progression,boss_upgrades}.json`, each with `schemas/<domain>.schema.json`.
+  **`boss_upgrades` is the newest (BossUpgradeTimelinePLAN BU-1)**: the
+  boss-fight upgrade the player picks from 3 cards after every bossfight, and
+  the love a LOST bossfight pays back. One top-level `BossUpgrades` group with
+  exactly two children.
+  - **`Catalog` is a CLOSED set of 12 fixed named keys**
+    (`additionalProperties: false` + all twelve `required`) — `restock_lives`,
+    `wall_cost_discount`, `mortar_slow`, `move_time_cap`,
+    `musician_auto_level`, `tile_discount`, `stormpriest_slow`, `thorns`,
+    `stone_thrower_sync`, `boost_double_trigger`, `condition_dmg_bonus`,
+    `tile_refund`. Each is `{name, description, params}` and **only those three
+    fields are designer-editable; the ROSTER is not** — every upgrade needs its
+    own bespoke hook code in `game/`, so a new id is a schema change, never a
+    content one (the same argument that keeps `enemies.json`'s type blocks
+    named rather than an open array). `name`/`description` are the cutscene
+    card's copy (TEXT ONLY — boss upgrade cards carry no art, D9); the
+    description is `.format()`ed live against that entry's own `params`, so a
+    `{param_name}` placeholder always advertises the magnitude the math
+    actually uses. `params` is itself closed per upgrade, and the three
+    one-time upgrades (`restock_lives`/`stone_thrower_sync`/`tile_refund`)
+    carry a REQUIRED but empty `params: {}` so every entry has the identical
+    shape.
+  - **`Timeline.milestones` is a FIXED-LENGTH-4 array** (`minItems`/`maxItems`
+    both 4 — the 4-cycle is a design decision, D1, not a designer dial), each
+    row `{slots, retaliation_bonus_love}`. `slots` is exactly 3 entries
+    (always 3 offered, never randomized — D2), each a `$defs/upgrade_ref`:
+    one of the 12 Catalog keys, or `null` for an empty, still-persisted slot.
+    Milestone `(boss_num - 1) % 4` is what a bossfight shows, so boss 5
+    re-offers milestone 1's identical three cards forever.
+    `retaliation_bonus_love` is the **sole source of truth** for the
+    consolation love a LOST bossfight pays (D7) — see the retired
+    `enemies.json` `loss_love_reward` note below; a win pays nothing.
+  - **D3 uniqueness — an upgrade id may sit in at most ONE slot across the
+    whole timeline — is an authoring-time constraint JSON Schema cannot
+    express.** It lives in `editor/boss_upgrades_ops.py::validate_uniqueness`,
+    which **WARNS rather than blocks** (unlike `timeline_ops`' raising twin):
+    a designer mid-way through dragging a card from one milestone to another
+    is legitimately double-placed for a moment. Nothing at runtime cares — a
+    duplicated id is simply offered twice.
+  - Registered in `game/core/balance.py::DOMAINS` for runtime loading
+    (`game/main.py` and `tools/simrun.py` both load it and thread it onto
+    `Session.boss_upgrades_balance`). Like `progression` it is deliberately
+    **not** a `data/slots.json` category, so it does not auto-render as a
+    generic recursive form in the editor's balancing panel — it gets its own
+    bespoke drag-and-drop panel under a new TOP-LEVEL "Bosses" selector branch
+    (`editor/panels/boss_upgrades.py`, BU-5; that panel is also the only place
+    the Catalog's copy/params are editable at all).
+  - Seeded content: all 12 upgrades at the plan's §2 default magnitudes, the
+    four milestones assigning all 12 ids three-at-a-time with no repeats, and
+    placeholder retaliation values 30/60/100/150. Those four numbers are a
+    starting schedule for the user to tune in the panel, not a derived value.
+  **`progression` was the previous newest (TimelinePLAN T2)**: the Timeline editor
   feature's authored building-unlock schedule — `Timeline.levels[]`, one
   sparse entry per player `village_level` that has offer slots authored,
   each slot an `assignment` object (`kind: "unlock"|"tier"`, `building_type`,
@@ -141,10 +199,29 @@ validating writer; don't hand-edit the JSON.
   and two new `vfx` category slots in `slots.json`'s `Effects` group,
   `vfx_projectile`/`vfx_shell` (shared across every defender/every mortar
   respectively, never per-building art), both bare strings inheriting the
-  category's 64×64/`["idle"]` shape like every other `vfx_*` slot. It is
-  NOT a `triggers` row — a projectile is a continuous in-flight object, like
-  a beam or a lightning bolt, not a one-shot sprite. The same follow-up fixed
-  a Fix-1 anchor/offset composition bug (`engine/assets/store.py`'s new
+  category's 64×64/`["idle"]` shape like every other `vfx_*` slot. It shipped
+  with NO `triggers` row — a projectile is a continuous in-flight object, like
+  a beam or a lightning bolt, not a one-shot sprite — which meant a designer
+  could author a `vfx_projectile_v2` variant and nothing would ever draw it.
+  **feat-projectile-variant-select** added the row, `triggers.projectile`,
+  on the VA-5 tile-highlight precedent (continuous effects that take a
+  `triggers` row anyway and bypass `_play`/`PlayOnceVfx`). It ships
+  `{sprite_slot: "", procedural: "", draw_in_front: true, variant_select:
+  {mode: "random", misc_key: ""}}` and contributes **only `variant_select`**:
+  the slot still comes from the shot's own kind (`vfx_projectile` vs
+  `vfx_shell`, independent by design), the fallback is still the continuous
+  `procedural.projectile` dot, and `draw_in_front` cannot bite because
+  `submit_projectiles` emits on the HUD pass, which has no depth sort. All
+  three inert keys say so in `$defs/trigger_row`'s own descriptions rather
+  than sitting in the editor looking live. A `triggers` property (not a new
+  key under `procedural.projectile`) because the VFX panel's Binding strip is
+  generated from the schema — `editor/panels/vfx_preview.py::_trigger_events`
+  — so the row buys the whole Event/Pick-mode/misc-key UI with zero editor
+  code. The resolved variant is cached on the projectile GameObject at first
+  draw, so `"random"` costs one rng draw per shot and is stable for the
+  flight; `"level"` indexes by the firing building's tier through the
+  components' existing `_shooter`. The fix-anchor-offset-and-bullet-sprites
+  follow-up also fixed a Fix-1 anchor/offset composition bug (`engine/assets/store.py`'s new
   `offset()` accessor, `game/anchors.py`, `editor/panels/viewport.py`) that
   touches no schema. **The Drummer buff-range telegraph feature** added a
   sibling `procedural.drummer_aura` block (`color`/`alpha_min`/`alpha_max`/
@@ -220,6 +297,20 @@ validating writer; don't hand-edit the JSON.
   `ui:FX/bg_art/enabled`, `ui:FX/income_floaters_enabled`,
   `ui:FX/boss_announce/enabled`, `core:TheHole/building_revive`,
   `core:XP/xp_from_buildings`).
+- **`core.json`'s `BossBonuses` group is DELETED (BossUpgradeTimelinePLAN
+  BU-4/D6), schema and content** — the nine magnitudes behind the six hidden
+  boss A/B story bonuses (`dmg_per_building`, `dmg_per_unbuilt_tile`,
+  `love_chunk_size`, …). Their only reader, `game/core/boss_bonuses.py`, is
+  gone; the visible 3-card picker fed by `balancing/boss_upgrades.json`
+  replaces the whole mechanism. Do not reintroduce the group — a boss
+  upgrade's numbers belong in its own catalog entry there, not in a parallel
+  `core` table. **`balancing_history/core.json` still contains `BossBonuses`
+  inside its `snapshot` objects and MUST keep it**: a snapshot is a verbatim
+  record of what the file was at save time, its schema deliberately types it
+  as an unconstrained object (so a retired key can never make the audit log
+  fail validation), and rewriting it would be falsifying the log. The same
+  holds for `balancing_history/enemies.json` and the retired
+  `loss_love_reward` below.
 - **`buildings.json`'s `BuildingsGlobal.Movement` group (Building Movement)**
   — the 9 tunables for moving an already-placed building: `money_cost_enabled`
   / `time_cost_enabled` (the two off-switches; off ⇒ that axis is a flat 0),
@@ -342,6 +433,14 @@ validating writer; don't hand-edit the JSON.
     `round_counts[]` (BossReworkPLAN's territory) — and since **BR-1** its
     `footprint`, `sprite_scale` and `shake` are DELETED from the type root and
     live inside each `stats[]` row, so every boss variable is per-era.
+    **`loss_love_reward` joined the deleted list in BossUpgradeTimelinePLAN
+    BU-4/D7** — both homes (`$defs/boss_stat`, i.e. all five `Boss.stats[]`
+    rows, AND `$defs/boss_endgame_scaling`'s matching factor) are gone from
+    schema and content. The consolation love a LOST boss round pays now comes
+    SOLELY from `balancing/boss_upgrades.json`'s per-milestone
+    `retaliation_bonus_love`; re-adding a per-era key here would create a
+    second, silently-unread source of truth. (`endgame_boss_scaling` is 13
+    factors again as a result — the count the BR-4 bullet below states.)
   - **Kept FLAT at the type root, deliberately** (D10, exhaustive):
     `start_round`, `death_spawn`, `registry_group`, `kidnapping`, `hunts`,
     `condition_path_weights`, `mix_ratio`, `queue_lead_count`. Only numbers
@@ -499,14 +598,16 @@ validating writer; don't hand-edit the JSON.
   either a bare key string (inherits the category's `frame_w`/`frame_h`) or
   `{key, frame_w, frame_h}` overriding it for that ONE slot. Bare is the norm; the
   object form exists for art whose sheet is cut at a different size than its
-  category — `ui_bg_main_menu` (480×270, a whole-sheet background in the 64×64
-  `ui` category) is the one committed user, and without the override the importer
-  would grid-slice that one frame into a 7×4 grid. It describes **slicing, not
+  category — `ui_bg_main_menu` (640×360, a whole-sheet background in the 64×64
+  `ui` category) is the headline user, and without the override the importer
+  would grid-slice that one frame into a grid of 64×64 cells. (`main_menu_bg`
+  overrides too, to the same 640×360, against its own category's 480×270
+  default — the two describe the same painting and move together.) It describes **slicing, not
   drawing** — on-screen size comes from the render fit
   (`engine/render/CLAUDE.md`).
   - **The override DOES propagate to "+ Variant"** (A7): `registry_ops.add_variant`
     now inherits the family stem's frame-size override on creation, so
-    `ui_bg_main_menu_v2` inherits the `ui_bg_main_menu` 480×270 override.
+    `ui_bg_main_menu_v2` inherits the `ui_bg_main_menu` 640×360 override.
     Bare stems stay bare (regression pin for enemies/deco); independently
     resizable afterwards via the Frame W/H spinboxes.
   - **`uniqueItems` no longer implies key uniqueness**: it compares whole values,
@@ -578,8 +679,9 @@ validating writer; don't hand-edit the JSON.
   type. Deco types are added as whole leaf subgroups (`Prop <n>` holding
   `deco_prop_<n>`), never appended to a flat list.
 - **Frame sizes (SPEC §9.1 resolved)**: buildings / enemies / deco / core
-  64×96; map tiles 64×32; ui / vfx 64×64 (except `ui_bg_main_menu`, 480×270 by
-  per-slot override); backgrounds 480×270 (10K full-frame menu art, drawn as a
+  64×96; map tiles 64×32; ui / vfx 64×64 (except `ui_bg_main_menu`, 640×360 by
+  per-slot override); backgrounds 480×270 by default, with its one slot
+  `main_menu_bg` overridden to 640×360 (10K full-frame menu art, drawn as a
   screen-space `HudSprite` — not a world sprite). All data — edit `slots.json`.
 - **`ui` → "Card Portraits" (construct-card-widget-tree)**: twelve leaf
   children, one per building type, each holding a single

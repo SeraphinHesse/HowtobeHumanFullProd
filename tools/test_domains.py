@@ -73,6 +73,10 @@ DOMAINS = {
     "buildings": (
         "test_base_building.py",
         "test_boost.py",
+        # BossUpgradeTimeline BU-6: a progression/upgrade system
+        # (rule-5 tie-breaker), even though the trigger is a boss round
+        # -- test_boss.py itself stays under `enemies`.
+        "test_boss_upgrades.py",
         "test_building_movement.py",
         "test_buildings_placement.py",
         "test_buildings_state_in_components.py",
@@ -87,6 +91,7 @@ DOMAINS = {
     "enemies": (
         "test_boss.py",
         "test_corpse.py",
+        "test_crowd_spacing.py",
         "test_death_spawn.py",
         "test_enemies.py",
         "test_enemy_intro.py",
@@ -115,6 +120,7 @@ DOMAINS = {
         "test_button_skin.py",
         "test_combat_anchors.py",
         "test_combat_speed.py",
+        "test_buff_debuff_arrows.py",
         "test_construct_card.py",
         "test_cutscene_player.py",
         "test_cutscene_session.py",
@@ -124,7 +130,9 @@ DOMAINS = {
         "test_game_boot.py",
         "test_hp_bar_anchors.py",
         "test_hud_panel.py",
+        "test_keybinds_screen.py",
         "test_layout_h_invariant.py",
+        "test_life_counters.py",
         "test_names.py",
         "test_player_identity.py",
         "test_projectile_anchored_flight.py",
@@ -132,6 +140,10 @@ DOMAINS = {
         "test_right_click_dismiss.py",
         "test_shell.py",
         "test_tutorial_director.py",
+        "test_ui_align.py",
+        "test_ui_layer_click.py",
+        "test_ui_layer_draw.py",
+        "test_ui_layers.py",
         "test_ui_layout_export.py",
         "test_ui_min_targets.py",
         "test_ui_skinning.py",
@@ -155,6 +167,7 @@ DOMAINS = {
         "test_ground_cache.py",
         "test_hud_items.py",
         "test_hud_render.py",
+        "test_input_bindings.py",
         "test_movement.py",
         "test_nine_slice.py",
         "test_physics_grid.py",
@@ -189,7 +202,9 @@ DOMAINS = {
         "test_vfx_highlight_preview.py",
         "test_run_controls.py",
         "test_screen_honest_controls.py",
+        "test_ui_layer_ops.py",
         "test_tilemap_ops.py",
+        "test_editor_boss_upgrades.py",
         "test_timeline_ops.py",
         "test_timeline_panel.py",
         "test_ui_text_binding.py",
@@ -199,6 +214,7 @@ DOMAINS = {
     "data": (
         "test_assets_registry.py",
         "test_balancing_data.py",
+        "test_font_presets.py",
         "test_master_registry.py",
         "test_schema_slot_sync.py",
         "test_strings_data.py",

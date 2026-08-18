@@ -595,16 +595,34 @@ class TileMap:
         return ((tile.col - self._sec_col_origin) // 2,
                 (tile.row - self._sec_row_origin) // 2)
 
-    def unlock_cost(self, tile):
+    def unlock_cost(self, tile, run_state=None, boss_upgrades_balance=None):
         """BASE + (manhattan − 1) * MOD — cost scales with the 2×2-section
         Manhattan distance from the starting section (0, 0), direction-agnostic:
         sections ADJACENT to the start cost exactly ``base_unlock_cost`` and
         each further step adds ``unlock_cost_distance_mod``. The distance term
-        is clamped ≥ 0 (section (0, 0) itself starts owned, never purchased)."""
+        is clamped ≥ 0 (section (0, 0) itself starts owned, never purchased).
+
+        ``run_state``/``boss_upgrades_balance`` are BU-3's standard optional
+        trailing pair (see ``game/core/boss_upgrades.py``'s threading-pattern
+        section): with both present, the ``tile_discount`` boss upgrade cuts
+        the price by its ``discount_pct`` per pick, additively (D4), floored at
+        0 — a tile CAN become free, unlike a wall (that is why this floor and
+        ``wall_cost_discount``'s differ). Without the pair — every caller that
+        predates BU-3, every headless fixture — the returned figure is
+        byte-identical to before. The map layer still imports nothing from
+        ``game.buildings``; ``game.core`` it already imports (``load_balance``
+        at module scope), and this one is deferred anyway for the same
+        cycle reason every other BU-3 hook site defers it."""
         u = self._balance["TileUnlocking"]
         sc, sr = self._section_index(tile)
         dist = max(0, abs(sc) + abs(sr) - 1)
-        return u["base_unlock_cost"] + dist * u["unlock_cost_distance_mod"]
+        cost = u["base_unlock_cost"] + dist * u["unlock_cost_distance_mod"]
+        if run_state is None or boss_upgrades_balance is None:
+            return cost
+        from game.core import boss_upgrades
+        return boss_upgrades.discounted(
+            cost, run_state, boss_upgrades_balance, "tile_discount",
+            "discount_pct", 20, floor=0)
 
     def get_chunk_for_tile(self, tile):
         """The fixed 2×2 chunk containing `tile` (aligned to the section grid —

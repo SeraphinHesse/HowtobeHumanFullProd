@@ -392,6 +392,8 @@
             "trio_t3_lvl3",
             "tutorial_flute",
             "tutorial_stone",
+            "tutorial_stone_2",
+            "tutorial_unlock",
             "ui_bg_main_menu",
             "ui_button",
             "ui_button_card",
@@ -400,6 +402,7 @@
             "ui_button_panel",
             "ui_button_panel_v2",
             "ui_button_panel_v3",
+            "ui_button_panel_v4",
             "ui_button_pause",
             "ui_button_pill",
             "ui_choice_box",
@@ -417,6 +420,7 @@
             "vfx_buff_arrow",
             "vfx_crater",
             "vfx_death",
+            "vfx_debuff_arrow",
             "vfx_digger_direction",
             "vfx_digger_marker",
             "vfx_dirt_pile",
@@ -425,6 +429,7 @@
             "vfx_move_target",
             "vfx_muzzle",
             "vfx_projectile",
+            "vfx_projectile_v2",
             "vfx_respawn",
             "vfx_section_2x2",
             "vfx_shell",
@@ -533,78 +538,6 @@
   "additionalProperties": false,
   "description": "Core balancing domain (D-10), REPLAN nested tree (Phase 9A): camera, general, phase loop, XP, the hole, lightning strike, debug-mode telemetry. Values are the prototype's live tuning, verbatim. Bounds policy: fractions 0-1, costs/counts 0-10000, rounds/levels 0-1000, seconds 0-60, camera zoom factors 0.1-100.",
   "properties": {
-    "BossBonuses": {
-      "additionalProperties": false,
-      "description": "The six stacking boss A/B story bonuses (boss1a..boss3b). Each stack multiplies its own magnitude; the counted quantity is read off the live board/state.",
-      "properties": {
-        "dmg_per_building": {
-          "description": "Boss1B: extra per-shot damage every defender gains, per stack, for each ALIVE non-base building on the board (x10 combat scale, D-12).",
-          "maximum": 100000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "dmg_per_lightning_building": {
-          "description": "Boss3B: extra per-shot damage every defender gains, per stack, for each ALIVE lightning-source building built (x10 combat scale, D-12).",
-          "maximum": 100000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "dmg_per_love_chunk": {
-          "description": "Boss3A: extra per-shot damage every defender gains, per stack, for each whole love_chunk_size of love held at End Turn (x10 combat scale, D-12).",
-          "maximum": 100000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "dmg_per_unbuilt_tile": {
-          "description": "Boss1A: extra per-shot damage every defender gains, per stack, for each unbuilt (BUILDABLE) tile (x10 combat scale, D-12).",
-          "maximum": 100000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "level_past_threshold": {
-          "description": "Boss2A: the in-tier level a building must exceed to pay love (a building at level_past_threshold+2 pays twice).",
-          "maximum": 1000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "love_chunk_size": {
-          "description": "Boss3A: the love-held chunk size the damage bonus is counted per. A divisor - never 0.",
-          "maximum": 10000,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "love_per_level_past": {
-          "description": "Boss2A: love per round, per stack, for each in-tier building level past level_past_threshold.",
-          "maximum": 10000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "love_per_low_level_building": {
-          "description": "Boss2B: love per round, per stack, for each ALIVE non-base building sitting at in-tier level low_level_target.",
-          "maximum": 10000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "low_level_target": {
-          "description": "Boss2B: the exact in-tier level a building must sit at to pay love.",
-          "maximum": 1000,
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "dmg_per_building",
-        "dmg_per_lightning_building",
-        "dmg_per_love_chunk",
-        "dmg_per_unbuilt_tile",
-        "level_past_threshold",
-        "love_chunk_size",
-        "love_per_level_past",
-        "love_per_low_level_building",
-        "low_level_target"
-      ],
-      "type": "object"
-    },
     "Camera": {
       "additionalProperties": false,
       "description": "Camera zoom and travel limits (E-5). Overrides geometry.json's zoom_levels/default fallback at load time (engine/coords/__init__.py::load_coordinate_system) so zoom is a designer-editable balancing tunable, not baked into geometry.json.",
@@ -613,6 +546,12 @@
           "description": "Zoom factor the camera opens at. Must be a member of zoom_levels (cross-field check enforced at load time via CoordinateSystem.set_zoom, not expressible in schema).",
           "maximum": 100,
           "minimum": 0.1,
+          "type": "number"
+        },
+        "keyboard_pan_speed": {
+          "description": "How fast W/A/S/D and the arrow keys pan the camera, in SCREEN pixels per second - zoom-independent, matching mouse-drag panning's own raw-pixel behaviour (a drag never scales by zoom either), so holding a movement key feels exactly as responsive at any zoom level.",
+          "maximum": 4096,
+          "minimum": 1,
           "type": "number"
         },
         "max_offset_tiles_x": {
@@ -643,6 +582,7 @@
       },
       "required": [
         "default_zoom",
+        "keyboard_pan_speed",
         "max_offset_tiles_x",
         "max_offset_tiles_y",
         "zoom_levels"
@@ -846,7 +786,13 @@
       "description": "Round/phase machine timing.",
       "properties": {
         "income_phase_duration": {
-          "description": "Seconds the income phase banner/floaters play before build phase.",
+          "description": "Seconds the income phase holds AFTER its last payout beat (boost/economy/upkeep) fires, before returning to the build phase. The full phase length is this plus payout_stagger_interval per beat before the last.",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        },
+        "payout_stagger_interval": {
+          "description": "Seconds paused between the payout phase's boost/economy/upkeep floater beats (game/ui/effects.py FloaterManager.begin_payout). Also read by payday.py to compute the income phase's total length.",
           "maximum": 60,
           "minimum": 0,
           "type": "number"
@@ -872,6 +818,7 @@
       },
       "required": [
         "income_phase_duration",
+        "payout_stagger_interval",
         "round_end_delay",
         "speed_1_5x_min_round",
         "speed_2x_min_round"
@@ -1034,7 +981,6 @@
     }
   },
   "required": [
-    "BossBonuses",
     "Camera",
     "Debug",
     "EnemyIntro",

@@ -86,6 +86,7 @@
         255,
         255
       ],
+      "income_life": 2.6,
       "painter_finished_color": [
         255,
         255,
@@ -359,11 +360,18 @@
       ],
       "jitter": 0.6,
       "radius_px": 4.0
+    },
+    "tutorial_highlight_pulse": {
+      "alpha_max": 255,
+      "alpha_min": 140,
+      "pulse_period_s": 0.8,
+      "width_max": 4,
+      "width_min": 2
     }
   },
   "triggers": {
     "attack_range": {
-      "draw_in_front": true,
+      "draw_in_front": false,
       "procedural": "highlight",
       "sprite_slot": "",
       "variant_select": {
@@ -461,10 +469,19 @@
         "mode": "random"
       }
     },
-    "projectile_hit": {
+    "projectile": {
       "draw_in_front": true,
       "procedural": "",
-      "sprite_slot": "vfx_crater",
+      "sprite_slot": "",
+      "variant_select": {
+        "misc_key": "",
+        "mode": "level"
+      }
+    },
+    "projectile_hit": {
+      "draw_in_front": false,
+      "procedural": "",
+      "sprite_slot": "",
       "variant_select": {
         "misc_key": "",
         "mode": "random"
@@ -480,7 +497,7 @@
       }
     },
     "splash_impact": {
-      "draw_in_front": true,
+      "draw_in_front": false,
       "procedural": "crater",
       "sprite_slot": "vfx_crater",
       "variant_select": {
@@ -498,7 +515,7 @@
       }
     },
     "tutorial_highlight": {
-      "draw_in_front": true,
+      "draw_in_front": false,
       "procedural": "highlight",
       "sprite_slot": "",
       "variant_select": {

@@ -1,0 +1,120 @@
+{
+  "$id": "keybindings.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "scores/keybindings.json (gitignored runtime player record; no data/ content file pairs with this schema - validate_data skips data/schemas/, the highscores.schema.json precedent). One key string per rebindable action, resolved by engine/input.py + game/main.py's _binding_key_name. Written ONLY through engine.input.save_keybindings; the shipped DEFAULT for each action lives in data/balancing/ui.json Keybindings, which must declare the exact same property set as this schema.",
+  "properties": {
+    "combat_speed_1": {
+      "description": "Sets ENEMY-phase combat speed to 1x. Round-gated inside game/core/session.py; the key is a no-op while locked.",
+      "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+      "type": "string"
+    },
+    "combat_speed_2": {
+      "description": "Sets ENEMY-phase combat speed to 1.5x. Round-gated inside game/core/session.py; the key is a no-op while locked.",
+      "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+      "type": "string"
+    },
+    "combat_speed_3": {
+      "description": "Sets ENEMY-phase combat speed to 2x. Round-gated inside game/core/session.py; the key is a no-op while locked.",
+      "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+      "type": "string"
+    },
+    "confirm_purchase": {
+      "description": "Confirms whatever construct/move preview modal is currently open - the same effect as clicking its CONFIRM button. When no such modal is open and the building panel is showing a selected building (upgrade mode), this same key instead clicks the UPGRADE/ADVANCE button - single or multi-select batch alike. No effect otherwise.",
+      "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+      "type": "string"
+    },
+    "end_turn": {
+      "description": "Ends the BUILDING phase early - the dev-convenience keyboard mirror of the End Turn button, gated by the same Session/tutorial checks.",
+      "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+      "type": "string"
+    },
+    "move_down": {
+      "description": "Pans the camera down (WASD). The Down arrow key ALWAYS pans down too, as a fixed always-on alias outside the rebindable set. Held continuously (polled every frame).",
+      "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+      "type": "string"
+    },
+    "move_left": {
+      "description": "Pans the camera left (WASD). The Left arrow key ALWAYS pans left too, as a fixed always-on alias outside the rebindable set. Held continuously (polled every frame).",
+      "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+      "type": "string"
+    },
+    "move_right": {
+      "description": "Pans the camera right (WASD). The Right arrow key ALWAYS pans right too, as a fixed always-on alias outside the rebindable set. Held continuously (polled every frame).",
+      "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+      "type": "string"
+    },
+    "move_up": {
+      "description": "Pans the camera up (WASD). The Up arrow key ALWAYS pans up too, as a fixed always-on alias outside the rebindable set - the numpad/combat-speed precedent - so this binding only ever changes the primary key. Held continuously (polled every frame, not a single KEYDOWN dispatch, like the cutscene hold-to-skip keys).",
+      "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+      "type": "string"
+    },
+    "quick_skip_combat": {
+      "description": "Abandons the current wave straight to ROUND_END, paying no XP for the enemies skipped. Not shown on the in-game Controls screen (a testing convenience, not a player-facing control), but still dispatched through this same binding.",
+      "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+      "type": "string"
+    },
+    "toggle_cheat_menu": {
+      "description": "Opens/closes the cheat menu. Works over the LEVELUP modal, never on GAME_OVER. Not shown on the in-game Controls screen (a hidden dev feature), but still dispatched through this same binding.",
+      "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+      "type": "string"
+    },
+    "toggle_drag_select": {
+      "description": "Toggles the DRAG SEL box-selection mode - the same flag the DRAG SEL HUD button flips on click.",
+      "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+      "type": "string"
+    },
+    "toggle_heatmap": {
+      "description": "Toggles the HEATMAP map overlay - the same flag the HEATMAP HUD pill flips on click.",
+      "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+      "type": "string"
+    },
+    "toggle_range": {
+      "description": "Toggles the RANGE map overlay - the same flag the RANGE HUD pill flips on click.",
+      "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+      "type": "string"
+    },
+    "toggle_tier_overview": {
+      "description": "Toggles the TIERS map overlay - the same flag the TIERS HUD pill flips on click.",
+      "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+      "type": "string"
+    },
+    "zoom_level_1": {
+      "description": "Sets the camera zoom to the 1st (smallest-scale) data-driven zoom level (core.json Camera.zoom_levels, sorted ascending), keeping the viewport-centre world point fixed - the same recentring step_zoom uses.",
+      "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+      "type": "string"
+    },
+    "zoom_level_2": {
+      "description": "Sets the camera zoom to the 2nd data-driven zoom level (core.json Camera.zoom_levels, sorted ascending), keeping the viewport-centre world point fixed. A no-op if fewer than 2 levels are authored.",
+      "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+      "type": "string"
+    },
+    "zoom_level_3": {
+      "description": "Sets the camera zoom to the 3rd (largest-scale) data-driven zoom level (core.json Camera.zoom_levels, sorted ascending), keeping the viewport-centre world point fixed. A no-op if fewer than 3 levels are authored.",
+      "pattern": "^(ctrl\\+)?[a-z0-9]+$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "combat_speed_1",
+    "combat_speed_2",
+    "combat_speed_3",
+    "confirm_purchase",
+    "end_turn",
+    "move_down",
+    "move_left",
+    "move_right",
+    "move_up",
+    "quick_skip_combat",
+    "toggle_cheat_menu",
+    "toggle_drag_select",
+    "toggle_heatmap",
+    "toggle_range",
+    "toggle_tier_overview",
+    "zoom_level_1",
+    "zoom_level_2",
+    "zoom_level_3"
+  ],
+  "title": "keybindings",
+  "type": "object"
+}

@@ -157,6 +157,11 @@ from engine.vfx import (
     VfxParams, VfxSystem, spawn_play_once,
 )
 from game.buildings.components import BeamAttacker, Nameplate, TierState
+# feat-projectile-variant-select: read-only, at DRAW time, purely to reach a
+# live shot's `_shooter` for "level" variant mode — the same shape this module
+# already uses on BeamAttacker._target above. No cycle: game/enemies/ imports
+# game/buildings/ + engine/, never game/ui/.
+from game.enemies.combat import ProjectileArc, ProjectileHoming
 from game.core.lightning import LightningCaster
 from game.core.phases import GamePhase
 from game import vfx_variants
@@ -203,6 +208,15 @@ _BOSS_HUD_BAR_LIFT = 55                      # y = view_h - 55
 # only the gap above its head.
 _ENEMY_BAR_STACK = 4       # px between stacked bars (prototype `bar_slot * 4`)
 _ENEMY_BAR_FALLBACK = (14, 2, 4)   # a stub enemy with no HP_BAR_* attrs
+# Several floaters can share one anchor point — most commonly several boost
+# buildings buffing the same defender, all landing on that defender's tile in
+# the same payout beat. `FloaterManager.submit` STACKS them vertically at
+# spawn height (the `submit_enemy_hp_bars` per-tile-group precedent above,
+# applied to text instead of bars) rather than letting them draw on top of
+# each other. Fixed screen-pixel code chrome, not balancing, like every other
+# bar/arrow geometry constant in this file — sized to the "md" floater font's
+# line height so stacked rows never overlap.
+_FLOATER_STACK_STEP = 14
 # -- 10H: lightning + cheat menu --
 # Bolt colour ramp, jitter, segment count, flash + ground-marker params are
 # now in data/balancing/vfx.json procedural.lightning (ESV-3b) — see
@@ -227,6 +241,24 @@ BUFF_ARROW_SLOT = "vfx_buff_arrow"
 _BUFF_ARROW_W, _BUFF_ARROW_H = 10, 8   # base-zoom px, fixed screen size
 _BUFF_ARROW_GAP = 3                    # px above the HP-bar anchor point
 _BUFF_ARROW_GOLD = (255, 200, 50)      # placeholder colour == widgets.C_GOLD
+
+# BossUpgradeTimelinePLAN D20: the RED twin of the arrow above, for an enemy
+# carrying an active SLOW (ANY source contributing a negative `move_speed` —
+# today the two boss upgrades `mortar_slow`/`stormpriest_slow`, but keyed off
+# the STAT, never the source). Same swappable-art rule (E-37) and the same
+# "colour/shape are code chrome, only the ART is a designer lever" line
+# _BUFF_ARROW_GOLD draws. It reuses the buff arrow's own W/H/GAP deliberately:
+# the two are the same badge in two colours, so a second set of geometry
+# constants would be two homes for one number.
+DEBUFF_ARROW_SLOT = "vfx_debuff_arrow"
+_DEBUFF_ARROW_RED = (220, 40, 40)      # placeholder colour
+# The two arrows are gated INDEPENDENTLY (`buff_signs`, not `buff_total`'s
+# netted sign) and sit in two DIFFERENT spots so they can show TOGETHER on
+# one enemy — buffed by a Drummer AND slowed by a mortar at once is a real,
+# expected state, not an edge case to net away. Gold stays centred above the
+# hp bar (`_buff_arrow_anchor`); red sits to its LEFT, vertically centred on
+# the bar (`_debuff_arrow_anchor`) — not above it, so it can never sit on top
+# of the bar the way a naive shared-anchor placement would.
 
 # Digger underground telegraph (player-feedback rework): two placeholder
 # arrows, the vfx_buff_arrow pattern applied to a raw WORLD point instead of
@@ -361,7 +393,7 @@ def _params_from_balance(vfx):
         painter_finished_color=_color(fl["painter_finished_color"]),
         painter_lost_color=_color(fl["painter_lost_color"]),
         painter_life=fl["painter_life"],
-        boost_color=_color(fl["boost_color"]))
+        boost_color=_color(fl["boost_color"]), income_life=fl["income_life"])
     # -- /ESV-6 --------------------------------------------------------------
 
     # -- fix-anchor-offset-and-bullet-sprites Fix 2: projectile fallback dot -
@@ -484,19 +516,49 @@ class _Floater:
 class FloaterManager:
     """Income/upkeep floaters spawned at payday + per-building/per-enemy HP bars.
 
-    ``spawn_income_events`` is called once when the phase enters INCOME; it reads
-    ``state.income_events`` (filled by ``run_payday``) so it never re-derives the
-    payday math. Gated by ``ui.FX.income_floaters_enabled``; floater lifetime is
-    the income phase duration (``core.PhaseLoop.income_phase_duration``).
+    ``begin_payout`` is called once when the phase enters INCOME; it reads
+    ``state.income_events``/``state.painter_events``/``state.boost_events``
+    (filled by ``run_payday``) so it never re-derives the payday math, and
+    queues them as three ordered beats — boost, economy(+painter), upkeep —
+    released one at a time by ``update(dt)``, ``core.PhaseLoop.
+    payout_stagger_interval`` apart, each beat dropped when it has nothing to
+    show (only boost/upkeep legitimately can). The income/upkeep floaters
+    (not boost/painter) are gated by ``ui.FX.income_floaters_enabled``;
+    lifetime is ``vfx.json procedural.floaters.income_life`` — independent of
+    ``core.PhaseLoop.income_phase_duration``, which is the payout phase's own
+    hold time after its last beat, not a floater's lifetime. The HUD love
+    counter (``love_display``) rides the same beat queue for its two-segment
+    animation — see ``begin_payout``/``update``.
     """
 
     def __init__(self, ui_balance, core_balance, vfx_balance):
         self._enabled = ui_balance["FX"]["income_floaters_enabled"]
-        self._life = core_balance["PhaseLoop"]["income_phase_duration"]
         # feature-storm-acolyte-multi-build: submit_lightning_charge_bars
         # reads each caster's own tier cooldown ceiling straight off core.
         self._core_balance = core_balance
         self._floaters = []
+        # -- Payout-phase sequencing: the boost/economy(+painter)/upkeep
+        # beat queue `begin_payout` fills, drained one beat at a time by
+        # `update(dt)` — the game/enemies/spawner.py `_queue`/`_timer`
+        # pattern. Each queued entry is `(floaters, love_target_or_None)`;
+        # `_payout_timer` counts down `core.PhaseLoop.payout_stagger_interval`
+        # between releases.
+        self._payout_queue = []
+        self._payout_timer = 0.0
+        # -- Animated love counter: a linear ramp from whatever is currently
+        # DISPLAYED toward a target, `love_counter_anim_duration` seconds.
+        # Two drivers: begin_payout's two beat releases (an explicit
+        # segment each), and the generic per-frame watcher in update() for
+        # every other love change. `_love_known` is the last value the
+        # animator has either reached or already been told to head toward —
+        # while a payout sequence is queued the generic watcher stays quiet,
+        # since the queued segments already account for the pending change.
+        self._love_display = None
+        self._love_known = None
+        self._love_anim_start = 0.0
+        self._love_anim_target = None
+        self._love_anim_elapsed = 0.0
+        self._love_anim_duration = ui_balance["FX"]["love_counter_anim_duration"]
         # -- 10G boss announcement: timings from ui.FX.boss_announce; the age
         # clock is None while no announcement runs.
         self._announce = ui_balance["FX"]["boss_announce"]
@@ -547,16 +609,110 @@ class FloaterManager:
         # sine breathe (submit_drummer_auras) — accumulated in update(dt).
         self._clock = 0.0
 
-    def spawn_income_events(self, state):
-        if not self._enabled:
+    def begin_payout(self, state):
+        """Called once on the INCOME phase edge (``main.py``), replacing the
+        old three separate ``spawn_income_events``/``spawn_painter_events``/
+        ``spawn_boost_events`` calls. Builds three ordered payout beats —
+        boost, economy (income-kind ``income_events`` entries + Painter's
+        finish/lost message), upkeep (upkeep-kind ``income_events``
+        entries) — and queues them for staggered release by ``update(dt)``.
+
+        A beat's PRESENCE in the queue mirrors ``payday.py`` step 12's
+        ``phase_timer`` formula exactly (boost iff ``state.boost_events`` was
+        non-empty, upkeep iff any real upkeep entry exists, economy always) —
+        so the queue's shape agrees with how long ``run_payday`` already
+        decided the phase should stay open, independent of
+        ``ui.FX.income_floaters_enabled``. That flag only decides whether the
+        income/upkeep-derived floaters *within* a beat are built — never
+        whether the beat/pause/counter-checkpoint happens — matching
+        ``spawn_income_events``'s old gating (boost/painter were never
+        gated by it either).
+        """
+        fl = self._vfx_params.floaters
+        boost_has_events = bool(state.boost_events)
+        upkeep_has_events = any(kind == "upkeep"
+                                 for _, _, _, kind in state.income_events)
+
+        boost_beat = []
+        for col, row, text in state.boost_events:
+            boost_beat.append(_Floater(
+                col + 0.5, row + 0.5, text, fl.boost_color, fl.income_life))
+        state.boost_events.clear()
+
+        economy_beat = []
+        if self._enabled:
+            for col, row, amount, kind in state.income_events:
+                if kind == "income":
+                    economy_beat.append(_Floater(
+                        col + 0.5, row + 0.5,
+                        T("effects.floater_gain", amount=amount),
+                        widgets.C_GOLD, fl.income_life))
+        for col, row, text, kind in state.painter_events:
+            color = (fl.painter_finished_color if kind == "finished"
+                     else fl.painter_lost_color)
+            economy_beat.append(
+                _Floater(col + 0.5, row + 0.5, text, color, fl.painter_life))
+            if self.log is not None:  # 10J game log
+                self.log.post(text)
+        state.painter_events.clear()
+
+        upkeep_beat = []
+        if self._enabled:
+            for col, row, amount, kind in state.income_events:
+                if kind == "upkeep":
+                    upkeep_beat.append(_Floater(
+                        col + 0.5, row + 0.5,
+                        T("effects.floater_loss", amount=amount),
+                        fl.upkeep_color, fl.income_life))
+
+        beats = []
+        if boost_has_events:
+            beats.append((boost_beat, None))
+        beats.append((economy_beat, state.payout_love_after_economy))
+        if upkeep_has_events:
+            beats.append((upkeep_beat, state.love))
+
+        self._payout_queue = beats
+        self._release_next_payout_beat()
+
+    def _release_next_payout_beat(self):
+        """Pop and spawn the next queued payout beat (the ``game/enemies/
+        spawner.py`` timed-``_queue`` pattern) — called once immediately from
+        ``begin_payout`` and again from ``update(dt)`` each time the stagger
+        pause elapses. A beat carrying a love target arms the counter
+        animation toward it (``_start_love_anim``); ``None`` (the boost
+        beat) leaves the counter alone."""
+        if not self._payout_queue:
             return
-        for col, row, amount, kind in state.income_events:
-            color = (widgets.C_GOLD if kind == "income"
-                     else self._vfx_params.floaters.upkeep_color)
-            text = (T("effects.floater_gain", amount=amount) if amount >= 0
-                    else T("effects.floater_loss", amount=amount))
-            self._floaters.append(
-                _Floater(col + 0.5, row + 0.5, text, color, self._life))
+        floaters, love_target = self._payout_queue.pop(0)
+        self._floaters.extend(floaters)
+        if love_target is not None:
+            self._start_love_anim(love_target)
+        if self._payout_queue:
+            self._payout_timer = (
+                self._core_balance["PhaseLoop"]["payout_stagger_interval"])
+
+    def _start_love_anim(self, target):
+        """Arm a new linear ramp on the displayed love counter, from
+        wherever it currently sits (never from its old TARGET — a retarget
+        mid-flight must not jump) to ``target``, over
+        ``love_counter_anim_duration``. ``_love_known`` records that this
+        target is now accounted for, so ``update``'s generic watcher doesn't
+        also fire for the same change."""
+        if self._love_display is None:
+            self._love_display = target        # fresh game: no count-from-0
+        else:
+            self._love_anim_start = self._love_display
+        self._love_anim_target = target
+        self._love_anim_elapsed = 0.0
+        self._love_known = target
+
+    @property
+    def love_display(self):
+        """The HUD's animated love counter — ``int`` when unset (before the
+        first ``update(dt, state)`` call, which should never actually be
+        observed in the running game)."""
+        return 0 if self._love_display is None else round(self._love_display)
 
     def spawn_xp_events(self, state):
         """Drain ``state.xp_events`` (filled by the Session's XP award sites)
@@ -569,24 +725,6 @@ class FloaterManager:
                 _Floater(wx, wy, T("effects.floater_xp", amount=amount),
                          fl.xp_color, fl.xp_life))
         state.xp_events.clear()
-
-    def spawn_painter_events(self, state):
-        """Drain ``state.painter_events`` (filled by the payday Painter slot +
-        revive) into 1.5s message floaters — gold "painting finished!", red
-        "painting lost!" — AND a game-log line for both, so a completed
-        payout is not just a fleeting floater the player can miss (the tile
-        greys out in the construct panel from then on; this is the one-time
-        notice that it just happened). Called on the INCOME edge beside the
-        income floaters."""
-        fl = self._vfx_params.floaters
-        for col, row, text, kind in state.painter_events:
-            color = (fl.painter_finished_color if kind == "finished"
-                     else fl.painter_lost_color)
-            self._floaters.append(
-                _Floater(col + 0.5, row + 0.5, text, color, fl.painter_life))
-            if self.log is not None:  # 10J game log
-                self.log.post(text)
-        state.painter_events.clear()
 
     def spawn_building_respawn_events(self, state):
         """Drain ``state.building_respawn_events`` (filled by the payday
@@ -606,16 +744,6 @@ class FloaterManager:
                        preset=self._spark_presets.get(
                            "respawn", self._spark_presets["place"]))
         state.building_respawn_events.clear()
-
-    def spawn_boost_events(self, state):
-        """Drain ``state.boost_events`` (filled by the payday boost slot) into white
-        per-turn boost floaters over each buffed defender — prototype white text.
-        Called on the INCOME edge beside the income floaters."""
-        for col, row, text in state.boost_events:
-            self._floaters.append(
-                _Floater(col + 0.5, row + 0.5, text,
-                         self._vfx_params.floaters.boost_color, self._life))
-        state.boost_events.clear()
 
     # -- 10J FX: sparks, gold highlights, death bursts, muzzle/slash, blood --
 
@@ -854,8 +982,13 @@ class FloaterManager:
         self._announce_age = None
         self._life_lost_age = None
         self._vfx.clear()  # -- 10J: particles / gold / slashes / splatters
+        self._payout_queue = []
+        self._payout_timer = 0.0
+        self._love_display = None
+        self._love_known = None
+        self._love_anim_target = None
 
-    def update(self, dt):
+    def update(self, dt, state=None):
         self._clock += dt
         for f in self._floaters:
             f.age += dt
@@ -875,22 +1008,58 @@ class FloaterManager:
         self._vfx.update(dt)  # -- 10J: particles / gold / slashes --
         # vfx-projectile-spritesheets: the beam's has-art HudSprite anim clock.
         self._beam_clock_ms += dt * 1000.0
+        # -- Payout-phase sequencing: release the next queued beat once the
+        # stagger pause elapses.
+        if self._payout_queue:
+            self._payout_timer -= dt
+            if self._payout_timer <= 0:
+                self._release_next_payout_beat()
+        # -- Animated love counter: advance the current segment, then (only
+        # once no payout beats remain queued, so we don't fight the segments
+        # begin_payout already armed) watch for any other love change and
+        # animate to it. `state=None` (a bare test construction) skips the
+        # watcher entirely — no caller relies on love_display then. --
+        if self._love_anim_target is not None:
+            self._love_anim_elapsed += dt
+            frac = (1.0 if self._love_anim_duration <= 0 else
+                    min(1.0, self._love_anim_elapsed / self._love_anim_duration))
+            self._love_display = (self._love_anim_start + frac * (
+                self._love_anim_target - self._love_anim_start))
+            if frac >= 1.0:
+                self._love_anim_target = None
+        if state is not None:
+            if self._love_display is None:
+                self._love_display = state.love
+                self._love_known = state.love
+            elif not self._payout_queue and state.love != self._love_known:
+                self._start_love_anim(state.love)
 
     @property
     def active(self):
         return len(self._floaters)
 
     def submit(self, renderer, cs):
+        # Several floaters can share one exact anchor point — most commonly
+        # several boost buildings buffing the same defender, all landing on
+        # its tile in the same payout beat. Group by anchor (spawn order
+        # preserved, `self._floaters` is append-only until culled) and give
+        # each one in a group its own vertical slot, the `submit_enemy_hp_
+        # bars` per-tile-group precedent applied to floater text.
+        groups = {}
         for f in self._floaters:
-            frac = f.age / f.life if f.life else 1.0
-            cx, cy = cs.world_to_screen(f.wx, f.wy)
-            y = int(cy) - 20 - int(36 * frac)  # rise over its lifetime
-            # 10J: alpha fade over the last third (prototype fade = life/3)
-            color = f.color
-            if frac > 2 / 3:
-                color = tuple(color[:3]) + (
-                    int(255 * max(0.0, (1.0 - frac) * 3)),)
-            submit_centered(renderer, f.text, int(cx), y, "md", color)
+            groups.setdefault((f.wx, f.wy), []).append(f)
+        for group in groups.values():
+            for slot, f in enumerate(group):
+                frac = f.age / f.life if f.life else 1.0
+                cx, cy = cs.world_to_screen(f.wx, f.wy)
+                y = (int(cy) - 20 - int(36 * frac)   # rise over its lifetime
+                     - slot * _FLOATER_STACK_STEP)   # stack above its group
+                # 10J: alpha fade over the last third (prototype fade = life/3)
+                color = f.color
+                if frac > 2 / 3:
+                    color = tuple(color[:3]) + (
+                        int(255 * max(0.0, (1.0 - frac) * 3)),)
+                submit_centered(renderer, f.text, int(cx), y, "md", color)
 
     # -- 10J FX draw --------------------------------------------------------
 
@@ -907,6 +1076,56 @@ class FloaterManager:
         the ``VfxSystem`` (ESV-3a)."""
         self._vfx.submit_gold_highlights(renderer)
 
+    def _projectile_slot(self, p, shell):
+        """The vfx slot in-flight projectile ``p`` draws this frame, resolved
+        ONCE per shot (feat-projectile-variant-select).
+
+        The BASE slot is unchanged and stays here rather than in the trigger
+        row: ``vfx_shell`` for a mortar's shell, ``vfx_projectile`` for every
+        defender's stone. Those two are independent shared slots by design
+        (``data/CLAUDE.md``), and one row carries one ``sprite_slot``, so the
+        row contributes only ``variant_select`` — which of the base slot's
+        interchangeable ``_v<k>`` variants actually plays.
+
+        **Resolved once and cached, never per frame.** ``submit_projectiles``
+        runs for every live shot on every frame; calling ``resolve`` there
+        would re-roll ``"random"`` mode each frame (a bullet that flickers
+        through its whole flight) and — worse — draw from ``self._rng`` once
+        per projectile per frame, desyncing the shared stream from what the
+        game did before this feature. ``game/vfx_variants.resolve``'s
+        ``len(variants) < 2`` short-circuit hides that today, but it stops
+        firing the moment a designer authors the second variant this feature
+        exists to let them author. The cache is an underscore transient on the
+        GameObject (E-11, explicitly allowed by ``GameObject.__setattr__``);
+        it lives and dies with the shot, so it needs no invalidation.
+
+        ``source=`` is the FIRING BUILDING, so ``"level"`` mode gives tier 1 /
+        2 / 3 their own bullet art: both projectile components already retain
+        it as ``_shooter``, and it is read only on the resolve frame. A shot
+        whose component or shooter is missing (a hand-built test projectile)
+        resolves to variant 0 under ``"level"``, the same D4 fallback the five
+        point-only events take.
+        """
+        slot = getattr(p, "_vfx_slot", None)
+        if slot is not None:
+            return slot
+        base = "vfx_shell" if shell else "vfx_projectile"
+        row = self._triggers.get("projectile", _NO_TRIGGER)
+        shooter = None
+        for cls in (ProjectileHoming, ProjectileArc):
+            comp = p.get_component(cls)
+            if comp is not None:
+                shooter = getattr(comp, "_shooter", None)
+                break
+        # `getattr(..., "registry", None)`, not `.registry`: `self.assets` is
+        # the same duck-typed host-wired handle `_play` guards this way, and
+        # is None outright in every bare-constructed test.
+        slot = vfx_variants.resolve(
+            getattr(self.assets, "registry", None), base, row.variant_mode,
+            row.misc_key, rng=self._rng, source=shooter)
+        p._vfx_slot = slot
+        return slot
+
     def submit_projectiles(self, renderer, cs, scene):
         """In-flight shots (10J): the plain defender stone as a small light
         dot, the mortar shell darker and larger (prototype's procedural
@@ -920,11 +1139,15 @@ class FloaterManager:
         The "has art" signal is the SAME one ``engine.vfx.spawn_play_once``
         uses — ``assets.animation_total_ms(slot, "idle")`` returning
         ``None`` means no imported art (E-37) — so the two paths can never
-        disagree about what "imported" means. Not a trigger-table event:
-        projectiles are continuous in-flight objects, like beams and
-        lightning, so this never spawns a ``PlayOnceVfx``. ``self.assets``
-        is ``None`` in every bare-constructed test and degrades to the dot,
-        never raises.
+        disagree about what "imported" means. Still never spawns a
+        ``PlayOnceVfx``: projectiles are continuous in-flight objects, like
+        beams and lightning. ``self.assets`` is ``None`` in every
+        bare-constructed test and degrades to the dot, never raises.
+
+        feat-projectile-variant-select: which of a slot's interchangeable
+        VARIANTS draws now comes from the ``projectile`` trigger row's
+        ``variant_select``, through ``_projectile_slot`` below — resolved
+        ONCE per shot, never per frame.
 
         feat-projectile-anchored-flight: the draw-time lift is GONE — this
         is now a pure projection of ``p.transform.world_pos``. The cosmetic
@@ -940,7 +1163,7 @@ class FloaterManager:
             wx, wy = p.transform.world_pos
             cx, cy = cs.world_to_screen(wx, wy)
             shell = p.name == "shell"
-            slot = "vfx_shell" if shell else "vfx_projectile"
+            slot = self._projectile_slot(p, shell)
             color = pr.shell_color if shell else pr.stone_color
             size = max(2, int((pr.shell_size if shell else pr.stone_size)
                               * zoom))
@@ -1242,25 +1465,89 @@ class FloaterManager:
                            bg=widgets.C_HP_RED, fill=widgets.C_HP_GREEN)
                 slot += 1
 
+    def _hp_bar_rect(self, renderer, cs, e, zoom, assets):
+        """``(x_c, bar_top, w, h)`` — the on-screen horizontal centre, TOP
+        edge, width and height of `e`'s hp bar's own slot (slot 0; the arrow
+        badges do not account for same-tile stacking, see
+        ``submit_buff_arrows``'s docstring). The SAME ``hp_bar`` anchor point
+        (or its ``_sprite_top`` fallback) ``submit_enemy_hp_bars`` uses.
+
+        Factored out so the gold buff arrow and the red debuff arrow
+        (BossUpgradeTimelinePLAN D20) can never drift apart on where the bar
+        itself actually is, even though they now sit in two different spots
+        relative to it."""
+        w = getattr(e, "HP_BAR_W", _ENEMY_BAR_FALLBACK[0])
+        h = getattr(e, "HP_BAR_H", _ENEMY_BAR_FALLBACK[1])
+        pad = getattr(e, "HP_BAR_PAD", _ENEMY_BAR_FALLBACK[2])
+        point = anchor_world_point(assets, cs, e, "hp_bar")
+        if point is not None:
+            x_c, y_c = cs.world_to_screen(*point)
+        else:
+            cx, cy = cs.world_to_screen(e.transform.wx + 0.5,
+                                        e.transform.wy + 0.5)
+            top = _sprite_top(renderer, cs, e, cy, zoom)
+            x_c, y_c = cx, top - pad * zoom
+        return x_c, int(y_c) - h, w, h
+
+    def _buff_arrow_anchor(self, renderer, cs, e, zoom, assets):
+        """Where the gold buff badge hangs: centred above the hp bar, clear
+        of its top edge by ``_BUFF_ARROW_GAP``."""
+        x_c, bar_top, _w, _h = self._hp_bar_rect(renderer, cs, e, zoom, assets)
+        return x_c, bar_top - _BUFF_ARROW_GAP
+
+    def _debuff_arrow_anchor(self, renderer, cs, e, zoom, assets):
+        """Where the red debuff badge hangs: to the LEFT of the hp bar,
+        vertically centred on it — a different spot from the buff badge's
+        (not merely a different colour at the same point), so the two can be
+        shown TOGETHER without ever overlapping each other or the bar."""
+        x_c, bar_top, w, h = self._hp_bar_rect(renderer, cs, e, zoom, assets)
+        x = x_c - w / 2 - _BUFF_ARROW_GAP - _BUFF_ARROW_W / 2
+        y = bar_top + h / 2 + _BUFF_ARROW_H / 2
+        return x, y
+
+    def _submit_arrow(self, renderer, x_c, y, slot, has_art, color):
+        """Draw ONE arrow badge, ending exactly AT ``y`` and extending
+        ``_BUFF_ARROW_H`` px upward from it — the imported sprite if the slot
+        has art, else a procedural triangle outline pointing down at ``y``
+        (E-37). Both branches occupy the SAME ``[y - H, y]`` span so neither
+        can straddle (and overlap) whatever ``y`` was chosen to clear."""
+        w = _BUFF_ARROW_W
+        if has_art:
+            renderer.submit_hud(HudSprite(
+                slot, (int(x_c - w / 2), y - _BUFF_ARROW_H),
+                (w, _BUFF_ARROW_H)))
+        else:
+            pts = ((int(x_c - w / 2), y),
+                   (int(x_c), y - _BUFF_ARROW_H),
+                   (int(x_c + w / 2), y))
+            renderer.submit_hud(HudLines(pts, color, width=2))
+
     def submit_buff_arrows(self, renderer, cs, scene):
-        """A little golden arrow above any ALIVE enemy carrying an active
-        buff (``BuffState.sources`` non-empty — today always a Drummer's
-        aura, NE-3, but this deliberately keys off "any active buff" rather
-        than the source type, per the user's own design call). Shown
-        independently of the HP bar's own "hide at full HP" rule — a
-        buffed-but-undamaged enemy still gets the arrow.
+        """A little golden arrow above any ALIVE enemy carrying AT LEAST ONE
+        source with a POSITIVE ``move_speed`` contribution — i.e. something
+        is genuinely making it faster (today always a Drummer's aura, NE-3,
+        but keyed off the STAT, never the source type). Shown independently
+        of the HP bar's own "hide at full HP" rule — a buffed-but-undamaged
+        enemy still gets the arrow.
+
+        **Gated on ``buff_signs``, not ``buff_total``'s netted sign**
+        (BossUpgradeTimelinePLAN D20 follow-up): an enemy simultaneously
+        buffed by a Drummer AND slowed by a mortar is a real state the
+        player should see BOTH indicators for, not the one that happens to
+        win the sum. The gold and red arrows are independent booleans now,
+        not the two signs of one aggregate.
 
         Anchored off the SAME ``hp_bar`` point (or its ``_sprite_top``
-        fallback) ``submit_enemy_hp_bars`` uses, offset one arrow-height +
-        gap above it — a deliberately SIMPLER placeholder than that method:
-        it does not stack multiple enemies sharing a tile, since a buffed
-        unit's arrow is a status flag, not a competing bar.
+        fallback) ``submit_enemy_hp_bars`` uses, centred above it — a
+        deliberately SIMPLER placeholder than that method: it does not stack
+        multiple enemies sharing a tile, since a buffed unit's arrow is a
+        status flag, not a competing bar.
 
         Interchangeable placeholder art (E-37 shape): the ``vfx_buff_arrow``
         slot draws as a real sprite once imported; with no art yet it draws
         a small procedural golden triangle instead, so the feature is
         visible today with zero art asset required."""
-        from game.enemies.components import BuffState
+        from game.enemies.components import buff_signs
 
         zoom = cs.camera.zoom
         assets = getattr(renderer, "assets", None)
@@ -1270,30 +1557,47 @@ class FloaterManager:
         for e in scene.by_tag("enemy"):
             if not getattr(e, "alive", False):
                 continue
-            buffs = e.get_component(BuffState)
-            if buffs is None or not buffs.sources:
+            has_buff, _has_slow = buff_signs(e, "move_speed")
+            if not has_buff:
                 continue
-            h = getattr(e, "HP_BAR_H", _ENEMY_BAR_FALLBACK[1])
-            pad = getattr(e, "HP_BAR_PAD", _ENEMY_BAR_FALLBACK[2])
-            point = anchor_world_point(assets, cs, e, "hp_bar")
-            if point is not None:
-                x_c, y_c = cs.world_to_screen(*point)
-            else:
-                cx, cy = cs.world_to_screen(e.transform.wx + 0.5,
-                                            e.transform.wy + 0.5)
-                top = _sprite_top(renderer, cs, e, cy, zoom)
-                x_c, y_c = cx, top - pad * zoom
-            y = int(y_c) - h - _BUFF_ARROW_GAP
-            w = _BUFF_ARROW_W
-            if has_art:
-                renderer.submit_hud(HudSprite(
-                    BUFF_ARROW_SLOT,
-                    (int(x_c - w / 2), y - _BUFF_ARROW_H), (w, _BUFF_ARROW_H)))
-            else:
-                pts = ((int(x_c - w / 2), y),
-                       (int(x_c), y + _BUFF_ARROW_H),
-                       (int(x_c + w / 2), y))
-                renderer.submit_hud(HudLines(pts, _BUFF_ARROW_GOLD, width=2))
+            x_c, y = self._buff_arrow_anchor(renderer, cs, e, zoom, assets)
+            self._submit_arrow(renderer, x_c, y, BUFF_ARROW_SLOT, has_art,
+                               _BUFF_ARROW_GOLD)
+
+    def submit_debuff_arrows(self, renderer, cs, scene):
+        """``submit_buff_arrows``'s RED twin (BossUpgradeTimelinePLAN D20):
+        the same badge, to the LEFT of the hp bar instead of above it, above
+        any ALIVE enemy carrying at least one source with a NEGATIVE
+        ``move_speed`` contribution — an active slow.
+
+        Keyed on the STAT, not on who applied it, exactly like its gold
+        sibling: today's two writers are the boss upgrades ``mortar_slow``
+        (#3) and ``stormpriest_slow`` (#7) through
+        ``game.enemies.components.apply_slow`` (D19), but anything that ever
+        slows an enemy gets the indicator for free. Interchangeable
+        placeholder art (E-37): the ``vfx_debuff_arrow`` slot draws as a real
+        sprite once imported, else a small procedural red triangle.
+
+        Gated on ``buff_signs``, independently of the gold arrow above — an
+        enemy that is BOTH speed-buffed and slowed shows both badges at
+        once, in their two distinct spots, never overlapping each other or
+        the bar."""
+        from game.enemies.components import buff_signs
+
+        zoom = cs.camera.zoom
+        assets = getattr(renderer, "assets", None)
+        has_art = (assets is not None
+                   and assets.animation_total_ms(DEBUFF_ARROW_SLOT, "idle")
+                   is not None)
+        for e in scene.by_tag("enemy"):
+            if not getattr(e, "alive", False):
+                continue
+            _has_buff, has_slow = buff_signs(e, "move_speed")
+            if not has_slow:
+                continue
+            x_c, y = self._debuff_arrow_anchor(renderer, cs, e, zoom, assets)
+            self._submit_arrow(renderer, x_c, y, DEBUFF_ARROW_SLOT, has_art,
+                               _DEBUFF_ARROW_RED)
 
     def submit_digger_telegraphs(self, renderer, cs, scene):
         """Two placeholder arrows over a burrowed Digger's CURRENT dig — the

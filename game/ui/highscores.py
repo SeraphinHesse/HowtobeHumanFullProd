@@ -32,7 +32,7 @@ from engine.render import HudRect
 
 from game.core.highscores import ranked
 
-from .skinning import ScreenSkinning, button_kwargs, is_visible
+from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .widgets import Button, anim_ms, submit_centered, submit_text
 from . import widgets
 
@@ -158,6 +158,11 @@ class HighscoresScreen:
 
     def hit(self, mx, my):
         """``"back"`` or ``None``. An invisible button is never hit (10L-B)."""
+        layer_action = hit_layer(  # UL-10: clickable layers first
+            self.ids, self.skinning.widgets_spec(self.screen_id), mx, my,
+            self.skinning.state_of, {"btn_back": "back"})
+        if layer_action is not None:
+            return layer_action
         return ("back" if is_visible(self.back_btn) and self.back_btn.hit(mx, my)
                 else None)
 

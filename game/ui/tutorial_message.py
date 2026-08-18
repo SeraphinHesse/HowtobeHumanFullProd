@@ -11,7 +11,7 @@ from types import SimpleNamespace
 from engine.render import HudRect
 from engine.render.fonts import layout_h
 
-from .skinning import ScreenSkinning, button_kwargs, is_visible
+from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .widgets import Button, anim_ms, submit_panel, submit_text, wrap_text
 from . import widgets
 
@@ -74,6 +74,12 @@ class TutorialMessageScreen:
     def hit(self, mx, my):
         """Return ``"continue"`` / ``"skip"`` / ``None``. The host treats
         this modal as consuming every click regardless of the result."""
+        layer_action = hit_layer(  # UL-10: clickable layers first
+            self.ids, self.skinning.widgets_spec(self.screen_id), mx, my,
+            self.skinning.state_of,
+            {"btn_continue": "continue", "btn_skip": "skip"})
+        if layer_action is not None:
+            return layer_action
         if is_visible(self.continue_btn) and self.continue_btn.hit(mx, my):
             return "continue"
         if is_visible(self.skip_btn) and self.skip_btn.hit(mx, my):

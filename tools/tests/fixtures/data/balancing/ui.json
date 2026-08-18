@@ -1,4 +1,26 @@
 {
+  "BuildingColors": {
+    "pink": [
+      255,
+      105,
+      180
+    ],
+    "purple": [
+      168,
+      105,
+      222
+    ],
+    "red": [
+      210,
+      55,
+      55
+    ],
+    "yellow": [
+      255,
+      200,
+      50
+    ]
+  },
   "Debug": {
     "show_camera_startpoint": false
   },
@@ -18,7 +40,28 @@
       "hold": 2.0
     },
     "gore_enabled": true,
-    "income_floaters_enabled": true
+    "income_floaters_enabled": true,
+    "love_counter_anim_duration": 1.2
+  },
+  "Keybindings": {
+    "combat_speed_1": "1",
+    "combat_speed_2": "2",
+    "combat_speed_3": "3",
+    "confirm_purchase": "return",
+    "end_turn": "space",
+    "move_down": "s",
+    "move_left": "a",
+    "move_right": "d",
+    "move_up": "w",
+    "quick_skip_combat": "p",
+    "toggle_cheat_menu": "ctrl+l",
+    "toggle_drag_select": "q",
+    "toggle_heatmap": "h",
+    "toggle_range": "r",
+    "toggle_tier_overview": "t",
+    "zoom_level_1": "4",
+    "zoom_level_2": "5",
+    "zoom_level_3": "6"
   },
   "Menu": {
     "cutscene_length": 44.2

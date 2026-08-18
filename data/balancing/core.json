@@ -1,17 +1,7 @@
 {
-  "BossBonuses": {
-    "dmg_per_building": 1,
-    "dmg_per_lightning_building": 2,
-    "dmg_per_love_chunk": 2,
-    "dmg_per_unbuilt_tile": 1,
-    "level_past_threshold": 2,
-    "love_chunk_size": 25,
-    "love_per_level_past": 1,
-    "love_per_low_level_building": 1,
-    "low_level_target": 1
-  },
   "Camera": {
     "default_zoom": 1.0,
+    "keyboard_pan_speed": 300,
     "max_offset_tiles_x": 30.0,
     "max_offset_tiles_y": 30.0,
     "zoom_levels": [
@@ -268,7 +258,7 @@
   },
   "General": {
     "game_scale_rounds": 15,
-    "starting_currency": 25
+    "starting_currency": 32
   },
   "LightningStrike": {
     "cooldown": [
@@ -289,8 +279,9 @@
     ]
   },
   "PhaseLoop": {
-    "income_phase_duration": 1.505,
-    "round_end_delay": 0.6,
+    "income_phase_duration": 1.805,
+    "payout_stagger_interval": 1.0,
+    "round_end_delay": 1.4,
     "speed_1_5x_min_round": 10,
     "speed_2x_min_round": 20
   },

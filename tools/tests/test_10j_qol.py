@@ -710,10 +710,12 @@ class TestPainterUpgradePanelPaysIn(unittest.TestCase):
 
 
 class TestPainterPayoutNotice(unittest.TestCase):
-    """The one-time payout notice: `spawn_painter_events`
+    """The one-time payout notice: `FloaterManager.begin_payout`
     (`game/ui/effects.py`) posts to the game log on EVERY payout completion,
-    not just the loss case — a completed payout is otherwise only a 1.5s
-    floater the player can easily miss."""
+    not just the loss case — a completed payout is otherwise only a floater
+    the player can easily miss. Painter's message rides the payout
+    sequence's economy beat, which — with no boost events queued — fires
+    immediately on `begin_payout`."""
 
     def test_completed_payout_posts_to_the_game_log(self):
         fm = FloaterManager(UI_BAL, CORE_BAL, VFX_BAL)
@@ -721,7 +723,7 @@ class TestPainterPayoutNotice(unittest.TestCase):
         fm.log = log
         state = RunState()
         state.painter_events.append((0, 0, "painting finished!", "finished"))
-        fm.spawn_painter_events(state)
+        fm.begin_payout(state)
         self.assertEqual([m[0] for m in log._messages], ["painting finished!"])
 
     def test_lost_payout_still_posts_to_the_game_log(self):
@@ -730,7 +732,7 @@ class TestPainterPayoutNotice(unittest.TestCase):
         fm.log = log
         state = RunState()
         state.painter_events.append((0, 0, "painting lost!", "lost"))
-        fm.spawn_painter_events(state)
+        fm.begin_payout(state)
         self.assertEqual([m[0] for m in log._messages], ["painting lost!"])
 
 
@@ -809,6 +811,111 @@ class TestTerrainConditionTooltip(unittest.TestCase):
         panel._session = session
         self.assertEqual(panel._tile_cond_effect_lines(TileCondition.GRASS),
                          ["No terrain effect"])
+
+
+# ---------------------------------------------------------------------------
+# BossUpgradeTimelinePLAN BU-3 3.1 — `RunState.love_spent_on_tiles`
+# ---------------------------------------------------------------------------
+#: Hand-pinned (BU-6): a designer retuning `discount_pct` in the new editor
+#: panel must never decide whether this module is green (`data/CLAUDE.md`).
+TILE_DISCOUNT_PCT = 50
+BOSS_UPGRADES = {
+    "BossUpgrades": {
+        "Catalog": {
+            "tile_discount": {"name": "Cheap Ground", "description": "",
+                              "params": {"discount_pct": TILE_DISCOUNT_PCT}},
+        },
+        "Timeline": {"milestones": [
+            {"slots": ["tile_discount", None, None],
+             "retaliation_bonus_love": 30},
+        ] * 4},
+    }
+}
+
+
+class TestTileSpendAccumulator(unittest.TestCase):
+    """`_unlock_click` is the ONE place love actually leaves the player's
+    pocket for a tile, so it is where the ledger boss upgrade #12
+    (`tile_refund`) pays back is filled. The number it records must be the
+    number CHARGED — i.e. already through #6 `tile_discount` — never the
+    undiscounted list price."""
+
+    def _unlock(self, tiles, boss_upgrades_balance=None, picks=0):
+        tm, scene, occupancy, session = make_world()
+        session.boss_upgrades_balance = boss_upgrades_balance
+        if picks:
+            session.state.boss_upgrade_stacks["tile_discount"] = picks
+        panel = make_panel()
+        tiles = [tm.get(*coords) for coords in tiles]
+        panel.open_for_tile(tiles[0], session, BUILDINGS_BAL,
+                            selected_tiles=tiles)
+        self.assertEqual(panel.mode, "unlock")
+        cost = panel._action_cost
+        session.state.love = cost + 5
+        panel.handle_click(*click(panel.action_btn), session, BUILDINGS_BAL,
+                           scene, occupancy)
+        return session.state, cost, tiles
+
+    def test_a_fresh_run_has_spent_nothing(self):
+        _tm, _scene, _occ, session = make_world()
+        self.assertEqual(session.state.love_spent_on_tiles, 0)
+
+    def test_an_unlock_records_exactly_what_it_charged(self):
+        st, cost, tiles = self._unlock([(3, 1)])
+        self.assertEqual(st.love, 5)
+        self.assertEqual(st.love_spent_on_tiles, cost)
+        self.assertEqual(tiles[0].state, TileState.BUILDABLE)
+
+    def test_a_batch_unlock_records_the_whole_batch(self):
+        st, cost, _tiles = self._unlock([(3, 1), (4, 1), (1, 3)])
+        self.assertEqual(st.love_spent_on_tiles, cost)
+
+    def test_the_ledger_ACCUMULATES_across_unlocks(self):
+        tm, scene, occupancy, session = make_world()
+        panel = make_panel()
+        session.state.love = 10 ** 6
+        total = 0
+        for coords in ((3, 1), (1, 3)):
+            tile = tm.get(*coords)
+            panel.open_for_tile(tile, session, BUILDINGS_BAL,
+                                selected_tiles=[tile])
+            total += panel._action_cost
+            panel.handle_click(*click(panel.action_btn), session,
+                               BUILDINGS_BAL, scene, occupancy)
+        self.assertEqual(session.state.love_spent_on_tiles, total)
+        self.assertGreater(total, 0)
+
+    def test_it_records_the_DISCOUNTED_price_not_the_list_price(self):
+        """The whole reason the increment lives beside `spend_love` rather
+        than beside `TileMap.unlock_cost`: `tile_refund` must pay back what
+        was charged."""
+        full, cost_full, _ = self._unlock([(3, 1)])
+        cut, cost_cut, _ = self._unlock([(3, 1)], BOSS_UPGRADES, picks=1)
+        self.assertLess(cost_cut, cost_full)
+        self.assertEqual(cut.love_spent_on_tiles, cost_cut)
+        self.assertEqual(cut.love_spent_on_tiles,
+                         int(cost_full * (1 - TILE_DISCOUNT_PCT / 100)))
+        self.assertEqual(cut.love, 5)     # ...and the charge matches it
+
+    def test_a_refused_unlock_records_nothing(self):
+        tm, scene, occupancy, session = make_world()
+        panel = make_panel()
+        tile = tm.get(3, 1)
+        panel.open_for_tile(tile, session, BUILDINGS_BAL, selected_tiles=[tile])
+        session.state.love = 0                       # cannot afford it
+        panel.handle_click(*click(panel.action_btn), session, BUILDINGS_BAL,
+                           scene, occupancy)
+        self.assertEqual(session.state.love_spent_on_tiles, 0)
+        self.assertEqual(tile.state, TileState.COMBAT)
+
+    def test_the_refund_pays_back_exactly_the_ledger(self):
+        """End to end: what `_unlock_click` recorded is what `apply_pick`
+        returns."""
+        from game.core import boss_upgrades as bu
+        st, cost, _tiles = self._unlock([(3, 1)])
+        love_before = st.love
+        bu.apply_pick(st, "tile_refund", BOSS_UPGRADES, CORE_BAL)
+        self.assertEqual(st.love, love_before + cost)
 
 
 if __name__ == "__main__":

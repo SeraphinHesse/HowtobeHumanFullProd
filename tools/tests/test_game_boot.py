@@ -86,6 +86,10 @@ def _restore_font_state_after(case):
     # otherwise have made lie.
     highlights_snapshot = copy.deepcopy(_widgets._HIGHLIGHTS)
     highlight_triggers_snapshot = dict(_widgets._HIGHLIGHT_TRIGGERS)
+    # The tile-buying tutorial topic's pulse/glow overlay: a THIRD dict
+    # `configure_highlights` rebinds in place from the same live file —
+    # the exact same leak shape, one call site later.
+    tutorial_pulse_snapshot = dict(_widgets._TUTORIAL_PULSE)
 
     def restore():
         _fonts._FONT_PATH, _fonts._FONT_BYTES = font_family
@@ -104,6 +108,8 @@ def _restore_font_state_after(case):
         _widgets._HIGHLIGHTS.update(highlights_snapshot)
         _widgets._HIGHLIGHT_TRIGGERS.clear()
         _widgets._HIGHLIGHT_TRIGGERS.update(highlight_triggers_snapshot)
+        _widgets._TUTORIAL_PULSE.clear()
+        _widgets._TUTORIAL_PULSE.update(tutorial_pulse_snapshot)
 
     case.addCleanup(restore)
 

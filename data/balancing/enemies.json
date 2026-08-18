@@ -1,4 +1,18 @@
 {
+  "CrowdSpacing": {
+    "Raider": {
+      "dwell_threshold_seconds": 0.3,
+      "max_offset_tiles": 0.2,
+      "max_slots": 5,
+      "offset_ease_seconds": 0.25
+    },
+    "Standard": {
+      "dwell_threshold_seconds": 0.4,
+      "max_offset_tiles": 0.22,
+      "max_slots": 6,
+      "offset_ease_seconds": 0.4
+    }
+  },
   "EnemyScaling": {
     "boss_round_in_era": 10,
     "endgame_scaling": {
@@ -47,7 +61,6 @@
         "footprint": 1.0,
         "hp": 1.0,
         "interval": 1.0,
-        "loss_love_reward": 1.0,
         "move_speed": 1.0,
         "raiders": 1.0,
         "regular": 1.0,
@@ -164,7 +177,6 @@
           "dmg": 160,
           "footprint": 2,
           "hp": 1400,
-          "loss_love_reward": 30,
           "move_speed": 0.65,
           "name": "Throbbin Hood",
           "shake": {
@@ -176,11 +188,10 @@
         {
           "attack_range_tiles": 2,
           "attack_speed": 1.4,
-          "dmg": 320,
+          "dmg": 360,
           "footprint": 2,
-          "hp": 3000,
-          "loss_love_reward": 60,
-          "move_speed": 0.58,
+          "hp": 4500,
+          "move_speed": 0.62,
           "name": "Cannon Fortress",
           "shake": {
             "interval": 0.12,
@@ -194,7 +205,6 @@
           "dmg": 480,
           "footprint": 2,
           "hp": 6500,
-          "loss_love_reward": 100,
           "move_speed": 0.59,
           "name": "Wrecking Ball",
           "shake": {
@@ -209,7 +219,6 @@
           "dmg": 700,
           "footprint": 2,
           "hp": 10000,
-          "loss_love_reward": 150,
           "move_speed": 0.61,
           "name": "Iron Drill",
           "shake": {
@@ -224,7 +233,6 @@
           "dmg": 1000,
           "footprint": 2,
           "hp": 15000,
-          "loss_love_reward": 200,
           "move_speed": 0.7,
           "name": "Siege Tank",
           "shake": {
@@ -423,7 +431,7 @@
           }
         },
         {
-          "count_per_round": 0.75,
+          "count_per_round": 0.5,
           "count_start": 1.0,
           "footprint": 1,
           "per_round": {
@@ -625,7 +633,7 @@
           {
             "commander": 0,
             "raiders": 0,
-            "regular": 4,
+            "regular": 3,
             "siege": 0
           },
           {

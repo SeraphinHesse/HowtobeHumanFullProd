@@ -51,7 +51,13 @@ else.
   duplicated twin of `game/core/xp_curve.py`, since this package may never
   import `game/`; pinned equal by a cross-package drift test), `timeline_ops.py`
   (TimelinePLAN T5 — `progression.json` load/assign/clear/add/remove/save,
-  enforcing the two uniqueness invariants JSON Schema can't express) — all
+  enforcing the two uniqueness invariants JSON Schema can't express),
+  `boss_upgrades_ops.py` (BossUpgradeTimelinePLAN BU-5 — `boss_upgrades.json`
+  load/assign/clear/retaliation/`set_catalog_field`/`placements`/
+  `validate_uniqueness`/save; `timeline_ops`'s twin, except its
+  `validate_uniqueness` RETURNS the double-placed ids instead of raising and
+  Save never consults it, and its `catalog_param_specs`/`retaliation_bounds`
+  read the SCHEMA so the panel's spin ranges have one home, ED-30) — all
   Qt-free/pygame-free, in `TestPurity`.
   `master_sheet_import.py` (GpuAndMasterSheetsPLAN M3 — the MASTER-spritesheet
   registry: copy one big multi-character PNG into `data/sprites/master/`, write
@@ -393,6 +399,18 @@ payload `category_key` is the placeholder `"master_sheets"`, which matches no
 registry category and is in no domain, so `domains()` and `refresh_markers()`
 already skip it with no special case. It is the LAST top-level item, added
 outside the category loop; `right_stack` index 8.
+
+**There is now a SECOND top-level item on exactly this pattern**, and it is the
+one to copy from if you add a third: BossUpgradeTimelinePLAN BU-5's **"Bosses"**
+branch (D11), a top-level PARENT with one leaf ("Boss Upgrade Timeline") over
+`data/balancing/boss_upgrades.json`. Same reasoning end to end — a boss upgrade
+is not a `slots.json` slot and there is no `bosses` balancing domain, so the
+leaf emits `boss_upgrades_selected` **alone** (never `node_selected`, never
+`domain_selected`) and its placeholder `category_key` (`"bosses"`) matches no
+registry category, so `domains()`/`refresh_markers()` skip it for free. It is
+inserted outside the category loop immediately BEFORE Master Sheets, which
+stays last; `right_stack` index 9, panel `panels/boss_upgrades.py`, pure ops
+`boss_upgrades_ops.py` (above). Panel detail → `editor/panels/CLAUDE.md`.
 
 **One panel, three verbs.** `reload_sheets()` re-reads
 `master_sheet_import.master_sheets(data_dir)` — REGISTRY-driven, never a folder

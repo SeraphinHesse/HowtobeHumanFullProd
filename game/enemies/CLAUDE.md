@@ -853,6 +853,13 @@ question.
     clock with no component of its own left to run. Put the timer on the
     source and a killed Drummer's buff would either hang forever or vanish
     instantly.
+  - **The same ledger carries DEBUFFS since BU-3 3.3** — see "Slows are
+    `BuffState` too" below (D19). A slow is one NEGATIVE `move_speed`
+    contribution keyed by a plain slot string instead of a `GameObject.id`,
+    carrying its own explicit `decay` instead of `BUFF_DECAY_SECONDS`.
+    Everything in this section applies to it unchanged, and nothing on the
+    aura path had to learn about it — which is exactly why D19 chose to widen
+    this ledger rather than build a parallel status-effect mechanism.
 - **`_grant_hp(delta)` is the ONE place `Health` is touched**, both
   directions, which is what makes grant and un-grant provably symmetric (D6):
   a positive delta raises `max_hp` AND `hp` by the same amount (a real heal,
@@ -904,6 +911,111 @@ question.
   one on your own initiative; the scope question is the user's to answer.
   Pinned by `test_enemies.TestDrummer.test_support_range_increase_is_inert_
   as_shipped`, which goes red the moment someone wires it up.
+
+## Slows are `BuffState` too (BossUpgradeTimelinePLAN BU-3 3.3, D19)
+The game's first DEBUFF rides the Drummer's own ledger rather than a parallel
+mechanism — read the Drummer section above first; everything it says about
+per-source keying, additive stacking and per-source decay applies unchanged.
+- **`apply_slow(owner, source, slow_fraction, duration)`** (`components.py`,
+  beside `buff_total`) is THE way anything slows an enemy. It writes a
+  NEGATIVE `move_speed` contribution through `BuffState.apply` — a slow IS a
+  buff with the sign flipped, which is why no new read site was needed:
+  `PathAgent._condition_speed` was already the one place `move_speed` is
+  resolved. `slow_fraction` is taken as a MAGNITUDE and negated inside, so no
+  caller can accidentally speed an enemy up through this door; `duration`
+  re-pins that source's decay clock on every application, the same "the Nth
+  second after the last frame anything re-pinned it" rule the aura uses.
+  Returns False (never raises) for an owner with no `BuffState`.
+- **`source` is a plain SLOT STRING here, not a `GameObject.id`** —
+  `"boss_upgrade:mortar_slow"` / `"boss_upgrade:stormpriest_slow"`, the two
+  module constants `game/enemies/combat.py` and `game/core/lightning.py` own.
+  **One key per UPGRADE, never per firing building**: N mortars shelling one
+  enemy must read as one slow, or a bombardment stacks into a full stop. The
+  upgrade's own repeat PICKS still stack additively (D4), inside the fraction
+  the caller computes.
+- **`buff_signs(owner, key)` is the READ side the HUD indicators gate on**, and
+  it is `buff_total`'s deliberate opposite: it returns `(has_positive,
+  has_negative)` by walking the individual `BuffState.sources` contributions,
+  **never by taking the sign of their sum**. A netted total can only ever carry
+  ONE sign, so an enemy inside a Drummer's aura AND under a mortar slow would
+  show only whichever effect won the subtraction (and nothing at all on an
+  exact cancel) — but that is a real, legible state and the gold buff arrow and
+  the red debuff arrow are meant to show TOGETHER for it (D20 follow-up,
+  `game/ui/CLAUDE.md`). `buff_total` stays THE read path for a buffed STAT's
+  value; `buff_signs` is only for "is something pushing this stat up / down".
+  Same `(False, False)`/no-`BuffState` guard, keyed on the STAT and never on
+  who applied it — anything that ever slows an enemy lights the indicator for
+  free.
+- **`MIN_SPEED_MULTIPLIER` (0.1) is the floor on that multiplier**, and it is
+  load-bearing for exactly the reason BP-1's own terrain floor is: a unit at
+  speed 0 never advances `Movement.index`, which is the only thing that
+  refreshes `_current_condition`, so it LATCHES at 0 forever. Additive
+  stacking can drive the sum past -1.0; the clamp in `_condition_speed` is
+  what makes that a very slow unit rather than a frozen one. Provably a no-op
+  for every positive bonus and for any negative sum above -0.9.
+- **The mortar's hook (#3 `mortar_slow`) lives in `combat.py`.**
+  `resolve_combat` grew the standard BU-3 optional trailing pair
+  (`run_state=None, boss_upgrades_balance=None` — see
+  `game/core/boss_upgrades.py`'s threading-pattern section) and threads it to
+  `_fire_splash` ONLY. `_mortar_slow_spec` resolves
+  `(source, fraction, duration)` at FIRE time — that is where the FIRING
+  building is in hand, and D16's snapshot check
+  (`id(defender) in RunState.mortar_slow_snapshot_ids`) is about the firing
+  building, not the shell — and stashes it on the shell's `ProjectileArc._slow`
+  (the `_on_damage`/`_assets` transient pattern, E-11). `_impact` applies it to
+  every enemy the splash damages, at the same site the damage lands. A shell
+  already in flight when the upgrade is picked carries `None`. This package
+  still imports `game.core` LAZILY, inside `_mortar_slow_spec`'s body.
+- **`game/core` does NOT import this** for its own slow (#7
+  `stormpriest_slow`): `apply_slow` reaches `game/core/lightning.py` through a
+  host-installed `set_slow_hook` seam, because `game/core` imports nothing
+  from `game/enemies` and that rule is not relaxed for a status effect. See
+  `game/core/CLAUDE.md`.
+
+## Two more boss-upgrade hooks live here (BU-3 3.4 + 3.5)
+The threading contract is stated ONCE, in `game/core/boss_upgrades.py`'s
+module docstring ("THE BU-3 HOOK THREADING PATTERN") — read it there. Both
+hooks below use its standard `hook_stacks` reader and its lazy
+`game.core.boss_upgrades` import; what is worth writing down here is the two
+places this package's shape forced a variation.
+- **#8 `thorns` (`components.py`) is the ONE BU-3 hook that CANNOT take the
+  pair as a parameter, so it takes it as a SEAM.** Its hook site is
+  `EnemyCombat.update()`, which `Scene.update`'s generic component sweep calls
+  with `dt` alone — the identical constraint that already forced
+  `set_damage_hook`/`set_wall_damage_hook` into this module, for the identical
+  reason (that sweep runs BEFORE `resolve_combat`, so `resolve_combat`'s own
+  parameters physically cannot reach it). Hence a module-level
+  `_boss_upgrade_pair` + **`set_boss_upgrade_pair(run_state,
+  boss_upgrades_balance)`**, installed once per run by `game/main.py`'s
+  `build_gameplay()` (spelled off the Session, like every other hook site) and
+  CLEARED by `teardown_gameplay()` so a dead run's ledger can never leak into
+  the next one. Unset by default ⇒ every headless test is byte-identical.
+  `_apply_thorns(attacker, dmg)` is called from BOTH damage branches (D13:
+  buildings AND edge walls), at the site each branch already spends the
+  victim's HP, off the SAME `dmg` — a wall carries no `Health`, so its reflect
+  is measured from the blow, not from the wall's remaining HP. Reflected
+  damage lands on the ATTACKER's own `Health`; `int()` truncation, no floor.
+- **#11 `condition_dmg_bonus` (`combat.py`) is resolved at IMPACT, not at
+  fire time** — the opposite of #3 `mortar_slow` above, and for a stated
+  reason: #3 asks about the FIRING building (D16's snapshot), while #11 asks
+  about the TARGET enemy's own tile (D15: any non-Grass condition), which
+  changes as the enemy walks and differs per enemy inside one splash. So the
+  pair rides UNRESOLVED on `ProjectileHoming`/`ProjectileArc` transients
+  (the `_slow`/`_on_damage` shape) and `_condition_bonus_dmg` runs at each
+  damage site. **"Exactly once per hit" is provable by the call graph, not by
+  a guard**: this module finalises damage at exactly three DISJOINT sites —
+  `ProjectileHoming._impact`, `ProjectileArc._impact` (once per enemy in the
+  radius) and `_update_beam` — and `_fire`/`_fire_splash` apply no damage at
+  all, they only load a projectile. There is no shared downstream applier for
+  the multiplier to run through twice. Each site multiplies once, immediately
+  before its single `Health.damage`, and reuses the returned value for the
+  `RoundStats` credit and the `on_damage` telemetry so all three report the
+  number actually dealt. `on_non_grass_condition(enemy)` (`components.py`,
+  beside `_condition_mods`) is the ONE definition of "is this enemy on
+  non-Grass", reading `PathAgent._current_condition` — the same value
+  `_condition_speed`/`_effective_dmg` already treat as the enemy's current
+  tile. Lightning is a separate damage source with its own hook (#7) and is
+  deliberately NOT covered.
 
 ## Prey hunting + per-type terrain weights (Chunk 3 + Chunk 4)
 Two independent per-type balancing knobs, both threaded through `PathAgent`
@@ -1162,12 +1274,17 @@ condition below.
   (carrying), `frozen` (pin the sprite clock at 0 when the sheet has no
   `kidnap` row — `SpriteAnimator.update` always advances its own clock
   regardless, so `Kidnap.update`'s per-frame re-pin is what actually locks the
-  frame), plus the carried building's own `slot_key`/`fit_tiles`/`scale`. It
+  frame), plus the carried building's own `slot_key`/`fit_tiles`/`scale`/
+  `column` — `column` (fix-kidnap-carried-building-colour) is the player's
+  master-sheet swatch pick (MasterSheetColumnsPLAN B1), carried along on the
+  SAME `-1` "no driver" sentinel `SpriteAnimator.column` uses, so a
+  colour-capable building's carried sprite keeps the colour it was placed in
+  rather than silently reverting to the manifest's default column. It
   goes **LAST** in `Enemy.__init__`'s component list — after `Movement` (sees
   arrival the same frame) and `SpriteAnimator` (its clock re-pin wins).
-  `Kidnap.render_items` yields ONE extra `RenderItem` for the carried sprite;
-  `Scene.render_items` picks it up generically alongside the carrier's own
-  `SpriteAnimator` item — no new GameObject, no engine change.
+  `Kidnap.render_items` yields ONE extra `RenderItem` for the carried sprite,
+  `column=` included; `Scene.render_items` picks it up generically alongside
+  the carrier's own `SpriteAnimator` item — no new GameObject, no engine change.
 - **`begin_kidnap(scene, tilemap, enemy, building)` (`kidnap.py`) is the ONE
   transition site**, called from the combat sweep's kidnap pass
   (`combat.py::_resolve_kidnaps`, placed AFTER the defender loop and BEFORE
@@ -1243,6 +1360,110 @@ precedent is `game/ui/widgets.py`'s `set_skin_hit_test`.
   (a broken edge is deleted, so it reports 0). Wall damage is credited to
   nothing and therefore appears in NO per-round telemetry column — it is
   event-stream-only, deliberately.
+
+## Crowd spacing (feature) — Standard/Walker and Raider
+When 2+ SAME-TYPE enemies genuinely share a tile (not just briefly crossing
+paths), they ease into small evenly-spread positions instead of drawing
+stacked on top of each other. **Grouping is strictly per-type**: a Raider and
+a Standard sharing a tile never share a slot layout, even though both may be
+crowding independently at once — each type reads its own
+`data/balancing/enemies.json` `CrowdSpacing.<Type>` block (`Standard`/
+`Raider` today), so a designer can tune (or cap) one type's crowding without
+touching the other's. This is a REAL position offset — it is written into
+the same `Transform.wx/wy` combat and range-gating read, a deliberate user
+decision: `combat.py`'s range gate rounds to a tile so it is unaffected at
+any offset under half a tile, but the Euclidean nearest-target tiebreak and
+the mortar splash-radius check both read the CONTINUOUS position, so they
+are measurably (if very slightly) affected by design, not by oversight.
+- **Why a naive per-frame nudge doesn't work.** `engine/core/movement.py`'s
+  `Movement.update()` reads `transform.wx/wy` as *this frame's* starting
+  point and writes the stepped result back into the same field — it has no
+  separate "true path position" input. Writing a crowd offset into
+  `transform.wx/wy` directly would make next frame's `Movement.update()`
+  treat last frame's offset as the real path position, permanently dragging
+  the route off-centre and fighting the waypoint-arrival threshold (0.06
+  tiles — smaller than a typical crowd offset).
+- **`CrowdSpacing` (`game/enemies/crowd_spacing.py`) is declared state
+  only, and carries NO per-type identity of its own** — `base_wx`/`base_wy`
+  (the clean, un-offset path position; `-1.0` is the "not yet seeded"
+  sentinel, the `PathAgent.target_col/_row` -1 precedent),
+  `dwell_time`/`dwell_tile_col`/`dwell_tile_row` (how long this enemy has
+  continuously held its current rounded tile), `offset_dx`/`offset_dy` (the
+  current EASED visual offset). Every type carrying it uses the identical
+  bare constructor; `_crowd_group_key(enemy)` derives which
+  `CrowdSpacing.<Type>` balancing block an enemy reads from its OWN class —
+  it reuses `Enemy.STAT_SUBTREE` (already the `EnemyTypes.<Type>` lookup
+  path every type's stats resolve through) rather than a second, parallel
+  type -> key table that could drift from it. The component carries **no
+  `update()`** — the logic is two pure functions, the `DeathSpawn` state +
+  `Enemy.advance_second_phase` + `Spawner._advance_second_phases` split
+  applied here, because grouping every crowd-spacing enemy by tile is
+  naturally ONE O(N) pass over the whole enemy list, not something each
+  enemy's own `Component.update()` should redo independently (an O(N²) cost
+  the `DrummerAura` "drummers × enemies" precedent can absorb at 1-4
+  drummers but Standard/Walker, the single most common type running into
+  the hundreds, cannot).
+- **Standard/Walker and Raider carry the component; every other type
+  doesn't.** `Enemy.extra_components` (the base classmethod) returns
+  `(CrowdSpacing(),)` iff `cls.ETYPE in ("standard", "raider")`, else `()` —
+  zero changes needed to any other subclass, since every other type's
+  `ETYPE` differs (including `Tutorial`, whose own `ETYPE = "tutorial"`
+  excludes it automatically even though it otherwise reuses the Walker's
+  slots). This is also how "a type without the mechanism sharing the tile
+  is ignored by the grouping" is satisfied for free: the grouping pass only
+  ever looks for a `CrowdSpacing` component.
+- **Host wiring (`game/main.py`), bracketing `world.scene.update(sim_dt)`**:
+  `restore_crowd_positions(scene)` runs BEFORE it (undoes last frame's
+  offset so `Movement` steps from the clean position), `apply_crowd_spacing
+  (scene, sim_dt, enemies_balance["CrowdSpacing"])` runs AFTER it and BEFORE
+  `resolve_combat` — so combat sees the final offset position for the frame,
+  matching the "real offset" decision above. `enemies_balance["CrowdSpacing"]`
+  is the WHOLE per-type dict (`{"Standard": {...}, "Raider": {...}}`), not one
+  flat block. `apply_crowd_spacing` buckets every `CrowdSpacing`-bearing
+  enemy by `(round(wx), round(wy), _crowd_group_key(enemy))` in one pass —
+  the type key in the bucket is what keeps a Raider and a Standard on the
+  same tile from ever landing in the same group — updates each one's dwell
+  timer, and — for any group with 2+ enemies whose OWN `dwell_time` has
+  crossed that TYPE's `dwell_threshold_seconds` — sorts them by `.id` (the
+  `BuffState.sources` stable-key precedent) and assigns each a slot in
+  `ANCHOR_TABLE[min(count, that type's own max_slots)]`. An enemy that
+  hasn't dwelled long enough yet, or is alone in its group, targets `(0, 0)`
+  — this is what filters "too far ahead to actually stay on 1 tile" with no
+  separate check: a fast-passing enemy simply leaves the tile before its own
+  dwell timer crosses the threshold.
+- **`ANCHOR_TABLE`** (module constant, the `CARRY_OFFSET_TILES` cosmetic
+  precedent — not balancing data, and SHARED across every type: only the
+  magnitude/cap differ per type, not the layout shape) holds one row per
+  occupant count (2-6), each a list of `(fx, fy)` direction fractions of
+  a type's own `max_offset_tiles`, in world space chosen to read as clean
+  horizontal/vertical spacing ON SCREEN under the iso projection. **No entry
+  exceeds ±1.0 per axis — this is load-bearing**: every
+  `CrowdSpacing.<Type>.max_offset_tiles` schema maximum (0.4) relies on it
+  to guarantee an offset enemy can never round into a neighboring tile (a
+  tile owns `wx`/`wy` in `[c-0.5, c+0.5)`). A `(max_slots + 1)`th occupant in
+  one group (by sorted `.id`) reuses the table's last slot rather than
+  growing past that type's cap — Standard ships `max_slots: 6`, Raider ships
+  `max_slots: 5` (feature request: raiders crowd a little less densely than
+  walkers before extras start stacking). `max_slots` is itself schema-bounded
+  2-6, since `ANCHOR_TABLE` defines no layout wider than 6.
+- **Overhead UI needs no changes.** `game/ui/effects.py`'s
+  `submit_enemy_hp_bars`/`submit_buff_arrows` already read the enemy's live
+  `transform.wx/wy` via `world_to_screen` every frame with no caching, so
+  both follow the offset automatically.
+- **Formation / multi-tile-footprint seam — documented, NOT implemented.**
+  A `Formation` (or any footprint>1 body) is ONE GameObject occupying an
+  N×N block, not several enemies (see the Formation section above; D5:
+  footprints deliberately never enter `TileOccupancy` and are allowed to
+  overlap). Extending crowd spacing to multi-tile bodies is a DIFFERENT
+  problem — detecting overlapping *blocks*, not shared tiles, and offsetting
+  a whole block's anchor point with the offset magnitude scaled by how much
+  the blocks overlap (a fixed small offset that looks right on a 1-tile
+  walker would be invisible on a 4×4 era-4 Formation, and naively scaling it
+  to the body's own footprint risks the same neighboring-tile push the
+  safety bound above prevents for 1-tile bodies). This wants its own design
+  pass reusing `dwell_threshold_seconds`/`offset_ease_seconds`; flagged here
+  so a future task starts from this note instead of rediscovering the
+  constraint.
 
 ## Rules
 - **`death_spawn` — the ONE death-spawn mechanic (ER-3, plan D4)**. Every

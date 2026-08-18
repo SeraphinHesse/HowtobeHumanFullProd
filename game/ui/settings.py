@@ -24,7 +24,7 @@ from types import SimpleNamespace
 
 from engine.render import HudRect
 
-from .skinning import ScreenSkinning, button_kwargs, is_visible
+from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .widgets import (
     Button, anim_ms, label_holder, submit_centered, submit_label
 )
@@ -94,6 +94,9 @@ class SettingsScreen:
         self.default_btn = Button((0, 0, 85, 20), "DEFAULT", font_key="md")
         # What data/display.json currently boots into; host-set, None = unknown.
         self.saved_default = None
+        # feature: rebindable hotkeys — opens Shell.controls_open (the
+        # debug_settings_open overlay-flag pattern), not a new GameState.
+        self.controls_btn = Button((0, 0, 90, 23), "CONTROLS", font_key="sm")
         self.toggles = [(attr, text_id, Button((0, 0, 45, 20), "ON"))
                         for attr, text_id in _TOGGLES]
         self.back_btn = Button((0, 0, 100, 23), "BACK")
@@ -139,6 +142,7 @@ class SettingsScreen:
         self._slider_y = y + 5
         self._slider_rect = (cx - 45, self._slider_y, 90, 6)
         self.back_btn.rect = (cx - 50, y + 35, 100, 23)
+        self.controls_btn.rect = (cx + 60, y + 35, 90, 23)
         self._backdrop.rect = (0, 0, view_w, view_h)
         self._title.rect = (cx, self._top, 0, 0)
         self._dm_label.rect = (cx, self._dm_y - 17, 0, 0)
@@ -152,6 +156,7 @@ class SettingsScreen:
             "btn_dm_right": ("button", self.dm_right),
             "btn_set_default": ("button", self.default_btn),
             "btn_back": ("button", self.back_btn),
+            "btn_controls": ("button", self.controls_btn),
             "dm_label": ("label", self._dm_label),
             "dm_value": ("label", self._dm_value),
             "audio_label": ("label", self._audio_label),
@@ -170,6 +175,7 @@ class SettingsScreen:
         for _attr, _text_id, btn in self.toggles:
             yield btn
         yield self.back_btn
+        yield self.controls_btn
 
     def update(self, dt, mx, my, mouse_down=False):
         self._clock += dt
@@ -185,8 +191,21 @@ class SettingsScreen:
         """Return ``"back"`` / ``"set_display_mode"`` (host must apply it) or
         ``None`` (FX toggles mutate ``settings`` in place). An invisible
         button is never hit (10L-B)."""
+        # UL-10: clickable layers first. Only BACK is retargetable here — the
+        # display-mode arrows and the FX toggles MUTATE ``settings`` inside
+        # their own branch, so returning their action string from here would
+        # report a change that never happened. A layer aimed at one of them is
+        # therefore unroutable and swallows (Ruling 1), which is the honest
+        # answer until those branches grow a shared, side-effect-free seam.
+        layer_action = hit_layer(
+            self.ids, self.skinning.widgets_spec(self.screen_id), mx, my,
+            self.skinning.state_of, {"btn_back": "back"})
+        if layer_action is not None:
+            return layer_action
         if is_visible(self.back_btn) and self.back_btn.hit(mx, my):
             return "back"
+        if is_visible(self.controls_btn) and self.controls_btn.hit(mx, my):
+            return "open_controls"
         i = DISPLAY_MODES.index(self.settings.display_mode)
         if is_visible(self.dm_left) and self.dm_left.hit(mx, my):
             self.settings.display_mode = DISPLAY_MODES[(i - 1) % len(DISPLAY_MODES)]
@@ -204,6 +223,8 @@ class SettingsScreen:
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
         self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "under", self.skinning.state_of)
         renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
         cx = self._cx
         if self._title.visible:
@@ -236,3 +257,8 @@ class SettingsScreen:
 
         if is_visible(self.back_btn):
             self.back_btn.submit(renderer, anim_ms=t, **button_kwargs(self.back_btn))
+        if is_visible(self.controls_btn):
+            self.controls_btn.submit(renderer, anim_ms=t,
+                                     **button_kwargs(self.controls_btn))
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "over", self.skinning.state_of)

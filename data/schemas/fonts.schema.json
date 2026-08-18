@@ -24,7 +24,12 @@
   "$id": "fonts.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "data/ui/fonts.json (UH-6, D5): the 7 font presets engine/render/fonts.py's _FONT_SPECS ships, as schema-checked committed data. Loaded once at boot (game/main.py) and passed to engine.render.fonts.configure_fonts, which rebinds the font cache's point size/bold pair per key; the unconfigured module defaults equal this file's stock content (tools/tests/test_theme_data.py pins it). Font size changes drawn glyphs only — the pinned layout_h table (engine/render/fonts.py) never reads this file, so stored layout rects are unaffected and text can overflow its widget if enlarged (the Theme panel says so). All 7 keys are required: the game names them by key, so a missing one would silently break a screen. Adding a NEW preset key is a schema change, deliberately out of scope for v1 (the fixed set).",
+  "description": "data/ui/fonts.json (UH-6, D5; UL-2/D6): the 7 SHIPPED font presets engine/render/fonts.py's _FONT_SPECS ships, plus any number of DESIGNER-DEFINED extra presets, as schema-checked committed data. Loaded once at boot (game/main.py) and passed to engine.render.fonts.configure_fonts, which rebinds the font cache's point size/bold pair per key; the unconfigured module defaults equal this file's stock content for the 7 (tools/tests/test_theme_data.py pins it). For the 7 PINNED presets, font size changes drawn glyphs only — their layout_h entries (engine/render/fonts.py) are never moved, so stored layout rects are unaffected and text can overflow its widget if enlarged (the Theme panel says so). All 7 keys stay required: the game names them by key, so a missing one would silently break a screen, and none of them may be renamed or removed. Extra keys are ADDITIVE (UL-2, D6): any key matching ^[a-z][a-z0-9_]*$ carries the same {size, bold} shape and gets its layout_h derived once at configure time; the editor's Theme panel is the only writer. A key that does NOT match that pattern is still rejected outright.",
+  "patternProperties": {
+    "^[a-z][a-z0-9_]*$": {
+      "$ref": "#/$defs/font_spec"
+    }
+  },
   "properties": {
     "hud_lvl": {
       "$ref": "#/$defs/font_spec",

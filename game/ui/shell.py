@@ -32,6 +32,7 @@ from .add_name import AddNameScreen
 from .credits import CreditsScreen
 from .debug_settings import DebugSettings, DebugSettingsScreen
 from .highscores import HighscoresScreen
+from .keybinds_screen import KeybindsScreen
 from .main_menu import MainMenu
 from .pause import PauseScreen
 from .player_intro import PlayerIntroScreen
@@ -45,7 +46,7 @@ _MENU_STATES = (GameState.MAIN_MENU, GameState.SETTINGS, GameState.CREDITS,
 class Shell:
     def __init__(self, view_w, view_h, ui_balance,
                  start_state=GameState.MAIN_MENU, skinning=None,
-                 debug_balance=None):
+                 debug_balance=None, key_bindings=None):
         # 10L-B: shell owns ONE ScreenSkinning, shared by its five menu
         # screens; the host reads it back (``shell.skinning``) to thread the
         # same instance into the seven gameplay screens it builds itself
@@ -61,6 +62,19 @@ class Shell:
                                   debug_balance=self.debug_balance)
         self.settings_screen = SettingsScreen(view_w, view_h, self.settings,
                                               skinning=self.skinning)
+        # feature: rebindable hotkeys — the CONTROLS screen off Settings. The
+        # host owns `key_bindings` (a plain shared dict, the SessionSettings
+        # precedent) and mutates it in place via engine.input.rebind; a bare
+        # Shell() (every existing test) gets an empty dict, same shape as
+        # `debug_balance or {}` above.
+        self.key_bindings = key_bindings if key_bindings is not None else {}
+        self.controls_screen = KeybindsScreen(view_w, view_h,
+                                              self.key_bindings,
+                                              skinning=self.skinning)
+        # An overlay flag on SETTINGS (the debug_settings_open pattern on
+        # MAIN_MENU) rather than a new GameState — reachable from exactly one
+        # place.
+        self.controls_open = False
         self.credits = CreditsScreen(view_w, view_h, skinning=self.skinning)
         self.add_name_screen = AddNameScreen(view_w, view_h,
                                              skinning=self.skinning)
@@ -194,6 +208,11 @@ class Shell:
         if key == "escape":
             if st == GameState.MAIN_MENU and self.debug_settings_open:
                 self.debug_settings_open = False  # debug-mode-telemetry
+            elif st == GameState.SETTINGS and self.controls_open:
+                # feature: rebindable hotkeys. Only reached while NOT
+                # capturing a key — main.py intercepts Esc itself to cancel
+                # capture instead of routing it through handle_key.
+                self.controls_open = False
             elif st == GameState.SETTINGS:
                 self.state = self.settings_caller
             elif st == GameState.CREDITS:
@@ -244,12 +263,22 @@ class Shell:
         return None
 
     def _settings_click(self, mx, my):
+        # feature: rebindable hotkeys — while the Controls overlay is up it
+        # consumes every Settings click (the debug_settings_open convention),
+        # so a click behind it can never land on the settings screen.
+        if self.controls_open:
+            if self.controls_screen.hit(mx, my) == "back":
+                self.controls_open = False
+            return None
         action = self.settings_screen.hit(mx, my)
         if action == "back":
             self.state = self.settings_caller
             return None
         if action == "set_display_mode":
             return "set_display_mode"
+        if action == "open_controls":
+            self.controls_open = True
+            return None
         return None
 
     def _pause_click(self, mx, my):
@@ -296,6 +325,10 @@ class Shell:
         # menu under it would only cost fill rate).
         if self.state == GameState.MAIN_MENU and self.debug_settings_open:
             return self.debug_settings_screen
+        # feature: rebindable hotkeys — the Controls overlay replaces
+        # Settings while open (the debug_settings_open pattern above).
+        if self.state == GameState.SETTINGS and self.controls_open:
+            return self.controls_screen
         return {
             GameState.MAIN_MENU: self.main_menu,
             GameState.SETTINGS: self.settings_screen,
