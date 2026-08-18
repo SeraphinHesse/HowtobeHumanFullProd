@@ -36,7 +36,7 @@ from engine.render import HudRect
 from game.core.highscores import SKILLS
 
 from .highscores import skill_label
-from .skinning import ScreenSkinning, button_kwargs, is_visible
+from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .widgets import (
     Button, anim_ms, contains, submit_centered, submit_panel, submit_text
 )
@@ -141,6 +141,11 @@ class PlayerIntroScreen:
         """Return ``"start"`` / ``"back"`` / ``"name"`` (box focus) / ``None``.
         Clicking an option SELECTS it (and deselects the others) and returns
         ``None``. An invisible button is never hit (10L-B)."""
+        layer_action = hit_layer(  # UL-10: clickable layers first
+            self.ids, self.skinning.widgets_spec(self.screen_id), mx, my,
+            self.skinning.state_of, {"btn_back": "back", "btn_start": "start"})
+        if layer_action is not None:
+            return layer_action
         if is_visible(self.back_btn) and self.back_btn.hit(mx, my):
             return "back"
         if is_visible(self.start_btn) and self.start_btn.hit(mx, my):

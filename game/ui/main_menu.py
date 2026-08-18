@@ -37,7 +37,7 @@ from types import SimpleNamespace
 
 from engine.render import HudRect, HudSprite
 
-from .skinning import ScreenSkinning, button_kwargs, is_visible
+from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .widgets import Button, anim_ms, submit_centered
 from . import widgets
 
@@ -204,6 +204,17 @@ class MainMenu:
             btn.update(dt)
 
     def hit(self, mx, my):
+        # UL-10: clickable layers first. The retarget table is built from the
+        # SAME id/action decoupling ``hit()`` uses below (``_SLOT_IDS`` names
+        # the id, ``self.actions`` names what it emits) — never a second copy.
+        layer_actions = {_SLOT_IDS[slot]: self.actions.get(slot, slot)
+                         for _btn, slot in self.buttons}
+        layer_actions[_GEAR_ID] = _GEAR_ACTION
+        layer_action = hit_layer(
+            self.ids, self.skinning.widgets_spec(self.screen_id), mx, my,
+            self.skinning.state_of, layer_actions)
+        if layer_action is not None:
+            return layer_action
         if is_visible(self.debug_gear) and self.debug_gear.hit(mx, my):
             return _GEAR_ACTION
         for btn, slot in self.buttons:

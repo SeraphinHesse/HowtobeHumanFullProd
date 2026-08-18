@@ -1411,6 +1411,53 @@ sets one).
   hover/press tracking exists for non-Button widgets). **No `states` key ⇒
   identical output for every state**, preserving the golden parity pin.
 
+- **Clickable layers (UL-10)**: a `layers` entry may carry `clickable: bool`
+  and `target: str`, which turn that layer into a real click target.
+  `game/ui/skinning.py::hit_layer(ids, widgets_spec, mx, my, state_of,
+  actions)` is the click-path twin of `submit_layers`: it asks the pure
+  `engine.ui_layers.hit` which clickable layer a point lands on and maps its
+  `target` onto an ACTION VALUE. **It is PURE** — that is load-bearing, not
+  style: `main.py` calls `Hud.hit()` twice per click (the MOUSEBUTTONDOWN
+  pan-arming probe, then MOUSEBUTTONUP), the same reason the drag-select
+  toggle is a pure read.
+  - **Resolution, in order**: `target` is one of the three reserved tokens
+    `close_window`/`back`/`noop` → returned verbatim for the caller to route;
+    `target` names another widget id in the SAME screen → that widget's own
+    action (a **retarget**); anything else, missing target included →
+    `"noop"`. A layer with `clickable` falsy is transparent — the click falls
+    through to the widget under it, which is every shipped screen today (D5).
+  - **A dead target SWALLOWS the click; it never falls through.** A
+    fall-through would make a typo'd target behave exactly as if the layer
+    were never clickable, silently unmaking what the designer configured. A
+    swallowed click reads honestly as "this decal does nothing" — the same
+    thing `noop` means.
+  - **The retarget table is each screen's OWN action table, reversed** —
+    `hud.Hud._LAYER_ACTIONS`, `pause._ACTION_IDS`, `main_menu`'s
+    `_SLOT_IDS`/`self.actions`, `cheat_menu._ACTION_IDS`. Never hand-roll a
+    second copy: the whole point is that a layer targeting `btn_end_turn`
+    cannot disagree with what clicking End Turn does.
+  - **Which screens are wired.** `Hud.hit` (after the `_panel_open` guard),
+    `BuildingUI.handle_click` (after the explicit close, before the mode
+    dispatch — reserved tokens only there, since its contract is
+    bool-consumed and it has no flat action table across its three classes),
+    and the eleven `hit()`-returns-an-action-string menu screens. **Three are
+    deliberately NOT wired**: `levelup.py` returns an option DICT,
+    `enemy_intro.py` a BOOL, and `boss_cutscene.py`'s `"A"`/`"B"` goes
+    straight into `session.resolve_boss_cutscene` — an action STRING from any
+    of the three would be a type/contract violation at the host, not a
+    routed click. Wiring one means giving it a safe host branch first.
+  - Where a branch MUTATES inside `hit()` (`settings.py`'s display-mode
+    arrows and FX toggles, `cheat_menu`'s round-field commit), that widget is
+    left OUT of the retarget table on purpose — returning its action string
+    from `hit_layer` would report a change that never happened, so a layer
+    aimed at it swallows instead.
+  - **Min-target lint**: clickable layers join
+    `test_ui_min_targets.py`'s NON-BLOCKING under-16px lint only, never the
+    hard ≥12px floor. A clickable layer is usually decorative art retargeted
+    onto an already-floor-checked button, and the "do not mass-resize
+    controls to silence the lint" rule above forbids the only fix a hard
+    failure would pressure a designer into.
+
 - **Non-`Button` widgets get a `types.SimpleNamespace` holder** (`rect`,
   `skin`, `font_key`, `text_color`, `label`, `visible` as needed) that
   `submit()` reads from instead of a hardcoded literal — every screen's

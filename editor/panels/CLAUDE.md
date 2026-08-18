@@ -1263,11 +1263,46 @@ per layer key, on B4's per-field immediate-undoable-push convention
 - **`TOOLTIP_LAYER_BAND` (D4) is on BOTH band controls** — the add-picker and
   the per-layer row: `under` is behind the whole SCREEN, not behind the owner
   widget, and that has to be met in the editor rather than in a bug report.
-- The inspector's state selector is the PANEL's own combo, deliberately
-  separate from `viewport.py`'s floating preview-state dropdown: linking them
-  would need cross-panel wiring in `main.py`. It selects which state's values
-  the rows edit; the viewport's own dropdown still drives what the preview
-  draws.
+- The inspector's state selector is the PANEL's own combo. **UL-10 LINKED it
+  to `viewport.py`'s floating preview-state dropdown** (the cross-panel wiring
+  UL-8 deferred): both directions are connected in `editor/main.py` beside the
+  `widget_selected` cross-connect, and both are loop-guarded — the viewport's
+  `set_screen_state` early-returns on an unchanged name, and the panel's new
+  `sync_layer_state(name)` sets the combo with `blockSignals` before calling
+  `_refresh_layer_inspector()`. A name the panel's combo does not carry is
+  ignored rather than snapping the selector to Idle. `viewport.layer_selected`
+  (UL-7's signal, unconsumed until now) is connected to
+  `screen_details.select_layer` there too — one direction only, since the
+  panel has no matching signal to send back.
+
+### UL-10 — Clickable + Target rows
+
+Two more BASE-ONLY rows at the bottom of the layer inspector (the `Z`/`Band`
+pattern — neither is a state-patch key, and "clickable on hover only" is not
+something the resolver expresses), plus an inline warning label.
+
+- **Clickable** is a checkbox; `False` is the schema default, so only an
+  explicit `True` is stored (`visible`'s idle-scope convention).
+- **Target** is an EDITABLE `_NoWheelComboBox` pre-filled with the open
+  screen's widget ids (`_current_screen_defaults()["widgets"]`, the same
+  source `_refresh_parent_combo` reads) plus the three reserved tokens
+  `close_window`/`back`/`noop`. It is a convenience list, never a closed enum:
+  **D7 as amended lets an id-shaped target naming neither still SAVE.** Free
+  text commits on the line edit's `editingFinished` (the `label_edit` rule) or
+  on `activated`.
+- **`RESERVED_TARGETS` is restated in this module, not imported from
+  `game.ui.skinning`** — `editor/` may never import `game/` (D5). The game
+  module's docstring names this file as its twin.
+- **The warning is required, and it never gates the write.** Every value
+  change recomputes routability (a widget id in THIS screen, or a reserved
+  token) and sets `layer_target_warning` — amber, word-wrapped — saying the
+  click will be SWALLOWED, not passed through. That wording matters: the game
+  side's Ruling 1 makes a dead target stop the click, so "does nothing" is the
+  honest description, not "falls through".
+- Both write through `session.set_layer_field` (S3's path) via
+  `_push_layer_base_field`, so undo/dirty need no special case, and both join
+  `_layer_inspector_controls()`/`_layer_reset_buttons()` so they enable,
+  disable and reset with every other row.
 
 ## Phase UT-2/UT-6 — the real screen preview + the Text-template row
 

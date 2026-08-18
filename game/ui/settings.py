@@ -24,7 +24,7 @@ from types import SimpleNamespace
 
 from engine.render import HudRect
 
-from .skinning import ScreenSkinning, button_kwargs, is_visible
+from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .widgets import (
     Button, anim_ms, label_holder, submit_centered, submit_label
 )
@@ -191,6 +191,17 @@ class SettingsScreen:
         """Return ``"back"`` / ``"set_display_mode"`` (host must apply it) or
         ``None`` (FX toggles mutate ``settings`` in place). An invisible
         button is never hit (10L-B)."""
+        # UL-10: clickable layers first. Only BACK is retargetable here — the
+        # display-mode arrows and the FX toggles MUTATE ``settings`` inside
+        # their own branch, so returning their action string from here would
+        # report a change that never happened. A layer aimed at one of them is
+        # therefore unroutable and swallows (Ruling 1), which is the honest
+        # answer until those branches grow a shared, side-effect-free seam.
+        layer_action = hit_layer(
+            self.ids, self.skinning.widgets_spec(self.screen_id), mx, my,
+            self.skinning.state_of, {"btn_back": "back"})
+        if layer_action is not None:
+            return layer_action
         if is_visible(self.back_btn) and self.back_btn.hit(mx, my):
             return "back"
         if is_visible(self.controls_btn) and self.controls_btn.hit(mx, my):
