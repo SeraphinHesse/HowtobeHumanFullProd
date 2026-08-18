@@ -395,6 +395,28 @@ import list.**
     — typing "128" would otherwise write three times) and works with **no sheet
     imported**, which is the point: declaring the frame size BEFORE the import is
     what the importer slices and pads against.
+  - **Per-slot display NAME (the `Name` row, under the header).** A variant
+    family is distinguishable only by key, and `ui_panel_v2` vs `ui_panel_v3`
+    tells a designer nothing in the UI screen editor's Skin pickers — which is
+    the surface this field exists to fix. It commits on `editingFinished` (the
+    Frame W/H rule: typing a name must not write once per keystroke) through
+    `registry_ops.set_slot_display_name` (pure, `write_validated`, `TestPurity`)
+    and then emits `registry_changed` → `MainWindow._reload_registries`, the
+    SAME reload path the frame-size write and the "+ Variant" writes use — that
+    emit is what repopulates every skin combo without an editor restart.
+    Unlike `_on_frame_size_changed` it is a ONE-file write: the name is editor
+    metadata, so no manifest entry has to be re-cut and nothing on disk can end
+    up disagreeing with it. Clearing the field removes the key (and collapses
+    the slots[] entry back to a bare string when it held nothing else) — see
+    `data/CLAUDE.md` for the storage rule. Offered for EVERY category, not just
+    `ui`: a name is never wrong to have, and gating it would be a second rule
+    to remember.
+    - **`ScreenDetailsPanel._slot_label` is the ONE place the name is
+      rendered** — `"<name>  (<key>)"`, or the bare key when unnamed — and
+      every skin/background picker builds its items through it. The item DATA
+      stays the bare key, and every read/write path in that panel is already
+      `findData`/`currentData`/`itemData`, so a rename relabels a picker and
+      can never rewrite a screen override.
   - **Clear's confirm dialog only fires because the connect is wrapped**
     (`clicked.connect(lambda: self.clear_entry())`). It was connected directly for
     months, so `clicked(bool checked=False)` landed in the `confirm=True` kwarg and

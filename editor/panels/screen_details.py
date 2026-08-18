@@ -600,12 +600,20 @@ class ScreenDetailsPanel(QWidget):
 
     # -- combo population (registry-driven, never hardcoded slot lists) -----
 
+    def _slot_label(self, slot):
+        """What a skin picker shows for a ui slot: its designer-given name with
+        the key after it, or the bare key when it has no name (slot editor →
+        Name). The item DATA stays the bare key — a rename in slots.json is a
+        relabel here and never rewrites a screen override."""
+        name = self._registry.display_name(slot)
+        return f"{name}  ({slot})" if name else slot
+
     def _populate_skin_combo(self, combo):
         combo.blockSignals(True)
         combo.clear()
         combo.addItem("", None)
         for slot in self._registry.group_slots("ui"):
-            combo.addItem(slot, slot)
+            combo.addItem(self._slot_label(slot), slot)
         combo.blockSignals(False)
 
     def _populate_font_combo(self, combo):
@@ -626,7 +634,7 @@ class ScreenDetailsPanel(QWidget):
         except KeyError:
             slots = ()
         for slot in slots:
-            combo.addItem(slot, slot)
+            combo.addItem(self._slot_label(slot), slot)
         combo.blockSignals(False)
 
     def reload_registry(self):

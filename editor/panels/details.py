@@ -42,6 +42,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMessageBox,
     QPushButton,
     QRadioButton,
@@ -338,6 +339,24 @@ class DetailsPanel(QWidget):
         self._subcat_combo.hide()
 
         self._header = QLabel("Select a slot in the tree.")
+
+        # Per-slot display name (editor-only). A slot key is the only label the
+        # UI screen editor's skin pickers have, and `ui_panel_v2` vs
+        # `ui_panel_v3` tells a designer nothing — so naming a variant here is
+        # what makes it pickable over there. Committed on editingFinished (the
+        # Frame W/H rule): typing a name does not write once per keystroke.
+        self._name_row = QWidget()
+        name_layout = QHBoxLayout(self._name_row)
+        name_layout.setContentsMargins(0, 0, 0, 0)
+        name_layout.addWidget(QLabel("Name"))
+        self._name_edit = QLineEdit()
+        self._name_edit.setPlaceholderText("(unnamed — shown as the slot key)")
+        self._name_edit.setToolTip(
+            "What this variant is called wherever the editor lists slots\n"
+            "(the UI screen editor's Skin pickers, most of all). Editor-only —\n"
+            "the game never reads it. Clear the field to go back to the key.")
+        self._name_edit.editingFinished.connect(self._on_display_name_changed)
+        name_layout.addWidget(self._name_edit, 1)
         self._info = QLabel("")
         self._info.setWordWrap(True)
 
@@ -496,6 +515,7 @@ class DetailsPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.addWidget(self._subcat_combo)
         layout.addWidget(self._header)
+        layout.addWidget(self._name_row)
         layout.addLayout(buttons)
         layout.addWidget(self._preview)
         layout.addLayout(offsets)
@@ -507,6 +527,7 @@ class DetailsPanel(QWidget):
         layout.addWidget(self._info)
         layout.addWidget(scroll, 1)
         self._set_buttons_enabled(False, False, False)
+        self._name_row.setVisible(False)
         self._slice_row.setVisible(False)
         self._tint_row.setVisible(False)
         self._master_row.setVisible(False)
@@ -579,6 +600,9 @@ class DetailsPanel(QWidget):
                 spin.setValue(0)
             self._info.setText("")
             self._reset_row_window()
+            self._name_edit.setText(
+                "" if slot_key is None else self.registry.display_name(slot_key))
+            self._name_row.setVisible(slot_key is not None)
             if slot_key is None:
                 self._sheet_ref = None
                 self._header.setText("Select a slot in the tree.")
@@ -588,7 +612,7 @@ class DetailsPanel(QWidget):
                 self._refresh_preview()
                 return
             fw, fh = self.registry.frame_size(slot_key)
-            self._header.setText(f"[{slot_key}]  {fw}×{fh}/frame")
+            self._header.setText(self._header_text(slot_key, fw, fh))
             # Populated even with no sheet imported: declaring the frame size
             # BEFORE the import is the point — it is what the importer slices
             # (and pads) against.
@@ -1021,6 +1045,34 @@ class DetailsPanel(QWidget):
             bool((entry or {}).get("tint_overlay", False)) if has_art else True)
         self._tint_check.setEnabled(has_art)
 
+    def _header_text(self, slot_key, fw, fh):
+        """The header line: the slot's display name (when it has one) before
+        the key and its slicing size. One formatter, so the three call sites
+        that re-render the header after a write cannot drift apart."""
+        name = self.registry.display_name(slot_key)
+        prefix = f"{name}  " if name else ""
+        return f"{prefix}[{slot_key}]  {fw}×{fh}/frame"
+
+    def _on_display_name_changed(self):
+        """Commit this slot's display name to slots.json.
+
+        One file, unlike `_on_frame_size_changed`: the name is editor metadata,
+        so no manifest entry has to be re-cut and nothing on disk can disagree
+        with it. Every panel that caches a registry still has to re-read one
+        (`registry_changed` -> the shell's `_reload_registries`), because the
+        UI screen editor's skin combos are built from it."""
+        if self._loading or self.slot_key is None:
+            return
+        name = self._name_edit.text().strip()
+        if name == self.registry.display_name(self.slot_key):
+            return                                   # nothing to do
+        registry_ops.set_slot_display_name(self._data_dir, self.slot_key, name)
+        self._name_edit.setText(name)                # normalise the whitespace
+        fw, fh = self.registry.frame_size(self.slot_key)
+        self._header.setText(self._header_text(self.slot_key, fw, fh))
+        self.registry_changed.emit(self.slot_key)    # shell reloads every registry
+        self.reload_registry()
+
     def _on_frame_size_changed(self):
         """Commit a per-slot frame-size override, and RE-SLICE against it.
 
@@ -1044,7 +1096,7 @@ class DetailsPanel(QWidget):
         self.registry_changed.emit(self.slot_key)    # shell reloads every registry
         self.reload_registry()
 
-        self._header.setText(f"[{self.slot_key}]  {fw}×{fh}/frame")
+        self._header.setText(self._header_text(self.slot_key, fw, fh))
         entry = self._read_doc()["entries"].get(self.slot_key)
         sheet = self._sheet_file(self._sheet_ref) if self._sheet_ref else None
         if entry is None or sheet is None or not sheet.exists():
@@ -1153,7 +1205,7 @@ class DetailsPanel(QWidget):
     def _load_sheet(self, sheet_path, entry):
         fw, fh = self._effective_frame_size()
         self._row_frame_size = (fw, fh)
-        self._header.setText(f"[{self.slot_key}]  {fw}×{fh}/frame")
+        self._header.setText(self._header_text(self.slot_key, fw, fh))
         with Image.open(sheet_path) as image:
             w, h = image.size
         cols, sheet_rows = w // fw, h // fh

@@ -295,5 +295,39 @@ class TestAddButtonFamily(TempDataCase):
             ("ui_button_tab", "ui_button_tab_v2"))
 
 
+class TestSetSlotDisplayName(TempDataCase):
+    """Naming a variant (the slot editor's Name field) — editor-only metadata
+    that has to survive a reload and collapse cleanly when cleared."""
+
+    def test_names_a_bare_slot_and_reloads(self):
+        self.assertTrue(registry_ops.set_slot_display_name(
+            self.data_dir, "ui_panel_v3", "  Wide stone panel  "))
+        reg = load_registry(self.data_dir)
+        self.assertEqual(reg.display_name("ui_panel_v3"), "Wide stone panel")
+        self.assertEqual(reg.display_name("ui_panel"), "")
+
+    def test_naming_leaves_the_frame_size_alone(self):
+        before = load_registry(self.data_dir).frame_size("ui_panel_v2")
+        registry_ops.set_slot_display_name(self.data_dir, "ui_panel_v2", "Tall")
+        reg = load_registry(self.data_dir)
+        self.assertEqual(reg.frame_size("ui_panel_v2"), before)
+        self.assertEqual(reg.display_name("ui_panel_v2"), "Tall")
+
+    def test_clearing_collapses_a_named_bare_slot_back_to_a_string(self):
+        registry_ops.set_slot_display_name(self.data_dir, "ui_panel_v3", "X")
+        self.assertFalse(registry_ops.set_slot_display_name(
+            self.data_dir, "ui_panel_v3", "  "))
+        doc = data_io.load_json(self.data_dir / "slots.json")
+        ui = next(c for c in doc["categories"] if c["key"] == "ui")
+        panels = next(g for g in ui["groups"] if g["label"] == "Panels")
+        panel = next(c for c in panels["children"] if c["label"] == "Panel")
+        self.assertIn("ui_panel_v3", panel["slots"])   # bare string again
+        self.assertEqual(load_registry(self.data_dir).display_name("ui_panel_v3"), "")
+
+    def test_unknown_slot_raises(self):
+        with self.assertRaises(KeyError):
+            registry_ops.set_slot_display_name(self.data_dir, "nope", "X")
+
+
 if __name__ == "__main__":
     unittest.main()
