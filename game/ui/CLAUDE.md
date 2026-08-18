@@ -1150,8 +1150,10 @@ sets one).
   any `ids`-building or nothing-to-draw guard) and `"over"` as the LAST
   statement. The HUD pass has no depth sort, so an `under` layer sits behind
   EVERYTHING on that screen, not just behind its own owner: that is the
-  documented trade-off of two bands per screen, not a bug. `z` orders layers
-  within a band. A layer picks ONE role, first match wins: `slot` → `HudSprite`,
+  documented trade-off of two bands per screen, not a bug — the editor says so
+  in plain English on both band controls: *"Under layers sit behind EVERYTHING
+  on this screen, not just behind their owner widget. Use Over for backgrounds
+  between stacked panels."* `z` orders layers within a band. A layer picks ONE role, first match wins: `slot` → `HudSprite`,
   else `text_id`/`label` → `HudText` (through `strings.T`, empty string draws
   nothing), else `color` → `HudRect`, else nothing. **No `layers` authored ⇒
   ZERO primitives**, which is what keeps the golden parity pin byte-identical.
@@ -1223,12 +1225,55 @@ sets one).
     left OUT of the retarget table on purpose — returning its action string
     from `hit_layer` would report a change that never happened, so a layer
     aimed at it swallows instead.
+  - **`engine.ui_layers.hit(layers, owner_rect, mx, my, state="idle")` is the
+    pure resolver underneath** (UL-9, D8). It searches TOPMOST-FIRST, i.e. the
+    reverse of the paint order: the `over` band z-descending, then the owner
+    rect itself, then the `under` band z-descending. It returns
+    `{"kind": "layer", "id", "target"}` (raw authored values, never resolved or
+    validated here), `{"kind": "owner"}`, or `None` for a miss — an
+    `"owner"`/`None` answer means "no clickable layer claimed this point", and
+    `hit_layer` keeps scanning the other widgets before falling through to the
+    screen's normal hit path. A layer that resolves to `visible: False` in the
+    OWNING widget's current state is not hit, and the `state` argument is the
+    same one `resolve()` takes, so a state-patched offset moves the hit rect
+    exactly as it moves the paint rect. It mutates nothing — `layers`,
+    `owner_rect` and module state are all read-only — which is what makes the
+    double call per click (arm on DOWN, fire on UP) safe.
   - **Min-target lint**: clickable layers join
     `test_ui_min_targets.py`'s NON-BLOCKING under-16px lint only, never the
     hard ≥12px floor. A clickable layer is usually decorative art retargeted
     onto an already-floor-checked button, and the "do not mass-resize
     controls to silence the lint" rule above forbids the only fix a hard
     failure would pressure a designer into.
+
+- **The three life counters (UL-11, D10)**: `life_1`/`life_2`/`life_3` are
+  THREE id'd `panel`-kind holders in `hud.py`'s `ids` (not one repeated draw),
+  each positionable, skinnable and layerable on its own. They are ADDED beside
+  `lives_text`/`icon_lives`, which are unchanged and stay — removing an id
+  would break the on-disk contract. Default skin is the existing
+  `ui_icon_lives` art (so an unauthored screen still shows something
+  recognisable) and the default rects — a row to the right of the lives icon +
+  numeric readout, on the same `_ICON_SIZE`/`_ICON_GAP` grid — are baked into
+  `screen_defaults.json`; a designer moves them wherever they like.
+  - **Per-state art arrives as a `layers` override, on the PINNED four-token
+    vocabulary** (UL-11 changed no schema): `alive → idle` (loops),
+    `dying → pressed` (plays once), `dead → disabled` (static). `hover` is
+    never produced for a life counter — a designer may author it, but nothing
+    selects it. Each holder carries its own `_state` callable, which is the
+    SAME seam `ScreenSkinning.state_of`/`submit_layers` already dispatch
+    through for a `Button`, so `skinning.py` needed no change.
+  - **State is driven off `session.state.base_lives` DELTAS, not the
+    `life_lost_events` ledger.** `main.py` runs the floaters' effects step
+    (which DRAINS `life_lost_events`) BEFORE `Hud.update()` every frame, so on
+    the exact frame of the loss the ledger is already empty — a second
+    consumer would race it. `base_lives` detects the same event with no race
+    and adds no second ledger, keeping `effects.py` the ledger's sole consumer
+    (`Hud._update_life_states`).
+  - **The `pressed` transition is time-boxed**: `_LIFE_TRANSITION_MS = 600`.
+    The life that died (index `base_lives + 1`) reads `pressed` for that long,
+    then reverts to `disabled`. The FIRST `update()` only SEEDS the tracker, so
+    a run that starts below full lives shows dead-and-static counters rather
+    than replaying a transition that already happened.
 
 - **Non-`Button` widgets get a `types.SimpleNamespace` holder** (`rect`,
   `skin`, `font_key`, `text_color`, `label`, `visible` as needed) that
