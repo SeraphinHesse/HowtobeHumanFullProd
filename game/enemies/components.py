@@ -261,6 +261,30 @@ def buff_total(owner, key):
     return bs.total(key)
 
 
+def buff_signs(owner, key):
+    """``(has_positive, has_negative)`` — whether ANY live source contributes
+    a positive/negative ``key``, read INDEPENDENTLY of each other.
+
+    This is deliberately NOT ``buff_total(owner, key) > 0`` /
+    ``< 0``: the netted aggregate can only ever carry one sign, so a unit
+    that is simultaneously buffed by one source and debuffed by another
+    (e.g. a Drummer's aura raising ``move_speed`` while a mortar's
+    ``mortar_slow`` lowers it, BossUpgradeTimelinePLAN D20 follow-up) would
+    show only the net direction, hiding whichever effect is smaller. The two
+    HUD arrows this feeds (``game/ui/effects.py``) are meant to show
+    TOGETHER in that case — a real buff AND a real slow — so the gate has to
+    look at the individual sources, not their sum. ``(False, False)`` for an
+    owner with no ``BuffState``/no sources, same guard as ``buff_total``.
+    """
+    if owner is None:
+        return False, False
+    bs = owner.get_component(BuffState)
+    if bs is None or not bs.sources:
+        return False, False
+    values = [c[key] for c in bs.sources.values()]
+    return any(v > 0 for v in values), any(v < 0 for v in values)
+
+
 # Kidnapping (Art/enemies): the carried-sprite world offset. Pure iso
 # arithmetic, no engine change — world_to_screen is
 # ix = (wx-wy)*half_w, iy = (wx+wy)*half_h and depth_key = (layer, wx+wy, wy)
