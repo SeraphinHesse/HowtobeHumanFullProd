@@ -4389,6 +4389,7 @@
           -12
         ]
       },
+      "column_mode": "building_color",
       "column_width": 25,
       "frame_h": 96,
       "frame_w": 64,

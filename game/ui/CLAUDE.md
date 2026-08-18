@@ -2424,6 +2424,21 @@ trigger call sites in `main.py`, never unified into one state machine:
   Missing video/cv2 → `CutscenePlayer.enabled` is `False`, `gp["cutscene"]`
   is never set, and the round starts normally the same frame (graceful skip,
   never a new branch).
+- **The players outlive the RUN; the video sources do not (replay fix).**
+  `main.py` builds ONE `CutscenePlayer` per registry id at boot, but a
+  `VideoSource` is one-shot: `release()` frees the cv2 capture and `done`
+  latches True. So `first_end_turn` played on the FIRST run only — quit to
+  the main menu, start a new run, and the fresh `RunState` requested it
+  again, the host accepted it (`enabled` still reads True) and it ended on
+  the frame it was requested, showing nothing. `CutscenePlayer.start()` now
+  opens a FRESH source on every playback (unconditionally, since a
+  quit-to-menu mid-cutscene leaves a released-but-not-done capture that
+  would raise on the next `update()`) and resets `_skip_hold` (a hold-skip
+  leaves it past the threshold, which would insta-skip the next playback).
+  `teardown_gameplay()` releases an in-flight `gp["cutscene"]` before
+  dropping it, so quitting mid-video hands the capture and the music track
+  back. The `intro` entry is unaffected — it plays once per process launch,
+  from the pre-menu shell state, and never calls `start()`.
 - **Only one `pygame.mixer.music` channel exists.** Starting a cutscene's
   companion track replaces whatever background music was already playing;
   nothing restores it afterward (no drift/resume correction in scope).
