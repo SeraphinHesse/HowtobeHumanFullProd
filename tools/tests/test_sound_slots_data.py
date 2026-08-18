@@ -56,12 +56,6 @@ SLOT_PATHS = (
        for t in ENEMY_TYPES for e in ENEMY_EVENTS]
 )
 
-#: The six slots that ship looping.
-LOOPING = frozenset(
-    [f"core.Sounds.Music.{k}" for k in
-     ("building_phase", "combat_phase", "cutscene", "default", "menu")]
-    + ["core.Sounds.Ambient.default"])
-
 
 def committed_defs(domain):
     schema = json.loads(
@@ -132,15 +126,27 @@ class TestSoundDefsDrift(unittest.TestCase):
 
 class TestSlotPaths(unittest.TestCase):
     def test_every_slot_path_exists_in_schema_and_content(self):
+        """Existence and SHAPE, never the authored VALUE.
+
+        `clips`/`loop`/`pick` become designer-owned at SD-3 (the clip
+        importer): asserting `clips == []` here would turn all 127 paths red
+        the first time someone imports a sound through the editor, in a commit
+        that touched none of this. What holds forever is that the path exists
+        and still carries a well-formed slot. The state SD-1 SHIPPED is pinned
+        separately in TestShippedSlotDefaults, against the schema rather than
+        against live data.
+        """
         for path in SLOT_PATHS:
             domain, *segments = path.split(".")
             with self.subTest(path=path):
                 node = resolve_schema(domain, segments)
                 self.assertEqual(node.get("x-widget"), "sound_slot")
                 value = resolve_doc(domain, segments)
-                self.assertEqual(
-                    value,
-                    {"clips": [], "loop": path in LOOPING, "pick": "random"})
+                self.assertIsInstance(value, dict)
+                self.assertEqual(sorted(value), ["clips", "loop", "pick"])
+                self.assertIsInstance(value["clips"], list)
+                self.assertIsInstance(value["loop"], bool)
+                self.assertIn(value["pick"], ("random", "sequential"))
 
     def test_ambient_slot_is_default_not_loop(self):
         core = json.loads((BAL / "core.json").read_text(encoding="utf-8"))
@@ -155,6 +161,33 @@ class TestSlotPaths(unittest.TestCase):
         self.assertIs(node["additionalProperties"], False)
         self.assertEqual(sorted(node["properties"]),
                          ["button_click", "not_enough_love"])
+
+
+class TestShippedSlotDefaults(unittest.TestCase):
+    """The empty slot SD-1 ships, pinned as a literal against the SCHEMA.
+
+    Deliberately NOT read back out of data/balancing/*.json: that content is
+    designer-owned from SD-3 onward. What must not drift is the meaning of the
+    empty form — `clips: []` is SD-2's "silence on a global default, inherit on
+    an element override" contract — and that both the one-shot and the looping
+    form stay valid in every domain.
+    """
+
+    EMPTY = {"clips": [], "loop": False, "pick": "random"}
+    EMPTY_LOOPING = {"clips": [], "loop": True, "pick": "random"}
+
+    def test_the_shipped_empty_slot_validates_in_every_domain(self):
+        for domain in DOMAINS:
+            defs = committed_defs(domain)
+            schema = dict(defs["sound_slot"],
+                          **{"$defs": {"sound_clip": defs["sound_clip"]}})
+            for value in (self.EMPTY, self.EMPTY_LOOPING):
+                with self.subTest(domain=domain, loop=value["loop"]):
+                    jsonschema.validate(value, schema)
+
+    def test_the_shipped_empty_slot_carries_exactly_the_required_keys(self):
+        self.assertEqual(sorted(self.EMPTY),
+                         sorted(committed_defs("core")["sound_slot"]["required"]))
 
 
 class TestSlotValidation(unittest.TestCase):
