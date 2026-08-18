@@ -66,6 +66,18 @@
   "Menu": {
     "cutscene_length": 44.2
   },
+  "Sounds": {
+    "button_click": {
+      "clips": [],
+      "loop": false,
+      "pick": "random"
+    },
+    "not_enough_love": {
+      "clips": [],
+      "loop": false,
+      "pick": "random"
+    }
+  },
   "Timing": {
     "confirm_on_right_side": true,
     "construct_show_cancel": true,

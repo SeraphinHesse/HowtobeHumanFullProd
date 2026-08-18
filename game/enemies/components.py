@@ -32,6 +32,7 @@ from game.map.pathfinder import (
 from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition
 
 from .dirt_pile import spawn_dirt_pile
+from .sounds import ATTACK, play_enemy_sound
 
 # Chunk 4: hunt-string ("EnemyTypes.<type>.hunts") -> the goal-set pathfinder
 # query it dispatches to. "base" is NOT in here — it is handled separately by
@@ -911,6 +912,9 @@ class EnemyCombat(Component):
                     # this branch cannot see (walls carry no Health).
                     _apply_thorns(owner, dmg)
                 self.cooldown = self.buffed_attack_speed   # NE-3
+                # SD-5: one swing = one attack sound. Fired where the cooldown
+                # is re-armed, so a blocked-but-cooling unit is silent.
+                play_enemy_sound(owner, ATTACK)
             return
         target = pa._target
         if target is None and pa.in_range:
@@ -943,6 +947,12 @@ class EnemyCombat(Component):
             # branch above.
             _apply_thorns(owner, dmg)
             self.cooldown = self.buffed_attack_speed   # NE-3
+            # SD-5: the melee AND ranged attack sound. NE-1 widened the gate
+            # above to `pa.blocked or pa.in_range`, so the Sniper's stand-off
+            # shot is this same swing — there is no second attack path, and
+            # the Boss/SiegeCannon overrides resolve right here with no
+            # type-name branch.
+            play_enemy_sound(owner, ATTACK)
             # Kidnapping (Art/enemies): a killing blow on a kidnap-capable
             # type ARMS the transition here; this component never touches the
             # scene — the combat sweep's kidnap pass (combat.py) owns the
@@ -1247,6 +1257,9 @@ class BurrowAgent(Component):
             _damage_hook(getattr(owner, "ETYPE", None),
                          getattr(target, "building_type", None),
                          dmg, health.hp)
+        # SD-5: the eruption IS an attack (this method is EnemyCombat.update's
+        # damage application verbatim), so it gets the same attack sound.
+        play_enemy_sound(owner, ATTACK)
 
     # -- targeting -----------------------------------------------------------
 

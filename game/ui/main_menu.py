@@ -215,10 +215,12 @@ class MainMenu:
             self.skinning.state_of, layer_actions)
         if layer_action is not None:
             return layer_action
-        if is_visible(self.debug_gear) and self.debug_gear.hit(mx, my):
+        # SD-6: `widgets.click` is the ROUTED-click seam — it emits the click
+        # sound exactly once. `btn.hit` stays probe-only.
+        if widgets.click(self.debug_gear, mx, my):
             return _GEAR_ACTION
         for btn, slot in self.buttons:
-            if is_visible(btn) and btn.hit(mx, my):
+            if widgets.click(btn, mx, my):
                 # The slot names the id; ``actions`` names what it emits.
                 return self.actions.get(slot, slot)
         return None

@@ -91,8 +91,10 @@ class PauseScreen:
             {wid: action for action, wid in _ACTION_IDS.items()})
         if layer_action is not None:
             return layer_action
+        # SD-6: the ROUTED-click seam (emits the click sound once); `btn.hit`
+        # stays probe-only.
         for btn, action in self.buttons:
-            if is_visible(btn) and btn.hit(mx, my):
+            if widgets.click(btn, mx, my):
                 return action
         return None
 

@@ -17,9 +17,11 @@ from .enemy import (
     Sniper, create_enemy, variant_slot,
 )
 from .kidnap import KIDNAP_ANIM, begin_kidnap, set_kidnap_pose
+from .sounds import ATTACK, DEATH, SPAWN, play_enemy_sound, slot_for
 from .spawner import Spawner
 
 __all__ = [
+    "ATTACK",
     "BUFF_DECAY_SECONDS",
     "BURROW_EMERGE",
     "BURROW_SUBMERGED",
@@ -31,6 +33,7 @@ __all__ = [
     "Commander",
     "Corpse",
     "CrowdSpacing",
+    "DEATH",
     "DEATH_ANIM",
     "DIRT_PILE_SLOT",
     "DeathSpawn",
@@ -47,6 +50,7 @@ __all__ = [
     "Projectile",
     "ProjectileHoming",
     "Raider",
+    "SPAWN",
     "SiegeCannon",
     "Sniper",
     "Spawner",
@@ -55,9 +59,11 @@ __all__ = [
     "begin_kidnap",
     "buff_total",
     "create_enemy",
+    "play_enemy_sound",
     "resolve_combat",
     "restore_crowd_positions",
     "set_kidnap_pose",
+    "slot_for",
     "spawn_corpse",
     "spawn_dirt_pile",
     "variant_slot",

@@ -249,6 +249,14 @@ def _screen_captures():
 #: ALL THREE. That disjointness is the merge's containment signal — if a
 #: future merge of two UI branches touches the SAME entry, the resolution is
 #: to re-capture from ``_screen_captures()``, never to pick a side.
+#: Regenerated a FIFTEENTH time (SD-6: UI sound + volume sliders): ``settings``
+#: replaced its ONE inert audio bar and its "(no audio yet)" note with THREE
+#: real rows (Master / Music / SFX), so the audio block re-laid out and BACK /
+#: CONTROLS dropped 17px to clear the third row (279 -> 296, matching the
+#: user-approved ``btn_back`` rect move in ``data/ui/screens/settings.json``).
+#: Only ``settings``'s entry moved; every other screen's entry is
+#: byte-identical, which is what says the change was contained. Regenerated
+#: mechanically from ``_screen_captures()``.
 
 
 #: Regenerated a TWELFTH time (UL-11: three life counters): ``hud`` gained
@@ -334,16 +342,21 @@ _BASELINE = {
         HudRect(rect=(350, 212, 45, 20), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(350, 212, 45, 20), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='ON', pos=(372, 214), font_key='lg', color=(235, 225, 195), align='center'),
-        HudText(text='Master Audio', pos=(245, 237), font_key='md', color=(235, 225, 195), align='left'),
-        HudRect(rect=(275, 249, 90, 6), color=(80, 65, 120), border_radius=0, width=0),
-        HudRect(rect=(275, 249, 72, 6), color=(75, 60, 115), border_radius=0, width=0),
-        HudText(text='(no audio yet)', pos=(320, 259), font_key='sm', color=(150, 140, 120), align='center'),
-        HudRect(rect=(270, 279, 100, 23), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(270, 279, 100, 23), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='BACK', pos=(320, 283), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(380, 279, 90, 23), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(380, 279, 90, 23), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='CONTROLS', pos=(425, 285), font_key='sm', color=(235, 225, 195), align='center'),
+        HudText(text='Master Audio', pos=(190, 245), font_key='md', color=(235, 225, 195), align='left'),
+        HudRect(rect=(275, 248, 90, 6), color=(80, 65, 120), border_radius=0, width=0),
+        HudRect(rect=(275, 248, 72, 6), color=(75, 60, 115), border_radius=0, width=0),
+        HudText(text='Music', pos=(190, 257), font_key='md', color=(235, 225, 195), align='left'),
+        HudRect(rect=(275, 260, 90, 6), color=(80, 65, 120), border_radius=0, width=0),
+        HudRect(rect=(275, 260, 72, 6), color=(75, 60, 115), border_radius=0, width=0),
+        HudText(text='SFX', pos=(190, 269), font_key='md', color=(235, 225, 195), align='left'),
+        HudRect(rect=(275, 272, 90, 6), color=(80, 65, 120), border_radius=0, width=0),
+        HudRect(rect=(275, 272, 72, 6), color=(75, 60, 115), border_radius=0, width=0),
+        HudRect(rect=(270, 296, 100, 23), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(270, 296, 100, 23), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='BACK', pos=(320, 300), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(380, 296, 90, 23), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(380, 296, 90, 23), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='CONTROLS', pos=(425, 302), font_key='sm', color=(235, 225, 195), align='center'),
     ],
     "credits": [
         HudRect(rect=(0, 0, 640, 360), color=(12, 20, 14), border_radius=0, width=0),

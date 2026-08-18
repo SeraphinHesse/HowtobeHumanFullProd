@@ -1,4 +1,74 @@
 {
+  "$defs": {
+    "sound_clip": {
+      "additionalProperties": false,
+      "description": "One audio clip in a sound slot's playlist: a file plus its volume and trim window.",
+      "properties": {
+        "end": {
+          "description": "Trim out-point in seconds. 0.0 is the SENTINEL for 'play to the end of the file' (never null -- a nullable/union node breaks the balancing panel). Bounded at 3600 s for the same reason as start.",
+          "maximum": 3600.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "file": {
+          "description": "Path relative to data/audio/ (e.g. 'imported/building_death_a.ogg'). Empty string = no clip.",
+          "type": "string"
+        },
+        "start": {
+          "description": "Trim in-point in seconds; 0.0 plays from the beginning. Bounded at 3600 s (one hour), a deliberate approved deviation from the 0-60 s convention, which was written for VFX timings -- music tracks run minutes.",
+          "maximum": 3600.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "volume": {
+          "description": "Clip gain as a fraction 0..1, multiplied by the bus volume and the master volume.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "end",
+        "file",
+        "start",
+        "volume"
+      ],
+      "type": "object"
+    },
+    "sound_slot": {
+      "additionalProperties": false,
+      "description": "A sound event: zero or more clips plus how to play them. Empty clips on a global default means silence; empty clips on a per-element override means inherit the global default.",
+      "properties": {
+        "clips": {
+          "description": "The clips this event may play. Empty on a global default = silence; empty on a per-element override = inherit the global default.",
+          "items": {
+            "$ref": "#/$defs/sound_clip"
+          },
+          "minItems": 0,
+          "type": "array"
+        },
+        "loop": {
+          "description": "Repeat the chosen clip until stopped (music and ambience) rather than playing it once.",
+          "type": "boolean"
+        },
+        "pick": {
+          "description": "How the next clip is chosen when the slot holds more than one: 'random' picks any, 'sequential' cycles in order.",
+          "enum": [
+            "random",
+            "sequential"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "clips",
+        "loop",
+        "pick"
+      ],
+      "type": "object",
+      "x-widget": "sound_slot"
+    }
+  },
   "$id": "map.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -267,6 +337,25 @@
       ],
       "type": "object"
     },
+    "Sounds": {
+      "additionalProperties": false,
+      "description": "Map interaction sounds.",
+      "properties": {
+        "buy_plot": {
+          "$ref": "#/$defs/sound_slot",
+          "description": "Played when a tile/plot is bought."
+        },
+        "tile_placement": {
+          "$ref": "#/$defs/sound_slot",
+          "description": "Played when something is placed onto a tile."
+        }
+      },
+      "required": [
+        "buy_plot",
+        "tile_placement"
+      ],
+      "type": "object"
+    },
     "SpawnDeco": {
       "additionalProperties": false,
       "description": "Decorative tree props scattered over spawn-zone tiles.",
@@ -477,6 +566,7 @@
   },
   "required": [
     "Pathfinding",
+    "Sounds",
     "SpawnDeco",
     "TileConditions",
     "TileUnlocking"

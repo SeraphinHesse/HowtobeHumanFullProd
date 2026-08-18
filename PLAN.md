@@ -1,697 +1,516 @@
-<!-- active-plan: UiLayeredWidgetsPLAN.md | set: 2026-08-18 -->
-> **Active plan:** UiLayeredWidgetsPLAN.md (mirror). Source of truth:
-> `planning/UiLayeredWidgetsPLAN.md`. Do **not** edit this file directly — edit the
+<!-- active-plan: SoundEditorPLAN.md | set: 2026-08-18 -->
+> **Active plan:** SoundEditorPLAN.md (mirror). Source of truth:
+> `planning/SoundEditorPLAN.md`. Do **not** edit this file directly — edit the
 > source in `planning/` and re-run `/setcurrentplan`, or pick a different
 > plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
 > screen).
 
-<!-- plan-scale: large -->
-<!-- status: COMPLETE -- 4/4 sections, 12/12 phases (S1+S2+S3+S4 all landed). All merged to plan-uilayeredwidgets-umbrella. NOT pushed, no PR; the full gate has never run against this work and belongs to /commitpushpr stage 5. -->
+<!-- status: NOT STARTED — SD-1–SD-7 -->
 
-# UiLayeredWidgetsPLAN.md — a widget is a stack
+# SoundEditorPLAN.md — Sound slots in balancing, audio in the game
 
-Phased, agent-executable plan (same family as `UiTextBindingPLAN.md` /
-`UiEditorParentingPLAN.md`). Base branch: `Development`. Runnable via
-`/execute-plan-phases planning/UiLayeredWidgetsPLAN.md` (section mode — see
-line 1) or section by section.
+Phased, agent-executable plan (same family as `AgentDispatchPLAN.md` /
+`VfxAuthoringPLAN.md`). Base branch: `Development`. Runnable via
+`/execute-plan-phases planning/SoundEditorPLAN.md SD-1-SD-7` or phase-by-phase.
 
-## 1. Context
+**Source**: `Sound checklist.md` (21 sound rows) plus the scoping session of
+2026-08-18. This document **replaces** an earlier draft of the same name that
+designed a central `data/audio/sound_bank.json` and a separate editor **Sound**
+menu. That design is dropped: sounds belong *inside the balancing of the element
+that makes them*, not in a bank off to the side.
 
-The designer's `UI Document.md` describes every screen as **folders of pieces**.
-A button is not one thing: it is a Munchkin, an icon, the button art and a
-background, each with its own position, its own colour, and its own look for
-hover and click. The HUD's love counter is a folder holding an icon, a number
-and a widget background.
+## 1. Vision
 
-The game does not see it that way. A widget is ONE picture in ONE box: a
-`Button` or a label holder in a screen's `ids: {name: (kind, widget)}` dict,
-mutated in place by `ScreenSkinning.apply()`'s flat setattr loop
-(`game/ui/skinning.py`). Per-state ART already works — `slots.json`'s `ui`
-category vocabulary is `["idle", "hover", "pressed", "disabled"]`, one manifest
-row per state — but there is only ever one picture, so there is nothing to move
-independently and nothing to give a separate colour to. Adding a background
-behind the love counter is a code change today.
+Every sound in the game is a **slot inside the balancing of the thing that makes
+it**. Open `buildings` in the editor's balancing form and each building family
+has a **Sounds** section: placement, selection, upgrade, death, attack,
+upkeep/boost. Each slot is a composite widget — *Import…* / *Use existing…*, a
+clip list (several clips = random variation), per-clip volume and in/out trim, a
+loop toggle, and a ▶ preview. Global defaults sit on the domain's globals; a
+per-element slot left empty **inherits the default**, so one imported clip
+covers everything until you want a specific one.
 
-**Outcome.** A widget becomes a **stack**: on top of (and behind) its own art it
-carries as many layers as the designer adds, each with its own offset, art,
-tint, colour, visibility and per-state appearance — authored entirely in the
-editor, saved into `data/ui/screens/<id>.json`, drawn by the game. Layers may
-also be their own click targets.
+The game never names an audio file. It calls `sfx.play(...)` with a resolved
+slot; the resolver walks **element override → global default → silence**.
 
-### What already landed (do NOT redo)
+Today there is effectively **no sound system** to build on *(all verified in the
+`SoundEditor` worktree, 2026-08-18)*:
 
-| Landed | Where |
+- `engine/audio.py:15,27,35` — three functions (`play_music` / `stop_music` /
+  `set_volume`). Music only. No `pygame.mixer.Sound` anywhere in the repo.
+- `game/main.py:66,785` — one hardcoded boot track.
+- `game/ui/cutscene_player.py:16,69` — cutscene companion audio; it uses the
+  same `music` channel and nothing restores the previous track (`:66`).
+- `game/ui/settings.py:71` — `volume: float = 0.8  # inert (no audio system)`,
+  drawn at `:112-113,229-235` with the label `"(no audio yet)"`.
+- No audio schema. `data/audio/` holds one 49 MB `.wav` and no JSON.
+
+### Scoping decisions (taken with the user)
+
+- **D1 — Global default + per-element override.** Untouched elements inherit;
+  no phantom copies. (Rejected: global-only, which forecloses per-building and
+  per-enemy variation; per-element-only, which makes every element silent until
+  individually filled.)
+- **D2 — Slots live inside the existing balancing domains** (`core` / `ui` /
+  `map` / `buildings` / `enemies`), not in a new bank file. This is the whole
+  point: the sound sits with the thing it belongs to, and the editor's existing
+  schema-driven balancing form, save path, and history come for free.
+- **D3 — Per-slot features**: preview ▶ button, random variation (several clips
+  per slot), in/out trim, loop toggle — on top of file + volume.
+- **D4 — Music**: a **default** music slot with **building-phase** and
+  **combat-phase** overrides, plus **menu** and **cutscene** slots. **Ambient is
+  a separate slot**, not part of music.
+- **D5 — Button click**: a global default plus a per-button override, carried by
+  the existing per-widget override object in `data/ui/screens/*.json` (which
+  already takes optional `font` / `skin` / `tint` / `text_id` patches — see
+  `data/schemas/ui_screen.schema.json:46,110,127`).
+- **D6 — Settings gets Master + Music + SFX sliders**, replacing the inert one.
+  **Ambient plays on the SFX bus.**
+- **D7 — Enemy overrides are per enemy type** — the ten `EnemyTypes` entries
+  (Boss, Commander, Digger, Drummer, Formation, Raider, SiegeCannon, Sniper,
+  Standard, Tutorial) — *not* per type × era.
+- **D8 — Import copies `.ogg` / `.wav` / `.mp3` as-is**, with an optional
+  **transcode-to-.ogg** checkbox powered by **`soundfile`** (added to
+  `requirements.txt` as OPTIONAL; the checkbox greys out if it is absent).
+  Rejected: ffmpeg-on-PATH — *measured*: no ffmpeg on this machine, so the
+  option would be dead out of the box.
+- **D9 — Plan scale: flat.** Seven phases on a mostly linear chain.
+
+## 2. Architecture
+
+```
+data/balancing/                          engine/audio/   (audio.py → package)
+────────────────                         ─────────────
+core.json      Sounds.Music/Ambient/Game  __init__.py  re-exports play_music,
+ui.json        Sounds.*                                stop_music, set_volume
+map.json       Sounds.*                   bank.py      PURE: resolve override→
+buildings.json BuildingsGlobal.Sounds                  default→silence, random
+               + <family>.sounds                       pick (injected rng),
+enemies.json   EnemySounds (defaults)                  volume math. No pygame.
+               + EnemyTypes.<type>.sounds  sfx.py      Sound cache, channel pool,
+data/audio/imported/*.ogg  ◄── clips                   cooldown, trim, buses
+data/ui/screens/*.json     ◄── per-button  music.py    streaming channel, phase/
+                               click override          menu/cutscene switching
+
+editor/                                   game/
+───────                                   ─────
+sound_import.py  (new, pure)              main.py   sfx.init() after pygame.init;
+  copy/transcode → data/audio/imported/             gp["sfx"]
+panels/sound_slot.py (new)                buildings/, enemies/, ui/, core/
+  SoundSlotWidget                           ~20 trigger call sites
+panels/balancing.py  += x-widget hook     ui/settings.py  Master/Music/SFX
+```
+
+**Flow**: designer opens a domain in the balancing panel → a `sound_slot` node
+renders as `SoundSlotWidget` → *Import…* copies the clip into
+`data/audio/imported/` via `editor/sound_import.py` → the widget commits the
+whole slot object through the panel's existing `_commit` → Save writes through
+`engine.data_io.write_validated` → at runtime the game's dispatch seam resolves
+**element override → global default → silence** and calls
+`engine.audio.sfx.play(clip, bus)`.
+
+### Load-bearing facts this design rests on
+
+- `editor/panels/balancing.py` is a **generic schema-walking form generator** —
+  `_build_object:361`, `_add_leaf_row:522`, and the one widget switch
+  `_make_widget:670`. It already supports composite rendering steered by schema
+  extensions: `x-paired` (`:372`), `x-toggle` (`_build_toggle_checkbox:638`),
+  `x-array-editable` (`:419`). An `x-widget: "sound_slot"` hook is the same move,
+  and it is why D2 costs almost no editor code.
+- **`data/CLAUDE.md:410-412` — never use `oneOf` or a type-less node; it crashes
+  the balancing panel for the whole domain.** Hence no nullable trim: `end: 0.0`
+  is the "play to the end" sentinel.
+- **`data/CLAUDE.md:438-455` — local `#/$defs/` refs only, never cross-file.**
+  So the `sound_slot` `$defs` block is *duplicated* into each domain schema and
+  pinned identical by a generator + drift test. Precedent:
+  `tools/gen_sprite_slot_enum.py` + `tools/tests/test_schema_slot_sync.py`.
+- **`editor/panels/viewport.py` sets `SDL_AUDIODRIVER=dummy` at module level for
+  the whole editor process** — in-editor preview therefore cannot use
+  `pygame.mixer`. It uses QtMultimedia, lazily imported, degrading to a disabled
+  button (precedent `editor/thats_my_producer.py:15-32`). *Verified: QtMultimedia
+  imports cleanly on this machine.*
+- `editor/cutscene_import.py:93-151` (`audio_dest`, `import_audio`) is the
+  existing audio-file import-copy flow; `editor/asset_import.py:55-71`
+  (`sheet_users` / `unreferenced_sheets`) is the refcounting model.
+- `tools/tests/temp_data.py:9` stubs `.wav/.mp3/.ogg/.mp4` to zero bytes in the
+  temp `data/` copy; a test that actually decodes must set `DECODES_MEDIA:119`.
+- `game/main.py:588` `pygame.init()` is where the mixer initialises; `gp` (built
+  at `:825`) is the de-facto system registry — audio joins as `gp["sfx"]`.
+- *Verified*: numpy 2.4.6 imports, but only transitively via the OPTIONAL
+  `opencv-python`. Start-trim must feature-detect it (§5).
+
+### 2.1 The slot shape (`$defs/sound_slot`, duplicated per domain schema)
+
+```json
+"death": {
+  "clips": [
+    {"file": "imported/building_death_a.ogg", "volume": 0.8, "start": 0.0, "end": 0.0}
+  ],
+  "loop": false,
+  "pick": "random"
+}
+```
+
+- `file` — path relative to `data/audio/`. Empty string = no clip.
+- `volume` — 0.0–1.0, multiplied by the bus volume and the master volume.
+- `start` / `end` — seconds. `end: 0.0` means *play to the end* (a sentinel, not
+  `null` — see the `oneOf` rule above).
+- `loop` — one-shot vs looping (ambient, music).
+- `pick` — `"random"` | `"sequential"`, used when `clips` has more than one entry.
+- **`clips: []` on a global default = silence. `clips: []` on an element
+  override = inherit the default.** Both layers are always present in the JSON
+  (full `required` per `data/CLAUDE.md`), so the form always renders them and no
+  "create the override key" machinery is needed.
+
+### 2.2 Buses
+
+The bus is fixed by *where the slot lives*, not by a data field a designer can
+mis-set:
+
+| Bus | Slots | Channel |
+|---|---|---|
+| `music` | `core.Sounds.Music.*` | `pygame.mixer.music` (streaming, one at a time) |
+| `sfx` | everything else, including `core.Sounds.Ambient` (D6) | `pygame.mixer.Sound` on a pooled channel |
+
+Effective volume = `master × bus × clip.volume`.
+
+### 2.3 Checklist → slot map (all 21 rows)
+
+| Checklist row | Slot |
 |---|---|
-| Every stat/string is an id'd, movable, re-textable widget (`text_id`, `submit_label`) | `UiTextBindingPLAN.md` UT-1..UT-7 — **done** |
-| One 640×360 logical UI space | `UiResolutionPLAN.md` UR-1..UR-3 — **done** |
-| Widget parent tree, outliner as a `QTreeWidget`, edit-time move cascade, `editor/widget_tree.py` | `UiEditorParentingPLAN.md` P-1..P-5 — **landed** |
-| Position-only text anchors are selectable/draggable; live X/Y/W/H spinboxes | `editor/panels/_screen_primitives.py`, `editor/panels/screen_details.py` |
-| `align` + `font_key` recorded per widget as editor DRAW HINTS | `data/schemas/screen_defaults.schema.json`, `tools/export_ui_layouts.py::_widget_entry` |
-| Custom font import + a game-wide active face | `data/fonts/font_manifest.json`, `data/ui/active_font.json` — fonts already import and work |
-| The whole draw list of every screen, replayed behind the editor's widget boxes | `data/ui/screen_previews.json` (UT-2) |
+| Music / ambient | `core.Sounds.Music.default` + `core.Sounds.Ambient.loop` |
+| game start sound | `core.Sounds.Game.game_start` |
+| round win / loss | `core.Sounds.Game.round_win` / `.round_loss` |
+| round start (humans screaming) | `core.Sounds.Game.round_start` |
+| level up sound | `core.Sounds.Game.level_up` |
+| buying plot | `map.Sounds.buy_plot` |
+| tile placement sound | `map.Sounds.tile_placement` |
+| cutscene sound/music | `core.Sounds.Music.cutscene` |
+| menu music | `core.Sounds.Music.menu` |
+| not enough love | `ui.Sounds.not_enough_love` |
+| button click | `ui.Sounds.button_click` + per-widget `sound` in `data/ui/screens/*.json` |
+| Building death sound | `buildings.BuildingsGlobal.Sounds.death` (+ per-family) |
+| Building upgrade sounds | `…Sounds.upgrade` (+ per-family) |
+| upkeep/boost | `…Sounds.upkeep_boost` (+ per-family) |
+| selection sound | `…Sounds.selection` (+ per-family) |
+| placement sound | `…Sounds.placement` (+ per-family) |
+| boss death sound | `enemies.EnemyTypes.Boss.sounds.death` |
+| cannon/boss attack sound | `EnemyTypes.Boss.sounds.attack` + `EnemyTypes.SiegeCannon.sounds.attack` |
+| boss spawn | `EnemyTypes.Boss.sounds.spawn` |
+| Enemy death sound | `enemies.EnemySounds.death` (+ per-type) |
+| Enemy attack sound | `enemies.EnemySounds.attack` (+ per-type) |
+| *(D4, beyond the checklist)* | `core.Sounds.Music.building_phase`, `core.Sounds.Music.combat_phase` |
 
-Read `game/ui/CLAUDE.md`, `data/CLAUDE.md`'s "UI screen data" section and
-`editor/panels/CLAUDE.md` before touching a phase. Test policy is the root
-`CLAUDE.md` §"Test Suite Policy" — this doc states no rule of its own.
+Building sound events also include `attack`; economy buildings that never attack
+simply stay silent.
 
-## 2. Decisions (with rationale)
-
-- **D1 — Layers live in the OVERRIDE doc, never in `screen_defaults.json`.**
-  A new optional `layers` array on `ui_screen.schema.json`'s per-widget override
-  object. The designer's whole ask is "no programmer involved":
-  `screen_defaults.json` is generated by `tools/export_ui_layouts.py` from what
-  the CODE lays out, so a layer authored there would need a code change to
-  exist. The override doc is the designer's file.
-- **D2 — A layer's geometry is an OFFSET from its owner's post-override rect,
-  never an absolute rect.** Every screen's `layout()` recomputes widget rects
-  each frame, and `UiEditorParentingPLAN` D2 deliberately kept saved rects
-  ABSOLUTE with **no runtime cascade**. An absolute layer would detach the
-  instant `layout()` moved its owner (the HUD readouts, which are computed off
-  `love_panel`'s live rect, would break first). Offsets are `[dx, dy, w, h]`; a
-  `w`/`h` of `0` means "match the owner's".
-- **D3 — The pure geometry/state resolver lives in `engine/`, not `game/` or
-  `editor/`.** Both the game (drawing) and the editor (previewing) must resolve
-  a layer to the SAME rect, and `editor/` may never import `game/` (strict
-  layering). `editor/widget_tree.py` could be an editor-only duplicate because
-  parenting is authoring-only; layer geometry is not. New module
-  `engine/ui_layers.py`, pygame-free, in `TestPurity`.
-- **D4 — Two submission BANDS, `under` and `over`, one call each.** The HUD pass
-  has no depth sort — draw order IS submission order (`game/ui/CLAUDE.md`,
-  "HUD submission order") — so a z-index is meaningless without a real call
-  site. Each screen's `submit()` calls the layer submitter once at the top
-  (`under`) and once at the end (`over`); `z` orders layers WITHIN a band.
-  - Consequence to accept and document: an `under` layer sits behind
-    everything on that screen, not just behind its own owner. That is exactly
-    right for "Widget Bg" and wrong for "a background between two stacked
-    panels". Say so in the editor's tooltip.
-- **D5 — Golden parity is the landing condition of every runtime phase.** With
-  no `layers` authored the submitter emits nothing, so
-  `tools/tests/test_ui_skinning.py`'s baselines and `data/ui/screen_previews.json`
-  stay byte-identical. A phase that moves either has done something wrong.
-- **D6 — The seven shipped font presets stay REQUIRED and PINNED; custom presets
-  are additive** (user decision). `fonts.schema.json` opens to extra
-  `^[a-z][a-z0-9_]*$` keys; `configure_fonts`'s key-set check relaxes from
-  "exact match" to "the seven must be present, extras allowed". `game/ui/CLAUDE.md`'s
-  rule — presets are global, widening `md` overflows containers everywhere —
-  is preserved by construction: a designer adds `title_big`, never resizes `md`.
-  - A custom preset needs a `_LAYOUT_H` value. It is **derived once inside
-    `configure_fonts` and stored**, never measured live at each call site — the
-    pinned-heights invariant exists because SysFont measures ±1px differently
-    per platform and every stored rect must be reproducible on any machine.
-- **D7 — A clickable layer either RETARGETS an existing widget or names one of
-  three RESERVED action tokens; an unroutable target WARNS but is allowed**
-  (user decision, 2026-08-17 — this AMENDS the original ruling, see below).
-  Retarget = the layer fires the named widget id's own action, so the Munchkin
-  can drive the Pause button — or a *different* button.
-  - **The reserved tokens are `close_window`, `back`, `noop`** (named by the
-    user at the W2→W3 boundary; UL-9 is no longer blocked). `noop` is the
-    explicit do-nothing: a decorative layer that must swallow its click rather
-    than let it fall through to the button behind it.
-  - **Amendment — dead buttons warn, they do not fail validation.** The original
-    D7 made the schema enum CLOSED and cited ED-30 ("invalid input
-    unrepresentable") so that a mistyped or not-yet-coded action would fail
-    validation in the editor. The user has ruled the other way: `target` accepts
-    any id-shaped string, and a target that resolves to **neither** a widget id
-    present in this screen **nor** one of the three tokens is surfaced as a
-    **warning in the editor** and still saves. Rationale: a designer authoring
-    against a widget that does not exist yet should not be blocked by the
-    schema. Consequence to accept: an unroutable `target` CAN ship, so the
-    warning is the only thing standing between a typo and a dead button — it
-    must be visible in the inspector, not buried in a log.
-- **D8 — The hit resolver is PURE, and every screen consults it BEFORE its own
-  hit logic.** `main.py` calls `Hud.hit()` **twice per click** (the pan-arming
-  probe on MOUSEBUTTONDOWN, the real handler on MOUSEBUTTONUP), which is why
-  `Hud.hit()` is documented as a pure read and why `MapOverlays.hit()`'s
-  self-toggling pattern must never be copied into it. A resolver that mutated
-  state would double-fire and cancel itself.
-- **D9 — Per-state appearance reuses the EXISTING four-state vocabulary**
-  (`idle`/`hover`/`pressed`/`disabled`), not a new one. It is already
-  `slots.json`'s `ui` animation vocabulary, already one manifest row each, and
-  already what a `Button` tracks internally — so per-state colour and position
-  ride the same state the per-state art already resolves through.
-- **D10 — The three life counters are three id'd widgets, not one repeated
-  draw.** `life_1`/`life_2`/`life_3` join `hud.py`'s `ids` dict as ordinary
-  holders, each carrying its own layer stack, so the designer positions and
-  skins them individually. `lives_text`/`icon_lives` stay (a numeric readout is
-  still useful and removing an id breaks the on-disk contract).
-
-## 3. Section map
-
-| Section | Title | Phases | Depends on | Status |
-|---|---|---|---|---|
-| S1 | Quick wins — alignment and fonts | UL-1, UL-2 | — | **LANDED** — `ul-section-S1`, merged to umbrella |
-| S2 | The layer model | UL-3, UL-4, UL-5 | — | **LANDED** — `ul-section-S2`, merged to umbrella |
-| S3 | Layers in the editor | UL-6, UL-7, UL-8 | S2 | **LANDED** — `ul-section-S3`, merged to umbrella |
-| S4 | Clickable layers + life counters | UL-9, UL-10, UL-11, UL-12 | S2, S3 | **LANDED** — `ul-section-S4`, merged to umbrella. Section review run late by the main session (clean, 2 LOW accepted); handoff `docs/handoffs/uilayeredwidgets-S4.md` |
-
-**Waves:** W1 = **S1 + S2** (concurrent). W2 = **S3**. W3 = **S4**.
-
-> **Correction (W1 close).** This line originally claimed S1 and S2 share **no
-> file**. They do: both add a key to the per-widget override object in
-> `data/schemas/ui_screen.schema.json` (S1 `align`, S2 `layers` + `states`).
-> The wave was run with an explicit shared-file contract — surgical additions
-> only, neither section referencing the other's key — and the file auto-merged
-> without conflict. The three real conflicts at the umbrella merge were
-> additive registration lists (`conftest.py`, `tools/test_domains.py`) and this
-> plan doc's own status table, all resolved by union.
-
----
-
-### Section S1 — Quick wins: alignment and fonts
-
-**Purpose.** The two asks from the designer's opening list that depend on
-nothing else: text alignment editable per piece of text, and font sizes the
-designer defines. Independent of layers, so it ships first and gives the
-designer something usable in the first week. Fonts already import and work —
-this section makes the SIZES authorable, not the faces.
-
-**Publishes.**
-- `align` as a real per-widget key in `ui_screen.schema.json` (`"left" |
-  "center" | "right"`), honoured by the game at draw time — not just the
-  editor draw hint it is today.
-- `data/ui/fonts.json` accepts arbitrary extra preset keys beside the seven
-  required ones; `engine.render.fonts.configure_fonts` accepts them and derives
-  a `layout_h` for each; any `font_key` override may name a custom preset.
-- The editor's per-widget Alignment control and the Theme panel's
-  add/remove-preset rows.
-
-**Depends on.** —
+## 3. Build order (flat)
 
 | Phase | Scope (package) | Status |
-|---|---|---|
-| UL-1 | Alignment as a real override (data + game + editor) | *(LANDED)* — `ul-phase-UL-1-align`, review clean |
-| UL-2 | Designer-defined font presets (data + engine + editor) | *(LANDED)* — `ul-phase-UL-2-fonts`, review clean |
+|-------|-----------------|--------|
+| SD-1 | Slot schema + `$defs` generator + all balancing subtrees (data) | not started |
+| SD-2 | `engine/audio/` package: pure bank + sfx + music channels (engine) | not started |
+| SD-3 | Editor: `sound_import.py`, `SoundSlotWidget`, `x-widget` hook, preview (editor) | not started |
+| SD-4 | Triggers: buildings + map (game) | not started |
+| SD-5 | Triggers: enemies + boss (game) | not started |
+| SD-6 | Triggers: UI + per-button override + Master/Music/SFX sliders (game + data) | not started |
+| SD-7 | Music & round/game events; retire the hardcoded boot track (game) | not started |
 
-#### Phase UL-1 — Text alignment becomes editable
-
-**Goal.** A designer picks Left / Centre / Right for any text widget in the
-editor and the game draws it that way. Today `align` is recorded into
-`screen_defaults.json` as an editor-only measuring hint and the game reads
-alignment off a code-set holder attribute (`hud.round_label` is the one widget
-that declares `align="center"`).
-
-**Files.**
-- Modified: `data/schemas/ui_screen.schema.json` (optional `align` enum on the
-  per-widget override object — no `game/ui/skinning.py` change needed, its
-  generic setattr loop already threads any key onto the widget, the same way
-  `tint` and `text_id` ride for free).
-- Modified: `game/ui/widgets.py` — confirm `submit_label`'s
-  `getattr(holder, "align", "left")` path covers every converted call site, and
-  convert any remaining bare `submit_text(...)` that a designer would expect to
-  align.
-- Modified: `editor/panels/screen_details.py` — an Alignment combo beside the
-  X/Y/W/H spinboxes, on the existing live-commit/undo path.
-- Modified: `editor/panels/_screen_primitives.py` — the interaction rect for a
-  position-only anchor must follow the OVERRIDE's align, not only the default's.
-
-**Tests.** New `tools/tests/test_ui_align.py` (override applies; each of the
-three values measures its anchor box the right way; an absent key is `left`).
-Existing `tools/tests/test_ui_skinning.py` must not move.
-
-**Exit gate.**
-```
-py tools/smoke.py
-py -m pytest tools/tests/test_ui_align.py tools/tests/test_ui_skinning.py -q
-```
-**Quick Test (in game):** set `hud.love_text`'s `align` to `right` in
-`data/ui/screens/hud.json`, run `py game/main.py`, confirm the love number
-spreads leftward from its stored x and the icon does not move.
-
-#### Phase UL-2 — Designer-defined font presets
-
-**Goal.** The designer adds their own preset (name + size + bold) in the editor's
-Theme panel and assigns it to any widget. The seven shipped presets stay exactly
-as they are (D6).
-
-**Files.**
-- Modified: `data/schemas/fonts.schema.json` — the seven keys stay `required`;
-  `additionalProperties` becomes the same `{size, bold}` object shape under a
-  `^[a-z][a-z0-9_]*$` pattern.
-- Modified: `engine/render/fonts.py` — `configure_fonts` accepts extras
-  (missing-key check stays loud, unknown-key check goes); `_LAYOUT_H` gains a
-  derived entry per custom preset, computed once at configure time (D6).
-- Modified: `editor/panels/game_theme.py` + `editor/theme_ops.py` — add/rename/
-  remove a custom preset, staged through the existing `write_validated` path.
-- Modified: `editor/panels/screen_details.py` — the font combo lists custom
-  presets alongside the seven.
-
-**Tests.** New `tools/tests/test_font_presets.py` (a custom preset configures,
-gets a `layout_h`, and survives a reconfigure; dropping one of the seven still
-fails loud). Existing `tools/tests/test_theme_data.py` parity must not move.
-
-**Exit gate.**
-```
-py tools/smoke.py
-py -m pytest tools/tests/test_font_presets.py tools/tests/test_theme_data.py -q
-```
-**Quick Test (in game):** add a `title_big` preset (size 34, bold) in the Theme
-panel, point `main_menu`'s title at it, run `py game/main.py` and confirm the
-title draws larger while every other screen is unchanged.
+SD-1 gates everything. SD-2 and SD-3 depend only on SD-1 and are independent of
+each other. SD-4 – SD-7 need SD-2.
 
 ---
 
-### Section S2 — The layer model
+### Phase SD-1 — Slot schema + balancing subtrees (data)
 
-**Purpose.** Teach the game what a layer is, then make it draw one. Nothing
-visible changes until a designer authors a layer — every existing screen must
-look exactly as it does today, and that is how we know it works. This is the
-section every later one is built on.
+**Goal**: the data model exists and validates. No engine, no editor, no sound.
 
-**Publishes.**
-- `ui_screen.schema.json`'s per-widget optional **`layers`** array. Each entry:
-  `id`, `offset` `[dx, dy, w, h]` (D2), `z` (int, order within a band), `band`
-  (`"under" | "over"`), and the appearance keys `slot`, `text_id`, `label`,
-  `font`, `align`, `color`, `text_color`, `tint`, `visible` — plus an optional
-  `states` object keyed `idle`/`hover`/`pressed`/`disabled`, each holding the
-  same appearance keys plus its own `offset` (D9).
-- **`engine/ui_layers.py`** (pure, pygame-free, `TestPurity`) — the ONE resolver
-  both packages consume (D3): `resolve(layer_spec, owner_rect, state) -> rect +
-  resolved appearance`, `ordered(layers, band)`, `validate_offsets(...)`.
-- **`ScreenSkinning.submit_layers(renderer, screen_id, ids, band, state_of)`** —
-  the single seam every screen calls twice (D4).
-- The per-widget `states` object on the OWNER widget itself, so a button's own
-  text colour and position can differ per state (the designer's item 4).
+**Read**: `data/CLAUDE.md`.
 
-**Depends on.** —
+**Files** — new: `tools/gen_sound_slot_defs.py` (writes the identical
+`$defs/sound_slot` + `$defs/sound_clip` block into every domain schema that uses
+it — the `tools/gen_sprite_slot_enum.py` pattern),
+`tools/tests/test_sound_slots_data.py`.
+Modified: `data/schemas/{core,ui,map,buildings,enemies}.schema.json` (the `$defs`
+block, the `Sounds` subtrees, every slot site marked `x-widget: "sound_slot"`,
+per-key `description` + `minimum`/`maximum` per D-12),
+`data/balancing/{core,ui,map,buildings,enemies}.json` (the subtrees, all slots
+empty). Imported clips stay committed content (D-31) — do **not** gitignore them.
 
-| Phase | Scope (package) | Status |
-|---|---|---|
-| UL-3 | Layer schema + the pure resolver (data + engine) | *(LANDED)* |
-| UL-4 | The game draws layers (game) | *(LANDED)* |
-| UL-5 | Per-state appearance, layer and owner (data + engine + game) | *(LANDED)* |
+**Tests** (`test_sound_slots_data.py`): the `$defs` block is byte-identical
+across all five schemas (drift test); every checklist slot in §2.3 exists at its
+stated path; an empty slot validates; a slot with two clips validates; an
+out-of-range `volume`, an unknown key, and a `null` trim value each fail; no
+node added to the touched schemas is type-less or uses `oneOf`; the `pick` enum
+is exactly `["random", "sequential"]`.
 
-#### Phase UL-3 — The layer schema and a pure resolver
+**Exit gate**: `py tools/smoke.py` +
+`py -m pytest tools/tests/test_sound_slots_data.py -q`.
+**Quick test**: `py editor/main.py` → select `buildings` → the new `Sounds`
+sections render (as plain nested fields at this phase — the composite widget is
+SD-3) and the domain does not crash.
 
-**Goal.** Define the shape of a layer and resolve it, with nothing calling the
-resolver yet. Landing condition: **no behaviour change anywhere.**
+### Phase SD-2 — `engine/audio/` package (engine)
 
-**Files.**
-- Modified: `data/schemas/ui_screen.schema.json` — the `layers` array above,
-  `additionalProperties: false` throughout, every key optional (a layer override
-  is a partial patch, like every other widget key).
-- New: `engine/ui_layers.py` — pure geometry + appearance resolution. A `w`/`h`
-  of `0` inherits the owner's; a dangling/duplicate layer id resolves to
-  "skip this layer" rather than raising (the `editor/widget_tree.py` D5
-  precedent — a hand-edited doc must never hang a paint handler).
-- Modified: `tools/tests/test_purity.py` fixture list — add `engine/ui_layers.py`.
+**Goal**: sound can be played by code, headlessly safe, with no game vocabulary
+in `engine/`.
 
-**Tests.** New `tools/tests/test_ui_layers.py` — offset resolution including the
-`0`-inherits case, band/z ordering stability, state fallback to `idle`, the
-degrade paths.
+**Read**: `engine/CLAUDE.md`.
 
-**Exit gate.**
-```
-py tools/smoke.py
-py -m pytest tools/tests/test_ui_layers.py tools/tests/test_purity.py -q
-```
-**Quick Test (in game):** `py game/main.py` boots and every screen is
-byte-for-byte what it was — this phase adds a vocabulary, not a pixel.
+**Files** — new: `engine/audio/__init__.py` (re-exports `play_music`,
+`stop_music`, `set_volume` **exactly** — `game/main.py:66`,
+`game/ui/cutscene_player.py:16` and `tools/tests/test_audio.py` all import from
+`engine.audio`), `engine/audio/bank.py` (pure: `resolve(default_slot,
+override_slot)`, `pick_clip(slot, rng)`, `effective_volume(clip, bus, master)`),
+`engine/audio/sfx.py` (`init()`, `play(clip, bus)`, `set_bus_volume`,
+`stop_all`; `pygame.mixer.Sound` cache keyed by `(file, start, end)`, channel
+pool, per-slot cooldown and max-concurrent cap), `engine/audio/music.py`
+(`play(clip)`, `stop()`, `push`/`pop` so a cutscene restores the previous track —
+fixing the clobber noted at `game/ui/cutscene_player.py:66`),
+`tools/tests/test_audio_bank.py`, `tools/tests/test_audio_sfx.py`.
+Deleted: `engine/audio.py` (becomes the package).
 
-#### Phase UL-4 — The game draws layers
+**Decisions**: every entry point keeps `engine/audio.py`'s swallow-and-continue
+guard, so `SDL_AUDIODRIVER=dummy` and machines with no device degrade to silence
+rather than crashing. `bank.py` is pure — no pygame, no globals, `rng` injected,
+`data_dir`-injectable. **Start-trim needs numpy** (`pygame.sndarray` slicing) and
+numpy is only a transitive optional here, so `sfx.py` feature-detects it and
+falls back to `end`-only trim (`Sound.play(maxtime=…)`); it must never add a hard
+dependency.
 
-**Goal.** A layer authored in `data/ui/screens/<id>.json` appears in the game, in
-the right band, at the right offset, following its owner when `layout()` moves
-it.
+**Tests**: `bank.py` tests are headless and pure (override wins; empty override
+falls through to default; empty default → `None`; `random`/`sequential` picking
+with a seeded rng; volume math). `sfx` tests assert the graceful-degradation
+invariant already pinned by `tools/tests/test_audio.py` (never raises with the
+mixer quit / a missing file) plus cache, cooldown and cap behaviour against a
+fake mixer. `tools/tests/test_audio.py` must keep passing verbatim — it pins the
+re-export surface.
 
-**Files.**
-- Modified: `game/ui/skinning.py` — `submit_layers(...)`, emitting `HudSprite` /
-  `HudRect` / `HudText` through `engine.ui_layers` (pure; the same sanctioned
-  HUD-primitive import `skinning.py` already makes).
-- Modified: all 14 exported screens' `submit()` — two calls each, `under` first
-  and `over` last: `add_name`, `boss_cutscene`, `building_panel`, `cheat_menu`,
-  `credits`, `enemy_intro`, `game_log`, `game_over`, `hud`, `levelup`,
-  `main_menu`, `overlays`, `pause`, `settings` (`tools/export_ui_layouts.py`'s
-  `SCREEN_IDS` is the list).
+**Exit gate**: `py tools/smoke.py` +
+`py -m pytest tools/tests/test_audio.py tools/tests/test_audio_bank.py tools/tests/test_audio_sfx.py -q`.
+**Quick test**: `py game/main.py` boots and the existing music still plays.
 
-**Tests.** New `tools/tests/test_ui_layer_draw.py` — a fixture screen doc with
-one `under` and one `over` layer produces the expected primitives in the
-expected order; an owner moved by a `rect` override carries its layers.
-`tools/tests/test_ui_skinning.py` golden baselines must be **unchanged** (D5).
+### Phase SD-3 — Editor sound slot (editor)
 
-**Exit gate.**
-```
-py tools/smoke.py
-py -m pytest tools/tests/test_ui_layer_draw.py tools/tests/test_ui_skinning.py -q
-```
-**Quick Test (in game):** hand-author one `under` layer on `hud.love_text`
-pointing at an imported `ui` slot, run `py game/main.py`, confirm the background
-sits behind the love number and moves with it when the widget's `rect` override
-is changed.
+**Goal**: a designer imports a clip, sets volume/trim/loop, adds variations, and
+hears it — without leaving the balancing form.
 
-#### Phase UL-5 — Per-state appearance
+**Read**: `editor/CLAUDE.md`.
 
-**Goal.** The designer's item 4: a different colour AND position for text and
-icons in each button state — on a layer, and on the owner widget itself.
+**Files** — new: `editor/sound_import.py` (PURE — Qt-free and pygame-free:
+`clip_ref(name)`, `import_clip(data_dir, src, name, transcode=False)` copying
+into `data/audio/imported/`, `imported_clips(data_dir)` for the reuse picker,
+`clip_users` / `unreferenced_clips` refcounting modelled on
+`editor/asset_import.py:55-71`, `transcode_available()`),
+`editor/panels/sound_slot.py` (`SoundSlotWidget`),
+`tools/tests/test_sound_import.py`, `tools/tests/test_sound_slot_widget.py`.
+Modified: `editor/panels/balancing.py` — `_build_object:361` intercepts
+`prop.get("x-widget") == "sound_slot"` and emits a `SoundSlotWidget` instead of
+recursing; the widget commits the whole slot object through the existing
+`_commit:725`, and `_set_widget_value:795` / `_apply_snapshot:806` learn the new
+widget type. `tools/tests/test_editor_viewport.py` (`TestPurity` += the two new
+modules — editor rule 2). `requirements.txt` (+ `soundfile`, marked OPTIONAL in
+the same style as `opencv-python`).
 
-**Files.**
-- Modified: `data/schemas/ui_screen.schema.json` — the `states` object on both
-  the layer entry and the per-widget override object.
-- Modified: `engine/ui_layers.py` — state resolution with `idle` fallback.
-- Modified: `game/ui/widgets.py` — `Button.submit` resolves its own per-state
-  `text_color`/offset through the same resolver; `submit_label` likewise for a
-  holder that carries one.
-- Modified: `game/ui/skinning.py` — `state_of(widget)` (the pure read of a
-  widget's current state) threaded into `submit_layers`.
+**Decisions**: preview uses **QtMultimedia**, lazily imported inside a `try`
+(precedent `editor/thats_my_producer.py:15-32`), because
+`editor/panels/viewport.py` sets `SDL_AUDIODRIVER=dummy` process-wide —
+`pygame.mixer` in the editor is silent by construction. Missing QtMultimedia ⇒
+the ▶ button disables itself. The transcode checkbox is enabled only when
+`soundfile` imports; the raw-copy path always works. Files above a size
+threshold get a warning (`data/audio/Bass_and_drum_Duo.wav` is already 49 MB).
+`QFileDialog` stays confined to one `_on_*_clicked` method and dialog
+construction is split from display, so no test `exec()`s (editor rule 12).
 
-**Tests.** Extend `tools/tests/test_ui_layer_draw.py` with a per-state case per
-state; a widget with no `states` key must draw exactly as it does today.
+**Tests**: `test_sound_import.py` (pure, no Qt) — copy into a temp `data_dir`,
+`clip_ref` shape, refcounting, transcode skipped cleanly when `soundfile` is
+absent, non-audio extension rejected. `test_sound_slot_widget.py` — the widget
+renders from a slot dict and round-trips it through `_commit`; adding/removing a
+clip restructures the list; volume/trim bounds come from the schema;
+`QtCase.track` destroys every widget (editor rule 17); assert against a pinned
+fixture, never live `data/` (rule 18). Any test that actually decodes a clip must
+set `DECODES_MEDIA` (`tools/tests/temp_data.py:119`) — audio is stubbed to zero
+bytes in the temp copy.
 
-**Exit gate.**
-```
-py tools/smoke.py
-py -m pytest tools/tests/test_ui_layer_draw.py tools/tests/test_hud_panel.py -q
-```
-**Quick Test (in game):** give `hud.btn_end_turn` a `hover` state with a
-different `text_color` and a 1px offset; run `py game/main.py` and confirm the
-label recolours and nudges on hover and returns on mouse-out.
+**Exit gate**: `py tools/smoke.py` +
+`py -m pytest tools/tests/test_sound_import.py tools/tests/test_sound_slot_widget.py tools/tests/test_editor_viewport.py -q`.
+**Quick test**: `py editor/main.py` → `buildings` → *DefenceBuildings →
+BasicDefence → Sounds → attack* → **Import…** a short clip → ▶ plays it → set
+volume 0.5 → Save → reopen the editor and confirm it persisted into
+`data/balancing/buildings.json`.
+
+### Phase SD-4 — Triggers: buildings + map (game)
+
+**Goal**: placement, selection, upgrade, death, attack and upkeep/boost sounds
+fire; buying a plot and placing a tile make a noise.
+
+**Read**: `game/CLAUDE.md`, then `game/buildings/CLAUDE.md`.
+
+**Files** — modified: `game/main.py` (`sfx.init(data_dir)` after
+`pygame.init():588`; `gp["sfx"]`), `game/buildings/*` (placement, upgrade,
+death, attack, selection, upkeep/boost call sites), `game/map/*` and
+`game/ui/building_ui.py` (buy-plot, tile placement), `game/core/balance.py` if a
+loader seam is needed. New: `tools/tests/test_sound_triggers_buildings.py`.
+
+**Decisions**: game code resolves through **one seam** — a
+`game/ui/effects.py`-style dispatcher (`play_building_sound(kind, family)`) that
+looks up the family override then the global default, mirroring how
+`game/ui/effects.py::_play` / `_play_typed` already dispatches VFX. No `game/`
+module ever names an audio file, and `engine/` never branches on a building type
+string (D5, layering). **Locate every call site fresh** — the previous draft of
+this plan cited line numbers that no longer resolve.
+
+**Tests**: a fake `sfx` records `(slot_path, clip)` calls; assert the right slot
+fires on place / upgrade / death / attack / select / upkeep, that an empty
+override falls back to the default, and that an empty default is a silent no-op
+rather than a crash.
+
+**Exit gate**: `py tools/smoke.py` +
+`py -m pytest tools/tests/test_sound_triggers_buildings.py -q`.
+**Quick test**: `py game/main.py` → buy a plot (sound) → place a defence building
+(placement) → select it (selection) → upgrade it (upgrade) → let it shoot
+(attack) → let it die (death).
+
+### Phase SD-5 — Triggers: enemies + boss (game)
+
+**Goal**: enemy spawn/attack/death and the three boss rows fire, with per-type
+overrides.
+
+**Read**: `game/CLAUDE.md`, then `game/enemies/CLAUDE.md`.
+
+**Files** — modified: `game/enemies/*` (spawner, walker, combat sweep),
+`game/core/session.py` / `game/core/boss_bonuses.py` for boss spawn.
+New: `tools/tests/test_sound_triggers_enemies.py`.
+
+**Decisions**: the override key is the `EnemyTypes` entry (D7), reached via the
+existing `registry_group` / type mapping — **not** a new string convention.
+`data/schemas/enemies.schema.json:663-667` warns explicitly that the registry
+label is not the `EnemyTypes` key (`Standard → "Walker"`,
+`SiegeCannon → "Siege Cannon"`); match by field, never by convention. Boss spawn,
+boss attack and boss death are the `Boss` type's override rows; the cannon attack
+is `SiegeCannon`'s. A 40-enemy wipe in one frame is the load case — SD-2's
+per-slot cooldown and max-concurrent cap are load-bearing here, not polish.
+
+**Tests**: fake-`sfx` assertions per type; a mass-death burst plays at most the
+cap; `SiegeCannon` and `Boss` attacks resolve to their overrides while an
+un-overridden type falls back to `EnemySounds`.
+
+**Exit gate**: `py tools/smoke.py` +
+`py -m pytest tools/tests/test_sound_triggers_enemies.py -q`.
+**Quick test**: `py game/main.py` → reach a wave with siege cannons (their attack
+differs from the default) → reach a boss round (spawn, attack, death).
+
+### Phase SD-6 — UI triggers, per-button override, volume sliders (game + data)
+
+**Goal**: buttons click, "not enough love" is audible, and the settings screen
+has working Master / Music / SFX sliders.
+
+**Read**: `game/CLAUDE.md`, then `game/ui/CLAUDE.md`.
+
+**Files** — modified: `data/schemas/ui_screen.schema.json` (an **optional**
+`sound` key on the per-widget override object — optional by omission from
+`required`, so every existing `data/ui/screens/*.json` stays byte-identical),
+`game/ui/widgets.py` + `game/ui/shell.py` (`_main_menu_click:205`,
+`_settings_click:246`, `_pause_click:255`) for the click seam,
+`game/ui/overlays.py` (or wherever `ui.Timing.not_enough_love_duration` is
+consumed), `game/ui/settings.py` (three sliders replacing the inert `volume:71`
+and the `_audio_note` label at `:112-113,229-235`), `game/ui/strings.py` +
+`data/ui/strings.json` (retire `settings.no_audio`, add music/SFX labels), and a
+regeneration of `data/ui/screen_defaults.json` / `screen_previews.json` via
+`tools/export_ui_layouts.py` if the settings layout changes.
+New: `tools/tests/test_sound_triggers_ui.py`.
+
+**Decisions**: the per-button override resolves once, in the widget click seam —
+the widget's own `sound` if set, else `ui.Sounds.button_click`. Each slider sets
+a bus volume through `engine.audio.sfx.set_bus_volume` / `music.set_volume`, and
+persists wherever the settings screen already persists. Ambient is on the SFX bus
+(D6). `screen_defaults.json` / `screen_previews.json` are generated-but-committed
+— regenerate them in this phase or the drift test fails.
+
+**Tests**: the click seam plays the global slot; a widget carrying a `sound`
+override plays that instead; bus volume multiplies correctly; the schema still
+validates every unmodified `data/ui/screens/*.json`.
+
+**Exit gate**: `py tools/smoke.py` +
+`py -m pytest tools/tests/test_sound_triggers_ui.py tools/tests/test_ui_screens.py -q`.
+**Quick test**: `py game/main.py` → click menu buttons (click sound) → Settings →
+drag Music to 0 (music stops, SFX keeps playing) → drag SFX to 0 → in game, try
+to place a building you cannot afford (not-enough-love sound at SFX volume).
+
+### Phase SD-7 — Music and round/game events (game)
+
+**Goal**: every remaining checklist row plays, and no audio path is hardcoded.
+
+**Read**: `game/CLAUDE.md`, then `game/core/CLAUDE.md`.
+
+**Files** — modified: `game/main.py` (**delete** the hardcoded
+`play_music(data_dir / "audio" / "Bass_and_drum_Duo.wav", loop=True)` at `:785`;
+that track becomes the imported clip of `core.Sounds.Music.default`),
+`game/core/phases.py` + `game/core/session.py` (building-phase / combat-phase
+music switch; round start / win / loss), `game/core/levelup.py` (level-up sound),
+`game/ui/shell.py` (menu music on `to_main_menu:116` / `enter_gameplay:108`;
+game-start sound), `game/ui/cutscene_player.py` (cutscene music slot, using
+`music.push`/`pop` so the previous track resumes), `data/balancing/core.json`
+(seed the default music slot with the existing WAV).
+New: `tools/tests/test_sound_music.py`.
+
+**Decisions**: music resolution is `phase override → default`, exactly like every
+other slot — building phase and combat phase are overrides of
+`core.Sounds.Music.default` (D4). Ambient loops on the SFX bus concurrently with
+music. Switching to a track that is already playing is a no-op — never restart it
+on every phase tick.
+
+**Tests**: a fake music channel records `play`/`stop`; the phase machine switches
+tracks on transition and only on transition; an empty phase override falls back
+to the default; the cutscene push/pop restores the prior track; round win/loss
+and level-up fire exactly once each.
+
+**Exit gate**: `py tools/smoke.py` +
+`py -m pytest tools/tests/test_sound_music.py -q`.
+**Quick test**: `py game/main.py` → menu music at the main menu → start a game
+(game-start sound, then building-phase music) → end turn (round-start scream,
+combat-phase music) → clear the wave (round-win) → level up (level-up sound) →
+trigger a cutscene (its music plays, then the previous track resumes).
 
 ---
 
-### Section S3 — Layers in the editor
+## 4. Verification (whole plan)
 
-**Purpose.** Make layers a designer feature instead of a JSON feature. Layers
-appear under their widget in the outliner — the "button folder" the designer
-asked for — with add, remove, reorder and undo; the viewport draws them so what
-you see while editing is what the game shows; a state selector makes the
-per-state work visible.
+Each phase's own gate is written above, and that is what the executing agent
+runs — `py tools/smoke.py` plus the named test files, then the Quick Test.
 
-**Publishes.**
-- Layers as child nodes of their widget in `ScreenDetailsPanel`'s
-  `WidgetTreeWidget`, on the same `Qt.ItemDataRole.UserRole` contract (a layer
-  node carries a `(widget_id, layer_id)` pair, so `widget_selected` /
-  `select_widget` keep working unchanged).
-- Layer add / remove / reorder / edit as undoable commands on the existing
-  `editor/ui_screen_session.py` stack.
-- A viewport layer overlay, draggable and resizable with the existing handles,
-  composited over the replayed `screen_previews.json`.
-- A preview **state selector** (idle / hover / pressed / disabled) driving both
-  the viewport and the inspector.
+The **single** full `py tools/testgate.py check` happens once, in the main
+session, at handoff. §"Test Suite Policy" in the root `CLAUDE.md` is the only
+authority on this; do not restate a different rule here.
 
-**Depends on.** S2.
+Tests must never write into `data/` (`TempDataCase`; a session fixture hashes
+`data/` and fails the run if it changed) and must never assert against live
+`data/` content — pin the fixture.
 
-| Phase | Scope (package) | Status |
-|---|---|---|
-| UL-6 | Layers in the outliner + undoable ops (editor) | *(LANDED)* — `ul-phase-UL-6-layer-ops`, merged to `ul-section-S3` |
-| UL-7 | Layers in the viewport (editor) | *(LANDED)* — `ul-phase-UL-7-layer-viewport`, merged to `ul-section-S3` |
-| UL-8 | State selector + layer inspector (editor) | *(LANDED)* — `ul-phase-UL-8-state-inspector`, merged to `ul-section-S3` (1 fix round) |
+## 5. Risks / open items
 
-#### Phase UL-6 — Layers in the outliner
-
-**Goal.** Select a widget, click **Add layer**, pick art, and it exists — no
-programmer involved. Remove, reorder within a band, and undo all of it.
-
-**Files.**
-- Modified: `editor/ui_screen_session.py` — `layers(widget_id)`,
-  `add_layer` / `remove_layer` / `reorder_layer` / `set_layer_field`, each one
-  undo command.
-- Modified: `editor/panels/screen_details.py` — layer child nodes under their
-  widget; the Add/Remove/Reorder controls; the slot picker reused from the
-  existing asset flow.
-
-**Tests.** New `tools/tests/test_ui_layer_ops.py` (pure session ops: add/remove/
-reorder/undo round-trips, ids stay unique, the doc validates after every op).
-Marked `editor` where Qt is involved.
-
-**Exit gate.**
-```
-py tools/smoke.py
-py -m pytest tools/tests/test_ui_layer_ops.py -q
-```
-**Quick Test (in editor):** `py editor/main.py` → screen mode → `hud` → select
-Love counter → Add layer → pick a `ui` slot → save → confirm
-`data/ui/screens/hud.json` gained a `layers` entry and Ctrl+Z removes it.
-
-#### Phase UL-7 — Layers in the viewport
-
-**Goal.** The viewport draws every layer where the game will draw it, and the
-designer drags it into place.
-
-**Files.**
-- Modified: `editor/panels/viewport.py` — layer draw via `engine.ui_layers`
-  (D3), hit-testing that picks the smallest candidate (the existing
-  `_hit_widget` rule), drag/resize writing back through UL-6's commands.
-- Modified: `editor/panels/_screen_primitives.py` — the layer interaction rect.
-
-**Note.** `data/ui/screen_previews.json` is recorded **override-free** by design,
-so a layer can never appear in that artifact. The editor composites layers
-itself, on top of the replay — do not try to bake them into the preview file.
-
-**Tests.** Extend `tools/tests/test_ui_layer_ops.py` with the viewport geometry
-cases (a layer's screen rect equals `engine.ui_layers.resolve`'s answer for the
-same owner rect).
-
-**Exit gate.**
-```
-py tools/smoke.py
-py -m pytest tools/tests/test_ui_layer_ops.py -q
-```
-**Quick Test (in editor + game):** drag a layer into place in the editor, save,
-then `py game/main.py` and confirm it sits exactly where the editor showed it.
-
-#### Phase UL-8 — State selector and layer inspector
-
-**Goal.** See and edit each button state. The inspector exposes a layer's slot,
-offset, z, band, tint, colour, text and visibility, per state.
-
-**Files.**
-- Modified: `editor/panels/screen_details.py` — the state combo + the per-state
-  inspector fields; the D4 band tooltip.
-- Modified: `editor/panels/viewport.py` — draw the selected state.
-
-**Tests.** Extend `tools/tests/test_ui_layer_ops.py` (editing a `hover` field
-writes under `states.hover` and leaves `idle` untouched).
-
-**Exit gate.**
-```
-py tools/smoke.py
-py -m pytest tools/tests/test_ui_layer_ops.py -q
-```
-**Quick Test (in editor):** switch the state selector to Pressed, move a layer,
-switch back to Idle, and confirm the idle position did not move.
-
----
-
-### Section S4 — Clickable layers and life counters
-
-**Purpose.** The two pieces that need everything above to exist first. A layer
-becomes its own click target (so the Munchkin can do something different from
-the button behind it), and the three life counters become real widgets with
-alive / transition / dead states.
-
-**Publishes.**
-- `clickable` + `target` on a layer entry, where `target` is a widget id in the
-  same screen or one of the three reserved tokens `close_window` / `back` /
-  `noop`; an id-shaped string matching neither WARNS in the editor and still
-  saves (D7, as amended).
-- The two editor-wiring items S3 scoped out, folded into UL-10 by user decision:
-  connect `viewport.layer_selected` so a viewport click selects the layer in the
-  inspector, and link the inspector's state combo to the viewport's
-  preview-state dropdown.
-- `engine.ui_layers.hit(...)` — pure, topmost-first (D8) — and
-  `ScreenSkinning.hit_layer(screen_id, ids, mx, my)`.
-- `hud.life_1` / `life_2` / `life_3` as id'd widgets with a per-life state fed
-  from the run's life-lost signal (D10).
-- Updated `game/ui/CLAUDE.md`, `data/CLAUDE.md`, `editor/panels/CLAUDE.md` and
-  `engine/render/CLAUDE.md` (the last one to pay S1's debt: its blanket "
-  `configure_fonts` NEVER touches `_LAYOUT_H`" claim went stale the moment
-  UL-2 opened `fonts.json` to custom presets, which DO get a derived entry).
-- New `docs/ui-layers-for-designers.md` — the designer-language walkthrough,
-  the only layers doc that assumes no knowledge of this repo.
-
-**Depends on.** S2, S3.
-
-| Phase | Scope (package) | Status |
-|---|---|---|
-| UL-9 | The pure hit resolver + the action contract (data + engine) | *(LANDED)* — `ul-phase-UL-9-hit-resolver` |
-| UL-10 | Wire clickable layers into every screen + the host (game + editor) | *(LANDED)* — `ul-phase-UL-10-click-wiring` |
-| UL-11 | Three life counters with real states (game + data) | *(LANDED)* — `ul-phase-UL-11-life-counters`, goldens regenerated on purpose (D5) |
-| UL-12 | Docs and designer handover (docs) | *(LANDED)* — `ul-phase-UL-12-docs`, WIP rescued from `a74ed70` and finished by the main session |
-
-#### Phase UL-9 — The pure hit resolver and the action contract
-
-**Goal.** Decide, purely, which layer a click lands on and what it means.
-Nothing routes it yet.
-
-**UNBLOCKED** (2026-08-17): the reserved tokens are **`close_window`, `back`,
-`noop`**, and an unroutable target warns rather than failing validation — see the
-amended D7. Retarget-an-existing-widget works as before.
-
-**Files.**
-- Modified: `data/schemas/ui_screen.schema.json` — `clickable` (bool) and
-  `target` (string) on a layer entry. `target` accepts any id-shaped string
-  (`^[a-z][a-z0-9_]*$`); it is **not** a closed enum. Routability is an EDITOR
-  warning, not a schema constraint (D7 as amended) — so the schema stays
-  permissive and the editor is what tells the designer a target is dead.
-- Modified: `engine/ui_layers.py` — `hit(layers, owner_rect, mx, my, state)`,
-  topmost-first within `over`, then the owner, then `under`. Pure (D8).
-
-**Tests.** Extend `tools/tests/test_ui_layers.py` — topmost wins; a
-non-`clickable` layer is transparent to the click; an out-of-bounds click
-returns `None`.
-
-**Exit gate.**
-```
-py tools/smoke.py
-py -m pytest tools/tests/test_ui_layers.py -q
-```
-**Quick Test (in game):** none — this phase is pure and routes nothing. Confirm
-`py game/main.py` boots and clicks behave exactly as before.
-
-#### Phase UL-10 — Wire clickable layers into the click path
-
-**Goal.** A click on the Munchkin fires the action the designer pointed it at.
-
-**Files.**
-- Modified: `game/ui/skinning.py` — `hit_layer(...)`, pure.
-- Modified: each screen's hit path (`Hud.hit`, `BuildingUI.handle_click`,
-  `widgets.Button`-based menu screens) — consult `hit_layer` first, fall through
-  unchanged when it returns `None`. **`Hud.hit()` stays a pure read** (D8).
-- Modified: `game/main.py` — route the reserved tokens; a retarget resolves to
-  the existing widget's own action and needs no new host branch.
-- Modified: `editor/panels/screen_details.py` — the Clickable checkbox + the
-  target picker (widget ids in this screen + the three reserved tokens). The
-  picker is a CONVENIENCE LIST, never a closed enum — free text saves, and an
-  unroutable value raises the inspector warning instead (D7 as amended).
-
-**Tests.** New `tools/tests/test_ui_layer_click.py` — a retargeting layer
-produces the target widget's action; `Hud.hit` called twice returns the same
-answer and mutates nothing; a screen with no clickable layers routes exactly as
-today.
-
-**Exit gate.**
-```
-py tools/smoke.py
-py -m pytest tools/tests/test_ui_layer_click.py tools/tests/test_hud_panel.py -q
-```
-**Quick Test (in game):** make a Munchkin layer on `hud.btn_pause` clickable and
-retarget it at `btn_end_turn`; run `py game/main.py`, click the Munchkin, and
-confirm the turn ends while clicking the rest of the pause button still pauses.
-
-#### Phase UL-11 — Three life counters with real states
-
-**Goal.** Three individually placeable, individually skinnable life counters:
-State 1 alive (looping animation), State 2 transition (the death animation),
-State 3 dead (static).
-
-**Scope note.** This phase builds the death STATE. The screen that pops up on
-losing a life — where the counters fly to the centre and scale up — is
-deliberately **not** in this plan (§4).
-
-**Files.**
-- Modified: `game/ui/hud.py` — `life_1`/`life_2`/`life_3` holders in `ids`, laid
-  out beside the existing `icon_lives`; each resolves its own state from
-  `RunState.base_lives` plus the existing `life_lost_events` ledger
-  (`game/ui/effects.py` already drains it for the "YOU / LOST 1 LIFE" banner —
-  read the same signal, do not add a second one).
-- Modified: `tools/export_ui_layouts.py` — `_DISPLAY_NAMES` and `_PARENTS` rows
-  for the three; regenerate `data/ui/screen_defaults.json` and
-  `data/ui/screen_previews.json` (the sanctioned "a screen's default geometry
-  changed on purpose" path).
-- Modified: `tools/tests/test_ui_skinning.py`'s `hud` baseline — regenerated on
-  purpose; **never relax the pin.**
-
-**Tests.** New `tools/tests/test_life_counters.py` — three lives resolve
-alive/alive/alive at full health, transition on the frame a life is lost, dead
-thereafter; the transition has a finite duration and settles.
-
-**Exit gate.**
-```
-py tools/smoke.py
-py -m pytest tools/tests/test_life_counters.py tools/tests/test_ui_skinning.py -q
-```
-**Quick Test (in game):** `py game/main.py`, let an enemy reach the hole, and
-confirm counter 3 plays its transition once and then holds the dead frame while
-1 and 2 keep looping.
-
-#### Phase UL-12 — Docs and designer handover
-
-**Goal.** The next agent and the designer both know how this works.
-
-**Files.**
-- Modified: `game/ui/CLAUDE.md` — the layer model, the two bands and D4's
-  consequence, per-state resolution, the life counters.
-- Modified: `data/CLAUDE.md` — the `layers` key in the "UI screen data" section,
-  the opened `fonts.json`.
-- Modified: `editor/panels/CLAUDE.md` — the outliner's layer nodes, the state
-  selector, the override-free-preview note from UL-7.
-- New: `docs/ui-layers-for-designers.md` — the short walkthrough (add a layer,
-  give it a state, make it clickable).
-
-**Tests.** `py -m pytest tools/tests/test_meta_docs.py -q` (doc-shape checks) if
-present for the touched docs; otherwise none.
-
-**Exit gate.**
-```
-py tools/smoke.py
-py -m pytest tools/tests/test_ui_layers.py -q
-```
-**Quick Test:** a reader who has not seen this plan can add a layer with a hover
-colour from the doc alone.
-
----
-
-## 4. Not in scope (and what each needs first)
-
-Four things in `UI Document.md` are **new screens**, not editor features. They
-need game-design decisions before anyone writes code, so they are left out
-deliberately rather than half-promised. Each is its own future plan.
-
-| Left out | Why | Needed first |
-|---|---|---|
-| **Buy Tile** (the four-tile chooser) | Does not exist. Unlocking a tile today is a single confirmation, not a choice of four. | What the four options are, how they are rolled, what a re-roll costs |
-| **Single Tile** window | Terrain information is a hover tooltip today, not a window. | Whether the tooltip becomes a window, and what opens/closes it |
-| **Build Tile** tabs + slider | The game filters construct cards by category but draws no tabs. The document's tab states are a nine-way model against a four-way system. | Which categories are tabs, and what the nine states collapse to |
-| **Building colour picker** | Buildings have no colour to pick — no per-building tint exists in the data model. | Whether colour is cosmetic-only, and where it is stored per building |
-| **The life-loss centre screen** | The counters flying to the centre at 2× with the death animation. | Its own screen design; UL-11 builds the death STATE it would show |
-
-## 5. Risks and open items
-
-- ~~**The reserved action-token enum is unnamed** (D7).~~ **RESOLVED 2026-08-17
-  at the W2→W3 boundary**: the tokens are `close_window`, `back`, `noop`, and an
-  unroutable target warns instead of failing validation (amended D7). UL-9 is
-  unblocked.
-  - **New risk this creates.** Because the schema no longer rejects an
-    unroutable `target`, a dead button can ship. The editor warning is the ONLY
-    guard, so it has to be visible where the designer is working.
-    - ~~UL-10 must also decide what a dead target does at RUNTIME.~~
-      **DECIDED S4-A — it SWALLOWS the click, it does not fall through**
-      (`hit_layer`'s "Ruling 1", `game/ui/skinning.py`: an unroutable target
-      returns `"noop"`, never `None`). Falling through would make a typo behave
-      exactly as if the layer were never clickable — the worse failure, with no
-      symptom to notice. Swallowing reads honestly as "this decal does
-      nothing", which is what `noop` already means, so the accident and the
-      intent are ONE behaviour. Consequence accepted: an unroutable target
-      ships as a dead spot that also blocks the control behind it, and the
-      amber inspector warning is the only thing that catches it. Recorded in
-      `docs/handoffs/uilayeredwidgets-S4.md` §2, in plain language for
-      designers in `docs/ui-layers-for-designers.md`.
-- **D4's band limitation is real.** An `under` layer sits behind everything on
-  its screen, not just behind its owner. If a designer needs a background
-  between two stacked panels, the answer is a third band or a per-widget
-  submission seam — a design change, not a bug fix. Flag it in the tooltip so it
-  is discovered in the editor, not in game.
-- ~~**`test_ui_min_targets.py` and clickable layers.**~~ **DECIDED S4-B —
-  clickable layers join the NON-BLOCKING under-16px lint only, never
-  `TestButtonMinSize`'s hard ≥12px floor** (`_clickable_layers()` in
-  `tools/tests/test_ui_min_targets.py`, resolved in the `idle` state, reporting
-  from 0px up). A clickable layer is usually decorative art retargeted onto a
-  button that already passed the floor, so the floor is satisfied by the real
-  control; failing the build on the decoration would pressure a designer into
-  the one fix `game/ui/CLAUDE.md` forbids — mass-resizing controls to silence a
-  lint. The lint still surfaces a genuinely tiny standalone target for an
-  eyeball pass. Recorded in `docs/handoffs/uilayeredwidgets-S4.md` §2.
-- **Golden-pin churn.** UL-11 regenerates `screen_defaults.json`,
-  `screen_previews.json` and one `test_ui_skinning.py` baseline on purpose. Every
-  other phase must leave all three byte-identical (D5). A phase that moves them
-  unexpectedly has a bug, not a stale artifact.
-- **Concurrency.** S1 and S2 run in the same wave and must be **worktree-isolated**
-  (root `CLAUDE.md`, hard rule: two or more implementation agents at the same
-  time each get `isolation: "worktree"`). They share no file today; the worktree
-  is what guarantees it stays true.
-- **`UiResolutionPLAN` UR-4/UR-5 are still open** (art recut, playtest sign-off).
-  Nothing here depends on them, but a designer eyeballing layer positions is
-  eyeballing a surface that may still move.
-- **Closing step (main session, once).** After every section has landed and
-  `Development` has been merged down, the single full
-  `py tools/testgate.py check` runs at handoff — see root `CLAUDE.md`
-  §"Test Suite Policy". Never per phase, never from a subagent.
+- **Start-trim depends on numpy**, which is present only transitively via the
+  OPTIONAL `opencv-python` (*measured*: numpy 2.4.6 imports today). SD-2 must
+  feature-detect it and ship `end`-only trim when it is missing; the editor greys
+  the `start` field out in that case. Do **not** promote numpy to a hard
+  dependency without asking.
+- **`soundfile` is a new dependency** (D8). It must be OPTIONAL — the transcode
+  checkbox disables itself if the import fails, and the raw-copy path always
+  works.
+- **Repo size.** Audio is committed content. `data/audio/Bass_and_drum_Duo.wav`
+  is already 49 MB; 21 more uncompressed clips would hurt. The transcode option
+  and the import-size warning are mitigation, not a guarantee.
+- **`engine/audio.py` → package conversion** is the one backwards-compat risk
+  (SD-2). Three importers depend on the exact re-export surface.
+- **Channel exhaustion / mix mud** on a mass enemy wipe — SD-2's cooldown and
+  max-concurrent cap are load-bearing for SD-5.
+- **Empty-clips semantics differ by layer** (default = silence, override =
+  inherit). Deliberate and cheap, but it must be stated in the `SoundSlotWidget`
+  tooltip or a designer will be confused by it.
+- **`screen_defaults.json` / `screen_previews.json` are generated-but-committed**
+  — SD-6 regenerates them if it changes the settings layout, or the drift test
+  fails.
+- Every file:line in this document was re-verified in the `SoundEditor` worktree
+  on **2026-08-18**. The previous draft's citations had drifted badly (including
+  a reference to `editor/main_window.py`, which does not exist) — re-check before
+  executing if much time passes.
