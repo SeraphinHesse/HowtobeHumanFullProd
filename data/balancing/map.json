@@ -42,7 +42,7 @@
     }
   },
   "SpawnDeco": {
-    "tree_chance": 0.8
+    "tree_chance": 0.3
   },
   "TileConditions": {
     "min_speed_fraction": 0.5,

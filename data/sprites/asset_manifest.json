@@ -9308,6 +9308,7 @@
       "sheet": "master/ts_alltiles.png"
     },
     "tile_spawning_b": {
+      "column_width": 10,
       "frame_h": 32,
       "frame_w": 64,
       "offset_x": 0,
@@ -9315,8 +9316,8 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 13,
+          "fps": 6,
+          "frames": 10,
           "hidden": [
             0,
             1,
@@ -9326,17 +9327,14 @@
             6,
             7,
             8,
-            9,
-            10,
-            11,
-            12
+            9
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_forest.png"
+      "sheet": "master/ts_alltiles.png"
     },
     "trio_t3_lvl1": {
       "anchors": {
