@@ -203,6 +203,10 @@ class TestBuildingRevivesAtPayday(unittest.TestCase):
         # render_items check above cannot catch it, since an empty key still
         # yields a placeholder item once the owner is alive again.)
         self.assertTrue(anim.slot_key)
+        # Clear the placement reveal delay (a separate, purely cosmetic
+        # feature, unrelated to this test's revive/slot_key concern) -- it
+        # may not have expired yet since so few frames ran before the kill.
+        victim.update(BUILD["BuildingsGlobal"]["placement_reveal_delay_seconds"])
         self.assertTrue(list(anim.render_items(victim.transform)))
 
 

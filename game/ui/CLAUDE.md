@@ -921,7 +921,12 @@ called from `close()`), ids `upgrade_swatch_0…`.
   `>= 2` colours for the building's LIVE `BuildingSprite.slot_key` (the key the
   host's map is built on, and `None` on the base, which has no animator).
   Anything else leaves the row inert: no row, no gap, no placeholder, no ids,
-  never a raise.
+  never a raise. **A fifth, unconditional gate (feature: boost buildings
+  excluded from colour): `"boost" in b.tags` returns before any of the above
+  are even checked** — a booster never gets a row, whatever its sheet
+  declares, matching `ConstructPreview`'s identical tag check and
+  `registry.place_building`'s guard on the roll itself
+  (`game/buildings/CLAUDE.md`).
 - **Clicking swatch `i` writes `i` onto `BuildingSprite.column`** — the field
   the renderer reads, so the board recolours next frame with no confirm step,
   nothing spent, nothing logged; it survives later upgrades for free because
@@ -968,6 +973,15 @@ Rules this section fixes:
   `handle_click`'s `name_rect` branch (a plain containment test, the broadest
   one) and drawn inside `submit`'s BUTTON block, its selection ring right
   after its own swatch (the sanctioned "ring after its own button" exception).
+- **Booster buildings are excluded from colour entirely** (feature: boost
+  buildings excluded from colour). `ConstructPreview.__init__` skips the
+  `building_colors` lookup outright when `"boost" in temp.tags` (a booster,
+  `game/buildings/boost.py`'s `EXTRA_TAGS`) — `colors` is forced to `()`
+  regardless of what the building's master sheet declares, so no swatch row is
+  ever built, `chosen_column` stays `None`, and `place_building` never sees an
+  explicit `column` for one (`game/buildings/CLAUDE.md`'s matching guard on
+  the roll side is the actual enforcement; this is what keeps a player from
+  ever seeing a swatch that would do nothing).
 
 ## Move Building (Building Movement)
 The upgrade panel's fifth mode + a second preview modal. Rules live in

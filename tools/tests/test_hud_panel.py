@@ -457,6 +457,55 @@ class TestUpgradePanelSwatches(unittest.TestCase):
                 self.assertGreaterEqual(min(w, h), 12)   # UR-5 floor
 
 
+#: feature: boost buildings excluded from colour — a booster's own slot,
+#: paired with a capability map naming colours for it. If the exclusion ever
+#: regressed, this map alone would be enough to make swatches appear.
+BOOST_SLOT = create("boost_speed", 0, 0, BUILD, 0).slot_key()
+
+
+class TestBoosterColourExclusion(unittest.TestCase):
+    """A booster is excluded from colour entirely (`game/buildings/CLAUDE.md`),
+    even when the host hands both screens a capability map naming colours for
+    its own slot — mirroring `TestConstructPreviewSwatches`/
+    `TestUpgradePanelSwatches` above, but for `boost_speed` instead of
+    `defence`."""
+
+    def test_construct_preview_builds_no_swatches_for_a_booster(self):
+        cost = build_cost("boost_speed", BUILD, 0)
+        preview = ConstructPreview(
+            "boost_speed", cost, BUILD, UI, VIEW_W, VIEW_H,
+            building_colors={BOOST_SLOT: COLOUR_NAMES})
+        self.assertFalse(preview.swatches)
+        self.assertEqual([], [k for k in preview.ids
+                              if k.startswith("preview_color")])
+        self.assertIsNone(preview.chosen_column)
+
+    def test_upgrade_panel_builds_no_swatches_for_a_placed_booster(self):
+        session, panel, _hud, scene, occ = build_world()
+        tile = session.tilemap.get(2, 2)
+        session.tilemap.set_tile_state(tile, TileState.BUILDABLE)
+        place_building(session.tilemap, tile, "boost_speed", 9999, BUILD,
+                       scene, occ)
+        panel.colour_columns = {BOOST_SLOT: COLOUR_NAMES}
+        panel.open_for_tile(tile, session, BUILD)
+        self.assertEqual("upgrade", panel.mode)
+        self.assertFalse(panel.colour_row)
+        self.assertEqual([], [k for k in panel.ids
+                              if k.startswith("upgrade_swatch")])
+
+    def test_an_explicit_column_still_never_lands_on_a_booster(self):
+        # Defence-in-depth: even a caller that bypasses the UI and passes an
+        # explicit column (which the UI never actually offers a booster)
+        # cannot recolour one -- registry.place_building's own tag guard.
+        session, _panel, _hud, scene, occ = build_world()
+        tile = session.tilemap.get(2, 2)
+        session.tilemap.set_tile_state(tile, TileState.BUILDABLE)
+        building, _cost = place_building(
+            session.tilemap, tile, "boost_speed", 9999, BUILD, scene, occ,
+            colour_columns={BOOST_SLOT: COLOUR_NAMES}, column=2)
+        self.assertEqual(-1, building.get_component(SpriteAnimator).column)
+
+
 class TestBossNextIndicatorIcon(unittest.TestCase):
     """The top-right icon beside Pause: reflects whether ``round_num`` (the
     round about to be fought, per ``game/core/game_state.py``'s numbering) is
