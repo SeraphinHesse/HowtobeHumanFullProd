@@ -8,9 +8,22 @@ setattr loop, **zero disk I/O per call** — so a screen whose ``submit()`` call
 re-reads a file. ``screen_background(screen_id)`` / ``submit_background(...)``
 supply the optional whole-screen background override.
 
-Pure (no pygame) — a plain setattr loop over widget objects, and the two HUD
-primitives it may emit (``HudRect``/``HudSprite``) are pure dataclasses, the
-same sanctioned import ``widgets.py`` already makes.
+``hit_layer(ids, widgets_spec, mx, my, state_of, actions)`` (UL-10) is the
+click-path twin of ``submit_layers``: it asks the pure
+``engine.ui_layers.hit`` which clickable layer (if any) a point lands on and
+turns that into the SAME action value the screen's own ``hit()`` would
+return. Pure — it never mutates a widget, the spec, or module state, which is
+what lets ``Hud.hit()`` stay a pure read under ``main.py``'s two calls per
+click (D8).
+
+``submit_layers(screen_id, ids, band, state_of)`` (UL-4) draws a widget's
+authored ``layers`` — one call per screen per band, resolved fresh each frame
+through the pure ``engine.ui_layers`` so a layer follows its owner when
+``layout()``/``apply()`` moves it. No ``layers`` authored, zero primitives.
+
+Pure (no pygame) — a plain setattr loop over widget objects, and the three HUD
+primitives it may emit (``HudRect``/``HudSprite``/``HudText``) are pure
+dataclasses, the same sanctioned import ``widgets.py`` already makes.
 
 **Widget id shape (the shared B3 contract, plan lines 122-169):**
 ``ids: {name: (kind, widget)}`` where ``kind`` is one of the six
@@ -27,8 +40,10 @@ is likewise silent (``§1.4``).
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from engine import data_io
-from engine.render import HudRect, HudSprite
+from engine import data_io, ui_layers
+from engine.render import HudRect, HudSprite, HudText
+
+from . import strings
 
 _SCREENS_SUBDIR = ("ui", "screens")
 _SCREEN_SCHEMA = "ui_screen.schema.json"
@@ -60,6 +75,78 @@ def is_visible(widget) -> bool:
     is the one place every screen checks it — an invisible ``button``-kind
     widget must be neither drawn nor hit-tested (review HIGH 2)."""
     return getattr(widget, "visible", True)
+
+
+#: The three targets a clickable layer may name that are NOT a widget id in
+#: its own screen (D7 as amended). ``noop`` is also what an UNROUTABLE target
+#: resolves to — see ``hit_layer``'s Ruling 1.
+RESERVED_TARGETS = ("close_window", "back", "noop")
+
+
+def hit_layer(ids, widgets_spec, mx, my, state_of, actions=None):
+    """The action a clickable LAYER produces for this click, or ``None``.
+
+    PURE (D8). Nothing here mutates ``ids``, any widget, ``widgets_spec`` or
+    module state — call it any number of times with the same arguments for the
+    same answer. ``main.py`` calls ``Hud.hit()`` twice per click (the
+    MOUSEBUTTONDOWN pan-arming probe, then the MOUSEBUTTONUP handler) and this
+    function sits at the top of that path, so the guarantee is load-bearing.
+
+    ``ids``: the screen's ``{name: (kind, widget)}`` dict (§1.2), read only.
+    ``widgets_spec``: that screen's override ``widgets`` table, already in
+        memory (``ScreenSkinning.widgets_spec(screen_id)``) — no disk I/O
+        here, matching ``submit_layers``'s contract.
+    ``state_of``: callable ``widget -> str``, normally
+        ``ScreenSkinning.state_of``, resolved PER WIDGET (UL-5).
+    ``actions``: optional ``{widget_id: action}`` for THIS screen — the
+        screen's own action table, reversed. It is what makes a *retarget*
+        possible: a layer whose ``target`` names another widget in the same
+        screen fires that widget's own action. Screens pass the table they
+        already have (``pause._ACTION_IDS`` reversed, ``main_menu``'s
+        ``_SLOT_IDS``/``self.actions``, …) — never a second hand-rolled copy.
+
+    Resolution, once a clickable layer is hit:
+
+    * ``target`` in ``RESERVED_TARGETS`` -> that literal token; the caller
+      routes it (``close_window`` / ``back`` / ``noop``).
+    * ``target`` in ``actions`` -> that widget's own action (retarget).
+    * anything else, INCLUDING a missing/empty ``target`` -> ``"noop"``.
+
+    **Ruling 1 (UL-10): a dead target SWALLOWS the click, it does not fall
+    through.** Returning ``None`` here would mean "no layer was hit", and the
+    click would land on the widget UNDER the layer — so a typo'd target would
+    silently behave as if the layer were never clickable at all, which is the
+    exact failure the plan's risk bullet names. A swallowed click instead
+    reads honestly as "this decal does nothing", the same thing ``noop``
+    already means.
+
+    A layer whose owning widget is invisible is never hit (the
+    ``is_visible`` rule every screen's ``hit()`` already applies), and a
+    non-clickable layer is transparent to the click — both enforced upstream
+    in ``engine.ui_layers.hit``/here, never by mutating anything.
+    """
+    if not widgets_spec:
+        return None
+    actions = actions or {}
+    for name, (_kind, widget) in ids.items():
+        spec = widgets_spec.get(name)
+        layer_list = (spec or {}).get("layers") or []
+        if not layer_list or not is_visible(widget):
+            continue
+        result = ui_layers.hit(layer_list, widget.rect, mx, my,
+                               state_of(widget))
+        # A ``None`` (missed entirely) or an ``{"kind": "owner"}`` hit both
+        # mean "no clickable layer claimed this point" — keep scanning the
+        # other widgets, then fall through to the screen's normal hit path.
+        if not result or result.get("kind") != "layer":
+            continue
+        target = result.get("target")
+        if target in RESERVED_TARGETS:
+            return target
+        if target in actions:
+            return actions[target]
+        return "noop"   # Ruling 1: unroutable target swallows the click
+    return None
 
 
 def button_kwargs(btn) -> Dict[str, Any]:
@@ -159,6 +246,21 @@ class ScreenSkinning:
             for key, value in spec.items():
                 setattr(widget, _SPEC_TO_ATTR.get(key, key), _as_tuple(value))
 
+    def state_of(self, widget) -> str:
+        """Which of the four D9 states ``widget`` is in: ``"idle" | "hover" |
+        "pressed" | "disabled"`` (UL-4's seam, given its real body by UL-5).
+
+        The ONE place a widget's state is normalized for the layer/per-state
+        draw path. A ``Button`` answers through its own ``_state()`` — the
+        same call its skin row and flat fill already use, so a third
+        appearance layer can never disagree with those two. Every other
+        widget (panel/label/backdrop holders are plain ``SimpleNamespace``
+        objects with no state machine at all) resolves to ``"idle"``, always:
+        only a ``states.idle`` patch is reachable on one of those today.
+        """
+        fn = getattr(widget, "_state", None)
+        return fn() if callable(fn) else "idle"
+
     def defaults(self, screen_id: str) -> Dict[str, Any]:
         """The screen's ``defaults`` section (``button_skin``/``panel_skin``/
         ``font``/``text_color``), or ``{}`` when unset — the styling surface
@@ -180,6 +282,13 @@ class ScreenSkinning:
         spec = self._widgets_spec(screen_id).get(name)
         rect = (spec or {}).get("rect")
         return _as_tuple(rect) if rect else None
+
+    def widgets_spec(self, screen_id: str) -> Dict[str, Any]:
+        """This screen's override ``widgets`` table (``{}`` when unset) — the
+        public accessor `hit_layer`'s callers pass in, alongside the existing
+        ``defaults()``/``widget_rect()`` public readers. Already in memory, so
+        safe every frame / every click."""
+        return self._widgets_spec(screen_id)
 
     def screen_background(self, screen_id: str) -> Optional[Dict]:
         """``{"slot": ...}`` or ``{"color": (...)}`` for a submit-time
@@ -205,7 +314,76 @@ class ScreenSkinning:
         else:
             renderer.submit_hud(HudRect((0, 0, view_w, view_h), bg["color"]))
 
+    def submit_layers(self, renderer, screen_id: str, ids: Dict[str, Any],
+                      band: str, state_of) -> None:
+        """Draw every widget's ``band``-side layer stack — ONE call per screen
+        per band (UL-4 D4), at the top (``"under"``) or the end (``"over"``)
+        of a screen's ``submit()``. The HUD pass has no depth sort, so draw
+        order IS submission order; ``z`` orders layers WITHIN a band.
+
+        ``ids``: the same ``{name: (kind, widget)}`` dict every screen already
+        builds (§1.2). ``state_of``: a CALLABLE ``widget -> str`` — normally
+        ``self.state_of``, passed by reference and resolved PER WIDGET, not
+        once per screen, because UL-5 makes it vary per widget.
+
+        A widget with no ``layers`` entry in this screen's override produces
+        ZERO calls — the golden parity case (D5), and the overwhelmingly
+        common path today (no shipped screen authors any layer)."""
+        widgets_spec = self._widgets_spec(screen_id)
+        if not widgets_spec:
+            return
+        for name, (_kind, widget) in ids.items():
+            spec = widgets_spec.get(name)
+            layer_list = (spec or {}).get("layers") or []
+            if not layer_list:
+                continue
+            for entry in ui_layers.ordered(layer_list, band):
+                resolved = ui_layers.resolve(entry, widget.rect,
+                                             state_of(widget))
+                if resolved.get("visible") is False:
+                    continue
+                self._submit_one_layer(renderer, resolved)
+
     # -- internal ----------------------------------------------------------
+
+    def _submit_one_layer(self, renderer, resolved) -> None:
+        """Emit the ONE primitive a resolved layer describes.
+
+        A layer picks ONE role — this precedence is a design decision, not an
+        accident of iteration order. Checked in this exact order, FIRST MATCH
+        WINS, and a layer matching none of them draws nothing:
+
+        1. ``slot``       -> ``HudSprite`` (an imported sheet beats everything)
+        2. ``text_id``/``label`` -> ``HudText`` (resolved through
+           ``strings.T`` exactly like ``widgets.submit_label``; an empty
+           resolved string draws nothing, never a blank ``HudText``)
+        3. ``color``      -> ``HudRect`` (the plain flat-fill fallback)
+        4. nothing        -> skip
+        """
+        x, y, w, h = resolved["rect"]
+        slot = resolved.get("slot")
+        if slot:
+            renderer.submit_hud(HudSprite(slot, (x, y), (w, h),
+                                          tint=resolved.get("tint")))
+            return
+        text_id = resolved.get("text_id")
+        label = resolved.get("label")
+        if text_id or label:
+            text = strings.T(text_id) if text_id else (label or "")
+            if not text:
+                return
+            # Fallbacks are the label-holder defaults (``widgets.label_holder``
+            # / ``submit_label``), not new constants — imported lazily because
+            # ``widgets`` imports this module.
+            from .widgets import C_UI_TEXT
+            renderer.submit_hud(HudText(
+                text, (x, y), resolved.get("font") or "md",
+                resolved.get("text_color") or C_UI_TEXT,
+                align=resolved.get("align") or "left"))
+            return
+        color = resolved.get("color")
+        if color:
+            renderer.submit_hud(HudRect((x, y, w, h), color))
 
     def _widgets_spec(self, screen_id):
         override = self._overrides.get(screen_id)

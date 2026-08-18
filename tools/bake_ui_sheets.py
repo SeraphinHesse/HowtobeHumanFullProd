@@ -69,6 +69,7 @@ if str(REPO) not in sys.path:
 import pygame  # noqa: E402
 
 from engine import data_io  # noqa: E402
+from engine.assets.registry import load_registry  # noqa: E402
 from game.ui.widgets import (  # noqa: E402
     C_GOLD, C_RED, C_UI_BORDER, C_UI_BTN, C_UI_BTN_DISABLED, C_UI_BTN_HOVER,
     C_UI_PANEL,
@@ -275,14 +276,6 @@ def bake(data_dir):
             slice_margins=slice_margins)
         written.append(slot)
 
-    # ui_bg_main_menu: a SHARED sheet — points at the existing
-    # imported/main_menu_bg.png (10K's backgrounds-category art), no byte
-    # copy, no slice (a plain full-frame scale, D-1 "sheet is a path").
-    entries["ui_bg_main_menu"] = _entry(
-        "ui_bg_main_menu", 480, 270, [_row("idle")],
-        sheet="imported/main_menu_bg.png")
-    written.append("ui_bg_main_menu")
-
     manifest_path = data_dir / "sprites" / "asset_manifest.json"
     schema_path = data_dir / "schemas" / "asset_manifest.schema.json"
     try:
@@ -291,6 +284,30 @@ def bake(data_dir):
         doc = {"version": 2, "entries": {}}
     if not isinstance(doc, dict) or not isinstance(doc.get("entries"), dict):
         doc = {"version": 2, "entries": {}}
+
+    # ui_bg_main_menu: this baker renders NO pixels for it — it only wires the
+    # slot up, so every value below is READ rather than asserted, and a
+    # designer's import always wins:
+    #   * sheet — the slot's OWN imported PNG once one exists (a real import
+    #     through the asset pipeline), else the shared
+    #     imported/main_menu_bg.png (10K's backgrounds-category art). Either
+    #     way no byte copy and no slice (a plain full-frame scale, D-1 "sheet
+    #     is a path").
+    #   * frame size — from the slot registry, never a literal here. It was
+    #     hardcoded 480x270 until the slot was re-cut to 640x360; a literal
+    #     means the next bake silently re-installs the stale size.
+    #   * rows — whatever the existing entry carries (the import may be
+    #     multi-frame), falling back to one idle frame when there is none.
+    bg_slot = "ui_bg_main_menu"
+    bg_own_png = (data_dir / "sprites" / "imported" / f"{bg_slot}.png")
+    bg_prev = doc["entries"].get(bg_slot) or {}
+    bg_w, bg_h = load_registry(data_dir).frame_size(bg_slot)
+    entries[bg_slot] = _entry(
+        bg_slot, bg_w, bg_h, bg_prev.get("rows") or [_row("idle")],
+        sheet=(f"imported/{bg_slot}.png" if bg_own_png.is_file()
+               else "imported/main_menu_bg.png"))
+    written.append(bg_slot)
+
     doc["entries"].update(entries)
     data_io.write_validated(doc, manifest_path, schema_path)
 
