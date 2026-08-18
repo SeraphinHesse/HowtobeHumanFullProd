@@ -20,6 +20,7 @@ consumes these as DATA rather than importing a screen itself).
 import random
 from pathlib import Path
 
+from engine.assets.store import AssetStore
 from engine.core import Scene
 from engine.physics import TileOccupancy
 
@@ -48,9 +49,10 @@ BP_VIEW_ORDER = ("unlock", "construct", "upgrade", "base_info", "preview")
 #: The `preview` view's ids come off the `ConstructPreview` modal's own
 #: disjoint `preview_*` namespace instead (see `BPView.ids`).
 BP_VIEW_IDS = {
-    "unlock": ("panel", "close_btn", "action_btn",
+    "unlock": ("panel", "close_btn", "action_btn", "terrain_card_list",
                "unlock_title", "unlock_hint", "unlock_blocked"),
     "construct": ("panel", "close_btn", "construct_title",
+                  "construct_card_list",
                   "cond_badge", "cond_badge_text", "cond_effect_box"),
     "upgrade": ("panel", "close_btn", "action_btn", "rename_dice_btn",
                 "move_btn",
@@ -240,7 +242,33 @@ def _all_conditions_chunk(tilemap, tile):
         t.condition_rolled = True
 
 
-def build_bp_view(view, view_w, view_h, balances, session, skinning=None):
+#: Fallback data root for a caller that does not thread one through (every
+#: shipping caller does — this only keeps `build_bp_view`'s signature
+#: backward-compatible).
+DEFAULT_DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
+
+
+def build_asset_store(data_root=None):
+    """A METADATA-only `AssetStore` over the live manifest + slot registry.
+
+    The terrain cards size themselves to their sprite's own frame
+    (`BuildingUI._cond_sprite_size`), so without a store the exporter would
+    record every card at the fallback size and the editor's boxes would
+    disagree with the game. `frame_size` reads the manifest entry only — no
+    PNG is ever opened here, and `sprites_dir` is deliberately left unset so
+    nothing can.
+    """
+    from engine.assets.manifest import load_manifest
+    from engine.assets.registry import load_registry
+
+    data_root = Path(data_root if data_root is not None else DEFAULT_DATA_ROOT)
+    return AssetStore(
+        manifest=load_manifest(data_root / "sprites" / "asset_manifest.json"),
+        registry=load_registry(data_root))
+
+
+def build_bp_view(view, view_w, view_h, balances, session, skinning=None,
+                  data_root=None):
     """Construct ONE `building_panel` view's mock. See `BP_VIEW_ORDER`."""
     from game.buildings.registry import build_cost, create
     from game.map.tiles import TileState
@@ -252,6 +280,10 @@ def build_bp_view(view, view_w, view_h, balances, session, skinning=None):
     panel = BuildingUI(view_w, view_h, ui, skinning=skinning)
     panel._session = session
     panel._buildings_balance = buildings
+    # Metadata-only: the panel needs `frame_size` to size a terrain card to
+    # its sprite. `defaults.use_card_portrait_slot` is the only OTHER thing
+    # on this panel that consults the store, and it ships off.
+    panel.assets = build_asset_store(data_root)
     preview = None
 
     if view == "unlock":

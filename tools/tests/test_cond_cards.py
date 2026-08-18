@@ -65,16 +65,71 @@ class TestCondCardTree(unittest.TestCase):
                 self.assertIn(key + part, self.panel.ids,
                               f"{key}{part} is not an overridable widget")
 
-    def test_cards_do_not_overlap_and_stay_in_the_viewport(self):
-        top, bottom = self.panel._cond_card_viewport()
-        prev_bottom = top
+    def test_cards_stack_inside_their_group_without_overlapping(self):
+        """Cards are laid out relative to `terrain_card_list`, so the group's
+        own rect is what they start from. They may run PAST its bottom — at
+        full-size sprites a card is 74-138px tall and the list scrolls."""
+        gx, gy, gw, _gh = self.panel._list_rect("terrain_card_list",
+                                                self.panel._terrain_list)
+        prev_bottom = gy
         for _cond, parts in self.panel._cond_cards:
             x, y, w, h = parts.body.rect
+            self.assertEqual((x, w), (gx, gw))
             self.assertGreaterEqual(y, prev_bottom)
-            self.assertLessEqual(y + h, bottom,
-                                 "the worst case (4 conditions) must fit "
-                                 "without scrolling")
             prev_bottom = y + h
+
+    def test_moving_the_group_moves_every_card(self):
+        """The whole point of the group container: one authored rect shifts
+        the list, instead of the cards being pinned to `panel`."""
+        before = [p.body.rect[:2] for _c, p in self.panel._cond_cards]
+        self.panel.skinning.widget_rect = (
+            lambda sid, name: (400, 200, 118, 150)
+            if name == "terrain_card_list" else None)
+        self.panel._build_cond_cards(self.panel._session)
+        after = [p.body.rect[:2] for _c, p in self.panel._cond_cards]
+        self.assertNotEqual(before, after)
+        self.assertTrue(all(x == 400 for x, _y in after))
+        self.assertEqual(after[0][1], 200)
+
+    def test_a_sprite_is_drawn_at_its_own_frame_size(self):
+        """Full-size tiles, never a downscaled thumbnail: `HudSprite`
+        stretches to its box, so the box IS the frame."""
+        store = self.panel.assets
+        self.assertIsNotNone(store, "the mock must carry an asset store")
+        for _cond, parts in self.panel._cond_cards:
+            if not parts.sprite.skin:
+                continue
+            self.assertEqual(tuple(parts.sprite.rect[2:]),
+                             tuple(store.frame_size(parts.sprite.skin)))
+
+    def test_grass_draws_the_regular_buildable_ground(self):
+        from game.ui.building_ui import _GRASS_CARD_SLOT
+
+        grass = dict(self.panel._cond_cards)[TileCondition.GRASS]
+        self.assertEqual(grass.sprite.skin, _GRASS_CARD_SLOT)
+
+    def test_scroll_clamps_against_the_full_row_count(self):
+        """Regression: clamping against the BUILT card list (which shrinks as
+        you scroll) made a scroll past the end walk backwards."""
+        panel = self.panel
+        last = panel._cond_row_count - 1
+        panel.handle_scroll(99)
+        self.assertEqual(panel.cond_scroll_offset, last)
+        panel.handle_scroll(99)
+        self.assertEqual(panel.cond_scroll_offset, last)
+        panel.handle_scroll(-99)
+        self.assertEqual(panel.cond_scroll_offset, 0)
+
+    def test_the_first_card_always_draws(self):
+        """A group sized under one full-size card must clip, not blank."""
+        panel = self.panel
+        panel.skinning.widget_rect = (
+            lambda sid, name: (516, 112, 118, 10)
+            if name == "terrain_card_list" else None)
+        panel._build_cond_cards(panel._session)
+        first = panel._cond_cards[0][1].body.rect
+        self.assertTrue(panel._cond_card_in_viewport(first, 0))
+        self.assertFalse(panel._cond_card_in_viewport(first))
 
     def test_clearing_drops_every_card_id(self):
         self.panel._clear_cond_card_ids()
@@ -110,7 +165,8 @@ class TestTerrainBoxIsEditable(unittest.TestCase):
         session = screen_mocks.build_session(DATA, balances)
         panel = screen_mocks.build_bp_view("construct", 640, 360, balances,
                                            session).panel
-        for name in ("cond_badge", "cond_badge_text", "cond_effect_box"):
+        for name in ("cond_badge", "cond_badge_text", "cond_effect_box",
+                     "construct_card_list"):
             self.assertIn(name, panel.ids)
         for i in range(_COND_EFFECT_LINES):
             self.assertIn(f"cond_effect_line_{i}", panel.ids)

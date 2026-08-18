@@ -1132,14 +1132,49 @@ condition the `_COND_EFFECT_LINES` (5) cap bites and the tail stops drawing —
 today every condition has exactly one, and `map.json` ships modifiers for two
 conditions at all.
 
-**Sizes are load-bearing, both of them.** The card sprite is 18x27, NOT
-square: condition art is a 64x96 frame and `HudSprite` STRETCHES to its box
-rather than fitting, so a square box squashes it. 27 is also the tallest head
-that keeps all four cards on screen in the worst case — `6 + 27 + 2 rows x 12
-= 57` per card, `4x57 + 3 gaps x 4 = 240` against the list viewport's 242px.
-Grow either and the fourth card starts clipping (it scrolls — `handle_scroll`
-serves unlock mode too, by list INDEX since the cards have variable height —
-but a designer should not have to scroll to see one purchase).
+**A card is sized to its sprite, never the sprite to the card.** `HudSprite`
+STRETCHES a frame to whatever box it is given, so any box that is not the
+frame's own size distorts the art. `_cond_sprite_size` asks the asset store
+for `frame_size(slot)` and the card is built around the answer: 64x32 for a
+ground tile, 64x96 for a condition, making a card 74px or 138px tall. A frame
+size is committed DATA (`asset_manifest.json`), not a font metric — platform-
+deterministic, so it may reach a stored rect. **The exporter therefore needs
+an asset store too** (`screen_mocks.build_asset_store`, metadata-only — no PNG
+is ever opened and `sprites_dir` is deliberately unset), or its recorded rects
+would use the fallback and the editor's boxes would disagree with the game.
+
+*Consequence:* four full-size cards are ~500px of content in a 242px list, so
+the terrain list REALLY scrolls (`handle_scroll` serves unlock mode too, by
+list INDEX since the cards have variable height). Its clamp reads
+`_cond_row_count`, the full row count — **not** `len(self._cond_cards)`, which
+holds only the cards from the current offset down, so clamping against it
+shrank the limit as you scrolled and a scroll past the end walked backwards.
+
+**Grass draws the regular buildable GROUND tile** (`_GRASS_CARD_SLOT`,
+`tile_buildable`), not `cond_grass_*`: grass is the absence of a condition,
+and the card should show the ordinary ground the purchase yields — the art the
+player already reads as "normal tile" everywhere else on the map.
+
+### The two card GROUPS are containers (`construct_card_list`, `terrain_card_list`)
+
+Both dynamic-count families hang off an id'd container of their own rather
+than off `panel`, so a designer can shift or resize a whole list in one drag —
+and the exporter records the container as each card's PARENT, so the editor's
+widget tree shows one movable branch instead of N roots beside `panel`.
+
+`_list_rect(list_id, holder)` is the single read: the authored rect if there
+is one, else the holder's code default. It goes through `skinning.widget_rect`
+rather than the holder, because a list builder runs BEFORE `skinning.apply`
+has written the override onto it — the same reason `_card_column` used to read
+`panel` that way. `_card_column` / `_card_list_viewport` (construct) and
+`_cond_card_column` / `_cond_card_viewport` (terrain) all derive from it, so
+shrinking a group re-windows its list instead of letting cards spill out.
+
+A container **draws only once it carries a `skin`** (`_submit_list_group`).
+Unskinned it is pure layout, which keeps the shipped screen byte-identical to
+before the groups existed — the golden-parity contract — while letting a
+designer give a list a real backdrop, drawn behind its cards because it is
+submitted first.
 
 ## TIERS pill (`btn_tier_overview`)
 The third `MapOverlays` toggle pill, added after 10I, sitting beside RANGE

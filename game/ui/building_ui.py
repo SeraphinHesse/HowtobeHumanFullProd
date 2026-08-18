@@ -161,34 +161,57 @@ _CARD_PRICE_SKIN = "ui_button_pill"
 # COUNT varies with the roll, the KEY does not — so each card is id'd
 # `cond_card_<condition>` and every part of it is individually overridable.
 #
-# The vertical fit, at "sm" (`layout_h` 11, so `_row_step("sm")` == 12):
-#   sprite    y+3 .. y+30  (18x27, the condition's own terrain art)
-#   name      y+3 .. y+14  beside the sprite, with the tile count right of it
-#   effects   full card width, from y+30 down — 88px of right column cannot
-#             hold effect copy that runs to 188px at the shipped face
-# so a card is `_COND_CARD_PAD*2 + 27 + step*rows` tall, laid out at BUILD
-# time (the `_layout_upgrade_rows` precedent: writing the default anchor
-# before `skinning.apply` is what lets a designer's rect override win).
+# The vertical fit, at "sm" (`layout_h` 11, so `_row_step("sm")` == 12), for a
+# sprite `sh` tall (see the frame-size note below):
+#   sprite    y+3 .. y+3+sh   centred horizontally; it owns the top band alone
+#   name      one row under it, full width, with the tile count right-aligned
+#   effects   under that, full width — a column beside a 64px sprite holds
+#             neither "Mountain" nor effect copy that runs to 188px at the
+#             shipped face
+# so a card is `_COND_CARD_PAD*2 + sh + step*(1 + rows)` tall, laid out at
+# BUILD time (the `_layout_upgrade_rows` precedent: writing the default anchor
+# before `skinning.apply` is what lets a designer's rect override win), and
+# positioned inside its GROUP container rather than off `panel`.
 #
-# The sprite is 18x27, NOT a square: condition art is a 64x96 frame (the tile
-# diamond plus the headroom a mountain or a tree needs), and `HudSprite`
-# STRETCHES a frame to the box it is given rather than fitting it, so a square
-# box would squash the art horizontally. 2:3 keeps it honest.
+# The sprite is drawn at the art's OWN frame size — `assets.frame_size(slot)`,
+# 64x32 for a ground tile and 64x96 for a condition (the tile diamond plus the
+# headroom a mountain or a tree needs). `HudSprite` STRETCHES a frame to the
+# box it is given rather than fitting it, so any box that is not the frame's
+# own size distorts the art; a card is sized to the sprite instead of the
+# other way round. That makes a card 74px (grass) to 138px tall, so four of
+# them do NOT fit the list at once and the list scrolls — see
+# `terrain_card_list`.
 #
-# 27 is also the tallest head that keeps all four cards on screen at once, the
-# worst case (four distinct conditions in one purchase): a card is 6 + 27 +
-# 2 rows x 12 = 57, and 4x57 + 3 gaps x 4 = 240 against the 242px the list
-# viewport has. Grow the sprite and the fourth card starts clipping (it
-# scrolls, but a designer should not have to scroll to see a purchase).
+# A frame size is committed DATA (`asset_manifest.json`), not a font metric,
+# so it is deterministic across platforms and may reach a stored rect. The
+# fallback is only for a headless panel with no asset store at all.
 _COND_CARD_ID_PREFIX = "cond_card_"
 _COND_CARD_PAD = 3
-_COND_CARD_SPRITE_W = 18   # terrain sprite box — 2:3, the art's own aspect
-_COND_CARD_SPRITE_H = 27
-_COND_CARD_COL_X = 24      # name/count column x, relative to the card's left
+_COND_CARD_SPRITE_FALLBACK = (64, 96)
+
+#: The slot a GRASS card draws: the regular buildable ground tile, not
+#: `cond_grass_*`. Grass is the ABSENCE of a terrain condition, and what the
+#: player is buying is ordinary buildable ground — so the card shows the
+#: ground they will build on, which is also the art they already read as
+#: "normal tile" everywhere else on the map.
+_GRASS_CARD_SLOT = "tile_buildable"
 _COND_CARD_GAP = 4         # list pitch = card height + this
 _COND_CARD_LIST_TOP = 112  # first card's y, clear of the UNLOCK button (75..93)
                            # and the not-adjacent warning under it (98)
 _COND_CARD_LIST_BOTTOM_PAD = 6
+
+#: The two card GROUPS, as their own id'd container widgets. Cards are laid
+#: out INSIDE whichever rect their container carries, so moving or resizing
+#: one container in the editor shifts and re-windows its whole list — the
+#: thing a designer could not do while every card's rect was derived straight
+#: off `panel`. Each is the exporter-recorded PARENT of its cards too, so the
+#: editor's widget tree shows the group as a branch rather than N roots.
+#:
+#: A container DRAWS only once it carries a `skin`: unskinned it is pure
+#: layout, which keeps the shipped look byte-identical (the golden-parity
+#: contract) while letting a designer give the group a real backdrop.
+_TERRAIN_LIST_ID = "terrain_card_list"
+_CONSTRUCT_LIST_ID = "construct_card_list"
 
 #: How many id'd rows the terrain box and each terrain card reserve for effect
 #: text. A row is one VISUAL row, not one effect: the effect copy
@@ -1170,6 +1193,7 @@ class BuildingUI:
         # unlock-mode terrain cards: [(condition, parts)], one per DISTINCT
         # condition across the selection's chunks (see `_build_cond_cards`)
         self._cond_cards = []
+        self._cond_row_count = 0
         self.cond_scroll_offset = 0
         # -- 10L-B: mode-independent ids (submit() has no separate layout()) --
         # ``rename_dice_btn``/``boss_close_btn`` close a Phase-3 id-coverage
@@ -1299,6 +1323,18 @@ class BuildingUI:
                 font_key="sm")
         self.ids["cond_badge"] = ("panel", self._cond_badge)
         self.ids["cond_effect_box"] = ("panel", self._cond_effect_box)
+        # -- the two card GROUPS (see `_TERRAIN_LIST_ID`) --------------------
+        self._construct_list = SimpleNamespace(
+            rect=(cx, _CARD_LIST_TOP, cw,
+                  self.view_h - _CARD_LIST_BOTTOM_PAD - _CARD_LIST_TOP),
+            skin=None, visible=True)
+        self._terrain_list = SimpleNamespace(
+            rect=(cx, _COND_CARD_LIST_TOP, cw,
+                  self.view_h - _COND_CARD_LIST_BOTTOM_PAD
+                  - _COND_CARD_LIST_TOP),
+            skin=None, visible=True)
+        self.ids[_CONSTRUCT_LIST_ID] = ("panel", self._construct_list)
+        self.ids[_TERRAIN_LIST_ID] = ("panel", self._terrain_list)
         # -- /terrain badge + effect box ------------------------------------
         for name, holder in self._text.items():
             self.ids[name] = ("label", holder)
@@ -1530,17 +1566,59 @@ class BuildingUI:
             for t in tm.get_chunk_for_tile(rep):
                 count, slot = seen.get(t.condition, (0, None))
                 seen[t.condition] = (count + 1,
-                                     slot if slot else t.condition_slot)
+                                     slot if slot else self._cond_slot(t))
         return [(cond, *seen[cond]) for cond in TileCondition if cond in seen]
 
-    def _cond_card_viewport(self):
-        """``(top, bottom)`` of the terrain-card list. At most four cards ever
-        build, and four fit the default panel with room to spare — the window
-        exists so a designer who shrinks the `panel` gets a clipped, scrollable
-        list instead of cards drawn over the panel's edge."""
-        return _COND_CARD_LIST_TOP, self.view_h - _COND_CARD_LIST_BOTTOM_PAD
+    @staticmethod
+    def _cond_slot(tile):
+        """The art slot one tile contributes to its condition's card.
 
-    def _cond_card_in_viewport(self, rect):
+        GRASS answers with the regular buildable GROUND tile (see
+        `_GRASS_CARD_SLOT`) rather than its `cond_grass_*` art: grass is the
+        absence of a condition, and the card should show the ordinary ground
+        the player is buying. Every other condition uses the tile's own
+        resolved `condition_slot`, which is `None` on a tile whose state has
+        no condition art at all (BACKGROUND / SPAWNING) — a chunk can straddle
+        those, and the caller keeps looking for a sibling that has art."""
+        return (_GRASS_CARD_SLOT if tile.condition == TileCondition.GRASS
+                else tile.condition_slot)
+
+    def _cond_sprite_size(self, slot):
+        """The slot's OWN frame size — the card is sized to the sprite, never
+        the sprite to the card (`HudSprite` stretches). Falls back only for a
+        headless panel with no asset store."""
+        store = self.assets
+        if store is None or not slot:
+            return _COND_CARD_SPRITE_FALLBACK
+        try:
+            return store.frame_size(slot)
+        except KeyError:
+            return _COND_CARD_SPRITE_FALLBACK
+
+    def _cond_card_column(self):
+        """``(x, w)`` of the terrain card column — its GROUP's box."""
+        rect = self._list_rect(_TERRAIN_LIST_ID, self._terrain_list)
+        return rect[0], rect[2]
+
+    def _cond_card_viewport(self):
+        """``(top, bottom)`` of the terrain-card list — its GROUP's box.
+
+        At full-size sprites a card is 74-138px tall, so four of them do NOT
+        fit at once and this really is a scrolling window (`handle_scroll`),
+        not the belt-and-braces clip it was at thumbnail sizes."""
+        rect = self._list_rect(_TERRAIN_LIST_ID, self._terrain_list)
+        return rect[1], rect[1] + rect[3]
+
+    def _cond_card_in_viewport(self, rect, index=None):
+        """Is this card fully inside the group's window?
+
+        ``index`` 0 always answers True: a full-size card is 138px, so a
+        designer who sizes the group under that would otherwise get an EMPTY
+        list rather than a clipped one. Same argument, same answer, as
+        `_cards_visible`'s `max(1, ...)` — always show the card the wheel is
+        scrolled to."""
+        if index == 0:
+            return True
         top, bottom = self._cond_card_viewport()
         return rect[1] >= top and rect[1] + rect[3] <= bottom
 
@@ -1556,39 +1634,49 @@ class BuildingUI:
         """
         self._clear_cond_card_ids()
         skin = self.skinning.defaults(self.screen_id).get("panel_skin")
-        cx, cw = self._card_column()
-        col_x = cx + _COND_CARD_COL_X
+        cx, cw = self._cond_card_column()
+        top, _bottom = self._cond_card_viewport()
         step = _row_step("sm")
         rows = self._cond_card_rows(session)
+        # The FULL row count, kept for `handle_scroll`'s clamp. It may not use
+        # `len(self._cond_cards)`: that list only holds the cards from the
+        # current offset down, so clamping against it shrinks the limit as you
+        # scroll and a scroll past the end walks BACKWARDS.
+        self._cond_row_count = len(rows)
         offset = max(0, min(self.cond_scroll_offset, max(0, len(rows) - 1)))
         self.cond_scroll_offset = offset
-        y = _COND_CARD_LIST_TOP
+        y = top
         for cond, count, slot in rows[offset:]:
             lines = self._tile_cond_effect_lines(cond)[:_COND_EFFECT_LINES]
-            # Row 0 is the sprite + name + count; the effect rows sit BELOW
-            # the sprite and span the card's full inner width, because 88px of
-            # right column cannot hold a line the effect copy writes at up to
-            # 188px. The budget is per LINE, never per wrapped row — a stored
-            # height may not depend on the wrap (see `_cond_effect_rows`).
+            # The sprite is a full-size tile, so it owns the card's top band
+            # on its own; the name + count row goes UNDER it, and the effect
+            # rows under that, both spanning the card's full inner width (a
+            # column beside a 64px sprite could hold neither "Mountain" nor a
+            # line the effect copy writes at up to 188px). The effect-row
+            # budget is per LINE, never per wrapped row — a stored height may
+            # not depend on the wrap (see `_cond_effect_rows`).
             n_rows = min(_COND_EFFECT_LINES,
                          _COND_EFFECT_ROWS_PER_LINE * len(lines))
-            head_h = max(_COND_CARD_SPRITE_H, step)
-            card_h = 2 * _COND_CARD_PAD + head_h + step * n_rows
+            sw, sh = self._cond_sprite_size(slot)
+            card_h = 2 * _COND_CARD_PAD + sh + step * (1 + n_rows)
             body = SimpleNamespace(rect=(cx, y, cw, card_h), skin=skin,
                                    visible=True)
+            # Centred: a 64px frame in a 118px card would otherwise sit hard
+            # against the left edge with 51px of dead space beside it.
             sprite = SimpleNamespace(
-                rect=(cx + _COND_CARD_PAD, y + _COND_CARD_PAD,
-                      _COND_CARD_SPRITE_W, _COND_CARD_SPRITE_H),
+                rect=(cx + max(_COND_CARD_PAD, (cw - sw) // 2),
+                      y + _COND_CARD_PAD, sw, sh),
                 skin=slot, visible=True)
-            name = label_holder((col_x, y + _COND_CARD_PAD, 0, 0),
+            name_y = y + _COND_CARD_PAD + sh
+            name = label_holder((cx + _COND_CARD_PAD, name_y, 0, 0),
                                 text_id="building.cond_card.name",
                                 font_key="sm")
             count_lbl = label_holder(
-                (cx + cw - _COND_CARD_PAD, y + _COND_CARD_PAD, 0, 0),
+                (cx + cw - _COND_CARD_PAD, name_y, 0, 0),
                 text_id="building.cond_card.count", font_key="sm",
                 align="right")
             effects = []
-            effect_top = y + _COND_CARD_PAD + head_h
+            effect_top = name_y + step
             for i in range(_COND_EFFECT_LINES):
                 effects.append(label_holder(
                     (cx + _COND_CARD_PAD, effect_top + step * i, 0, 0),
@@ -1616,14 +1704,27 @@ class BuildingUI:
                     if k.startswith(_COND_CARD_ID_PREFIX)]:
             del self.ids[key]
         self._cond_cards = []
+        self._cond_row_count = 0
+
+    def _submit_list_group(self, renderer, holder, anim_ms=0):
+        """Draw a card GROUP's container — but only once it carries a `skin`.
+
+        Unskinned it is pure layout, so the shipped screen is byte-identical
+        to before the groups existed (the golden-parity contract); a designer
+        who wants a real backdrop behind the list gives the container art and
+        it appears BEHIND its cards, which are submitted after it."""
+        if holder.skin and is_visible(holder):
+            submit_panel(renderer, holder.rect, skin=holder.skin,
+                         tint=getattr(holder, "tint", None), anim_ms=anim_ms)
 
     def _submit_cond_cards(self, renderer, anim_ms=0):
         """Draw the terrain cards back-to-front: body, sprite, then text — the
         house order every widget tree on this panel uses (the HUD queue is
         drawn in submission order, so anything submitted later lands on top).
         """
-        for cond, parts in self._cond_cards:
-            if not self._cond_card_in_viewport(parts.body.rect):
+        self._submit_list_group(renderer, self._terrain_list, anim_ms)
+        for index, (cond, parts) in enumerate(self._cond_cards):
+            if not self._cond_card_in_viewport(parts.body.rect, index):
                 continue
             label, color = widgets.cond_label(cond.name)
             if is_visible(parts.body):
@@ -1665,30 +1766,34 @@ class BuildingUI:
         """
         return self.skinning.defaults(self.screen_id)
 
+    def _list_rect(self, list_id, holder):
+        """The rect a card GROUP occupies: the designer's authored rect for
+        ``list_id`` if there is one, else ``holder``'s code default.
+
+        Read straight off the skinning rather than off the holder, because a
+        list builder runs BEFORE `skinning.apply` has written the override
+        onto it — the same reason `_card_column` used to read `panel` this
+        way. No override (and the disk-free `ScreenSkinning.empty()` the
+        exporter records with) falls back to the default, so
+        `screen_defaults.json` is unchanged by this."""
+        return self.skinning.widget_rect(self.screen_id, list_id)             or holder.rect
+
     def _card_column(self):
-        """``(x, w)`` of the card column — the panel's own box, inset.
+        """``(x, w)`` of the construct card column — its GROUP's box.
 
         Cards are DYNAMIC-count content: they are laid out in code and cannot
-        be re-authored id-by-id in the editor the way a static widget can. So
-        when a designer resizes or moves the `panel` container, the column has
-        to follow it in code or it is left stranded in the old panel's
-        footprint. `self.panel_x`/`panel_w` are the ctor's CODE defaults and
-        never see the override (only `panel_rect` is refreshed, and only at
-        submit — after `_build_construct` has already run), which is exactly
-        why the authored rect is read straight off the skinning here.
-
-        No override (every screen that ships one absent, and the disk-free
-        `ScreenSkinning.empty()` the exporter records with) falls back to the
-        code defaults, so `screen_defaults.json` is unchanged by this."""
-        rect = self.skinning.widget_rect(self.screen_id, "panel")
-        px, pw = (rect[0], rect[2]) if rect else (self.panel_x, self.panel_w)
-        return px + _CARD_INSET, pw - 2 * _CARD_INSET
+        be re-authored id-by-id in the editor the way a static widget can. The
+        group container is what a designer moves instead, and the cards follow
+        it here."""
+        rect = self._list_rect(_CONSTRUCT_LIST_ID, self._construct_list)
+        return rect[0], rect[2]
 
     def _card_list_viewport(self):
-        """``(top, bottom)`` of the scrolling card list. Derived, never a
-        literal: the bottom clears the terrain badge `_submit_construct` draws
-        at the panel foot (`self.view_h - 20`, tooltip above)."""
-        return _CARD_LIST_TOP, self.view_h - _CARD_LIST_BOTTOM_PAD
+        """``(top, bottom)`` of the scrolling construct card list — its
+        GROUP's box. Derived, never a literal, so shrinking the group in the
+        editor re-windows the list instead of letting cards spill out of it."""
+        rect = self._list_rect(_CONSTRUCT_LIST_ID, self._construct_list)
+        return rect[1], rect[1] + rect[3]
 
     def _cards_visible(self):
         """How many cards fit in the viewport at once (at least 1, so a very
@@ -1752,7 +1857,7 @@ class BuildingUI:
             # VARIABLE height (a condition with more effect lines is taller),
             # so the offset is an INDEX into the list and `_build_cond_cards`
             # re-stacks from there — there is no uniform pitch to multiply.
-            limit = max(0, len(self._cond_cards) - 1)
+            limit = max(0, self._cond_row_count - 1)
             offset = max(0, min(limit, self.cond_scroll_offset + int(dy)))
             if offset != self.cond_scroll_offset:
                 self.cond_scroll_offset = offset
@@ -2862,6 +2967,7 @@ class BuildingUI:
     def _submit_construct(self, renderer, anim_ms=0):
         submit_label(renderer, self._text["construct_title"],
                      color=widgets.C_UI_TEXT)
+        self._submit_list_group(renderer, self._construct_list, anim_ms)
         # Each card is a widget tree, drawn in the house back-to-front order
         # (panel/background -> buttons -> standalone text). Every part follows
         # the same rules as any other id'd widget: a `visible: false` override

@@ -65,7 +65,14 @@ SCREEN_IDS = [
 _COMMON_NOTE = screen_mocks.COMMON_NOTE
 #: Id prefixes whose children nest under a tree ROOT rather than the screen's
 #: container (`_derived_parent`): construct cards and unlock's terrain cards.
-_CARD_TREE_PREFIXES = (_CARD_ID_PREFIX, _COND_CARD_ID_PREFIX)
+#: Card-tree id prefix -> the GROUP container that owns that family. A card
+#: root parents to its group (so the editor shows one movable branch instead
+#: of N roots beside `panel`); a card CHILD parents to its own card root.
+_CARD_TREE_ROOTS = {
+    _CARD_ID_PREFIX: "construct_card_list",
+    _COND_CARD_ID_PREFIX: "terrain_card_list",
+}
+_CARD_TREE_PREFIXES = tuple(_CARD_TREE_ROOTS)
 _MOCK_BUILDING_TYPE = screen_mocks.MOCK_BUILDING_TYPE
 
 # -- UH-4: cosmetic human names for widget ids (D4 — the id stays the on-disk
@@ -114,6 +121,8 @@ _DISPLAY_NAMES = {
         # around a live text measurement until they became widgets; the five
         # effect rows are reserved slots (`_COND_EFFECT_LINES`), so a
         # condition with fewer effects leaves the tail undrawn.
+        "construct_card_list": "Build card group",
+        "terrain_card_list": "Terrain card group",
         "cond_badge": "Terrain badge box",
         "cond_badge_text": "Terrain badge text",
         "cond_effect_box": "Terrain effect box",
@@ -352,10 +361,14 @@ def _derived_parent(widget_id, widgets):
                    if widget_id.startswith(p)), None)
     if prefix is None:
         return None
+    group = _CARD_TREE_ROOTS[prefix]
+    if widget_id == group:
+        return None                       # the group itself is `panel`'s child
     candidates = [w for w in widgets
-                  if w != widget_id and widget_id.startswith(w + "_")
-                  and w.startswith(prefix)]
-    return max(candidates, key=len) if candidates else None
+                  if w != widget_id and w != group
+                  and widget_id.startswith(w + "_") and w.startswith(prefix)]
+    # No owning card => this IS a card root, and its parent is the group.
+    return max(candidates, key=len) if candidates else group
 
 
 def _parent_widgets(screen_id, widgets):
@@ -664,7 +677,7 @@ def _build_building_panel(view_w, view_h, data_root):
     views = {}
     for view_name in screen_mocks.BP_VIEW_ORDER:
         bp = screen_mocks.build_bp_view(view_name, view_w, view_h, balances,
-                                        session)
+                                        session, data_root=data_root)
         views[view_name] = {"widgets": _widgets_from_ids(bp.ids),
                             "mock_note": bp.note}
 
