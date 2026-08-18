@@ -1,407 +1,697 @@
-<!-- active-plan: BossUpgradeTimelinePLAN.md | set: 2026-08-18 -->
-> **Active plan:** BossUpgradeTimelinePLAN.md (mirror). Source of truth:
-> `planning/BossUpgradeTimelinePLAN.md`. Do **not** edit this file directly — edit the
+<!-- active-plan: UiLayeredWidgetsPLAN.md | set: 2026-08-18 -->
+> **Active plan:** UiLayeredWidgetsPLAN.md (mirror). Source of truth:
+> `planning/UiLayeredWidgetsPLAN.md`. Do **not** edit this file directly — edit the
 > source in `planning/` and re-run `/setcurrentplan`, or pick a different
 > plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
 > screen).
 
-<!-- status: COMPLETE — all phases BU-0..BU-7 landed on feature/boss-upgrade-timeline, 2026-08-18 -->
 <!-- plan-scale: large -->
+<!-- status: COMPLETE -- 4/4 sections, 12/12 phases (S1+S2+S3+S4 all landed). All merged to plan-uilayeredwidgets-umbrella. NOT pushed, no PR; the full gate has never run against this work and belongs to /commitpushpr stage 5. -->
 
-# BossUpgradeTimelinePLAN.md — boss-fight upgrade choice, timeline-authored
+# UiLayeredWidgetsPLAN.md — a widget is a stack
 
-Phased, agent-executable plan (same family as `TimelinePLAN.md` /
-`BossReworkPLAN.md`). Base branch: `Development`. This work happens on
-`feature/boss-upgrade-timeline` (already branched off `origin/Development`).
+Phased, agent-executable plan (same family as `UiTextBindingPLAN.md` /
+`UiEditorParentingPLAN.md`). Base branch: `Development`. Runnable via
+`/execute-plan-phases planning/UiLayeredWidgetsPLAN.md` (section mode — see
+line 1) or section by section.
 
-## 1. Vision
+## 1. Context
 
-Today, after a boss fight (every 10 rounds), the player sees a win/lose
-narrative "A/B story bonus" cutscene (`game/ui/boss_cutscene.py`) backed by
-`game/core/boss_bonuses.py`'s six hidden income/damage effects, and on a loss
-automatically receives a per-era "consolation love" reward already wired
-end-to-end (`RunState.add_love` via `Session._boss_loss_reward`, amount from
-`enemies.json`'s `EnemyTypes.Boss.stats[era].loss_love_reward`).
+The designer's `UI Document.md` describes every screen as **folders of pieces**.
+A button is not one thing: it is a Munchkin, an icon, the button art and a
+background, each with its own position, its own colour, and its own look for
+hover and click. The HUD's love counter is a folder holding an icon, a number
+and a widget background.
 
-This plan replaces it with a **Boss Upgrade Timeline**: a designer-authored,
-editor-configurable system mirroring the existing building-upgrade Timeline
-(`TimelinePLAN.md` — `data/balancing/progression.json` +
-`game/core/levelup.py` + `editor/panels/timeline.py`) but for boss upgrades —
-direct-slotted (no random pool), 4 authored milestones that cycle every 4th
-bossfight, always 3 options per milestone, each of 12 upgrades editable
-(name/description/numeric params) and each usable in only one milestone slot.
-The existing per-boss retaliation-love reward moves into this same timeline
-as a 4-cycle table, replacing the `enemies.json` field. This is a large
-feature — a new data domain, a new "boss upgrade applies a lasting run
-effect" engine touching ~10 files across `game/buildings/`, `game/enemies/`,
-`game/core/`, `game/map/`, `game/ui/`, plus a new bespoke editor panel.
+The game does not see it that way. A widget is ONE picture in ONE box: a
+`Button` or a label holder in a screen's `ids: {name: (kind, widget)}` dict,
+mutated in place by `ScreenSkinning.apply()`'s flat setattr loop
+(`game/ui/skinning.py`). Per-state ART already works — `slots.json`'s `ui`
+category vocabulary is `["idle", "hover", "pressed", "disabled"]`, one manifest
+row per state — but there is only ever one picture, so there is nothing to move
+independently and nothing to give a separate colour to. Adding a background
+behind the love counter is a code change today.
 
-### Confirmed design decisions (settled with the user — do not re-litigate)
+**Outcome.** A widget becomes a **stack**: on top of (and behind) its own art it
+carries as many layers as the designer adds, each with its own offset, art,
+tint, colour, visibility and per-state appearance — authored entirely in the
+editor, saved into `data/ui/screens/<id>.json`, drawn by the game. Layers may
+also be their own click targets.
 
-- **D1 — Cycle.** Exactly 4 authored milestones. `milestone_index =
-  (boss_num - 1) % 4` — boss 5 repeats milestone 1 verbatim, forever.
-  Decoupled from the existing 5-era `enemies.json` enemy-stat scaling
-  (untouched).
-- **D2 — Slots.** Always exactly 3 shown per milestone. No randomization —
-  direct designer assignment via drag-and-drop, mirroring the building
-  Timeline's `assign_slot`.
-- **D3 — Uniqueness.** Each of the 12 catalog upgrades may be placed into at
-  most one milestone slot across the whole timeline (authoring-time
-  constraint, `validate_uniqueness`) — this is what "seen once" means, NOT
-  "consumed after picked". The same milestone always re-offers the identical
-  3 options on every repeat.
-- **D4 — Free re-pick, additive stacking.** The player freely picks 1 of 3 at
-  every bossfight, independent of prior picks. Persistent %-based effects
-  picked more than once (via repeats) **stack additively**. One-time effects
-  simply re-trigger (idempotent).
-- **D5 — Cutscene fully replaced.** `boss_cutscene.py`'s old A/B narrative
-  pick is deleted; the 3 upgrade cards ARE the new cutscene content, on both
-  win and loss.
-- **D6 — Old boss-bonus system fully retired.** `game/core/boss_bonuses.py`'s
-  six effects (dmg-per-unbuilt-tile, dmg-per-building, love-per-level,
-  love-per-low-level-building, dmg-per-love-chunk, dmg-per-lightning-building),
-  `RunState.boss_stacks`, the payday slot-3 `love_bonus_income` call (slot
-  ORDINAL position stays, becomes a documented no-op — payday order is
-  sacrosanct), and HUD's "Story" income row are all removed.
-- **D7 — Retaliation bonus.** Moves into the new timeline as **4 cyclic
-  values** (one per milestone, same `(boss_num-1)%4` cycle), edited from the
-  new panel, becoming the sole source of truth. `enemies.json`'s
-  `loss_love_reward` field/mechanism is retired; `Session._boss_loss_reward`
-  is rewired. Still paid only on a loss, still via `RunState.add_love` (the
-  existing, reused API). Seed data: placeholder progression (e.g.
-  30/60/100/150 love) — the user tunes exact numbers in the new panel
-  afterward.
-- **D8 — Storage.** ONE new file `data/balancing/boss_upgrades.json` +
-  `data/schemas/boss_upgrades.schema.json`. Catalog = 12 **fixed named keys**
-  (not an open array — each requires bespoke code anyway), each with editable
-  `name`, `description`, `params`. Timeline = 4 milestones × 3 slots
-  (nullable upgrade-id references) + `retaliation_bonus_love` per milestone.
-  Registered as a new balancing domain exactly like `progression`
-  (`game/core/balance.py::DOMAINS`, `Session`, `game/main.py`,
-  `tools/simrun.py`).
-- **D9 — Card art.** Text-only. No icon/art pipeline for boss upgrade cards,
-  editor or in-run.
-- **D10 — Editor overwrite.** Drag-drop onto an occupied slot silently
-  overwrites (matches the building Timeline's `assign_slot`, no
-  confirmation).
-- **D11 — Editor panel placement.** New top-level **"Bosses"** category
-  (sibling to "buildings", not nested under it) in the selector tree.
-- **D12 — Musician auto-level scope** (upgrade #5). Musician tier line only
-  (Flute Player → Harp Player → Trio), not all buildings.
-- **D13 — Thorns scope** (upgrade #8). Triggers on both building hits AND
-  wall hits.
-- **D14 — Move-cost cap** (upgrade #4). Caps the **time** cost dial (the one
-  actually enabled today; love cost stays off).
-- **D15 — Tile-condition dmg bonus scope** (upgrade #11). Any non-Grass
-  condition (Mountain/Pond/Forest) — Grass never counts.
-- **D16 — Mortar-slow scope** (upgrade #3). Snapshot semantics — only
-  mortars alive at pick-time get slow-on-hit; mortars built afterward do
-  not. Duration defaults to 2.5s (matching Stormpriest's).
-- **D17 — Stone-thrower sync** (upgrade #9). One-time only, no ongoing
-  re-sync rule.
-- **D18 — Boost double-trigger** (upgrade #10). Permanent global rule —
-  applies to boost buildings placed before AND after the pick.
-- **D19 — Shared slow-debuff infrastructure** (needed for #3 and #7).
-  **Extend the existing `BuffState`** (`game/enemies/components.py` — today
-  the Drummer's ally-buff aura) to also accept building-sourced entries,
-  rather than building a parallel mechanism. Read its full implementation
-  before touching it.
-- **D20 — Red debuff arrow (new requirement).** Mirroring the existing gold
-  "buff arrow" indicator (`game/ui/effects.py::submit_buff_arrows`,
-  `BUFF_ARROW_SLOT = "vfx_buff_arrow"`, a small procedural gold triangle
-  drawn above any alive enemy with `BuffState.sources` non-empty, swappable
-  via imported art), add a parallel **red debuff arrow** for any enemy
-  carrying an active negative (slowing) `BuffState` contribution.
-  **SUPERSEDED post-BU-5**: a live-tested follow-up changed both the gating
-  and the position from what this decision originally specified — the gold
-  and red arrows now gate INDEPENDENTLY per source (`buff_signs`, not one
-  netted aggregate sign), so a unit that is simultaneously buffed AND
-  slowed shows BOTH arrows; and the red arrow sits to the LEFT of the hp
-  bar, vertically centred on it, rather than sharing the gold arrow's
-  above-the-bar anchor. See `game/ui/CLAUDE.md`'s "The RED debuff arrow"
-  section for the final, accurate shape — the paragraph below is the
-  ORIGINAL (superseded) design text, kept for history:
-  New `DEBUFF_ARROW_SLOT = "vfx_debuff_arrow"` + `_DEBUFF_ARROW_RED` color
-  constant beside `_BUFF_ARROW_GOLD`; new `submit_debuff_arrows` method
-  mirroring `submit_buff_arrows`'s structure exactly (same anchor-point
-  logic, same art-vs-procedural-triangle fallback) but keyed on a
-  **negative** aggregate `move_speed` contribution. `submit_buff_arrows`
-  itself narrows to a **positive** contribution so the two read as
-  mutually distinct (gold = real buff, red = slow), stacking vertically if
-  an enemy is somehow both. Wired in `game/main.py` beside the existing
-  call. New slot registered in `data/slots.json`'s vfx category + the vfx
-  schema, same site as `vfx_buff_arrow`.
-- **D21 — Branch.** `feature/boss-upgrade-timeline`, off `Development`
-  (done).
+### What already landed (do NOT redo)
 
-All of the above was verified against the current repository state before
-this plan was written — `data/schemas/progression.schema.json`,
-`data/balancing/progression.json`, `game/core/levelup.py`,
-`editor/panels/timeline.py`, `editor/timeline_ops.py`, `engine/era_math.py`,
-`game/core/session.py`, `game/core/game_state.py`, `game/ui/boss_cutscene.py`,
-`game/ui/effects.py`, `game/buildings/building.py`,
-`game/buildings/movement.py`, `game/buildings/registry.py`,
-`game/buildings/musician.py`, `game/buildings/defender.py`,
-`game/buildings/aoe_defence.py`, `game/enemies/combat.py`,
-`game/enemies/components.py`, `game/core/lightning.py`,
-`game/core/payday.py`, `game/map/tile_map.py`, and `game/ui/building_ui.py`
-were all directly read or scouted to confirm exact current shapes.
+| Landed | Where |
+|---|---|
+| Every stat/string is an id'd, movable, re-textable widget (`text_id`, `submit_label`) | `UiTextBindingPLAN.md` UT-1..UT-7 — **done** |
+| One 640×360 logical UI space | `UiResolutionPLAN.md` UR-1..UR-3 — **done** |
+| Widget parent tree, outliner as a `QTreeWidget`, edit-time move cascade, `editor/widget_tree.py` | `UiEditorParentingPLAN.md` P-1..P-5 — **landed** |
+| Position-only text anchors are selectable/draggable; live X/Y/W/H spinboxes | `editor/panels/_screen_primitives.py`, `editor/panels/screen_details.py` |
+| `align` + `font_key` recorded per widget as editor DRAW HINTS | `data/schemas/screen_defaults.schema.json`, `tools/export_ui_layouts.py::_widget_entry` |
+| Custom font import + a game-wide active face | `data/fonts/font_manifest.json`, `data/ui/active_font.json` — fonts already import and work |
+| The whole draw list of every screen, replayed behind the editor's widget boxes | `data/ui/screen_previews.json` (UT-2) |
 
-## 2. The 12 boss upgrades (id — effect type — params — hook)
+Read `game/ui/CLAUDE.md`, `data/CLAUDE.md`'s "UI screen data" section and
+`editor/panels/CLAUDE.md` before touching a phase. Test policy is the root
+`CLAUDE.md` §"Test Suite Policy" — this doc states no rule of its own.
 
-1. **`restock_lives`** — ONE-TIME. Sets `RunState.base_lives` back to
-   `core.json`'s `TheHole.base_lives`. No params.
-2. **`wall_cost_discount`** — PERSISTENT, stacks, floor-clamped to a minimum
-   of 1. Param `cost_reduction_pct` (default 50). Hooks
-   `Building.build_cost()`/`upgrade_cost()`, scoped to `Blocker`/
-   `WallBuilder` only.
-3. **`mortar_slow`** — PERSISTENT, snapshot-scoped to mortars alive at
-   pick-time. Params `slow_pct` (20), `duration_seconds` (2.5). Hook:
-   `combat.py`'s `_fire_splash`, via the extended `BuffState`.
-4. **`move_time_cap`** — PERSISTENT, global. Param `move_time_cap` (1). Hook:
-   `move_time()`'s `_stepped()` helper — caps the TIME dial.
-5. **`musician_auto_level`** — PERSISTENT, global, Musician line only. Param
-   `bonus_levels` (1). Hook: `registry.place_building()`, driven through the
-   normal "advance one level" path.
-6. **`tile_discount`** — PERSISTENT, stacks. Param `discount_pct` (20). Hook:
-   `TileMap.unlock_cost()`.
-7. **`stormpriest_slow`** — PERSISTENT, global, live (no snapshot). Params
-   `slow_pct` (20), `duration_seconds` (2.5). Hook: `lightning.py`'s
-   `strike()`, right after damage applies, same extended `BuffState`.
-8. **`thorns`** — PERSISTENT, stacks, buildings AND walls. Param
-   `reflect_pct` (10). Hooks: `EnemyCombat.update()`, both branches.
-9. **`stone_thrower_sync`** — ONE-TIME. No params. Sweeps all placed
-   `Defender` instances, levels every non-max one up to match the highest.
-10. **`boost_double_trigger`** — PERSISTENT, global. Param `extra_triggers`
-    (1). Hook: `_process_boosts` calls `apply_per_turn()` an extra time
-    within the same slot-7 step; doubles the `boost_events` push.
-11. **`condition_dmg_bonus`** — PERSISTENT, stacks. Param `dmg_bonus_pct`
-    (20). New wiring reading the TARGET enemy's own tile condition.
-12. **`tile_refund`** — ONE-TIME. No params. Pays back
-    `RunState.love_spent_on_tiles` (new accumulator) via `state.add_love`.
+## 2. Decisions (with rationale)
 
-## 3. Build order
+- **D1 — Layers live in the OVERRIDE doc, never in `screen_defaults.json`.**
+  A new optional `layers` array on `ui_screen.schema.json`'s per-widget override
+  object. The designer's whole ask is "no programmer involved":
+  `screen_defaults.json` is generated by `tools/export_ui_layouts.py` from what
+  the CODE lays out, so a layer authored there would need a code change to
+  exist. The override doc is the designer's file.
+- **D2 — A layer's geometry is an OFFSET from its owner's post-override rect,
+  never an absolute rect.** Every screen's `layout()` recomputes widget rects
+  each frame, and `UiEditorParentingPLAN` D2 deliberately kept saved rects
+  ABSOLUTE with **no runtime cascade**. An absolute layer would detach the
+  instant `layout()` moved its owner (the HUD readouts, which are computed off
+  `love_panel`'s live rect, would break first). Offsets are `[dx, dy, w, h]`; a
+  `w`/`h` of `0` means "match the owner's".
+- **D3 — The pure geometry/state resolver lives in `engine/`, not `game/` or
+  `editor/`.** Both the game (drawing) and the editor (previewing) must resolve
+  a layer to the SAME rect, and `editor/` may never import `game/` (strict
+  layering). `editor/widget_tree.py` could be an editor-only duplicate because
+  parenting is authoring-only; layer geometry is not. New module
+  `engine/ui_layers.py`, pygame-free, in `TestPurity`.
+- **D4 — Two submission BANDS, `under` and `over`, one call each.** The HUD pass
+  has no depth sort — draw order IS submission order (`game/ui/CLAUDE.md`,
+  "HUD submission order") — so a z-index is meaningless without a real call
+  site. Each screen's `submit()` calls the layer submitter once at the top
+  (`under`) and once at the end (`over`); `z` orders layers WITHIN a band.
+  - Consequence to accept and document: an `under` layer sits behind
+    everything on that screen, not just behind its own owner. That is exactly
+    right for "Widget Bg" and wrong for "a background between two stacked
+    panels". Say so in the editor's tooltip.
+- **D5 — Golden parity is the landing condition of every runtime phase.** With
+  no `layers` authored the submitter emits nothing, so
+  `tools/tests/test_ui_skinning.py`'s baselines and `data/ui/screen_previews.json`
+  stay byte-identical. A phase that moves either has done something wrong.
+- **D6 — The seven shipped font presets stay REQUIRED and PINNED; custom presets
+  are additive** (user decision). `fonts.schema.json` opens to extra
+  `^[a-z][a-z0-9_]*$` keys; `configure_fonts`'s key-set check relaxes from
+  "exact match" to "the seven must be present, extras allowed". `game/ui/CLAUDE.md`'s
+  rule — presets are global, widening `md` overflows containers everywhere —
+  is preserved by construction: a designer adds `title_big`, never resizes `md`.
+  - A custom preset needs a `_LAYOUT_H` value. It is **derived once inside
+    `configure_fonts` and stored**, never measured live at each call site — the
+    pinned-heights invariant exists because SysFont measures ±1px differently
+    per platform and every stored rect must be reproducible on any machine.
+- **D7 — A clickable layer either RETARGETS an existing widget or names one of
+  three RESERVED action tokens; an unroutable target WARNS but is allowed**
+  (user decision, 2026-08-17 — this AMENDS the original ruling, see below).
+  Retarget = the layer fires the named widget id's own action, so the Munchkin
+  can drive the Pause button — or a *different* button.
+  - **The reserved tokens are `close_window`, `back`, `noop`** (named by the
+    user at the W2→W3 boundary; UL-9 is no longer blocked). `noop` is the
+    explicit do-nothing: a decorative layer that must swallow its click rather
+    than let it fall through to the button behind it.
+  - **Amendment — dead buttons warn, they do not fail validation.** The original
+    D7 made the schema enum CLOSED and cited ED-30 ("invalid input
+    unrepresentable") so that a mistyped or not-yet-coded action would fail
+    validation in the editor. The user has ruled the other way: `target` accepts
+    any id-shaped string, and a target that resolves to **neither** a widget id
+    present in this screen **nor** one of the three tokens is surfaced as a
+    **warning in the editor** and still saves. Rationale: a designer authoring
+    against a widget that does not exist yet should not be blocked by the
+    schema. Consequence to accept: an unroutable `target` CAN ship, so the
+    warning is the only thing standing between a typo and a dead button — it
+    must be visible in the inspector, not buried in a log.
+- **D8 — The hit resolver is PURE, and every screen consults it BEFORE its own
+  hit logic.** `main.py` calls `Hud.hit()` **twice per click** (the pan-arming
+  probe on MOUSEBUTTONDOWN, the real handler on MOUSEBUTTONUP), which is why
+  `Hud.hit()` is documented as a pure read and why `MapOverlays.hit()`'s
+  self-toggling pattern must never be copied into it. A resolver that mutated
+  state would double-fire and cancel itself.
+- **D9 — Per-state appearance reuses the EXISTING four-state vocabulary**
+  (`idle`/`hover`/`pressed`/`disabled`), not a new one. It is already
+  `slots.json`'s `ui` animation vocabulary, already one manifest row each, and
+  already what a `Button` tracks internally — so per-state colour and position
+  ride the same state the per-state art already resolves through.
+- **D10 — The three life counters are three id'd widgets, not one repeated
+  draw.** `life_1`/`life_2`/`life_3` join `hud.py`'s `ids` dict as ordinary
+  holders, each carrying its own layer stack, so the designer positions and
+  skins them individually. `lives_text`/`icon_lives` stay (a numeric readout is
+  still useful and removing an id breaks the on-disk contract).
 
-| Phase | Scope | Status |
+## 3. Section map
+
+| Section | Title | Phases | Depends on | Status |
+|---|---|---|---|---|
+| S1 | Quick wins — alignment and fonts | UL-1, UL-2 | — | **LANDED** — `ul-section-S1`, merged to umbrella |
+| S2 | The layer model | UL-3, UL-4, UL-5 | — | **LANDED** — `ul-section-S2`, merged to umbrella |
+| S3 | Layers in the editor | UL-6, UL-7, UL-8 | S2 | **LANDED** — `ul-section-S3`, merged to umbrella |
+| S4 | Clickable layers + life counters | UL-9, UL-10, UL-11, UL-12 | S2, S3 | **LANDED** — `ul-section-S4`, merged to umbrella. Section review run late by the main session (clean, 2 LOW accepted); handoff `docs/handoffs/uilayeredwidgets-S4.md` |
+
+**Waves:** W1 = **S1 + S2** (concurrent). W2 = **S3**. W3 = **S4**.
+
+> **Correction (W1 close).** This line originally claimed S1 and S2 share **no
+> file**. They do: both add a key to the per-widget override object in
+> `data/schemas/ui_screen.schema.json` (S1 `align`, S2 `layers` + `states`).
+> The wave was run with an explicit shared-file contract — surgical additions
+> only, neither section referencing the other's key — and the file auto-merged
+> without conflict. The three real conflicts at the umbrella merge were
+> additive registration lists (`conftest.py`, `tools/test_domains.py`) and this
+> plan doc's own status table, all resolved by union.
+
+---
+
+### Section S1 — Quick wins: alignment and fonts
+
+**Purpose.** The two asks from the designer's opening list that depend on
+nothing else: text alignment editable per piece of text, and font sizes the
+designer defines. Independent of layers, so it ships first and gives the
+designer something usable in the first week. Fonts already import and work —
+this section makes the SIZES authorable, not the faces.
+
+**Publishes.**
+- `align` as a real per-widget key in `ui_screen.schema.json` (`"left" |
+  "center" | "right"`), honoured by the game at draw time — not just the
+  editor draw hint it is today.
+- `data/ui/fonts.json` accepts arbitrary extra preset keys beside the seven
+  required ones; `engine.render.fonts.configure_fonts` accepts them and derives
+  a `layout_h` for each; any `font_key` override may name a custom preset.
+- The editor's per-widget Alignment control and the Theme panel's
+  add/remove-preset rows.
+
+**Depends on.** —
+
+| Phase | Scope (package) | Status |
 |---|---|---|
-| BU-0 | Branch | done |
-| BU-1 | Data layer — schema, content, domain registration | done |
-| BU-2 | RunState + effect-engine skeleton | done |
-| BU-3 | Effect-engine hook wiring (12 upgrades + debuff arrow) | done |
-| BU-4 | Boss cutscene UI + Session rewire; retire boss_bonuses | done |
-| BU-5 | Editor panel | done |
-| BU-6 | Tests | done |
-| BU-7 | Docs | done |
+| UL-1 | Alignment as a real override (data + game + editor) | *(LANDED)* — `ul-phase-UL-1-align`, review clean |
+| UL-2 | Designer-defined font presets (data + engine + editor) | *(LANDED)* — `ul-phase-UL-2-fonts`, review clean |
+
+#### Phase UL-1 — Text alignment becomes editable
+
+**Goal.** A designer picks Left / Centre / Right for any text widget in the
+editor and the game draws it that way. Today `align` is recorded into
+`screen_defaults.json` as an editor-only measuring hint and the game reads
+alignment off a code-set holder attribute (`hud.round_label` is the one widget
+that declares `align="center"`).
+
+**Files.**
+- Modified: `data/schemas/ui_screen.schema.json` (optional `align` enum on the
+  per-widget override object — no `game/ui/skinning.py` change needed, its
+  generic setattr loop already threads any key onto the widget, the same way
+  `tint` and `text_id` ride for free).
+- Modified: `game/ui/widgets.py` — confirm `submit_label`'s
+  `getattr(holder, "align", "left")` path covers every converted call site, and
+  convert any remaining bare `submit_text(...)` that a designer would expect to
+  align.
+- Modified: `editor/panels/screen_details.py` — an Alignment combo beside the
+  X/Y/W/H spinboxes, on the existing live-commit/undo path.
+- Modified: `editor/panels/_screen_primitives.py` — the interaction rect for a
+  position-only anchor must follow the OVERRIDE's align, not only the default's.
+
+**Tests.** New `tools/tests/test_ui_align.py` (override applies; each of the
+three values measures its anchor box the right way; an absent key is `left`).
+Existing `tools/tests/test_ui_skinning.py` must not move.
+
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_ui_align.py tools/tests/test_ui_skinning.py -q
+```
+**Quick Test (in game):** set `hud.love_text`'s `align` to `right` in
+`data/ui/screens/hud.json`, run `py game/main.py`, confirm the love number
+spreads leftward from its stored x and the icon does not move.
+
+#### Phase UL-2 — Designer-defined font presets
+
+**Goal.** The designer adds their own preset (name + size + bold) in the editor's
+Theme panel and assigns it to any widget. The seven shipped presets stay exactly
+as they are (D6).
+
+**Files.**
+- Modified: `data/schemas/fonts.schema.json` — the seven keys stay `required`;
+  `additionalProperties` becomes the same `{size, bold}` object shape under a
+  `^[a-z][a-z0-9_]*$` pattern.
+- Modified: `engine/render/fonts.py` — `configure_fonts` accepts extras
+  (missing-key check stays loud, unknown-key check goes); `_LAYOUT_H` gains a
+  derived entry per custom preset, computed once at configure time (D6).
+- Modified: `editor/panels/game_theme.py` + `editor/theme_ops.py` — add/rename/
+  remove a custom preset, staged through the existing `write_validated` path.
+- Modified: `editor/panels/screen_details.py` — the font combo lists custom
+  presets alongside the seven.
+
+**Tests.** New `tools/tests/test_font_presets.py` (a custom preset configures,
+gets a `layout_h`, and survives a reconfigure; dropping one of the seven still
+fails loud). Existing `tools/tests/test_theme_data.py` parity must not move.
+
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_font_presets.py tools/tests/test_theme_data.py -q
+```
+**Quick Test (in game):** add a `title_big` preset (size 34, bold) in the Theme
+panel, point `main_menu`'s title at it, run `py game/main.py` and confirm the
+title draws larger while every other screen is unchanged.
 
 ---
 
-### BU-1 — Data layer
+### Section S2 — The layer model
 
-**Goal.** Stand up the new balancing domain: schema, seed content, domain
-registration, `Session` wiring.
+**Purpose.** Teach the game what a layer is, then make it draw one. Nothing
+visible changes until a designer authors a layer — every existing screen must
+look exactly as it does today, and that is how we know it works. This is the
+section every later one is built on.
 
-**Files.**
-- `data/schemas/boss_upgrades.schema.json` (new) — `Catalog`: 12 fixed named
-  keys (`additionalProperties: false`), each `{name, description, params:
-  {...}}`. `Timeline.milestones`: fixed-length-4 array, each `{slots: [id|
-  null, id|null, id|null], retaliation_bonus_love: int}`.
-- `data/balancing/boss_upgrades.json` (new) — all 12 upgrades seeded with §2's
-  defaults; 4 milestones each assigning 3 distinct upgrade ids (no repeats
-  across the whole timeline) + placeholder retaliation values (e.g.
-  30/60/100/150).
-- `game/core/balance.py` — add `"boss_upgrades"` to `DOMAINS`.
-- `game/core/session.py` — `Session.__init__`/`Session.create` grow an
-  optional trailing `boss_upgrades_balance=None` param, stored as
-  `self.boss_upgrades_balance` (the `progression_balance` shape).
-- `game/main.py`, `tools/simrun.py` — load + thread it in, beside the
-  existing `progression_balance` load.
+**Publishes.**
+- `ui_screen.schema.json`'s per-widget optional **`layers`** array. Each entry:
+  `id`, `offset` `[dx, dy, w, h]` (D2), `z` (int, order within a band), `band`
+  (`"under" | "over"`), and the appearance keys `slot`, `text_id`, `label`,
+  `font`, `align`, `color`, `text_color`, `tint`, `visible` — plus an optional
+  `states` object keyed `idle`/`hover`/`pressed`/`disabled`, each holding the
+  same appearance keys plus its own `offset` (D9).
+- **`engine/ui_layers.py`** (pure, pygame-free, `TestPurity`) — the ONE resolver
+  both packages consume (D3): `resolve(layer_spec, owner_rect, state) -> rect +
+  resolved appearance`, `ordered(layers, band)`, `validate_offsets(...)`.
+- **`ScreenSkinning.submit_layers(renderer, screen_id, ids, band, state_of)`** —
+  the single seam every screen calls twice (D4).
+- The per-widget `states` object on the OWNER widget itself, so a button's own
+  text colour and position can differ per state (the designer's item 4).
 
-**Verify.** `py tools/smoke.py`.
+**Depends on.** —
 
-### BU-2 — RunState + effect-engine skeleton
+| Phase | Scope (package) | Status |
+|---|---|---|
+| UL-3 | Layer schema + the pure resolver (data + engine) | *(LANDED)* |
+| UL-4 | The game draws layers (game) | *(LANDED)* |
+| UL-5 | Per-state appearance, layer and owner (data + engine + game) | *(LANDED)* |
 
-**Goal.** Minimal new `RunState` ledgers, and `game/core/boss_upgrades.py`
-(pure, no `game.buildings`/`game.enemies` imports — mirrors
-`boss_bonuses.py`'s discipline) as the one place that knows "which upgrade
-ids exist" and "how many times has each been picked".
+#### Phase UL-3 — The layer schema and a pure resolver
 
-**Files.**
-- `game/core/game_state.py` — `RunState` grows: `boss_upgrade_stacks: dict`
-  (`{upgrade_id: pick_count}`), `love_spent_on_tiles: int = 0`,
-  `mortar_slow_snapshot_ids: set`, `boss_upgrade_choices: list`
-  (`(boss_num, upgrade_id, outcome)`, replaces `boss_choices`).
-- `game/core/boss_upgrades.py` (new) — `milestone_index(boss_num)`,
-  `milestone_slots(balance, boss_num)`, `retaliation_love(balance,
-  boss_num)`, `stack_count(state, upgrade_id)`, and `apply_pick(state,
-  upgrade_id, boss_upgrades_balance, core_balance, tilemap=None,
-  scene=None)` — increments the stack dict; performs the immediate side
-  effect in-line for the three ONE-TIME upgrades (#1, #9, #12).
-
-**Verify.** `py tools/smoke.py`; grep-confirm `boss_upgrades.py` imports
-nothing from `game.buildings`/`game.enemies`.
-
-### BU-3 — Effect-engine hook wiring
-
-**Goal.** Wire each catalog upgrade's real effect at its hook point(s),
-magnitudes always read via `stack_count`, never hardcoded.
-
-**Sub-tasks.**
-- 3.1 One-time (#1, #9, #12 — mostly inside `apply_pick`; #12's accumulator
-  hook sits in `building_ui.py`'s `_unlock_click`, incrementing
-  `state.love_spent_on_tiles` alongside `st.spend_love(chunk_cost)`).
-- 3.2 Simple persistent passives (#2, #4, #5, #6) — optional trailing
-  `run_state=None` param on `Building.build_cost()`/`upgrade_cost()`,
-  `move_time()`'s `_stepped()`, `registry.place_building()`; thread through
-  their real call sites (`building_ui.py` price displays/click handlers,
-  `payday.py` move processing).
-- 3.3 Shared slow-debuff infra, then #3 and #7 — first read `BuffState`'s
-  full implementation and confirm widening its per-source model is safe.
-  #3 snapshots mortar ids at pick-time; #7 applies live, unconditionally.
-  **Also D20** (red debuff arrow) here: `game/ui/effects.py`'s
-  `submit_debuff_arrows` + constants, `submit_buff_arrows` narrowed to
-  positive-only, both wired in `game/main.py`; new `vfx_debuff_arrow` slot
-  in `data/slots.json` + vfx schema.
-- 3.4 Thorns (#8) — both branches of `EnemyCombat.update()`.
-- 3.5 Tile-condition target damage bonus (#11) — read `combat.py`'s full
-  damage-finalization call graph first so the multiply applies exactly once
-  per hit.
-- 3.6 Boost double-trigger (#10) — `_process_boosts`, extra
-  `apply_per_turn()` call(s) inside the existing slot-7 step.
-
-**Files.** `game/buildings/building.py`, `game/buildings/movement.py`,
-`game/buildings/registry.py`, `game/map/tile_map.py`,
-`game/enemies/components.py`, `game/enemies/combat.py`,
-`game/core/lightning.py`, `game/core/payday.py`, `game/ui/building_ui.py`,
-`game/ui/effects.py`, `game/main.py`, `data/slots.json`, the vfx schema.
-
-**Verify.** `py tools/smoke.py`. Practical verification of most sub-tasks
-waits for BU-4 (no UI to pick an upgrade before then) — treat BU-3+BU-4 as
-one dev/verify cycle.
-
-### BU-4 — Boss cutscene UI + Session rewire; retire boss_bonuses
-
-**Goal.** Replace the A/B narrative picker with the 3-card upgrade picker,
-re-point retaliation-love at the new table, retire the old bonus system.
+**Goal.** Define the shape of a layer and resolve it, with nothing calling the
+resolver yet. Landing condition: **no behaviour change anywhere.**
 
 **Files.**
-- `game/ui/boss_cutscene.py` — 3 boxes instead of 2, sourced from
-  `boss_upgrades_balance["BossUpgrades"]["Catalog"][id]["name"/
-  "description"]` (live-formatted with `params`) for `milestone_slots`.
-  `hit()` returns the picked `upgrade_id`. Constructor gains
-  `boss_upgrades_balance`.
-- `game/core/session.py` — `_boss_loss_reward` → `boss_upgrades.
-  retaliation_love(self.boss_upgrades_balance, era + 1)`.
-  `resolve_boss_cutscene` calls `boss_upgrades.apply_pick(...)`;
-  `boss_choices` → `boss_upgrade_choices`.
-- **Retire (D6)**: `game/core/boss_bonuses.py`, `RunState.boss_stacks`, the
-  payday slot-3 `love_bonus_income` call (leave the ordinal slot as a
-  documented no-op), `hud.py`'s "Story" income row.
-- `game/ui/building_ui.py`'s `_submit_boss_popup` — reword rows to
-  `f"Boss {n}: {outcome} — {catalog[option]['name']}"`.
-- `tools/simrun.py`'s headless boss-cutscene auto-resolution — pick one of
-  the 3 offered ids deterministically.
+- Modified: `data/schemas/ui_screen.schema.json` — the `layers` array above,
+  `additionalProperties: false` throughout, every key optional (a layer override
+  is a partial patch, like every other widget key).
+- New: `engine/ui_layers.py` — pure geometry + appearance resolution. A `w`/`h`
+  of `0` inherits the owner's; a dangling/duplicate layer id resolves to
+  "skip this layer" rather than raising (the `editor/widget_tree.py` D5
+  precedent — a hand-edited doc must never hang a paint handler).
+- Modified: `tools/tests/test_purity.py` fixture list — add `engine/ui_layers.py`.
 
-**Verify.** Live `py game/main.py` through one full boss win (3-card pick,
-effect visibly applied) and one loss (retaliation banner + payout, still a
-card is picked); `py tools/smoke.py`.
+**Tests.** New `tools/tests/test_ui_layers.py` — offset resolution including the
+`0`-inherits case, band/z ordering stability, state fallback to `idle`, the
+degrade paths.
 
-### BU-5 — Editor panel
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_ui_layers.py tools/tests/test_purity.py -q
+```
+**Quick Test (in game):** `py game/main.py` boots and every screen is
+byte-for-byte what it was — this phase adds a vocabulary, not a pixel.
 
-**Goal.** New "Bosses" top-level category with a Boss Upgrade Timeline panel:
-catalog browse list with inline editable name/description/params,
-drag-and-drop into a 4×3 milestone grid, silent overwrite, per-milestone
-retaliation field.
+#### Phase UL-4 — The game draws layers
+
+**Goal.** A layer authored in `data/ui/screens/<id>.json` appears in the game, in
+the right band, at the right offset, following its owner when `layout()` moves
+it.
 
 **Files.**
-- `editor/boss_upgrades_ops.py` (new, pure, in `TestPurity`) —
-  `load_boss_upgrades`/`save_boss_upgrades` (through `write_validated`),
-  `assign_slot`, `clear_slot`, `set_retaliation_love`, `set_catalog_field`
-  (name/description/params — new capability), `placements`,
-  `validate_uniqueness`.
-- `editor/panels/boss_upgrades.py` (new, `BossUpgradesPanel`) — browse list
-  of 12 catalog cards, inline edit form, drag-drop onto 4×3 grid, text-only
-  cards. **Follow-up**: card dragging originally tried to start from a bare
-  header `QLabel` relying on the mouse press propagating to the parent card
-  — this does not work in Qt (mouse press/move do not auto-bubble to a
-  parent the way wheel/context-menu events do). Fixed with a dedicated
-  `_DragHandle` grip widget to the LEFT of each card.
-- `editor/panels/selector.py` — new top-level "Bosses" category, one leaf,
-  `boss_upgrades_selected` signal.
-- `editor/main.py` — wire panel into `right_stack`, connect signal,
-  `_on_boss_upgrades_selected`.
+- Modified: `game/ui/skinning.py` — `submit_layers(...)`, emitting `HudSprite` /
+  `HudRect` / `HudText` through `engine.ui_layers` (pure; the same sanctioned
+  HUD-primitive import `skinning.py` already makes).
+- Modified: all 14 exported screens' `submit()` — two calls each, `under` first
+  and `over` last: `add_name`, `boss_cutscene`, `building_panel`, `cheat_menu`,
+  `credits`, `enemy_intro`, `game_log`, `game_over`, `hud`, `levelup`,
+  `main_menu`, `overlays`, `pause`, `settings` (`tools/export_ui_layouts.py`'s
+  `SCREEN_IDS` is the list).
 
-**Verify.** `py -m pytest tools/tests/test_editor_viewport.py::TestPurity -q`
-(both new modules added to the purity list); live `py editor/main.py` —
-select Bosses ▸ Boss Upgrade Timeline, edit, drag, save, reload, `py
-tools/smoke.py`.
+**Tests.** New `tools/tests/test_ui_layer_draw.py` — a fixture screen doc with
+one `under` and one `over` layer produces the expected primitives in the
+expected order; an owner moved by a `rect` override carries its layers.
+`tools/tests/test_ui_skinning.py` golden baselines must be **unchanged** (D5).
 
-### BU-6 — Tests
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_ui_layer_draw.py tools/tests/test_ui_skinning.py -q
+```
+**Quick Test (in game):** hand-author one `under` layer on `hud.love_text`
+pointing at an imported `ui` slot, run `py game/main.py`, confirm the background
+sits behind the love number and moves with it when the widget's `rect` override
+is changed.
 
-**Goal.** Cover the new domain, engine, hooks, UI, editor ops; replace the
-test pinning the retired `enemies.json` loss-reward mechanism.
+#### Phase UL-5 — Per-state appearance
 
-**Files.** `tools/tests/test_boss.py` (reworked), new
-`tools/tests/test_boss_upgrades.py`, `tools/tests/test_buff_debuff_arrows.py`,
-`tools/tests/test_editor_boss_upgrades.py`, plus extensions to
-`test_tile_unlock.py`, `test_structure.py`, `test_building_movement.py`,
-`test_boost.py`, `test_lightning.py`, `test_10j_qol.py`, and the D-12 sweep
-(`test_balancing_data.py`'s `DOMAINS` tuple). No `boss_bonuses.py` test
-coverage existed to remove (BU-4 had already retired it cleanly).
+**Goal.** The designer's item 4: a different colour AND position for text and
+icons in each button state — on a layer, and on the owner widget itself.
 
-**Verify (role-scoped).** Targeted `py -m pytest tools/tests/test_boss*.py
-tools/tests/test_editor_boss_upgrades.py -q` + `py tools/smoke.py`. The
-single full `py tools/testgate.py check` is the MAIN SESSION's job at
-`/commitpushpr` handoff — never mid-task.
+**Files.**
+- Modified: `data/schemas/ui_screen.schema.json` — the `states` object on both
+  the layer entry and the per-widget override object.
+- Modified: `engine/ui_layers.py` — state resolution with `idle` fallback.
+- Modified: `game/ui/widgets.py` — `Button.submit` resolves its own per-state
+  `text_color`/offset through the same resolver; `submit_label` likewise for a
+  holder that carries one.
+- Modified: `game/ui/skinning.py` — `state_of(widget)` (the pure read of a
+  widget's current state) threaded into `submit_layers`.
 
-**Known, deliberately-deferred gaps** (flagged, not blocking): the
-`tools/tests/fixtures/data/` pinned snapshot does not yet carry the
-`boss_upgrades` domain (every test hand-pins its own balance dict instead —
-the established `test_boss.py` precedent for exactly this situation, since
-refreshing the fixture mid-feature would pull unrelated `Development` drift
-into the diff and require a full-suite run outside the "once, at handoff"
-policy); `game/enemies/components.py`'s `_apply_thorns` has a latent,
-currently-unreachable `AttributeError` risk if ever called with a
-non-`GameObject` attacker.
+**Tests.** Extend `tools/tests/test_ui_layer_draw.py` with a per-state case per
+state; a widget with no `states` key must draw exactly as it does today.
 
-### BU-7 — Docs
-
-**Goal.** Update every package doc this feature touches.
-
-**Files.** `data/CLAUDE.md`, `game/core/CLAUDE.md`, `game/buildings/CLAUDE.md`,
-`game/enemies/CLAUDE.md`, `game/ui/CLAUDE.md`, `editor/CLAUDE.md`,
-`editor/panels/CLAUDE.md`, `game/map/CLAUDE.md` (the `tile_discount` hook
-site), `game/CLAUDE.md` (a host-wiring index section for the four boot-time
-seam installs `main.py` owns).
-
-**Verify.** Re-read each touched section against the final implementation.
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_ui_layer_draw.py tools/tests/test_hud_panel.py -q
+```
+**Quick Test (in game):** give `hud.btn_end_turn` a `hover` state with a
+different `text_color` and a 1px offset; run `py game/main.py` and confirm the
+label recolours and nudges on hover and returns on mouse-out.
 
 ---
 
-## 4. Critical files
+### Section S3 — Layers in the editor
 
-`data/schemas/boss_upgrades.schema.json`, `data/balancing/boss_upgrades.json`
-(new); `game/core/boss_upgrades.py` (new), `game/core/game_state.py`,
-`game/core/session.py`, `game/core/balance.py`; `game/ui/boss_cutscene.py`,
-`game/ui/effects.py`, `game/ui/building_ui.py`, `game/main.py`;
-`game/buildings/building.py`, `game/buildings/movement.py`,
-`game/buildings/registry.py`, `game/buildings/defender.py`;
-`game/enemies/components.py`, `game/enemies/combat.py`,
-`game/core/lightning.py`, `game/core/payday.py`; `game/map/tile_map.py`;
-`editor/boss_upgrades_ops.py`, `editor/panels/boss_upgrades.py` (new),
-`editor/panels/selector.py`, `editor/main.py`.
+**Purpose.** Make layers a designer feature instead of a JSON feature. Layers
+appear under their widget in the outliner — the "button folder" the designer
+asked for — with add, remove, reorder and undo; the viewport draws them so what
+you see while editing is what the game shows; a state selector makes the
+per-state work visible.
 
-## 5. Verification (whole feature)
+**Publishes.**
+- Layers as child nodes of their widget in `ScreenDetailsPanel`'s
+  `WidgetTreeWidget`, on the same `Qt.ItemDataRole.UserRole` contract (a layer
+  node carries a `(widget_id, layer_id)` pair, so `widget_selected` /
+  `select_widget` keep working unchanged).
+- Layer add / remove / reorder / edit as undoable commands on the existing
+  `editor/ui_screen_session.py` stack.
+- A viewport layer overlay, draggable and resizable with the existing handles,
+  composited over the replayed `screen_previews.json`.
+- A preview **state selector** (idle / hover / pressed / disabled) driving both
+  the viewport and the inspector.
 
-- `py tools/smoke.py` after every phase — **done, every phase, always green**.
-- Targeted `py -m pytest tools/tests/test_boss*.py
-  tools/tests/test_editor_boss_upgrades.py -q` — **done, BU-6, all passing**.
-- Live `py game/main.py`: reach a boss fight, confirm 3 text-only cards
-  show, pick one, confirm its effect is visibly active; reach a repeat
-  (boss 5) and confirm the same 3 options reappear; lose a boss fight and
-  confirm the retaliation-love banner + payout. **Live-tested by the user
-  during BU-5/D20 follow-ups** (the drag-handle fix and the independent
-  arrow-gating fix both came from live play feedback).
-- Live `py editor/main.py`: Bosses ▸ Boss Upgrade Timeline — edit, drag,
-  save, reload. **Live-tested** (same follow-ups).
-- Full `py tools/testgate.py check` — main session only, once, at
-  `/commitpushpr` handoff. **Still pending — the next step.**
+**Depends on.** S2.
+
+| Phase | Scope (package) | Status |
+|---|---|---|
+| UL-6 | Layers in the outliner + undoable ops (editor) | *(LANDED)* — `ul-phase-UL-6-layer-ops`, merged to `ul-section-S3` |
+| UL-7 | Layers in the viewport (editor) | *(LANDED)* — `ul-phase-UL-7-layer-viewport`, merged to `ul-section-S3` |
+| UL-8 | State selector + layer inspector (editor) | *(LANDED)* — `ul-phase-UL-8-state-inspector`, merged to `ul-section-S3` (1 fix round) |
+
+#### Phase UL-6 — Layers in the outliner
+
+**Goal.** Select a widget, click **Add layer**, pick art, and it exists — no
+programmer involved. Remove, reorder within a band, and undo all of it.
+
+**Files.**
+- Modified: `editor/ui_screen_session.py` — `layers(widget_id)`,
+  `add_layer` / `remove_layer` / `reorder_layer` / `set_layer_field`, each one
+  undo command.
+- Modified: `editor/panels/screen_details.py` — layer child nodes under their
+  widget; the Add/Remove/Reorder controls; the slot picker reused from the
+  existing asset flow.
+
+**Tests.** New `tools/tests/test_ui_layer_ops.py` (pure session ops: add/remove/
+reorder/undo round-trips, ids stay unique, the doc validates after every op).
+Marked `editor` where Qt is involved.
+
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_ui_layer_ops.py -q
+```
+**Quick Test (in editor):** `py editor/main.py` → screen mode → `hud` → select
+Love counter → Add layer → pick a `ui` slot → save → confirm
+`data/ui/screens/hud.json` gained a `layers` entry and Ctrl+Z removes it.
+
+#### Phase UL-7 — Layers in the viewport
+
+**Goal.** The viewport draws every layer where the game will draw it, and the
+designer drags it into place.
+
+**Files.**
+- Modified: `editor/panels/viewport.py` — layer draw via `engine.ui_layers`
+  (D3), hit-testing that picks the smallest candidate (the existing
+  `_hit_widget` rule), drag/resize writing back through UL-6's commands.
+- Modified: `editor/panels/_screen_primitives.py` — the layer interaction rect.
+
+**Note.** `data/ui/screen_previews.json` is recorded **override-free** by design,
+so a layer can never appear in that artifact. The editor composites layers
+itself, on top of the replay — do not try to bake them into the preview file.
+
+**Tests.** Extend `tools/tests/test_ui_layer_ops.py` with the viewport geometry
+cases (a layer's screen rect equals `engine.ui_layers.resolve`'s answer for the
+same owner rect).
+
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_ui_layer_ops.py -q
+```
+**Quick Test (in editor + game):** drag a layer into place in the editor, save,
+then `py game/main.py` and confirm it sits exactly where the editor showed it.
+
+#### Phase UL-8 — State selector and layer inspector
+
+**Goal.** See and edit each button state. The inspector exposes a layer's slot,
+offset, z, band, tint, colour, text and visibility, per state.
+
+**Files.**
+- Modified: `editor/panels/screen_details.py` — the state combo + the per-state
+  inspector fields; the D4 band tooltip.
+- Modified: `editor/panels/viewport.py` — draw the selected state.
+
+**Tests.** Extend `tools/tests/test_ui_layer_ops.py` (editing a `hover` field
+writes under `states.hover` and leaves `idle` untouched).
+
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_ui_layer_ops.py -q
+```
+**Quick Test (in editor):** switch the state selector to Pressed, move a layer,
+switch back to Idle, and confirm the idle position did not move.
+
+---
+
+### Section S4 — Clickable layers and life counters
+
+**Purpose.** The two pieces that need everything above to exist first. A layer
+becomes its own click target (so the Munchkin can do something different from
+the button behind it), and the three life counters become real widgets with
+alive / transition / dead states.
+
+**Publishes.**
+- `clickable` + `target` on a layer entry, where `target` is a widget id in the
+  same screen or one of the three reserved tokens `close_window` / `back` /
+  `noop`; an id-shaped string matching neither WARNS in the editor and still
+  saves (D7, as amended).
+- The two editor-wiring items S3 scoped out, folded into UL-10 by user decision:
+  connect `viewport.layer_selected` so a viewport click selects the layer in the
+  inspector, and link the inspector's state combo to the viewport's
+  preview-state dropdown.
+- `engine.ui_layers.hit(...)` — pure, topmost-first (D8) — and
+  `ScreenSkinning.hit_layer(screen_id, ids, mx, my)`.
+- `hud.life_1` / `life_2` / `life_3` as id'd widgets with a per-life state fed
+  from the run's life-lost signal (D10).
+- Updated `game/ui/CLAUDE.md`, `data/CLAUDE.md`, `editor/panels/CLAUDE.md` and
+  `engine/render/CLAUDE.md` (the last one to pay S1's debt: its blanket "
+  `configure_fonts` NEVER touches `_LAYOUT_H`" claim went stale the moment
+  UL-2 opened `fonts.json` to custom presets, which DO get a derived entry).
+- New `docs/ui-layers-for-designers.md` — the designer-language walkthrough,
+  the only layers doc that assumes no knowledge of this repo.
+
+**Depends on.** S2, S3.
+
+| Phase | Scope (package) | Status |
+|---|---|---|
+| UL-9 | The pure hit resolver + the action contract (data + engine) | *(LANDED)* — `ul-phase-UL-9-hit-resolver` |
+| UL-10 | Wire clickable layers into every screen + the host (game + editor) | *(LANDED)* — `ul-phase-UL-10-click-wiring` |
+| UL-11 | Three life counters with real states (game + data) | *(LANDED)* — `ul-phase-UL-11-life-counters`, goldens regenerated on purpose (D5) |
+| UL-12 | Docs and designer handover (docs) | *(LANDED)* — `ul-phase-UL-12-docs`, WIP rescued from `a74ed70` and finished by the main session |
+
+#### Phase UL-9 — The pure hit resolver and the action contract
+
+**Goal.** Decide, purely, which layer a click lands on and what it means.
+Nothing routes it yet.
+
+**UNBLOCKED** (2026-08-17): the reserved tokens are **`close_window`, `back`,
+`noop`**, and an unroutable target warns rather than failing validation — see the
+amended D7. Retarget-an-existing-widget works as before.
+
+**Files.**
+- Modified: `data/schemas/ui_screen.schema.json` — `clickable` (bool) and
+  `target` (string) on a layer entry. `target` accepts any id-shaped string
+  (`^[a-z][a-z0-9_]*$`); it is **not** a closed enum. Routability is an EDITOR
+  warning, not a schema constraint (D7 as amended) — so the schema stays
+  permissive and the editor is what tells the designer a target is dead.
+- Modified: `engine/ui_layers.py` — `hit(layers, owner_rect, mx, my, state)`,
+  topmost-first within `over`, then the owner, then `under`. Pure (D8).
+
+**Tests.** Extend `tools/tests/test_ui_layers.py` — topmost wins; a
+non-`clickable` layer is transparent to the click; an out-of-bounds click
+returns `None`.
+
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_ui_layers.py -q
+```
+**Quick Test (in game):** none — this phase is pure and routes nothing. Confirm
+`py game/main.py` boots and clicks behave exactly as before.
+
+#### Phase UL-10 — Wire clickable layers into the click path
+
+**Goal.** A click on the Munchkin fires the action the designer pointed it at.
+
+**Files.**
+- Modified: `game/ui/skinning.py` — `hit_layer(...)`, pure.
+- Modified: each screen's hit path (`Hud.hit`, `BuildingUI.handle_click`,
+  `widgets.Button`-based menu screens) — consult `hit_layer` first, fall through
+  unchanged when it returns `None`. **`Hud.hit()` stays a pure read** (D8).
+- Modified: `game/main.py` — route the reserved tokens; a retarget resolves to
+  the existing widget's own action and needs no new host branch.
+- Modified: `editor/panels/screen_details.py` — the Clickable checkbox + the
+  target picker (widget ids in this screen + the three reserved tokens). The
+  picker is a CONVENIENCE LIST, never a closed enum — free text saves, and an
+  unroutable value raises the inspector warning instead (D7 as amended).
+
+**Tests.** New `tools/tests/test_ui_layer_click.py` — a retargeting layer
+produces the target widget's action; `Hud.hit` called twice returns the same
+answer and mutates nothing; a screen with no clickable layers routes exactly as
+today.
+
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_ui_layer_click.py tools/tests/test_hud_panel.py -q
+```
+**Quick Test (in game):** make a Munchkin layer on `hud.btn_pause` clickable and
+retarget it at `btn_end_turn`; run `py game/main.py`, click the Munchkin, and
+confirm the turn ends while clicking the rest of the pause button still pauses.
+
+#### Phase UL-11 — Three life counters with real states
+
+**Goal.** Three individually placeable, individually skinnable life counters:
+State 1 alive (looping animation), State 2 transition (the death animation),
+State 3 dead (static).
+
+**Scope note.** This phase builds the death STATE. The screen that pops up on
+losing a life — where the counters fly to the centre and scale up — is
+deliberately **not** in this plan (§4).
+
+**Files.**
+- Modified: `game/ui/hud.py` — `life_1`/`life_2`/`life_3` holders in `ids`, laid
+  out beside the existing `icon_lives`; each resolves its own state from
+  `RunState.base_lives` plus the existing `life_lost_events` ledger
+  (`game/ui/effects.py` already drains it for the "YOU / LOST 1 LIFE" banner —
+  read the same signal, do not add a second one).
+- Modified: `tools/export_ui_layouts.py` — `_DISPLAY_NAMES` and `_PARENTS` rows
+  for the three; regenerate `data/ui/screen_defaults.json` and
+  `data/ui/screen_previews.json` (the sanctioned "a screen's default geometry
+  changed on purpose" path).
+- Modified: `tools/tests/test_ui_skinning.py`'s `hud` baseline — regenerated on
+  purpose; **never relax the pin.**
+
+**Tests.** New `tools/tests/test_life_counters.py` — three lives resolve
+alive/alive/alive at full health, transition on the frame a life is lost, dead
+thereafter; the transition has a finite duration and settles.
+
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_life_counters.py tools/tests/test_ui_skinning.py -q
+```
+**Quick Test (in game):** `py game/main.py`, let an enemy reach the hole, and
+confirm counter 3 plays its transition once and then holds the dead frame while
+1 and 2 keep looping.
+
+#### Phase UL-12 — Docs and designer handover
+
+**Goal.** The next agent and the designer both know how this works.
+
+**Files.**
+- Modified: `game/ui/CLAUDE.md` — the layer model, the two bands and D4's
+  consequence, per-state resolution, the life counters.
+- Modified: `data/CLAUDE.md` — the `layers` key in the "UI screen data" section,
+  the opened `fonts.json`.
+- Modified: `editor/panels/CLAUDE.md` — the outliner's layer nodes, the state
+  selector, the override-free-preview note from UL-7.
+- New: `docs/ui-layers-for-designers.md` — the short walkthrough (add a layer,
+  give it a state, make it clickable).
+
+**Tests.** `py -m pytest tools/tests/test_meta_docs.py -q` (doc-shape checks) if
+present for the touched docs; otherwise none.
+
+**Exit gate.**
+```
+py tools/smoke.py
+py -m pytest tools/tests/test_ui_layers.py -q
+```
+**Quick Test:** a reader who has not seen this plan can add a layer with a hover
+colour from the doc alone.
+
+---
+
+## 4. Not in scope (and what each needs first)
+
+Four things in `UI Document.md` are **new screens**, not editor features. They
+need game-design decisions before anyone writes code, so they are left out
+deliberately rather than half-promised. Each is its own future plan.
+
+| Left out | Why | Needed first |
+|---|---|---|
+| **Buy Tile** (the four-tile chooser) | Does not exist. Unlocking a tile today is a single confirmation, not a choice of four. | What the four options are, how they are rolled, what a re-roll costs |
+| **Single Tile** window | Terrain information is a hover tooltip today, not a window. | Whether the tooltip becomes a window, and what opens/closes it |
+| **Build Tile** tabs + slider | The game filters construct cards by category but draws no tabs. The document's tab states are a nine-way model against a four-way system. | Which categories are tabs, and what the nine states collapse to |
+| **Building colour picker** | Buildings have no colour to pick — no per-building tint exists in the data model. | Whether colour is cosmetic-only, and where it is stored per building |
+| **The life-loss centre screen** | The counters flying to the centre at 2× with the death animation. | Its own screen design; UL-11 builds the death STATE it would show |
+
+## 5. Risks and open items
+
+- ~~**The reserved action-token enum is unnamed** (D7).~~ **RESOLVED 2026-08-17
+  at the W2→W3 boundary**: the tokens are `close_window`, `back`, `noop`, and an
+  unroutable target warns instead of failing validation (amended D7). UL-9 is
+  unblocked.
+  - **New risk this creates.** Because the schema no longer rejects an
+    unroutable `target`, a dead button can ship. The editor warning is the ONLY
+    guard, so it has to be visible where the designer is working.
+    - ~~UL-10 must also decide what a dead target does at RUNTIME.~~
+      **DECIDED S4-A — it SWALLOWS the click, it does not fall through**
+      (`hit_layer`'s "Ruling 1", `game/ui/skinning.py`: an unroutable target
+      returns `"noop"`, never `None`). Falling through would make a typo behave
+      exactly as if the layer were never clickable — the worse failure, with no
+      symptom to notice. Swallowing reads honestly as "this decal does
+      nothing", which is what `noop` already means, so the accident and the
+      intent are ONE behaviour. Consequence accepted: an unroutable target
+      ships as a dead spot that also blocks the control behind it, and the
+      amber inspector warning is the only thing that catches it. Recorded in
+      `docs/handoffs/uilayeredwidgets-S4.md` §2, in plain language for
+      designers in `docs/ui-layers-for-designers.md`.
+- **D4's band limitation is real.** An `under` layer sits behind everything on
+  its screen, not just behind its owner. If a designer needs a background
+  between two stacked panels, the answer is a third band or a per-widget
+  submission seam — a design change, not a bug fix. Flag it in the tooltip so it
+  is discovered in the editor, not in game.
+- ~~**`test_ui_min_targets.py` and clickable layers.**~~ **DECIDED S4-B —
+  clickable layers join the NON-BLOCKING under-16px lint only, never
+  `TestButtonMinSize`'s hard ≥12px floor** (`_clickable_layers()` in
+  `tools/tests/test_ui_min_targets.py`, resolved in the `idle` state, reporting
+  from 0px up). A clickable layer is usually decorative art retargeted onto a
+  button that already passed the floor, so the floor is satisfied by the real
+  control; failing the build on the decoration would pressure a designer into
+  the one fix `game/ui/CLAUDE.md` forbids — mass-resizing controls to silence a
+  lint. The lint still surfaces a genuinely tiny standalone target for an
+  eyeball pass. Recorded in `docs/handoffs/uilayeredwidgets-S4.md` §2.
+- **Golden-pin churn.** UL-11 regenerates `screen_defaults.json`,
+  `screen_previews.json` and one `test_ui_skinning.py` baseline on purpose. Every
+  other phase must leave all three byte-identical (D5). A phase that moves them
+  unexpectedly has a bug, not a stale artifact.
+- **Concurrency.** S1 and S2 run in the same wave and must be **worktree-isolated**
+  (root `CLAUDE.md`, hard rule: two or more implementation agents at the same
+  time each get `isolation: "worktree"`). They share no file today; the worktree
+  is what guarantees it stays true.
+- **`UiResolutionPLAN` UR-4/UR-5 are still open** (art recut, playtest sign-off).
+  Nothing here depends on them, but a designer eyeballing layer positions is
+  eyeballing a surface that may still move.
+- **Closing step (main session, once).** After every section has landed and
+  `Development` has been merged down, the single full
+  `py tools/testgate.py check` runs at handoff — see root `CLAUDE.md`
+  §"Test Suite Policy". Never per phase, never from a subagent.

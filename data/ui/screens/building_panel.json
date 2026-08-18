@@ -40,6 +40,7 @@
       "skin": "ui_button_panel"
     },
     "close_btn": {
+      "label": "",
       "rect": [
         431,
         57,
@@ -430,6 +431,14 @@
         0
       ]
     },
+    "stat_pays_in_value": {
+      "rect": [
+        633,
+        268,
+        0,
+        0
+      ]
+    },
     "stat_progress_label": {
       "rect": [
         500,
@@ -550,6 +559,14 @@
         0
       ]
     },
+    "upgrade_hint": {
+      "rect": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
     "upgrade_name": {
       "rect": [
         496,
@@ -562,6 +579,14 @@
       "rect": [
         503,
         34,
+        0,
+        0
+      ]
+    },
+    "upgrade_title": {
+      "rect": [
+        517,
+        5,
         0,
         0
       ]

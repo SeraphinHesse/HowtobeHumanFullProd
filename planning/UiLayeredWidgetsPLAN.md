@@ -1,5 +1,5 @@
 <!-- plan-scale: large -->
-<!-- status: 3/4 sections complete, 11/12 phases (S1+S2+S3 landed; S4 partial -- UL-9/10/11 landed, UL-12 outstanding). All merged to plan-uilayeredwidgets-umbrella. NOT pushed, no PR. -->
+<!-- status: COMPLETE -- 4/4 sections, 12/12 phases (S1+S2+S3+S4 all landed). All merged to plan-uilayeredwidgets-umbrella. NOT pushed, no PR; the full gate has never run against this work and belongs to /commitpushpr stage 5. -->
 
 # UiLayeredWidgetsPLAN.md — a widget is a stack
 
@@ -135,7 +135,7 @@ Read `game/ui/CLAUDE.md`, `data/CLAUDE.md`'s "UI screen data" section and
 | S1 | Quick wins — alignment and fonts | UL-1, UL-2 | — | **LANDED** — `ul-section-S1`, merged to umbrella |
 | S2 | The layer model | UL-3, UL-4, UL-5 | — | **LANDED** — `ul-section-S2`, merged to umbrella |
 | S3 | Layers in the editor | UL-6, UL-7, UL-8 | S2 | **LANDED** — `ul-section-S3`, merged to umbrella |
-| S4 | Clickable layers + life counters | UL-9, UL-10, UL-11, UL-12 | S2, S3 | **PARTIAL** — UL-9/10/11 landed + merged to umbrella; **UL-12 NOT DONE** (orchestrator + coder killed by API limit; WIP rescued on `ul-phase-UL-12-docs` @ `a74ed70`) |
+| S4 | Clickable layers + life counters | UL-9, UL-10, UL-11, UL-12 | S2, S3 | **LANDED** — `ul-section-S4`, merged to umbrella. Section review run late by the main session (clean, 2 LOW accepted); handoff `docs/handoffs/uilayeredwidgets-S4.md` |
 
 **Waves:** W1 = **S1 + S2** (concurrent). W2 = **S3**. W3 = **S4**.
 
@@ -484,16 +484,21 @@ alive / transition / dead states.
   `ScreenSkinning.hit_layer(screen_id, ids, mx, my)`.
 - `hud.life_1` / `life_2` / `life_3` as id'd widgets with a per-life state fed
   from the run's life-lost signal (D10).
-- Updated `game/ui/CLAUDE.md`, `data/CLAUDE.md`, `editor/panels/CLAUDE.md`.
+- Updated `game/ui/CLAUDE.md`, `data/CLAUDE.md`, `editor/panels/CLAUDE.md` and
+  `engine/render/CLAUDE.md` (the last one to pay S1's debt: its blanket "
+  `configure_fonts` NEVER touches `_LAYOUT_H`" claim went stale the moment
+  UL-2 opened `fonts.json` to custom presets, which DO get a derived entry).
+- New `docs/ui-layers-for-designers.md` — the designer-language walkthrough,
+  the only layers doc that assumes no knowledge of this repo.
 
 **Depends on.** S2, S3.
 
 | Phase | Scope (package) | Status |
 |---|---|---|
-| UL-9 | The pure hit resolver + the action contract (data + engine) | not started |
-| UL-10 | Wire clickable layers into every screen + the host (game + editor) | not started |
-| UL-11 | Three life counters with real states (game + data) | not started |
-| UL-12 | Docs and designer handover (docs) | not started |
+| UL-9 | The pure hit resolver + the action contract (data + engine) | *(LANDED)* — `ul-phase-UL-9-hit-resolver` |
+| UL-10 | Wire clickable layers into every screen + the host (game + editor) | *(LANDED)* — `ul-phase-UL-10-click-wiring` |
+| UL-11 | Three life counters with real states (game + data) | *(LANDED)* — `ul-phase-UL-11-life-counters`, goldens regenerated on purpose (D5) |
+| UL-12 | Docs and designer handover (docs) | *(LANDED)* — `ul-phase-UL-12-docs`, WIP rescued from `a74ed70` and finished by the main session |
 
 #### Phase UL-9 — The pure hit resolver and the action contract
 
@@ -537,7 +542,9 @@ py -m pytest tools/tests/test_ui_layers.py -q
 - Modified: `game/main.py` — route the reserved tokens; a retarget resolves to
   the existing widget's own action and needs no new host branch.
 - Modified: `editor/panels/screen_details.py` — the Clickable checkbox + the
-  target picker (widget ids in this screen + the reserved enum).
+  target picker (widget ids in this screen + the three reserved tokens). The
+  picker is a CONVENIENCE LIST, never a closed enum — free text saves, and an
+  unroutable value raises the inspector warning instead (D7 as amended).
 
 **Tests.** New `tools/tests/test_ui_layer_click.py` — a retargeting layer
 produces the target widget's action; `Hud.hit` called twice returns the same
@@ -638,21 +645,34 @@ deliberately rather than half-promised. Each is its own future plan.
   unblocked.
   - **New risk this creates.** Because the schema no longer rejects an
     unroutable `target`, a dead button can ship. The editor warning is the ONLY
-    guard, so it has to be visible where the designer is working. UL-10 must
-    also decide what a dead target does at RUNTIME — swallow the click, or fall
-    through to the widget behind the layer. Falling through silently is the
-    worse failure: it looks like the layer was never clickable.
+    guard, so it has to be visible where the designer is working.
+    - ~~UL-10 must also decide what a dead target does at RUNTIME.~~
+      **DECIDED S4-A — it SWALLOWS the click, it does not fall through**
+      (`hit_layer`'s "Ruling 1", `game/ui/skinning.py`: an unroutable target
+      returns `"noop"`, never `None`). Falling through would make a typo behave
+      exactly as if the layer were never clickable — the worse failure, with no
+      symptom to notice. Swallowing reads honestly as "this decal does
+      nothing", which is what `noop` already means, so the accident and the
+      intent are ONE behaviour. Consequence accepted: an unroutable target
+      ships as a dead spot that also blocks the control behind it, and the
+      amber inspector warning is the only thing that catches it. Recorded in
+      `docs/handoffs/uilayeredwidgets-S4.md` §2, in plain language for
+      designers in `docs/ui-layers-for-designers.md`.
 - **D4's band limitation is real.** An `under` layer sits behind everything on
   its screen, not just behind its owner. If a designer needs a background
   between two stacked panels, the answer is a third band or a per-widget
   submission seam — a design change, not a bug fix. Flag it in the tooltip so it
   is discovered in the editor, not in game.
-- **`test_ui_min_targets.py` and clickable layers.** That test asserts every
-  `kind == "button"` is ≥12 logical px and that its static label fits. A
-  clickable LAYER is a new click target it does not know about. UL-10 must
-  decide whether layers join the assertion or the 12–16px non-blocking lint —
-  and `game/ui/CLAUDE.md`'s standing rule holds either way: do not mass-resize
-  controls to silence a lint.
+- ~~**`test_ui_min_targets.py` and clickable layers.**~~ **DECIDED S4-B —
+  clickable layers join the NON-BLOCKING under-16px lint only, never
+  `TestButtonMinSize`'s hard ≥12px floor** (`_clickable_layers()` in
+  `tools/tests/test_ui_min_targets.py`, resolved in the `idle` state, reporting
+  from 0px up). A clickable layer is usually decorative art retargeted onto a
+  button that already passed the floor, so the floor is satisfied by the real
+  control; failing the build on the decoration would pressure a designer into
+  the one fix `game/ui/CLAUDE.md` forbids — mass-resizing controls to silence a
+  lint. The lint still surfaces a genuinely tiny standalone target for an
+  eyeball pass. Recorded in `docs/handoffs/uilayeredwidgets-S4.md` §2.
 - **Golden-pin churn.** UL-11 regenerates `screen_defaults.json`,
   `screen_previews.json` and one `test_ui_skinning.py` baseline on purpose. Every
   other phase must leave all three byte-identical (D5). A phase that moves them
