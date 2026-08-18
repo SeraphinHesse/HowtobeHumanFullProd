@@ -2586,6 +2586,46 @@ class BuildingUI:
         temp.apply_tier_stats()
         return temp.slot_key(), _tier_name(temp), _building_stats(temp)[:3]
 
+    @staticmethod
+    def _submit_stat_delta(renderer, holder, value, pv):
+        """Draws a stat row's value for the hover-preview delta case
+        (feature: upgrade-stat-delta-preview, user decision): a plain
+        NUMERIC current/next pair (``hp``/``damage``/``range``/etc. — never
+        a formatted string like ``atk_speed``'s ``"1.0s"`` or
+        ``progress``'s ``"3/5"``, which keep the old whole-value-turns-green
+        behavior via the caller's ``submit_label`` fallback) reads as
+        ``"40 + 5"``/``"40 - 5"`` instead of replacing the value outright
+        with the flat next-level number ``"45"``. Only the delta suffix is
+        green (``C_GREEN_STAT``); the base number keeps the stat's normal
+        color, so the split needs two ``submit_text`` calls instead of one
+        ``submit_label`` — there is no multi-color run in that helper.
+
+        Positions itself so the COMBINED string lands exactly where
+        ``submit_label`` would have drawn the single value at this holder's
+        alignment (left/right/center) — nothing shifts on screen when a
+        stat starts previewing a delta."""
+        if not is_visible(holder):
+            return
+        delta = pv - value
+        sign = "+" if delta >= 0 else "-"
+        base_text = str(value)
+        delta_text = f" {sign} {abs(delta)}"
+        font_key = holder.font_key
+        base_w, _ = text_size(base_text, font_key)
+        full_w, _ = text_size(base_text + delta_text, font_key)
+        anchor_x, y = holder.rect[0], holder.rect[1]
+        align = getattr(holder, "align", "left") or "left"
+        if align == "right":
+            start_x = anchor_x - full_w
+        elif align == "center":
+            start_x = anchor_x - full_w / 2
+        else:
+            start_x = anchor_x
+        base_col = getattr(holder, "text_color", None) or widgets.C_UI_TEXT
+        submit_text(renderer, base_text, (start_x, y), font_key, base_col)
+        submit_text(renderer, delta_text, (start_x + base_w, y), font_key,
+                    widgets.C_GREEN_STAT)
+
     def _submit_upgrade(self, renderer, anim_ms=0):
         from engine.render import HudRect, HudSprite
 
@@ -2645,10 +2685,19 @@ class BuildingUI:
             submit_label(renderer, name_h, color=widgets.C_UI_TEXT_DIM)
             pv = preview.get(key) if preview else None
             changed = pv is not None and pv != value
-            submit_label(renderer, value_h,
-                         color=(widgets.C_GREEN_STAT if changed
-                                else widgets.C_UI_TEXT),
-                         value=pv if changed else value)
+            # feature: upgrade-stat-delta-preview — a plain numeric pair
+            # reads as "40 + 5" (base normal color, delta green); a
+            # formatted-string stat (atk_speed's "1.0s", progress's "3/5",
+            # …) keeps the old whole-value-turns-green behavior, since a
+            # bare arithmetic delta doesn't read cleanly there.
+            if (changed and isinstance(value, (int, float))
+                    and isinstance(pv, (int, float))):
+                self._submit_stat_delta(renderer, value_h, value, pv)
+            else:
+                submit_label(renderer, value_h,
+                             color=(widgets.C_GREEN_STAT if changed
+                                    else widgets.C_UI_TEXT),
+                             value=pv if changed else value)
         rs = b.get_component(RoundStats)
         if rs is not None:
             for label_key, value_key, amount in (
