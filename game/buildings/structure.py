@@ -47,7 +47,16 @@ from .components import WallBuilderState
 class StructureBuilding(Building):
     """Family base: passive structures (Blocker / WallBuilder). Each leaf sets
     its own CONTENT_KEY (traversable weight, seeded to 1) so enemies attack
-    rather than reroute, and uses a single flat art slot per type."""
+    rather than reroute.
+
+    **The PLACED building now uses the standard per-tier/level art family**
+    (``<prefix>_t{tier}_lvl{level}``, inherited straight from
+    ``Building.slot_key``) — the flat one-slot-per-type rule this family used
+    to carry is gone, so a designer can give a Bush / Wooden / Stone Wall
+    Builder distinct art and grow it per level like every other line. ``SLOT``
+    survives for exactly one job: the research / unlock CARD art
+    (``game/core/levelup.py``'s ``getattr(leaf, "SLOT", "")``, mirrored by
+    ``buildings.json``'s ``card_slots``), which stays one image per type."""
 
     # No CONTENT_KEY here: each leaf below sets its own (map.json
     # content_weights carries a key per structure type since the
@@ -56,10 +65,10 @@ class StructureBuilding(Building):
     # the intent (enemies attack rather than reroute) is preserved by the
     # seeded VALUE now, not by sharing a key.
     EXTRA_TAGS = ("structure",)
-    SLOT = ""   # flat slot key (set by leaves) — no tier/level suffix
-
-    def slot_key(self):
-        return self.SLOT
+    #: CARD art only (research / unlock card, `card_slots`) — one flat slot per
+    #: type, no tier/level suffix. It is NOT what the placed building draws;
+    #: that is `TIER_SPRITES` via the inherited `Building.slot_key`.
+    SLOT = ""
 
 
 class Blocker(StructureBuilding):
@@ -67,6 +76,7 @@ class Blocker(StructureBuilding):
     CONTENT_KEY = "blocker_building"
     SUBTREE = ("StructureBuildings", "Blocker")
     SLOT = "blocker"
+    TIER_SPRITES = ("blocker", "blocker", "blocker")
 
 
 class WallBuilder(StructureBuilding):
@@ -74,13 +84,15 @@ class WallBuilder(StructureBuilding):
     CONTENT_KEY = "wall_builder_building"
     SUBTREE = ("StructureBuildings", "WallBuilder")
     SLOT = "wall_builder"
+    TIER_SPRITES = ("wall_builder", "wall_builder", "wall_builder")
 
     def _extra_components(self, tier0):
         return [WallBuilderState()]
 
     # -- art slot for the WALLS this builder raises -----------------------
-    # (the BUILDER's own slot is the flat ``SLOT`` on ``StructureBuilding``
-    #  above — this is the second, per-tier/level slot family.)
+    # (the BUILDER's own slot is ``Building.slot_key``'s
+    #  ``wall_builder_t{tier}_lvl{level}`` — this is a SECOND, independent
+    #  per-tier/level family for the wall segments themselves.)
 
     def wall_slot(self):
         """The ``walls`` slot key for the segments this builder currently owns

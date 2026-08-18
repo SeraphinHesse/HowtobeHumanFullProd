@@ -14,6 +14,11 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   `damage_dealt_last_round` — are guard-safe `@property`s backed by those
   components (never plain instance attrs); the balancing dict + tier table live as
   `_`-prefixed transients.
+- **`Building.refresh_slot_key()` is the single writer of
+  `SpriteAnimator.slot_key`** — `apply_tier_stats()` calls it rather than
+  inlining that write. Reach for it directly ONLY when the art can change with
+  no stat change (the Painter's canvas at payday); everything else goes through
+  `apply_tier_stats()`, which also full-heals.
 - **Derived values are computed methods on the parents**, never stored (prototype
   `update_stats_from_tier`): `max_hp`, `upgrade_cost`, `level`, `yield_amount`
   (economy), `damage`/`upkeep`/`range_tiles`/`attack_speed` (defence). Formulas are
@@ -37,6 +42,23 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
     `game/core/payday.py`) that pays the lump sum, frees + permanently bars the
     tile (`used_painter_tiles`), or removes a dead gone-for-good painter with a
     "painting lost!" message. The used-tile bar is enforced in `registry.place_building`.
+    **Its ART is the one exception to the family slot-key rule** (feature:
+    painter progress art): `Painter.slot_key()` keys `_lvl{n}` off
+    `PainterProgress.progress`, NOT off `TierState.current_level_in_tier`, so
+    the canvas visibly fills in one stage per survived payday, while an upgrade
+    — which buys payout, not visible work, and which the panel therefore calls
+    **INVEST** (`ACTION_UPGRADE_KEY`) — leaves the sprite alone. The stage count
+    is per TIER and deliberately decoupled from the uniform `levels` value of 3:
+    it is `rounds_to_payout` (3 / 4 / 6 today), which is why the `Painter` group
+    in `data/slots.json` has an uneven 3/4/6 children. A tier advance KEEPS
+    progress and the art follows into the new tier's stage for it. An
+    un-imported stage backs off to the highest lower stage that has art
+    (`_resolve_art`), against the imported-slot set the HOST installs via the
+    module seam `painter.set_art_slots` — this package may never read the asset
+    layer itself (D6/E-37), the `colour_columns` rule exactly. The payday
+    refresh goes through `Building.refresh_slot_key()`, the NON-healing sibling
+    of `apply_tier_stats()`; the latter would hand a Painter a free full heal
+    every single payday.
   - **Meditator** (compounding streak) reuses `YieldEconomy.streak`. Its
     `yield_amount()` is **PURE** (three callers: payday, the panel, the HUD
     readout) — the streak side-effect (disturbance reset → pay → advance) lives in
@@ -142,10 +164,18 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   `wall_builder_building`) since the buildings-overwrite-tileweights rework, both
   **seeded to 1 — the economy weight they used to share** — so the traversable
   "enemies attack, not reroute" intent is preserved by the VALUE, not by a shared
-  key. Tag `"structure"`. Both use a SINGLE flat art slot per type (override
-  `slot_key()` → `SLOT`, matching the flat `blocker`/`wall_builder` slots in
-  `data/slots.json`; `_tier_option` in `game/core/levelup.py` reads that same flat
-  `SLOT` for the research card). **Blocker** is a pure tier-HP soak (no new enemy code
+  key. Tag `"structure"`. **Both now draw from the STANDARD per-tier/level art
+  family** (`<prefix>_t{tier}_lvl{level}`, inherited `Building.slot_key`) —
+  `StructureBuilding.slot_key()`'s flat override is DELETED and each leaf carries
+  `TIER_SPRITES` like every other line, so a designer can give Bush / Wooden /
+  Stone Wall Builder distinct art that grows per level (feature: structure tiered
+  slots). `SLOT` survives on both leaves for exactly ONE job — the research /
+  unlock CARD art, which `_tier_option`/`_unlock_option` in
+  `game/core/levelup.py` read via `getattr(leaf, "SLOT", "")` and which
+  `buildings.json`'s `card_slots` mirrors — so that stays one image per type. The
+  flat `blocker`/`wall_builder` keys are still declared in `data/slots.json`
+  (their own `Card` child under each group) beside the 9 new tier/level slots per
+  line, which ship art-less. **Blocker** is a pure tier-HP soak (no new enemy code
   — the standard block-and-attack handles it). **WallBuilder** adds a `WallBuilderState`
   component (its only field is `wall_snapshot`, the frozen `[c1,r1,c2,r2]` edge list)
   + computed `wall_hp()` (NOT ×10) / `upkeep()`; `on_placed()` calls
