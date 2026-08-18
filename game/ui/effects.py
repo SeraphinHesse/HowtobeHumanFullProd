@@ -280,6 +280,27 @@ _DIGGER_DIRECTION_COLOR = (255, 205, 60)       # placeholder gold-yellow
 # -- /10J --
 
 
+def _source_column(source):
+    """``source``'s LIVE master column (its colour), or None.
+
+    Colour IS ``SpriteAnimator.column`` (MasterSheetColumnsPLAN B1), stamped
+    at placement and carried through every upgrade — so the object that
+    spawns a vfx already knows the column that vfx should be cut at. The
+    ``-1`` "no driver" sentinel, a source without an animator, and no source
+    at all all answer None, which leaves the manifest entry's stored column
+    in charge (D3)."""
+    if source is None:
+        return None
+    getter = getattr(source, "get_component", None)
+    if getter is None:
+        return None
+    animator = getter(SpriteAnimator)
+    if animator is None:
+        return None
+    column = getattr(animator, "column", -1)
+    return column if isinstance(column, int) and column >= 0 else None
+
+
 def _color(c):
     return tuple(c)
 
@@ -794,8 +815,14 @@ class FloaterManager:
         ``place``/``level``/``tier`` use — until a designer imports art into
         ``vfx_respawn``.
         """
-        for col, row, tier in state.building_respawn_events:
+        for event in state.building_respawn_events:
+            col, row, tier = event[:3]
+            # The reviving building's own colour column, when the ledger
+            # carries one (a pre-colour ledger row, and every hand-built test
+            # triple, is 3 long -> None -> the manifest's stored column wins).
+            column = event[3] if len(event) > 3 else None
             self._play("building_respawn", col + 0.5, row + 0.5, level=tier,
+                       column=column,
                        preset=self._spark_presets.get(
                            "respawn", self._spark_presets["place"]))
         state.building_respawn_events.clear()
@@ -807,7 +834,7 @@ class FloaterManager:
     _SPARK_KINDS = ("spark_place", "spark_level", "spark_tier",
                     "spark_respawn")
 
-    def _play(self, event, wx, wy, source=None, level=None, **kw):
+    def _play(self, event, wx, wy, source=None, level=None, column=None, **kw):
         """Consult the trigger table: a bound sprite slot with art spawns a
         PlayOnceVfx; otherwise the named procedural kind runs; an empty row
         (or an event absent from the table) is a silent no-op (E-37). ``**kw``
@@ -823,6 +850,17 @@ class FloaterManager:
         Only ``watch_buildings``/``watch_enemies`` pass it; the other five
         events carry a bare world point, so level mode resolves to variant 0
         there (D4).
+
+        ``column`` is the LIVE master column to cut the sprite at — the
+        SPAWNING object's colour, so a vfx sheet whose columns are the
+        building colours plays in the colour of the building it came from
+        (MasterSheetColumnsPLAN: colour IS ``SpriteAnimator.column``). Given
+        explicitly by a call site that holds the column without the object
+        (the respawn ledger); otherwise read off ``source``. ``None`` — the
+        answer for every event that carries a bare world point — leaves the
+        manifest entry's own stored column in charge (D3), so nothing that
+        predates this changed. Named, never part of ``**kw``, for the same
+        reason ``source`` is: ``**kw`` goes verbatim to an emitter call.
         """
         row = self._triggers.get(event, _NO_TRIGGER)
         if row.sprite_slot and self.assets is not None and self.scene is not None:
@@ -836,7 +874,10 @@ class FloaterManager:
                 getattr(self.assets, "registry", None), row.sprite_slot,
                 row.variant_mode, row.misc_key, rng=self._rng, source=source,
                 level=level)
-            vfx = spawn_play_once(self.scene, self.assets, slot, wx, wy)
+            if column is None:
+                column = _source_column(source)
+            vfx = spawn_play_once(self.scene, self.assets, slot, wx, wy,
+                                  column=column)
             if vfx is not None:
                 return
         self._run_procedural(row.procedural, wx, wy, **kw)

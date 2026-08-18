@@ -41,6 +41,7 @@ only one half travels (the documented ``place_building`` exception in
 #10 ``boost_double_trigger``. It adds repeats INSIDE that slot; it moves
 nothing.
 """
+from engine.core import SpriteAnimator
 from game.buildings.components import (
     BoostEmitter, PainterProgress, RoundStats, TierState,
 )
@@ -326,9 +327,18 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None,
             b.rebuild()
             if was_dead:
                 tier_state = b.get_component(TierState)
+                # 4th slot: the building's own colour column (colour IS
+                # `SpriteAnimator.column`, MasterSheetColumnsPLAN B1), so the
+                # respawn vfx is cut in the colour of the building it belongs
+                # to instead of whatever column the vfx entry stored. `-1` is
+                # the "no driver" sentinel and is passed through as-is — the
+                # drain reads anything negative as "no live column".
+                animator = b.get_component(SpriteAnimator)
                 state.building_respawn_events.append(
                     (tile.col, tile.row,
-                     0 if tier_state is None else tier_state.current_tier))
+                     0 if tier_state is None else tier_state.current_tier,
+                     None if animator is None or animator.column < 0
+                     else animator.column))
 
     # 10. Rebuild walls (10E): every alive WallBuilder restores its frozen
     #     perimeter to full HP — walls damaged during the round regenerate, and a

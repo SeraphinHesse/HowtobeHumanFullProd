@@ -57,9 +57,13 @@ class RunState:
     # payday boost slot, drained by the UI; never serialized.
     boost_events: list = field(default_factory=list)
     # -- Building respawn (VfxAuthoringPLAN VA-4) --------------------------
-    # ``(col, row, tier)`` per non-base building the payday revive slot brought
-    # BACK from dead — NOT the full-heal every living building also gets in
-    # that same slot. Same drained-by-UI contract as the ledgers above; never
+    # ``(col, row, tier, column)`` per non-base building the payday revive slot
+    # brought BACK from dead — ``column`` is that building's live master colour
+    # column (``SpriteAnimator.column``, or None when it has no live one), so
+    # the respawn vfx is cut in the colour of the building it belongs to.
+    # The drain reads the tuple by slice, so a 3-long row still works.
+    # It is NOT the full-heal every living building also gets in that same
+    # slot. Same drained-by-UI contract as the ledgers above; never
     # serialized.
     #
     # It carries the building's 0-indexed tier where its siblings carry only a
@@ -68,6 +72,7 @@ class RunState:
     # lever, but this ledger is new, payday already holds the building, and a
     # respawn is exactly the per-building event whose "vary the art by tier"
     # this feature was asked for. Nothing that already existed changed shape.
+    # (The 4th slot, the colour, arrived later for the same reason.)
     building_respawn_events: list = field(default_factory=list)
     # -- XP / village level (10A) -----------------------------------------
     player_xp: int = 0
