@@ -180,7 +180,7 @@ were all directly read or scouted to confirm exact current shapes.
 | BU-2 | RunState + effect-engine skeleton | done |
 | BU-3 | Effect-engine hook wiring (12 upgrades + debuff arrow) | done |
 | BU-4 | Boss cutscene UI + Session rewire; retire boss_bonuses | done |
-| BU-5 | Editor panel | pending |
+| BU-5 | Editor panel | done |
 | BU-6 | Tests | pending |
 | BU-7 | Docs | pending |
 
