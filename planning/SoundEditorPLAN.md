@@ -31,9 +31,9 @@ Today there is effectively **no sound system** to build on *(all verified in the
 
 - `engine/audio.py:15,27,35` — three functions (`play_music` / `stop_music` /
   `set_volume`). Music only. No `pygame.mixer.Sound` anywhere in the repo.
-- `game/main.py:66,785` — one hardcoded boot track.
+- `game/main.py:67,999` — one hardcoded boot track.
 - `game/ui/cutscene_player.py:16,69` — cutscene companion audio; it uses the
-  same `music` channel and nothing restores the previous track (`:66`).
+  same `music` channel and nothing restores the previous track (`:67`).
 - `game/ui/settings.py:71` — `volume: float = 0.8  # inert (no audio system)`,
   drawn at `:112-113,229-235` with the label `"(no audio yet)"`.
 - No audio schema. `data/audio/` holds one 49 MB `.wav` and no JSON.
@@ -127,8 +127,8 @@ whole slot object through the panel's existing `_commit` → Save writes through
   (`sheet_users` / `unreferenced_sheets`) is the refcounting model.
 - `tools/tests/temp_data.py:9` stubs `.wav/.mp3/.ogg/.mp4` to zero bytes in the
   temp `data/` copy; a test that actually decodes must set `DECODES_MEDIA:119`.
-- `game/main.py:588` `pygame.init()` is where the mixer initialises; `gp` (built
-  at `:825`) is the de-facto system registry — audio joins as `gp["sfx"]`.
+- `game/main.py:747` `pygame.init()` is where the mixer initialises; `gp` (built
+  at `:1019`) is the de-facto system registry — audio joins as `gp["sfx"]`.
 - *Verified*: numpy 2.4.6 imports, but only transitively via the OPTIONAL
   `opencv-python`. Start-trim must feature-detect it (§5).
 
@@ -171,7 +171,7 @@ Effective volume = `master × bus × clip.volume`.
 
 | Checklist row | Slot |
 |---|---|
-| Music / ambient | `core.Sounds.Music.default` + `core.Sounds.Ambient.loop` |
+| Music / ambient | `core.Sounds.Music.default` + `core.Sounds.Ambient.default` |
 | game start sound | `core.Sounds.Game.game_start` |
 | round win / loss | `core.Sounds.Game.round_win` / `.round_loss` |
 | round start (humans screaming) | `core.Sounds.Game.round_start` |
@@ -251,7 +251,7 @@ in `engine/`.
 **Read**: `engine/CLAUDE.md`.
 
 **Files** — new: `engine/audio/__init__.py` (re-exports `play_music`,
-`stop_music`, `set_volume` **exactly** — `game/main.py:66`,
+`stop_music`, `set_volume` **exactly** — `game/main.py:67`,
 `game/ui/cutscene_player.py:16` and `tools/tests/test_audio.py` all import from
 `engine.audio`), `engine/audio/bank.py` (pure: `resolve(default_slot,
 override_slot)`, `pick_clip(slot, rng)`, `effective_volume(clip, bus, master)`),
@@ -340,7 +340,7 @@ fire; buying a plot and placing a tile make a noise.
 **Read**: `game/CLAUDE.md`, then `game/buildings/CLAUDE.md`.
 
 **Files** — modified: `game/main.py` (`sfx.init(data_dir)` after
-`pygame.init():588`; `gp["sfx"]`), `game/buildings/*` (placement, upgrade,
+`pygame.init():747`; `gp["sfx"]`), `game/buildings/*` (placement, upgrade,
 death, attack, selection, upkeep/boost call sites), `game/map/*` and
 `game/ui/building_ui.py` (buy-plot, tile placement), `game/core/balance.py` if a
 loader seam is needed. New: `tools/tests/test_sound_triggers_buildings.py`.
@@ -437,7 +437,7 @@ to place a building you cannot afford (not-enough-love sound at SFX volume).
 **Read**: `game/CLAUDE.md`, then `game/core/CLAUDE.md`.
 
 **Files** — modified: `game/main.py` (**delete** the hardcoded
-`play_music(data_dir / "audio" / "Bass_and_drum_Duo.wav", loop=True)` at `:785`;
+`play_music(data_dir / "audio" / "Bass_and_drum_Duo.wav", loop=True)` at `:999`;
 that track becomes the imported clip of `core.Sounds.Music.default`),
 `game/core/phases.py` + `game/core/session.py` (building-phase / combat-phase
 music switch; round start / win / loss), `game/core/levelup.py` (level-up sound),
