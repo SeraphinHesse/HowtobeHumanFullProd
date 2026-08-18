@@ -142,6 +142,7 @@ DOMAINS = {
         "test_projectile_sprites.py",
         "test_right_click_dismiss.py",
         "test_shell.py",
+        "test_sound_triggers_ui.py",
         "test_tutorial_director.py",
         "test_ui_align.py",
         "test_ui_layer_click.py",

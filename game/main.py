@@ -836,6 +836,34 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # no building rolls a colour and every animator keeps its -1 sentinel.
     colour_columns = _derive_colour_columns(registry, manifest, data_dir)
     widgets.set_skin_hit_test(assets.hit_opaque)  # R2: pixel-perfect click targets
+
+    # -- SD-6: the UI sound seam. `game/ui` is pygame-free, so it never
+    # imports engine.audio: it hands a SLOT to this host-injected sink and the
+    # host does the playing. Imported locally so this block stays one
+    # self-contained addition to a heavily shared file. --
+    import engine.audio as engine_audio
+    from game.ui import sound as ui_sound
+
+    def _ui_sound_sink(slot, bus):
+        """Play one UI slot. `gp["sfx"]` (the game-side dispatcher) is looked
+        up LATE, at CALL time — the `gp` literal is built further down, so a
+        value captured here would be None for the life of the process and
+        every UI click would silently no-op. Falls back to engine.audio's own
+        slot player until/unless that dispatcher exists."""
+        try:
+            sfx = gp.get("sfx")
+        except NameError:          # a click cannot precede `gp`; belt and braces
+            sfx = None
+        if sfx is not None:
+            sfx.play_slot(slot, bus)
+        else:
+            engine_audio.play_slot(slot, bus=bus)
+
+    ui_sound.set_sink(_ui_sound_sink)
+    # (`ui_sound.configure(ui_balance["Sounds"])` cannot happen here —
+    # `ui_balance` is not loaded yet at this point in boot; it is bound at the
+    # Shell construction below, which is where the slot table is handed over.)
+    # -- /SD-6 --
     # D5/UH-6: theme data, loaded + schema-validated once at boot, before the
     # Shell/screens are built (so every screen's FIRST submit already sees
     # it). A missing/invalid file fails LOUD (D-2 — this is data, not art;
@@ -978,6 +1006,19 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     shell = Shell(view_w, view_h, ui_balance, start_state=start,
                  skinning=skinning, debug_balance=core_balance["Debug"],
                  key_bindings=key_bindings)
+    # -- SD-6: the UI slot table (SD-1's `ui.Sounds` subtree) + the persisted
+    # volumes. The document is a per-machine PREFERENCE, so it lives in the
+    # gitignored `settings/` dir at the repo root, not in `data/` (the
+    # `scores/highscores.json` precedent). Three values, three engine calls —
+    # `set_master_volume`/`set_bus_volume` already fan out to a live track. --
+    from game.core import audio_settings
+    ui_sound.configure(ui_balance["Sounds"])
+    audio_doc = audio_settings.load(audio_settings.default_path(REPO), data_dir)
+    audio_settings.apply_to_settings(audio_doc, shell.settings)
+    engine_audio.set_master_volume(audio_doc["master"])
+    engine_audio.set_bus_volume("music", audio_doc["music"])
+    engine_audio.set_bus_volume("sfx", audio_doc["sfx"])
+    # -- /SD-6 --
     shell.set_pool_count(len(buildings_balance["BuildingsGlobal"]["random_names"]))
     # player-identity: the run history lives in the gitignored `scores/` dir at
     # the repo root, NOT in `data/` — it is per-machine play history. Read once
@@ -1229,6 +1270,15 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # SCALED window exactly as before, the GPU path moves its own
             # standalone window (set_fullscreen/set_windowed/borderless).
             presenter.set_display_mode(shell.settings.display_mode)
+        elif intent == "set_volume":
+            # SD-6: the settings screen already wrote the new level onto
+            # `shell.settings`; apply all three (cheap, and it keeps the buses
+            # and the persisted document in lockstep) and write them back.
+            engine_audio.set_master_volume(shell.settings.master_volume)
+            engine_audio.set_bus_volume("music", shell.settings.music_volume)
+            engine_audio.set_bus_volume("sfx", shell.settings.sfx_volume)
+            audio_settings.save(audio_settings.from_settings(shell.settings),
+                                audio_settings.default_path(REPO), data_dir)
         elif intent == "add_name_commit":
             name = shell.pending_name
             added = append_random_name(data_dir, name)

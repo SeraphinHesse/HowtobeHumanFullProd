@@ -573,11 +573,19 @@
       "type": "string"
     },
     "settings.master_audio": {
-      "description": "Settings label above the (inert) audio slider. No placeholders.",
+      "description": "Settings label for the MASTER volume row (SD-6) - it multiplies both the music and the sfx bus. No placeholders.",
+      "type": "string"
+    },
+    "settings.music_audio": {
+      "description": "Settings label for the MUSIC volume row (SD-6). No placeholders.",
       "type": "string"
     },
     "settings.no_audio": {
-      "description": "Settings note under the audio slider saying it is not wired yet. No placeholders.",
+      "description": "DEAD id since SD-6 wired the audio: the settings screen no longer draws this '(no audio yet)' note. Kept defined rather than deleted (removing it would mean editing the required list and four pinned copies for no benefit) - the same treatment hud.love_unaffordable already gets. No placeholders.",
+      "type": "string"
+    },
+    "settings.sfx_audio": {
+      "description": "Settings label for the SFX volume row (SD-6) - every non-music sound, ambient included. No placeholders.",
       "type": "string"
     },
     "settings.toggle.bg_art": {
@@ -753,7 +761,9 @@
     "levelup.tier_progress",
     "settings.display_mode",
     "settings.master_audio",
+    "settings.music_audio",
     "settings.no_audio",
+    "settings.sfx_audio",
     "settings.toggle.bg_art",
     "settings.toggle.gore",
     "settings.toggle.income_floaters",
