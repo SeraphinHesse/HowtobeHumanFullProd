@@ -28,6 +28,17 @@ and each is a decision, not an accident:
   the warning label under the toolbar via
   ``boss_upgrades_ops.validate_uniqueness`` (D3: warn, don't block — the
   ``timeline_ops.round_warnings`` stance).
+* **The drag source is a dedicated ``_DragHandle`` widget, not the card
+  itself.** The Timeline panel starts its drag from ``_BrowseCard``'s own
+  ``mousePressEvent`` and gets away with it because an icon + a read-only
+  caption cover only a small fraction of the card. Here, inline-editable
+  fields cover nearly all of it, and a plain child ``QLabel`` does NOT
+  forward an unhandled mouse press to its parent (Qt only auto-propagates
+  a handful of event types — wheel, context-menu — that way; mouse press/
+  move are not among them). A "click the header" design built on that false
+  assumption never reliably worked. ``_DragHandle`` is a small fixed-width
+  grip glyph to the LEFT of every card whose own press/move handlers start
+  the drag directly, so there is nothing to propagate.
 
 The grid is the 4-milestone cycle (D1): milestone ``(boss_num - 1) % 4``,
 three always-shown slots each (D2), plus that milestone's
@@ -75,30 +86,78 @@ def _decode_upgrade(data):
     return bytes(data).decode("utf-8")
 
 
-class _CatalogCard(QWidget):
-    """One browse-list card: an upgrade's editable name/description/params,
-    under a drag-handle header that carries the id into a milestone slot.
+class _DragHandle(QLabel):
+    """The card's actual drag source: a fixed-width grip glyph to the left of
+    every card, whose OWN mousePressEvent/mouseMoveEvent start the drag.
 
-    The header QLabel does not accept mouse events itself, so a press on it
-    propagates to this widget and starts the drag; a press inside one of the
-    editors is consumed by that editor, which is what lets the same card be
-    both a drag source and a form."""
+    A plain child QLabel does not work for this even when it holds no text
+    interaction: Qt only auto-propagates an ignored event to the parent
+    widget for a handful of event types (wheel, context-menu); mouse press/
+    move are not among them, so a card whose ``mousePressEvent`` was
+    overridden but never itself received the press (because a child QLabel
+    intercepted it) could never actually start a drag. That was this panel's
+    original shape (a "header" QLabel plus a doc comment claiming
+    propagation) and it silently never worked. The fix is a widget that IS
+    the drag source directly, not one relying on bubbling — the building
+    Timeline panel's cards get away with the bubbling version only because
+    their icon/caption children cover a small fraction of the card; here,
+    inline-editable fields cover nearly all of it."""
+
+    def __init__(self, upgrade_id, parent=None):
+        super().__init__(parent)
+        self.upgrade_id = upgrade_id
+        self._drag_start = None
+        self.setText("⠿\n⠿\n⠿")
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setFixedWidth(20)
+        self.setStyleSheet("color: #888888; font-weight: bold;")
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
+        self.setToolTip("Drag into a milestone slot on the right.")
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_start = event.position().toPoint()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if (self._drag_start is None
+                or not event.buttons() & Qt.MouseButton.LeftButton):
+            return
+        if (event.position().toPoint() - self._drag_start).manhattanLength() < 4:
+            return
+        drag = QDrag(self)
+        mime = QMimeData()
+        mime.setData(_MIME_TYPE, _encode_upgrade(self.upgrade_id))
+        drag.setMimeData(mime)
+        drag.exec(Qt.DropAction.CopyAction)
+        self._drag_start = None
+
+
+class _CatalogCard(QWidget):
+    """One browse-list card: a ``_DragHandle`` grip on the left that carries
+    the id into a milestone slot, and the upgrade's editable name/
+    description/params on the right."""
 
     def __init__(self, panel, upgrade_id, entry, param_specs, parent=None):
         super().__init__(parent)
         self._panel = panel
         self.upgrade_id = upgrade_id
-        self._drag_start = None
         self.param_widgets = {}
 
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(4, 4, 4, 4)
+        root = QHBoxLayout(self)
+        root.setContentsMargins(4, 4, 4, 4)
+        root.setSpacing(4)
+
+        self._handle = _DragHandle(upgrade_id, self)
+        root.addWidget(self._handle)
+
+        outer = QVBoxLayout()
+        outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(4)
+        root.addLayout(outer, 1)
 
         self._header = QLabel(self)
         self._header.setWordWrap(True)
-        self._header.setToolTip(
-            "Drag this header into a milestone slot on the right.")
         outer.addWidget(self._header)
 
         form = QFormLayout()
@@ -173,7 +232,7 @@ class _CatalogCard(QWidget):
 
     def _refresh_header(self, name):
         self._header.setText(
-            f"<b>{name}</b> <span style='color:#888888'>⠿ "
+            f"<b>{name}</b> <span style='color:#888888'>"
             f"{self.upgrade_id}</span>")
 
     def set_placement(self, placement):
@@ -186,26 +245,6 @@ class _CatalogCard(QWidget):
             milestone_idx, slot_idx = placement
             self.placed_label.setText(
                 f"in milestone {milestone_idx + 1} · slot {slot_idx + 1}")
-
-    # -- drag source -------------------------------------------------------
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self._drag_start = event.position().toPoint()
-        super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event):
-        if (self._drag_start is None
-                or not event.buttons() & Qt.MouseButton.LeftButton):
-            return
-        if (event.position().toPoint() - self._drag_start).manhattanLength() < 4:
-            return
-        drag = QDrag(self)
-        mime = QMimeData()
-        mime.setData(_MIME_TYPE, _encode_upgrade(self.upgrade_id))
-        drag.setMimeData(mime)
-        drag.exec(Qt.DropAction.CopyAction)
-        self._drag_start = None
 
 
 class _MilestoneSlot(QWidget):
@@ -309,9 +348,9 @@ class BossUpgradesPanel(QWidget):
         caption = QLabel(
             "Four authored milestones, cycling every 4th bossfight — boss 5 "
             "re-offers milestone 1's identical three cards, forever. Drag a "
-            "card's header from the list on the left into a slot; dropping "
-            "onto a full slot replaces what was there. Retaliation love is "
-            "paid only when that bossfight is LOST.", self)
+            "card by its ⠿ handle on the left into a slot; dropping onto a "
+            "full slot replaces what was there. Retaliation love is paid "
+            "only when that bossfight is LOST.", self)
         caption_font = caption.font()
         caption_font.setItalic(True)
         caption_font.setPointSize(max(7, caption_font.pointSize() - 1))
