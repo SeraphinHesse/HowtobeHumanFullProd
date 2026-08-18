@@ -482,6 +482,14 @@ validating writer; don't hand-edit the JSON.
     leaf multiplied by `factor ** N`. **All ship 1.0**, so they are
     behaviour-neutral until a designer tunes them; that is the intended knob for
     "what happens after round 50", replacing the old freeze-forever cliff.
+    **`0.0` is NOT a valid "stop growing" value here — it zeroes the stat
+    outright the instant `N ≥ 1`, not a clamp.** A 2026-08-10 edit shipped
+    `move_speed: 0.0` on most enemy types, which froze every enemy on its
+    spawn tile from round 51 onward (`game/enemies/CLAUDE.md`'s D5 section
+    has the full incident writeup). Every `*_endgame_scaling` factor's schema
+    field (`boss_endgame_scaling`/`pacing_endgame_scaling`/
+    `type_endgame_scaling`) now declares `exclusiveMinimum: 0` instead of
+    `minimum: 0` specifically so `0.0` can never be saved here again.
     - **`Boss.endgame_boss_scaling` (BR-4) is the Boss's own version** — one
       block for all THREE of its per-era arrays (`stats[]`, `round_counts[]`,
       `second_phase.spawns[]`), 13 factors, all 1.0. Its KEY NAMES are the LEAF
