@@ -799,8 +799,40 @@ validating writer; don't hand-edit the JSON.
   `defaults` values are never id-validated, so neither needed editor code.
   Behaviour → `game/ui/CLAUDE.md`'s construct-card section.
   Finally,
-  `widgets: {<id>: {rect?, skin?, font?, color?, text_color?, label?,
-  visible?}}` overrides any named widget's properties.
+  `widgets: {<id>: {...}}` overrides any named widget's properties. The FULL
+  current per-widget key list (`additionalProperties: false`, every key
+  optional, read off `schemas/ui_screen.schema.json`): `align`, `color`,
+  `font`, `label`, `layers`, `parent`, `rect`, `skin`, `states`, `text_color`,
+  `text_id`, `tint`, `visible`.
+- **`layers` (UL-3/UL-4/UL-5/UL-9) — an ARRAY of layer entries on a widget
+  override**, and it lives ONLY here (never in `screen_defaults.json`, never in
+  `screen_previews.json`). Each entry is a dict, every key optional,
+  `additionalProperties: false`: `align`, `band`, `clickable`, `color`, `font`,
+  `id`, `label`, `offset`, `slot`, `states`, `target`, `text_color`, `text_id`,
+  `tint`, `visible`, `z`.
+  - `offset` is an OFFSET from the owner's POST-override rect, `[dx, dy, w, h]`
+    (4 ints, D2); a `0` for `w`/`h` means "match the owner's". A malformed
+    offset resolves to `[0,0,0,0]` rather than raising.
+  - `band` is the closed enum `under | over` (D4) — `under` draws behind
+    EVERYTHING on the screen, not just behind the owner (the HUD pass has no
+    depth sort); `z` orders within a band.
+  - `states` is the per-state patch object (UL-5, D9), keys `idle | hover |
+    pressed | disabled`, each a partial patch of `align`, `color`, `font`,
+    `label`, `offset`, `slot`, `text_color`, `text_id`, `tint`, `visible`.
+    A patch's `offset` REPLACES the base offset (a 2-element `[dx, dy]` form
+    moves without resizing). PRESENCE drives the fallback, not truthiness: an
+    explicit `{}` counts as "this state looks like the base".
+  - `clickable` (bool, absent = false) makes the layer a click target; a
+    non-clickable layer is TRANSPARENT to a click rather than blocking it. It
+    is static per layer, never per state — the four states govern appearance
+    only, so `clickable`/`target` are not `states` sub-keys.
+  - `target` (string, `^[a-z][a-z0-9_]*$`) is what a click MEANS (UL-9, D7 as
+    amended): a widget id in the SAME screen (fires that widget's own action),
+    or one of the reserved tokens `close_window` / `back` / `noop`.
+    **Deliberately NOT a closed enum** — an id-shaped string matching neither
+    still validates and SAVES; the editor WARNS about an unroutable target
+    instead of failing validation, and at runtime such a click is SWALLOWED,
+    not passed through (`game/ui/CLAUDE.md`).
 - **`data/ui/screen_defaults.json`**: generated-but-committed file, written by
   `tools/export_ui_layouts.py` (B3) and validated by a test that re-runs the
   exporter (B3). FLAT shape, keyed directly by screen id at the root:
@@ -913,16 +945,26 @@ validating writer; don't hand-edit the JSON.
 - **`data/ui/fonts.json`** ↔ `schemas/fonts.schema.json` (normal stem
   pairing, no directory exception): exactly the 7 keys
   `engine/render/fonts.py`'s `_FONT_SPECS` ships (`sm/md/lg/xl/xxl/hud_phase/
-  hud_lvl`), each `{"size": int 4-72, "bold": bool}`, all required
-  (`additionalProperties: false` — a designer cannot invent a new preset key
-  through this schema; adding one is a schema change). The game loads +
+  hud_lvl`), each `{"size": int 4-72, "bold": bool}`, all required — the game
+  names them by key, so none may be renamed or removed. **The set is OPEN at
+  the top since UL-2 (D6)**: `additionalProperties: false` was replaced by
+  `patternProperties: {"^[a-z][a-z0-9_]*$": font_spec}`, so a designer may add
+  any number of EXTRA presets with the same `{size, bold}` shape (the editor's
+  Theme panel is the only writer), while a key that does not match that
+  pattern is still rejected outright. A custom preset's `_LAYOUT_H` entry is
+  derived ONCE inside `configure_fonts` and stored — never measured live at a
+  call site, because `SysFont` measures ±1px differently per platform and
+  stored layout must not drift (the pinned-height invariant,
+  `engine/render/CLAUDE.md`). The game loads +
   validates it at boot (`game/main.py`, before the `Shell`/screens are
   built) and calls `engine.render.fonts.configure_fonts(doc)`; a missing/
   invalid file fails LOUD (D-2 — this is data, not art; E-37 does not
   apply). The editor's Theme panel (`editor/panels/game_theme.py`) is the
   only writer, through `write_validated`, staged like `balancing.py`.
-  `configure_fonts` never moves `layout_h`/`_LAYOUT_H` (`engine/render/
-  CLAUDE.md`) — font size is drawn-glyph-only, not stored layout.
+  `configure_fonts` never moves the 7 PINNED `layout_h`/`_LAYOUT_H` entries
+  (`engine/render/CLAUDE.md`) — for them, font size is drawn-glyph-only, not
+  stored layout. It only ever ADDS a derived entry for a designer-defined key,
+  which had none to begin with.
 - **`data/ui/palette.json`** ↔ `schemas/palette.schema.json` (same normal
   pairing): one key per `game/ui/widgets.py` `C_*` constant, snake_case with
   the `C_` prefix dropped (`gold`, `ui_panel`, `panel_stone`, …), each an RGB
