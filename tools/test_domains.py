@@ -159,6 +159,8 @@ DOMAINS = {
         "test_asset_store.py",
         "test_assets_manifest.py",
         "test_audio.py",
+        "test_audio_bank.py",
+        "test_audio_sfx.py",
         "test_components.py",
         "test_coords.py",
         "test_core.py",

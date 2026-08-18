@@ -83,6 +83,8 @@ TIERS = {
     "test_assets_manifest": "core",
     "test_assets_registry": "core",
     "test_audio": "core",
+    "test_audio_bank": "core",
+    "test_audio_sfx": "core",
     "test_bake_ui_sheets": "core",  # 10L wave 3: UI sheet baker
     "test_balancing_data": "core",
     "test_base_building": "core",
