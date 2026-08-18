@@ -8855,6 +8855,50 @@
         4
       ]
     },
+    "ui_button_end_turn_v2": {
+      "frame_h": 48,
+      "frame_w": 72,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hover",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "pressed",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/ui_button_end_turn_v2.png"
+    },
     "ui_button_panel": {
       "frame_h": 23,
       "frame_w": 70,

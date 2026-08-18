@@ -730,6 +730,11 @@
                   "frame_h": 50,
                   "frame_w": 72,
                   "key": "ui_button_end_turn"
+                },
+                {
+                  "frame_h": 48,
+                  "frame_w": 72,
+                  "key": "ui_button_end_turn_v2"
                 }
               ]
             },
