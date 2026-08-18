@@ -1,15 +1,4 @@
 {
-  "custom_widgets": {
-    "custom_text_1": {
-      "kind": "label",
-      "rect": [
-        240,
-        168,
-        160,
-        24
-      ]
-    }
-  },
   "defaults": {
     "button_skin": "ui_button_panel_v5",
     "panel_skin": "ui_button_panel_v5"
@@ -18,8 +7,8 @@
     "action_btn": {
       "label": "",
       "rect": [
-        510,
-        278,
+        508,
+        199,
         112,
         32
       ],
@@ -60,16 +49,6 @@
         55
       ],
       "skin": "ui_button_panel_v2"
-    },
-    "custom_text_1": {
-      "label": "Buy Tile",
-      "parent": "action_btn",
-      "rect": [
-        488,
-        285,
-        160,
-        24
-      ]
     },
     "died_last_round": {
       "rect": [
@@ -566,20 +545,28 @@
       ]
     },
     "unlock_hint": {
+      "align": "left",
       "rect": [
-        500,
-        39,
+        501,
+        64,
         0,
         0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
       ]
     },
     "unlock_title": {
+      "align": "left",
       "rect": [
         501,
         42,
         0,
         0
-      ]
+      ],
+      "text_id": "building.unlock.title"
     },
     "upgrade_hint": {
       "rect": [

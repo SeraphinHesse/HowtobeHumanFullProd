@@ -747,31 +747,37 @@
               "label": "Panel Button",
               "slots": [
                 {
+                  "display_name": "PanelButton70",
                   "frame_h": 23,
                   "frame_w": 70,
                   "key": "ui_button_panel"
                 },
                 {
+                  "display_name": "EndTurnButton",
                   "frame_h": 55,
                   "frame_w": 42,
                   "key": "ui_button_panel_v2"
                 },
                 {
+                  "display_name": "PanelButton103",
                   "frame_h": 30,
                   "frame_w": 103,
                   "key": "ui_button_panel_v3"
                 },
                 {
+                  "display_name": "mainmenubutton",
                   "frame_h": 100,
                   "frame_w": 245,
                   "key": "ui_button_panel_v4"
                 },
                 {
+                  "display_name": "PanelButton112",
                   "frame_h": 32,
                   "frame_w": 112,
                   "key": "ui_button_panel_v5"
                 },
                 {
+                  "display_name": "PanelButton88",
                   "frame_h": 32,
                   "frame_w": 88,
                   "key": "ui_button_panel_v6"
@@ -812,21 +818,25 @@
               "slots": [
                 "ui_panel",
                 {
+                  "display_name": "Build Screen Panel",
                   "frame_h": 360,
                   "frame_w": 167,
                   "key": "ui_panel_v2"
                 },
                 {
+                  "display_name": "Love Panel",
                   "frame_h": 50,
                   "frame_w": 111,
                   "key": "ui_panel_v3"
                 },
                 {
+                  "display_name": "Love per round panel",
                   "frame_h": 45,
                   "frame_w": 102,
                   "key": "ui_panel_v4"
                 },
                 {
+                  "display_name": "Level Panel/waveCounter",
                   "frame_h": 40,
                   "frame_w": 70,
                   "key": "ui_panel_v5"
