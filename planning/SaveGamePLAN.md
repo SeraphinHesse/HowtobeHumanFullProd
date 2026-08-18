@@ -1,4 +1,4 @@
-<!-- status: IN PROGRESS — 3/7 phases (SG-1, SG-2, SG-3 done) -->
+<!-- status: IN PROGRESS — 4/7 phases (SG-1, SG-2, SG-3, SG-4 done) -->
 
 # SaveGamePLAN.md — Save-Game System
 
@@ -130,7 +130,7 @@ twelve types.
 | SG-1 | Data schema + slot storage primitives (`game/core/savegame.py`) | done |
 | SG-2 | `RunState` + `Session` serialization | done |
 | SG-3 | `Building`/`GameObject` rehydration helper | done |
-| SG-4 | `TileMap` state serialization | not started |
+| SG-4 | `TileMap` state serialization | done |
 | SG-5 | Autosave wiring (`game/main.py` round-edge hook) | not started |
 | SG-6 | Save Files screen + main menu wiring | not started |
 | SG-7 | End-to-end verification | not started |
@@ -405,6 +405,20 @@ integration coverage; this phase is the human-observable confirmation that
 they compose correctly. The single full `py tools/testgate.py check` happens
 ONCE, in the main session, at `/commitpushpr` handoff — never here, never
 per-phase (root `CLAUDE.md`'s Test Suite Policy).
+
+## 3a. SG-4 implementation note: wall edges dropped from TileMap serialization
+
+`TileMap.save_state()`/`apply_state()` (SG-4, implemented) do NOT capture
+`wall_edges` as originally sketched in §2's architecture diagram. Discovered
+during implementation: D1 (autosave only at the round boundary) guarantees
+every alive WallBuilder's walls are at full HP the instant an autosave can
+fire (payday's `rebuild_walls()` already ran that exact round), and each
+WallBuilder's own `wall_snapshot` component field already round-trips
+generically via SG-3. So the caller (SG-5/SG-6) just calls
+`tilemap.rebuild_walls()` once after restoring buildings — zero new
+serialization code, and it reconstructs the identical edge set a save would
+have captured. `TileMap.save_state()` covers tile-state/condition/spawn-deco
+deltas, the stage counters, and `moving_orders` only.
 
 ## 4. Risks / open items
 

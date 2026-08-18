@@ -119,6 +119,8 @@ DOMAINS = {
         "test_picking.py",
         "test_spawn_deco.py",
         "test_tile_conditions.py",
+        # SaveGamePLAN SG-4: TileMap.save_state/apply_state
+        "test_tile_map_savegame.py",
         "test_tile_runtime.py",
         "test_tile_unlock.py",
         "test_tilemap_model.py",

@@ -504,6 +504,33 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   `TileState` member was deliberately rejected for this — see
   `game/buildings/CLAUDE.md`'s Building Movement section for why. O(orders),
   and orders are a handful at most, so this adds nothing to any hot path.
+- **`save_state()`/`apply_state()` (SaveGamePLAN SG-4)** serialize only the
+  RUNTIME DELTAS from the deterministic legend baseline — a fresh
+  `TileMap(doc, balance, ...)` construction already reproduces the
+  legend-derived zone state and any painted `tile_conditions` mark for free,
+  so neither is saved. What IS saved, per tile: a zone-state change
+  (unlock/recede), and — since these are RANDOMLY rolled and a fresh
+  construction with a different RNG seed rolls different values — the
+  condition/condition_variant_idx and spawn_deco_roll for any tile that has
+  entered play. Plus the stage-system counters (`_stage`/`_unlock_purchases`/
+  `_retire_cursor` — genuinely path-dependent on which chunks the player
+  unlocked, no regenerate-from-elsewhere trick) and `moving_orders` (a moving
+  building is despawned and held alive ONLY by this list, so SG-5's autosave
+  assembly must reach it through here, not through a live-building
+  enumeration). `apply_state(data, building_by_id)` takes a `{GameObject.id:
+  Building}` map the caller builds after restoring buildings
+  (`game/buildings/registry.py::restore_building`, SG-3) — it never
+  constructs a building itself.
+  - **Wall edges are deliberately NOT part of this serialization.** SG-1's D1
+    (autosave fires only at the round boundary) means every alive
+    WallBuilder's walls are always at full HP the instant an autosave can
+    fire — payday slot 10 (`rebuild_walls`) already ran that exact round.
+    So the caller just calls `rebuild_walls()` once after restoring
+    buildings: each WallBuilder's own frozen `wall_snapshot` component field
+    (already round-tripped generically by SG-3) is the only input that
+    method needs, and it reconstructs the exact same edge set a save would
+    have captured — with zero new serialization code for something the
+    engine's own generic Component serialization already carries.
 - **Occupancy is occupant-driven and updated incrementally**: a tile with a
   GameObject occupant is mirrored into `engine.physics.TileOccupancy` (BACKGROUND
   impassability is a weight concern, not occupancy). Placement seams

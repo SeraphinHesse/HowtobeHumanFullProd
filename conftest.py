@@ -187,6 +187,7 @@ TIERS = {
     "test_tile_unlock": "core",
     "test_tilemap_model": "core",
     "test_tilemap_ops": "core",
+    "test_tile_map_savegame": "core",  # SaveGamePLAN SG-4: TileMap save/apply_state
     "test_tutorial_data": "core",  # TU-1: tutorial script + cutscene registry data
     "test_tutorial_director": "core",  # TU-6: TutorialDirector fake-event chain
     "test_tutorial_engine": "core",  # TU-6: engine.tutorial step-sequencer

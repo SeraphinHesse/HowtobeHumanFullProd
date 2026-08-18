@@ -25,7 +25,9 @@ def _slot_doc(slot_id="a", round_num=5, pinned=False, unlocked_tiles=None):
         run_state=RunState().to_dict(),   # a bare RunState is already at the
                                           # round boundary (BUILDING/GAMEPLAY)
         session={"combat_speed_idx": 0},
-        tile_map={"cols": 10, "rows": 10},
+        tile_map={"cols": 10, "rows": 10, "tile_deltas": [], "stage": 0,
+                  "unlock_purchases": 0, "retire_cursor": 0,
+                  "moving_orders": []},
         buildings=[],
         pinned=pinned,
     )
