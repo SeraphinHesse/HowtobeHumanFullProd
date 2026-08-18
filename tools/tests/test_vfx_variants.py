@@ -432,6 +432,11 @@ class _Assets:
     def animation_total_ms(self, slot_key, name):
         return 100 if slot_key in self._art else None
 
+    def frame_size(self, slot_key):
+        # What the real AssetStore does when the manifest carries no override
+        # (engine/assets/store.py): fall through to the registry.
+        return self.registry.frame_size(slot_key)
+
 
 def _projectile_registry():
     """A registry whose defender stone has three variants — the shape this
@@ -532,28 +537,68 @@ class TestProjectileVariantResolvedOncePerShot(unittest.TestCase):
         self.assertIn(b._vfx_slot, _PROJECTILE_ART)
 
 
+class _LeveledBuilding(GameObject):
+    """A stand-in for `game/buildings/building.py`'s Building: the ONE thing
+    `source_level` reads off it is the 1-indexed global `level` property that
+    class exposes (tier levels summed + in-tier level)."""
+
+    def __init__(self, level, tier=0):
+        super().__init__(name="defender", tags=("building",),
+                         components=[TierState(building_type="defender",
+                                               current_tier=tier)])
+        self._level = level
+
+    @property
+    def level(self):
+        return self._level
+
+
 class TestProjectileLevelMode(unittest.TestCase):
     """`level` mode needs no new plumbing: both projectile components already
-    retain the firing building as `_shooter`, so its TierState indexes the
-    variant family directly."""
+    retain the firing building as `_shooter`.
 
-    def test_each_tier_draws_its_own_variant(self):
-        for tier, expected in enumerate(_PROJECTILE_ART):
-            with self.subTest(tier=tier):
+    It indexes by the building's GLOBAL level — variant 1 is tier 1 level 1,
+    variant 2 is tier 1 level 2, and so on across the tier boundary. It used
+    to index by `TierState.current_tier`, so three level-ups inside a tier
+    changed nothing and the mode read as broken (found live).
+    """
+
+    def test_each_level_draws_its_own_variant(self):
+        for i, expected in enumerate(_PROJECTILE_ART):
+            with self.subTest(level=i + 1):
                 fm = _fm(mode="level")
-                shot = _shot(_building(tier))
+                shot = _shot(_LeveledBuilding(i + 1))
                 _draw(fm, _Scene([shot]), 3)
                 self.assertEqual(shot._vfx_slot, expected)
 
-    def test_a_tier_past_the_last_variant_clamps(self):
+    def test_levelling_inside_one_tier_still_steps_the_variant(self):
+        """The exact regression: same tier, consecutive levels, different
+        art."""
+        picks = []
+        for level in (1, 2, 3):
+            fm = _fm(mode="level")
+            shot = _shot(_LeveledBuilding(level, tier=0))
+            _draw(fm, _Scene([shot]), 1)
+            picks.append(shot._vfx_slot)
+        self.assertEqual(picks, list(_PROJECTILE_ART))
+
+    def test_a_level_past_the_last_variant_clamps(self):
         fm = _fm(mode="level")
-        shot = _shot(_building(9))
+        shot = _shot(_LeveledBuilding(99))
         _draw(fm, _Scene([shot]), 1)
         self.assertEqual(shot._vfx_slot, "vfx_projectile_v3")
 
+    def test_a_bare_tier_cursor_is_still_the_fallback(self):
+        """An object carrying a tier but no `level` (a test double, not a
+        Building) keeps the old reading rather than resolving to None."""
+        fm = _fm(mode="level")
+        shot = _shot(_building(1))
+        _draw(fm, _Scene([shot]), 1)
+        self.assertEqual(shot._vfx_slot, "vfx_projectile_v2")
+
     def test_level_mode_draws_no_random_numbers(self):
         fm = _fm(mode="level")
-        _draw(fm, _Scene([_shot(_building(1))]), 10)
+        _draw(fm, _Scene([_shot(_LeveledBuilding(2))]), 10)
         self.assertEqual(fm._rng.draws, 0)
 
     def test_a_shot_with_no_shooter_falls_back_to_variant_zero(self):
@@ -576,6 +621,26 @@ class TestProjectileSlotChoiceIsUnchanged(unittest.TestCase):
         _draw(fm, _Scene([shell]), 3)
         self.assertEqual(shell._vfx_slot, "vfx_shell")
 
+    def test_imported_art_draws_at_the_manifest_frame_size(self):
+        """Not at procedural.projectile.stone_size — that tunable describes
+        the fallback DOT and was tuned for it, so reusing it downscaled every
+        imported bullet (a 64x64 sheet drew at 32 px; found live)."""
+        fm = _fm(mode="random")
+        r = _Renderer()
+        fm.submit_projectiles(r, _Coords(), _Scene([_shot()]))
+        item = r.hud[0]
+        self.assertNotIsInstance(item, HudRect)
+        self.assertEqual(item.size, (64, 64))       # the registry's frame_w/h
+        dot = fm._vfx_params.projectile.stone_size
+        self.assertNotEqual(item.size, (dot, dot))
+
+    def test_the_dot_still_uses_its_own_tunable(self):
+        fm = _fm(mode="random", art=())
+        r = _Renderer()
+        fm.submit_projectiles(r, _Coords(), _Scene([_shot()]))
+        dot = fm._vfx_params.projectile.stone_size
+        self.assertEqual(r.hud[0].rect[2:], (dot, dot))
+
     def test_no_art_still_falls_back_to_the_procedural_dot(self):
         """E-37: an un-imported variant draws the HudRect dot, not nothing."""
         fm = _fm(mode="random", art=())
@@ -591,14 +656,23 @@ class TestShippedProjectileRow(unittest.TestCase):
             FIXTURE_DATA / "balancing" / "vfx.json",
             FIXTURE_DATA / "schemas" / "vfx.schema.json")
 
-    def test_the_row_ships_inert_apart_from_variant_select(self):
-        """sprite_slot and procedural are both meaningless on this row (the
-        slot comes from the shot's kind, the fallback is the continuous
-        procedural.projectile dot), so shipping anything in them would be
-        dead data."""
+    def test_the_row_names_its_procedural_family_but_binds_no_slot(self):
+        """`procedural: "projectile"` is documentation, the way "crater" is —
+        it names the continuous dot submit_projectiles draws unconditionally,
+        so the editor row points at a family a designer can see instead of
+        showing an empty box beside a visibly-live `projectile` effect.
+        `sprite_slot` stays "" because the slot comes from the shot's kind."""
         row = self.doc["triggers"]["projectile"]
         self.assertEqual(row["sprite_slot"], "")
-        self.assertEqual(row["procedural"], "")
+        self.assertEqual(row["procedural"], "projectile")
+
+    def test_the_named_kind_dispatches_to_nothing(self):
+        """The other half of "documentation, not a second spawn": the kind is
+        absent from _run_procedural's ladder, so naming it cannot double-draw
+        (E-37 — an unrecognised kind is a silent no-op)."""
+        fm = _fm()
+        self.assertNotIn("projectile", FloaterManager._SPARK_KINDS)
+        fm._run_procedural("projectile", 1.0, 1.0)   # must not raise or emit
 
     def test_the_inert_keys_say_so_in_the_schema(self):
         """draw_in_front cannot work for a projectile — submit_projectiles

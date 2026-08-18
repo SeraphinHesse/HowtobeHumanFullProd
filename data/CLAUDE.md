@@ -154,21 +154,33 @@ validating writer; don't hand-edit the JSON.
   **feat-projectile-variant-select** added the row, `triggers.projectile`,
   on the VA-5 tile-highlight precedent (continuous effects that take a
   `triggers` row anyway and bypass `_play`/`PlayOnceVfx`). It ships
-  `{sprite_slot: "", procedural: "", draw_in_front: true, variant_select:
-  {mode: "random", misc_key: ""}}` and contributes **only `variant_select`**:
+  `{sprite_slot: "", procedural: "projectile", draw_in_front: true,
+  variant_select: {mode: …, misc_key: ""}}` and contributes **only
+  `variant_select`**:
   the slot still comes from the shot's own kind (`vfx_projectile` vs
-  `vfx_shell`, independent by design), the fallback is still the continuous
-  `procedural.projectile` dot, and `draw_in_front` cannot bite because
-  `submit_projectiles` emits on the HUD pass, which has no depth sort. All
-  three inert keys say so in `$defs/trigger_row`'s own descriptions rather
-  than sitting in the editor looking live. A `triggers` property (not a new
+  `vfx_shell`, independent by design), and `draw_in_front` cannot bite because
+  `submit_projectiles` emits on the HUD pass, which has no depth sort. Both
+  inert keys say so in `$defs/trigger_row`'s own descriptions rather than
+  sitting in the editor looking live. **`procedural` ships `"projectile"`,
+  a new enum value that is DOCUMENTATION exactly as `"crater"` is**: it names
+  the continuous `procedural.projectile` dot `submit_projectiles` draws
+  unconditionally for an art-less shot, and is absent from
+  `_run_procedural`'s ladder so naming it cannot double-draw. It ships that
+  way because `""` left the editor showing an empty row beside a visibly-live
+  `projectile` procedural family, which reads as "this control is broken"
+  (found live). A `triggers` property (not a new
   key under `procedural.projectile`) because the VFX panel's Binding strip is
   generated from the schema — `editor/panels/vfx_preview.py::_trigger_events`
   — so the row buys the whole Event/Pick-mode/misc-key UI with zero editor
   code. The resolved variant is cached on the projectile GameObject at first
   draw, so `"random"` costs one rng draw per shot and is stable for the
-  flight; `"level"` indexes by the firing building's tier through the
-  components' existing `_shooter`. The fix-anchor-offset-and-bullet-sprites
+  flight; `"level"` indexes by the firing building's GLOBAL level through the
+  components' existing `_shooter`. **`variant_select.mode: "level"` read the
+  building's TIER until this feature** — so levelling a building three times
+  inside one tier changed nothing and the mode read as dead. It now reads
+  `Building.level` (`game/vfx_variants.py::source_level`), the same number
+  the level-up UI shows, so variant N is level N; this applies to EVERY
+  trigger row's level mode, not just the projectile's. The fix-anchor-offset-and-bullet-sprites
   follow-up also fixed a Fix-1 anchor/offset composition bug (`engine/assets/store.py`'s new
   `offset()` accessor, `game/anchors.py`, `editor/panels/viewport.py`) that
   touches no schema. **The Drummer buff-range telegraph feature** added a

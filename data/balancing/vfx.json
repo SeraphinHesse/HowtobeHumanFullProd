@@ -471,7 +471,7 @@
     },
     "projectile": {
       "draw_in_front": true,
-      "procedural": "",
+      "procedural": "projectile",
       "sprite_slot": "",
       "variant_select": {
         "misc_key": "",

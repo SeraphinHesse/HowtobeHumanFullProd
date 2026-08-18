@@ -1198,8 +1198,17 @@ imports:
   `"random"` per frame (a bullet flickering through its flight) and draw
   from the shared `self._rng` once per projectile per frame. `"level"` mode
   needs no new plumbing — both projectile components already retain the
-  firing building as `_shooter`, so tier 1/2/3 can each get their own
-  bullet art. Honouring `draw_in_front` would mean moving every bullet off
+  firing building as `_shooter`, and `vfx_variants.source_level` reads that
+  building's GLOBAL `Building.level`, so variant N is level N straight
+  across the tier boundary.
+  **Imported bullet art draws at `assets.frame_size(slot)`, NOT at
+  `stone_size`/`shell_size`.** Those two tunables describe the procedural
+  FALLBACK DOT and were tuned for it; the sprite path reused them and so
+  silently halved every imported 64×64 bullet to 32 px (found live). This is
+  the same `assets.frame_size` sizing `submit_beams` uses for an imported
+  `vfx_beam`, for the same reason — no new balancing key for a size the
+  manifest already states. The dot keeps its own tunables.
+  Honouring `draw_in_front` would mean moving every bullet off
   the HUD pass onto `submit_world_fill`; that changes how every shot in the
   game depth-sorts against buildings and is deliberately NOT done here.
   **feat-projectile-anchored-flight: the lift is gone from this function —
