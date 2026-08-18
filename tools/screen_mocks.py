@@ -221,8 +221,9 @@ def _unlock_every_type(session):
             1, state.tiers_unlocked.get(btype, 0))
 
 
-def _all_conditions_chunk(tilemap, tile):
-    """Force ``tile``'s 2x2 chunk to carry all four `TileCondition` members.
+def _all_conditions_chunk(tilemap, tile, registry):
+    """Force ``tile``'s 2x2 chunk to carry all four `TileCondition` members,
+    each with its ART resolved.
 
     `_build_cond_cards` emits one card tree per DISTINCT condition in the
     purchase, so a chunk that rolled four Grass tiles would record ONE card
@@ -230,16 +231,32 @@ def _all_conditions_chunk(tilemap, tile):
     invisible to the editor and un-overridable on disk. Same argument, and
     same fix, as `_unlock_every_type` makes for the construct cards.
 
+    The SLOT matters as much as the condition now: a card is sized around the
+    composite it draws (bare ground is 32px tall, ground + condition art 96),
+    so a chunk with unresolved `condition_slot`s would record four
+    ground-only cards and the editor's boxes would not match the game. The
+    mock `TileMap` is built without a registry (headless, no art), so this
+    resolves the slots itself, at variant 0 for determinism.
+
     Writes `condition` directly rather than going through the roll: the roll
     is chance-driven and this file's whole contract is byte-identical output
     on every call.
     """
-    from game.map.tiles import TileCondition
+    from game.map.tile_map import _resolve_condition_slot
+    from game.map.tiles import TileCondition, TileState
 
     chunk = tilemap.get_chunk_for_tile(tile)
     for t, condition in zip(chunk, TileCondition):
         t.condition = condition
         t.condition_rolled = True
+        t.condition_variant_idx = 0
+        # COMBAT for every tile, not the tile's own state: a 2x2 chunk on
+        # the pinned map straddles BACKGROUND, which has no condition art by
+        # rule, so resolving honestly would record two of the four cards as
+        # bare ground and understate their height. COMBAT is the state a tile
+        # being BOUGHT is in, so it is also what the panel shows in play.
+        t.condition_slot = _resolve_condition_slot(registry, condition,
+                                                   TileState.COMBAT, 0)
 
 
 #: Fallback data root for a caller that does not thread one through (every
@@ -290,7 +307,7 @@ def build_bp_view(view, view_w, view_h, balances, session, skinning=None,
         tile = _first_tile_in_state(tm, TileState.COMBAT)
         panel.mode, panel.tile = "unlock", tile
         panel.selected_tiles = [tile]
-        _all_conditions_chunk(tm, tile)
+        _all_conditions_chunk(tm, tile, panel.assets.registry)
         panel._build_unlock(session)
         note = (f"{COMMON_NOTE}; the lowest-(row,col) COMBAT tile of the "
                 f"{PINNED_MAP!r} map, its real 2x2 chunk and unlock cost, "

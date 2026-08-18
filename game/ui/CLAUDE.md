@@ -1150,10 +1150,36 @@ list INDEX since the cards have variable height). Its clamp reads
 holds only the cards from the current offset down, so clamping against it
 shrank the limit as you scrolled and a scroll past the end walked backwards.
 
-**Grass draws the regular buildable GROUND tile** (`_GRASS_CARD_SLOT`,
-`tile_buildable`), not `cond_grass_*`: grass is the absence of a condition,
-and the card should show the ordinary ground the purchase yields — the art the
-player already reads as "normal tile" everywhere else on the map.
+**A card composites what the MAP composites.** Every terrain card draws the
+buildable GROUND tile (`_CARD_GROUND_SLOT`, `tile_buildable` — what the bought
+tile becomes) and then its condition art OVER it, in the same order the board
+draws its `ground` and `terrain` layers (`game/map/conditions.py`). So a
+mountain card reads as a mountain *on a tile*, the way the player sees it,
+rather than a sprite floating on the panel. Grass has no overlay at all: it is
+the absence of a condition, and its `cond_grass_*` slot ships without art
+anyway — the world's own emitter skips it for the same reason. The overlay
+keeps the `_sprite` id it has always had (so an existing override still points
+at the condition art) and the ground is a new `_ground` sibling.
+
+`_cond_tile_rects` derives the inner geometry from ONE rule — the renderer's
+anchor convention, that a frame is blitted centred on the tile diamond's
+centre (`engine/render/renderer.py`'s module docstring). Against a 64x32
+ground at `G`, a 64x96 condition frame therefore spans `G-32 .. G+64`: the art
+is authored centred in its frame, so the tile footprint lands in the middle
+third and the peak rises above it. Restating that rule anywhere else is how
+the card and the board start showing different pictures.
+
+An UN-IMPORTED condition slot falls back to bare ground rather than blitting
+the engine's grey X (E-37) — `_has_art` uses the same
+`animation_total_ms(..., "idle") is not None` probe `_card_portrait_slot`
+does, so the two cannot disagree about what "imported" means. That is the
+card's analogue of the map falling back to its colour diamond.
+
+Because the export mock's `TileMap` has no registry, `screen_mocks.
+_all_conditions_chunk` resolves the four slots itself — at COMBAT for every
+tile, not at the tile's own state, since a 2x2 chunk on the pinned map
+straddles BACKGROUND (no condition art by rule) and two of the four cards
+would otherwise be recorded as bare ground and understate their height.
 
 ### The two card GROUPS are containers (`construct_card_list`, `terrain_card_list`)
 

@@ -1841,6 +1841,18 @@
               0
             ]
           },
+          "cond_card_forest_ground": {
+            "display_name": "Forest terrain card ground",
+            "kind": "panel",
+            "label": "",
+            "parent": "cond_card_forest",
+            "rect": [
+              543,
+              509,
+              64,
+              32
+            ]
+          },
           "cond_card_forest_name": {
             "display_name": "Forest terrain card name",
             "font_key": "sm",
@@ -1957,6 +1969,18 @@
               207,
               0,
               0
+            ]
+          },
+          "cond_card_grass_ground": {
+            "display_name": "Grass terrain card ground",
+            "kind": "panel",
+            "label": "",
+            "parent": "cond_card_grass",
+            "rect": [
+              543,
+              115,
+              64,
+              32
             ]
           },
           "cond_card_grass_name": {
@@ -2077,6 +2101,18 @@
               0
             ]
           },
+          "cond_card_mountain_ground": {
+            "display_name": "Mountain terrain card ground",
+            "kind": "panel",
+            "label": "",
+            "parent": "cond_card_mountain",
+            "rect": [
+              543,
+              225,
+              64,
+              32
+            ]
+          },
           "cond_card_mountain_name": {
             "display_name": "Mountain terrain card name",
             "font_key": "sm",
@@ -2193,6 +2229,18 @@
               491,
               0,
               0
+            ]
+          },
+          "cond_card_pond_ground": {
+            "display_name": "Pond terrain card ground",
+            "kind": "panel",
+            "label": "",
+            "parent": "cond_card_pond",
+            "rect": [
+              543,
+              367,
+              64,
+              32
             ]
           },
           "cond_card_pond_name": {
@@ -4417,6 +4465,18 @@
           0
         ]
       },
+      "cond_card_forest_ground": {
+        "display_name": "Forest terrain card ground",
+        "kind": "panel",
+        "label": "",
+        "parent": "cond_card_forest",
+        "rect": [
+          543,
+          509,
+          64,
+          32
+        ]
+      },
       "cond_card_forest_name": {
         "display_name": "Forest terrain card name",
         "font_key": "sm",
@@ -4533,6 +4593,18 @@
           207,
           0,
           0
+        ]
+      },
+      "cond_card_grass_ground": {
+        "display_name": "Grass terrain card ground",
+        "kind": "panel",
+        "label": "",
+        "parent": "cond_card_grass",
+        "rect": [
+          543,
+          115,
+          64,
+          32
         ]
       },
       "cond_card_grass_name": {
@@ -4653,6 +4725,18 @@
           0
         ]
       },
+      "cond_card_mountain_ground": {
+        "display_name": "Mountain terrain card ground",
+        "kind": "panel",
+        "label": "",
+        "parent": "cond_card_mountain",
+        "rect": [
+          543,
+          225,
+          64,
+          32
+        ]
+      },
       "cond_card_mountain_name": {
         "display_name": "Mountain terrain card name",
         "font_key": "sm",
@@ -4769,6 +4853,18 @@
           491,
           0,
           0
+        ]
+      },
+      "cond_card_pond_ground": {
+        "display_name": "Pond terrain card ground",
+        "kind": "panel",
+        "label": "",
+        "parent": "cond_card_pond",
+        "rect": [
+          543,
+          367,
+          64,
+          32
         ]
       },
       "cond_card_pond_name": {

@@ -34,7 +34,7 @@ DATA = REPO / "data"
 
 #: The child ids every terrain card carries, relative to its own
 #: `cond_card_<condition>` id.
-CARD_PARTS = ("_sprite", "_name", "_count") + tuple(
+CARD_PARTS = ("_ground", "_sprite", "_name", "_count") + tuple(
     f"_effect_{i}" for i in range(_COND_EFFECT_LINES))
 
 
@@ -97,16 +97,40 @@ class TestCondCardTree(unittest.TestCase):
         store = self.panel.assets
         self.assertIsNotNone(store, "the mock must carry an asset store")
         for _cond, parts in self.panel._cond_cards:
+            for piece in (parts.ground, parts.sprite):
+                if not piece.skin:
+                    continue
+                self.assertEqual(tuple(piece.rect[2:]),
+                                 tuple(store.frame_size(piece.skin)))
+
+    def test_every_card_stands_on_the_buildable_ground_tile(self):
+        """The tile treatment: a card composites what the MAP composites —
+        ground layer, then condition art over it."""
+        from game.ui.building_ui import _CARD_GROUND_SLOT
+
+        for _cond, parts in self.panel._cond_cards:
+            self.assertEqual(parts.ground.skin, _CARD_GROUND_SLOT)
+
+    def test_grass_is_bare_ground_and_the_rest_overlay_it(self):
+        cards = dict(self.panel._cond_cards)
+        self.assertIsNone(cards[TileCondition.GRASS].sprite.skin,
+                          "grass is the ABSENCE of a condition")
+        for cond in (TileCondition.MOUNTAIN, TileCondition.POND,
+                     TileCondition.FOREST):
+            self.assertTrue(cards[cond].sprite.skin.startswith("cond_"))
+
+    def test_the_composite_uses_the_world_anchor_rule(self):
+        """`engine/render/renderer.py`: a frame is blitted CENTRED on the tile
+        diamond, so a 64x96 condition spans `ground_top-32 .. ground_top+64`.
+        The card must show the same picture the board does."""
+        for _cond, parts in self.panel._cond_cards:
             if not parts.sprite.skin:
                 continue
-            self.assertEqual(tuple(parts.sprite.rect[2:]),
-                             tuple(store.frame_size(parts.sprite.skin)))
-
-    def test_grass_draws_the_regular_buildable_ground(self):
-        from game.ui.building_ui import _GRASS_CARD_SLOT
-
-        grass = dict(self.panel._cond_cards)[TileCondition.GRASS]
-        self.assertEqual(grass.sprite.skin, _GRASS_CARD_SLOT)
+            _gx, gy, _gw, gh = parts.ground.rect
+            _ox, oy, _ow, oh = parts.sprite.rect
+            self.assertEqual(gy - oy, (oh - gh) // 2)
+            self.assertLess(oy, gy, "condition art rises above its tile")
+            self.assertGreater(oy + oh, gy + gh)
 
     def test_scroll_clamps_against_the_full_row_count(self):
         """Regression: clamping against the BUILT card list (which shrinks as

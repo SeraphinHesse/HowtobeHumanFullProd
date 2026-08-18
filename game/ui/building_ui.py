@@ -189,12 +189,23 @@ _COND_CARD_ID_PREFIX = "cond_card_"
 _COND_CARD_PAD = 3
 _COND_CARD_SPRITE_FALLBACK = (64, 96)
 
-#: The slot a GRASS card draws: the regular buildable ground tile, not
-#: `cond_grass_*`. Grass is the ABSENCE of a terrain condition, and what the
-#: player is buying is ordinary buildable ground — so the card shows the
-#: ground they will build on, which is also the art they already read as
-#: "normal tile" everywhere else on the map.
-_GRASS_CARD_SLOT = "tile_buildable"
+#: The GROUND every terrain card draws under its condition art: the regular
+#: buildable ground tile, which is what the bought tile becomes. A card
+#: composites exactly what the map composites — `ground` layer then `terrain`
+#: layer (`game/map/conditions.py`) — so a mountain card reads as a mountain
+#: ON a tile, the way the player sees it on the board, instead of a sprite
+#: floating on the panel. Grass, having no condition art of its own, is just
+#: the ground.
+_CARD_GROUND_SLOT = "tile_buildable"
+
+#: The world's anchor rule, replicated for the card composite: a frame is
+#: blitted CENTRED on the tile diamond's centre (`engine/render/renderer.py`'s
+#: module docstring — `dest_y = py + tile_h/2 - frame_h/2`). So against a
+#: 64x32 ground at `G`, a 64x96 condition frame spans `G-32 .. G+64`: the art
+#: is authored centred in its frame, and the tile footprint lands in the
+#: MIDDLE third. Deriving the card's inner geometry from that one rule is what
+#: keeps the card and the board showing the same picture.
+_TILE_FRAME_H = 32
 _COND_CARD_GAP = 4         # list pitch = card height + this
 _COND_CARD_LIST_TOP = 112  # first card's y, clear of the UNLOCK button (75..93)
                            # and the not-adjacent warning under it (98)
@@ -1569,19 +1580,33 @@ class BuildingUI:
                                      slot if slot else self._cond_slot(t))
         return [(cond, *seen[cond]) for cond in TileCondition if cond in seen]
 
-    @staticmethod
-    def _cond_slot(tile):
-        """The art slot one tile contributes to its condition's card.
+    def _cond_slot(self, tile):
+        """The OVERLAY art slot one tile contributes to its condition's card,
+        or None for a card that is bare ground.
 
-        GRASS answers with the regular buildable GROUND tile (see
-        `_GRASS_CARD_SLOT`) rather than its `cond_grass_*` art: grass is the
-        absence of a condition, and the card should show the ordinary ground
-        the player is buying. Every other condition uses the tile's own
-        resolved `condition_slot`, which is `None` on a tile whose state has
-        no condition art at all (BACKGROUND / SPAWNING) — a chunk can straddle
-        those, and the caller keeps looking for a sibling that has art."""
-        return (_GRASS_CARD_SLOT if tile.condition == TileCondition.GRASS
-                else tile.condition_slot)
+        GRASS always answers None: it is the absence of a condition, and its
+        `cond_grass_*` slot ships without art anyway (the world's own emitter
+        skips it for the same reason). Every other condition uses the tile's
+        resolved `condition_slot` — `None` on a tile whose state has no
+        condition art at all (BACKGROUND / SPAWNING), which a chunk can
+        straddle, so the caller keeps looking for a sibling that has art — and
+        only if that slot is actually IMPORTED. An un-imported slot would
+        otherwise blit the engine's grey X (E-37); the card falls back to bare
+        ground, exactly as the map falls back to its colour diamond."""
+        if tile.condition == TileCondition.GRASS:
+            return None
+        slot = tile.condition_slot
+        return slot if slot and self._has_art(slot) else None
+
+    def _has_art(self, slot):
+        """Is ``slot`` actually imported? The `animation_total_ms(...) is not
+        None` probe `_card_portrait_slot` already uses, so the two cannot
+        disagree about what "imported" means. No store ⇒ assume yes: a
+        headless panel draws nothing anyway."""
+        store = self.assets
+        if store is None:
+            return True
+        return store.animation_total_ms(slot, "idle") is not None
 
     def _cond_sprite_size(self, slot):
         """The slot's OWN frame size — the card is sized to the sprite, never
@@ -1594,6 +1619,26 @@ class BuildingUI:
             return store.frame_size(slot)
         except KeyError:
             return _COND_CARD_SPRITE_FALLBACK
+
+    def _cond_tile_rects(self, x, y, overlay_slot):
+        """``(region_w, region_h, ground_rect, overlay_rect)`` for one card's
+        tile composite, with the region's top-left at ``(x, y)``.
+
+        Bare ground is just the ground frame. With an overlay, the region is
+        the overlay frame's box and the ground sits `(overlay_h - tile_h) / 2`
+        down it — the world's centred-on-the-diamond anchor, restated for a
+        HUD rect (see `_TILE_FRAME_H`). Both sprites keep their OWN frame
+        size; nothing is scaled to fit.
+        """
+        gw, gh = self._cond_sprite_size(_CARD_GROUND_SLOT)
+        if not overlay_slot:
+            return gw, gh, (x, y, gw, gh), None
+        ow, oh = self._cond_sprite_size(overlay_slot)
+        # The ground's top, measured down from the overlay frame's top: both
+        # are centred on the same diamond, so the gap is half the difference.
+        drop = (oh - gh) // 2
+        gx = x + max(0, (ow - gw) // 2)
+        return ow, oh, (gx, y + drop, gw, gh), (x, y, ow, oh)
 
     def _cond_card_column(self):
         """``(x, w)`` of the terrain card column — its GROUP's box."""
@@ -1657,17 +1702,27 @@ class BuildingUI:
             # not depend on the wrap (see `_cond_effect_rows`).
             n_rows = min(_COND_EFFECT_LINES,
                          _COND_EFFECT_ROWS_PER_LINE * len(lines))
-            sw, sh = self._cond_sprite_size(slot)
-            card_h = 2 * _COND_CARD_PAD + sh + step * (1 + n_rows)
+            # The tile COMPOSITE — ground, then the condition art over it,
+            # laid out on the world's own anchor rule. Centred horizontally: a
+            # 64px frame in a 118px card would otherwise sit hard against the
+            # left edge with 51px of dead space beside it.
+            probe_w, _probe_h = self._cond_tile_rects(0, 0, slot)[:2]
+            region_x = cx + max(_COND_CARD_PAD, (cw - probe_w) // 2)
+            rw, rh, ground_rect, overlay_rect = self._cond_tile_rects(
+                region_x, y + _COND_CARD_PAD, slot)
+            card_h = 2 * _COND_CARD_PAD + rh + step * (1 + n_rows)
             body = SimpleNamespace(rect=(cx, y, cw, card_h), skin=skin,
                                    visible=True)
-            # Centred: a 64px frame in a 118px card would otherwise sit hard
-            # against the left edge with 51px of dead space beside it.
+            ground = SimpleNamespace(rect=ground_rect,
+                                     skin=_CARD_GROUND_SLOT, visible=True)
+            # The overlay keeps the `_sprite` id it has always had, so a
+            # designer's existing override still points at the condition art.
+            # With no overlay (grass, or un-imported art) it carries no skin
+            # and simply does not draw — its rect still tracks the ground, so
+            # an override has something sane to start from.
             sprite = SimpleNamespace(
-                rect=(cx + max(_COND_CARD_PAD, (cw - sw) // 2),
-                      y + _COND_CARD_PAD, sw, sh),
-                skin=slot, visible=True)
-            name_y = y + _COND_CARD_PAD + sh
+                rect=overlay_rect or ground_rect, skin=slot, visible=True)
+            name_y = y + _COND_CARD_PAD + rh
             name = label_holder((cx + _COND_CARD_PAD, name_y, 0, 0),
                                 text_id="building.cond_card.name",
                                 font_key="sm")
@@ -1681,13 +1736,15 @@ class BuildingUI:
                 effects.append(label_holder(
                     (cx + _COND_CARD_PAD, effect_top + step * i, 0, 0),
                     font_key="sm"))
-            parts = SimpleNamespace(body=body, sprite=sprite, name=name,
-                                    count=count_lbl, count_value=count,
-                                    effects=effects, lines=lines,
+            parts = SimpleNamespace(body=body, ground=ground, sprite=sprite,
+                                    name=name, count=count_lbl,
+                                    count_value=count, effects=effects,
+                                    lines=lines,
                                     wrap_w=cw - 2 * _COND_CARD_PAD)
             self._cond_cards.append((cond, parts))
             key = f"{_COND_CARD_ID_PREFIX}{cond.name.lower()}"
             self.ids[key] = ("panel", body)
+            self.ids[f"{key}_ground"] = ("panel", ground)
             self.ids[f"{key}_sprite"] = ("panel", sprite)
             self.ids[f"{key}_name"] = ("label", name)
             self.ids[f"{key}_count"] = ("label", count_lbl)
@@ -1733,11 +1790,14 @@ class BuildingUI:
                              skin=parts.body.skin,
                              tint=getattr(parts.body, "tint", None),
                              anim_ms=anim_ms)
-            if is_visible(parts.sprite) and parts.sprite.skin:
-                submit_panel(renderer, parts.sprite.rect,
-                             skin=parts.sprite.skin,
-                             tint=getattr(parts.sprite, "tint", None),
-                             anim_ms=anim_ms)
+            # Ground, then the condition art over it — the same order the
+            # map composites its `ground` and `terrain` layers in, and the
+            # HUD queue draws in submission order.
+            for piece in (parts.ground, parts.sprite):
+                if is_visible(piece) and piece.skin:
+                    submit_panel(renderer, piece.rect, skin=piece.skin,
+                                 tint=getattr(piece, "tint", None),
+                                 anim_ms=anim_ms)
             submit_label(renderer, parts.name, color=color, label=label)
             submit_label(renderer, parts.count, color=widgets.C_UI_TEXT_DIM,
                          count=parts.count_value)
