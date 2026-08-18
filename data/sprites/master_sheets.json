@@ -1,7 +1,7 @@
 {
   "entries": {
     "alldeco": {
-      "column_width": 1,
+      "column_width": 35,
       "display_name": "Alldeco",
       "file": "master/alldeco.png",
       "frame_h": 96,

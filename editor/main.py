@@ -276,6 +276,11 @@ class MainWindow(QMainWindow):
         self.palette.eye_toggled.connect(self.viewport.set_eye)
         self.palette.grid_toggled.connect(self.viewport.set_grid_lines)
         self.palette.manifest_changed.connect(self._on_manifest_changed)
+        # A master-sheet column-width edit re-stamps every linking manifest
+        # entry, so the same ED-42 reload the import panel triggers has to run
+        # here or open previews keep slicing at the old column width until an
+        # editor restart.
+        self.master_sheets.manifest_changed.connect(self._on_manifest_changed)
         self.palette.add_level_requested.connect(self._on_add_level)
         self.palette.add_prop_requested.connect(self._on_add_prop)
         self.palette.add_deco_variant_requested.connect(
