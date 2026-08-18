@@ -124,6 +124,22 @@ TOOLTIP_CUSTOM_BAND = (
     "so it can never cover the screen's own text or buttons. Over draws it "
     "in front of everything — use it only for decoration meant to sit on top.")
 
+# UL-14: the same control on a CODE-OWNED widget, where the stakes are
+# different in both directions — the default is "leave it where the game
+# draws it", and banding it costs the widget its clicks.
+TOOLTIP_CODE_OWNED_BAND = (
+    "Not banded (the default) leaves this widget exactly where the game "
+    "draws it. Under moves it behind EVERYTHING on the screen and Over in "
+    "front of everything — in either band it sits among the custom widgets "
+    "and Z decides which of them is in front. A banded widget stops being "
+    "clickable, so only panels, images and text can be banded.")
+
+#: The widget kinds a `band` may relocate — a hand-kept mirror of
+#: `game/ui/skinning.py::_BANDABLE_KINDS` (editor/ may never import game/,
+#: the same accepted drift `_screen_primitives`/`custom_widgets_in_band`
+#: already record).
+_BANDABLE_KINDS = ("panel", "backdrop", "label")
+
 # UL-13: widget ids are GLOBAL to a screen (D2) and the runtime has no notion
 # of building_panel's editor-only views, so a custom widget authored while one
 # view is showing is drawn in every one of them. Stated inline on that screen,
@@ -1033,9 +1049,10 @@ class ScreenDetailsPanel(QWidget):
         self.custom_z_spin = _NoWheelSpinBox(self)
         self.custom_z_spin.setRange(-999, 999)
         self.custom_z_spin.setToolTip(
-            "Paint order among the CUSTOM widgets of the same band, "
-            "ascending. It never orders them against the screen's own "
-            "widgets — the band alone decides that.")
+            "Paint order within this widget's band, ascending — against the "
+            "custom widgets AND any of the screen's own widgets you have "
+            "banded. A widget that is not in a band ignores Z; the band "
+            "alone decides where it sits against everything else.")
         self.custom_z_spin.editingFinished.connect(self._on_custom_z_changed)
         self.custom_z_row_label = QLabel("Z", self)
         form.addRow(self.custom_z_row_label, self.custom_z_spin)
@@ -1065,21 +1082,66 @@ class ScreenDetailsPanel(QWidget):
         self._refresh_widget_list()
         self.select_widget(None)
 
-    def _on_custom_band_changed(self, index):
-        if self._populating or not self._is_custom(self._current_widget):
+    def _rebuild_band_items(self, custom_widget):
+        """Repopulate the Band combo for whichever kind of widget is selected.
+
+        Called with signals already blocked by `_refresh_custom_controls`;
+        it rebuilds only when the item set actually differs, so merely moving
+        the selection between two custom widgets touches nothing."""
+        wanted = [("Under", "under"), ("Over", "over")] if custom_widget \
+            else [("Not banded", None), ("Under", "under"), ("Over", "over")]
+        current = [(self.custom_band_combo.itemText(i),
+                    self.custom_band_combo.itemData(i))
+                   for i in range(self.custom_band_combo.count())]
+        if current == wanted:
             return
-        entry = self._custom_widgets().get(self._current_widget, {})
-        self._session.set_custom_field(
+        self.custom_band_combo.clear()
+        for text, data in wanted:
+            self.custom_band_combo.addItem(text, data)
+
+    def _band_entry(self):
+        """Where the selected widget's `band`/`z` live: its `custom_widgets`
+        geometry entry when it is custom, its `widgets/<id>` override when it
+        is code-owned (UL-14). `{}` when nothing bandable is selected."""
+        widget_id = self._current_widget
+        if widget_id is None:
+            return {}
+        if self._is_custom(widget_id):
+            return self._custom_widgets().get(widget_id, {})
+        return self._doc_widgets().get(widget_id, {})
+
+    def _band_target_kind(self):
+        """The kind of the selected widget IF it may carry a band, else None.
+
+        A custom widget always may — its three kinds are the bandable three.
+        A CODE-OWNED widget may only when its kind has a generic draw
+        (`game/ui/skinning.py::_BANDABLE_KINDS`): banding relocates it into a
+        layer pass and makes it INERT, which would silently kill a `button`'s
+        clicks and has nothing to draw for a `bar`/`field`."""
+        if self._session is None or self._session.doc is None:
+            return None
+        if self._current_widget is None:
+            return None
+        kind = self._current_spec().get("kind")
+        if self._is_custom(self._current_widget):
+            return kind
+        return kind if kind in _BANDABLE_KINDS else None
+
+    def _on_custom_band_changed(self, index):
+        if self._populating or self._band_target_kind() is None:
+            return
+        entry = self._band_entry()
+        self._session.set_band_field(
             self._current_widget, "band", entry.get("band"),
             self.custom_band_combo.itemData(index))
         self._refresh_custom_controls()
 
     def _on_custom_z_changed(self):
-        if self._populating or not self._is_custom(self._current_widget):
+        if self._populating or self._band_target_kind() is None:
             return
-        entry = self._custom_widgets().get(self._current_widget, {})
+        entry = self._band_entry()
         value = self.custom_z_spin.value()
-        self._session.set_custom_field(
+        self._session.set_band_field(
             self._current_widget, "z", entry.get("z"),
             value if value else None)
         self._refresh_custom_controls()
@@ -1099,14 +1161,25 @@ class ScreenDetailsPanel(QWidget):
                 self._session.screen_id, {}) or {}).get("views")))
         custom = open_screen and self._is_custom(self._current_widget)
         self.custom_remove_button.setEnabled(bool(custom))
-        self.custom_band_combo.setEnabled(bool(custom))
-        self.custom_z_spin.setEnabled(bool(custom))
-        entry = (self._custom_widgets().get(self._current_widget, {})
-                 if custom else {})
+        # UL-14: Band/Z follow anything BANDABLE now, not just a custom
+        # widget — a code-owned panel/backdrop/label may be relocated into a
+        # band so a custom widget can sort in front of it by z. Remove stays
+        # custom-only: a code-owned widget belongs to the exporter.
+        bandable = open_screen and self._band_target_kind() is not None
+        self.custom_band_combo.setEnabled(bool(bandable))
+        self.custom_z_spin.setEnabled(bool(bandable))
+        entry = self._band_entry() if bandable else {}
         self.custom_band_combo.blockSignals(True)
+        # A CUSTOM widget is always in one band or the other (absent means
+        # Under). A CODE-OWNED one is normally in NEITHER — it is drawn by
+        # its own screen — so it gets the extra "Not banded" choice, which is
+        # both its default and the way back out.
+        self._rebuild_band_items(custom_widget=bool(custom))
+        self.custom_band_combo.setToolTip(
+            TOOLTIP_CUSTOM_BAND if custom else TOOLTIP_CODE_OWNED_BAND)
         self.custom_band_combo.setCurrentIndex(
             max(0, self.custom_band_combo.findData(
-                entry.get("band") or "under")))
+                entry.get("band") or ("under" if custom else None))))
         self.custom_band_combo.blockSignals(False)
         self.custom_z_spin.blockSignals(True)
         self.custom_z_spin.setValue(entry.get("z") or 0)

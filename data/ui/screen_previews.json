@@ -1698,7 +1698,7 @@
               575,
               342
             ],
-            "text": "Terrain: Grass",
+            "text": "Grass",
             "type": "text"
           }
         ]
@@ -2719,7 +2719,7 @@
               575,
               342
             ],
-            "text": "Terrain: Grass",
+            "text": "Grass",
             "type": "text"
           },
           {
@@ -3436,7 +3436,7 @@
               519,
               159
             ],
-            "text": "No terrain effect",
+            "text": "No effect",
             "type": "text"
           },
           {
@@ -3470,6 +3470,24 @@
             ],
             "type": "rect",
             "width": 1
+          },
+          {
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              543,
+              193
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              64,
+              96
+            ],
+            "slot_key": "cond_mountain_combat",
+            "tint": null,
+            "type": "sprite"
           },
           {
             "align": "left",
@@ -3513,7 +3531,22 @@
               519,
               301
             ],
-            "text": "+1 range for defenders",
+            "text": "Range",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "sm",
+            "pos": [
+              519,
+              313
+            ],
+            "text": "+1",
             "type": "text"
           }
         ]
@@ -3767,7 +3800,7 @@
               575,
               47
             ],
-            "text": "Terrain: Grass",
+            "text": "Grass",
             "type": "text"
           },
           {

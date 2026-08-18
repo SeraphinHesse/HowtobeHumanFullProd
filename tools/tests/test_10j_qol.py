@@ -794,23 +794,23 @@ class TestLifeLostBanner(unittest.TestCase):
 
 class TestTerrainConditionTooltip(unittest.TestCase):
     """Tile Condition Rework: the terrain badge's hover tooltip
-    (``_tile_cond_effect_lines``) must say "Unbuildable tile" for Pond,
-    never fall through to the generic "No terrain effect" a condition with
-    no modifiers otherwise gets."""
+    (``_tile_cond_effect_lines``) must say "Unbuildable" for Pond, never
+    fall through to the generic "No effect" a condition with no modifiers
+    otherwise gets. It answers a ``[name, value]`` pair now."""
 
     def test_pond_says_unbuildable(self):
         _tm, _scene, _occupancy, session = make_world()
         panel = make_panel()
         panel._session = session
         self.assertEqual(panel._tile_cond_effect_lines(TileCondition.POND),
-                         ["Unbuildable tile"])
+                         ["Unbuildable", ""])
 
     def test_grass_is_still_no_terrain_effect(self):
         _tm, _scene, _occupancy, session = make_world()
         panel = make_panel()
         panel._session = session
         self.assertEqual(panel._tile_cond_effect_lines(TileCondition.GRASS),
-                         ["No terrain effect"])
+                         ["No effect", ""])
 
 
 # ---------------------------------------------------------------------------

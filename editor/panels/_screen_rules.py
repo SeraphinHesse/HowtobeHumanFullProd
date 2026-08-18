@@ -231,6 +231,59 @@ def custom_widgets_in_band(custom_widgets, band):
     return sorted(rows, key=lambda pair: pair[1].get("z") or 0)
 
 
+#: The widget kinds a `band` override may RELOCATE (UL-14) — a hand-kept
+#: mirror of `game/ui/skinning.py::_BANDABLE_KINDS`, the same accepted
+#: editor/game drift `custom_widgets_in_band` above records.
+BANDABLE_KINDS = ("panel", "backdrop", "label")
+
+
+def band_of(kind, override):
+    """The band a CODE-OWNED widget was relocated into, or None (UL-14) — the
+    mirror of `game/ui/skinning.py::band_of`. Absent `band` means "not
+    banded", NOT the "under" an absent band means on a custom widget."""
+    band = (override or {}).get("band")
+    if band and kind in BANDABLE_KINDS:
+        return band
+    return None
+
+
+def widgets_in_band(defaults_widgets, doc_widgets, custom_widgets, band):
+    """`[(id, is_custom), ...]` for everything drawn in `band`, in the game's
+    own paint order — the editor twin of `game/ui/skinning.py`'s merged band
+    list, matched BY EYE (editor/ may never import game/).
+
+    Custom widgets first, then the banded code-owned ones, the whole thing
+    stably sorted by `z` — so a z tie keeps custom-before-code exactly as the
+    game's own `sorted` does. `defaults_widgets` supplies the kinds (and the
+    code-owned iteration order); `doc_widgets` the overrides carrying band/z.
+    """
+    rows = [(name, True, entry.get("z") or 0)
+            for name, entry in custom_widgets_in_band(custom_widgets, band)]
+    for name, spec in (defaults_widgets or {}).items():
+        if name in (custom_widgets or {}):
+            continue
+        override = (doc_widgets or {}).get(name) or {}
+        if band_of((spec or {}).get("kind"), override) != band:
+            continue
+        rows.append((name, False, override.get("z") or 0))
+    return [(name, is_custom)
+            for name, is_custom, _z in sorted(rows, key=lambda r: r[2])]
+
+
+def banded_widget_ids(defaults_widgets, doc_widgets, custom_widgets):
+    """Every CODE-OWNED widget id this doc relocated into EITHER band — what
+    the preview's plain widget loops must skip, since a banded widget is
+    drawn (box and layers) by its band pass instead."""
+    out = set()
+    for name, spec in (defaults_widgets or {}).items():
+        if name in (custom_widgets or {}):
+            continue
+        if band_of((spec or {}).get("kind"),
+                   (doc_widgets or {}).get(name) or {}):
+            out.add(name)
+    return out
+
+
 # -- honest controls for a CUSTOM widget -------------------------------------
 # `color_is_code_owned`/`label_is_code_owned` above answer for CODE-OWNED
 # widgets, by citing what game code does at each holder's draw site. A custom

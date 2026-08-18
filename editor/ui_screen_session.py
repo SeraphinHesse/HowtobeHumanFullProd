@@ -625,3 +625,18 @@ class UIScreenSession(QObject):
             return
         self._push(("custom_widgets", widget_id, key), old_value, new_value,
                    f"edit {widget_id}.{key}")
+
+    def set_band_field(self, widget_id, key, old_value, new_value):
+        """Set `band` or `z` on ONE widget, in whichever table owns it (UL-14).
+
+        A CUSTOM widget's band/z are authoring metadata on its geometry entry
+        (`set_custom_field` above). A CODE-OWNED widget has no geometry entry
+        here — `screen_defaults.json` is generated and never written from the
+        editor — so its band/z are ORDINARY overrides under `widgets/<id>`,
+        which is also what the game reads them from. One entry point so the
+        Band/Z controls do not have to know which table they are editing."""
+        if widget_id in self._custom_widgets_raw():
+            self.set_custom_field(widget_id, key, old_value, new_value)
+            return
+        self._push(("widgets", widget_id, key), old_value, new_value,
+                   f"edit {widget_id}.{key}")

@@ -84,7 +84,7 @@
   "building.stat.value": "{value}",
   "building.stat.wall_hp": "Wall HP",
   "building.stat.yield": "Yield",
-  "building.terrain_badge": "Terrain: {label}",
+  "building.terrain_badge": "{label}",
   "building.unlock.hint": "Unlocks a 2x2 area",
   "building.unlock.not_adjacent": "Must touch your territory",
   "building.unlock.title": "UNLOCK TILE",

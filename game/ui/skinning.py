@@ -68,6 +68,32 @@ _DEFAULTS_SCHEMA = "screen_defaults.schema.json"
 #: for ``skin``.
 _SPEC_TO_ATTR = {"font": "font_key"}
 
+#: The widget kinds a ``band`` override may RELOCATE (UL-14). A banded widget
+#: is drawn generically by ``_submit_banded_widget`` from its AUTHORED
+#: appearance — the same three kinds ``custom_widgets`` allows, and for the
+#: same reason: only these have a meaningful code-free draw. ``button``/
+#: ``bar``/``field`` carry behaviour (a click target, a live fill ratio, a
+#: text buffer) that no generic draw can reproduce, so a ``band`` on one is
+#: IGNORED and it keeps drawing where its screen always drew it — never
+#: silently blanked.
+_BANDABLE_KINDS = ("panel", "backdrop", "label")
+
+
+def band_of(kind, spec) -> Optional[str]:
+    """The band a CODE-OWNED widget of this ``kind`` is relocated into, or
+    ``None`` for the normal case (drawn by its own screen, where it always
+    was).
+
+    Absent ``band`` means "not banded" — deliberately NOT the ``"under"`` a
+    custom widget's absent band means. A custom widget has no other home to
+    be drawn from, so it needs a default; a code-owned one does, and silently
+    yanking every widget out of its screen's own ``submit()`` is not something
+    an absent key may do."""
+    band = (spec or {}).get("band")
+    if band and kind in _BANDABLE_KINDS:
+        return band
+    return None
+
 
 def _as_tuple(value):
     """JSON arrays decode as lists; every widget elsewhere stores rect/color
@@ -247,12 +273,28 @@ class ScreenSkinning:
             self._validated_ids.add(screen_id)
         if not widgets_spec:
             return
-        for name, (_kind, widget) in ids.items():
+        for name, (kind, widget) in ids.items():
             spec = widgets_spec.get(name)
             if not spec:
                 continue
             for key, value in spec.items():
                 setattr(widget, _SPEC_TO_ATTR.get(key, key), _as_tuple(value))
+            # UL-14: a BANDED widget is drawn by ``submit_layers``'s band
+            # pass, not by its own screen — so the screen must skip it. The
+            # seam is ``visible``, forced False here, because that is the ONE
+            # flag every screen already consults at BOTH its draw sites and
+            # its hit sites (``is_visible``, and the two holders that read
+            # ``.visible`` directly). That makes a banded widget INERT as
+            # well as relocated, exactly like a custom widget: a click passes
+            # straight through to whatever is under it. Which is why
+            # ``_BANDABLE_KINDS`` excludes ``button`` — banding a control
+            # would silently kill its clicks, and the editor refuses it too.
+            #
+            # ``_submit_banded_widget`` therefore reads ``visible`` off the
+            # SPEC, never off the widget: this write would otherwise hide the
+            # widget from the very pass that is supposed to draw it.
+            if band_of(kind, spec):
+                widget.visible = False
 
     def state_of(self, widget) -> str:
         """Which of the four D9 states ``widget`` is in: ``"idle" | "hover" |
@@ -350,7 +392,14 @@ class ScreenSkinning:
         # alone would silently draw none of them.
         if not widgets_spec and not customs:
             return
+        # UL-14: the code-owned widgets this screen RELOCATED into a band.
+        # Both bands are collected, not just ours: a widget banded ``over``
+        # must be skipped by the ``under`` pass's layer loop too, or its
+        # layers would draw twice (once here, once at its own z below).
+        banded_here, banded_any = self._banded_in_band(screen_id, ids, band)
         for name, (_kind, widget) in ids.items():
+            if name in banded_any:
+                continue        # drawn, layers and all, at its own z below
             spec = widgets_spec.get(name)
             layer_list = (spec or {}).get("layers") or []
             if not layer_list:
@@ -361,8 +410,20 @@ class ScreenSkinning:
                 if resolved.get("visible") is False:
                     continue
                 self._submit_one_layer(renderer, resolved, state, anim_ms)
-        for name, entry in customs:
-            self._submit_custom_widget(renderer, screen_id, name, entry, band)
+        # Custom widgets and banded code-owned widgets share ONE z ordering
+        # (UL-14) — that is the whole point of banding a code-owned widget.
+        # ``sorted`` is stable, so a z tie keeps this list's own order:
+        # customs first (file order), then banded widgets (``ids`` order).
+        in_band = [(e.get("z") or 0, "custom", n, e) for n, e in customs]
+        in_band += [((widgets_spec.get(n) or {}).get("z") or 0, "code", n,
+                     (k, w)) for n, k, w in banded_here]
+        for _z, origin, name, payload in sorted(in_band, key=lambda r: r[0]):
+            if origin == "custom":
+                self._submit_custom_widget(renderer, screen_id, name,
+                                           payload, band)
+            else:
+                self._submit_banded_widget(renderer, screen_id, name, payload,
+                                           band, anim_ms)
 
     def custom_widgets(self, screen_id: str) -> Dict[str, Any]:
         """This screen's ``custom_widgets`` table (``{}`` when unset) — the
@@ -372,6 +433,115 @@ class ScreenSkinning:
         return (override or {}).get("custom_widgets") or {}
 
     # -- internal ----------------------------------------------------------
+
+    def _banded_in_band(self, screen_id, ids, band):
+        """``([(name, kind, widget), ...], {every banded name})`` — the
+        code-owned widgets this screen RELOCATED into ``band`` (UL-14), plus
+        the set of names banded into EITHER band.
+
+        The second value is what ``submit_layers``' layer loop skips on: a
+        banded widget's layers travel WITH it to its z slot, so the pass for
+        the OTHER band must not draw them at their owner's normal position.
+
+        Unbanded is the norm and stays free — a screen whose override table
+        names no ``band`` returns two empties after one dict lookup per id.
+        A ``band`` on a ``button``/``bar``/``field`` is ignored here exactly
+        as ``band_of`` says: that widget is not relocated and not skipped."""
+        widgets_spec = self._widgets_spec(screen_id)
+        if not widgets_spec:
+            return [], frozenset()
+        here, every = [], set()
+        for name, (kind, widget) in ids.items():
+            widget_band = band_of(kind, widgets_spec.get(name))
+            if widget_band is None:
+                continue
+            every.add(name)
+            if widget_band == band:
+                here.append((name, kind, widget))
+        return here, every
+
+    def _banded_spec(self, name, kind, widget, screen_id):
+        """The appearance a banded widget draws from: its ``widgets/<name>``
+        override, with the LIVE widget's own attributes underneath.
+
+        The override wins (it is the designer's word), but a code-set value
+        the designer never touched still draws — which is what makes banding
+        an icon holder whose ``skin`` is assigned in ``layout()`` do the
+        obvious thing rather than vanish.
+
+        **What a banded widget canNOT reproduce**: appearance the screen
+        computes at its own draw site and never stores on the holder — a
+        hand-coded fill colour (``hud``'s love pill), a live text value passed
+        as ``submit_label(..., text=)``. Those are code-owned by construction
+        (the same reason ``label`` is not an override key for a HUD readout);
+        a banded widget draws its AUTHORED appearance, and a designer who
+        wants a box there gives it a ``skin`` or a ``color``."""
+        spec = dict(self._widgets_spec(screen_id).get(name) or {})
+        for key, attr in (("skin", "skin"), ("tint", "tint"),
+                          ("color", "color"), ("label", "label"),
+                          ("text_id", "text_id"), ("font", "font_key"),
+                          ("text_color", "text_color"), ("align", "align")):
+            if spec.get(key) is None:
+                value = getattr(widget, attr, None)
+                if value is not None:
+                    spec[key] = value
+        # ``kind`` rides along so the draw reads one object, matching
+        # ``_submit_custom_widget``'s ``entry["kind"]``.
+        spec["kind"] = kind
+        return spec
+
+    def _submit_banded_widget(self, renderer, screen_id, name, pair, band,
+                              anim_ms: int = 0) -> None:
+        """Draw ONE code-owned widget that a ``band`` override RELOCATED into
+        this band (UL-14), then its own layers — the ``_submit_custom_widget``
+        twin, and deliberately the same primitives in the same precedence, so
+        a banded ``panel`` and a custom ``panel`` cannot look different.
+
+        Two things it does NOT share with that method:
+
+        * **The rect is the LIVE widget's**, not the spec's. A code-owned
+          widget's rect is computed by its screen's ``layout()`` every frame
+          (and only then overridden), so reading the spec would freeze a HUD
+          readout at whatever the designer typed and strand every unauthored
+          one at the origin.
+        * **``visible`` is read off the SPEC.** ``apply()`` forces
+          ``widget.visible = False`` on every banded widget — that is the
+          seam that stops its own screen drawing it — so the widget's flag
+          says nothing here. An authored ``visible: false`` still suppresses
+          the whole thing, the rule every screen applies.
+        """
+        kind, widget = pair
+        spec = self._banded_spec(name, kind, widget, screen_id)
+        if spec.get("visible") is False:
+            return
+        rect = _as_tuple(getattr(widget, "rect", None) or (0, 0, 0, 0))
+        x, y, w, h = rect
+        defaults = self.defaults(screen_id)
+        state = self.state_of(widget)
+        if kind in ("panel", "backdrop"):
+            skin = spec.get("skin")
+            if kind == "panel" and not skin:
+                skin = defaults.get("panel_skin")
+            if skin:
+                renderer.submit_hud(HudSprite(
+                    skin, (x, y), (w, h), animation=state,
+                    anim_time_ms=anim_ms, tint=_as_tuple(spec.get("tint"))))
+            else:
+                color = spec.get("color")
+                if color:
+                    renderer.submit_hud(HudRect((x, y, w, h),
+                                                _as_tuple(color)))
+            if kind == "panel":
+                self._submit_custom_text(renderer, spec, defaults, rect,
+                                         center=True)
+        elif kind == "label":
+            self._submit_custom_text(renderer, spec, defaults, rect,
+                                     center=False)
+        for layer in ui_layers.ordered(spec.get("layers") or [], band):
+            resolved = ui_layers.resolve(layer, rect, state)
+            if resolved.get("visible") is False:
+                continue
+            self._submit_one_layer(renderer, resolved, state, anim_ms)
 
     def _custom_in_band(self, screen_id, band):
         """``[(name, entry), ...]`` for this screen's custom widgets whose

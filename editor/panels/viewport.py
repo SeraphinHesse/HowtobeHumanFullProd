@@ -851,6 +851,18 @@ class ViewportPanel(QWidget):
         table = self._screen_session.doc.get("custom_widgets")
         return table if isinstance(table, dict) else {}
 
+    def _banded_widget_ids(self, defaults):
+        """Every CODE-OWNED widget id the open doc relocated into a band
+        (UL-14) — what the plain widget loops must skip, since a banded
+        widget is drawn (box AND layers) by its band pass instead. `set()`
+        when no session/doc is open, so every caller stays a plain `in`."""
+        if self._screen_session is None or self._screen_session.doc is None:
+            return set()
+        return _screen_rules.banded_widget_ids(
+            (defaults or {}).get("widgets", {}),
+            self._screen_session.doc.get("widgets", {}),
+            self._custom_widgets())
+
     def _with_custom_widgets(self, entry):
         """`entry` with the open doc's designer-authored custom widgets folded
         into its `widgets` map as synthetic default entries (B1 —
@@ -2838,6 +2850,9 @@ class ViewportPanel(QWidget):
         # treatment, and the same reason, as layers). Never bake one into
         # that file.
         customs = self._custom_widgets()
+        # UL-14: same treatment for a code-owned widget a `band` override
+        # relocated — the band pass owns it, so the plain loops skip it.
+        banded = self._banded_widget_ids(defaults)
         preview = self._current_screen_preview()
         if preview is not None:
             # UT-2: the recorded game draw list — real background, real fonts,
@@ -2860,8 +2875,8 @@ class ViewportPanel(QWidget):
                 self._submit_drag_preview(defaults, doc, scale, ox, oy, hidden)
                 return
             for widget_id, spec in defaults.get("widgets", {}).items():
-                if widget_id in customs:
-                    continue    # UL-13: composited by _submit_screen_layers
+                if widget_id in customs or widget_id in banded:
+                    continue    # UL-13/UL-14: composited by the band passes
                 self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy,
                                            hidden)
             self._submit_screen_layers(defaults, scale, ox, oy, hidden)
@@ -2871,8 +2886,8 @@ class ViewportPanel(QWidget):
         # their widgets here, because this path draws the widgets itself.
         self._submit_screen_layer_band(defaults, "under", scale, ox, oy, hidden)
         for widget_id, spec in defaults.get("widgets", {}).items():
-            if widget_id in customs:
-                continue        # UL-13: drawn by its own band pass
+            if widget_id in customs or widget_id in banded:
+                continue        # UL-13/UL-14: drawn by its own band pass
             self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy,
                                        hidden)
         self._submit_screen_layer_band(defaults, "over", scale, ox, oy, hidden)
@@ -3027,18 +3042,21 @@ class ViewportPanel(QWidget):
         `_submit_screen_items` submits them in."""
         doc = self._screen_session.doc
         customs = self._custom_widgets()
+        banded = self._banded_widget_ids(defaults)
         for widget_id in defaults.get("widgets", {}):
-            if widget_id in customs:
-                continue    # UL-13: drawn (box AND layers) by the pass below
+            if widget_id in customs or widget_id in banded:
+                continue    # UL-13/UL-14: drawn (box AND layers) below
             self._submit_widget_band_layers(widget_id, defaults, band, scale,
                                             ox, oy, hidden)
-        # UL-13: this screen's designer-authored widgets, at the TAIL of the
-        # band — the same place `skinning.submit_layers` draws them, after
-        # every code-owned widget's layers of the same band. Each draws its
-        # own box and then its own layers, so its `under` layer really does
-        # sit under it.
-        for widget_id, _entry in _screen_rules.custom_widgets_in_band(customs,
-                                                                     band):
+        # UL-13/UL-14: this screen's designer-authored widgets AND any
+        # code-owned widget a `band` override relocated here, at the TAIL of
+        # the band in one shared `z` order — the same place, and the same
+        # order, `skinning.submit_layers` draws them. Each draws its own box
+        # and then its own layers, so its `under` layer really does sit
+        # under it.
+        for widget_id, _is_custom in _screen_rules.widgets_in_band(
+                defaults.get("widgets", {}), doc.get("widgets", {}),
+                customs, band):
             spec = defaults.get("widgets", {}).get(widget_id)
             if spec is None:
                 continue

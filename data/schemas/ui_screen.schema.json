@@ -135,6 +135,13 @@
               ],
               "type": "string"
             },
+            "band": {
+              "description": "RELOCATE this CODE-OWNED widget out of the screen's own draw and into one of the two layer passes (UL-14): \"under\" (behind EVERYTHING the screen draws) or \"over\" (in front of everything), where it sorts by `z` against the custom widgets of that band. ABSENT is the normal case and means \"not banded\" -- the screen draws the widget itself, exactly where its own submit() always did; there is no default band for a code-owned widget. Honoured only for kind panel | backdrop | label (a banded widget is drawn generically from its AUTHORED appearance, and button/bar/field have no generic draw); on any other kind it is ignored and the widget draws normally. A banded widget is INERT: like a custom widget it is no longer hit-tested, and a click passes through to whatever is under it. On a CUSTOM widget id this key is ignored -- custom_widgets/<id>'s own band is what places it.",
+              "enum": [
+                "under",
+                "over"
+              ]
+            },
             "color": {
               "items": {
                 "maximum": 255,
@@ -762,6 +769,10 @@
             },
             "visible": {
               "type": "boolean"
+            },
+            "z": {
+              "description": "Paint order within this widget's `band`, ascending; absent means 0. Read ONLY when `band` is set, and it orders this widget against the custom widgets AND the other banded widgets of the same band -- which is the whole point of banding a code-owned widget. Ties keep pass order: custom widgets first (in file order), then banded code-owned widgets (in screen_defaults.json order).",
+              "type": "integer"
             }
           },
           "type": "object"

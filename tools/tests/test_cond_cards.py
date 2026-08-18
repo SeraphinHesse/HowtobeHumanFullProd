@@ -22,7 +22,7 @@ if str(REPO) not in sys.path:
 
 from game.map.tiles import TileCondition  # noqa: E402
 from game.ui.building_ui import (  # noqa: E402
-    _COND_CARD_ID_PREFIX, _COND_EFFECT_LINES, _COND_EFFECT_ROWS_PER_LINE,
+    _CARD_GROUND_SLOT, _COND_CARD_ID_PREFIX, _COND_EFFECT_LINES,
     _cond_effect_rows,
 )
 from tools import screen_mocks  # noqa: E402
@@ -34,7 +34,7 @@ DATA = REPO / "data"
 
 #: The child ids every terrain card carries, relative to its own
 #: `cond_card_<condition>` id.
-CARD_PARTS = ("_ground", "_sprite", "_name", "_count") + tuple(
+CARD_PARTS = ("_sprite", "_name", "_count") + tuple(
     f"_effect_{i}" for i in range(_COND_EFFECT_LINES))
 
 
@@ -97,40 +97,24 @@ class TestCondCardTree(unittest.TestCase):
         store = self.panel.assets
         self.assertIsNotNone(store, "the mock must carry an asset store")
         for _cond, parts in self.panel._cond_cards:
-            for piece in (parts.ground, parts.sprite):
-                if not piece.skin:
-                    continue
-                self.assertEqual(tuple(piece.rect[2:]),
-                                 tuple(store.frame_size(piece.skin)))
+            piece = parts.sprite
+            self.assertEqual(tuple(piece.rect[2:]),
+                             tuple(store.frame_size(piece.skin)))
 
-    def test_every_card_stands_on_the_buildable_ground_tile(self):
-        """The tile treatment: a card composites what the MAP composites —
-        ground layer, then condition art over it."""
-        from game.ui.building_ui import _CARD_GROUND_SLOT
-
+    def test_every_card_draws_exactly_one_preview_sprite(self):
+        """No ground composite any more: one `_sprite` widget per card, so a
+        designer's downsize/position override reaches all four the same way."""
         for _cond, parts in self.panel._cond_cards:
-            self.assertEqual(parts.ground.skin, _CARD_GROUND_SLOT)
+            self.assertFalse(hasattr(parts, "ground"))
+            self.assertTrue(parts.sprite.skin)
 
-    def test_grass_is_bare_ground_and_the_rest_overlay_it(self):
+    def test_grass_previews_the_plain_ground_tile(self):
         cards = dict(self.panel._cond_cards)
-        self.assertIsNone(cards[TileCondition.GRASS].sprite.skin,
-                          "grass is the ABSENCE of a condition")
+        self.assertEqual(cards[TileCondition.GRASS].sprite.skin,
+                         _CARD_GROUND_SLOT)
         for cond in (TileCondition.MOUNTAIN, TileCondition.POND,
                      TileCondition.FOREST):
             self.assertTrue(cards[cond].sprite.skin.startswith("cond_"))
-
-    def test_the_composite_uses_the_world_anchor_rule(self):
-        """`engine/render/renderer.py`: a frame is blitted CENTRED on the tile
-        diamond, so a 64x96 condition spans `ground_top-32 .. ground_top+64`.
-        The card must show the same picture the board does."""
-        for _cond, parts in self.panel._cond_cards:
-            if not parts.sprite.skin:
-                continue
-            _gx, gy, _gw, gh = parts.ground.rect
-            _ox, oy, _ow, oh = parts.sprite.rect
-            self.assertEqual(gy - oy, (oh - gh) // 2)
-            self.assertLess(oy, gy, "condition art rises above its tile")
-            self.assertGreater(oy + oh, gy + gh)
 
     def test_scroll_clamps_against_the_full_row_count(self):
         """Regression: clamping against the BUILT card list (which shrinks as
@@ -163,21 +147,22 @@ class TestCondCardTree(unittest.TestCase):
 
 
 class TestCondEffectRows(unittest.TestCase):
-    """The wrap is a DRAW-time concern; the row budget the rects are sized
-    against is not, which is what keeps a stored rect off a live measurement."""
+    """Row 0 names the effect, row 1 carries its number — always exactly
+    `_COND_EFFECT_LINES` entries, so row `i` addresses the same half."""
 
-    def test_rows_are_capped(self):
-        many = [f"effect line number {i} which is quite long" for i in range(9)]
-        self.assertLessEqual(len(_cond_effect_rows(many, 112)),
-                             _COND_EFFECT_LINES)
+    def test_rows_are_always_the_reserved_count(self):
+        self.assertEqual(len(_cond_effect_rows([])), _COND_EFFECT_LINES)
+        self.assertEqual(len(_cond_effect_rows(["a", "b", "c"])),
+                         _COND_EFFECT_LINES)
 
-    def test_a_long_line_wraps_within_its_budget(self):
-        rows = _cond_effect_rows(["-25% atk speed for defenders"], 112)
-        self.assertGreater(len(rows), 1)
-        self.assertLessEqual(len(rows), _COND_EFFECT_ROWS_PER_LINE)
+    def test_the_pair_is_name_then_value(self):
+        self.assertEqual(_cond_effect_rows(["Range", "+1"]), ["Range", "+1"])
 
-    def test_no_effects_means_no_rows(self):
-        self.assertEqual(_cond_effect_rows([], 112), [])
+    def test_a_condition_with_a_bonus_reads_as_a_name_and_a_number(self):
+        panel = _panel()
+        self.assertEqual(
+            panel._tile_cond_effect_lines(TileCondition.MOUNTAIN),
+            ["Range", "+1"])
 
 
 class TestTerrainBoxIsEditable(unittest.TestCase):

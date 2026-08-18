@@ -1122,21 +1122,32 @@ convention). The consequence to know: the boxes are a FIXED width now (the
 card column's) instead of growing to fit their text, because a stored rect may
 not depend on a font measurement.
 
-**A row is one VISUAL row, not one effect.** The effect copy was written for a
-box that grew to fit it — `-25% atk speed for defenders` is 188px at the
-shipped face, against 112px of box — so it wraps. The wrap happens at DRAW
-(`_cond_effect_rows`), where a live metric is allowed; the HEIGHT is budgeted
-at `_COND_EFFECT_ROWS_PER_LINE` (2) rows per effect LINE, which is computed
-from the line COUNT and so stays font-independent. Past two effects on one
-condition the `_COND_EFFECT_LINES` (5) cap bites and the tail stops drawing —
-today every condition has exactly one, and `map.json` ships modifiers for two
-conditions at all.
+**The two effect rows are a PAIR: a name and a number.** `_COND_EFFECT_LINES`
+is **2**, and the two rows are not a list — row 0 names the effect (`Range`),
+row 1 carries its value (`+1`). Each is its own widget
+(`cond_effect_line_0`/`_1`, `cond_card_<condition>_effect_0`/`_1`) so a
+designer can place the name and the number independently, side by side or
+stacked; that is the same split the per-stat `stat_<key>_label`/`_value`
+widgets use. `_tile_cond_effect_lines` returns exactly that pair, and
+`_cond_effect_rows` only pads/caps it to the reserved count.
+
+**Nothing wraps any more, and there is no row budget.** This replaces five
+rows of full sentences (`+1 range for defenders`) written for a tooltip that
+grew to fit them — 188px of copy against 112px of box, so they wrapped at
+DRAW while the HEIGHT had to be budgeted at 2 rows per line to stay off a live
+font measurement. Both halves are short by construction now, so the same list
+drives the build-time row count and the drawn text with no measurement between
+them. Only the FIRST effect a condition carries is reported; every condition
+has exactly one today, and `map.json` ships modifiers for two conditions at
+all. A second effect on one condition needs a second PAIR of rows, not a
+longer list.
 
 **A card is sized to its sprite, never the sprite to the card.** `HudSprite`
 STRETCHES a frame to whatever box it is given, so any box that is not the
 frame's own size distorts the art. `_cond_sprite_size` asks the asset store
-for `frame_size(slot)` and the card is built around the answer: 64x32 for a
-ground tile, 64x96 for a condition, making a card 74px or 138px tall. A frame
+for `frame_size(slot)` and the card is built around the answer: 64x96 for a
+condition, 64x32 for the plain ground tile grass falls back to, making a card
+138px or 74px tall. A frame
 size is committed DATA (`asset_manifest.json`), not a font metric — platform-
 deterministic, so it may reach a stored rect. **The exporter therefore needs
 an asset store too** (`screen_mocks.build_asset_store`, metadata-only — no PNG
@@ -1150,30 +1161,31 @@ list INDEX since the cards have variable height). Its clamp reads
 holds only the cards from the current offset down, so clamping against it
 shrank the limit as you scrolled and a scroll past the end walked backwards.
 
-**A card composites what the MAP composites.** Every terrain card draws the
-buildable GROUND tile (`_CARD_GROUND_SLOT`, `tile_buildable` — what the bought
-tile becomes) and then its condition art OVER it, in the same order the board
-draws its `ground` and `terrain` layers (`game/map/conditions.py`). So a
-mountain card reads as a mountain *on a tile*, the way the player sees it,
-rather than a sprite floating on the panel. Grass has no overlay at all: it is
-the absence of a condition, and its `cond_grass_*` slot ships without art
-anyway — the world's own emitter skips it for the same reason. The overlay
-keeps the `_sprite` id it has always had (so an existing override still points
-at the condition art) and the ground is a new `_ground` sibling.
+**A card draws exactly ONE sprite, at the `_sprite` id.** There is no ground
+composite: a card used to blit `_CARD_GROUND_SLOT` (`tile_buildable`) and then
+its condition art over it, in the same order the board draws its `ground` and
+`terrain` layers — but that gave grass a full-size ground tile where every
+other card showed a condition thumbnail, and a designer's per-card size/position
+override reached only the overlay. The `_ground` sibling widget is **deleted**;
+`_cond_tile_rect` places the one sprite at its own frame size, centred in the
+card's inner width.
 
-`_cond_tile_rects` derives the inner geometry from ONE rule — the renderer's
-anchor convention, that a frame is blitted centred on the tile diamond's
-centre (`engine/render/renderer.py`'s module docstring). Against a 64x32
-ground at `G`, a 64x96 condition frame therefore spans `G-32 .. G+64`: the art
-is authored centred in its frame, so the tile footprint lands in the middle
-third and the peak rises above it. Restating that rule anywhere else is how
-the card and the board start showing different pictures.
+`_CARD_GROUND_SLOT` survives as the FALLBACK PREVIEW, resolved in `_cond_slot`
+rather than drawn as a second layer. GRASS always answers it — grass is the
+absence of a condition and its `cond_grass_*` slot ships without art anyway
+(the world's own emitter skips it for the same reason) — and so does an
+UN-IMPORTED condition slot, rather than blitting the engine's grey X (E-37).
+`_has_art` uses the same `animation_total_ms(..., "idle") is not None` probe
+`_card_portrait_slot` does, so the two cannot disagree about what "imported"
+means; that is the card's analogue of the map falling back to its colour
+diamond. `_cond_card_rows` keeps scanning a chunk past a ground answer, so a
+chunk straddling a BACKGROUND/SPAWNING tile still shows a sibling's real
+terrain.
 
-An UN-IMPORTED condition slot falls back to bare ground rather than blitting
-the engine's grey X (E-37) — `_has_art` uses the same
-`animation_total_ms(..., "idle") is not None` probe `_card_portrait_slot`
-does, so the two cannot disagree about what "imported" means. That is the
-card's analogue of the map falling back to its colour diamond.
+Consequence for `skinning`: `cond_card_grass_sprite` and
+`cond_card_mountain_sprite` are now the same KIND of widget showing the same
+kind of art, so one authored box downsizes and positions every card's preview
+identically.
 
 Because the export mock's `TileMap` has no registry, `screen_mocks.
 _all_conditions_chunk` resolves the four slots itself — at COMBAT for every

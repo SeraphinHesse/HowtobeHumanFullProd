@@ -165,22 +165,19 @@ _CARD_PRICE_SKIN = "ui_button_pill"
 # sprite `sh` tall (see the frame-size note below):
 #   sprite    y+3 .. y+3+sh   centred horizontally; it owns the top band alone
 #   name      one row under it, full width, with the tile count right-aligned
-#   effects   under that, full width — a column beside a 64px sprite holds
-#             neither "Mountain" nor effect copy that runs to 188px at the
-#             shipped face
+#   effects   under that: ONE row naming the effect, one row carrying its
+#             number (see `_COND_EFFECT_LINES`)
 # so a card is `_COND_CARD_PAD*2 + sh + step*(1 + rows)` tall, laid out at
 # BUILD time (the `_layout_upgrade_rows` precedent: writing the default anchor
 # before `skinning.apply` is what lets a designer's rect override win), and
 # positioned inside its GROUP container rather than off `panel`.
 #
 # The sprite is drawn at the art's OWN frame size — `assets.frame_size(slot)`,
-# 64x32 for a ground tile and 64x96 for a condition (the tile diamond plus the
-# headroom a mountain or a tree needs). `HudSprite` STRETCHES a frame to the
-# box it is given rather than fitting it, so any box that is not the frame's
-# own size distorts the art; a card is sized to the sprite instead of the
-# other way round. That makes a card 74px (grass) to 138px tall, so four of
-# them do NOT fit the list at once and the list scrolls — see
-# `terrain_card_list`.
+# 64x96 for a condition (the tile diamond plus the headroom a mountain or a
+# tree needs), 64x32 for the plain ground tile grass falls back to.
+# `HudSprite` STRETCHES a frame to the box it is given rather than fitting it,
+# so any box that is not the frame's own size distorts the art; a card is
+# sized to the sprite instead of the other way round.
 #
 # A frame size is committed DATA (`asset_manifest.json`), not a font metric,
 # so it is deterministic across platforms and may reach a stored rect. The
@@ -189,23 +186,19 @@ _COND_CARD_ID_PREFIX = "cond_card_"
 _COND_CARD_PAD = 3
 _COND_CARD_SPRITE_FALLBACK = (64, 96)
 
-#: The GROUND every terrain card draws under its condition art: the regular
-#: buildable ground tile, which is what the bought tile becomes. A card
-#: composites exactly what the map composites — `ground` layer then `terrain`
-#: layer (`game/map/conditions.py`) — so a mountain card reads as a mountain
-#: ON a tile, the way the player sees it on the board, instead of a sprite
-#: floating on the panel. Grass, having no condition art of its own, is just
-#: the ground.
+#: The preview a card shows when its condition has no art of its own: the
+#: regular buildable ground tile, which is what the bought tile becomes.
+#: GRASS is the absence of a condition (its `cond_grass_*` slot ships without
+#: art, and the world's own emitter skips it for the same reason), and an
+#: un-imported condition slot would otherwise blit the engine's grey X (E-37).
+#:
+#: Nothing composites a ground tile UNDER the condition art any more — a card
+#: draws exactly ONE sprite, at the `cond_card_<condition>_sprite` id, so
+#: every card's preview is the same widget and a designer's downsize/position
+#: override applies to all four identically. (It used to draw a `_ground`
+#: sibling as well; that widget is gone.)
 _CARD_GROUND_SLOT = "tile_buildable"
 
-#: The world's anchor rule, replicated for the card composite: a frame is
-#: blitted CENTRED on the tile diamond's centre (`engine/render/renderer.py`'s
-#: module docstring — `dest_y = py + tile_h/2 - frame_h/2`). So against a
-#: 64x32 ground at `G`, a 64x96 condition frame spans `G-32 .. G+64`: the art
-#: is authored centred in its frame, and the tile footprint lands in the
-#: MIDDLE third. Deriving the card's inner geometry from that one rule is what
-#: keeps the card and the board showing the same picture.
-_TILE_FRAME_H = 32
 _COND_CARD_GAP = 4         # list pitch = card height + this
 _COND_CARD_LIST_TOP = 112  # first card's y, clear of the UNLOCK button (75..93)
                            # and the not-adjacent warning under it (98)
@@ -224,25 +217,23 @@ _COND_CARD_LIST_BOTTOM_PAD = 6
 _TERRAIN_LIST_ID = "terrain_card_list"
 _CONSTRUCT_LIST_ID = "construct_card_list"
 
-#: How many id'd rows the terrain box and each terrain card reserve for effect
-#: text. A row is one VISUAL row, not one effect: the effect copy
-#: (`_tile_cond_effect_lines`) is written for a tooltip that used to grow to
-#: fit it — "-25% atk speed for defenders" is 188px at the shipped face — and
-#: these boxes are a fixed 112px wide, so a line wraps.
+#: The terrain box and each terrain card reserve exactly TWO id'd effect rows,
+#: and the two are a PAIR, not a list: row 0 names the effect ("Range"), row 1
+#: carries its number ("+1"). That is what lets a designer place the name and
+#: the value independently — side by side, or stacked — the same split the
+#: per-stat `stat_<key>_label`/`stat_<key>_value` widgets use.
 #:
-#: `_COND_EFFECT_ROWS_PER_LINE` visual rows are BUDGETED per effect line when
-#: sizing the box, which is what keeps a stored height off a live font
-#: measurement (`tools/tests/test_layout_h_invariant.py`) — the wrap itself
-#: happens at DRAW, where a live metric is allowed. Two rows holds every line
-#: today's `TileConditions.modifiers` can produce, with the widest landing at
-#: 102px of the 112 available.
+#: It replaces five rows of full sentences ("+1 range for defenders"), which
+#: were written for a tooltip that grew to fit them and wrapped once the boxes
+#: became a fixed 112px wide. Nothing wraps now: both halves are short by
+#: construction, so `_tile_cond_effect_lines` may reach a stored rect with no
+#: live font measurement anywhere in the path.
 #:
-#: The cap bites only past two effects on one condition (5 rows budgets 2.5
-#: lines); today every condition has exactly one, and `map.json` ships
-#: modifiers for two conditions at all. Raise it if that changes, or the tail
-#: silently stops drawing.
-_COND_EFFECT_LINES = 5
-_COND_EFFECT_ROWS_PER_LINE = 2
+#: Only the FIRST effect a condition carries is shown. Today every condition
+#: has exactly one and `map.json` ships modifiers for two conditions at all;
+#: a second effect on one condition would need a second pair of rows, not a
+#: longer list.
+_COND_EFFECT_LINES = 2
 # -- /tile-condition cards -------------------------------------------------
 
 # 10I: tooltip chrome — dark panel, 1px border in the condition colour
@@ -289,19 +280,16 @@ def _boss_upgrade_copy(session, upgrade_id):
     return entry.get("name", upgrade_id), desc
 
 
-def _cond_effect_rows(lines, wrap_w):
-    """``lines`` (one string per effect) flattened into VISUAL rows wrapped to
-    ``wrap_w``, capped at `_COND_EFFECT_LINES`.
+def _cond_effect_rows(lines):
+    """The `(name, value)` pair padded/capped to exactly `_COND_EFFECT_LINES`
+    entries, so row `i` always addresses the same half of the effect.
 
-    Called at DRAW time only — `wrap_text` measures the live font, which may
-    never reach a stored rect (`game/ui/CLAUDE.md`); the row BUDGET the rects
-    are sized against is `_COND_EFFECT_ROWS_PER_LINE` per line, computed from
-    the line COUNT instead."""
-    rows = []
-    for line in lines:
-        rows.extend(wrap_text(line, "sm", wrap_w,
-                              max_lines=_COND_EFFECT_ROWS_PER_LINE))
-    return rows[:_COND_EFFECT_LINES]
+    No wrapping: both halves are short by construction (see
+    `_COND_EFFECT_LINES`), which is what lets the same list drive the BUILD-time
+    row budget and the DRAW-time text with no live font measurement between
+    them."""
+    rows = list(lines[:_COND_EFFECT_LINES])
+    return rows + [""] * (_COND_EFFECT_LINES - len(rows))
 
 
 def _row_step(font_key, leading=1):
@@ -1564,9 +1552,9 @@ class BuildingUI:
         player is entitled to see what they are getting), DEDUPED by condition
         so the list is at most one card per `TileCondition`. ``count`` is how
         many of the bought tiles carry it; ``slot`` is the terrain art slot of
-        the FIRST such tile, which is `None` on a tile whose condition family
-        has no imported art (the card then draws its body and no sprite —
-        never a grey X, the E-37 rule the construct-card portrait follows).
+        the FIRST such tile that has condition art of its own, falling back to
+        `_CARD_GROUND_SLOT` (the plain ground tile) when none of them does —
+        never a grey X, the E-37 rule the construct-card portrait follows.
 
         Ordered by the `TileCondition` declaration order, never by scan order,
         so the same purchase always produces the same list.
@@ -1576,27 +1564,32 @@ class BuildingUI:
         for rep, _cost in self._unlock_chunks(session):
             for t in tm.get_chunk_for_tile(rep):
                 count, slot = seen.get(t.condition, (0, None))
-                seen[t.condition] = (count + 1,
-                                     slot if slot else self._cond_slot(t))
+                # Keep looking past a ground fallback: a chunk can straddle a
+                # BACKGROUND/SPAWNING tile whose condition resolves to no art
+                # at all, and the card should show a sibling's real terrain.
+                if slot in (None, _CARD_GROUND_SLOT):
+                    slot = self._cond_slot(t)
+                seen[t.condition] = (count + 1, slot)
         return [(cond, *seen[cond]) for cond in TileCondition if cond in seen]
 
     def _cond_slot(self, tile):
-        """The OVERLAY art slot one tile contributes to its condition's card,
-        or None for a card that is bare ground.
+        """The art slot one tile contributes to its condition's card.
 
-        GRASS always answers None: it is the absence of a condition, and its
-        `cond_grass_*` slot ships without art anyway (the world's own emitter
-        skips it for the same reason). Every other condition uses the tile's
-        resolved `condition_slot` — `None` on a tile whose state has no
-        condition art at all (BACKGROUND / SPAWNING), which a chunk can
-        straddle, so the caller keeps looking for a sibling that has art — and
-        only if that slot is actually IMPORTED. An un-imported slot would
-        otherwise blit the engine's grey X (E-37); the card falls back to bare
-        ground, exactly as the map falls back to its colour diamond."""
+        GRASS always answers `_CARD_GROUND_SLOT`: it is the absence of a
+        condition, and its `cond_grass_*` slot ships without art anyway (the
+        world's own emitter skips it for the same reason), so the plain ground
+        tile IS its preview. Every other condition uses the tile's resolved
+        `condition_slot` — `None` on a tile whose state has no condition art at
+        all (BACKGROUND / SPAWNING), which a chunk can straddle, so the caller
+        keeps looking for a sibling that has art (`_cond_card_rows` prefers any
+        non-ground answer) — and only if that slot is actually IMPORTED. An
+        un-imported slot would otherwise blit the engine's grey X (E-37); the
+        card falls back to the ground tile, exactly as the map falls back to
+        its colour diamond."""
         if tile.condition == TileCondition.GRASS:
-            return None
+            return _CARD_GROUND_SLOT
         slot = tile.condition_slot
-        return slot if slot and self._has_art(slot) else None
+        return slot if slot and self._has_art(slot) else _CARD_GROUND_SLOT
 
     def _has_art(self, slot):
         """Is ``slot`` actually imported? The `animation_total_ms(...) is not
@@ -1620,25 +1613,16 @@ class BuildingUI:
         except KeyError:
             return _COND_CARD_SPRITE_FALLBACK
 
-    def _cond_tile_rects(self, x, y, overlay_slot):
-        """``(region_w, region_h, ground_rect, overlay_rect)`` for one card's
-        tile composite, with the region's top-left at ``(x, y)``.
+    def _cond_tile_rect(self, x, y, slot):
+        """The one sprite rect a card draws, top-left at ``(x, y)``.
 
-        Bare ground is just the ground frame. With an overlay, the region is
-        the overlay frame's box and the ground sits `(overlay_h - tile_h) / 2`
-        down it — the world's centred-on-the-diamond anchor, restated for a
-        HUD rect (see `_TILE_FRAME_H`). Both sprites keep their OWN frame
-        size; nothing is scaled to fit.
+        Its own frame size, never scaled to fit — see `_cond_sprite_size`.
+        There is no composite any more: a card draws exactly one sprite, so
+        every card's preview is the same widget and a designer's override
+        lands on all four the same way.
         """
-        gw, gh = self._cond_sprite_size(_CARD_GROUND_SLOT)
-        if not overlay_slot:
-            return gw, gh, (x, y, gw, gh), None
-        ow, oh = self._cond_sprite_size(overlay_slot)
-        # The ground's top, measured down from the overlay frame's top: both
-        # are centred on the same diamond, so the gap is half the difference.
-        drop = (oh - gh) // 2
-        gx = x + max(0, (ow - gw) // 2)
-        return ow, oh, (gx, y + drop, gw, gh), (x, y, ow, oh)
+        w, h = self._cond_sprite_size(slot)
+        return (x, y, w, h)
 
     def _cond_card_column(self):
         """``(x, w)`` of the terrain card column — its GROUP's box."""
@@ -1692,36 +1676,28 @@ class BuildingUI:
         self.cond_scroll_offset = offset
         y = top
         for cond, count, slot in rows[offset:]:
-            lines = self._tile_cond_effect_lines(cond)[:_COND_EFFECT_LINES]
-            # The sprite is a full-size tile, so it owns the card's top band
-            # on its own; the name + count row goes UNDER it, and the effect
-            # rows under that, both spanning the card's full inner width (a
-            # column beside a 64px sprite could hold neither "Mountain" nor a
-            # line the effect copy writes at up to 188px). The effect-row
-            # budget is per LINE, never per wrapped row — a stored height may
-            # not depend on the wrap (see `_cond_effect_rows`).
-            n_rows = min(_COND_EFFECT_LINES,
-                         _COND_EFFECT_ROWS_PER_LINE * len(lines))
-            # The tile COMPOSITE — ground, then the condition art over it,
-            # laid out on the world's own anchor rule. Centred horizontally: a
-            # 64px frame in a 118px card would otherwise sit hard against the
-            # left edge with 51px of dead space beside it.
-            probe_w, _probe_h = self._cond_tile_rects(0, 0, slot)[:2]
-            region_x = cx + max(_COND_CARD_PAD, (cw - probe_w) // 2)
-            rw, rh, ground_rect, overlay_rect = self._cond_tile_rects(
-                region_x, y + _COND_CARD_PAD, slot)
+            lines = self._tile_cond_effect_lines(cond)
+            # The sprite owns the card's top band on its own; the name + count
+            # row goes UNDER it, and the effect name/value pair under that,
+            # spanning the card's full inner width. The row count is the PAIR's
+            # length, so a stored height never depends on a font measurement.
+            n_rows = _COND_EFFECT_LINES
+            # Centred horizontally: a 64px frame in a 118px card would
+            # otherwise sit hard against the left edge with 51px of dead space
+            # beside it.
+            probe_w, _probe_h = self._cond_sprite_size(slot)
+            sprite_x = cx + max(_COND_CARD_PAD, (cw - probe_w) // 2)
+            sprite_rect = self._cond_tile_rect(
+                sprite_x, y + _COND_CARD_PAD, slot)
+            rh = sprite_rect[3]
             card_h = 2 * _COND_CARD_PAD + rh + step * (1 + n_rows)
             body = SimpleNamespace(rect=(cx, y, cw, card_h), skin=skin,
                                    visible=True)
-            ground = SimpleNamespace(rect=ground_rect,
-                                     skin=_CARD_GROUND_SLOT, visible=True)
-            # The overlay keeps the `_sprite` id it has always had, so a
-            # designer's existing override still points at the condition art.
-            # With no overlay (grass, or un-imported art) it carries no skin
-            # and simply does not draw — its rect still tracks the ground, so
-            # an override has something sane to start from.
-            sprite = SimpleNamespace(
-                rect=overlay_rect or ground_rect, skin=slot, visible=True)
+            # The card's ONE sprite keeps the `_sprite` id it has always had,
+            # so a designer's existing override still points at it — and now
+            # applies to grass identically, since grass draws the plain ground
+            # tile through this same widget instead of a separate `_ground`.
+            sprite = SimpleNamespace(rect=sprite_rect, skin=slot, visible=True)
             name_y = y + _COND_CARD_PAD + rh
             name = label_holder((cx + _COND_CARD_PAD, name_y, 0, 0),
                                 text_id="building.cond_card.name",
@@ -1736,15 +1712,13 @@ class BuildingUI:
                 effects.append(label_holder(
                     (cx + _COND_CARD_PAD, effect_top + step * i, 0, 0),
                     font_key="sm"))
-            parts = SimpleNamespace(body=body, ground=ground, sprite=sprite,
+            parts = SimpleNamespace(body=body, sprite=sprite,
                                     name=name, count=count_lbl,
                                     count_value=count, effects=effects,
-                                    lines=lines,
-                                    wrap_w=cw - 2 * _COND_CARD_PAD)
+                                    lines=lines)
             self._cond_cards.append((cond, parts))
             key = f"{_COND_CARD_ID_PREFIX}{cond.name.lower()}"
             self.ids[key] = ("panel", body)
-            self.ids[f"{key}_ground"] = ("panel", ground)
             self.ids[f"{key}_sprite"] = ("panel", sprite)
             self.ids[f"{key}_name"] = ("label", name)
             self.ids[f"{key}_count"] = ("label", count_lbl)
@@ -1790,23 +1764,16 @@ class BuildingUI:
                              skin=parts.body.skin,
                              tint=getattr(parts.body, "tint", None),
                              anim_ms=anim_ms)
-            # Ground, then the condition art over it — the same order the
-            # map composites its `ground` and `terrain` layers in, and the
-            # HUD queue draws in submission order.
-            for piece in (parts.ground, parts.sprite):
-                if is_visible(piece) and piece.skin:
-                    submit_panel(renderer, piece.rect, skin=piece.skin,
-                                 tint=getattr(piece, "tint", None),
-                                 anim_ms=anim_ms)
+            piece = parts.sprite
+            if is_visible(piece) and piece.skin:
+                submit_panel(renderer, piece.rect, skin=piece.skin,
+                             tint=getattr(piece, "tint", None),
+                             anim_ms=anim_ms)
             submit_label(renderer, parts.name, color=color, label=label)
             submit_label(renderer, parts.count, color=widgets.C_UI_TEXT_DIM,
                          count=parts.count_value)
-            # Wrapped HERE, not in `_build_cond_cards` — a live font
-            # measurement is allowed at draw time but must never reach a
-            # stored rect (the `_submit_construct` name-row precedent).
             for holder, text in zip(parts.effects,
-                                    _cond_effect_rows(parts.lines,
-                                                      parts.wrap_w)):
+                                    _cond_effect_rows(parts.lines)):
                 submit_label(renderer, holder, text=text,
                              color=widgets.C_UI_TEXT)
 
@@ -3317,34 +3284,33 @@ class BuildingUI:
     # :998-1014 badge, :1418-1438 effect lines, :1440-1477 chrome/footer) ----
 
     def _tile_cond_effect_lines(self, condition):
-        """Human copy for a condition's effects, values read LIVE from the map
-        balancing. Prototype-exact: the enemy dmg/speed effects are
+        """``[name, value]`` for a condition's effect — the NAME of the thing
+        it changes ("Range") and the change itself ("+1") — values read LIVE
+        from the map balancing.
+
+        Two entries, always, so row `i` always addresses the same half (see
+        `_COND_EFFECT_LINES`); a condition with nothing to say leaves the
+        value blank. Only the FIRST effect is reported — every condition has
+        exactly one today. Prototype-exact: the enemy dmg/speed effects are
         deliberately NOT listed."""
         if condition == TileCondition.GRASS:
-            return ["No terrain effect"]
+            return ["No effect", ""]
         if condition in CONDITION_BLOCKS_BUILD:
-            return ["Unbuildable tile"]
+            return ["Unbuildable", ""]
         mods = self._session.tilemap.balance["TileConditions"]["modifiers"]
         m = mods.get(CONDITION_MODIFIER_KEY.get(condition), {})
-        lines = []
         if m.get("def_range_bonus"):
-            lines.append(f'+{m["def_range_bonus"]} range for defenders')
+            return ["Range", f'+{m["def_range_bonus"]}']
         if m.get("def_attack_speed_penalty"):
-            lines.append(
-                f'-{m["def_attack_speed_penalty"] * 100:.0f}% atk speed'
-                ' for defenders')
+            return ["Atk speed",
+                    f'-{m["def_attack_speed_penalty"] * 100:.0f}%']
         if m.get("def_dmg_penalty"):
-            lines.append(
-                f'-{m["def_dmg_penalty"] * 100:.0f}% damage for defenders')
+            return ["Damage", f'-{m["def_dmg_penalty"] * 100:.0f}%']
         if m.get("eco_yield_penalty"):
-            lines.append(
-                f'-{m["eco_yield_penalty"] * 100:.0f}%/round'
-                ' for economy')
+            return ["Economy", f'-{m["eco_yield_penalty"] * 100:.0f}%']
         if m.get("eco_yield_bonus"):
-            lines.append(
-                f'+{m["eco_yield_bonus"] * 100:.0f}%/round'
-                ' for economy')
-        return lines or ["No terrain effect"]
+            return ["Economy", f'+{m["eco_yield_bonus"] * 100:.0f}%']
+        return ["No effect", ""]
 
     def _layout_cond_box(self, condition, y, above):
         """Place the terrain badge + effect box for ``condition``, with the
@@ -3357,19 +3323,19 @@ class BuildingUI:
         widgets carry one (`_layout_upgrade_rows`'s convention, and the same
         no-cascade rule: overriding the box does not move its lines).
 
-        The used effect lines are re-stacked compactly from the box's top and
-        recorded on `self._cond_effect_lines`; the reserved rows past that
-        count keep their anchors and never draw.
+        The effect NAME and its VALUE are stacked from the box's top by
+        default, one row each; a designer who wants them side by side moves
+        `cond_effect_line_1` in the editor (the two rows are independent
+        widgets precisely so that is possible).
         """
-        lines = self._tile_cond_effect_lines(condition)[:_COND_EFFECT_LINES]
+        lines = self._tile_cond_effect_lines(condition)
         self._cond_effect_lines = lines
         step = _row_step("sm")
         badge_h = _row_step("sm", 4)   # layout_h, not text_h — see above
         bx, _by, bw, _bh = self._cond_badge.rect
         self._cond_badge.rect = (bx, y, bw, badge_h)
         self._text["cond_badge_text"].rect = (bx + bw // 2, y + 2, 0, 0)
-        box_h = step * min(_COND_EFFECT_LINES,
-                           _COND_EFFECT_ROWS_PER_LINE * len(lines)) + 5
+        box_h = step * _COND_EFFECT_LINES + 5
         box_y = y - box_h - 3 if above else y + badge_h + 3
         self._cond_effect_box.rect = (bx, box_y, bw, box_h)
         for i in range(_COND_EFFECT_LINES):
@@ -3408,8 +3374,7 @@ class BuildingUI:
                          fill=_COND_TOOLTIP_BG, border=color,
                          skin=self._cond_effect_box.skin,
                          tint=getattr(self._cond_effect_box, "tint", None))
-        rows = _cond_effect_rows(self._cond_effect_lines,
-                                 self._cond_effect_box.rect[2] - 8)
+        rows = _cond_effect_rows(self._cond_effect_lines)
         for i, text in enumerate(rows):
             submit_label(renderer, self._text[f"cond_effect_line_{i}"],
                          text=text, color=widgets.C_UI_TEXT)

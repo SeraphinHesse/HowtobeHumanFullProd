@@ -330,7 +330,8 @@
         279,
         84,
         36
-      ]
+      ],
+      "visible": false
     },
     "round_label": {
       "parent": "custom_panel_4",
