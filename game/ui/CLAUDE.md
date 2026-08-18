@@ -1081,14 +1081,65 @@ phase edge; blue→yellow→red ramp in `heat_color`). `widgets.cond_label(name)
 (condition label + colour, keyed by `TileCondition.name` — the label text is
 Phase C string-table content, `widgets.condition.*`; see "Global UI string
 table" below) is shared with
-`building_ui`'s new terrain badges: a `Terrain: <Label>` pill in the upgrade
+`building_ui`'s terrain badges: a `Terrain: <Label>` pill in the upgrade
 panel (below Level, reads the building's `_tile_condition` snapshot) and at the
-unlock/construct panel foot (reads the tile), each with a hover tooltip whose
-effect lines read LIVE from `TileConditions.modifiers` (enemy effects
-deliberately unlisted, prototype-exact); the tooltip draws last/on top.
-`base_info` shows NO badge. The panel Range row + selection range highlight use
+construct panel foot (reads the tile), each with a hover effect box whose
+lines read LIVE from `TileConditions.modifiers` (enemy effects
+deliberately unlisted, prototype-exact); the box draws last/on top.
+`base_info` shows NO badge, and **unlock mode shows no badge either** — see
+the terrain cards below. The panel Range row + selection range highlight use
 `effective_range_tiles()` when present (mountain +1); the RANGE overlay stays
 raw.
+
+### Terrain cards + the terrain box as WIDGETS (unlock-screen rework)
+
+**Unlock mode lists the terrain the purchase covers.** `_build_cond_cards`
+emits one card per **distinct** `TileCondition` across every 2x2 chunk in the
+selection — not just the primary tile's chunk, because a shift multi-select
+buys them all — each carrying the condition's own terrain art, its name, how
+many bought tiles have it, and its effect lines. `_cond_card_rows` does the
+dedupe in `TileCondition` declaration order (never scan order) and keeps the
+first NON-`None` `condition_slot` it sees: a chunk straddling BACKGROUND or
+SPAWNING has tiles with no art at all, and the card should show the art of a
+sibling that has it rather than nothing.
+
+This is the SECOND dynamic-count family on this panel, and it follows the
+construct card's contract exactly (see "A construct card is a widget TREE"):
+COUNT is dynamic, KEY is stable, so every part of every card is individually
+overridable — `cond_card_<condition>` plus `_sprite`, `_name`, `_count` and
+`_effect_<i>`. `_clear_cond_card_ids` sweeps the one prefix. `screen_mocks.
+_all_conditions_chunk` forces all four conditions onto the exporter's mock
+chunk for the same reason `_unlock_every_type` unlocks every building type:
+a card with no `screen_defaults.json` record is invisible to the editor.
+
+**The badge and its effect box are widgets now.** Both used to be bare
+`HudRect`s shrink-wrapped around a live `text_size` call, which made them the
+only two things on this panel a designer could not touch. They are
+`cond_badge` / `cond_badge_text` / `cond_effect_box` / `cond_effect_line_<i>`,
+laid out by `_layout_cond_box` from the MODE BUILDERS — before
+`skinning.apply`, so a rect override wins (`_layout_upgrade_rows`'s
+convention). The consequence to know: the boxes are a FIXED width now (the
+card column's) instead of growing to fit their text, because a stored rect may
+not depend on a font measurement.
+
+**A row is one VISUAL row, not one effect.** The effect copy was written for a
+box that grew to fit it — `-25% atk speed for defenders` is 188px at the
+shipped face, against 112px of box — so it wraps. The wrap happens at DRAW
+(`_cond_effect_rows`), where a live metric is allowed; the HEIGHT is budgeted
+at `_COND_EFFECT_ROWS_PER_LINE` (2) rows per effect LINE, which is computed
+from the line COUNT and so stays font-independent. Past two effects on one
+condition the `_COND_EFFECT_LINES` (5) cap bites and the tail stops drawing —
+today every condition has exactly one, and `map.json` ships modifiers for two
+conditions at all.
+
+**Sizes are load-bearing, both of them.** The card sprite is 18x27, NOT
+square: condition art is a 64x96 frame and `HudSprite` STRETCHES to its box
+rather than fitting, so a square box squashes it. 27 is also the tallest head
+that keeps all four cards on screen in the worst case — `6 + 27 + 2 rows x 12
+= 57` per card, `4x57 + 3 gaps x 4 = 240` against the list viewport's 242px.
+Grow either and the fourth card starts clipping (it scrolls — `handle_scroll`
+serves unlock mode too, by list INDEX since the cards have variable height —
+but a designer should not have to scroll to see one purchase).
 
 ## TIERS pill (`btn_tier_overview`)
 The third `MapOverlays` toggle pill, added after 10I, sitting beside RANGE

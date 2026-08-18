@@ -162,29 +162,53 @@ _CARD_PRICE_SKIN = "ui_button_pill"
 # `cond_card_<condition>` and every part of it is individually overridable.
 #
 # The vertical fit, at "sm" (`layout_h` 11, so `_row_step("sm")` == 12):
-#   sprite    y+3 .. y+27  (24 square, the condition's own terrain art)
-#   name      y+3 .. y+14  row 0 of the right column
-#   effects   one row per effect line, from y+3+12
-# so a card is `_COND_CARD_PAD*2 + 24` tall at one line and grows a step per
-# extra line — compact, laid out at BUILD time (the `_layout_upgrade_rows`
-# precedent: writing the default anchor before `skinning.apply` is what lets
-# a designer's rect override win).
+#   sprite    y+3 .. y+30  (18x27, the condition's own terrain art)
+#   name      y+3 .. y+14  beside the sprite, with the tile count right of it
+#   effects   full card width, from y+30 down — 88px of right column cannot
+#             hold effect copy that runs to 188px at the shipped face
+# so a card is `_COND_CARD_PAD*2 + 27 + step*rows` tall, laid out at BUILD
+# time (the `_layout_upgrade_rows` precedent: writing the default anchor
+# before `skinning.apply` is what lets a designer's rect override win).
+#
+# The sprite is 18x27, NOT a square: condition art is a 64x96 frame (the tile
+# diamond plus the headroom a mountain or a tree needs), and `HudSprite`
+# STRETCHES a frame to the box it is given rather than fitting it, so a square
+# box would squash the art horizontally. 2:3 keeps it honest.
+#
+# 27 is also the tallest head that keeps all four cards on screen at once, the
+# worst case (four distinct conditions in one purchase): a card is 6 + 27 +
+# 2 rows x 12 = 57, and 4x57 + 3 gaps x 4 = 240 against the 242px the list
+# viewport has. Grow the sprite and the fourth card starts clipping (it
+# scrolls, but a designer should not have to scroll to see a purchase).
 _COND_CARD_ID_PREFIX = "cond_card_"
 _COND_CARD_PAD = 3
-_COND_CARD_SPRITE = 24     # square terrain sprite side
-_COND_CARD_COL_X = 30      # right column x, relative to the card's left edge
+_COND_CARD_SPRITE_W = 18   # terrain sprite box — 2:3, the art's own aspect
+_COND_CARD_SPRITE_H = 27
+_COND_CARD_COL_X = 24      # name/count column x, relative to the card's left
 _COND_CARD_GAP = 4         # list pitch = card height + this
 _COND_CARD_LIST_TOP = 112  # first card's y, clear of the UNLOCK button (75..93)
                            # and the not-adjacent warning under it (98)
 _COND_CARD_LIST_BOTTOM_PAD = 6
 
-#: How many effect lines the terrain box reserves an id'd widget for. This is
-#: the MAXIMUM `_tile_cond_effect_lines` can emit — one row per key it reads
-#: out of `TileConditions.modifiers` (`def_range_bonus`,
-#: `def_attack_speed_penalty`, `def_dmg_penalty`, `eco_yield_penalty`,
-#: `eco_yield_bonus`). Grow this the day that method learns a sixth line, or
-#: the sixth silently stops drawing.
+#: How many id'd rows the terrain box and each terrain card reserve for effect
+#: text. A row is one VISUAL row, not one effect: the effect copy
+#: (`_tile_cond_effect_lines`) is written for a tooltip that used to grow to
+#: fit it — "-25% atk speed for defenders" is 188px at the shipped face — and
+#: these boxes are a fixed 112px wide, so a line wraps.
+#:
+#: `_COND_EFFECT_ROWS_PER_LINE` visual rows are BUDGETED per effect line when
+#: sizing the box, which is what keeps a stored height off a live font
+#: measurement (`tools/tests/test_layout_h_invariant.py`) — the wrap itself
+#: happens at DRAW, where a live metric is allowed. Two rows holds every line
+#: today's `TileConditions.modifiers` can produce, with the widest landing at
+#: 102px of the 112 available.
+#:
+#: The cap bites only past two effects on one condition (5 rows budgets 2.5
+#: lines); today every condition has exactly one, and `map.json` ships
+#: modifiers for two conditions at all. Raise it if that changes, or the tail
+#: silently stops drawing.
 _COND_EFFECT_LINES = 5
+_COND_EFFECT_ROWS_PER_LINE = 2
 # -- /tile-condition cards -------------------------------------------------
 
 # 10I: tooltip chrome — dark panel, 1px border in the condition colour
@@ -229,6 +253,21 @@ def _boss_upgrade_copy(session, upgrade_id):
     except (KeyError, IndexError, ValueError):
         pass
     return entry.get("name", upgrade_id), desc
+
+
+def _cond_effect_rows(lines, wrap_w):
+    """``lines`` (one string per effect) flattened into VISUAL rows wrapped to
+    ``wrap_w``, capped at `_COND_EFFECT_LINES`.
+
+    Called at DRAW time only — `wrap_text` measures the live font, which may
+    never reach a stored rect (`game/ui/CLAUDE.md`); the row BUDGET the rects
+    are sized against is `_COND_EFFECT_ROWS_PER_LINE` per line, computed from
+    the line COUNT instead."""
+    rows = []
+    for line in lines:
+        rows.extend(wrap_text(line, "sm", wrap_w,
+                              max_lines=_COND_EFFECT_ROWS_PER_LINE))
+    return rows[:_COND_EFFECT_LINES]
 
 
 def _row_step(font_key, leading=1):
@@ -1526,13 +1565,20 @@ class BuildingUI:
         y = _COND_CARD_LIST_TOP
         for cond, count, slot in rows[offset:]:
             lines = self._tile_cond_effect_lines(cond)[:_COND_EFFECT_LINES]
-            text_h_total = step * (1 + len(lines))
-            card_h = max(_COND_CARD_SPRITE, text_h_total) + 2 * _COND_CARD_PAD
+            # Row 0 is the sprite + name + count; the effect rows sit BELOW
+            # the sprite and span the card's full inner width, because 88px of
+            # right column cannot hold a line the effect copy writes at up to
+            # 188px. The budget is per LINE, never per wrapped row — a stored
+            # height may not depend on the wrap (see `_cond_effect_rows`).
+            n_rows = min(_COND_EFFECT_LINES,
+                         _COND_EFFECT_ROWS_PER_LINE * len(lines))
+            head_h = max(_COND_CARD_SPRITE_H, step)
+            card_h = 2 * _COND_CARD_PAD + head_h + step * n_rows
             body = SimpleNamespace(rect=(cx, y, cw, card_h), skin=skin,
                                    visible=True)
             sprite = SimpleNamespace(
                 rect=(cx + _COND_CARD_PAD, y + _COND_CARD_PAD,
-                      _COND_CARD_SPRITE, _COND_CARD_SPRITE),
+                      _COND_CARD_SPRITE_W, _COND_CARD_SPRITE_H),
                 skin=slot, visible=True)
             name = label_holder((col_x, y + _COND_CARD_PAD, 0, 0),
                                 text_id="building.cond_card.name",
@@ -1542,13 +1588,15 @@ class BuildingUI:
                 text_id="building.cond_card.count", font_key="sm",
                 align="right")
             effects = []
+            effect_top = y + _COND_CARD_PAD + head_h
             for i in range(_COND_EFFECT_LINES):
                 effects.append(label_holder(
-                    (col_x, y + _COND_CARD_PAD + step * (1 + i), 0, 0),
+                    (cx + _COND_CARD_PAD, effect_top + step * i, 0, 0),
                     font_key="sm"))
             parts = SimpleNamespace(body=body, sprite=sprite, name=name,
                                     count=count_lbl, count_value=count,
-                                    effects=effects, lines=lines)
+                                    effects=effects, lines=lines,
+                                    wrap_w=cw - 2 * _COND_CARD_PAD)
             self._cond_cards.append((cond, parts))
             key = f"{_COND_CARD_ID_PREFIX}{cond.name.lower()}"
             self.ids[key] = ("panel", body)
@@ -1592,7 +1640,12 @@ class BuildingUI:
             submit_label(renderer, parts.name, color=color, label=label)
             submit_label(renderer, parts.count, color=widgets.C_UI_TEXT_DIM,
                          count=parts.count_value)
-            for holder, text in zip(parts.effects, parts.lines):
+            # Wrapped HERE, not in `_build_cond_cards` — a live font
+            # measurement is allowed at draw time but must never reach a
+            # stored rect (the `_submit_construct` name-row precedent).
+            for holder, text in zip(parts.effects,
+                                    _cond_effect_rows(parts.lines,
+                                                      parts.wrap_w)):
                 submit_label(renderer, holder, text=text,
                              color=widgets.C_UI_TEXT)
 
@@ -3149,7 +3202,8 @@ class BuildingUI:
         bx, _by, bw, _bh = self._cond_badge.rect
         self._cond_badge.rect = (bx, y, bw, badge_h)
         self._text["cond_badge_text"].rect = (bx + bw // 2, y + 2, 0, 0)
-        box_h = step * len(lines) + 5
+        box_h = step * min(_COND_EFFECT_LINES,
+                           _COND_EFFECT_ROWS_PER_LINE * len(lines)) + 5
         box_y = y - box_h - 3 if above else y + badge_h + 3
         self._cond_effect_box.rect = (bx, box_y, bw, box_h)
         for i in range(_COND_EFFECT_LINES):
@@ -3188,7 +3242,9 @@ class BuildingUI:
                          fill=_COND_TOOLTIP_BG, border=color,
                          skin=self._cond_effect_box.skin,
                          tint=getattr(self._cond_effect_box, "tint", None))
-        for i, text in enumerate(self._cond_effect_lines):
+        rows = _cond_effect_rows(self._cond_effect_lines,
+                                 self._cond_effect_box.rect[2] - 8)
+        for i, text in enumerate(rows):
             submit_label(renderer, self._text[f"cond_effect_line_{i}"],
                          text=text, color=widgets.C_UI_TEXT)
 

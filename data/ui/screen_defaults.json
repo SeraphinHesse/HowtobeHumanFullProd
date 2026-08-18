@@ -1542,9 +1542,9 @@
             "parent": "panel",
             "rect": [
               516,
-              320,
+              308,
               118,
-              17
+              29
             ]
           },
           "cond_effect_line_0": {
@@ -1555,7 +1555,7 @@
             "parent": "panel",
             "rect": [
               520,
-              322,
+              310,
               0,
               0
             ]
@@ -1568,7 +1568,7 @@
             "parent": "panel",
             "rect": [
               520,
-              334,
+              322,
               0,
               0
             ]
@@ -1581,7 +1581,7 @@
             "parent": "panel",
             "rect": [
               520,
-              346,
+              334,
               0,
               0
             ]
@@ -1594,7 +1594,7 @@
             "parent": "panel",
             "rect": [
               520,
-              358,
+              346,
               0,
               0
             ]
@@ -1607,7 +1607,7 @@
             "parent": "panel",
             "rect": [
               520,
-              370,
+              358,
               0,
               0
             ]
@@ -1744,9 +1744,9 @@
             "parent": "panel",
             "rect": [
               516,
-              214,
+              295,
               118,
-              30
+              57
             ]
           },
           "cond_card_forest_count": {
@@ -1758,7 +1758,7 @@
             "parent": "cond_card_forest",
             "rect": [
               631,
-              217,
+              298,
               0,
               0
             ],
@@ -1771,8 +1771,8 @@
             "label": "",
             "parent": "cond_card_forest",
             "rect": [
-              546,
-              229,
+              519,
+              325,
               0,
               0
             ]
@@ -1784,8 +1784,8 @@
             "label": "",
             "parent": "cond_card_forest",
             "rect": [
-              546,
-              241,
+              519,
+              337,
               0,
               0
             ]
@@ -1797,8 +1797,8 @@
             "label": "",
             "parent": "cond_card_forest",
             "rect": [
-              546,
-              253,
+              519,
+              349,
               0,
               0
             ]
@@ -1810,8 +1810,8 @@
             "label": "",
             "parent": "cond_card_forest",
             "rect": [
-              546,
-              265,
+              519,
+              361,
               0,
               0
             ]
@@ -1823,8 +1823,8 @@
             "label": "",
             "parent": "cond_card_forest",
             "rect": [
-              546,
-              277,
+              519,
+              373,
               0,
               0
             ]
@@ -1836,8 +1836,8 @@
             "label": "",
             "parent": "cond_card_forest",
             "rect": [
-              546,
-              217,
+              540,
+              298,
               0,
               0
             ],
@@ -1850,9 +1850,9 @@
             "parent": "cond_card_forest",
             "rect": [
               519,
-              217,
-              24,
-              24
+              298,
+              18,
+              27
             ]
           },
           "cond_card_grass": {
@@ -1864,7 +1864,7 @@
               516,
               112,
               118,
-              30
+              57
             ]
           },
           "cond_card_grass_count": {
@@ -1889,8 +1889,8 @@
             "label": "",
             "parent": "cond_card_grass",
             "rect": [
-              546,
-              127,
+              519,
+              142,
               0,
               0
             ]
@@ -1902,8 +1902,8 @@
             "label": "",
             "parent": "cond_card_grass",
             "rect": [
-              546,
-              139,
+              519,
+              154,
               0,
               0
             ]
@@ -1915,8 +1915,8 @@
             "label": "",
             "parent": "cond_card_grass",
             "rect": [
-              546,
-              151,
+              519,
+              166,
               0,
               0
             ]
@@ -1928,8 +1928,8 @@
             "label": "",
             "parent": "cond_card_grass",
             "rect": [
-              546,
-              163,
+              519,
+              178,
               0,
               0
             ]
@@ -1941,8 +1941,8 @@
             "label": "",
             "parent": "cond_card_grass",
             "rect": [
-              546,
-              175,
+              519,
+              190,
               0,
               0
             ]
@@ -1954,7 +1954,7 @@
             "label": "",
             "parent": "cond_card_grass",
             "rect": [
-              546,
+              540,
               115,
               0,
               0
@@ -1969,8 +1969,8 @@
             "rect": [
               519,
               115,
-              24,
-              24
+              18,
+              27
             ]
           },
           "cond_card_mountain": {
@@ -1980,9 +1980,9 @@
             "parent": "panel",
             "rect": [
               516,
-              146,
+              173,
               118,
-              30
+              57
             ]
           },
           "cond_card_mountain_count": {
@@ -1994,7 +1994,7 @@
             "parent": "cond_card_mountain",
             "rect": [
               631,
-              149,
+              176,
               0,
               0
             ],
@@ -2007,8 +2007,8 @@
             "label": "",
             "parent": "cond_card_mountain",
             "rect": [
-              546,
-              161,
+              519,
+              203,
               0,
               0
             ]
@@ -2020,8 +2020,8 @@
             "label": "",
             "parent": "cond_card_mountain",
             "rect": [
-              546,
-              173,
+              519,
+              215,
               0,
               0
             ]
@@ -2033,8 +2033,8 @@
             "label": "",
             "parent": "cond_card_mountain",
             "rect": [
-              546,
-              185,
+              519,
+              227,
               0,
               0
             ]
@@ -2046,8 +2046,8 @@
             "label": "",
             "parent": "cond_card_mountain",
             "rect": [
-              546,
-              197,
+              519,
+              239,
               0,
               0
             ]
@@ -2059,8 +2059,8 @@
             "label": "",
             "parent": "cond_card_mountain",
             "rect": [
-              546,
-              209,
+              519,
+              251,
               0,
               0
             ]
@@ -2072,8 +2072,8 @@
             "label": "",
             "parent": "cond_card_mountain",
             "rect": [
-              546,
-              149,
+              540,
+              176,
               0,
               0
             ],
@@ -2086,9 +2086,9 @@
             "parent": "cond_card_mountain",
             "rect": [
               519,
-              149,
-              24,
-              24
+              176,
+              18,
+              27
             ]
           },
           "cond_card_pond": {
@@ -2098,9 +2098,9 @@
             "parent": "panel",
             "rect": [
               516,
-              180,
+              234,
               118,
-              30
+              57
             ]
           },
           "cond_card_pond_count": {
@@ -2112,7 +2112,7 @@
             "parent": "cond_card_pond",
             "rect": [
               631,
-              183,
+              237,
               0,
               0
             ],
@@ -2125,8 +2125,8 @@
             "label": "",
             "parent": "cond_card_pond",
             "rect": [
-              546,
-              195,
+              519,
+              264,
               0,
               0
             ]
@@ -2138,8 +2138,8 @@
             "label": "",
             "parent": "cond_card_pond",
             "rect": [
-              546,
-              207,
+              519,
+              276,
               0,
               0
             ]
@@ -2151,8 +2151,8 @@
             "label": "",
             "parent": "cond_card_pond",
             "rect": [
-              546,
-              219,
+              519,
+              288,
               0,
               0
             ]
@@ -2164,8 +2164,8 @@
             "label": "",
             "parent": "cond_card_pond",
             "rect": [
-              546,
-              231,
+              519,
+              300,
               0,
               0
             ]
@@ -2177,8 +2177,8 @@
             "label": "",
             "parent": "cond_card_pond",
             "rect": [
-              546,
-              243,
+              519,
+              312,
               0,
               0
             ]
@@ -2190,8 +2190,8 @@
             "label": "",
             "parent": "cond_card_pond",
             "rect": [
-              546,
-              183,
+              540,
+              237,
               0,
               0
             ],
@@ -2204,9 +2204,9 @@
             "parent": "cond_card_pond",
             "rect": [
               519,
-              183,
-              24,
-              24
+              237,
+              18,
+              27
             ]
           },
           "panel": {
@@ -2332,7 +2332,7 @@
               516,
               63,
               118,
-              17
+              29
             ]
           },
           "cond_effect_line_0": {
@@ -4308,9 +4308,9 @@
         "parent": "panel",
         "rect": [
           516,
-          214,
+          295,
           118,
-          30
+          57
         ]
       },
       "cond_card_forest_count": {
@@ -4322,7 +4322,7 @@
         "parent": "cond_card_forest",
         "rect": [
           631,
-          217,
+          298,
           0,
           0
         ],
@@ -4335,8 +4335,8 @@
         "label": "",
         "parent": "cond_card_forest",
         "rect": [
-          546,
-          229,
+          519,
+          325,
           0,
           0
         ]
@@ -4348,8 +4348,8 @@
         "label": "",
         "parent": "cond_card_forest",
         "rect": [
-          546,
-          241,
+          519,
+          337,
           0,
           0
         ]
@@ -4361,8 +4361,8 @@
         "label": "",
         "parent": "cond_card_forest",
         "rect": [
-          546,
-          253,
+          519,
+          349,
           0,
           0
         ]
@@ -4374,8 +4374,8 @@
         "label": "",
         "parent": "cond_card_forest",
         "rect": [
-          546,
-          265,
+          519,
+          361,
           0,
           0
         ]
@@ -4387,8 +4387,8 @@
         "label": "",
         "parent": "cond_card_forest",
         "rect": [
-          546,
-          277,
+          519,
+          373,
           0,
           0
         ]
@@ -4400,8 +4400,8 @@
         "label": "",
         "parent": "cond_card_forest",
         "rect": [
-          546,
-          217,
+          540,
+          298,
           0,
           0
         ],
@@ -4414,9 +4414,9 @@
         "parent": "cond_card_forest",
         "rect": [
           519,
-          217,
-          24,
-          24
+          298,
+          18,
+          27
         ]
       },
       "cond_card_grass": {
@@ -4428,7 +4428,7 @@
           516,
           112,
           118,
-          30
+          57
         ]
       },
       "cond_card_grass_count": {
@@ -4453,8 +4453,8 @@
         "label": "",
         "parent": "cond_card_grass",
         "rect": [
-          546,
-          127,
+          519,
+          142,
           0,
           0
         ]
@@ -4466,8 +4466,8 @@
         "label": "",
         "parent": "cond_card_grass",
         "rect": [
-          546,
-          139,
+          519,
+          154,
           0,
           0
         ]
@@ -4479,8 +4479,8 @@
         "label": "",
         "parent": "cond_card_grass",
         "rect": [
-          546,
-          151,
+          519,
+          166,
           0,
           0
         ]
@@ -4492,8 +4492,8 @@
         "label": "",
         "parent": "cond_card_grass",
         "rect": [
-          546,
-          163,
+          519,
+          178,
           0,
           0
         ]
@@ -4505,8 +4505,8 @@
         "label": "",
         "parent": "cond_card_grass",
         "rect": [
-          546,
-          175,
+          519,
+          190,
           0,
           0
         ]
@@ -4518,7 +4518,7 @@
         "label": "",
         "parent": "cond_card_grass",
         "rect": [
-          546,
+          540,
           115,
           0,
           0
@@ -4533,8 +4533,8 @@
         "rect": [
           519,
           115,
-          24,
-          24
+          18,
+          27
         ]
       },
       "cond_card_mountain": {
@@ -4544,9 +4544,9 @@
         "parent": "panel",
         "rect": [
           516,
-          146,
+          173,
           118,
-          30
+          57
         ]
       },
       "cond_card_mountain_count": {
@@ -4558,7 +4558,7 @@
         "parent": "cond_card_mountain",
         "rect": [
           631,
-          149,
+          176,
           0,
           0
         ],
@@ -4571,8 +4571,8 @@
         "label": "",
         "parent": "cond_card_mountain",
         "rect": [
-          546,
-          161,
+          519,
+          203,
           0,
           0
         ]
@@ -4584,8 +4584,8 @@
         "label": "",
         "parent": "cond_card_mountain",
         "rect": [
-          546,
-          173,
+          519,
+          215,
           0,
           0
         ]
@@ -4597,8 +4597,8 @@
         "label": "",
         "parent": "cond_card_mountain",
         "rect": [
-          546,
-          185,
+          519,
+          227,
           0,
           0
         ]
@@ -4610,8 +4610,8 @@
         "label": "",
         "parent": "cond_card_mountain",
         "rect": [
-          546,
-          197,
+          519,
+          239,
           0,
           0
         ]
@@ -4623,8 +4623,8 @@
         "label": "",
         "parent": "cond_card_mountain",
         "rect": [
-          546,
-          209,
+          519,
+          251,
           0,
           0
         ]
@@ -4636,8 +4636,8 @@
         "label": "",
         "parent": "cond_card_mountain",
         "rect": [
-          546,
-          149,
+          540,
+          176,
           0,
           0
         ],
@@ -4650,9 +4650,9 @@
         "parent": "cond_card_mountain",
         "rect": [
           519,
-          149,
-          24,
-          24
+          176,
+          18,
+          27
         ]
       },
       "cond_card_pond": {
@@ -4662,9 +4662,9 @@
         "parent": "panel",
         "rect": [
           516,
-          180,
+          234,
           118,
-          30
+          57
         ]
       },
       "cond_card_pond_count": {
@@ -4676,7 +4676,7 @@
         "parent": "cond_card_pond",
         "rect": [
           631,
-          183,
+          237,
           0,
           0
         ],
@@ -4689,8 +4689,8 @@
         "label": "",
         "parent": "cond_card_pond",
         "rect": [
-          546,
-          195,
+          519,
+          264,
           0,
           0
         ]
@@ -4702,8 +4702,8 @@
         "label": "",
         "parent": "cond_card_pond",
         "rect": [
-          546,
-          207,
+          519,
+          276,
           0,
           0
         ]
@@ -4715,8 +4715,8 @@
         "label": "",
         "parent": "cond_card_pond",
         "rect": [
-          546,
-          219,
+          519,
+          288,
           0,
           0
         ]
@@ -4728,8 +4728,8 @@
         "label": "",
         "parent": "cond_card_pond",
         "rect": [
-          546,
-          231,
+          519,
+          300,
           0,
           0
         ]
@@ -4741,8 +4741,8 @@
         "label": "",
         "parent": "cond_card_pond",
         "rect": [
-          546,
-          243,
+          519,
+          312,
           0,
           0
         ]
@@ -4754,8 +4754,8 @@
         "label": "",
         "parent": "cond_card_pond",
         "rect": [
-          546,
-          183,
+          540,
+          237,
           0,
           0
         ],
@@ -4768,9 +4768,9 @@
         "parent": "cond_card_pond",
         "rect": [
           519,
-          183,
-          24,
-          24
+          237,
+          18,
+          27
         ]
       },
       "cond_effect_box": {
@@ -4780,9 +4780,9 @@
         "parent": "panel",
         "rect": [
           516,
-          320,
+          308,
           118,
-          17
+          29
         ]
       },
       "cond_effect_line_0": {
@@ -4793,7 +4793,7 @@
         "parent": "panel",
         "rect": [
           520,
-          322,
+          310,
           0,
           0
         ]
@@ -4806,7 +4806,7 @@
         "parent": "panel",
         "rect": [
           520,
-          334,
+          322,
           0,
           0
         ]
@@ -4819,7 +4819,7 @@
         "parent": "panel",
         "rect": [
           520,
-          346,
+          334,
           0,
           0
         ]
@@ -4832,7 +4832,7 @@
         "parent": "panel",
         "rect": [
           520,
-          358,
+          346,
           0,
           0
         ]
@@ -4845,7 +4845,7 @@
         "parent": "panel",
         "rect": [
           520,
-          370,
+          358,
           0,
           0
         ]

@@ -1,4 +1,16 @@
 {
+  "custom_widgets": {
+    "custom_panel_1": {
+      "band": "over",
+      "kind": "panel",
+      "rect": [
+        220,
+        120,
+        200,
+        120
+      ]
+    }
+  },
   "defaults": {
     "button_skin": "ui_button_panel_v5",
     "panel_skin": "ui_button_panel_v5"
@@ -7,8 +19,8 @@
     "action_btn": {
       "font": "md",
       "rect": [
-        486,
-        199,
+        487,
+        254,
         140,
         40
       ],
@@ -51,7 +63,7 @@
     },
     "card_aoe_defence_name": {
       "rect": [
-        557,
+        556,
         122,
         0,
         0
@@ -59,7 +71,7 @@
     },
     "card_aoe_defence_name2": {
       "rect": [
-        557,
+        556,
         134,
         0,
         0
@@ -67,7 +79,7 @@
     },
     "card_aoe_defence_portrait": {
       "rect": [
-        519,
+        518,
         123,
         34,
         34
@@ -75,7 +87,7 @@
     },
     "card_aoe_defence_price": {
       "rect": [
-        557,
+        556,
         144,
         74,
         14
@@ -91,7 +103,7 @@
     },
     "card_aoe_defence_price_text": {
       "rect": [
-        573,
+        572,
         146,
         0,
         0
@@ -107,7 +119,7 @@
     },
     "card_blocker_name": {
       "rect": [
-        557,
+        556,
         474,
         0,
         0
@@ -115,7 +127,7 @@
     },
     "card_blocker_name2": {
       "rect": [
-        557,
+        556,
         486,
         0,
         0
@@ -123,7 +135,7 @@
     },
     "card_blocker_portrait": {
       "rect": [
-        519,
+        518,
         475,
         34,
         34
@@ -131,7 +143,7 @@
     },
     "card_blocker_price": {
       "rect": [
-        557,
+        556,
         496,
         74,
         14
@@ -147,7 +159,7 @@
     },
     "card_blocker_price_text": {
       "rect": [
-        573,
+        572,
         498,
         0,
         0
@@ -163,7 +175,7 @@
     },
     "card_boost_damage_name": {
       "rect": [
-        557,
+        556,
         386,
         0,
         0
@@ -171,7 +183,7 @@
     },
     "card_boost_damage_name2": {
       "rect": [
-        557,
+        556,
         398,
         0,
         0
@@ -179,7 +191,7 @@
     },
     "card_boost_damage_portrait": {
       "rect": [
-        519,
+        518,
         387,
         34,
         34
@@ -187,7 +199,7 @@
     },
     "card_boost_damage_price": {
       "rect": [
-        557,
+        556,
         408,
         74,
         14
@@ -203,7 +215,7 @@
     },
     "card_boost_damage_price_text": {
       "rect": [
-        573,
+        572,
         410,
         0,
         0
@@ -219,7 +231,7 @@
     },
     "card_boost_hp_name": {
       "rect": [
-        557,
+        556,
         430,
         0,
         0
@@ -227,7 +239,7 @@
     },
     "card_boost_hp_name2": {
       "rect": [
-        557,
+        556,
         442,
         0,
         0
@@ -235,7 +247,7 @@
     },
     "card_boost_hp_portrait": {
       "rect": [
-        519,
+        518,
         431,
         34,
         34
@@ -243,7 +255,7 @@
     },
     "card_boost_hp_price": {
       "rect": [
-        557,
+        556,
         452,
         74,
         14
@@ -259,7 +271,7 @@
     },
     "card_boost_hp_price_text": {
       "rect": [
-        573,
+        572,
         454,
         0,
         0
@@ -275,7 +287,7 @@
     },
     "card_boost_speed_name": {
       "rect": [
-        557,
+        556,
         342,
         0,
         0
@@ -283,7 +295,7 @@
     },
     "card_boost_speed_name2": {
       "rect": [
-        557,
+        556,
         354,
         0,
         0
@@ -291,7 +303,7 @@
     },
     "card_boost_speed_portrait": {
       "rect": [
-        519,
+        518,
         343,
         34,
         34
@@ -299,7 +311,7 @@
     },
     "card_boost_speed_price": {
       "rect": [
-        557,
+        556,
         364,
         74,
         14
@@ -315,21 +327,21 @@
     },
     "card_boost_speed_price_text": {
       "rect": [
-        573,
+        572,
         366,
         0,
         0
       ]
     },
     "card_defence": {
+      "parent": null,
       "rect": [
-        516,
-        32,
-        118,
-        40
+        524,
+        37,
+        22,
+        22
       ],
-      "skin": "ui_button",
-      "visible": false
+      "skin": "ui_button"
     },
     "card_defence_name": {
       "rect": [
@@ -390,7 +402,7 @@
     },
     "card_economic_name": {
       "rect": [
-        557,
+        556,
         78,
         0,
         0
@@ -398,7 +410,7 @@
     },
     "card_economic_name2": {
       "rect": [
-        557,
+        556,
         90,
         0,
         0
@@ -406,7 +418,7 @@
     },
     "card_economic_portrait": {
       "rect": [
-        519,
+        518,
         79,
         34,
         34
@@ -414,7 +426,7 @@
     },
     "card_economic_price": {
       "rect": [
-        557,
+        556,
         100,
         74,
         14
@@ -430,7 +442,7 @@
     },
     "card_economic_price_text": {
       "rect": [
-        573,
+        572,
         102,
         0,
         0
@@ -446,7 +458,7 @@
     },
     "card_meditator_name": {
       "rect": [
-        557,
+        556,
         298,
         0,
         0
@@ -454,7 +466,7 @@
     },
     "card_meditator_name2": {
       "rect": [
-        557,
+        556,
         310,
         0,
         0
@@ -462,7 +474,7 @@
     },
     "card_meditator_portrait": {
       "rect": [
-        519,
+        518,
         299,
         34,
         34
@@ -470,7 +482,7 @@
     },
     "card_meditator_price": {
       "rect": [
-        557,
+        556,
         320,
         74,
         14
@@ -486,7 +498,7 @@
     },
     "card_meditator_price_text": {
       "rect": [
-        573,
+        572,
         322,
         0,
         0
@@ -502,7 +514,7 @@
     },
     "card_painter_name": {
       "rect": [
-        557,
+        556,
         254,
         0,
         0
@@ -510,7 +522,7 @@
     },
     "card_painter_name2": {
       "rect": [
-        557,
+        556,
         266,
         0,
         0
@@ -518,7 +530,7 @@
     },
     "card_painter_portrait": {
       "rect": [
-        519,
+        518,
         255,
         34,
         34
@@ -526,7 +538,7 @@
     },
     "card_painter_price": {
       "rect": [
-        557,
+        556,
         276,
         74,
         14
@@ -542,7 +554,7 @@
     },
     "card_painter_price_text": {
       "rect": [
-        573,
+        572,
         278,
         0,
         0
@@ -558,7 +570,7 @@
     },
     "card_storm_priest_name": {
       "rect": [
-        557,
+        556,
         210,
         0,
         0
@@ -566,7 +578,7 @@
     },
     "card_storm_priest_name2": {
       "rect": [
-        557,
+        556,
         222,
         0,
         0
@@ -574,7 +586,7 @@
     },
     "card_storm_priest_portrait": {
       "rect": [
-        519,
+        518,
         211,
         34,
         34
@@ -582,7 +594,7 @@
     },
     "card_storm_priest_price": {
       "rect": [
-        557,
+        556,
         232,
         74,
         14
@@ -598,7 +610,7 @@
     },
     "card_storm_priest_price_text": {
       "rect": [
-        573,
+        572,
         234,
         0,
         0
@@ -614,7 +626,7 @@
     },
     "card_sun_scorcher_name": {
       "rect": [
-        557,
+        556,
         166,
         0,
         0
@@ -622,7 +634,7 @@
     },
     "card_sun_scorcher_name2": {
       "rect": [
-        557,
+        556,
         178,
         0,
         0
@@ -630,7 +642,7 @@
     },
     "card_sun_scorcher_portrait": {
       "rect": [
-        519,
+        518,
         167,
         34,
         34
@@ -638,7 +650,7 @@
     },
     "card_sun_scorcher_price": {
       "rect": [
-        557,
+        556,
         188,
         74,
         14
@@ -654,7 +666,7 @@
     },
     "card_sun_scorcher_price_text": {
       "rect": [
-        573,
+        572,
         190,
         0,
         0
@@ -670,7 +682,7 @@
     },
     "card_wall_builder_name": {
       "rect": [
-        557,
+        556,
         518,
         0,
         0
@@ -678,7 +690,7 @@
     },
     "card_wall_builder_name2": {
       "rect": [
-        557,
+        556,
         530,
         0,
         0
@@ -686,7 +698,7 @@
     },
     "card_wall_builder_portrait": {
       "rect": [
-        519,
+        518,
         519,
         34,
         34
@@ -694,7 +706,7 @@
     },
     "card_wall_builder_price": {
       "rect": [
-        557,
+        556,
         540,
         74,
         14
@@ -710,7 +722,7 @@
     },
     "card_wall_builder_price_text": {
       "rect": [
-        573,
+        572,
         542,
         0,
         0
@@ -719,20 +731,387 @@
     "close_btn": {
       "label": "",
       "rect": [
-        431,
+        430,
         57,
         42,
         55
       ],
       "skin": "ui_button_panel_v2"
     },
+    "cond_badge": {
+      "rect": [
+        516,
+        340,
+        118,
+        15
+      ]
+    },
+    "cond_badge_text": {
+      "rect": [
+        574,
+        342,
+        0,
+        0
+      ]
+    },
+    "cond_card_forest": {
+      "rect": [
+        516,
+        214,
+        118,
+        30
+      ]
+    },
+    "cond_card_forest_count": {
+      "rect": [
+        631,
+        217,
+        0,
+        0
+      ]
+    },
+    "cond_card_forest_effect_0": {
+      "rect": [
+        546,
+        229,
+        0,
+        0
+      ]
+    },
+    "cond_card_forest_effect_1": {
+      "rect": [
+        546,
+        241,
+        0,
+        0
+      ]
+    },
+    "cond_card_forest_effect_2": {
+      "rect": [
+        546,
+        253,
+        0,
+        0
+      ]
+    },
+    "cond_card_forest_effect_3": {
+      "rect": [
+        546,
+        265,
+        0,
+        0
+      ]
+    },
+    "cond_card_forest_effect_4": {
+      "rect": [
+        546,
+        277,
+        0,
+        0
+      ]
+    },
+    "cond_card_forest_name": {
+      "rect": [
+        546,
+        217,
+        0,
+        0
+      ]
+    },
+    "cond_card_forest_sprite": {
+      "rect": [
+        519,
+        217,
+        24,
+        24
+      ]
+    },
+    "cond_card_grass": {
+      "rect": [
+        516,
+        112,
+        118,
+        30
+      ]
+    },
+    "cond_card_grass_count": {
+      "rect": [
+        631,
+        115,
+        0,
+        0
+      ]
+    },
+    "cond_card_grass_effect_0": {
+      "rect": [
+        546,
+        127,
+        0,
+        0
+      ]
+    },
+    "cond_card_grass_effect_1": {
+      "rect": [
+        546,
+        139,
+        0,
+        0
+      ]
+    },
+    "cond_card_grass_effect_2": {
+      "rect": [
+        546,
+        151,
+        0,
+        0
+      ]
+    },
+    "cond_card_grass_effect_3": {
+      "rect": [
+        546,
+        163,
+        0,
+        0
+      ]
+    },
+    "cond_card_grass_effect_4": {
+      "rect": [
+        546,
+        175,
+        0,
+        0
+      ]
+    },
+    "cond_card_grass_name": {
+      "rect": [
+        546,
+        115,
+        0,
+        0
+      ]
+    },
+    "cond_card_grass_sprite": {
+      "rect": [
+        519,
+        115,
+        24,
+        24
+      ]
+    },
+    "cond_card_mountain": {
+      "rect": [
+        516,
+        146,
+        118,
+        30
+      ]
+    },
+    "cond_card_mountain_count": {
+      "rect": [
+        631,
+        149,
+        0,
+        0
+      ]
+    },
+    "cond_card_mountain_effect_0": {
+      "rect": [
+        546,
+        161,
+        0,
+        0
+      ]
+    },
+    "cond_card_mountain_effect_1": {
+      "rect": [
+        546,
+        173,
+        0,
+        0
+      ]
+    },
+    "cond_card_mountain_effect_2": {
+      "rect": [
+        546,
+        185,
+        0,
+        0
+      ]
+    },
+    "cond_card_mountain_effect_3": {
+      "rect": [
+        546,
+        197,
+        0,
+        0
+      ]
+    },
+    "cond_card_mountain_effect_4": {
+      "rect": [
+        546,
+        209,
+        0,
+        0
+      ]
+    },
+    "cond_card_mountain_name": {
+      "rect": [
+        546,
+        149,
+        0,
+        0
+      ]
+    },
+    "cond_card_mountain_sprite": {
+      "rect": [
+        519,
+        149,
+        24,
+        24
+      ]
+    },
+    "cond_card_pond": {
+      "rect": [
+        516,
+        180,
+        118,
+        30
+      ]
+    },
+    "cond_card_pond_count": {
+      "rect": [
+        631,
+        183,
+        0,
+        0
+      ]
+    },
+    "cond_card_pond_effect_0": {
+      "rect": [
+        546,
+        195,
+        0,
+        0
+      ]
+    },
+    "cond_card_pond_effect_1": {
+      "rect": [
+        546,
+        207,
+        0,
+        0
+      ]
+    },
+    "cond_card_pond_effect_2": {
+      "rect": [
+        546,
+        219,
+        0,
+        0
+      ]
+    },
+    "cond_card_pond_effect_3": {
+      "rect": [
+        546,
+        231,
+        0,
+        0
+      ]
+    },
+    "cond_card_pond_effect_4": {
+      "rect": [
+        546,
+        243,
+        0,
+        0
+      ]
+    },
+    "cond_card_pond_name": {
+      "rect": [
+        546,
+        183,
+        0,
+        0
+      ]
+    },
+    "cond_card_pond_sprite": {
+      "rect": [
+        519,
+        183,
+        24,
+        24
+      ]
+    },
+    "cond_effect_box": {
+      "rect": [
+        516,
+        320,
+        118,
+        17
+      ]
+    },
+    "cond_effect_line_0": {
+      "rect": [
+        520,
+        322,
+        0,
+        0
+      ]
+    },
+    "cond_effect_line_1": {
+      "rect": [
+        520,
+        334,
+        0,
+        0
+      ]
+    },
+    "cond_effect_line_2": {
+      "rect": [
+        520,
+        346,
+        0,
+        0
+      ]
+    },
+    "cond_effect_line_3": {
+      "rect": [
+        520,
+        358,
+        0,
+        0
+      ]
+    },
+    "cond_effect_line_4": {
+      "rect": [
+        520,
+        370,
+        0,
+        0
+      ]
+    },
     "construct_title": {
       "rect": [
-        517,
+        516,
         8,
         0,
         0
       ]
+    },
+    "custom_panel_1": {
+      "color": [
+        70,
+        70,
+        100
+      ],
+      "parent": "card_defence",
+      "rect": [
+        520,
+        33,
+        32,
+        32
+      ],
+      "skin": "ui_panel_v7"
     },
     "died_last_round": {
       "rect": [
