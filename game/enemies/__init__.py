@@ -16,7 +16,10 @@ from .enemy import (
     Boss, Commander, Digger, Drummer, Enemy, Formation, Raider, SiegeCannon,
     Sniper, create_enemy, variant_slot,
 )
-from .kidnap import KIDNAP_ANIM, begin_kidnap, set_kidnap_pose
+from .kidnap import (
+    KIDNAP_ANIM, RESCUE_FLIGHT_SECONDS, RESCUE_TAG, KidnapReturnFlight,
+    begin_kidnap, release_kidnap, revive_rescued_building, set_kidnap_pose,
+)
 from .sounds import ATTACK, DEATH, SPAWN, play_enemy_sound, slot_for
 from .spawner import Spawner
 
@@ -46,7 +49,10 @@ __all__ = [
     "Formation",
     "KIDNAP_ANIM",
     "Kidnap",
+    "KidnapReturnFlight",
     "PathAgent",
+    "RESCUE_FLIGHT_SECONDS",
+    "RESCUE_TAG",
     "Projectile",
     "ProjectileHoming",
     "Raider",
@@ -60,6 +66,8 @@ __all__ = [
     "buff_total",
     "create_enemy",
     "play_enemy_sound",
+    "release_kidnap",
+    "revive_rescued_building",
     "resolve_combat",
     "restore_crowd_positions",
     "set_kidnap_pose",
