@@ -115,6 +115,17 @@ def is_visible(widget) -> bool:
     return getattr(widget, "visible", True)
 
 
+def is_enabled(widget) -> bool:
+    """``True`` unless the widget is a ``Button`` a screen has disabled.
+
+    Only ``Button`` carries ``enabled``; icons, holders and readouts never do,
+    so they default to ``True`` and behave exactly as before. Screens gate
+    their own ``hit()`` through ``Button.hit``, which already checks this —
+    ``hit_layer`` is the one path that does NOT go through it, which is why
+    this exists (see ``hit_layer``'s ``enabled`` note)."""
+    return getattr(widget, "enabled", True)
+
+
 #: The three targets a clickable layer may name that are NOT a widget id in
 #: its own screen (D7 as amended). ``noop`` is also what an UNROUTABLE target
 #: resolves to — see ``hit_layer``'s Ruling 1.
@@ -158,10 +169,22 @@ def hit_layer(ids, widgets_spec, mx, my, state_of, actions=None):
     reads honestly as "this decal does nothing", the same thing ``noop``
     already means.
 
-    A layer whose owning widget is invisible is never hit (the
-    ``is_visible`` rule every screen's ``hit()`` already applies), and a
-    non-clickable layer is transparent to the click — both enforced upstream
-    in ``engine.ui_layers.hit``/here, never by mutating anything.
+    A layer whose owning widget is invisible OR disabled is never hit (the
+    ``is_visible`` rule every screen's ``hit()`` already applies, and the
+    ``enabled`` gate ``Button.hit`` applies), and a non-clickable layer is
+    transparent to the click — all enforced upstream in
+    ``engine.ui_layers.hit``/here, never by mutating anything.
+
+    **The ``enabled`` gate is load-bearing, not cosmetic.** This function runs
+    BEFORE the screen's own hit path and returns early on a hit, so a widget's
+    own ``hit()`` — the only place ``enabled`` was ever checked — never runs
+    for a layer click. Every availability rule a screen expresses by clearing
+    ``enabled`` therefore has to be re-checked here or it is simply bypassed:
+    a layer on ``btn_end_turn`` fired ``end_turn`` during the ENEMY phase, and
+    layers on ``btn_speed_*`` skipped ``speed_unlocked(idx)`` and
+    ``_speed_buttons_visible`` (``game/ui/hud.py``, which folds all three
+    gates into ``enabled``). Widgets that carry no ``enabled`` attribute at
+    all (icons, holders) default to enabled, as they always were.
     """
     if not widgets_spec:
         return None
@@ -169,7 +192,7 @@ def hit_layer(ids, widgets_spec, mx, my, state_of, actions=None):
     for name, (_kind, widget) in ids.items():
         spec = widgets_spec.get(name)
         layer_list = (spec or {}).get("layers") or []
-        if not layer_list or not is_visible(widget):
+        if not layer_list or not is_visible(widget) or not is_enabled(widget):
             continue
         result = ui_layers.hit(layer_list, widget.rect, mx, my,
                                state_of(widget))
