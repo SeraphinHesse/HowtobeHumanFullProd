@@ -14911,12 +14911,12 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -42,
+      "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 6,
+          "fps": 6,
+          "frames": 4,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
