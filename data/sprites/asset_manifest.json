@@ -14418,6 +14418,50 @@
       ],
       "sheet": "imported/ui_panel_v21.png"
     },
+    "ui_panel_v22": {
+      "frame_h": 32,
+      "frame_w": 80,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 4,
+          "hidden": [
+            1,
+            2,
+            3
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hover",
+          "fps": 6,
+          "frames": 4,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "pressed",
+          "fps": 6,
+          "frames": 4,
+          "hidden": [
+            1,
+            2,
+            3
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/ui_panel_v22.png"
+    },
     "ui_panel_v3": {
       "frame_h": 50,
       "frame_w": 111,

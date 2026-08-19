@@ -1036,6 +1036,12 @@
                   "frame_h": 148,
                   "frame_w": 201,
                   "key": "ui_panel_v21"
+                },
+                {
+                  "display_name": "Text Box",
+                  "frame_h": 32,
+                  "frame_w": 80,
+                  "key": "ui_panel_v22"
                 }
               ]
             },
