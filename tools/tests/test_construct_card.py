@@ -100,11 +100,18 @@ class TestCardWidgetTree(unittest.TestCase):
             self.assertEqual(panel.ids[name][0], kind, name)
 
     def test_children_sit_inside_their_card(self):
+        """Every card part stays inside its slot — EXCEPT the portrait.
+
+        The portrait is one whole 64x96 sprite frame centred on the old 34px
+        icon's centre, so it deliberately overhangs the 140x77 slot by 3px top
+        and 16px bottom. The slot itself is unchanged, which is what keeps
+        `_card_in_viewport` and hit-testing honest, so it is the portrait that
+        is excused here rather than the invariant that is dropped."""
         panel = _panel()
         for btype, btn in panel.cards:
             cx, cy, cw, ch = _slot(btn)
             parts = panel._card_parts[btype]
-            for child in (parts.plate, parts.frame, parts.portrait,
+            for child in (parts.plate, parts.frame,
                           parts.price, parts.icon):
                 x, y, w, h = child.rect
                 self.assertTrue(cx <= x and x + w <= cx + cw
@@ -345,11 +352,14 @@ class TestCardColumnFollowsThePanel(unittest.TestCase):
             self.assertLessEqual(x + w, px + pw, btype)
 
     def test_children_stay_inside_the_body_after_the_panel_moves(self):
+        # The portrait is excused for the reason spelled out in
+        # `test_children_sit_inside_their_card`: it is a whole 64x96 sprite
+        # frame and overhangs the 140x77 slot on purpose.
         panel = self._panel_with((472, 0, 167, 360))
         for btype, btn in panel.cards:
             cx, cy, cw, ch = _slot(btn)
             parts = panel._card_parts[btype]
-            for child in (parts.plate, parts.frame, parts.portrait,
+            for child in (parts.plate, parts.frame,
                           parts.price, parts.icon):
                 x, y, w, h = child.rect
                 self.assertTrue(cx <= x and x + w <= cx + cw
@@ -401,11 +411,14 @@ class TestCardDrawOrder(unittest.TestCase):
         self.assertLess(rec.sizes.index(body), rec.sizes.index(tuple(portrait)),
                         "the card body must be drawn UNDER its portrait")
 
-    def test_the_plate_is_under_and_the_frame_is_over_the_portrait(self):
-        """The stack is plate -> body -> portrait -> frame. That is what the
-        two panels meant while they were CUSTOM widgets banded "under" and
-        "over": the plate is the backdrop the name and price sit on, and the
-        frame is a border in FRONT of the portrait, not behind it."""
+    def test_the_plate_is_under_and_the_portrait_is_over_the_frame(self):
+        """The stack is plate -> body -> frame -> portrait.
+
+        The plate is the backdrop the name and price sit on, and the frame is
+        the border around the portrait. The portrait draws LAST: it is the
+        building's whole 64x96 sprite frame now, taller than the 64x64 frame
+        it used to sit inside, so a frame drawn after it would rule its border
+        across the creature."""
         panel = _panel()
         _set_defaults(panel, button_skin="ui_button_card")
 
@@ -427,9 +440,9 @@ class TestCardDrawOrder(unittest.TestCase):
         parts = panel._card_parts[btype]
         order = [rec.sizes.index(tuple(r)) for r in
                  (parts.plate.rect[2:], btn.rect[2:],
-                  parts.portrait.rect[2:], parts.frame.rect[2:])]
+                  parts.frame.rect[2:], parts.portrait.rect[2:])]
         self.assertEqual(order, sorted(order),
-                         "card stack must be plate/body/portrait/frame")
+                         "card stack must be plate/body/frame/portrait")
 
 
 class TestNoPinnedCardRects(unittest.TestCase):
