@@ -44,7 +44,8 @@ pre-read architecture you are about to delegate.
      a stop moves the issue there; clicking the stop it already sits on steps
      back one. In progress marks the card (dashed severity stripe), Done greys
      the card's *content* — never the card itself, or the track greys out with
-     it and stops being clickable. Keep a running tally in the header count.
+     it and stops being clickable. **Done reads green**; the track carries the
+     page accent until then. Keep a running tally in the header count.
    - a **copy button** writing the issue's full text (title, `file:line`,
      description, fix, provenance) to the clipboard via `navigator.clipboard`
      with a `document.execCommand` fallback, confirming with a transient

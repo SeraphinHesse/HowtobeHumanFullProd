@@ -375,7 +375,137 @@ def backend_choice_from_argv(argv, env=None):
     return value
 
 
-class _SurfacePresenter:
+#: Mouse events that carry a cursor POSITION, and therefore need the
+#: window->logical mapping `_CursorSpace._calibrate` decides on. MOUSEWHEEL is
+#: deliberately absent: it has no `pos` (the host reads the last motion
+#: event's instead).
+_MOUSE_POS_EVENTS = (pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN,
+                     pygame.MOUSEBUTTONUP)
+
+
+class _CursorSpace:
+    """The G4 §2.6 input-mapping seam, shared by BOTH presenters.
+
+    THE bug this exists to end. Two sources report the cursor —
+    `event.pos` and `pygame.mouse.get_pos()` — and exactly one of them is in
+    renderer-LOGICAL space while the other is in WINDOW pixels. Which one has
+    flipped at least twice across pygame/SDL builds, and this file carried a
+    confident hard-coded answer for each direction in turn:
+
+      * G4 mapped `event.pos` and left `get_pos()` alone. Later measured
+        (pygame-ce 2.5.7, 1280x720 window at logical 640x360) as delivering
+        ALREADY-logical events, so the mapping divided a second time and no
+        button ever fired — while hover, reading the other source, worked.
+      * The fix made `map_event` identity and remapped `mouse_pos()`. On
+        THIS machine (pygame-ce 2.5.7 / SDL 2.32.10 / direct3d, 1920x1080
+        window at logical 640x360) that is backwards: MEASURED live,
+        `event.pos == (1652, 536)` for the same cursor `get_pos()` reports
+        as (549, 177) — the event is in window pixels and get_pos() is
+        already logical, so `_to_logical` divided the correct value by 3.
+        The cursor read as (183, 59), which is why hover lit widgets near
+        the top-left, the lightning bar drew in the wrong place, and the
+        construct card list refused the wheel: `wants_scroll` was asked
+        about a point three times too far up and left to be on the panel.
+      * The SAME asymmetry, same direction, on the SURFACE presenter, whose
+        `map_event` was `return event  # SCALED already remaps for free` and
+        whose `mouse_pos()` was a bare `get_pos()`. MEASURED live at scale 4
+        (640x360 logical in a 2560x1440 window): `event.pos == (2222, 959)`
+        where `get_pos()` reports (555, 239). So this is NOT a GPU-path
+        quirk and must not live on one presenter — hence the mixin.
+
+    A constant cannot be right for both, so this does not use one. Both
+    readings describe the SAME cursor, so comparing them identifies which
+    space each is in, in this process, on this build — and the answer is
+    re-derived rather than believed.
+
+    A subclass supplies two hooks: ``_window_size()`` and
+    ``_to_logical(point)``.
+    """
+
+    _CAL_TOL = 3        # px of slack: the two reads are one frame apart
+    _CAL_MIN = 12       # near the origin every space agrees — wait for a real
+    #                     cursor position rather than calibrating on noise
+
+    def _calibrate(self, event_pos):
+        """Decide, ONCE, which cursor source needs the window->logical remap.
+
+        Returns True when a verdict was reached. An ambiguous sample leaves
+        the presenter uncalibrated so the next event can try again."""
+        win_w, win_h = self._window_size()
+        if not win_w or not win_h:
+            return False
+        if (win_w, win_h) == (self._view_w, self._view_h):
+            self._map_events = self._map_get_pos = False   # nothing is scaled
+            return self._log_calibration(event_pos)
+        ex, ey = event_pos
+        gx, gy = pygame.mouse.get_pos()
+        if max(abs(ex), abs(ey), abs(gx), abs(gy)) < self._CAL_MIN:
+            return False
+        sx, sy = self._view_w / win_w, self._view_h / win_h
+        tol = self._CAL_TOL
+
+        def close(a, b):
+            return abs(a[0] - b[0]) <= tol and abs(a[1] - b[1]) <= tol
+
+        if close((ex, ey), (gx, gy)):
+            # both already in the same space, and the shipped default puts
+            # clicks where they belong, so that space is the logical one
+            self._map_events = self._map_get_pos = False
+        elif close((ex * sx, ey * sy), (gx, gy)):
+            # the EVENT is window pixels; get_pos() is already logical
+            self._map_events, self._map_get_pos = True, False
+        elif close((gx * sx, gy * sy), (ex, ey)):
+            # the other arrangement: get_pos() is window pixels
+            self._map_events, self._map_get_pos = False, True
+        else:
+            # No relation holds — the cursor moved between the two reads. DO
+            # NOT guess: an undecided presenter maps nothing, which is the
+            # right behaviour for the agreeing case anyway, and the next
+            # event tries again. Freezing a verdict from a sample taken
+            # mid-flick is how a coordinate bug becomes intermittent.
+            return False
+        return self._log_calibration(event_pos)
+
+    def _log_calibration(self, event_pos):
+        if _WHEEL_DEBUG:
+            print(f"CALIBRATED {type(self).__name__} "
+                  f"map_events={self._map_events} "
+                  f"map_get_pos={self._map_get_pos} "
+                  f"window={self._window_size()} "
+                  f"logical={(self._view_w, self._view_h)} "
+                  f"event={event_pos} get_pos={pygame.mouse.get_pos()}",
+                  flush=True)
+        return True
+
+    def map_event(self, event):
+        """Put a mouse event's ``pos``/``rel`` into logical space — if THIS
+        build delivers them in window pixels. See `_calibrate`: the direction
+        is measured in-process, never assumed. ``rel`` rides the same scale as
+        ``pos``, or a right-drag pans the camera at the window's scale."""
+        if event.type not in _MOUSE_POS_EVENTS:
+            return event
+        if self._map_events is None and not self._calibrate(event.pos):
+            return event            # still ambiguous — next event decides
+        if not self._map_events:
+            return event
+        fields = dict(event.__dict__)
+        fields["pos"] = self._to_logical(event.pos)
+        rel = fields.get("rel")
+        if rel is not None:
+            win_w, win_h = self._window_size()
+            fields["rel"] = (int(rel[0] * self._view_w / win_w),
+                             int(rel[1] * self._view_h / win_h))
+        return pygame.event.Event(event.type, fields)
+
+    def mouse_pos(self):
+        """The cursor in logical space — the FALLBACK source, for the frames
+        before the first mouse event. Remapped only when `_calibrate` found
+        ``get_pos()`` to be the window-pixel half."""
+        pos = pygame.mouse.get_pos()
+        return self._to_logical(pos) if self._map_get_pos else pos
+
+
+class _SurfacePresenter(_CursorSpace):
     """Today's frame target, verbatim (G4 §2.1): ONE ``pygame.SCALED`` display
     Surface that the world, the overlays and the HUD all draw into, presented
     with ``pygame.display.flip()``.
@@ -393,6 +523,8 @@ class _SurfacePresenter:
         self._window = _apply_display_mode(display_mode, view_w, view_h,
                                            caption)
         self.last_composite_ms = 0.0   # no composite on this path, ever
+        self._map_events = None        # see _CursorSpace._calibrate
+        self._map_get_pos = False
 
     @property
     def world_target(self):
@@ -408,11 +540,17 @@ class _SurfacePresenter:
         self._window = _apply_display_mode(mode, self._view_w, self._view_h,
                                            self._caption)
 
-    def map_event(self, event):
-        return event          # SCALED already remaps mouse coords for free
+    def _window_size(self):
+        # Under SCALED the drawing Surface stays view_w x view_h whatever the
+        # window is, so the window size has to come from the display module.
+        return pygame.display.get_window_size()
 
-    def mouse_pos(self):
-        return pygame.mouse.get_pos()
+    def _to_logical(self, point):
+        win_w, win_h = self._window_size()
+        if not win_w or not win_h:
+            return point
+        return (int(point[0] * self._view_w / win_w),
+                int(point[1] * self._view_h / win_h))
 
     def end_frame(self, capture_path=None):
         if capture_path is not None:
@@ -428,15 +566,7 @@ class _SurfacePresenter:
         pass
 
 
-#: Mouse events that carry a cursor POSITION, and therefore need the
-#: window->logical mapping `_GpuPresenter._calibrate` decides on. MOUSEWHEEL
-#: is deliberately absent: it has no `pos` (the host reads the last motion
-#: event's instead).
-_MOUSE_POS_EVENTS = (pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN,
-                     pygame.MOUSEBUTTONUP)
-
-
-class _GpuPresenter:
+class _GpuPresenter(_CursorSpace):
     """The GPU frame target (G4 §2.1/§2.4): a standalone ``_sdl2`` Window +
     Renderer, with the Surface-drawn HUD composited over it as ONE streaming-
     texture upload per frame.
@@ -537,119 +667,14 @@ class _GpuPresenter:
             window.set_windowed()
             window.borderless = False
 
-    # -- cursor space CALIBRATION ------------------------------------------
-    # THE bug this exists to end. Two sources report the cursor —
-    # `event.pos` and `pygame.mouse.get_pos()` — and on the GPU path exactly
-    # one of them is in renderer-LOGICAL space while the other is in WINDOW
-    # pixels. Which one has flipped at least twice across pygame/SDL builds,
-    # and this file has carried a confident hard-coded answer for each
-    # direction in turn:
-    #
-    #   * G4 mapped `event.pos` and left `get_pos()` alone. Later measured
-    #     (pygame-ce 2.5.7, 1280x720 window at logical 640x360) as delivering
-    #     ALREADY-logical events, so the mapping divided a second time and no
-    #     button ever fired — while hover, reading the other source, worked.
-    #   * The fix made `map_event` identity and remapped `mouse_pos()`. On
-    #     THIS machine (pygame-ce 2.5.7 / SDL 2.32.10 / direct3d, 1920x1080
-    #     window at logical 640x360) that is backwards: MEASURED live,
-    #     `event.pos == (1652, 536)` for the same cursor `get_pos()` reports
-    #     as (549, 177) — the event is in window pixels and get_pos() is
-    #     already logical, so `_to_logical` divided the correct value by 3.
-    #     The cursor read as (183, 59), which is why hover lit widgets near
-    #     the top-left, the lightning bar drew in the wrong place, and the
-    #     construct card list refused the wheel: `wants_scroll` was asked
-    #     about a point three times too far up and left to be on the panel.
-    #
-    # A constant cannot be right for both, so this does not use one. Both
-    # readings describe the SAME cursor, so comparing them identifies which
-    # space each is in, in this process, on this build — and the answer is
-    # re-derived rather than believed.
-
-    _CAL_TOL = 3        # px of slack: the two reads are one frame apart
-    _CAL_MIN = 12       # near the origin every space agrees — wait for a real
-                        # cursor position rather than calibrating on noise
-
-    def _calibrate(self, event_pos):
-        """Decide, ONCE, which cursor source needs the window->logical remap.
-
-        Returns True when a verdict was reached. Ambiguous samples (cursor at
-        the origin, or a window that is not scaled at all) leave the presenter
-        uncalibrated so the next event can try again."""
-        win_w, win_h = self._window.size
-        if not win_w or not win_h:
-            return False
-        if (win_w, win_h) == (self._view_w, self._view_h):
-            self._map_events = self._map_get_pos = False   # nothing is scaled
-            return self._log_calibration(event_pos)
-        ex, ey = event_pos
-        gx, gy = pygame.mouse.get_pos()
-        if max(abs(ex), abs(ey), abs(gx), abs(gy)) < self._CAL_MIN:
-            return False
-        sx, sy = self._view_w / win_w, self._view_h / win_h
-        tol = self._CAL_TOL
-
-        def close(a, b):
-            return abs(a[0] - b[0]) <= tol and abs(a[1] - b[1]) <= tol
-
-        if close((ex, ey), (gx, gy)):
-            # both already in the same space, and the shipped default puts
-            # clicks where they belong, so that space is the logical one
-            self._map_events = self._map_get_pos = False
-        elif close((ex * sx, ey * sy), (gx, gy)):
-            # the EVENT is window pixels; get_pos() is already logical
-            self._map_events, self._map_get_pos = True, False
-        elif close((gx * sx, gy * sy), (ex, ey)):
-            # the historical arrangement: get_pos() is window pixels
-            self._map_events, self._map_get_pos = False, True
-        else:
-            # No relation holds — the cursor moved between the two reads. DO
-            # NOT guess: an undecided presenter maps nothing, which is the
-            # right behaviour for the agreeing case anyway, and the next
-            # event tries again. Freezing a verdict from a sample taken
-            # mid-flick is how a coordinate bug becomes intermittent.
-            return False
-        return self._log_calibration(event_pos)
-
-    def _log_calibration(self, event_pos):
-        if _WHEEL_DEBUG:
-            print(f"CALIBRATED map_events={self._map_events} "
-                  f"map_get_pos={self._map_get_pos} "
-                  f"window={self._window.size} "
-                  f"logical={(self._view_w, self._view_h)} "
-                  f"event={event_pos} get_pos={pygame.mouse.get_pos()}",
-                  flush=True)
-        return True
+    def _window_size(self):
+        return self._window.size
 
     def _to_logical(self, point):
+        # SDL's own window->logical transform, so letterbox bars and odd
+        # aspect ratios are handled by the renderer rather than re-derived.
         x, y = self._renderer.coordinates_from_window(point)  # floats
         return int(x), int(y)
-
-    def map_event(self, event):
-        """Put a mouse event's ``pos``/``rel`` into logical space — if THIS
-        build delivers them in window pixels. See `_calibrate`: the direction
-        is measured in-process, never assumed. The seam is unconditional so
-        `rel` (camera pan speed) rides the same scale as `pos`."""
-        if event.type not in _MOUSE_POS_EVENTS:
-            return event
-        if self._map_events is None and not self._calibrate(event.pos):
-            return event            # still ambiguous — next event decides
-        if not self._map_events:
-            return event
-        fields = dict(event.__dict__)
-        fields["pos"] = self._to_logical(event.pos)
-        rel = fields.get("rel")
-        if rel is not None:
-            win_w, win_h = self._window.size
-            fields["rel"] = (int(rel[0] * self._view_w / win_w),
-                             int(rel[1] * self._view_h / win_h))
-        return pygame.event.Event(event.type, fields)
-
-    def mouse_pos(self):
-        """The cursor in logical space — the FALLBACK source, for the frames
-        before the first mouse event. Remapped only when `_calibrate` found
-        `get_pos()` to be the window-pixel half."""
-        pos = pygame.mouse.get_pos()
-        return self._to_logical(pos) if self._map_get_pos else pos
 
     def end_frame(self, capture_path=None):
         t0 = time.perf_counter()
