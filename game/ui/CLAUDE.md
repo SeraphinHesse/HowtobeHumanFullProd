@@ -825,8 +825,7 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
     since 9H, and it BREAKS the "full screen ⇒ `Shell`-driven" half of that
     line on purpose.** It is a real full screen (the `ui_bg_loading`
     background + a white progress ring, `game/ui/loading_screen.py`'s
-    `LoadingScreen`, the `debug_settings.py` code-only-screen shape — no
-    `data/ui/screens/loading.json`, no `screen_defaults.json` entry), but
+    `LoadingScreen`), but
     `Shell` never constructs or dispatches it: `main.py` owns `loading_screen`
     directly and drives it from the frame loop, exactly like
     `GAMEPLAY`/`GAME_OVER` (which are also full screens `Shell` doesn't own).
@@ -847,13 +846,35 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
     asset I/O happens there — everything is already loaded at boot), so
     without the duration floor the screen would flicker for a frame or two;
     without the real-checkpoint half it would be a fake spinner, not a
-    progress indicator. The PRE-BOOT loading screen (`main.py`'s
+    progress indicator.
+    **It is an EXPORTED screen now, not code-only.** It shipped in the
+    `debug_settings.py` shape (no `data/ui/screens/loading.json`, no
+    `screen_defaults.json` entry, not in `tools/export_ui_layouts.py`'s
+    `SCREEN_IDS`) and was promoted the moment a designer needed to move the
+    ring: it carries `backdrop` and `ring` ids, `ring` a geometry-only
+    `panel`-kind holder the screen draws its circle FROM (rect-driven —
+    moving it moves the ring, resizing it resizes it, radius = half the
+    smaller side so a non-square override still draws a circle rather than an
+    ellipse `HudLines` cannot express). It is the one exported screen the
+    `test_ui_skinning.py` golden pin holds no literal entry for — a 97-point
+    `HudLines` circle would be ~4KB of generated floats, already pinned
+    byte-for-byte in `screen_previews.json` by the same driver — so it sits in
+    `_BASELINE_EXEMPT` with a dedicated `TestLoadingScreenParity` pinning the
+    ring's colour, width, closedness, centre and radius instead. Do not grow
+    that set to dodge a baseline update.
+    **A cutscene may cover this state** (feature: start-game cutscene) — the
+    video renders instead of the screen while the checkpoints keep draining
+    underneath; host wiring → `game/CLAUDE.md`'s matching bullet. The PRE-BOOT loading screen (`main.py`'s
     `_submit_loading_frame`, shown before the `Shell` even exists — see
     `game/CLAUDE.md`'s Host conventions section) shares the exact same
     background slot and ring style by importing them from
     `game/ui/loading_screen.py` rather than re-declaring them, so the two
-    screens cannot visually drift apart; it is a SEPARATE mechanism (its own
-    throwaway presenter/renderer pair, since no real window exists yet) and
+    screens cannot visually drift apart (both now compose the ring through the
+    ONE `loading_screen.submit_ring`, the pre-boot caller passing the centred
+    `default_ring_rect` since it has no `ScreenSkinning` yet — a designer's
+    `loading.json` moves the in-game screen only); it is a SEPARATE mechanism
+    (its own throwaway presenter/renderer pair, since no real window exists
+    yet, opened in `display.json`'s own `display_mode`) and
     was also given more, smaller real checkpoints (15 instead of 5) so its
     ring's motion reads as smooth rather than jumpy — not an eased/faked
     animation, just finer-grained real boot sub-steps.

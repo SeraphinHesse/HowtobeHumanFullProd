@@ -306,7 +306,13 @@ the only place the words `"placement"`/`"upgrade"`/`"buy_plot"` and the
   visually drift apart).
   - **Pre-boot** (`main.py`'s `_submit_loading_frame`/`_flush_loading`): shown
     before the `Shell` even exists, so it needs its OWN throwaway
-    presenter/renderer pair (no real window yet) — 15 real checkpoints
+    presenter/renderer pair (no real window yet). **It opens in
+    `data/display.json`'s own `display_mode`** (shipped: `fullscreen`), NOT a
+    hardcoded `"windowed"` — this is the first thing a player sees, and coming
+    up in a small window only to slam fullscreen once boot finished read as
+    the game restarting itself. `_build_render_stack` hands the real stack the
+    same mode off `shell.settings`, so the window shape is the same start to
+    finish. 15 real checkpoints
     (boot's data/balance-domain loads, each already a real sequential
     sub-step) rather than 5, so the ring's motion reads as smooth instead of
     jumpy. No added delay and no eased/faked animation — just finer-grained
@@ -357,6 +363,38 @@ the only place the words `"placement"`/`"upgrade"`/`"buy_plot"` and the
     this feature. Detail (why `GameState.LOADING` is host-driven rather than
     `Shell`-driven, unlike every other full-screen state since 9H) →
     `game/ui/CLAUDE.md`'s Shell + menus section.
+  - **Continue / Load Save arm the SAME queue on the click's own frame, with
+    the DISK READ deferred into a checkpoint.** `_build_gameplay_steps` takes
+    a `restore_loader` — a zero-arg CALLABLE, not a loaded document — and
+    prepends `_step_restore`, which calls it and publishes into a one-cell
+    dict every later closure reads. Both reads used to happen at the call site
+    (`_load_save` loaded the slot; `"continue_most_recent"` loaded the index
+    AND the slot) before `_arm_loading` was even called, so the menu sat there
+    with the button still lit for as long as `jsonschema` took to validate the
+    save. A loader that returns `None` — a missing/corrupt slot, or a Continue
+    that finds no slots — sets `loading_abort["failed"]`; the LOADING driver
+    drops the rest of the queue and returns to the main menu, which is the
+    no-op the synchronous read used to give. Never silently build a fresh run
+    in a save's place.
+  - **A cutscene can cover the load (feature: start-game cutscene).**
+    `_arm_loading(cutscene_id=…)` takes a `data/video/cutscenes.json` id; the
+    two fresh-run intents pass `START_GAME_CUTSCENE` (`"start_game"`, a host
+    constant — never a search of the registry by `trigger`, so a designer
+    retriggering an entry cannot silently re-point it). While
+    `loading_cutscene` is set, `GameState.LOADING` renders the video exactly
+    the way the boot-time `GameState.CUTSCENE` branch renders the intro (blit,
+    skip prompt, fade overlay) and the checkpoint queue keeps draining
+    UNDERNEATH it at its usual one step per frame — the cutscene is what the
+    loading time is spent on, not something bolted in front of it. It is the
+    LAST gate into gameplay: a run that finished building in three seconds
+    still owes the player the rest of the video. Skipping (the shared 2s hold)
+    drops to the loading screen for whatever is left, never into a half-built
+    world. No new `GameState` member — a second full-screen state would have
+    meant the build steps stop running while it held, which is the whole point
+    of the feature. Continue/Load Save deliberately pass NO cutscene, and
+    neither does the game-over screen's PLAY AGAIN. A missing/unopenable video
+    (`CutscenePlayer.enabled`) leaves `loading_cutscene` `None` and the plain
+    loading screen shows, exactly as before.
 - **Autosave (SaveGamePLAN SG-5)** rides the SAME round-edge watcher chain as
   N1's season clock, immediately after it: `if session.state.phase ==
   GamePhase.BUILDING and gp["prev_phase"] != GamePhase.BUILDING and

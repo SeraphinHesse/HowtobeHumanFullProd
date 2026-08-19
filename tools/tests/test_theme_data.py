@@ -21,7 +21,8 @@ from game.ui.skinning import ScreenSkinning
 from game.ui.widgets import Button, submit_panel
 from tools.export_ui_layouts import main as export_main
 from tools.tests.fixture_data import FIXTURE_DATA
-from tools.tests.test_ui_skinning import _BASELINE, _screen_captures
+from tools.tests.test_ui_skinning import (
+    _BASELINE, _BASELINE_EXEMPT, _screen_captures)
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -128,8 +129,14 @@ class TestStockParityPin(_ConfigureMixin, unittest.TestCase):
         fonts.configure_fonts(_FIXTURE_FONTS)
         widgets.configure_palette(_FIXTURE_PALETTE)
         captured = _screen_captures()
-        self.assertEqual(set(captured), set(_BASELINE))
+        # `_BASELINE_EXEMPT` (today: `loading`) holds no literal entry — see
+        # its definition in test_ui_skinning.py. It draws no text at all, so
+        # there is nothing for a theme doc to drift it by; the ring's own
+        # geometry is pinned by TestLoadingScreenParity there.
+        self.assertEqual(set(captured) - _BASELINE_EXEMPT, set(_BASELINE))
         for screen_id, items in captured.items():
+            if screen_id in _BASELINE_EXEMPT:
+                continue
             self.assertEqual(items, _BASELINE[screen_id],
                              f"{screen_id} drifted under stock theme data")
 

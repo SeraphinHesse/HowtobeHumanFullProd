@@ -133,8 +133,9 @@ from game.ui import widgets  # 10L-A: R2 hit-seam wiring
 from game.ui.building_ui import MovePreview  # Building Movement confirm modal
 from game.ui.cutscene_player import CutscenePlayer, load_cutscene_registry
 from game.ui.loading_screen import (  # feature: loading screen
-    RING_RADIUS as LOADING_RING_RADIUS, RING_WIDTH as LOADING_RING_WIDTH,
     BG_SLOT as LOADING_BG_SLOT, LoadingScreen,
+    default_ring_rect as loading_default_ring_rect,
+    submit_ring as loading_submit_ring,
 )
 from game.ui.skinning import ScreenSkinning  # 10L-B: per-screen overrides
 from game.ui.strings import configure_strings  # Phase C: global string table
@@ -989,18 +990,20 @@ def _submit_loading_frame(renderer, assets, view_w, view_h, progress):
     the editor-adjustable ``ui_bg_loading`` slot (E-37: a flat fallback fill
     — ``presenter.begin_frame()`` already painted ``BACKGROUND`` — until a
     designer imports art), plus the skip-cutscene hold-ring widget
-    (`widgets.submit_progress_ring`) reused here in WHITE rather than its
-    default gold, so it never reads as the cutscene skip prompt. The slot key
-    and ring style constants live in ``game/ui/loading_screen.py`` — the ONE
-    place they're defined — so this pre-boot screen and the post-"Start Game"
-    ``LoadingScreen`` it precedes can never visually drift apart."""
+    (`widgets.submit_progress_ring`) reused in WHITE rather than its default
+    gold, so it never reads as the cutscene skip prompt.
+
+    The ring itself is composed by ``loading_screen.submit_ring``, not here:
+    that is the ONE place the ring is drawn, so this pre-boot screen and
+    the post-"Start Game" ``LoadingScreen`` it precedes can never visually
+    drift apart. This caller passes the CENTRED defaults, having no
+    ``ScreenSkinning`` (or ``Shell``) yet to override them — a designer's
+    ``data/ui/screens/loading.json`` moves the in-game screen only."""
     if assets.animation_total_ms(LOADING_BG_SLOT, "idle") is not None:
         renderer.submit_hud(HudSprite(
             LOADING_BG_SLOT, (0, 0), (view_w, view_h)))
-    cx, cy = view_w // 2, view_h // 2
-    widgets.submit_progress_ring(
-        renderer, cx, cy, LOADING_RING_RADIUS, progress,
-        bg=(90, 90, 90), fill=(255, 255, 255), width=LOADING_RING_WIDTH)
+    loading_submit_ring(renderer, loading_default_ring_rect(view_w, view_h),
+                        progress)
 
 
 # TEMPORARY (wheel-dead investigation): set HTBH_WHEEL_DEBUG=1 to trace every
@@ -1151,7 +1154,14 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # real render stack (`_build_render_stack`) once boot finishes. A
     # headless run (`max_frames is not None`, tools/smoke.py) still opens
     # this window; it costs one extra `set_mode` call, no extra window.
-    loading_presenter = _SurfacePresenter(view_w, view_h, caption, "windowed")
+    # `display["display_mode"]` (shipped default: fullscreen), NOT a hardcoded
+    # "windowed": the pre-boot screen is the FIRST thing a player sees, and
+    # coming up in a small window only to slam fullscreen once boot finished
+    # read as the game restarting itself. `_build_render_stack` below hands
+    # the real stack the same mode off `shell.settings`, so this is the same
+    # window shape start to finish.
+    loading_presenter = _SurfacePresenter(view_w, view_h, caption,
+                                          display["display_mode"])
     loading_renderer = Renderer(cs, assets)
     # 15 real checkpoints (was 5): one after the asset store, one after each
     # of the 5 theme/font docs below, one after each of the 7 balance
@@ -1416,6 +1426,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     intro_player = cutscenes.get("intro")
     start = (GameState.CUTSCENE if intro_player and intro_player.enabled
              else GameState.MAIN_MENU)
+    # feature: start-game cutscene — the registry id `execute()`'s two
+    # fresh-run intents play OVER the load. A constant, not a search of the
+    # registry by `trigger`, for the same reason "intro" is spelled literally
+    # above: which id fires at which point is a HOST decision, and a designer
+    # renaming or retriggering an entry must not silently re-point it.
+    START_GAME_CUTSCENE = "start_game"
     # 10L-B: one ScreenSkinning for the whole run, loaded once here (the
     # shell shares it with its five menu screens; build_gameplay threads the
     # SAME instance into the seven gameplay screens it constructs itself).
@@ -1557,6 +1573,17 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     loading_total = 0
     loading_elapsed = 0.0
     loading_min_seconds = ui_balance["LoadingScreen"]["min_display_seconds"]
+    # feature: start-game cutscene — the CutscenePlayer covering this load, or
+    # None (every load that is not a fresh "Start Game", and a fresh one whose
+    # video will not open). While it is set, the LOADING state renders the
+    # video instead of the loading screen and swallows input the same way
+    # GameState.CUTSCENE does; the checkpoint queue below keeps draining
+    # underneath it, one step per frame, exactly as it does without one.
+    loading_cutscene = None
+    # SG-6: set by the deferred save-read checkpoint when it comes back empty,
+    # read (and cleared) by the LOADING driver below. A dict rather than a
+    # plain local because `_build_gameplay_steps`'s closures publish into it.
+    loading_abort = {"failed": False}
     # The click's own frame ARMS the queue but must not run a checkpoint —
     # `_step_world` (the first one) builds the whole fresh TileMap and can
     # itself take the better part of a second on a large map, and running it
@@ -1565,7 +1592,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # the first real checkpoint starts the frame after.
     loading_just_armed = False
 
-    def _build_gameplay_steps(restore_data=None):
+    def _build_gameplay_steps(restore_loader=None):
         """The ordered checkpoints of a fresh run's construction, as zero-arg
         closures — `build_gameplay()` below just runs every one of them in
         order (unchanged, synchronous behavior for the headless autostart
@@ -1578,12 +1605,33 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         session, tutorial, recorder, the seven gameplay UI screens, the 10J/
         ESV wiring, the closing camera/GC/audio/enter_gameplay group).
 
-        `restore_data` (SaveGamePLAN SG-6) is an optional loaded save-slot
-        document — `"load_save"`/`"continue_most_recent"` pass one so the
-        SAME checkpointed loading-screen flow a fresh game gets also covers
-        resuming one, for free. `None` (every pre-existing caller) is
-        byte-identical to before this feature."""
+        `restore_loader` (SaveGamePLAN SG-6) is an optional ZERO-ARG CALLABLE
+        returning a loaded save-slot document — `"load_save"` /
+        `"continue_most_recent"` pass one so the SAME checkpointed
+        loading-screen flow a fresh game gets also covers resuming one, for
+        free. `None` (every pre-existing caller) is byte-identical to before
+        that feature.
+
+        A CALLABLE, not the document itself, because the save index + slot
+        reads are disk I/O measured in frames on a cold cache, and doing them
+        at the call site meant Continue/Load Save sat on the menu with the
+        button still lit until they finished. Reading them in a checkpoint of
+        their own puts the loading screen up on the click's OWN frame, before
+        any processing begins. It runs FIRST — every later step branches on
+        what it produced — and a loader that returns None (a missing or
+        corrupt slot, which `savegame.load_slot` reports rather than raising)
+        sets `loading_abort["failed"]`, which the LOADING driver reads as
+        "abort back to the menu": silently building a FRESH run in a slot's place
+        would be worse than the no-op this replaced."""
         nonlocal score_recorded
+        #: One mutable cell rather than a plain local, so `_step_restore`
+        #: below can publish into the closures that were built before it ran.
+        restore = {"data": None}
+
+        def _step_restore():
+            restore["data"] = restore_loader()
+            loading_abort["failed"] = restore["data"] is None
+
         def _step_world():
             nonlocal score_recorded
             score_recorded = False
@@ -1593,19 +1641,20 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # `map_bal` (balancing/map.json) is domain-wide, shared by every
             # map, so it never needs re-loading here.
             world_map_doc = map_doc
-            if restore_data is not None and restore_data["map_id"] != map_doc.map_id:
+            saved = restore["data"]
+            if saved is not None and saved["map_id"] != map_doc.map_id:
                 world_map_doc = tilemap.load_map(
-                    tilemap.map_path(data_dir, restore_data["map_id"]),
+                    tilemap.map_path(data_dir, saved["map_id"]),
                     tilemap.map_schema_path(data_dir))
             gp["world"] = _World(
                 world_map_doc, map_bal, enemies_balance, core_balance,
                 buildings_balance, registry, progression_balance,
                 boss_upgrades_balance)
-            if restore_data is not None:
+            if restore["data"] is not None:
                 # SG-6: overwrite the fresh world's tile_map/session/
                 # buildings with the saved ones — see _apply_save_to_world's
                 # docstring for the restore ordering.
-                _apply_save_to_world(gp["world"], restore_data,
+                _apply_save_to_world(gp["world"], restore["data"],
                                      buildings_balance)
             # Ground follows runtime zone changes: unlock/recede invalidates
             # the cached ground surface (repainted next ensure). Fresh game ->
@@ -1631,7 +1680,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 skinning=shell.skinning)
             gp["world"].session.tutorial_gate = gp["tutorial"].allows_end_turn
             gp["world"].session.tutorial_director = gp["tutorial"]  # TU-7
-            if restore_data is not None:
+            if restore["data"] is not None:
                 # SG-6: a resumed save is always well past the tutorial (the
                 # earliest possible autosave is round 5) — force it finished
                 # so a fresh, round-0-assuming TutorialDirector can never
@@ -1763,8 +1812,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # screen disappear the instant the (genuinely fast) construction
             # finishes, before the player ever saw it.
 
-        return [_step_world, _step_tutorial_and_recorder,
-                _step_gameplay_screens, _step_wiring, _step_finish]
+        steps = [_step_world, _step_tutorial_and_recorder,
+                 _step_gameplay_screens, _step_wiring, _step_finish]
+        if restore_loader is not None:
+            steps.insert(0, _step_restore)
+        return steps
 
     def build_gameplay():
         """Run every checkpoint synchronously, in one shot — the pre-LOADING
@@ -1914,47 +1966,75 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                              outputs=shell.debug_settings.outputs,
                              player_name=name, player_skill=skill)
 
-    def _arm_loading(restore_data=None):
+    def _arm_loading(restore_loader=None, cutscene_id=None):
         """Feature: loading screen. Instead of building the run synchronously
         in one call, queue its checkpoints and let the frame loop's
         `GameState.LOADING` branch (below) run one per frame behind
         `loading_screen`. Runs no checkpoint itself — this frame only flips
         the state so the screen paints at 0% first; see `loading_just_armed`.
 
-        `restore_data` (SaveGamePLAN SG-6) threads straight through to
-        `_build_gameplay_steps` — `None` (every pre-existing caller) is
-        byte-identical to before this feature."""
-        nonlocal loading_queue, loading_total, loading_elapsed, loading_just_armed
-        loading_queue = _build_gameplay_steps(restore_data)
+        `restore_loader` (SaveGamePLAN SG-6) threads straight through to
+        `_build_gameplay_steps`, which reads it in a checkpoint of its own —
+        see there for why the DISK READ is deferred rather than done at the
+        call site. `None` (a fresh game) is byte-identical to before.
+
+        `cutscene_id` (feature: start-game cutscene) names a
+        `data/video/cutscenes.json` entry to play OVER this load. The
+        checkpoints keep running underneath it at their usual one per frame,
+        so the run is built by the time the video ends — the cutscene is what
+        the loading time is SPENT on, not something bolted in front of it. A
+        missing entry, or one whose video will not open (no cv2, no file —
+        `CutscenePlayer.enabled`), leaves `loading_cutscene` None and the
+        plain loading screen shows, exactly as before this feature."""
+        nonlocal loading_queue, loading_total, loading_elapsed
+        nonlocal loading_just_armed, loading_cutscene
+        nonlocal mouse_idle_t
+        loading_queue = _build_gameplay_steps(restore_loader)
         loading_total = len(loading_queue)
         loading_elapsed = 0.0
+        loading_abort["failed"] = False
         loading_just_armed = True
         shell.state = GameState.LOADING
+        loading_cutscene = None
+        player = cutscenes.get(cutscene_id) if cutscene_id else None
+        if player is not None and player.enabled:
+            # SD-7: push BEFORE start(), so the phase track is stacked and the
+            # cutscene's own companion audio wins the stream — the same
+            # ordering the in-gameplay TU-5 request uses.
+            director.enter_cutscene(cutscene_registry.get(cutscene_id))
+            player.start()
+            loading_cutscene = player
+            mouse_idle_t = 0.0   # skip prompt starts fully visible (TU-5)
 
     def _load_save(slot_id):
-        """SaveGamePLAN SG-6: load one save slot and arm the SAME
-        checkpointed loading-screen flow a fresh game uses. A missing/
-        corrupt slot (``load_slot`` never raises — SG-1) is a silent no-op
-        that leaves the player on whatever screen they clicked from, rather
-        than a crash; the Save Files list itself is the source of truth for
-        which slots exist, so this should not happen in practice."""
-        doc = savegame.load_slot(savegame.slot_path(REPO, slot_id), data_dir)
-        if doc is None:
-            logging.getLogger(__name__).warning(
-                "could not load save slot %s — ignoring the click", slot_id)
-            return
-        _arm_loading(restore_data=doc)
+        """SaveGamePLAN SG-6: arm the SAME checkpointed loading-screen flow a
+        fresh game uses, over a DEFERRED read of one save slot. The read runs
+        as the queue's first checkpoint (see `_build_gameplay_steps`), so the
+        loading screen is already up when the disk is touched; a missing/
+        corrupt slot (``load_slot`` never raises — SG-1) makes that checkpoint
+        report failure and the LOADING driver returns to the main menu, rather
+        than crashing or silently starting a fresh run in the save's place."""
+        def _load():
+            doc = savegame.load_slot(savegame.slot_path(REPO, slot_id),
+                                     data_dir)
+            if doc is None:
+                logging.getLogger(__name__).warning(
+                    "could not load save slot %s — returning to the menu",
+                    slot_id)
+            return doc
+
+        _arm_loading(restore_loader=_load)
 
     def execute(intent):
         nonlocal running, recorder
         if intent == "new_game":
-            _arm_loading()
+            _arm_loading(cutscene_id=START_GAME_CUTSCENE)
         elif intent == "new_game_debug":
             # debug-mode-telemetry: PLAY DEBUG. `recorder` is a plain main()
             # local precisely so this can reassign it BEFORE the queued steps
             # bind it to the fresh run's RunState and Session.
             recorder = _new_recorder()
-            _arm_loading()
+            _arm_loading(cutscene_id=START_GAME_CUTSCENE)
         elif intent == "quit_to_menu":
             teardown_gameplay()  # shell already set state -> MAIN_MENU
         elif intent == "quit_app":
@@ -2008,10 +2088,24 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             doc = savegame.load_index(savegame.index_path(REPO), data_dir)
             shell.set_save_index(doc)
         elif intent == "continue_most_recent":
-            doc = savegame.load_index(savegame.index_path(REPO), data_dir)
-            slot_id = savegame.most_recent_slot(doc)
-            if slot_id is not None:
-                _load_save(slot_id)
+            # The index read is deferred with the slot read (see `_load_save`)
+            # — Continue is the ONE click that used to do two disk reads with
+            # the menu still on screen. The main menu only offers Continue
+            # when it knows saves exist (`set_has_saves`), so an index that
+            # turns out to name none resolves through the same
+            # abort-to-the-menu path a corrupt slot does.
+            def _load_most_recent():
+                index_doc = savegame.load_index(savegame.index_path(REPO),
+                                                data_dir)
+                slot_id = savegame.most_recent_slot(index_doc)
+                if slot_id is None:
+                    logging.getLogger(__name__).warning(
+                        "Continue found no save slots — returning to the menu")
+                    return None
+                return savegame.load_slot(savegame.slot_path(REPO, slot_id),
+                                          data_dir)
+
+            _arm_loading(restore_loader=_load_most_recent)
         elif isinstance(intent, tuple) and len(intent) == 2:
             kind, slot_id = intent
             if kind == "load_save":
@@ -2930,7 +3024,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         director.tick(st,
                       (gp["world"].session.state.phase
                        if gp["world"] is not None else None),
-                      gp["cutscene"] is not None)
+                      gp["cutscene"] is not None
+                      or loading_cutscene is not None)
         if st == GameState.CUTSCENE:
             # SD-7: stack the (silent, at boot) previous track under the intro
             # — idempotent, so this per-frame branch pushes exactly once.
@@ -2947,9 +3042,22 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # drains) until the minimum display duration has elapsed on
             # real accumulated `dt` — never `time.time()`. `shell.
             # enter_gameplay()` (not run inside the queued steps themselves,
-            # see `_step_finish`'s docstring) fires only once BOTH gates
+            # see `_step_finish`'s docstring) fires only once ALL gates
             # pass, so the very next frame renders GAMEPLAY.
             loading_elapsed += dt
+            # feature: start-game cutscene — the video runs on the same frames
+            # the checkpoints do, never instead of them: the whole point is
+            # that the run is being built while the player watches. Skipping
+            # (the usual 2s hold, polled into `skip_held` above) drops to the
+            # loading screen for whatever is left, rather than into a
+            # half-built world.
+            if loading_cutscene is not None:
+                loading_cutscene.update(dt)
+                loading_cutscene.update_skip_hold(dt, skip_held)
+                if loading_cutscene.done:
+                    loading_cutscene.release()
+                    director.leave_cutscene()   # SD-7: resume what played
+                    loading_cutscene = None
             if loading_just_armed:
                 # The frame that just clicked START runs NO checkpoint —
                 # `_step_world` alone can take the better part of a second on
@@ -2960,7 +3068,24 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 loading_just_armed = False
             elif loading_queue:
                 loading_queue.pop(0)()
-            if not loading_queue and loading_elapsed >= loading_min_seconds:
+            if loading_abort["failed"]:
+                # SG-6: the deferred save read came back empty (missing or
+                # corrupt slot, or a Continue with no slots at all). Drop the
+                # rest of the queue — every later checkpoint assumes a
+                # document — and hand the player back the menu they clicked
+                # from, the no-op the synchronous read used to give them.
+                loading_queue = None
+                if loading_cutscene is not None:
+                    loading_cutscene.release()
+                    director.leave_cutscene()
+                    loading_cutscene = None
+                loading_abort["failed"] = False
+                shell.to_main_menu()
+            elif (not loading_queue and loading_elapsed >= loading_min_seconds
+                    and loading_cutscene is None):
+                # The cutscene is the LAST gate: a run that finished building
+                # in three seconds still owes the player the rest of the
+                # video they are watching.
                 shell.enter_gameplay()
                 loading_queue = None
         elif st in _WORLD_STATES:
@@ -3354,13 +3479,33 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             _t_flush_start = time.perf_counter()
             flush_frame()
         elif st == GameState.LOADING:
-            # feature: loading screen — same visuals as the pre-boot screen
-            # (`_submit_loading_frame`), through `loading_screen` instead.
-            progress = ((loading_total - len(loading_queue)) / loading_total
-                        if loading_total else 1.0)
-            loading_screen.submit(renderer, assets, view_w, view_h, progress)
-            _t_flush_start = time.perf_counter()
-            flush_frame()
+            # feature: start-game cutscene — while one is covering this load
+            # the video IS the screen, drawn exactly the way the boot-time
+            # GameState.CUTSCENE branch above draws its own (full-screen blit,
+            # skip prompt, fade overlay). The loading screen comes back
+            # underneath the moment it ends or is skipped.
+            if loading_cutscene is not None:
+                surf = loading_cutscene.frame_surface()
+                if surf is not None:
+                    presenter.blit_fullscreen(surf)
+                _submit_cutscene_skip(renderer, view_w, view_h,
+                                      loading_cutscene.skip_progress,
+                                      mouse_idle_t)
+                _submit_cutscene_fade(renderer, view_w, view_h,
+                                      loading_cutscene.fade_alpha)
+                _t_flush_start = time.perf_counter()
+                flush_frame()
+            else:
+                # feature: loading screen — same visuals as the pre-boot
+                # screen (`_submit_loading_frame`), through `loading_screen`
+                # instead: both compose the ring through the ONE
+                # `loading_screen.submit_ring`.
+                progress = ((loading_total - len(loading_queue)) / loading_total
+                            if loading_total else 1.0)
+                loading_screen.submit(renderer, assets, view_w, view_h,
+                                      progress)
+                _t_flush_start = time.perf_counter()
+                flush_frame()
         elif st in _WORLD_STATES or st == GameState.PAUSED:
             world = gp["world"]
             session = world.session
@@ -3710,6 +3855,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # run that ends by window-close rather than reaching GAME_OVER.
     if recorder is not None:
         recorder.close(outcome="quit")
+    # feature: start-game cutscene — closing the window mid-load is the one
+    # exit that reaches neither `done` nor `teardown_gameplay`, and it would
+    # otherwise leave the cv2 capture open. `release()` is idempotent.
+    if loading_cutscene is not None:
+        loading_cutscene.release()
     presenter.close()   # GPU path: destroy the standalone SDL window
     pygame.quit()
     return frames

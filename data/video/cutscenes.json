@@ -10,5 +10,11 @@
     "length": 44.2,
     "trigger": "intro",
     "video": "cutscene.mp4"
+  },
+  "start_game": {
+    "audio": null,
+    "length": 0.0,
+    "trigger": "start_game",
+    "video": "start_game.mp4"
   }
 }

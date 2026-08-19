@@ -8247,6 +8247,34 @@
       }
     }
   },
+  "loading": {
+    "mock_note": "love=123, round=7 (idle, no world state — the ring at 0%)",
+    "widgets": {
+      "backdrop": {
+        "display_name": "Background backdrop",
+        "kind": "backdrop",
+        "label": "",
+        "rect": [
+          0,
+          0,
+          640,
+          360
+        ]
+      },
+      "ring": {
+        "display_name": "Progress ring",
+        "kind": "panel",
+        "label": "",
+        "parent": "backdrop",
+        "rect": [
+          296,
+          156,
+          48,
+          48
+        ]
+      }
+    }
+  },
   "main_menu": {
     "mock_note": "love=123, round=7 (idle, no world state)",
     "widgets": {
