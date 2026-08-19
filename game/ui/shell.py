@@ -15,12 +15,20 @@ string** (the established ``hit() -> "end_turn"`` convention):
   ``"quit_to_menu"``      tear the run down          (host drops the world)
   ``"quit_app"``          leave the game
   ``"set_display_mode"``  re-create the window       (host applies the mode)
+  ``"save_display_default"`` persist the CURRENT     (host writes
+                          display mode as the BOOT   ``data/display.json``, then
+                          one                        calls ``set_display_default``)
   ``"set_renderer"``      persist the GPU/CPU pick   (host writes it; BOOT-only)
   ``"add_name_commit"``   persist the typed name     (host writes + reports back)
   ``"open_highscores"``   the table just opened      (host RE-READS the scores
                                                      file so a just-finished run
                                                      shows, then calls
                                                      ``set_highscores``)
+  ``"rename_highscore"``  a high-score row was       (host reads
+                          renamed on the table       ``shell.pending_highscore_rename``,
+                                                     calls ``rename_entry``, then
+                                                     ``set_highscores(doc,
+                                                     keep_view=True)``)
 
 GAMEPLAY / GAME_OVER carry no shell screen (the host owns the HUD, building
 panel, and game-over screen, which need the live world); the shell only tracks
@@ -145,10 +153,32 @@ class Shell:
         self._pool_count = count
         self.add_name_screen.pool_count = count
 
-    def set_highscores(self, doc):
+    def set_display_default(self, mode):
+        """Host tells the shell which display mode ``data/display.json`` boots
+        into — at boot, and again after each ``"save_display_default"`` write.
+
+        It also becomes the SELECTED mode, which is right in both call sites:
+        at boot there is nothing else to start the cycler on, and after a save
+        the selection is already this mode by definition (the button persists
+        what is selected). The player is free to cycle away afterwards — the
+        note line on the screen is what keeps reporting the saved one.
+        """
+        self.settings.display_mode = mode
+        self.settings_screen.saved_default = mode
+
+    def set_highscores(self, doc, keep_view=False):
         """Host hands the loaded scores document down (``game/ui`` does no disk
-        I/O). Called right after the ``"open_highscores"`` intent, and at boot."""
-        self.highscores_screen.set_doc(doc)
+        I/O). Called right after the ``"open_highscores"`` intent, and at boot.
+
+        ``keep_view=True`` after a ``"rename_highscore"`` write, so the table
+        does not rewind to rank 1 under the player's cursor."""
+        self.highscores_screen.set_doc(doc, keep_view=keep_view)
+
+    @property
+    def pending_highscore_rename(self):
+        """``(disk_index, new_name)`` the table just committed, or ``None``
+        (host reads it on the ``"rename_highscore"`` intent)."""
+        return self.highscores_screen.pending_rename
 
     def prefill_identity(self, name, skill):
         """Host pre-fills the identity prompt from the last recorded player."""
@@ -180,9 +210,7 @@ class Shell:
         if st == GameState.PAUSED:
             return self._pause_click(mx, my)
         if st == GameState.HIGHSCORES:
-            if self.highscores_screen.hit(mx, my) == "back":
-                self.state = GameState.MAIN_MENU
-            return None
+            return self._highscores_action(self.highscores_screen.hit(mx, my))
         return None
 
     def handle_key(self, char, key):
@@ -203,9 +231,11 @@ class Shell:
             return self._add_name_action(
                 self.add_name_screen.handle_key(char, key))
         if st == GameState.HIGHSCORES:
-            if self.highscores_screen.handle_key(char, key) == "back":
-                self.state = GameState.MAIN_MENU
-            return None
+            # The table is a TEXT FIELD while a row is being renamed, so it
+            # gets every key before the generic Esc branch below (ADD_NAME's
+            # rule) — otherwise Esc would leave the screen mid-edit.
+            return self._highscores_action(
+                self.highscores_screen.handle_key(char, key))
         if key == "escape":
             if st == GameState.MAIN_MENU and self.debug_settings_open:
                 self.debug_settings_open = False  # debug-mode-telemetry
@@ -277,6 +307,11 @@ class Shell:
             return None
         if action == "set_display_mode":
             return "set_display_mode"
+        # The SET DEFAULT button. Pure pass-through: the screen mutated
+        # nothing, it named the mode `settings` already holds as the one to
+        # write to `data/display.json` (`game/ui` does no disk I/O).
+        if action == "save_display_default":
+            return "save_display_default"
         # SD-6: the screen already wrote the new level onto `settings`; the
         # host applies it to the audio buses and persists it (the same
         # pass-through shape `set_display_mode` has above).
@@ -323,6 +358,15 @@ class Shell:
             self.state = GameState.MAIN_MENU
         elif action == "add":
             return "add_name_commit"
+        return None
+
+    def _highscores_action(self, action):
+        """One place both the click and the key route go through, so BACK and
+        a rename commit cannot diverge between mouse and keyboard."""
+        if action == "back":
+            self.state = GameState.MAIN_MENU
+        elif action == "rename":
+            return "rename_highscore"
         return None
 
     # -- per-frame -------------------------------------------------------

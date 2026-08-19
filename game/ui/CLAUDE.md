@@ -803,7 +803,30 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
     them. **Neither does disk I/O**: the host loads/appends
     `scores/highscores.json` through `game.core.highscores` and hands the
     document down via `Shell.set_highscores` → `set_doc`; both modules import
-    that package only for its PURE helpers (`ranked`, `SKILLS`).
+    that package only for its PURE helpers (`ranked_rows`, `SKILLS`).
+  - **Renaming a row is the IO-free-screen rule under load.** A table row can
+    be selected (click, or Up/Down — which now move the SELECTION and scroll to
+    follow it, rather than scrolling directly) and its NAME edited in place with
+    `player_intro`'s text-entry state machine verbatim; the RENAME button
+    doubles as SAVE while editing. Committing writes NOTHING: it parks
+    `(disk_index, typed_name)` on `pending_rename` and returns the `"rename"`
+    action, which `Shell._highscores_action` (the one place BOTH the click and
+    the key route go through, so mouse and keyboard cannot diverge) turns into
+    the host intent `"rename_highscore"`. The host calls
+    `highscores.rename_entry` and re-feeds the screen with
+    `set_highscores(doc, keep_view=True)` — `keep_view` because rewinding to
+    rank 1 after renaming row 40 lands the player nowhere near where they were.
+  - **`self.rows` is `(disk_index, entry)` pairs, not entries.** The table is
+    sorted by `round_reached` and the file is in play order, so a rename
+    addressed by display position renames the wrong run. The index travels with
+    the row (`ranked_rows`) precisely so that cannot be got wrong at the call
+    site.
+  - **While a rename is live the table is a TEXT FIELD**, so `Shell.handle_key`
+    hands it every key before the generic Esc branch (the `ADD_NAME` rule) —
+    otherwise Esc would leave the screen mid-edit instead of cancelling.
+  - **`btn_rename` sits to the LEFT of `btn_back`, which keeps its shipped
+    geometry.** A second button on an existing screen must not move the one
+    players already know.
   - **`main_menu`'s id/action decoupling — the pattern for any future
     availability matrix.** `self.buttons` pairs each `Button` with a STABLE
     `slot_key` (what `_SLOT_IDS` looks its widget id up by — an id is the
@@ -872,7 +895,10 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
     default geometry changed on purpose" path, never relaxing the pin. Only
     `main_menu` moved; every other screen's entry is byte-identical, which is
     what says the change was contained.
-- **Settings screen rework (settings-cut)** — three changes, one section:
+- **Settings screen rework (settings-cut)** — one section for the whole
+  screen (the SET DEFAULT bullet is older than settings-cut and is here
+  because this is where the screen is documented, not because that rework
+  touched it):
   - **The three FX toggles are GONE** (income floaters / background art /
     gore). The `SessionSettings` FIELDS stay, still seeded from
     `data/balancing/ui.json`'s `FX` block and still read by `payday.py` /
@@ -899,6 +925,21 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
     rebuild the render stack live — window, `Renderer` and ground cache are one
     unit built once (`main.py::_build_render_stack`), with a live world's GPU
     textures hanging off it.
+  - **SET DEFAULT persists the BOOT display mode** (`btn_set_default`, right
+    of the `>` arrow, with a `default_note` "Boot: X" line under it). It is
+    the ONLY settings action that is genuinely side-effect-free — it mutates
+    nothing, it names the mode `settings` already holds — so it is the second
+    id (beside `btn_back`) that a clickable LAYER may retarget, where the
+    arrows/renderer/volume rows stay unroutable. Intent
+    `save_display_default` → `main.py` writes `data/display.json` through
+    `data_io.write_validated` and hands the result back via
+    `Shell.set_display_default`, which the host ALSO calls at boot to seed the
+    cycler (`SessionSettings.display_mode`'s literal default used to be right
+    only by coincidence). **This whole path was dead until it was wired**: the
+    button was built, positioned, id'd and hovered, but `submit()` never drew
+    it and `hit()` had no branch for it, so the action had zero call sites
+    while `display.schema.json` documented it as the thing that persists
+    `display_mode`.
   - BACK/CONTROLS moved up with the rows (296 → 278), and
     `data/ui/screens/settings.json`'s authored `btn_back` rect moved in
     lockstep — an authored rect WINS, so leaving it behind would have stranded
@@ -1962,6 +2003,17 @@ sets one).
     were never clickable, silently unmaking what the designer configured. A
     swallowed click reads honestly as "this decal does nothing" — the same
     thing `noop` means.
+  - **An INVISIBLE or DISABLED owner has no clickable layers.** `hit_layer`
+    skips any widget failing `is_visible` or `is_enabled` (both in
+    `skinning.py`). The `enabled` half is load-bearing: `hit_layer` runs
+    BEFORE the screen's own hit path and returns early, so `Button.hit` — the
+    only other place `enabled` is read — never runs for a layer click. Every
+    availability rule a screen expresses by clearing `enabled` would otherwise
+    be bypassed outright; `hud.py` folds phase, `_speed_buttons_visible` and
+    `session.speed_unlocked(idx)` all into `enabled`, so before this gate an
+    authored layer on `btn_end_turn` ended the turn during the ENEMY phase and
+    layers on `btn_speed_*` selected locked speeds. Widgets with no `enabled`
+    attribute at all (icons, holders, readouts) are enabled by default.
   - **The retarget table is each screen's OWN action table, reversed** —
     `hud.Hud._LAYER_ACTIONS`, `pause._ACTION_IDS`, `main_menu`'s
     `_SLOT_IDS`/`self.actions`, `cheat_menu._ACTION_IDS`. Never hand-roll a

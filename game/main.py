@@ -21,7 +21,8 @@ intro CUTSCENE, MAIN_MENU, SETTINGS, CREDITS, ADD_NAME, PAUSED. The host
 owns the pygame-only concerns the pure shell cannot: window (re)creation
 for display mode, the cutscene frame blit, background music, the _World
 lifecycle, and executing the shell's intent strings (new_game /
-quit_to_menu / quit_app / set_display_mode / add_name_commit).
+quit_to_menu / quit_app / set_display_mode / save_display_default /
+add_name_commit).
 GAMEPLAY/GAME_OVER carry the live world; every other state is a
 full-screen shell screen with no world. Phase TU-5 generalized the intro
 cutscene into a registry-driven ``game.ui.cutscene_player.CutscenePlayer``
@@ -1359,6 +1360,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     engine_audio.set_bus_volume("music", audio_doc["music"])
     engine_audio.set_bus_volume("sfx", audio_doc["sfx"])
     # -- /SD-6 --
+    # The BOOT display mode `data/display.json` holds — it seeds the settings
+    # screen's cycler AND the "Boot: ..." note under SET DEFAULT. `display` was
+    # already read above for the window size; the mode used to be dropped on
+    # the floor here, leaving `SessionSettings`'s literal default to be right
+    # only by coincidence.
+    shell.set_display_default(display["display_mode"])
     shell.set_pool_count(len(buildings_balance["BuildingsGlobal"]["random_names"]))
     # player-identity: the run history lives in the gitignored `scores/` dir at
     # the repo root, NOT in `data/` — it is per-machine play history. Read once
@@ -1758,6 +1765,17 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 audio_settings.save(
                     audio_settings.from_settings(shell.settings),
                     audio_settings.default_path(REPO), data_dir)
+        elif intent == "save_display_default":
+            # SET DEFAULT: persist the currently-selected mode as the BOOT one.
+            # `game/ui` does no disk I/O, so the write is here — through the
+            # validating writer like every other `data/` write (D-3), and
+            # in-place on the same `display` dict boot read, so the note line
+            # the shell is handed back can never disagree with the file.
+            display["display_mode"] = shell.settings.display_mode
+            data_io.write_validated(
+                display, data_dir / "display.json",
+                data_dir / "schemas" / "display.schema.json")
+            shell.set_display_default(shell.settings.display_mode)
         elif intent == "set_renderer":
             # settings-cut: a BOOT preference. Persist it and say nothing else
             # — the live render stack (window + Renderer + ground cache) is
@@ -1781,6 +1799,26 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             doc = highscores.load_highscores(scores_path, data_dir)
             shell.set_highscores(doc)
             shell.prefill_identity(*highscores.last_player(doc))
+        elif intent == "rename_highscore":
+            # The table committed a rename; `game/ui` does no disk I/O, so the
+            # WRITE is here. `rename_entry` RAISES on an unreadable file or a
+            # stale index rather than rewriting a document it could not parse
+            # — the same trade as `append_score` on the game-over screen: one
+            # logged warning and the rename is lost, never the history. Either
+            # way the screen is re-fed from disk, so what it shows is what the
+            # file actually says.
+            pending = shell.pending_highscore_rename
+            if pending is not None:
+                index, new_name = pending
+                try:
+                    doc = highscores.rename_entry(
+                        scores_path, index, new_name, data_dir)
+                except Exception as exc:                  # noqa: BLE001
+                    _log.warning("could not rename high-score entry %s (%s) "
+                                 "— the record is unchanged", index, exc)
+                    doc = highscores.load_highscores(scores_path, data_dir)
+                shell.set_highscores(doc, keep_view=True)
+                shell.prefill_identity(*highscores.last_player(doc))
 
     # -- feature: rebindable hotkeys ----------------------------------------
     def _handle_capture_key(event):
@@ -2297,6 +2335,13 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # exclusive with `pan_from` — arming one clears the other.
     drag_select_from = None
     drag_select_current = None
+    # Live-preview memo (perf): the candidate Tiles of the drag rectangle,
+    # keyed on the (anchor, cursor, visible window) triple that is the only
+    # thing that can change WHICH tiles are candidates mid-drag. Their
+    # per-frame `state` re-check stays in the submit loop below, so the memo
+    # cannot make the preview lie about a tile that changed under it.
+    drag_select_preview_key = None
+    drag_select_preview = []
     deco_clock_ms = 0.0  # wall-clock accumulator for deco idle animation
     # cutscene skip-prompt idle fade: seconds the mouse has sat still
     mouse_idle_t = 0.0
@@ -3220,24 +3265,45 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # does (review fix: a preview that skipped the gate could show a
             # tile during the round-0 tutorial that release would then refuse
             # to select), so a tile shown here is exactly a tile that will be
-            # selected on release. --
+            # selected on release.
+            # Windowed like every other per-tile emitter above (the same
+            # `visible_tile_window` tuple) and memoised on the triple that
+            # decides the candidate set: the rectangle only changes when the
+            # cursor crosses a tile boundary or the camera moves, so a held
+            # drag re-submits a ready-made list instead of re-running
+            # `tile_map.get` + `tutorial.allows` over every cell every frame.
+            # Unclamped and unmemoised, a zoomed-out drag across a large map
+            # was thousands of depth-sorted WorldFills per frame — each one a
+            # sort key plus four `world_to_screen` calls at flush.
+            # `tutorial.allows` is safe to memo: the guided chain only advances
+            # on a click, and a click is what ENDS a drag. Tile `state` is not
+            # (a wave can kidnap out from under a held drag), so it stays a
+            # per-frame check on the memoised Tiles. --
             if gp["drag_select_enabled"] and drag_select_from is not None:
                 cur = drag_select_current or drag_select_from
+                key = (drag_select_from.col, drag_select_from.row,
+                       cur.col, cur.row, cmin, cmax, rmin, rmax)
                 sel_cat = _SEL_CATEGORY.get(drag_select_from.state)
-                tutorial = gp["tutorial"]
-                if sel_cat is not None and tutorial.allows(
-                        ("tile", drag_select_from.col, drag_select_from.row)):
-                    c0, c1 = sorted((drag_select_from.col, cur.col))
-                    r0, r1 = sorted((drag_select_from.row, cur.row))
-                    for row in range(r0, r1 + 1):
-                        for col in range(c0, c1 + 1):
-                            t = world.tile_map.get(col, row)
-                            if (t is not None
-                                    and _SEL_CATEGORY.get(t.state) == sel_cat
-                                    and tutorial.allows(("tile", col, row))):
-                                widgets.submit_tile_diamond_fill(
-                                    renderer, col, row,
-                                    widgets.highlight_color("tile_selected") + (70,))
+                if drag_select_preview_key != key:
+                    drag_select_preview_key = key
+                    drag_select_preview = []
+                    tutorial = gp["tutorial"]
+                    if tutorial.allows(
+                            ("tile", drag_select_from.col, drag_select_from.row)):
+                        c0, c1 = sorted((drag_select_from.col, cur.col))
+                        r0, r1 = sorted((drag_select_from.row, cur.row))
+                        for row in range(max(r0, rmin), min(r1, rmax) + 1):
+                            for col in range(max(c0, cmin), min(c1, cmax) + 1):
+                                t = world.tile_map.get(col, row)
+                                if t is not None and tutorial.allows(
+                                        ("tile", col, row)):
+                                    drag_select_preview.append(t)
+                if sel_cat is not None:
+                    fill_rgba = widgets.highlight_color("tile_selected") + (70,)
+                    for t in drag_select_preview:
+                        if _SEL_CATEGORY.get(t.state) == sel_cat:
+                            widgets.submit_tile_diamond_fill(
+                                renderer, t.col, t.row, fill_rgba)
             # -- /drag-select --
             # The panel's WORLD half only — its tile highlights must stay
             # BEFORE the scene so a same-tile building draws on top of its own
