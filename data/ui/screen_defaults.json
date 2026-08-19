@@ -2802,7 +2802,7 @@
             "text_id": "building.upgrade.died_last_round"
           },
           "dmg_dealt_label": {
-            "display_name": "Damage dealt label",
+            "display_name": "DMG dealt label",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -2813,12 +2813,12 @@
               0,
               0
             ],
-            "sample": "Damage dealt",
+            "sample": "DMG dealt",
             "text_id": "building.upgrade.dmg_dealt"
           },
           "dmg_dealt_value": {
             "align": "right",
-            "display_name": "Damage dealt value",
+            "display_name": "DMG dealt value",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -2832,7 +2832,7 @@
             "text_id": "building.stat.value"
           },
           "dmg_taken_label": {
-            "display_name": "Damage taken label",
+            "display_name": "DMG taken label",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -2843,12 +2843,12 @@
               0,
               0
             ],
-            "sample": "Damage taken",
+            "sample": "DMG taken",
             "text_id": "building.upgrade.dmg_taken"
           },
           "dmg_taken_value": {
             "align": "right",
-            "display_name": "Damage taken value",
+            "display_name": "DMG taken value",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -3183,7 +3183,7 @@
             "text_id": "building.stat.value"
           },
           "stat_hp_label": {
-            "display_name": "HP label",
+            "display_name": "Health label",
             "font_key": "md",
             "kind": "label",
             "label": "",
@@ -3194,12 +3194,12 @@
               0,
               0
             ],
-            "sample": "HP",
+            "sample": "Health",
             "text_id": "building.stat.hp"
           },
           "stat_hp_value": {
             "align": "right",
-            "display_name": "HP value",
+            "display_name": "Health value",
             "font_key": "md",
             "kind": "label",
             "label": "",
@@ -3794,7 +3794,7 @@
               0,
               0
             ],
-            "sample": "click here to change",
+            "sample": "R",
             "text_id": "building.upgrade.name_placeholder"
           },
           "upgrade_name_box": {
@@ -6027,7 +6027,7 @@
         "text_id": "building.upgrade.died_last_round"
       },
       "dmg_dealt_label": {
-        "display_name": "Damage dealt label",
+        "display_name": "DMG dealt label",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -6038,12 +6038,12 @@
           0,
           0
         ],
-        "sample": "Damage dealt",
+        "sample": "DMG dealt",
         "text_id": "building.upgrade.dmg_dealt"
       },
       "dmg_dealt_value": {
         "align": "right",
-        "display_name": "Damage dealt value",
+        "display_name": "DMG dealt value",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -6057,7 +6057,7 @@
         "text_id": "building.stat.value"
       },
       "dmg_taken_label": {
-        "display_name": "Damage taken label",
+        "display_name": "DMG taken label",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -6068,12 +6068,12 @@
           0,
           0
         ],
-        "sample": "Damage taken",
+        "sample": "DMG taken",
         "text_id": "building.upgrade.dmg_taken"
       },
       "dmg_taken_value": {
         "align": "right",
-        "display_name": "Damage taken value",
+        "display_name": "DMG taken value",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -6744,7 +6744,7 @@
         "text_id": "building.stat.value"
       },
       "stat_hp_label": {
-        "display_name": "HP label",
+        "display_name": "Health label",
         "font_key": "md",
         "kind": "label",
         "label": "",
@@ -6755,12 +6755,12 @@
           0,
           0
         ],
-        "sample": "HP",
+        "sample": "Health",
         "text_id": "building.stat.hp"
       },
       "stat_hp_value": {
         "align": "right",
-        "display_name": "HP value",
+        "display_name": "Health value",
         "font_key": "md",
         "kind": "label",
         "label": "",
@@ -7412,7 +7412,7 @@
           0,
           0
         ],
-        "sample": "click here to change",
+        "sample": "R",
         "text_id": "building.upgrade.name_placeholder"
       },
       "upgrade_name_box": {
