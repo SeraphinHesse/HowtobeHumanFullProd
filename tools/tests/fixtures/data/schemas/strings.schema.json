@@ -584,6 +584,10 @@
       "description": "Level-up option-box tier-progress line, tier-kind options only. Placeholders: {tier_no} (the tier this option advances TO, int), {tier_max} (the family's highest tier, int).",
       "type": "string"
     },
+    "levelup.unlock_title": {
+      "description": "Level-up option-box title for an unlock-kind card (a whole building type earned). Placeholders: {name} (the building's own name).",
+      "type": "string"
+    },
     "settings.display_mode": {
       "description": "Settings header above the windowed/borderless/fullscreen cycler. No placeholders (the VALUE itself is the enum, not a template).",
       "type": "string"
@@ -783,6 +787,7 @@
     "levelup.cost_paid",
     "levelup.heading",
     "levelup.tier_progress",
+    "levelup.unlock_title",
     "settings.display_mode",
     "settings.master_audio",
     "settings.music_audio",

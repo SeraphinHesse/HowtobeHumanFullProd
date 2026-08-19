@@ -1649,6 +1649,38 @@
       ],
       "skin": "ui_button_panel"
     },
+    "preview_color_0": {
+      "rect": [
+        343,
+        141,
+        12,
+        12
+      ]
+    },
+    "preview_color_1": {
+      "rect": [
+        357,
+        141,
+        12,
+        12
+      ]
+    },
+    "preview_color_2": {
+      "rect": [
+        371,
+        141,
+        12,
+        12
+      ]
+    },
+    "preview_color_3": {
+      "rect": [
+        385,
+        141,
+        12,
+        12
+      ]
+    },
     "preview_confirm_btn": {
       "rect": [
         327,
@@ -1673,7 +1705,8 @@
         105,
         170,
         150
-      ]
+      ],
+      "skin": "ui_panel_v21"
     },
     "rename_dice_btn": {
       "rect": [

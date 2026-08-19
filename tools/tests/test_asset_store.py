@@ -51,6 +51,14 @@ def make_hole_sheet(path, cols=1, rows=1):
     pygame.image.save(sheet, str(path))
 
 
+def make_blank_sheet(path, cols=1, rows=1):
+    """Every frame: fully transparent -- a skin row deliberately authored
+    empty (e.g. an `idle` that only paints once hovered)."""
+    sheet = pygame.Surface((cols * FRAME_W, rows * FRAME_H), pygame.SRCALPHA)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pygame.image.save(sheet, str(path))
+
+
 def make_solid_sheet(path, cols=1, rows=1):
     """Every frame: fully opaque, no hole -- for the degenerate-band test,
     where the point is that a whole dest COLUMN/ROW must read as a miss
@@ -192,6 +200,19 @@ class TestSlicing(SheetCase):
         store = self.store(entry(frames=(1,)))
         self.assertTrue(store.hit_opaque(
             "tower", rel_xy=(1, 1), dest_size=(FRAME_W, FRAME_H)))
+
+    def test_hit_opaque_wholly_transparent_frame_returns_true(self):
+        """An empty row has no silhouette, so it degrades to the rect test.
+
+        A skin may author `idle` empty on purpose so the button paints only
+        on hover; testing that row pixel-perfectly made it unhoverable and
+        so unclickable forever, and the hover row could never be reached.
+        """
+        make_blank_sheet(self.sprites_dir / "imported" / "tower.png")
+        store = self.store(entry(frames=(1,)))
+        for pt in ((0, 0), (FRAME_W - 1, FRAME_H - 1), (FRAME_W // 2, 1)):
+            self.assertTrue(store.hit_opaque(
+                "tower", rel_xy=pt, dest_size=(FRAME_W, FRAME_H)), pt)
 
     def test_hit_opaque_placeholder_returns_true(self):
         store = self.store()   # empty manifest -> PLACEHOLDER

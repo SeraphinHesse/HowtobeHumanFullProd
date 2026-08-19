@@ -18,7 +18,8 @@
         122,
         160,
         26
-      ]
+      ],
+      "skin": "ui_button_panel_v4"
     },
     "btn_continue": {
       "rect": [
@@ -26,7 +27,8 @@
         0,
         160,
         26
-      ]
+      ],
+      "skin": "ui_button_panel_v4"
     },
     "btn_credits": {
       "rect": [
@@ -34,7 +36,8 @@
         242,
         160,
         26
-      ]
+      ],
+      "skin": "ui_button_panel_v4"
     },
     "btn_highscores": {
       "rect": [
@@ -42,15 +45,17 @@
         152,
         160,
         26
-      ]
+      ],
+      "skin": "ui_button_panel_v4"
     },
     "btn_new_game": {
       "rect": [
-        238,
+        240,
         62,
         160,
         26
-      ]
+      ],
+      "skin": "ui_button_panel_v4"
     },
     "btn_play_debug": {
       "rect": [
@@ -58,7 +63,8 @@
         92,
         160,
         26
-      ]
+      ],
+      "skin": "ui_button_panel_v4"
     },
     "btn_play_debug_settings": {
       "rect": [
@@ -66,7 +72,8 @@
         92,
         30,
         26
-      ]
+      ],
+      "skin": "ui_button_panel_v4"
     },
     "btn_quit": {
       "rect": [
@@ -74,7 +81,8 @@
         272,
         160,
         26
-      ]
+      ],
+      "skin": "ui_button_panel_v4"
     },
     "btn_save_files": {
       "rect": [
@@ -82,7 +90,8 @@
         182,
         160,
         26
-      ]
+      ],
+      "skin": "ui_button_panel_v4"
     },
     "btn_settings": {
       "rect": [
@@ -90,7 +99,8 @@
         212,
         160,
         26
-      ]
+      ],
+      "skin": "ui_button_panel_v4"
     },
     "subtitle": {
       "rect": [

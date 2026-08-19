@@ -1871,6 +1871,14 @@ class Facing(Component):
     Ordering: it sits AFTER ``Movement`` in the component list so it reads the
     position that was just stepped, and before ``SpriteAnimator`` so the flip
     lands in the same frame's ``render_items``.
+
+    **A carrier does not turn.** Once ``Kidnap.active`` the unit walks HOME,
+    i.e. back the way it came, so the heading rule would mirror it the instant
+    it sets off — and the carried building rides at a FIXED world offset
+    (``Kidnap.render_items``, ``-CARRY_OFFSET_TILES``/``+CARRY_OFFSET_TILES``)
+    that does not mirror with it, so a flipped carrier would be holding the loot
+    on the wrong side. The facing it walked in with STICKS, exactly like the
+    no-waypoint case below.
     """
 
     #: Ignore a heading shorter than this (tiles). Right on top of a waypoint
@@ -1888,6 +1896,9 @@ class Facing(Component):
         mv = owner.get_component(Movement)
         if anim is None or mv is None:
             return
+        kidnap = owner.get_component(Kidnap)
+        if kidnap is not None and kidnap.active:
+            return                      # carrying — hold the flip (see above)
         wps = mv.waypoints
         if not wps or mv.index >= len(wps):
             return                      # nothing to face — hold the last flip

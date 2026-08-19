@@ -72,7 +72,8 @@ class ResearchSpec:
     starts_unlocked_path: tuple = ()  # override for starts_unlocked_for's default
     unlock_group: tuple = ()        # types unlocked together (the boost trio)
     unlock_title: str = ""          # UI copy override; default is
-                                    # "Unlock <tier 1 name>" (see levelup)
+                                    # the tier-1 name, wrapped by the UI in
+                                    # `levelup.unlock_title` (see levelup)
     unlock_explanation: str = ""
     tier_group: tuple = ()          # types whose TIERS research together (the trio)
     tier_copy_path: tuple = ()      # buildings.json path holding the tier card copy
@@ -135,7 +136,7 @@ RESEARCH = {
     "boost_speed": ResearchSpec(
         starts_unlocked_path=("BoostBuildings", "globals", "starts_unlocked"),
         unlock_group=_BOOST_TRIO,
-        unlock_title="Unlock Boost Buildings",
+        unlock_title="Boost Buildings",
         unlock_explanation="Cheerleaders that buff adjacent defenders — but curse "
                            "their neighbours when they fall.",
         tier_group=_BOOST_TRIO,

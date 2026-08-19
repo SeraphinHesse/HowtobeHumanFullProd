@@ -165,6 +165,7 @@ _FIXTURE_STRINGS = {
     "levelup.cost_paid": "{label}  {cost}",
     "levelup.heading": "CHOOSE YOUR REWARD",
     "levelup.tier_progress": "Tier {tier_no} of {tier_max}",
+    "levelup.unlock_title": "{name}",
     "settings.display_mode": "Display Mode",
     "settings.master_audio": "Master Audio",
     "settings.music_audio": "Music",

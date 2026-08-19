@@ -283,7 +283,7 @@ class TestOptionRoll(unittest.TestCase):
         st = RunState.from_balance(CORE, BUILD)
         options = self.roll(st)
         self.assertEqual([o["title"] for o in options],
-                         ["Slinger", "Harp Player", "Unlock Mortar"])
+                         ["Slinger", "Harp Player", "Mortar"])
         self.assertFalse([o for o in options if o["kind"] == "fallback"])
 
     def test_fully_researched_pool_pads_with_fallbacks(self):
@@ -433,12 +433,12 @@ class TestUnlockOptions(unittest.TestCase):
         return st
 
     def test_ungated_locked_type_offers_an_unlock_card(self):
-        spec = ResearchSpec(unlock_title="Unlock Music")
+        spec = ResearchSpec(unlock_title="Music")
         with self.synthetic(spec):
             options = lv.roll_levelup_options(
                 self.locked_state(), BUILD, CORE, NoShuffle, PROGRESSION)
         card = next(o for o in options if o["kind"] == "unlock_building")
-        self.assertEqual(card["title"], "Unlock Music")
+        self.assertEqual(card["title"], "Music")
         self.assertEqual(card["cost"], 0)             # the unlock is free
         self.assertEqual(card["display_cost"], 10)    # tier-1 build cost
         self.assertEqual(card["building_types"], ("economic",))
@@ -718,7 +718,7 @@ class TestDefence10BGates(unittest.TestCase):
         card = next(o for o in self.roll(st)
                     if o.get("building_type") == "aoe_defence")
         self.assertEqual(card["kind"], "unlock_building")
-        self.assertEqual(card["title"], "Unlock Mortar")
+        self.assertEqual(card["title"], "Mortar")
         self.assertEqual(card["building_types"], ("aoe_defence",))
         self.assertEqual(card["cost"], 0)                    # free unlock
         self.assertEqual(card["display_cost"],
@@ -754,7 +754,7 @@ class TestDefence10BGates(unittest.TestCase):
         card = next(o for o in self.roll(st)
                     if o.get("building_type") == "sun_scorcher")
         self.assertEqual(card["kind"], "unlock_building")
-        self.assertEqual(card["title"], "Unlock Sun Scorcher")
+        self.assertEqual(card["title"], "Sun Scorcher")
         self.assertEqual(card["sprite_key"], "sun_scorcher_t1_lvl1")
 
     def test_unlocking_lets_the_type_be_placed(self):

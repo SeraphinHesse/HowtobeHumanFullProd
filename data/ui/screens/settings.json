@@ -1,27 +1,268 @@
 {
   "widgets": {
+    "audio_label": {
+      "rect": [
+        155,
+        193,
+        0,
+        0
+      ],
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
     "backdrop": {
+      "color": [
+        0,
+        0,
+        0
+      ],
       "rect": [
         0,
         0,
         640,
         360
+      ],
+      "skin": "ui_bg_main_menu"
+    },
+    "bar_master_volume": {
+      "rect": [
+        282,
+        194,
+        96,
+        10
+      ]
+    },
+    "bar_music_volume": {
+      "rect": [
+        282,
+        216,
+        96,
+        10
+      ]
+    },
+    "bar_sfx_volume": {
+      "rect": [
+        282,
+        238,
+        96,
+        10
       ]
     },
     "btn_back": {
       "rect": [
-        270,
-        278,
-        100,
-        23
+        285,
+        307,
+        70,
+        40
       ],
       "skin": "ui_button_panel"
     },
+    "btn_controls": {
+      "rect": [
+        276,
+        267,
+        90,
+        23
+      ]
+    },
     "btn_dm_left": {
+      "rect": [
+        245,
+        122,
+        20,
+        20
+      ],
       "skin": "ui_button_panel"
     },
     "btn_dm_right": {
+      "rect": [
+        375,
+        122,
+        20,
+        20
+      ],
       "skin": "ui_button_panel"
+    },
+    "btn_master_volume_down": {
+      "rect": [
+        260,
+        191,
+        16,
+        16
+      ]
+    },
+    "btn_master_volume_up": {
+      "rect": [
+        382,
+        191,
+        16,
+        16
+      ]
+    },
+    "btn_music_volume_down": {
+      "rect": [
+        260,
+        213,
+        16,
+        16
+      ]
+    },
+    "btn_music_volume_up": {
+      "rect": [
+        382,
+        213,
+        16,
+        16
+      ]
+    },
+    "btn_renderer": {
+      "rect": [
+        260,
+        156,
+        60,
+        20
+      ],
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "btn_set_default": {
+      "rect": [
+        537,
+        16,
+        84,
+        30
+      ],
+      "skin": "ui_button_panel_v7"
+    },
+    "btn_sfx_volume_down": {
+      "rect": [
+        260,
+        235,
+        16,
+        16
+      ]
+    },
+    "btn_sfx_volume_up": {
+      "rect": [
+        382,
+        235,
+        16,
+        16
+      ]
+    },
+    "default_note": {
+      "rect": [
+        405,
+        145,
+        0,
+        0
+      ]
+    },
+    "dm_label": {
+      "rect": [
+        320,
+        108,
+        0,
+        0
+      ]
+    },
+    "dm_value": {
+      "rect": [
+        320,
+        125,
+        0,
+        0
+      ],
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "label_master_volume_pct": {
+      "rect": [
+        404,
+        194,
+        0,
+        0
+      ]
+    },
+    "label_music_volume": {
+      "rect": [
+        155,
+        215,
+        0,
+        0
+      ],
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "label_music_volume_pct": {
+      "rect": [
+        404,
+        216,
+        0,
+        0
+      ]
+    },
+    "label_sfx_volume": {
+      "rect": [
+        155,
+        237,
+        0,
+        0
+      ],
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "label_sfx_volume_pct": {
+      "rect": [
+        404,
+        238,
+        0,
+        0
+      ]
+    },
+    "renderer_label": {
+      "rect": [
+        155,
+        160,
+        0,
+        0
+      ]
+    },
+    "renderer_note": {
+      "rect": [
+        330,
+        160,
+        0,
+        0
+      ]
+    },
+    "title": {
+      "rect": [
+        328,
+        45,
+        0,
+        0
+      ],
+      "text_color": [
+        198,
+        81,
+        151
+      ]
     }
   }
 }

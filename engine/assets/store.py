@@ -68,6 +68,11 @@ class AssetStore:
         # this back to a 3-tuple.
         self._frames = {}   # (slot_key, row, col, block) -> Surface | _LOAD_FAILED
         self._hit_masks = {}   # (slot_key, row, col, block) -> pygame.Mask
+        # Which of those masks are wholly transparent. Cached beside the mask
+        # (never recomputed per call) because `hit_opaque` consults it on every
+        # mouse-move for every skinned widget on screen, and `Mask.count()`
+        # walks every bit of the frame.
+        self._empty_masks = {}   # (slot_key, row, col, block) -> bool
 
     @property
     def registry(self):
@@ -167,11 +172,13 @@ class AssetStore:
 
         Returns:
             True if the pixel at `rel_xy` is opaque (alpha > 0) in the
-            resolved frame. Never raises: a placeholder frame (no art yet)
-            or a corrupt/missing sheet degrades to True (E-37 — opaque
-            everywhere, so a partially-imported build stays fully
-            clickable); a `rel_xy` that maps outside the source frame
-            (e.g. an out-of-bounds click the caller failed to clamp)
+            resolved frame. Never raises: a placeholder frame (no art yet),
+            a corrupt/missing sheet, or a WHOLLY TRANSPARENT frame (no
+            silhouette to test — including a skin whose `idle` row is
+            deliberately empty so the button only paints on hover) degrades
+            to True (E-37 — opaque everywhere, so a partially-imported build
+            stays fully clickable); a `rel_xy` that maps outside the source
+            frame (e.g. an out-of-bounds click the caller failed to clamp)
             degrades to False rather than raising."""
         ref = self._manifest.current_frame(slot_key, animation, int(anim_time_ms))
         if ref is PLACEHOLDER:
@@ -189,6 +196,23 @@ class AssetStore:
         if mask is None:
             mask = self._hit_masks[key] = pygame.mask.from_surface(
                 surface, threshold=0)
+            self._empty_masks[key] = mask.count() == 0
+        if self._empty_masks[key]:
+            # A WHOLLY TRANSPARENT frame has no silhouette to test, so there is
+            # nothing this method can meaningfully answer False about: it
+            # degrades to opaque-everywhere, i.e. the caller's plain rect test.
+            # Same family as the placeholder/corrupt-sheet degradations above —
+            # never make a widget unreachable over missing pixels.
+            #
+            # This is a REAL authored case, not just a broken import. A skin may
+            # deliberately ship an empty `idle` row so the button is invisible
+            # until the cursor arrives and the `hover` row paints it in
+            # (`ui_button_panel_v4`). Because `Button._surface_hit` queries the
+            # canonical `("idle", 0)` silhouette ONLY, an empty idle row used to
+            # make such a button permanently unhoverable AND unclickable — the
+            # hover row it was waiting for could never be reached, so the skin
+            # could never do the one thing it was drawn to do.
+            return True
 
         if dest_size is None:
             dest_size = (entry.frame_w, entry.frame_h)
