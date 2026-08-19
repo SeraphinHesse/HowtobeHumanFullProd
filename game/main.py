@@ -139,6 +139,7 @@ from game.ui.cutscene_player import CutscenePlayer, load_cutscene_registry
 from game.ui.loading_screen import LoadingScreen  # feature: loading screen
 from game.ui.skinning import ScreenSkinning  # 10L-B: per-screen overrides
 from game.ui.strings import configure_strings  # Phase C: global string table
+from game.ui.credits import configure_credits  # UT-Credits: the credits roll
 
 BACKGROUND = (24, 20, 32)
 _LEFT, _RIGHT = 1, 3
@@ -1372,6 +1373,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         data_dir / "ui" / "strings.json",
         data_dir / "schemas" / "strings.schema.json")
     _flush_loading()
+    # UT-Credits: the CREDITS screen's (role, name) roll — same fail-loud D-2
+    # boot load as the string table above; it is data, not art.
+    credits_doc = data_io.load_validated(
+        data_dir / "ui" / "credits.json",
+        data_dir / "schemas" / "credits.schema.json")
+    _flush_loading()
     # UH-Font-A: the game-wide custom font family, ORTHOGONAL to the 7-preset
     # size/bold system above. "default" means today's SysFont behavior; any
     # other id must resolve to a data/fonts/font_manifest.json entry whose
@@ -1415,6 +1422,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     configure_fonts(fonts_doc, font_path=font_path, family_paths=family_paths)
     widgets.configure_palette(palette_doc)
     configure_strings(strings_doc)
+    configure_credits(credits_doc)
     # G4: the Renderer and the ground cache are built AFTER the presenter (the
     # GPU variants need its SDL Renderer, which needs the window, which needs
     # the shell's display mode) — see _build_render_stack below. Nothing

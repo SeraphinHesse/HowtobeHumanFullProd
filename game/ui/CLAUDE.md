@@ -3040,6 +3040,34 @@ reference to a resolved VALUE, only to the `T` function).
   stated reason (a static title on the per-widget `label` mechanism, or a
   runtime-authored value), not because nobody got to it.
 
+## Credits roll (UT-Credits)
+`data/ui/credits.json` ↔ `game/ui/credits.py` — the CREDITS screen's ordered
+`(role, name)` rows, the SECOND file on the string table's cache/configure
+shape one section up: a module-level `_CREDITS` list seeded with the shipped
+roll (so an unconfigured import renders byte-identical output),
+`configure_credits(doc)` rebinding it IN PLACE at boot (`game/main.py`,
+right after `configure_strings`, same fail-loud D-2 load), and `credit_rows()`
+as the ONE read path — the screen never touches `_CREDITS`, so nothing holds a
+binding across a reconfigure. Unlike `strings.json`, the schema's key set is
+NOT closed: rows are designer-owned content, and adding a person is a data
+edit made in the editor (selector ▸ ui ▸ Credits), never a schema change.
+A row with an empty role AND name is a spacer.
+
+The two columns still resolve through the `credits.role`/`credits.name`
+string templates — that is unchanged; this section only moves WHICH rows
+exist out of code.
+
+**Row spacing is fit-derived, not a fixed literal.** `_LINE_H`/`_SPACER_H`
+are the MAXIMUM step: at the shipped row count nothing shrinks (the golden
+skinning baseline and `screen_previews.json` are byte-identical to
+pre-UT-Credits output), but a longer roll would run under the BACK button on
+the 640x360 surface, so `_row_steps()` scales both steps down to fit —
+floored at `layout_h("md")`, since a text row step is font-scale and a step
+below the glyph height just overlaps them (UR-5). Past that floor the list
+genuinely does not fit, which a designer sees in the editor's screen preview
+(it replays this same `submit()` — `tools/export_ui_layouts.py` binds
+`credits.json` before recording).
+
 ## `text_id` — a widget's text is DATA now (UT-1 … UT-4)
 
 The 10L-B widget contract gained a fifth override key beside `rect`/`skin`/

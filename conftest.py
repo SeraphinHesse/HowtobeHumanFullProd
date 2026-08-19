@@ -185,6 +185,7 @@ TIERS = {
     "test_sound_triggers_enemies": "core",  # SD-5: enemy death/attack/spawn triggers
     "test_sound_triggers_ui": "core",  # SD-6: UI click/refusal sounds + sliders
     "test_strings_data": "core",  # Phase C: string-table data + T() parity pins
+    "test_credits_data": "core",  # UT-Credits: credits-roll data + fit pins
     "test_structure": "core",
     "test_theme_data": "core",  # UH-6: fonts/palette data + tint parity pins
     "test_tile_conditions": "core",

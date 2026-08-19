@@ -49,6 +49,11 @@ nothing to enumerate) as the THIRD child of the "ui" category, right after
 "Theme". Selecting it emits strings_selected() + domain_selected("ui") —
 same never-node_selected rule, via its own marker role (_STRINGS_ROLE).
 
+UT-Credits adds a single "Credits" LEAF right after "Strings" — same shape
+again (one document, data/ui/credits.json, nothing to enumerate), its own
+marker role (_CREDITS_ROLE), emitting credits_selected() + domain_selected(
+"ui") and never node_selected.
+
 TimelinePLAN T5 adds a single "Timeline" LEAF (same "one document, nothing
 to enumerate" shape as Theme/Cutscenes/Tutorial/Strings) as the FIRST child
 of the "buildings" category — `progression.json` schedules building
@@ -127,6 +132,7 @@ _STRINGS_ROLE = Qt.ItemDataRole.UserRole + 8    # True on the single Strings lea
 _TIMELINE_ROLE = Qt.ItemDataRole.UserRole + 9   # True on the single Timeline leaf (TimelinePLAN T5)
 _MASTER_SHEETS_ROLE = Qt.ItemDataRole.UserRole + 10  # True on the single Master Sheets top-level item (MasterSheetColumnsPLAN E5, D9)
 _BOSS_UPGRADES_ROLE = Qt.ItemDataRole.UserRole + 11  # True on the single Boss Upgrade Timeline leaf (BossUpgradeTimelinePLAN BU-5, D11)
+_CREDITS_ROLE = Qt.ItemDataRole.UserRole + 12   # True on the single Credits leaf (UT-Credits)
 
 _MAPS_BRANCH_LABEL = "Maps"
 _SCREENS_BRANCH_LABEL = "Screens"
@@ -134,6 +140,7 @@ _THEME_LABEL = "Theme"
 _CUTSCENES_LABEL = "Cutscenes"
 _TUTORIAL_LABEL = "Tutorial"
 _STRINGS_LABEL = "Strings"
+_CREDITS_LABEL = "Credits"
 _TIMELINE_LABEL = "Timeline"
 _MASTER_SHEETS_LABEL = "Master Sheets"
 _BOSSES_LABEL = "Bosses"
@@ -162,6 +169,7 @@ class SelectorPanel(QTreeWidget):
     cutscenes_selected = Signal()        # TU-3: the single Cutscenes leaf
     tutorial_selected = Signal()     # TU-4: the single Tutorial leaf
     strings_selected = Signal()      # Phase C: the single Strings leaf was selected
+    credits_selected = Signal()      # UT-Credits: the single Credits leaf
     timeline_selected = Signal()     # TimelinePLAN T5: the single Timeline leaf
     master_sheets_selected = Signal()  # E5: the Master Sheets top-level item
     boss_upgrades_selected = Signal()  # BU-5: the Boss Upgrade Timeline leaf
@@ -182,6 +190,7 @@ class SelectorPanel(QTreeWidget):
         self._cutscenes_item = None
         self._tutorial_item = None
         self._strings_item = None
+        self._credits_item = None
         self._timeline_item = None
         self._master_sheets_item = None
         self._bosses_item = None
@@ -261,6 +270,16 @@ class SelectorPanel(QTreeWidget):
                 strings_item.setData(0, _STRINGS_ROLE, True)
                 root.insertChild(2, strings_item)
                 self._strings_item = strings_item
+                # UT-Credits: a single "Credits" leaf right after Strings —
+                # one document (data/ui/credits.json), nothing to enumerate,
+                # so the same marker-role shape as Theme/Strings. It goes at
+                # index 3, pushing Cutscenes/Tutorial down one; "Screens"
+                # stays FIRST, per the UH-6 ordering invariant.
+                credits_item = self._make_item(
+                    _CREDITS_LABEL, "ui", (_CREDITS_LABEL,))
+                credits_item.setData(0, _CREDITS_ROLE, True)
+                root.insertChild(3, credits_item)
+                self._credits_item = credits_item
             elif category.key == "buildings":
                 # TimelinePLAN T5: a single "Timeline" leaf, FIRST child (the
                 # Maps/Screens-branch-first convention) — one document
@@ -647,6 +666,13 @@ class SelectorPanel(QTreeWidget):
             # Strings leaf (Phase C): the exact _THEME_ROLE pattern above,
             # one leaf over.
             self.strings_selected.emit()
+            if "ui" in self._domains:
+                self.domain_selected.emit("ui")
+            return
+        if items[0].data(0, _CREDITS_ROLE):
+            # Credits leaf (UT-Credits): the exact _STRINGS_ROLE pattern, one
+            # leaf over.
+            self.credits_selected.emit()
             if "ui" in self._domains:
                 self.domain_selected.emit("ui")
             return

@@ -1240,6 +1240,22 @@ validating writer; don't hand-edit the JSON.
   reconfigure** (`game/ui/strings` is game-only, off limits to the editor,
   same as `palette.json`'s case above) — the game re-reads `strings.json`
   at its own next boot.
+- **`data/ui/credits.json`** ↔ `schemas/credits.schema.json` (normal stem
+  pairing, UT-Credits): `{"rows": [{"role", "name"}, …]}` — the CREDITS
+  screen's roll, in render order, a row with both columns empty meaning a
+  SPACER. Deliberately NOT a closed key set like `strings.json` above: rows
+  are designer-owned CONTENT, so adding a person is a data edit, never a
+  schema change. Loaded + validated at boot next to `strings.json` (same
+  fail-loud D-2 rule) and passed to `game.ui.credits.configure_credits`,
+  which rebinds the module's row list in place; the unconfigured module
+  default equals this file's stock content, the `fonts.json`/`palette.json`/
+  `strings.json` convention. The editor's Credits panel
+  (`editor/panels/credits_panel.py`, via `editor/credits_ops.py`) is the only
+  writer, through `write_validated`, staged behind one Save button. No
+  editor-side consumer to reconfigure (`game/ui/credits` is game-only) —
+  but `tools/export_ui_layouts.py` DOES bind it before recording
+  `screen_previews.json`, so the editor's screen preview shows a saved edit
+  after a "Refresh Layouts".
 - **`ui_screen.schema.json` widget `tint` (D6)**: one new key in the
   per-widget override object, same 3-4-int-array shape as `color` — like
   every other widget override key (`rect`/`skin`/`font`/`label`/`color`/
