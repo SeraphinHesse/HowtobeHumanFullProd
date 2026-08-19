@@ -14291,15 +14291,33 @@
       ]
     },
     "ui_icon_life": {
-      "frame_h": 64,
-      "frame_w": 64,
+      "frame_h": 32,
+      "frame_w": 32,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 19,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "pressed",
+          "fps": 12,
+          "frames": 19,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "disabled",
+          "fps": 6,
+          "frames": 19,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -14309,16 +14327,50 @@
       "sheet": "imported/ui_icon_lives.png"
     },
     "ui_icon_lives": {
-      "frame_h": 64,
-      "frame_w": 64,
+      "frame_h": 32,
+      "frame_w": 32,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 19,
           "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "pressed",
+          "fps": 6,
+          "frames": 19,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "disabled",
+          "fps": 6,
+          "frames": 19,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
