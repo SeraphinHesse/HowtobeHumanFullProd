@@ -78,6 +78,7 @@ from game.buildings.coverage import wire_defence_coverage
 # -- B1: the slots.json category whose slots may carry a colour column --
 from game.buildings.registry import BUILDINGS_CATEGORY
 from game.buildings.registry import save_building  # SaveGamePLAN SG-5
+from game.buildings.registry import restore_building  # SaveGamePLAN SG-6
 from game.buildings import painter as painter_art  # progress-art seam
 # -- Building Movement: the in-transit sign slot + the cost/time formulas the
 # destination-pick preview quotes --
@@ -94,6 +95,7 @@ from game.core import boss_upgrades  # BU-3: the one-time-hook seam
 from game.core import highscores  # player-identity: the run-history document
 from game.core import lightning  # BU-3 3.3: the stormpriest_slow hook seam
 from game.core import savegame  # SaveGamePLAN SG-5: the autosave writer
+from game.core.game_state import RunState  # SaveGamePLAN SG-6: load path
 from game.core.phases import GamePhase, GameState
 from game.debug import (  # debug-mode-telemetry
     DebugRecorder, LEVELS, LEVEL_BASIC, LEVEL_OFF, LEVEL_VERBOSE,
@@ -633,6 +635,56 @@ class _World:
         # -- /10I --
 
 
+def _apply_save_to_world(world, restore_data, buildings_balance):
+    """SaveGamePLAN SG-6: overwrite a freshly-built ``_World``'s tile_map/
+    session/buildings from a loaded save-slot document. Called right after
+    ``_World(...)`` construction (which still runs unchanged — the same real
+    tile-condition roll, ``attach_base``, defence-coverage wiring a fresh
+    game gets) so every one of ITS random rolls simply gets overwritten with
+    the exact saved values, the same "restore overwrites a fresh
+    construction" shape ``registry.restore_building`` itself uses one level
+    down.
+
+    Ordering is load-bearing (see ``game/map/CLAUDE.md``'s matching note):
+    tiles first (``apply_tile_state`` — a restored building reads ITS OWN
+    tile's condition), then buildings (``restore_building``, SG-3), then
+    moving orders (``apply_moving_orders`` — they reference buildings BY
+    ID), then walls (``rebuild_walls`` — SG-4's D1 finding: every alive
+    WallBuilder's walls are always full-HP at an autosave's round-boundary
+    moment, so re-deriving them from each restored builder's own
+    ``wall_snapshot`` is exact, not an approximation), then RunState/Session.
+
+    Returns the restored building list (every one, moving ones included) —
+    the caller needs it for nothing further today, but it mirrors
+    ``_autosave``'s own list for symmetry.
+    """
+    tile_map = world.tile_map
+    tile_map.apply_tile_state(restore_data["tile_map"])
+
+    buildings = [restore_building(b_data, tile_map, buildings_balance)
+                for b_data in restore_data["buildings"]]
+    building_by_id = {b.id: b for b in buildings}
+
+    tile_map.apply_moving_orders(restore_data["tile_map"], building_by_id)
+
+    moving_ids = {order["building_id"]
+                 for order in restore_data["tile_map"]["moving_orders"]}
+    for b_data, building in zip(restore_data["buildings"], buildings):
+        if building.id in moving_ids:
+            continue   # despawned, held alive only by moving_orders (SG-4)
+        tile = tile_map.get(b_data["col"], b_data["row"])
+        tile_map.set_tile_content(tile, building, building.CONTENT_KEY)
+        world.scene.spawn(building)
+        world.occupancy.set((b_data["col"], b_data["row"]), building)
+
+    tile_map.rebuild_walls()
+
+    world.session.state = RunState.from_dict(restore_data["run_state"],
+                                             buildings=buildings)
+    world.session.combat_speed_idx = restore_data["session"]["combat_speed_idx"]
+    return buildings
+
+
 def _recenter_zoom(cs, new_zoom, view_w, view_h):
     """Apply `new_zoom`, keeping the world point at the viewport centre fixed
     (coords authority only, E-5) — the shared body of `step_zoom` (a relative
@@ -1128,6 +1180,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     hs_doc = highscores.load_highscores(scores_path, data_dir)
     shell.set_highscores(hs_doc)
     shell.prefill_identity(*highscores.last_player(hs_doc))
+    # SaveGamePLAN SG-6: same per-machine `scores/` precedent as highscores
+    # above. Read once here to seed the Save Files table and CONTINUE's
+    # visibility; re-read on `"open_save_files"` and after every pin/delete.
+    save_index_doc = savegame.load_index(savegame.index_path(REPO), data_dir)
+    shell.set_save_index(save_index_doc)
+    shell.main_menu.set_has_saves(bool(save_index_doc["slots"]))
     _flush_loading()
 
     # G4 (D6/D8): pick the frame target, and with it the render backend and the
@@ -1216,7 +1274,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # the first real checkpoint starts the frame after.
     loading_just_armed = False
 
-    def _build_gameplay_steps():
+    def _build_gameplay_steps(restore_data=None):
         """The ordered checkpoints of a fresh run's construction, as zero-arg
         closures — `build_gameplay()` below just runs every one of them in
         order (unchanged, synchronous behavior for the headless autostart
@@ -1227,15 +1285,37 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         checkpoints, not a faked/eased progress animation. Splitting the
         original single-shot body at its natural sub-boundaries (world/
         session, tutorial, recorder, the seven gameplay UI screens, the 10J/
-        ESV wiring, the closing camera/GC/audio/enter_gameplay group)."""
+        ESV wiring, the closing camera/GC/audio/enter_gameplay group).
+
+        `restore_data` (SaveGamePLAN SG-6) is an optional loaded save-slot
+        document — `"load_save"`/`"continue_most_recent"` pass one so the
+        SAME checkpointed loading-screen flow a fresh game gets also covers
+        resuming one, for free. `None` (every pre-existing caller) is
+        byte-identical to before this feature."""
         nonlocal score_recorded
         def _step_world():
             nonlocal score_recorded
             score_recorded = False
+            # SG-6: a save may name a map that is no longer the ACTIVE one
+            # (a designer switched maps since it was taken) — load that
+            # map's own doc instead of the boot-time `map_doc` in that case.
+            # `map_bal` (balancing/map.json) is domain-wide, shared by every
+            # map, so it never needs re-loading here.
+            world_map_doc = map_doc
+            if restore_data is not None and restore_data["map_id"] != map_doc.map_id:
+                world_map_doc = tilemap.load_map(
+                    tilemap.map_path(data_dir, restore_data["map_id"]),
+                    tilemap.map_schema_path(data_dir))
             gp["world"] = _World(
-                map_doc, map_bal, enemies_balance, core_balance,
+                world_map_doc, map_bal, enemies_balance, core_balance,
                 buildings_balance, registry, progression_balance,
                 boss_upgrades_balance)
+            if restore_data is not None:
+                # SG-6: overwrite the fresh world's tile_map/session/
+                # buildings with the saved ones — see _apply_save_to_world's
+                # docstring for the restore ordering.
+                _apply_save_to_world(gp["world"], restore_data,
+                                     buildings_balance)
             # Ground follows runtime zone changes: unlock/recede invalidates
             # the cached ground surface (repainted next ensure). Fresh game ->
             # fresh TileMap with empty overrides; invalidate drops the
@@ -1260,6 +1340,13 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 skinning=shell.skinning)
             gp["world"].session.tutorial_gate = gp["tutorial"].allows_end_turn
             gp["world"].session.tutorial_director = gp["tutorial"]  # TU-7
+            if restore_data is not None:
+                # SG-6: a resumed save is always well past the tutorial (the
+                # earliest possible autosave is round 5) — force it finished
+                # so a fresh, round-0-assuming TutorialDirector can never
+                # gate End Turn on a resumed run. Never seed round_num = 0
+                # either; the real round came back via RunState.from_dict.
+                gp["tutorial"].skip()
             # -- TU-9: an ACTIVE tutorial run starts at round 0 (its own
             # scripted round, always a single forced walker) so real enemy
             # scaling begins at round 1 exactly where it always did. A
@@ -1268,7 +1355,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # every bare-Session logic test keep — this is the ONE seed site,
             # deliberately host-side rather than a `Session`/`RunState`
             # default, so those stay untouched.
-            if gp["tutorial"].active:
+            elif gp["tutorial"].active:
                 gp["world"].session.state.round_num = 0
             # -- /TU-6 --
             # debug-mode-telemetry: bind the (optional) recorder to THIS
@@ -1481,6 +1568,9 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 buildings=[save_building(b) for b in buildings],
             )
             savegame.add_slot(REPO, slot_doc, data_dir)
+            # The first autosave of a fresh session flips CONTINUE from
+            # hidden to visible immediately, not just on the next boot.
+            shell.main_menu.set_has_saves(True)
         except Exception:                                    # noqa: BLE001
             logging.getLogger(__name__).warning(
                 "autosave failed at round %s", session.state.round_num,
@@ -1501,18 +1591,36 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                              outputs=shell.debug_settings.outputs,
                              player_name=name, player_skill=skill)
 
-    def _arm_loading():
+    def _arm_loading(restore_data=None):
         """Feature: loading screen. Instead of building the run synchronously
         in one call, queue its checkpoints and let the frame loop's
         `GameState.LOADING` branch (below) run one per frame behind
         `loading_screen`. Runs no checkpoint itself — this frame only flips
-        the state so the screen paints at 0% first; see `loading_just_armed`."""
+        the state so the screen paints at 0% first; see `loading_just_armed`.
+
+        `restore_data` (SaveGamePLAN SG-6) threads straight through to
+        `_build_gameplay_steps` — `None` (every pre-existing caller) is
+        byte-identical to before this feature."""
         nonlocal loading_queue, loading_total, loading_elapsed, loading_just_armed
-        loading_queue = _build_gameplay_steps()
+        loading_queue = _build_gameplay_steps(restore_data)
         loading_total = len(loading_queue)
         loading_elapsed = 0.0
         loading_just_armed = True
         shell.state = GameState.LOADING
+
+    def _load_save(slot_id):
+        """SaveGamePLAN SG-6: load one save slot and arm the SAME
+        checkpointed loading-screen flow a fresh game uses. A missing/
+        corrupt slot (``load_slot`` never raises — SG-1) is a silent no-op
+        that leaves the player on whatever screen they clicked from, rather
+        than a crash; the Save Files list itself is the source of truth for
+        which slots exist, so this should not happen in practice."""
+        doc = savegame.load_slot(savegame.slot_path(REPO, slot_id), data_dir)
+        if doc is None:
+            logging.getLogger(__name__).warning(
+                "could not load save slot %s — ignoring the click", slot_id)
+            return
+        _arm_loading(restore_data=doc)
 
     def execute(intent):
         nonlocal running, recorder
@@ -1558,6 +1666,31 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             doc = highscores.load_highscores(scores_path, data_dir)
             shell.set_highscores(doc)
             shell.prefill_identity(*highscores.last_player(doc))
+        elif intent == "open_save_files":
+            # SaveGamePLAN SG-6: RE-READ — a round-5 autosave taken THIS
+            # session (or a pin/delete from a previous visit) must show up.
+            doc = savegame.load_index(savegame.index_path(REPO), data_dir)
+            shell.set_save_index(doc)
+        elif intent == "continue_most_recent":
+            doc = savegame.load_index(savegame.index_path(REPO), data_dir)
+            slot_id = savegame.most_recent_slot(doc)
+            if slot_id is not None:
+                _load_save(slot_id)
+        elif isinstance(intent, tuple) and len(intent) == 2:
+            kind, slot_id = intent
+            if kind == "load_save":
+                _load_save(slot_id)
+            elif kind == "pin_save":
+                index_doc = savegame.load_index(savegame.index_path(REPO), data_dir)
+                pinned = not any(
+                    s["slot_id"] == slot_id and s["pinned"]
+                    for s in index_doc["slots"])
+                index_doc = savegame.set_pinned(REPO, slot_id, pinned, data_dir)
+                shell.set_save_index(index_doc)
+            elif kind == "delete_save":
+                index_doc = savegame.remove_slot(REPO, slot_id, data_dir)
+                shell.set_save_index(index_doc)
+                shell.main_menu.set_has_saves(bool(index_doc["slots"]))
 
     # -- feature: rebindable hotkeys ----------------------------------------
     def _handle_capture_key(event):

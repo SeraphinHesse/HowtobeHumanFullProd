@@ -1,4 +1,4 @@
-<!-- status: IN PROGRESS — 5/7 phases (SG-1, SG-2, SG-3, SG-4, SG-5 done) -->
+<!-- status: IN PROGRESS — 6/7 phases (SG-1, SG-2, SG-3, SG-4, SG-5, SG-6 done) -->
 
 # SaveGamePLAN.md — Save-Game System
 
@@ -132,7 +132,7 @@ twelve types.
 | SG-3 | `Building`/`GameObject` rehydration helper | done |
 | SG-4 | `TileMap` state serialization | done |
 | SG-5 | Autosave wiring (`game/main.py` round-edge hook) | done |
-| SG-6 | Save Files screen + main menu wiring | not started |
+| SG-6 | Save Files screen + main menu wiring | done |
 | SG-7 | End-to-end verification | not started |
 
 ---
@@ -372,6 +372,44 @@ is the lighter default unless a designer specifically wants to skin it).
 `py game/main.py` pass: reach round 5, quit to menu, open SAVE FILES, see
 the slot with correct round/minimap, load it, confirm the world matches;
 pin a slot; fill 10 slots and confirm eviction; delete a slot manually.
+
+**SG-6 implementation note — three deviations from this sketch, all
+discovered mid-phase:**
+1. **The load path reuses the checkpointed LOADING screen instead of a new
+   `build_gameplay_from_save`.** `_build_gameplay_steps()` (the feature/
+   loading-screen mechanism `game/CLAUDE.md` documents) already splits
+   world construction into checkpointed closures; it gained an optional
+   `restore_data` parameter instead of a parallel function, so a resumed
+   save gets the same progress screen a new game does for free.
+   `_apply_save_to_world(world, restore_data, buildings_balance)` (a new
+   module-level function in `game/main.py`, not a method) does the actual
+   restore: tiles -> buildings -> moving orders -> wire tiles/occupancy/
+   scene -> `rebuild_walls()` -> `RunState`/`Session`. The file is
+   `game/ui/save_files.py`, not `save_files_screen.py`.
+2. **`TileMap.apply_state` had to split into `apply_tile_state(data)` and
+   `apply_moving_orders(data, building_by_id)`.** `restore_building()`
+   needs its tile's condition already restored (for stat computation), but
+   moving-order restoration needs buildings already restored (for id
+   lookups) — a genuine circular dependency the single combined method
+   couldn't satisfy. `apply_tile_state` runs first (no building
+   dependency), buildings restore next, `apply_moving_orders` runs last.
+   Documented in `game/map/CLAUDE.md`.
+3. **Walls are never saved at all.** Since autosave only fires at the
+   round-boundary (D1), every WallBuilder's walls are always at full HP at
+   that moment (payday's `rebuild_walls()` already ran that round) — so
+   `_apply_save_to_world` just calls `rebuild_walls()` again after
+   buildings are restored, re-deriving edges from each WallBuilder's own
+   `wall_snapshot` component field. No `wall_edges` save/restore code
+   exists; see §3a below.
+
+Also landed as part of this phase: `tools/tests/test_save_files_ui.py` (9
+tests — CONTINUE visibility x3, the 9-row on-screen arithmetic, `hit()` for
+back/pin/delete/load, empty-index no-rows) and `tools/tests/
+test_main_savegame.py` (`_apply_save_to_world` round-trip via two `_World`
+instances, including a mid-move building). `game/ui/CLAUDE.md` and
+`game/CLAUDE.md` document the wiring; `data/ui/screen_defaults.json`/
+`screen_previews.json` and `test_ui_skinning.py`'s `main_menu` golden entry
+were regenerated for the 9-row layout (only `main_menu` moved).
 
 ---
 

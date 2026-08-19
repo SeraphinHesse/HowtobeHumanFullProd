@@ -875,6 +875,53 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
   permanently stuck on "PRESS A KEY". Both flash methods share one private
   `_flash_armed_row(message)` helper; the label the flash overwrites is the
   armed row's `REBIND` button text via `start_flash`, not a separate widget.
+- **Save Files screen + main-menu CONTINUE/SAVE FILES rows (SaveGamePLAN
+  SG-6)** — a third menu screen joins HIGHSCORES: `GameState.SAVE_FILES`
+  (`game/core/phases.py`, appended LAST, no existing ordinal moves) and
+  `game/ui/save_files.py` (`SaveFilesScreen`), mirroring `highscores.py`'s
+  construct -> `set_index()` -> `layout()` -> `update()` -> `hit()` shape
+  exactly (scroll offset, header pinned above the viewport). It is
+  CODE-ONLY like `debug_settings`/`keybinds_screen` — no
+  `data/ui/screens/save_files.json`, no `screen_defaults.json` entry, not in
+  `export_ui_layouts.py`'s `SCREEN_IDS`. Each row shows the save's
+  timestamp, round reached, a live-rendered 2-color locked/unlocked minimap
+  (plain `HudRect`s off `unlocked_tiles`/`thumbnail_cols`/`thumbnail_rows` —
+  no stored image bytes, no pygame surface capture, keeping `game/ui`
+  pygame-free per the layering rule), a PIN toggle, and a DELETE button.
+  `hit()` returns `"back"`, `("pin", slot_id)`, `("delete", slot_id)`, or
+  `("load", slot_id)` — the `Shell` intent-string convention, executed by
+  `main.py`'s `execute()` via a new `isinstance(intent, tuple)` branch.
+  `Shell.set_save_index(doc)` hands down the index doc the host loaded at
+  boot (and reloads after every save/delete), the `set_highscores`
+  precedent.
+  - **`MainMenu` gains two rows**: SAVE FILES (opens the new screen,
+    unconditionally visible, the HIGHSCORES precedent) and CONTINUE (loads
+    the most-recent slot directly via a new `("load_save", slot_id)`-style
+    dispatch, `savegame.most_recent_slot`). **CONTINUE is HIDDEN ENTIRELY,
+    never disabled, when no save exists** (explicit user decision) — a new
+    `has_saves` constructor param / `set_has_saves(value)` method sets
+    `visible["continue"]` in `_availability()`, on the SAME "every row's
+    `visible` is set every `layout()` call, never only in a hiding branch"
+    rule the debug-mode matrix already follows, so a stale `True`/`False`
+    can never linger across a `set_has_saves` flip. `main.py` calls
+    `set_has_saves` at boot (from the loaded save index) and again after
+    every autosave and every manual delete.
+  - **`layout()` was rewritten to compute the stack height from the
+    VISIBLE row count, not a fixed 7-row offset.** Growing the menu to up
+    to 9 possible rows (CONTINUE + SAVE FILES) would have overflowed the
+    360px logical surface under the old fixed `y = view_h // 2 - 30` /
+    `_GAP=4` arithmetic (tuned for exactly 7 rows). `layout()` now sums
+    `stack_h` from the actually-visible rows, centers via `y = (view_h -
+    stack_h) // 2`, and repositions the title/subtitle relative to the
+    computed `stack_top` (`max(10, stack_top - 40)` /
+    `max(28, stack_top - 20)`) instead of the old fixed offsets — so a
+    7-row menu (CONTINUE hidden) and a 9-row menu (CONTINUE visible) both
+    center correctly with no per-row-count special-casing.
+  - **`data/ui/screen_defaults.json`/`screen_previews.json` and
+    `test_ui_skinning.py`'s `main_menu` golden entry were regenerated on
+    purpose** — the same sanctioned "geometry changed on purpose" path the
+    HIGHSCORES row used. Only `main_menu` moved; every other screen's
+    baseline entry is byte-identical.
 
 ## Defence FX (10B)
 `effects.py` `FloaterManager` grew `submit_beams` + `submit_craters`, drawn from

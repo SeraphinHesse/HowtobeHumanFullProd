@@ -1287,24 +1287,20 @@ class TileMap:
             return TileState.BUILT
         return _CODE_STATE.get(self._doc.terrain[row][col], TileState.BACKGROUND)
 
-    def apply_state(self, data, building_by_id):
-        """Inverse of ``save_state``. Must be called on a FRESHLY-CONSTRUCTED
-        ``TileMap`` over the SAME map doc the save was taken on (the normal
-        boot construction, ``TileMap(doc, balance, rng, registry)``) —  that
-        construction's own random condition/spawn-deco rolls are necessarily
-        different from the saved run's and get OVERWRITTEN here with the
-        exact saved values; only the delta from the deterministic legend
-        baseline is replayed.
-
-        ``building_by_id`` is a ``{GameObject.id: Building}`` map the caller
-        builds AFTER restoring every building via
-        ``game.buildings.registry.restore_building`` (SG-3) — this method
-        never constructs a building itself, and moving-order entries
-        reference their building by that same id.
-
-        Does NOT restore wall edges — see ``save_state``'s docstring; the
-        caller calls ``rebuild_walls()`` once after buildings are restored
-        instead.
+    def apply_tile_state(self, data):
+        """Phase 1 of ``apply_state`` (SG-4/SG-6 ordering fix): restores
+        every tile's zone-state/condition/spawn-deco delta plus the
+        stage-system counters — everything that does NOT need a live
+        building reference. Deliberately split from moving-order restoration
+        (``apply_moving_orders``) because of a real ordering dependency: a
+        restored building (``game.buildings.registry.restore_building``,
+        SG-3) reads ITS OWN tile's ``condition`` to compute condition-
+        dependent stats, so tiles must be restored BEFORE buildings are, but
+        moving orders reference buildings BY ID and so must be restored
+        AFTER. Must be called on a FRESHLY-CONSTRUCTED ``TileMap`` over the
+        SAME map doc the save was taken on — see ``save_state``'s docstring
+        for why (the random-roll overwrite rationale) and for why wall edges
+        are not part of this at all (``rebuild_walls()`` instead).
         """
         for entry in data["tile_deltas"]:
             tile = self.get(entry["col"], entry["row"])
@@ -1325,6 +1321,13 @@ class TileMap:
         self._unlock_purchases = data["unlock_purchases"]
         self._retire_cursor = data["retire_cursor"]
 
+    def apply_moving_orders(self, data, building_by_id):
+        """Phase 2 of ``apply_state`` — restores in-transit moving orders,
+        called AFTER every building has been restored (SG-3) so
+        ``building_by_id`` (a ``{GameObject.id: Building}`` map the caller
+        builds) can resolve each order's building reference. See
+        ``apply_tile_state``'s docstring for why this is a separate method
+        rather than one combined call."""
         self.moving_orders = [
             types.SimpleNamespace(
                 building=building_by_id[order["building_id"]],

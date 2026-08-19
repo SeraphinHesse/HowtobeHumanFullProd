@@ -288,35 +288,46 @@ def _screen_captures():
 #: byte-identical — which is what says the change was contained rather
 #: than the pin being relaxed.
 _BASELINE = {
+    # Regenerated for SaveGamePLAN SG-6: the row count grew 7 -> 9 possible
+    # rows (CONTINUE + SAVE FILES); the mock state has no saves, so CONTINUE
+    # stays hidden and only SAVE FILES is a new visible row here (7 shown).
+    # The whole stack's y positions moved too — layout() now centers the
+    # button stack (and derives title/subtitle from it) instead of a fixed
+    # offset tuned for exactly 7 rows, since a 9-row stack at the old fixed
+    # offset would overflow the 360px logical surface (see main_menu.py's
+    # `layout()`).
     "main_menu": [
         HudRect(rect=(0, 0, 640, 360), color=(18, 30, 20), border_radius=0, width=0),
-        HudSprite(slot_key='main_menu_bg', dest=(0, 0), size=(640, 360), tint=None, flip=False, animation='idle', anim_time_ms=0),
-        HudText(text='HOW TO BE HUMAN', pos=(320, 105), font_key='xxl', color=(168, 105, 222), align='center'),
-        HudText(text='defend the munckins', pos=(320, 125), font_key='md', color=(168, 105, 222), align='center'),
-        HudRect(rect=(240, 150, 160, 26), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(240, 150, 160, 26), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='START NEW GAME', pos=(320, 155), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(240, 180, 160, 26), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(240, 180, 160, 26), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='PLAY DEBUG', pos=(320, 185), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(240, 210, 160, 26), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(240, 210, 160, 26), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='ADD A NAME', pos=(320, 215), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(240, 240, 160, 26), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(240, 240, 160, 26), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='HIGHSCORES', pos=(320, 245), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(240, 270, 160, 26), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(240, 270, 160, 26), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='SETTINGS', pos=(320, 275), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(240, 300, 160, 26), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(240, 300, 160, 26), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='CREDITS', pos=(320, 305), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(240, 330, 160, 26), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(240, 330, 160, 26), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='QUIT', pos=(320, 335), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(405, 180, 30, 26), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(405, 180, 30, 26), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='SET', pos=(420, 186), font_key='md', color=(235, 225, 195), align='center'),
+        HudSprite(slot_key='main_menu_bg', dest=(0, 0), size=(640, 360), tint=None, flip=False, animation='idle', anim_time_ms=0, crop=None, hidden_frames=()),
+        HudText(text='HOW TO BE HUMAN', pos=(320, 22), font_key='xxl', color=(168, 105, 222), align='center', family=None),
+        HudText(text='defend the munckins', pos=(320, 42), font_key='md', color=(168, 105, 222), align='center', family=None),
+        HudRect(rect=(240, 62, 160, 26), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(240, 62, 160, 26), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='START NEW GAME', pos=(320, 67), font_key='lg', color=(235, 225, 195), align='center', family=None),
+        HudRect(rect=(240, 92, 160, 26), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(240, 92, 160, 26), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='PLAY DEBUG', pos=(320, 97), font_key='lg', color=(235, 225, 195), align='center', family=None),
+        HudRect(rect=(240, 122, 160, 26), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(240, 122, 160, 26), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='ADD A NAME', pos=(320, 127), font_key='lg', color=(235, 225, 195), align='center', family=None),
+        HudRect(rect=(240, 152, 160, 26), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(240, 152, 160, 26), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='HIGHSCORES', pos=(320, 157), font_key='lg', color=(235, 225, 195), align='center', family=None),
+        HudRect(rect=(240, 182, 160, 26), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(240, 182, 160, 26), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='SAVE FILES', pos=(320, 187), font_key='lg', color=(235, 225, 195), align='center', family=None),
+        HudRect(rect=(240, 212, 160, 26), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(240, 212, 160, 26), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='SETTINGS', pos=(320, 217), font_key='lg', color=(235, 225, 195), align='center', family=None),
+        HudRect(rect=(240, 242, 160, 26), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(240, 242, 160, 26), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='CREDITS', pos=(320, 247), font_key='lg', color=(235, 225, 195), align='center', family=None),
+        HudRect(rect=(240, 272, 160, 26), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(240, 272, 160, 26), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='QUIT', pos=(320, 277), font_key='lg', color=(235, 225, 195), align='center', family=None),
+        HudRect(rect=(405, 92, 30, 26), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(405, 92, 30, 26), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='SET', pos=(420, 98), font_key='md', color=(235, 225, 195), align='center', family=None),
     ],
     "pause": [
         HudRect(rect=(0, 0, 640, 360), color=(0, 0, 0, 150), border_radius=0, width=0),

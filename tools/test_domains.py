@@ -158,6 +158,11 @@ DOMAINS = {
         "test_savegame.py",
         # SaveGamePLAN SG-5: the autosave assembly chain end to end
         "test_savegame_integration.py",
+        # SaveGamePLAN SG-6: _apply_save_to_world (game/main.py), the
+        # test_game_boot.py precedent for a game.main-exercising test
+        "test_main_savegame.py",
+        # SaveGamePLAN SG-6: main_menu CONTINUE visibility + SaveFilesScreen
+        "test_save_files_ui.py",
         "test_shell.py",
         "test_sound_triggers_ui.py",
         "test_sound_music.py",  # SD-7: music arbitration + game stings

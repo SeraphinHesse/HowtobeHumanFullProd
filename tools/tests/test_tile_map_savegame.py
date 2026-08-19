@@ -1,4 +1,5 @@
-"""SaveGamePLAN SG-4: TileMap.save_state()/apply_state() round-trip.
+"""SaveGamePLAN SG-4: TileMap.save_state()/apply_tile_state()/
+apply_moving_orders() round-trip.
 
 Only the runtime deltas from the deterministic legend baseline: zone-state
 changes (unlock), the random condition/spawn-deco rolls, the stage-system
@@ -37,7 +38,8 @@ class TestTileDeltaRoundTrip(unittest.TestCase):
         data = tm.save_state()
 
         fresh = TileMap(doc, MAPBAL)
-        fresh.apply_state(data, building_by_id={})
+        fresh.apply_tile_state(data)
+        fresh.apply_moving_orders(data, building_by_id={})
 
         self.assertEqual(fresh.get(3, 0).state, TileState.BUILDABLE)
         # an untouched tile stays at its legend baseline
@@ -52,10 +54,11 @@ class TestTileDeltaRoundTrip(unittest.TestCase):
 
         data = tm.save_state()
 
-        # A different seed would roll DIFFERENT conditions - apply_state must
-        # overwrite them with the exact saved values regardless.
+        # A different seed would roll DIFFERENT conditions - apply_tile_state
+        # must overwrite them with the exact saved values regardless.
         fresh = TileMap(doc, MAPBAL, rng=random.Random(999))
-        fresh.apply_state(data, building_by_id={})
+        fresh.apply_tile_state(data)
+        fresh.apply_moving_orders(data, building_by_id={})
 
         for t in fresh.all_tiles():
             self.assertEqual((t.condition, t.condition_variant_idx),
@@ -70,7 +73,8 @@ class TestTileDeltaRoundTrip(unittest.TestCase):
 
         data = tm.save_state()
         fresh = TileMap(doc, MAPBAL)
-        fresh.apply_state(data, building_by_id={})
+        fresh.apply_tile_state(data)
+        fresh.apply_moving_orders(data, building_by_id={})
 
         self.assertEqual(fresh._stage, 3)
         self.assertEqual(fresh._unlock_purchases, 7)
@@ -91,7 +95,8 @@ class TestMovingOrders(unittest.TestCase):
         self.assertEqual(data["moving_orders"][0]["building_id"], "building-uuid-1")
 
         fresh = TileMap(doc, MAPBAL)
-        fresh.apply_state(data, building_by_id={"building-uuid-1": building})
+        fresh.apply_tile_state(data)
+        fresh.apply_moving_orders(data, building_by_id={"building-uuid-1": building})
 
         self.assertEqual(len(fresh.moving_orders), 1)
         order = fresh.moving_orders[0]

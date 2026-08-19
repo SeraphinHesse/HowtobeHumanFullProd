@@ -504,23 +504,31 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   `TileState` member was deliberately rejected for this — see
   `game/buildings/CLAUDE.md`'s Building Movement section for why. O(orders),
   and orders are a handful at most, so this adds nothing to any hot path.
-- **`save_state()`/`apply_state()` (SaveGamePLAN SG-4)** serialize only the
-  RUNTIME DELTAS from the deterministic legend baseline — a fresh
-  `TileMap(doc, balance, ...)` construction already reproduces the
-  legend-derived zone state and any painted `tile_conditions` mark for free,
-  so neither is saved. What IS saved, per tile: a zone-state change
-  (unlock/recede), and — since these are RANDOMLY rolled and a fresh
-  construction with a different RNG seed rolls different values — the
-  condition/condition_variant_idx and spawn_deco_roll for any tile that has
-  entered play. Plus the stage-system counters (`_stage`/`_unlock_purchases`/
-  `_retire_cursor` — genuinely path-dependent on which chunks the player
-  unlocked, no regenerate-from-elsewhere trick) and `moving_orders` (a moving
-  building is despawned and held alive ONLY by this list, so SG-5's autosave
-  assembly must reach it through here, not through a live-building
-  enumeration). `apply_state(data, building_by_id)` takes a `{GameObject.id:
-  Building}` map the caller builds after restoring buildings
-  (`game/buildings/registry.py::restore_building`, SG-3) — it never
-  constructs a building itself.
+- **`save_state()`/`apply_tile_state()`/`apply_moving_orders()` (SaveGamePLAN
+  SG-4, split in SG-6)** serialize only the RUNTIME DELTAS from the
+  deterministic legend baseline — a fresh `TileMap(doc, balance, ...)`
+  construction already reproduces the legend-derived zone state and any
+  painted `tile_conditions` mark for free, so neither is saved. What IS
+  saved, per tile: a zone-state change (unlock/recede), and — since these
+  are RANDOMLY rolled and a fresh construction with a different RNG seed
+  rolls different values — the condition/condition_variant_idx and
+  spawn_deco_roll for any tile that has entered play. Plus the stage-system
+  counters (`_stage`/`_unlock_purchases`/`_retire_cursor` — genuinely
+  path-dependent on which chunks the player unlocked, no
+  regenerate-from-elsewhere trick) and `moving_orders` (a moving building is
+  despawned and held alive ONLY by this list, so SG-5's autosave assembly
+  must reach it through here, not through a live-building enumeration).
+  **Restoring is TWO ordered calls, not one** (an ordering bug found while
+  wiring SG-6's load path): `apply_tile_state(data)` first — tiles/stage
+  counters only, no building dependency — THEN buildings are restored
+  (`game/buildings/registry.py::restore_building`, SG-3), THEN
+  `apply_moving_orders(data, building_by_id)` last, where `building_by_id`
+  is a `{GameObject.id: Building}` map the caller builds from that
+  restoration. The split exists because `restore_building` reads ITS OWN
+  tile's `condition` to compute condition-dependent stats — so tiles must be
+  restored BEFORE buildings are — while moving orders reference buildings BY
+  ID and so must be restored AFTER. A single combined call cannot satisfy
+  both orderings at once.
   - **Wall edges are deliberately NOT part of this serialization.** SG-1's D1
     (autosave fires only at the round boundary) means every alive
     WallBuilder's walls are always at full HP the instant an autosave can

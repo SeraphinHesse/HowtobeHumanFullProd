@@ -169,6 +169,8 @@ TIERS = {
     "test_right_click_dismiss": "core",
     "test_savegame": "core",  # SaveGamePLAN SG-1: save-slot storage primitives
     "test_savegame_integration": "core",  # SaveGamePLAN SG-5: full assembly chain
+    "test_main_savegame": "core",  # SaveGamePLAN SG-6: _apply_save_to_world ordering
+    "test_save_files_ui": "core",  # SaveGamePLAN SG-6: main_menu CONTINUE + SaveFilesScreen
     "test_scenarios": "core",
     "test_scene_query": "core",
     "test_schema_slot_sync": "core",  # feature-enemy-intro-dialogue: sprite_slot/animation enum drift

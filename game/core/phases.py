@@ -46,3 +46,8 @@ class GameState(Enum):
     # ``main.py`` like GAMEPLAY/GAME_OVER rather than ``Shell``-driven like
     # the menu states — see ``game/ui/CLAUDE.md``'s Shell + menus section.
     LOADING = auto()
+    # Save Files screen (SaveGamePLAN SG-6). Appended LAST, the HIGHSCORES
+    # reasoning exactly: a real full screen reached from the main menu, with
+    # its own back navigation, earns a GameState member rather than an
+    # overlay flag ("overlay ⇒ flag, full screen ⇒ state").
+    SAVE_FILES = auto()
