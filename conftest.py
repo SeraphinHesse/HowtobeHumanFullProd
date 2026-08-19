@@ -101,6 +101,7 @@ TIERS = {
     "test_combat_anchors": "core",  # ESV-1: D4 guardrail (muzzle vs. flight timer)
     "test_combat_speed": "core",
     "test_components": "core",
+    "test_cond_cards": "core",  # the unlock panel's terrain cards
     "test_condition_art": "core",
     "test_construct_card": "core",  # the construct card's widget tree
     "test_coords": "core",

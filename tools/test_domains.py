@@ -124,6 +124,7 @@ DOMAINS = {
         "test_combat_anchors.py",
         "test_combat_speed.py",
         "test_buff_debuff_arrows.py",
+        "test_cond_cards.py",
         "test_construct_card.py",
         "test_cutscene_player.py",
         "test_cutscene_session.py",

@@ -662,7 +662,13 @@ class TestPainterUsedTileFeedback(unittest.TestCase):
         feature only replaces the misleading fallback for the painter-tile-bar
         case, not every failure path. (Insufficient love is gated at the CARD
         click, `_construct_click`, `building_ui.py:1678-1683` — it never
-        reaches `_do_place`/a preview at all.)"""
+        reaches `_do_place`/a preview at all.)
+
+        The flash now lands on the card's PRICE PILL rather than its
+        body: the body shrank to a 44px portrait backing, so the 74px
+        pill is the widest `Button` in the tree and the only part able
+        to show a sentence. The MESSAGE is what this test pins, and it
+        is unchanged."""
         tm, scene, occupancy, session = make_world()
         st = session.state
         st.unlocked_buildings["painter"] = True
@@ -674,7 +680,8 @@ class TestPainterUsedTileFeedback(unittest.TestCase):
         panel.handle_click(*click(btn), session, BUILDINGS_BAL,
                            scene, occupancy)
         self.assertIsNone(panel.preview)
-        self.assertEqual(btn.flash_label, "NOT ENOUGH LOVE")
+        pill = panel._card_parts["painter"].price
+        self.assertEqual(pill.flash_label, "NOT ENOUGH LOVE")
 
 
 class TestPainterUpgradePanelPaysIn(unittest.TestCase):

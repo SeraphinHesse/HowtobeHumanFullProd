@@ -280,6 +280,13 @@ def _screen_captures():
 #: it and the ``LIVES 3`` text both still appear in this baseline. Every
 #: other screen's entry is byte-identical. Regenerated mechanically from
 #: ``_screen_captures()``.
+#: Regenerated a FOURTEENTH time (the next-wave/END TURN button rework):
+#: ``hud`` DROPS one primitive — the faint 80x1 ``C_UI_BORDER`` separator
+#: that sat under the round text at ``(552, 320)``, removed with the
+#: button it was drawn to set off. Exactly ONE element leaves ``hud``'s
+#: entry, nothing already there moved, and every other screen's entry is
+#: byte-identical — which is what says the change was contained rather
+#: than the pin being relaxed.
 _BASELINE = {
     "main_menu": [
         HudRect(rect=(0, 0, 640, 360), color=(18, 30, 20), border_radius=0, width=0),
@@ -466,7 +473,6 @@ _BASELINE = {
         HudText(text='0/4 tiles', pos=(8, 57), font_key='md', color=(150, 140, 120), align='left'),
         HudText(text='Building Phase', pos=(552, 287), font_key='hud_phase', color=(150, 140, 120), align='left'),
         HudText(text='ROUND 1', pos=(592, 307), font_key='md', color=(150, 140, 120), align='center'),
-        HudRect(rect=(552, 320, 80, 1), color=(80, 65, 120), border_radius=0, width=0),
         HudRect(rect=(552, 322, 80, 30), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(552, 322, 80, 30), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='END TURN', pos=(592, 330), font_key='md', color=(235, 225, 195), align='center'),
