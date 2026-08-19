@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 from engine import data_io
-from game.core import audio_settings, load_balance
+from game.core import audio_settings, load_balance, render_settings
 from game.core.phases import GameState
 from game.ui import Shell, sound, widgets
 from game.ui.settings import SessionSettings, SettingsScreen
@@ -113,6 +113,29 @@ class AudioSettingsFileTest(DataDirCase):
                                 path, self.data_dir)
 
 
+class RenderSettingsFileTest(DataDirCase):
+    """settings-cut: the GPU/CPU switch's per-machine boot preference."""
+
+    def test_round_trip_and_validation(self):
+        path = Path(self.data_dir).parent / "settings" / "render.json"
+        self.assertEqual(render_settings.load(path, self.data_dir),
+                         render_settings.defaults())
+        render_settings.save({"backend": "surface"}, path, self.data_dir)
+        self.assertEqual(render_settings.load(path, self.data_dir),
+                         {"backend": "surface"})
+        with self.assertRaises(Exception):
+            render_settings.save({"backend": "vulkan"}, path, self.data_dir)
+
+    def test_settings_round_trip_maps_cpu_to_the_surface_backend(self):
+        settings = SessionSettings()
+        settings.renderer = "cpu"
+        doc = render_settings.from_settings(settings)
+        self.assertEqual(doc, {"backend": "surface"})
+        self.assertEqual(
+            render_settings.apply_to_settings(doc, SessionSettings()).renderer,
+            "cpu")
+
+
 class ScreenSoundOverrideTest(DataDirCase):
     def _schema(self):
         return Path(self.data_dir) / "schemas" / "ui_screen.schema.json"
@@ -133,3 +156,65 @@ class ScreenSoundOverrideTest(DataDirCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SinkReachesRealDispatcherTest(unittest.TestCase):
+    """The seam contract END TO END, through the REAL ``GameSounds``.
+
+    Every other case above installs a fake sink, so nothing exercised the one
+    call `game/main.py`'s ``_ui_sound_sink`` actually makes:
+    ``gp["sfx"].play_slot(slot, bus)``. ``GameSounds`` had no ``play_slot`` at
+    all, and because ``gp["sfx"]`` is seeded at boot and never None, the
+    sink's ``engine_audio`` fallback never ran — so a click, or a refused
+    purchase, raised ``AttributeError`` the moment the slot had a clip in it.
+    Empty slots never reached the sink, which is why the crash only appeared
+    once sounds were imported.
+    """
+
+    def setUp(self):
+        sound.reset()
+        self.addCleanup(sound.reset)
+        sound.configure({"button_click": CLICK_SLOT,
+                         "not_enough_love": LOVE_SLOT})
+        self.played = []
+
+        class RecordingAudio:
+            @staticmethod
+            def play_slot(default_slot, override_slot=None, *, bus="sfx",
+                          key=None, rng=None, loop=None):
+                self.played.append((default_slot, override_slot, bus, key))
+                return True
+
+        from game.sounds import GameSounds
+        self.sfx = GameSounds({}, {}, audio=RecordingAudio())
+        sound.set_sink(self.sfx.play_slot)
+
+    def test_click_reaches_the_dispatcher(self):
+        btn = widgets.Button((10, 10, 40, 20), "GO")
+        self.assertTrue(widgets.click(btn, 20, 15))
+        self.assertEqual(len(self.played), 1)
+        slot, override, bus, key = self.played[0]
+        self.assertEqual(slot, CLICK_SLOT)
+        self.assertIsNone(override)
+        self.assertEqual(bus, "sfx")
+        self.assertIn("ui/click.ogg", key)   # bucketed, not None
+
+    def test_not_enough_love_reaches_the_dispatcher(self):
+        self.assertTrue(sound.play_not_enough_love())
+        self.assertEqual([c[0] for c in self.played], [LOVE_SLOT])
+
+    def test_per_button_override_reaches_the_dispatcher(self):
+        btn = widgets.Button((10, 10, 40, 20), "GO")
+        btn.sound = "ui/special.ogg"
+        self.assertTrue(widgets.click(btn, 20, 15))
+        self.assertEqual(self.played[0][0]["clips"][0]["file"], "ui/special.ogg")
+
+    def test_two_distinct_slots_get_distinct_cooldown_buckets(self):
+        sound.play_slot("button_click")
+        sound.play_not_enough_love()
+        self.assertNotEqual(self.played[0][3], self.played[1][3])
+
+    def test_a_clipless_slot_is_a_silent_false_not_a_raise(self):
+        self.assertFalse(self.sfx.play_slot({"clips": []}, "sfx"))
+        self.assertFalse(self.sfx.play_slot(None, "sfx"))
+        self.assertEqual(self.played, [])

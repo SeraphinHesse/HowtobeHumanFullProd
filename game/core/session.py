@@ -460,7 +460,8 @@ class Session:
                 else:
                     run_payday(st, self.tilemap, self.core_balance,
                                self.occupancy, scene, self.debug,
-                               self.boss_upgrades_balance)  # -> INCOME
+                               self.boss_upgrades_balance,
+                               self.buildings_balance)  # -> INCOME
         elif st.phase == GamePhase.INCOME:
             st.phase_timer -= dt
             if st.phase_timer <= 0:
@@ -571,7 +572,8 @@ class Session:
         # -- /10H --
         run_payday(st, self.tilemap, self.core_balance,
                    self.occupancy, scene, self.debug,
-                   self.boss_upgrades_balance)  # -> INCOME
+                   self.boss_upgrades_balance,
+                   self.buildings_balance)  # -> INCOME
 
     def _emit_levelup_option(self, option):
         """debug-mode-telemetry: the level-up reward IS the natural source of
@@ -630,7 +632,8 @@ class Session:
         else:
             run_payday(st, self.tilemap, self.core_balance,
                        self.occupancy, scene, self.debug,
-                       self.boss_upgrades_balance)  # -> INCOME
+                       self.boss_upgrades_balance,
+                       self.buildings_balance)  # -> INCOME
 
     # -- ENEMY_INTRO (feature-enemy-intro-dialogue) ------------------------
 
@@ -753,7 +756,7 @@ class Session:
         still standing on its tile, exactly like one killed by a non-kidnapping
         enemy (user decision): payday's slots see it as ``alive == False`` (a
         kidnapped wall-builder's walls come down at slot 8 and back at slot 10,
-        a kidnapped booster explodes at slot 7) and the slot-9 revive rebuilds
+        a kidnapped booster gives back its flat boost at slot 7) and the revive
         it, so it reappears next phase. Its sprite is hidden meanwhile by
         ``BuildingSprite`` — nothing here has to hide or free anything."""
         self.state.enemies_killed += 1

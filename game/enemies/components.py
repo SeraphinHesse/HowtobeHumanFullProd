@@ -1463,11 +1463,21 @@ class BurrowAgent(Component):
 
     @staticmethod
     def _nearest_clear_tile(tm, col, row, skip_self=False):
-        """The nearest ``(c, r)`` with no building occupant, by an expanding
-        Chebyshev ring search from ``(col, row)`` — the ``_find_2x2``
-        expanding-window precedent (``game/map/CLAUDE.md``) applied to a
-        single tile instead of a 2x2 block. ``skip_self`` (default False)
-        starts the search at radius 1, so a call that wants an ACTUAL move
+        """The nearest ``(c, r)`` with no building occupant AND inside the
+        accessible map (``tile.is_passable`` — every ``TileState`` except
+        BACKGROUND), by an expanding Chebyshev ring search from
+        ``(col, row)`` — the ``_find_2x2`` expanding-window precedent
+        (``game/map/CLAUDE.md``) applied to a single tile instead of a 2x2
+        block. ``is_passable`` (not the stricter ``is_unlocked``) is
+        deliberate: the Digger routinely repositions onto COMBAT/SPAWNING
+        tiles, which are legal enemy-accessible ground, just not
+        player-built — only BACKGROUND (locked, impassable terrain the
+        player can never reach) must be excluded. Without this guard a
+        BACKGROUND tile — never occupied, since nothing is ever placed there
+        — trivially passed the old occupant-only filter and could be chosen
+        as a dig destination, surfacing the Digger outside the map (bugfix:
+        digger-background-bounds). ``skip_self`` (default False) starts the
+        search at radius 1, so a call that wants an ACTUAL move
         (``_reposition``) never trivially returns the tile it is already
         standing on. Falls back to ``(col, row)`` itself if literally
         nothing on the board qualifies (never expected on a real map — the
@@ -1488,7 +1498,7 @@ class BurrowAgent(Component):
                     ring.append((col + radius, row + dr))
             for c, r in ring:
                 tile = tm.get(c, r)
-                if tile is not None and tile.occupant is None:
+                if tile is not None and tile.occupant is None and tile.is_passable:
                     return c, r
         return col, row
 

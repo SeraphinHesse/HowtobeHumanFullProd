@@ -199,7 +199,7 @@ def capture_building_panel_views(data_root, view_w, view_h, *, skinning=None,
     out = {}
     for view in BP_VIEW_ORDER:
         bp = build_bp_view(view, view_w, view_h, bal, session,
-                           skinning=skinning)
+                           skinning=skinning, data_root=data_root)
         out[view] = _capture(lambda r, bp=bp: bp.submit(r, session))
     return out
 

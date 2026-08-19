@@ -33,10 +33,9 @@ import copy
 from pathlib import Path
 
 from PySide6.QtCore import Signal
-from PySide6.QtGui import QColor, QFont, QFontDatabase
+from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtWidgets import (
     QCheckBox,
-    QColorDialog,
     QFileDialog,
     QFormLayout,
     QHBoxLayout,
@@ -50,7 +49,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from editor import font_import, theme_ops
+from editor import font_import, house_colors, theme_ops
 from editor.panels.balancing import CollapsibleSection, _NoWheelComboBox, _NoWheelSpinBox
 from engine import data_io
 
@@ -537,11 +536,9 @@ class GameThemePanel(QWidget):
 
     def _on_palette_clicked(self, key):
         current = self._palette_doc[key]
-        base = QColor(current[0], current[1], current[2])
-        chosen = QColorDialog.getColor(base, self, f"Pick {key}")
-        if not chosen.isValid():
+        new_value = house_colors.pick_color(self, current, f"Pick {key}")
+        if new_value is None:
             return
-        new_value = [chosen.red(), chosen.green(), chosen.blue()]
         if new_value == list(self._palette_doc[key]):
             return
         self._palette_doc[key] = new_value

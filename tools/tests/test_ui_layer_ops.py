@@ -764,6 +764,15 @@ class TestCustomWidgetOps(_LayerCase):
         self.assertNotIn(text, self.session.doc.get("widgets", {}))
         self.assertNotIn(text, self.session.custom_widgets())
 
+    def test_creation_bands_it_under_explicitly(self):
+        """A custom widget is decoration: it is created behind the screen's
+        own widgets, and the key is WRITTEN so the file says so rather than
+        leaning on the fallback."""
+        for kind in ("panel", "label", "backdrop"):
+            widget_id = self.add(kind)
+            self.assertEqual(
+                self.session.custom_widgets()[widget_id]["band"], "under")
+
     def test_custom_widgets_reads_back_a_copy(self):
         widget_id = self.add("panel")
         self.session.custom_widgets()[widget_id]["rect"] = [0, 0, 1, 1]

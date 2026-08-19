@@ -1,0 +1,511 @@
+[
+  {
+    "description": "",
+    "id": "789c6545-2ff8-46c3-84ea-0078d67791d1",
+    "name": "ui done",
+    "snapshot": {
+      "BuildingColors": {
+        "pink": [
+          255,
+          105,
+          180
+        ],
+        "purple": [
+          168,
+          105,
+          222
+        ],
+        "red": [
+          210,
+          55,
+          55
+        ],
+        "yellow": [
+          255,
+          200,
+          50
+        ]
+      },
+      "Debug": {
+        "show_camera_startpoint": false
+      },
+      "FX": {
+        "bg_art": {
+          "enabled": true,
+          "file": "background_master.png",
+          "offset_x": -194,
+          "offset_y": -456,
+          "world_h": 1080,
+          "world_w": 1920
+        },
+        "boss_announce": {
+          "enabled": true,
+          "fade_in": 0.5,
+          "fade_out": 0.8,
+          "hold": 2.0
+        },
+        "gore_enabled": true,
+        "income_floaters_enabled": true,
+        "love_counter_anim_duration": 1.2
+      },
+      "Keybindings": {
+        "combat_speed_1": "1",
+        "combat_speed_2": "2",
+        "combat_speed_3": "3",
+        "confirm_purchase": "return",
+        "end_turn": "space",
+        "move_down": "s",
+        "move_left": "a",
+        "move_right": "d",
+        "move_up": "w",
+        "quick_skip_combat": "p",
+        "toggle_cheat_menu": "ctrl+l",
+        "toggle_drag_select": "q",
+        "toggle_heatmap": "h",
+        "toggle_range": "r",
+        "toggle_tier_overview": "t",
+        "zoom_level_1": "4",
+        "zoom_level_2": "5",
+        "zoom_level_3": "6"
+      },
+      "Menu": {
+        "cutscene_length": 44.2
+      },
+      "Sounds": {
+        "button_click": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "not_enough_love": {
+          "clips": [
+            {
+              "end": 0.0,
+              "file": "imported/ben sad.mp3",
+              "start": 0.0,
+              "volume": 0.2
+            }
+          ],
+          "loop": false,
+          "pick": "random"
+        }
+      },
+      "Timing": {
+        "confirm_on_right_side": true,
+        "construct_show_cancel": true,
+        "not_enough_love_duration": 1.5
+      }
+    },
+    "timestamp": "2026-08-18T18:23:00"
+  },
+  {
+    "description": "",
+    "id": "0f6671be-0c9a-4a0e-9a54-8061200c5f14",
+    "name": "test",
+    "snapshot": {
+      "BuildingColors": {
+        "pink": [
+          255,
+          105,
+          180
+        ],
+        "purple": [
+          168,
+          105,
+          222
+        ],
+        "red": [
+          210,
+          55,
+          55
+        ],
+        "yellow": [
+          255,
+          200,
+          50
+        ]
+      },
+      "Debug": {
+        "show_camera_startpoint": false
+      },
+      "FX": {
+        "bg_art": {
+          "enabled": true,
+          "file": "background_master.png",
+          "offset_x": -194,
+          "offset_y": -456,
+          "world_h": 1080,
+          "world_w": 1920
+        },
+        "boss_announce": {
+          "enabled": true,
+          "fade_in": 0.5,
+          "fade_out": 0.8,
+          "hold": 2.0
+        },
+        "gore_enabled": true,
+        "income_floaters_enabled": true,
+        "love_counter_anim_duration": 1.2
+      },
+      "Keybindings": {
+        "combat_speed_1": "1",
+        "combat_speed_2": "2",
+        "combat_speed_3": "3",
+        "confirm_purchase": "return",
+        "end_turn": "space",
+        "move_down": "s",
+        "move_left": "a",
+        "move_right": "d",
+        "move_up": "w",
+        "quick_skip_combat": "p",
+        "toggle_cheat_menu": "ctrl+l",
+        "toggle_drag_select": "q",
+        "toggle_heatmap": "h",
+        "toggle_range": "r",
+        "toggle_tier_overview": "t",
+        "zoom_level_1": "4",
+        "zoom_level_2": "5",
+        "zoom_level_3": "6"
+      },
+      "Menu": {
+        "cutscene_length": 44.2
+      },
+      "Sounds": {
+        "button_click": {
+          "clips": [
+            {
+              "end": 0.0,
+              "file": "imported/1.wav",
+              "start": 0.0,
+              "volume": 0.5
+            }
+          ],
+          "loop": false,
+          "pick": "random"
+        },
+        "not_enough_love": {
+          "clips": [
+            {
+              "end": 0.0,
+              "file": "imported/ben sad.mp3",
+              "start": 0.0,
+              "volume": 0.2
+            }
+          ],
+          "loop": false,
+          "pick": "random"
+        }
+      },
+      "Timing": {
+        "confirm_on_right_side": true,
+        "construct_show_cancel": true,
+        "not_enough_love_duration": 1.5
+      }
+    },
+    "timestamp": "2026-08-18T18:21:14"
+  },
+  {
+    "description": "",
+    "id": "a333cc3c-5f9d-4949-abe7-e147e4640521",
+    "name": "core v3",
+    "snapshot": {
+      "BuildingColors": {
+        "pink": [
+          255,
+          105,
+          180
+        ],
+        "purple": [
+          168,
+          105,
+          222
+        ],
+        "red": [
+          210,
+          55,
+          55
+        ],
+        "yellow": [
+          255,
+          200,
+          50
+        ]
+      },
+      "Debug": {
+        "show_camera_startpoint": false
+      },
+      "FX": {
+        "bg_art": {
+          "enabled": true,
+          "file": "background_master.png",
+          "offset_x": -194,
+          "offset_y": -456,
+          "world_h": 1080,
+          "world_w": 1920
+        },
+        "boss_announce": {
+          "enabled": true,
+          "fade_in": 0.5,
+          "fade_out": 0.8,
+          "hold": 2.0
+        },
+        "gore_enabled": true,
+        "income_floaters_enabled": true,
+        "love_counter_anim_duration": 1.2
+      },
+      "Keybindings": {
+        "combat_speed_1": "1",
+        "combat_speed_2": "2",
+        "combat_speed_3": "3",
+        "confirm_purchase": "return",
+        "end_turn": "space",
+        "move_down": "s",
+        "move_left": "a",
+        "move_right": "d",
+        "move_up": "w",
+        "quick_skip_combat": "p",
+        "toggle_cheat_menu": "ctrl+l",
+        "toggle_drag_select": "q",
+        "toggle_heatmap": "h",
+        "toggle_range": "r",
+        "toggle_tier_overview": "t",
+        "zoom_level_1": "4",
+        "zoom_level_2": "5",
+        "zoom_level_3": "6"
+      },
+      "Menu": {
+        "cutscene_length": 44.2
+      },
+      "Sounds": {
+        "button_click": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "not_enough_love": {
+          "clips": [
+            {
+              "end": 0.0,
+              "file": "imported/ben sad.mp3",
+              "start": 0.0,
+              "volume": 0.2
+            }
+          ],
+          "loop": false,
+          "pick": "random"
+        }
+      },
+      "Timing": {
+        "confirm_on_right_side": true,
+        "construct_show_cancel": true,
+        "not_enough_love_duration": 1.5
+      }
+    },
+    "timestamp": "2026-08-18T18:19:30"
+  },
+  {
+    "description": "",
+    "id": "ae8a9e22-bc93-4fbb-99b6-778f256aba1c",
+    "name": "ui done",
+    "snapshot": {
+      "BuildingColors": {
+        "pink": [
+          255,
+          105,
+          180
+        ],
+        "purple": [
+          168,
+          105,
+          222
+        ],
+        "red": [
+          210,
+          55,
+          55
+        ],
+        "yellow": [
+          255,
+          200,
+          50
+        ]
+      },
+      "Debug": {
+        "show_camera_startpoint": false
+      },
+      "FX": {
+        "bg_art": {
+          "enabled": true,
+          "file": "background_master.png",
+          "offset_x": -194,
+          "offset_y": -456,
+          "world_h": 1080,
+          "world_w": 1920
+        },
+        "boss_announce": {
+          "enabled": true,
+          "fade_in": 0.5,
+          "fade_out": 0.8,
+          "hold": 2.0
+        },
+        "gore_enabled": true,
+        "income_floaters_enabled": true,
+        "love_counter_anim_duration": 1.2
+      },
+      "Keybindings": {
+        "combat_speed_1": "1",
+        "combat_speed_2": "2",
+        "combat_speed_3": "3",
+        "confirm_purchase": "return",
+        "end_turn": "space",
+        "move_down": "s",
+        "move_left": "a",
+        "move_right": "d",
+        "move_up": "w",
+        "quick_skip_combat": "p",
+        "toggle_cheat_menu": "ctrl+l",
+        "toggle_drag_select": "q",
+        "toggle_heatmap": "h",
+        "toggle_range": "r",
+        "toggle_tier_overview": "t",
+        "zoom_level_1": "4",
+        "zoom_level_2": "5",
+        "zoom_level_3": "6"
+      },
+      "Menu": {
+        "cutscene_length": 44.2
+      },
+      "Sounds": {
+        "button_click": {
+          "clips": [
+            {
+              "end": 0.0,
+              "file": "imported/1.wav",
+              "start": 0.0,
+              "volume": 0.3
+            }
+          ],
+          "loop": false,
+          "pick": "random"
+        },
+        "not_enough_love": {
+          "clips": [
+            {
+              "end": 0.0,
+              "file": "imported/ben sad.mp3",
+              "start": 0.0,
+              "volume": 0.2
+            }
+          ],
+          "loop": false,
+          "pick": "random"
+        }
+      },
+      "Timing": {
+        "confirm_on_right_side": true,
+        "construct_show_cancel": true,
+        "not_enough_love_duration": 1.5
+      }
+    },
+    "timestamp": "2026-08-18T18:00:52"
+  },
+  {
+    "description": "",
+    "id": "8958792f-5145-4c79-a7d6-c78075f6ae6d",
+    "name": "not enough love",
+    "snapshot": {
+      "BuildingColors": {
+        "pink": [
+          255,
+          105,
+          180
+        ],
+        "purple": [
+          168,
+          105,
+          222
+        ],
+        "red": [
+          210,
+          55,
+          55
+        ],
+        "yellow": [
+          255,
+          200,
+          50
+        ]
+      },
+      "Debug": {
+        "show_camera_startpoint": false
+      },
+      "FX": {
+        "bg_art": {
+          "enabled": true,
+          "file": "background_master.png",
+          "offset_x": -194,
+          "offset_y": -456,
+          "world_h": 1080,
+          "world_w": 1920
+        },
+        "boss_announce": {
+          "enabled": true,
+          "fade_in": 0.5,
+          "fade_out": 0.8,
+          "hold": 2.0
+        },
+        "gore_enabled": true,
+        "income_floaters_enabled": true,
+        "love_counter_anim_duration": 1.2
+      },
+      "Keybindings": {
+        "combat_speed_1": "1",
+        "combat_speed_2": "2",
+        "combat_speed_3": "3",
+        "confirm_purchase": "return",
+        "end_turn": "space",
+        "move_down": "s",
+        "move_left": "a",
+        "move_right": "d",
+        "move_up": "w",
+        "quick_skip_combat": "p",
+        "toggle_cheat_menu": "ctrl+l",
+        "toggle_drag_select": "q",
+        "toggle_heatmap": "h",
+        "toggle_range": "r",
+        "toggle_tier_overview": "t",
+        "zoom_level_1": "4",
+        "zoom_level_2": "5",
+        "zoom_level_3": "6"
+      },
+      "Menu": {
+        "cutscene_length": 44.2
+      },
+      "Sounds": {
+        "button_click": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "not_enough_love": {
+          "clips": [
+            {
+              "end": 0.0,
+              "file": "imported/ben sad.mp3",
+              "start": 0.0,
+              "volume": 0.2
+            }
+          ],
+          "loop": false,
+          "pick": "random"
+        }
+      },
+      "Timing": {
+        "confirm_on_right_side": true,
+        "construct_show_cancel": true,
+        "not_enough_love_duration": 1.5
+      }
+    },
+    "timestamp": "2026-08-18T17:46:44"
+  }
+]

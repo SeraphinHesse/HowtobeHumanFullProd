@@ -295,5 +295,55 @@ class TestAddButtonFamily(TempDataCase):
             ("ui_button_tab", "ui_button_tab_v2"))
 
 
+class TestSetSlotDisplayName(TempDataCase):
+    """Naming a variant (the slot editor's Name field) — editor-only metadata
+    that has to survive a reload and collapse cleanly when cleared."""
+
+    def test_names_a_bare_slot_and_reloads(self):
+        self.assertTrue(registry_ops.set_slot_display_name(
+            self.data_dir, "ui_panel_v3", "  Wide stone panel  "))
+        reg = load_registry(self.data_dir)
+        self.assertEqual(reg.display_name("ui_panel_v3"), "Wide stone panel")
+        self.assertEqual(reg.display_name("ui_panel"), "")
+
+    def test_naming_leaves_the_frame_size_alone(self):
+        before = load_registry(self.data_dir).frame_size("ui_panel_v2")
+        registry_ops.set_slot_display_name(self.data_dir, "ui_panel_v2", "Tall")
+        reg = load_registry(self.data_dir)
+        self.assertEqual(reg.frame_size("ui_panel_v2"), before)
+        self.assertEqual(reg.display_name("ui_panel_v2"), "Tall")
+
+    def _a_bare_panel_slot(self):
+        """A Panel slot stored as a BARE STRING in the fixture, discovered
+        rather than named. Hard-coding one pins this test to whichever
+        shipped variant happens to carry no frame-size override today — and
+        that is live content, which moves: `ui_panel_v3` was bare when this
+        was written and now ships 111x50, which is a data edit, not a bug in
+        the collapse rule this test exists to pin."""
+        doc = data_io.load_json(self.data_dir / "slots.json")
+        ui = next(c for c in doc["categories"] if c["key"] == "ui")
+        panels = next(g for g in ui["groups"] if g["label"] == "Panels")
+        panel = next(c for c in panels["children"] if c["label"] == "Panel")
+        bare = [e for e in panel["slots"] if isinstance(e, str)]
+        self.assertTrue(bare, "fixture has no bare Panel slot to collapse to")
+        return bare[0]
+
+    def test_clearing_collapses_a_named_bare_slot_back_to_a_string(self):
+        key = self._a_bare_panel_slot()
+        registry_ops.set_slot_display_name(self.data_dir, key, "X")
+        self.assertFalse(registry_ops.set_slot_display_name(
+            self.data_dir, key, "  "))
+        doc = data_io.load_json(self.data_dir / "slots.json")
+        ui = next(c for c in doc["categories"] if c["key"] == "ui")
+        panels = next(g for g in ui["groups"] if g["label"] == "Panels")
+        panel = next(c for c in panels["children"] if c["label"] == "Panel")
+        self.assertIn(key, panel["slots"])   # bare string again
+        self.assertEqual(load_registry(self.data_dir).display_name(key), "")
+
+    def test_unknown_slot_raises(self):
+        with self.assertRaises(KeyError):
+            registry_ops.set_slot_display_name(self.data_dir, "nope", "X")
+
+
 if __name__ == "__main__":
     unittest.main()

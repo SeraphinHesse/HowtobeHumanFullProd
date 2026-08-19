@@ -124,6 +124,64 @@ def set_slot_frame_size(data_dir, slot_key, frame_w, frame_h):
     raise KeyError(f"no slot {slot_key!r} in the registry")
 
 
+def set_slot_display_name(data_dir, slot_key, display_name):
+    """Set (or clear) ONE slot's designer-facing name in data/slots.json.
+
+    The name is EDITOR-ONLY (nothing in `game/` reads it): it is how a designer
+    tells `ui_panel_v3` apart from `ui_panel_v2` in the slot editor and in the
+    UI screen editor's skin pickers, where the raw key is otherwise the only
+    label. Storing it needs the object form of the slots[] entry, so a bare-key
+    slot is promoted to `{key, display_name}`; an empty/blank name drops the
+    key again and collapses the entry back to a bare string when it carried no
+    frame-size override either (same "never store an override that overrides
+    nothing" rule as `set_slot_frame_size`).
+
+    A key may legally appear under several groups of ONE category (shared art);
+    EVERY occurrence is updated, so the registry cannot end up with two labels
+    for one slot. Returns True when a name is now stored, False when the slot
+    is back to being labelled by its key.
+
+    Raises KeyError for an unknown slot.
+    """
+    data_dir = Path(data_dir)
+    slots_path = data_dir / "slots.json"
+    schema_path = data_dir / "schemas" / "slots.schema.json"
+    doc = data_io.load_json(slots_path)
+    name = (display_name or "").strip()
+
+    def rewritten(existing):
+        entry = {"key": slot_key} if isinstance(existing, str) else dict(existing)
+        if name:
+            entry["display_name"] = name
+        else:
+            entry.pop("display_name", None)
+        # A {key}-only object says nothing a bare key does not.
+        return entry if len(entry) > 1 else slot_key
+
+    found = False
+
+    def walk(node):
+        nonlocal found
+        slots = node.get("slots")
+        if slots is None:
+            for child in node.get("children", ()):
+                walk(child)
+            return
+        for i, existing in enumerate(slots):
+            if _slot_key(existing) == slot_key:
+                slots[i] = rewritten(existing)
+                found = True
+
+    for category in doc["categories"]:
+        for group in category["groups"]:
+            walk(group)
+
+    if not found:
+        raise KeyError(f"no slot {slot_key!r} in the registry")
+    data_io.write_validated(doc, slots_path, schema_path)
+    return bool(name)
+
+
 def _slot_entry_from_template(new_key, template):
     """The slots[] entry for a freshly added variant, inheriting the family's
     template slot (``child["slots"][0]``, the stem) frame-size override when

@@ -43,6 +43,10 @@ ALLOWED = {
                              "subject as test_balancing_data.py; every "
                              "behavioural assertion in the module reads a "
                              "hand-pinned balance dict instead",
+    "test_cond_cards.py": "the terrain-card tree it pins must agree with "
+                          "the committed screen_defaults.json, which is "
+                          "exported from the LIVE tree — same subject, and "
+                          "same argument, as test_construct_card.py",
     "test_construct_card.py": "the card tree it pins must agree with the "
                               "committed screen_defaults.json, which is "
                               "exported from the LIVE tree (same subject as "

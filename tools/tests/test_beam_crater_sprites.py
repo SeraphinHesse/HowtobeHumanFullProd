@@ -151,6 +151,45 @@ class TestBeamSprite(unittest.TestCase):
         self.assertEqual(renderer.items, [])
 
 
+class _DeadBuilding(GameObject):
+    """A beam-owning building stand-in whose `alive` duck-typed property
+    reads False — the `_AliveEnemy` precedent, other side of the guard."""
+
+    @property
+    def alive(self):
+        return False
+
+
+def make_dead_beam_building(wx, wy, tier=0):
+    return _DeadBuilding(
+        name="sun_scorcher", tags=("combat",), transform=Transform(wx=wx, wy=wy),
+        components=[TierState(building_type="sun_scorcher", current_tier=tier),
+                    BeamAttacker()])
+
+
+class TestBeamOwnerAlive(unittest.TestCase):
+    """fix: lingering beam after Sun Scorcher destroyed. `_update_defender`
+    (`game/enemies/combat.py`) bails out before `_update_beam` runs at all
+    once the defender is dead, so a killed Sun Scorcher's `BeamAttacker.
+    _target` is never cleared — it stays frozen on whatever it last locked.
+    Dead buildings are not despawned (they revive at payday) and keep their
+    `"combat"` tag, so `submit_beams` must check the OWNER's `alive` too, not
+    just the target's — otherwise the beam keeps drawing from the destroyed
+    building's tile for as long as its last target stays alive."""
+
+    def test_dead_owner_draws_nothing_even_with_a_live_target(self):
+        fm = FloaterManager(UI_BAL, CORE_BAL, VFX_BAL)
+        cs = load_coordinate_system(FIXTURE_DATA)
+        b = make_dead_beam_building(2.0, 2.0)
+        target = _AliveEnemy(name="enemy", tags=("enemy",),
+                             transform=Transform(wx=4.0, wy=2.0))
+        b.get_component(BeamAttacker)._target = target
+        scene = FakeScene([b])
+        renderer = RecordingRenderer()
+        fm.submit_beams(renderer, cs, scene)
+        self.assertEqual(renderer.items, [])
+
+
 class TestCraterSpawnChoice(unittest.TestCase):
     """`ProjectileArc._impact`: no art -> the procedural `Crater` unchanged;
     art on `CRATER_SLOT` -> a one-shot `PlayOnceVfx` instead, never both.

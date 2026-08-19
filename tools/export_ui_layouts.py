@@ -41,7 +41,11 @@ if str(REPO) not in sys.path:
 
 from engine import data_io  # noqa: E402
 from game.ui import strings  # noqa: E402
-from game.ui.building_ui import _CARD_ID_PREFIX  # noqa: E402
+from game.ui.building_ui import (  # noqa: E402
+    _BUILD_COND_CARD_ID_PREFIX, _CARD_ID_PREFIX, _COND_CARD_ID_PREFIX,
+    _COND_EFFECT_LINES, _UPGRADE_COND_CARD_ID_PREFIX,
+    _UPGRADE_COLOR_PREFIX,
+)
 from tools import screen_mocks  # noqa: E402
 
 # Alphabetical, stable order (plan line 282's 12 screen ids, + Phase 3's
@@ -61,7 +65,35 @@ SCREEN_IDS = [
 # so the preview generator builds from the SAME objects this file reads
 # default geometry off; these are re-exported names, not a second copy.
 _COMMON_NOTE = screen_mocks.COMMON_NOTE
+#: Id prefixes whose children nest under a tree ROOT rather than the screen's
+#: container (`_derived_parent`): construct cards and unlock's terrain cards.
+#: Card-tree id prefix -> the GROUP container that owns that family. A card
+#: root parents to its group (so the editor shows one movable branch instead
+#: of N roots beside `panel`); a card CHILD parents to its own card root.
+_CARD_TREE_ROOTS = {
+    _CARD_ID_PREFIX: "construct_card_list",
+    _COND_CARD_ID_PREFIX: "terrain_card_list",
+    # feature: construct-terrain-card — build mode's own terrain-card family.
+    # Its prefix does NOT start with `cond_card_`, so the two families never
+    # steal each other's children (`_derived_parent` picks by `startswith`).
+    _BUILD_COND_CARD_ID_PREFIX: "build_terrain_card_list",
+    _UPGRADE_COND_CARD_ID_PREFIX: "upgrade_terrain_card_list",
+}
+_CARD_TREE_PREFIXES = tuple(_CARD_TREE_ROOTS)
 _MOCK_BUILDING_TYPE = screen_mocks.MOCK_BUILDING_TYPE
+
+# MasterSheetColumnsPLAN B2/B3 — the two colour-swatch id families. The
+# construct modal's prefix is a bare string inside `ConstructPreview.__init__`
+# (the upgrade panel's is the module constant imported above), so it is spelled
+# out here; both are completed by `ColorSwatchRow` with `_<index>`.
+_PREVIEW_COLOR_PREFIX = "preview_color"
+#: How many swatch ids the display-name / parent tables cover. A master sheet
+#: may declare up to 16 colour names (`master_sheets.schema.json`) and only
+#: ~8 twelve-px swatches fit either band, so 16 covers every row the exporter
+#: could ever record. Entries for ids this run did NOT record are inert:
+#: `_name_widgets` only annotates ids present in the map, and `_parent_widgets`
+#: only writes a parent that is present too.
+_MAX_SWATCHES = 16
 
 # -- UH-4: cosmetic human names for widget ids (D4 — the id stays the on-disk
 # contract everywhere; this mapping only feeds an OPTIONAL `display_name` that
@@ -84,6 +116,11 @@ _DISPLAY_NAMES = {
         "preview_cancel_btn": "Construct cancel button",
         "preview_close_btn": "Construct preview close button",
         "preview_dice_btn": "Construct preview dice button",
+        "preview_name_box": "Construct preview name field",
+        "preview_title": "Construct preview building name",
+        "preview_cost": "Construct preview price line",
+        "preview_name_label": "Construct preview name caption",
+        "preview_name": "Construct preview name field text",
         # UT-3 text. The ~40 stat/base-info row ids are NOT listed: their
         # names are derived from their own resolved text (see
         # `_derived_display_name`), so renaming a stat renames its two
@@ -94,8 +131,9 @@ _DISPLAY_NAMES = {
         "construct_title": "Build header",
         "upgrade_title": "Building name header",
         "upgrade_name": "Rename box text",
+        "upgrade_name_box": "Rename box",
         "upgrade_tier_level": "Tier / level line",
-        "died_last_round": "Died-last-round tag",
+        "died_last_round": "Died/survived-last-round tag",
         "next_tier_header": "Next-tier card header",
         "upgrade_hint": "Action button hint",
         "base_info_title": "The Hole header",
@@ -105,6 +143,24 @@ _DISPLAY_NAMES = {
         "move_hint_1": "Move hint line 1",
         "move_hint_2": "Move hint line 2",
         "move_hint_cancel": "Move cancel instruction",
+        # The terrain badge + its effect box. Both were bare rects drawn
+        # around a live text measurement until they became widgets; the five
+        # effect rows are reserved slots (`_COND_EFFECT_LINES`), so a
+        # condition with fewer effects leaves the tail undrawn.
+        "construct_card_list": "Build card group",
+        "terrain_card_list": "Terrain card group",
+        "build_terrain_card_list": "Build terrain card group",
+        "upgrade_terrain_card_list": "Upgrade terrain card group",
+        # MasterSheetColumnsPLAN B2/B3: the building-colour swatch rows. Both
+        # families are DYNAMIC-count (one swatch per colour the selected
+        # building's master sheet declares), which is why they are generated
+        # here rather than listed — the same reason the card trees derive
+        # theirs. The number in the name is the master COLUMN index the swatch
+        # picks, 1-based for a human.
+        **{f"{_PREVIEW_COLOR_PREFIX}_{i}": f"Construct colour swatch {i + 1}"
+           for i in range(_MAX_SWATCHES)},
+        **{f"{_UPGRADE_COLOR_PREFIX}_{i}": f"Building colour swatch {i + 1}"
+           for i in range(_MAX_SWATCHES)},
     },
     "main_menu": {
         "backdrop": "Background backdrop",
@@ -130,17 +186,30 @@ _DISPLAY_NAMES = {
         "btn_dm_left": "Display mode left button",
         "btn_dm_right": "Display mode right button",
         "btn_back": "Back button",
-        "btn_toggle_income_floaters": "Income Floaters toggle",
-        "btn_toggle_bg_art": "Background Art toggle",
-        "btn_toggle_gore": "Gore toggle",
+        # settings-cut: the three FX toggles are GONE (income floaters /
+        # background art / gore are data-only now) and the GPU/CPU renderer
+        # switch took their slot.
+        "btn_renderer": "Renderer switch",
+        "renderer_label": "Renderer label",
+        "renderer_note": "Renderer restart note",
         # SD-6: the three audio rows (`audio_label` is the Master row's label,
-        # kept under its shipped id).
+        # kept under its shipped id). settings-cut added each row's two step
+        # buttons and its % readout.
         "audio_label": "Master volume label",
         "bar_master_volume": "Master volume bar",
+        "btn_master_volume_down": "Master volume down button",
+        "btn_master_volume_up": "Master volume up button",
+        "label_master_volume_pct": "Master volume percent",
         "label_music_volume": "Music volume label",
         "bar_music_volume": "Music volume bar",
+        "btn_music_volume_down": "Music volume down button",
+        "btn_music_volume_up": "Music volume up button",
+        "label_music_volume_pct": "Music volume percent",
         "label_sfx_volume": "SFX volume label",
         "bar_sfx_volume": "SFX volume bar",
+        "btn_sfx_volume_down": "SFX volume down button",
+        "btn_sfx_volume_up": "SFX volume up button",
+        "label_sfx_volume_pct": "SFX volume percent",
     },
     "credits": {
         "backdrop": "Background backdrop",
@@ -157,6 +226,7 @@ _DISPLAY_NAMES = {
     "game_over": {
         "backdrop": "Background backdrop",
         "title": "Title label",
+        "btn_play_again": "Play Again button",
         "btn_return_to_menu": "Return To Menu button",
     },
     "cheat_menu": {
@@ -177,7 +247,6 @@ _DISPLAY_NAMES = {
     },
     "boss_cutscene": {
         "backdrop": "Background backdrop",
-        "headline": "Headline label",
         "subtitle": "Subtitle label",
         "box_a": "Boss upgrade slot 1 box",
         "box_b": "Boss upgrade slot 2 box",
@@ -275,6 +344,12 @@ _PARENTS = {
         "preview_cancel_btn": "preview_panel",
         "preview_close_btn": "preview_panel",
         "preview_dice_btn": "preview_panel",
+        # B2's swatch row sits INSIDE the modal, on the "Name:" line — so it
+        # belongs to `preview_panel`, not to the building panel behind it.
+        # (B3's `upgrade_swatch_*` needs no pair: `_PARENT_CONTAINERS` already
+        # gives every other building_panel widget `panel`, which is right.)
+        **{f"{_PREVIEW_COLOR_PREFIX}_{i}": "preview_panel"
+           for i in range(_MAX_SWATCHES)},
     },
 }
 
@@ -332,20 +407,28 @@ def _apply_display_names(screen_id, entry):
 def _derived_parent(widget_id, widgets):
     """The parent of a widget whose id ENCODES it, or None.
 
-    One rule today: a construct card is a widget tree (`card_<btype>` holding
+    Two families today: a construct card is a widget tree (`card_<btype>` holding
     `card_<btype>_portrait` / `_name` / `_name_2` / `_price` / `_price_icon` /
     `_price_text`), and the card ids are DYNAMIC — one per buildable building
     type — so `_PARENTS` cannot spell the pairs out the way it does for the
     preview modal's four fixed buttons. The longest matching card id wins, so
     a building type whose name is a prefix of another's could not steal a
-    child.
+    child. An unlock-mode TERRAIN card (`cond_card_<condition>` holding
+    `_sprite` / `_name` / `_count` / `_effect_<i>`) is the same shape, keyed
+    by condition instead of building type — hence the prefix tuple.
     """
-    if not widget_id.startswith(_CARD_ID_PREFIX):
+    prefix = next((p for p in _CARD_TREE_PREFIXES
+                   if widget_id.startswith(p)), None)
+    if prefix is None:
         return None
+    group = _CARD_TREE_ROOTS[prefix]
+    if widget_id == group:
+        return None                       # the group itself is `panel`'s child
     candidates = [w for w in widgets
-                  if w != widget_id and widget_id.startswith(w + "_")
-                  and w.startswith(_CARD_ID_PREFIX)]
-    return max(candidates, key=len) if candidates else None
+                  if w != widget_id and w != group
+                  and widget_id.startswith(w + "_") and w.startswith(prefix)]
+    # No owning card => this IS a card root, and its parent is the group.
+    return max(candidates, key=len) if candidates else group
 
 
 def _parent_widgets(screen_id, widgets):
@@ -412,10 +495,41 @@ def _card_part_display_name(widget_id, card_names):
     return f"{human} card {part}"
 
 
+def _cond_card_display_name(widget_id):
+    """``"Grass terrain card"`` / ``"Grass terrain card effect line 2"`` for
+    any id in an unlock-mode terrain card's tree, or None.
+
+    Derived from the id rather than listed in `_DISPLAY_NAMES`, for the same
+    reason the construct cards are: the SET of cards is dynamic (one per
+    condition the purchase covers), so a hand-written table would go stale the
+    day `TileCondition` grows a member. The card's condition is its own id
+    suffix, which is also exactly the word a designer looks for."""
+    prefix = next((p for p in (_BUILD_COND_CARD_ID_PREFIX,
+                               _UPGRADE_COND_CARD_ID_PREFIX,
+                               _COND_CARD_ID_PREFIX)
+                   if widget_id.startswith(p)), None)
+    if prefix is None:
+        return None
+    rest = widget_id[len(prefix):]
+    condition, _, part = rest.partition("_")
+    if not condition:
+        return None
+    kind = {_BUILD_COND_CARD_ID_PREFIX: "build terrain card",
+            _UPGRADE_COND_CARD_ID_PREFIX: "upgrade terrain card",
+            }.get(prefix, "terrain card")
+    card = f"{condition.capitalize()} {kind}"
+    if not part:
+        return card
+    if part.startswith("effect_"):
+        return f"{card} effect line {int(part[len('effect_'):]) + 1}"
+    return f"{card} {part.replace('_', ' ')}"
+
+
 def _name_widgets(names, widgets):
     card_names = _card_human_names(widgets)
     for widget_id, spec in widgets.items():
         name = (names.get(widget_id)
+                or _cond_card_display_name(widget_id)
                 or _card_part_display_name(widget_id, card_names)
                 or _derived_display_name(widget_id, spec))
         if name:
@@ -482,7 +596,8 @@ def _widget_entry(kind, widget):
     ``label`` attribute or ``""``.
 
     A handful of B2's ``ids`` targets (``hud.phase_label``, ``cheat_menu.
-    title``/``jump_label``, ``boss_cutscene.headline``/``subtitle`` — every one
+    title``/``jump_label``, ``boss_cutscene.headline`` (since deleted —
+    ``subtitle`` inherited this) — every one
     a dynamically-positioned ``"label"`` whose on-screen spot is computed
     inline at submit() time, never stored) carry NO ``rect`` attribute at all;
     the schema still requires one, so those fall back to ``(0, 0, 0, 0)``
@@ -494,7 +609,7 @@ def _widget_entry(kind, widget):
              "label": label}
     # The two DRAW hints the editor needs to give a POSITION-ONLY text anchor
     # (a `rect` whose w/h are 0 — every readout in hud.py, the phase banner,
-    # boss_cutscene's headline, ~40 building_panel stat cells) a real hit box:
+    # boss_cutscene's subtitle, ~40 building_panel stat cells) a real hit box:
     # what font it is drawn at, and which way its text spreads from the
     # stored x. Without them such a widget is a zero-area rect — impossible to
     # click, drag or even see selected in the editor, though its id has been
@@ -630,7 +745,7 @@ def _build_building_panel(view_w, view_h, data_root):
     views = {}
     for view_name in screen_mocks.BP_VIEW_ORDER:
         bp = screen_mocks.build_bp_view(view_name, view_w, view_h, balances,
-                                        session)
+                                        session, data_root=data_root)
         views[view_name] = {"widgets": _widgets_from_ids(bp.ids),
                             "mock_note": bp.note}
 

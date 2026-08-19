@@ -1,10 +1,10 @@
 {
   "hud_lvl": {
-    "bold": false,
+    "bold": true,
     "size": 12
   },
   "hud_phase": {
-    "bold": false,
+    "bold": true,
     "size": 14
   },
   "lg": {
@@ -12,6 +12,10 @@
     "size": 13
   },
   "md": {
+    "bold": false,
+    "size": 11
+  },
+  "pixel_azure": {
     "bold": false,
     "size": 11
   },

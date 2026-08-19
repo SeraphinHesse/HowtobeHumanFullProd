@@ -31,21 +31,26 @@ _FILL_COLOR = {
 }
 
 
-def centered_label_item(rect, label, font_key, color):
+def centered_label_item(rect, label, font_key, color, family=None):
     """A HudText centred on BOTH axes in `rect` — HudText's own
     align='center' only shifts x, so the y half needs the text's own
     measured height (engine.render.fonts.TextMetrics, no pygame surface
-    needed). None when `label` is falsy (nothing to draw)."""
+    needed). None when `label` is falsy (nothing to draw).
+
+    `family` (UH-Font-B) is the font family the run draws in, or None for
+    the active one. This is EDITOR CHROME — a placeholder box the game never
+    emits — so measuring it live (rather than through the pinned `layout_h`)
+    is correct: nothing it produces is stored or captured."""
     if not label:
         return None
     x, y, w, h = rect
-    _, text_h = _METRICS.size(label, font_key)
+    _, text_h = _METRICS.size(label, font_key, family)
     return HudText(label, (x + w / 2, y + h / 2 - text_h / 2), font_key,
-                  color, align="center")
+                  color, align="center", family=family)
 
 
 def fallback_hud_items(rect, kind, label, *, font_key="md", text_color=None,
-                       fill=None):
+                       fill=None, family=None):
     """[HudRect/HudText, ...] for one widget of `kind` at `rect` (already in
     whatever pixel space the caller wants — screen mode always passes
     SCREEN pixels, see viewport.set_screen_mode/_submit_screen_widget).
@@ -56,7 +61,7 @@ def fallback_hud_items(rect, kind, label, *, font_key="md", text_color=None,
     `color` override, when the designer sets one)."""
     color = tuple(text_color) if text_color is not None else _DEFAULT_TEXT_COLOR
     if kind == "label":
-        item = centered_label_item(rect, label, font_key, color)
+        item = centered_label_item(rect, label, font_key, color, family)
         return [item] if item is not None else []
     items = [
         HudRect(rect, tuple(fill) if fill is not None
@@ -73,7 +78,7 @@ def fallback_hud_items(rect, kind, label, *, font_key="md", text_color=None,
 # A widget whose stored rect is `(x, y, 0, 0)` is an ANCHOR, not a box: the
 # game draws text from that point and the extent is whatever the glyphs come
 # out as. `screen_defaults.json` is full of them (every hud.py readout, the
-# phase banner, boss_cutscene's headline/subtitle, ~40 building_panel stat
+# phase banner, boss_cutscene's subtitle, ~40 building_panel stat
 # cells). Left as literal zero-area rects they are unclickable, undraggable
 # and invisible when selected — the whole "these should be editable widgets"
 # complaint. `interaction_rect` gives the EDITOR (and only the editor) a real
@@ -108,14 +113,16 @@ def resolve_align(spec, override):
     return (override or {}).get("align") or (spec or {}).get("align", "left")
 
 
-def interaction_rect(rect, *, text=None, font_key="md", align="left"):
+def interaction_rect(rect, *, text=None, font_key="md", align="left",
+                     family=None):
     """The box the editor hit-tests and outlines for a widget at `rect`.
 
     A widget with a real stored size is returned verbatim — this only ever
     grows a zero-extent axis. The grown size is the measured size of `text`
     (the widget's live template/sample/label, whatever the caller could
-    resolve) at `font_key`, floored at a minimum so an anchor with no
-    resolvable text is still grabbable. `align` shifts x the way the game's
+    resolve) at `font_key` IN `family` (UH-Font-B — a hit box must match the
+    glyphs actually drawn, and a wider family draws wider ones), floored at a
+    minimum so an anchor with no resolvable text is still grabbable. `align` shifts x the way the game's
     own `HudText` align does, so the box lands ON the glyphs rather than
     beside them.
 
@@ -126,7 +133,7 @@ def interaction_rect(rect, *, text=None, font_key="md", align="left"):
         return (x, y, w, h)
     text_w = text_h = 0
     if text:
-        text_w, text_h = _METRICS.size(str(text), font_key)
+        text_w, text_h = _METRICS.size(str(text), font_key, family)
     if w <= 0:
         w = max(text_w, _MIN_HIT_W)
     if h <= 0:
@@ -139,7 +146,7 @@ def interaction_rect(rect, *, text=None, font_key="md", align="left"):
 
 
 def layer_interaction_rect(resolved_rect, *, text=None, font_key="md",
-                           align="left"):
+                           align="left", family=None):
     """The box the editor hit-tests and outlines for ONE LAYER (UL-7).
 
     `resolved_rect` is what `engine.ui_layers.resolve(...)["rect"]` returned
@@ -156,7 +163,7 @@ def layer_interaction_rect(resolved_rect, *, text=None, font_key="md",
     this, exactly like the widget case.
     """
     return interaction_rect(resolved_rect, text=text, font_key=font_key,
-                            align=align)
+                            align=align, family=family)
 
 
 def widget_display_name(widget_id, spec):

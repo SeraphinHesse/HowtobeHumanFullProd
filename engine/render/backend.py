@@ -129,10 +129,60 @@ def _has_alpha(color):
     return len(color) == 4 and color[3] < 255
 
 
+# Antialiasing is OFF for every HUD string, deliberately.
+#
+# The game draws into a FIXED 640x360 logical buffer (data/display.json) and
+# upscales that whole frame to the monitor — 3x on a 1080p panel, 4x on 1440p.
+# So a glyph is authored ~9-13px tall and every one of its pixels is blown up
+# into a 3x3 or 4x4 block. An antialiased render spends most of the glyph on
+# partial-alpha EDGE pixels, and each of those becomes a solid block of grey
+# mud at that magnification. Measured with the shipped active font
+# (`pixel_gosub`), share of inked pixels that are partial alpha: `sm` (9pt)
+# 67.3%, `md` (11pt) 57.1%, `lg` 30.2%, `xl` 25.7%. Two-thirds of the HUD's
+# body text was fringe, not letter.
+#
+# It is also simply the wrong call for the content: EVERY font in
+# data/fonts/font_manifest.json is a pixel font, and a pixel font is drawn on
+# a whole-pixel grid by design. Measured at every preset in data/ui/fonts.json,
+# AA off gives perfectly uniform stems (8 stems of `IIIIIIII`, all identical
+# width) — the glyphs land exactly on grid, so there is nothing for
+# antialiasing to smooth except detail the designer did not draw.
+#
+# Layout is UNAFFECTED: `font.render(text, True, ...)` and
+# `font.render(text, False, ...)` return byte-identical surface sizes at every
+# preset (measured), and `font.size()` — what `fonts.TextMetrics` and the
+# pinned `fonts.layout_h` table read — never consulted this flag at all.
+_TEXT_ANTIALIAS = False
+
+
+def _to_alpha_surface(surface):
+    """A 32-bit SRCALPHA copy of `surface`, WITHOUT `convert_alpha()`.
+
+    `convert_alpha` needs a display format to convert to and raises "No
+    convert format has been set" when none exists — and this backend is
+    routinely driven with no display at all (the headless render tests blit
+    into bare Surfaces, `tools/smoke.py` runs under SDL dummy). Blitting into
+    a fresh SRCALPHA surface reaches the same 32-bit per-pixel-alpha result
+    with no display dependency; the source's colorkey is honoured by the blit,
+    so the glyph's transparent ground stays transparent."""
+    out = pygame.Surface(surface.get_size(), pygame.SRCALPHA)
+    out.blit(surface, (0, 0))
+    return out
+
+
 def _draw_hud_text(target, call):
-    font = fonts.get_font(call.font_key)
-    surface = font.render(call.text, True, call.color[:3])
+    font = fonts.get_font(call.font_key, call.family)
+    surface = font.render(call.text, _TEXT_ANTIALIAS, call.color[:3])
     if _has_alpha(call.color):
+        # Promote to 32-bit FIRST — this is not cosmetic. An ANTIALIASED
+        # render returns a 32-bit per-pixel-alpha surface, where `set_alpha`
+        # is a whole-surface multiplier and the colour survives. A NON-
+        # antialiased render returns an 8-BIT COLORKEYED surface, where the
+        # same call premultiplies the alpha into RGB on blit: measured,
+        # translucent red text landed as (128, 0, 0, 128) instead of
+        # (255, 0, 0, 128) — every faded string (floaters, hover hints, the
+        # cutscene skip prompt) would have darkened as it faded.
+        surface = _to_alpha_surface(surface)
         surface.set_alpha(call.color[3])
     x, y = call.pos
     if call.align == "center":

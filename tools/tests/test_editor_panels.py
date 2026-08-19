@@ -1276,6 +1276,11 @@ class TestGameThemePanel(TempDataCase):
     def test_edit_gold_save_round_trips_through_write_validated(self):
         from editor import theme_ops
         panel = self.make()
+        # Read the pre-edit value rather than hardcoding it: `gold` is live
+        # `data/ui/palette.json` content a designer may retune (and did —
+        # it was the old [255, 200, 50] until the house-colour pass), and a
+        # test must never assert against live data (root CLAUDE.md).
+        before = list(theme_ops.load_palette(self.data_dir)["gold"])
         # isHidden() (not isVisible(), the balancing.py dot test's own
         # convention) — these widgets are never shown in a top-level
         # window, so isVisible() is always False regardless of setVisible.
@@ -1283,7 +1288,7 @@ class TestGameThemePanel(TempDataCase):
         self.assertFalse(panel.save_button.isEnabled())
 
         with mock.patch(
-                "editor.panels.game_theme.QColorDialog.getColor",
+                "editor.house_colors.QColorDialog.getColor",
                 return_value=QColor(1, 2, 3)):
             panel._on_palette_clicked("gold")
 
@@ -1291,7 +1296,7 @@ class TestGameThemePanel(TempDataCase):
         self.assertTrue(panel.save_button.isEnabled())
         self.assertEqual(panel._palette_doc["gold"], [1, 2, 3])
         # staged only — nothing written yet
-        self.assertEqual(theme_ops.load_palette(self.data_dir)["gold"], [255, 200, 50])
+        self.assertEqual(theme_ops.load_palette(self.data_dir)["gold"], before)
 
         saved = []
         panel.saved.connect(lambda: saved.append(True))
@@ -1769,3 +1774,30 @@ class TestSettingsDialog(TempDataCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestOpenObjectSchema(unittest.TestCase):
+    """`vfx.schema.json`'s `triggers_by_type` is the first OPEN object in a
+    balancing domain — no `properties`, members typed through
+    `additionalProperties`. `_build_object` used to index `node["properties"]`
+    unconditionally, so such a node raised KeyError and took the whole domain
+    form down. Pinned as a pure-function call (the method touches no self)
+    rather than a rendered panel, so it costs nothing in the Qt tier."""
+
+    def test_open_object_keys_come_from_the_doc(self):
+        node = {"type": "object", "additionalProperties": {"type": "object"}}
+        value = {"boost_speed": {}, "boost_hp": {}}
+        props = BalancingPanel._object_properties(None, node, value)
+        self.assertEqual(sorted(props), ["boost_hp", "boost_speed"])
+        self.assertEqual(props["boost_hp"], node["additionalProperties"])
+
+    def test_named_properties_still_win(self):
+        node = {"type": "object", "properties": {"a": {"type": "integer"}}}
+        self.assertEqual(
+            BalancingPanel._object_properties(None, node, {"a": 1}),
+            node["properties"])
+
+    def test_free_form_blob_yields_nothing(self):
+        node = {"type": "object", "additionalProperties": True}
+        self.assertEqual(
+            BalancingPanel._object_properties(None, node, {"x": 1}), {})

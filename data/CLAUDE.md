@@ -10,12 +10,15 @@ validating writer; don't hand-edit the JSON.
 
 ## What lives here
 - `schemas/` — one JSON Schema per file type.
-  `dispatch_handoff.schema.json`, `highscores.schema.json` and
-  `keybindings.schema.json` are the THREE schemas with no `data/` content
+  `dispatch_handoff.schema.json`, `highscores.schema.json`,
+  `keybindings.schema.json`, `audio_settings.schema.json` and
+  `render_settings.schema.json` are the FIVE schemas with no `data/` content
   file at all (handoffs are written to the gitignored `.claude/dispatch/`,
-  high scores AND a player's rebind overrides to the gitignored `scores/`,
-  all still through `write_validated` — the single write path holds), which
-  is legal: `tools/smoke.py::validate_data` skips `data/schemas/` entirely.
+  high scores AND a player's rebind overrides to the gitignored `scores/`, the
+  audio volumes and the GPU/CPU render-backend pick to the gitignored
+  `settings/`, all still through `write_validated` — the single write path
+  holds), which is legal: `tools/smoke.py::validate_data` skips
+  `data/schemas/` entirely.
   When a schema governs per-machine runtime state rather than designer
   content, this is the shape to copy — `keybindings.schema.json` validates
   `scores/keybindings.json` (feature: rebindable hotkeys, `engine/input.py`);
@@ -297,6 +300,52 @@ validating writer; don't hand-edit the JSON.
   field (breaking every direct construction), an editor mirror and a preview
   path. Unlike `defender_fire`/`projectile_hit` this row ships DOING
   something: an inert respawn row would be a feature that is not there.
+  **The boost-aura feature added the FOURTH top-level key,
+  `triggers_by_type`, and it is the architectural part of that change** — the
+  OPEN, designer-growable per-TYPE trigger registry `/add-vfx`'s step 3 has
+  mandated since ESV, finally built because this is its first user.
+  `{<type>: {<event>: $defs/trigger_row}}`, two levels of
+  `additionalProperties` and no `properties`/`required` at all (the
+  `cutscenes.schema.json` precedent) — so the NEXT per-type VFX is a data
+  change, never another hand-typed key on the closed flat `triggers` object,
+  which is untouched and stays the GLOBAL event table. Nothing dispatches off
+  it automatically: each consumer in `game/` names the `(type, event)` pair it
+  reads, so an unread row is inert rather than magic.
+  - Today's one event is **`boost_aura`**, authored for all three boost lines
+    (`boost_speed`/`boost_damage`/`boost_hp`) — the always-on aura drawn
+    BEHIND a live boost building by `game/ui/effects.py`'s
+    `submit_boost_auras`. CONTINUOUS, so like `triggers.projectile` and the
+    VA-5 highlights it takes a row but never reaches `_play`/`PlayOnceVfx`,
+    whose despawn clock would respawn it every frame.
+  - All three rows ship **`procedural: ""`** — with no art imported the aura
+    draws NOTHING. That is the honest reading of the enum's `""`, not a
+    workaround: a boost aura is art or it is absent, and there is no particle
+    shape that means "+15% damage". Deliberately NOT a documentation-only
+    enum value like `projectile`/`crater`, which name families that genuinely
+    draw. The cost, accepted knowingly: the VFX panel shows an empty
+    Procedural box on these rows.
+  - **`variant_select.mode: "level"`, and STRICT.** Variant N is the
+    booster's GLOBAL level N (1..9 across three tiers). `slots.json`'s `vfx`
+    ▸ Effects grew three leaf child groups (`Boost Aura Speed`/`Damage`/`HP`)
+    of NINE slots each — `vfx_boost_<stat>_aura` plus `_v2`..`_v9`, 27 in
+    total, all art-less on landing. A level whose variant has no art imported
+    yet draws nothing rather than falling back to a lower level's sheet
+    (USER DECISION): a half-imported family should look half-imported.
+  - **192×96 per-slot override** on all 27 (the `vfx_section_2x2` precedent),
+    encoding today's `BoostBuildings.globals` `range_shape: "square"` +
+    `range_tiles: 1`: a 3×3 iso block's bounding diamond is exactly 192×96
+    about the centre tile's own diamond centre, so the frame lands centred
+    with zero offset and no `fit_tiles`. **Nothing at runtime reads those two
+    values for the aura** — retuning the boost range makes the art lie, and
+    the fix is new art, never scaling the sprite off `range_tiles` (a drawing
+    decision masquerading as a tunable).
+  - Knock-on: `editor/panels/balancing.py`'s `_build_object` indexed
+    `node["properties"]` unconditionally and raised `KeyError` on an open
+    object, which would have taken the whole vfx form down; it now falls back
+    to `additionalProperties` with the key list read off the DOC
+    (`_object_properties`). `tools/tests/test_balancing_data.py`'s
+    `doc_schema_pairs` carried the identical latent bug and was hardened the
+    same way.
   Since **Phase 9A** the other
   five hold the prototype's live tuning verbatim, restructured into the
   REPLAN nested feature tree (see planning/MIGRATION_PLAN.md): PascalCase
@@ -482,6 +531,14 @@ validating writer; don't hand-edit the JSON.
     leaf multiplied by `factor ** N`. **All ship 1.0**, so they are
     behaviour-neutral until a designer tunes them; that is the intended knob for
     "what happens after round 50", replacing the old freeze-forever cliff.
+    **`0.0` is NOT a valid "stop growing" value here — it zeroes the stat
+    outright the instant `N ≥ 1`, not a clamp.** A 2026-08-10 edit shipped
+    `move_speed: 0.0` on most enemy types, which froze every enemy on its
+    spawn tile from round 51 onward (`game/enemies/CLAUDE.md`'s D5 section
+    has the full incident writeup). Every `*_endgame_scaling` factor's schema
+    field (`boss_endgame_scaling`/`pacing_endgame_scaling`/
+    `type_endgame_scaling`) now declares `exclusiveMinimum: 0` instead of
+    `minimum: 0` specifically so `0.0` can never be saved here again.
     - **`Boss.endgame_boss_scaling` (BR-4) is the Boss's own version** — one
       block for all THREE of its per-era arrays (`stats[]`, `round_counts[]`,
       `second_phase.spawns[]`), 13 factors, all 1.0. Its KEY NAMES are the LEAF
@@ -629,6 +686,28 @@ validating writer; don't hand-edit the JSON.
     must AGREE on its frame size or the loader raises `ValueError`. Schemas for
     what schemas can express; loader cross-checks for what they cannot (the
     `engine/tilemap.py` precedent).
+- **`slots[]` entries can also carry a `display_name`** — the designer-facing
+  name of ONE slot, written by the slot editor's **Name** field
+  (`editor/registry_ops.py::set_slot_display_name`) and read back by
+  `SlotRegistry.display_name(slot_key)`. It exists because a variant family's
+  members are distinguishable only by key (`ui_panel_v2` vs `ui_panel_v3`),
+  and the UI screen editor's Skin pickers had nothing else to show. **It is
+  EDITOR-ONLY — nothing in `game/` reads it**, and it is deliberately NOT a
+  required field: absent means "the key is its own label".
+  - Storing one needs the object form, so a bare-key slot is promoted to
+    `{key, display_name}` and demoted back to a bare string when the name is
+    cleared and it carries no frame-size override either (the same "never
+    store an override that overrides nothing" rule `set_slot_frame_size`
+    follows).
+  - **That is why `frame_w`/`frame_h` are no longer `required` in
+    `slot_entry`** — they are a `dependentRequired` PAIR instead (both or
+    neither), so an object entry that exists only to name a slot still
+    inherits its category's frame size. `_slot_frame_override` in
+    `engine/assets/registry.py` is the one place that distinction is read.
+  - A key repeated across groups of one category keeps the FIRST name it was
+    given — unlike frame size, two labels for one slot are cosmetic, not a
+    data error, so the loader does not raise. The editor's writer updates
+    EVERY occurrence, so it cannot author that disagreement in the first place.
 - **`conditions` (Tile Conditions) is an asset-only category** (no
   `balancing/conditions.json`, no `schemas/conditions.schema.json`) holding the
   art for the four runtime tile conditions, restructured so each condition
@@ -921,7 +1000,10 @@ validating writer; don't hand-edit the JSON.
   - Keys: `kind` (REQUIRED, the closed enum `panel | label | backdrop` — a
     SUBSET of the six-value widget kind enum, since only these three have a
     meaningful code-free draw), `rect` (REQUIRED, `[x, y, w, h]`, 4 ints),
-    `band` (`under | over`, absent = `over`), `z` (int, absent = 0, ordering
+    `band` (`under | over`, **absent = `under`** — the opposite of a LAYER
+    entry's absent-band `over`, because a custom widget is decoration and must
+    not default on top of the screen's own readouts; the editor writes the key
+    explicitly on creation), `z` (int, absent = 0, ordering
     among custom widgets of the same band only), `display_name` (non-empty
     string, editor-outliner label the game never reads).
   - **The entry is DEFAULT GEOMETRY ONLY.** Everything paintable — `skin`,
@@ -1027,7 +1109,7 @@ validating writer; don't hand-edit the JSON.
   HINTS for the editor — nothing in the game reads them back. They exist so
   the editor can give a POSITION-ONLY TEXT ANCHOR a real hit box: a widget
   whose `rect` is `(x, y, 0, 0)` (every `hud.py` readout, the phase banner,
-  `boss_cutscene`'s headline, ~40 `building_panel` stat cells — the
+  `boss_cutscene`'s subtitle, ~40 `building_panel` stat cells — the
   anchor-rect convention in `game/ui/CLAUDE.md`) has zero AREA, and was
   therefore impossible to click, drag or even see selected in the editor
   despite having had an id since B3. `font_key` is the `data/ui/fonts.json`
@@ -1135,13 +1217,14 @@ validating writer; don't hand-edit the JSON.
 - **`data/ui/strings.json`** ↔ `schemas/strings.schema.json` (normal stem
   pairing): a FLAT `{string_id: template}` map, one dotted id per source
   module/call-site (`hud.phase.building`, `hud.income.base`,
-  `widgets.condition.grass`, `levelup.heading`, `boss_cutscene.headline_win`,
+  `widgets.condition.grass`, `levelup.heading`, `boss_cutscene.subtitle`,
   …), `additionalProperties: false` with every key `required` — the same
   closed-set convention as `fonts.json`/`palette.json` (a designer cannot
   invent a new id through this schema; adding one is a schema change).
   Covers UI text that Phase B's per-widget `label` override
   (`ui_screen.schema.json`) structurally cannot: text that varies by
-  runtime/enum state (a phase banner, a win/loss headline) or is BUILT FROM
+  runtime/enum state (a phase banner, the boss-cutscene subtitle's plain-vs-
+  consolation-love pick) or is BUILT FROM
   A TEMPLATE with live values (`"LIVES {count}"`, `"ROUND {n}"`) — there is
   no single fixed string to attach to a widget id for those. Templates use
   Python `str.format()` placeholders; each property's `description`
@@ -1191,6 +1274,37 @@ validating writer; don't hand-edit the JSON.
   then builds via `pygame.font.Font(font_path, size)` instead of
   `SysFont`. `layout_h`/`_LAYOUT_H` are unaffected either way (same
   invariant as a plain size change above).
+- **`font_family` in `data/ui/screens/<id>.json`** (UH-Font-B) — the
+  PER-TEXT font family, the second axis to `font`'s size/bold preset.
+  `active_font.json` above answers "which family does text that names none
+  get"; this answers "which family does THIS text get". A
+  `font_manifest.json` entry id, valid at all 11 places `font` is: screen
+  `defaults`, a widget, a widget's four state patches, a layer, and a
+  layer's four state patches (`schemas/ui_screen.schema.json`'s
+  `$defs/font_family`). ABSENT means inherit — widget, then
+  `defaults.font_family`, then `active_font.json` — so a doc written before
+  the key existed draws identically.
+  - Unlike `active_font.json`, an id here that names no manifest entry does
+    NOT fail the boot: `engine.render.fonts.get_font` degrades it to the
+    inherited family. Deleting a font must not make one stale screen doc
+    kill every frame, and the loud D-2 cross-check still covers the pointer
+    that every screen depends on.
+  - **A family change moves NO stored rect.** `layout_h` is keyed by preset
+    only, deliberately — keying it by family would make every widget rect
+    shift when a designer swaps a face, and `screen_defaults.json` +
+    `test_ui_skinning.py`'s golden stream would stop reproducing across
+    Windows/Linux. So text in a wider family can overflow its widget: the
+    same pinned-layout contract a preset SIZE change already has.
+  - Every manifest entry is resolved at boot and handed to
+    `configure_fonts(..., family_paths=)` (files slurped to BYTES, never
+    paths — SDL_ttf holds a path-built font's file open for its lifetime,
+    which is a hard lock on Windows). `game/main.py` fails loud on a
+    manifest entry whose file is missing; `editor.theme_ops
+    .resolve_family_paths` drops it instead (E-37).
+  - `data/ui/screen_defaults.json` never carries it — that file records
+    CODE-authored defaults and a family is designer data only.
+    `screen_previews.json` DOES: every recorded text item gets a `family`
+    (null when inherited), because `hud_item_to_json` emits every field.
 
 ## Map data (Phase 6, D-20/21/22 specifics)
 - **`maps/<id>.json` (map files)**: `id` (== filename stem, loader-enforced),

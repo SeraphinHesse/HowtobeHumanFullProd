@@ -453,7 +453,7 @@
     },
     "enemy_death": {
       "draw_in_front": true,
-      "procedural": "splatter",
+      "procedural": "",
       "sprite_slot": "",
       "variant_select": {
         "misc_key": "",
@@ -539,6 +539,41 @@
       "variant_select": {
         "misc_key": "",
         "mode": "random"
+      }
+    }
+  },
+  "triggers_by_type": {
+    "boost_damage": {
+      "boost_aura": {
+        "draw_in_front": false,
+        "procedural": "",
+        "sprite_slot": "vfx_boost_damage_aura",
+        "variant_select": {
+          "misc_key": "",
+          "mode": "level"
+        }
+      }
+    },
+    "boost_hp": {
+      "boost_aura": {
+        "draw_in_front": false,
+        "procedural": "",
+        "sprite_slot": "vfx_boost_hp_aura",
+        "variant_select": {
+          "misc_key": "",
+          "mode": "level"
+        }
+      }
+    },
+    "boost_speed": {
+      "boost_aura": {
+        "draw_in_front": false,
+        "procedural": "",
+        "sprite_slot": "vfx_boost_speed_aura",
+        "variant_select": {
+          "misc_key": "",
+          "mode": "level"
+        }
       }
     }
   }

@@ -32,6 +32,13 @@ known methods (duck-typed, the ``occupancy``/``scene`` precedent) and this file
 just calls them at the right ordinal position. See ``game/debug/recorder.py``'s
 docstring for what each hook captures and why it must sit exactly there.
 
+``buildings_balance`` is optional in the same duck-typed way and read at ONE
+place: slot 9's revive sweep stamps a revived building's
+``BuildingSprite.reveal_delay`` from
+``BuildingsGlobal.placement_reveal_delay_seconds``, so a respawn gets the same
+"vfx first, sprite a beat later" reveal a placement does. Purely cosmetic;
+``None`` (every logic test) simply means no delay.
+
 ``boss_upgrades_balance`` (BossUpgradeTimelinePLAN BU-3 3.6) is the BALANCE
 half of the standard BU-3 hook pair — ``state`` already IS the ``RunState``, so
 only one half travels (the documented ``place_building`` exception in
@@ -41,6 +48,7 @@ only one half travels (the documented ``place_building`` exception in
 #10 ``boost_double_trigger``. It adds repeats INSIDE that slot; it moves
 nothing.
 """
+from engine.core import SpriteAnimator
 from game.buildings.components import (
     BoostEmitter, PainterProgress, RoundStats, TierState,
 )
@@ -141,10 +149,11 @@ def _process_boosts(state, tilemap, boss_upgrades_balance=None):
     An ALIVE booster in RAMP mode accumulates one turn of its stat onto its
     cardinal-adjacent combat neighbours (a floater per neighbour); in FLAT mode the
     boost was already applied at placement, so it only pays upkeep. A booster that
-    DIED this round (seen here BEFORE the revive step, exactly like painters) stamps
-    its one-shot explosion debuff on those neighbours — guarded by ``BoostEmitter``
-    so a single death explodes once; flat mode also reverses its 10× contribution
-    here. The revive step then rebuilds it and clears the guard.
+    DIED this round (seen here BEFORE the revive step, exactly like painters) has
+    its 10× flat contribution reversed here — idempotent via
+    ``BoostEmitter.flat_applied``. In RAMP mode a death does nothing at all: the
+    one-shot explosion debuff a dead booster used to stamp on its neighbours is
+    removed. The revive step then rebuilds it.
 
     ``boss_upgrades_balance`` (BU-3 3.6, #10 ``boost_double_trigger``): with the
     upgrade picked, ``apply_per_turn()`` runs ``extra_triggers`` ADDITIONAL
@@ -165,12 +174,9 @@ def _process_boosts(state, tilemap, boss_upgrades_balance=None):
                 for _ in range(1 + extra):
                     for col, row, text in b.apply_per_turn(tilemap):
                         state.boost_events.append((col, row, text))
-        elif not emitter.exploded:
-            if b.flat_mode() and emitter.flat_applied:
-                b.remove_flat(tilemap)
-                emitter.flat_applied = False
-            b.apply_explosion_debuff(tilemap)
-            emitter.exploded = True
+        elif b.flat_mode() and emitter.flat_applied:
+            b.remove_flat(tilemap)
+            emitter.flat_applied = False
 
 
 def _process_wall_teardown(tilemap):
@@ -189,7 +195,8 @@ def _process_wall_teardown(tilemap):
 
 
 def run_payday(state, tilemap, core_balance, occupancy=None, scene=None,
-               debug=None, boss_upgrades_balance=None):
+               debug=None, boss_upgrades_balance=None,
+               buildings_balance=None):
     hole = core_balance["TheHole"]
     built = _built_tiles_with_occupant(tilemap)
     buildings = [b for _, b in built]
@@ -290,7 +297,7 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None,
         debug.on_payday_end(state, tilemap)
 
     # 7. Boost sweep — BEFORE revive (10D): alive boosters accumulate their
-    #    per-turn buff, dead boosters explode their debuff onto neighbours.
+    #    per-turn buff, dead boosters (flat mode only) give theirs back.
     #    BU-3 3.6 (#10): the boss upgrade adds EXTRA per-turn triggers INSIDE
     #    this slot — the ordinal position of the step is untouched.
     _process_boosts(state, tilemap, boss_upgrades_balance)
@@ -326,9 +333,31 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None,
             b.rebuild()
             if was_dead:
                 tier_state = b.get_component(TierState)
+                # 4th slot: the building's own colour column (colour IS
+                # `SpriteAnimator.column`, MasterSheetColumnsPLAN B1), so the
+                # respawn vfx is cut in the colour of the building it belongs
+                # to instead of whatever column the vfx entry stored. `-1` is
+                # the "no driver" sentinel and is passed through as-is — the
+                # drain reads anything negative as "no live column".
+                animator = b.get_component(SpriteAnimator)
+                # Same purely-cosmetic beat a freshly PLACED building gets
+                # (`registry.place_building` -> `BuildingSprite.reveal_delay`):
+                # hold the revived sprite back for
+                # `BuildingsGlobal.placement_reveal_delay_seconds` so the
+                # respawn vfx appended just below plays BEFORE the building
+                # pops back in. Gameplay is untouched — the building is alive,
+                # full-HP and occupying its tile from this instant; only its
+                # VISUAL is late. `buildings_balance` is optional (logic tests
+                # omit it exactly like `occupancy`/`scene`), and omitting it
+                # means no delay, never a raise.
+                if animator is not None and buildings_balance is not None:
+                    animator.reveal_delay = buildings_balance[
+                        "BuildingsGlobal"]["placement_reveal_delay_seconds"]
                 state.building_respawn_events.append(
                     (tile.col, tile.row,
-                     0 if tier_state is None else tier_state.current_tier))
+                     0 if tier_state is None else tier_state.current_tier,
+                     None if animator is None or animator.column < 0
+                     else animator.column))
 
     # 10. Rebuild walls (10E): every alive WallBuilder restores its frozen
     #     perimeter to full HP — walls damaged during the round regenerate, and a

@@ -20,6 +20,7 @@ consumes these as DATA rather than importing a screen itself).
 import random
 from pathlib import Path
 
+from engine.assets.store import AssetStore
 from engine.core import Scene
 from engine.physics import TileOccupancy
 
@@ -36,6 +37,12 @@ LOVE = 123
 ROUND = 7
 COMMON_NOTE = f"love={LOVE}, round={ROUND}"
 
+#: Seed for the module-global `random` any mock construction rolls off (the
+#: construct modal's starting colour column). The session gets its own
+#: `random.Random(3)`; this is the same determinism promise for the one roll
+#: that does not take an rng argument.
+MOCK_SEED = 3
+
 #: A starts-unlocked building type (Stone Thrower) — a safe, always-buildable
 #: pick for the building_panel's upgrade/preview mocks (`game/buildings/
 #: CLAUDE.md`: "only defence/economic start unlocked").
@@ -48,12 +55,17 @@ BP_VIEW_ORDER = ("unlock", "construct", "upgrade", "base_info", "preview")
 #: The `preview` view's ids come off the `ConstructPreview` modal's own
 #: disjoint `preview_*` namespace instead (see `BPView.ids`).
 BP_VIEW_IDS = {
-    "unlock": ("panel", "close_btn", "action_btn",
+    "unlock": ("panel", "close_btn", "action_btn", "terrain_card_list",
                "unlock_title", "unlock_hint", "unlock_blocked"),
-    "construct": ("panel", "close_btn", "construct_title"),
+    # feature: construct-terrain-card — build AND upgrade mode end in a
+    # terrain CARD group now. The `cond_badge` pill and its hover-gated effect
+    # box are gone from the panel entirely, so no view lists them.
+    "construct": ("panel", "close_btn", "construct_title",
+                  "construct_card_list", "build_terrain_card_list"),
     "upgrade": ("panel", "close_btn", "action_btn", "rename_dice_btn",
-                "move_btn",
-                "upgrade_title", "upgrade_name", "upgrade_tier_level",
+                "move_btn", "upgrade_terrain_card_list",
+                "upgrade_title", "upgrade_name", "upgrade_name_box",
+                "upgrade_tier_level",
                 "dmg_dealt_label", "dmg_dealt_value",
                 "dmg_taken_label", "dmg_taken_value",
                 "died_last_round", "next_tier_header", "upgrade_hint"),
@@ -72,9 +84,23 @@ BP_VIEW_IDS = {
 #:     is covered automatically.
 #:   * `construct`/`card_` — one construct card per building type; a new
 #:     `/add-building` type is covered automatically.
+#:   * `upgrade`/`upgrade_swatch` — MasterSheetColumnsPLAN B3's colour-swatch
+#:     row. The count is one per colour the selected building's master sheet
+#:     declares (`build_colour_columns` below wires the capability map the
+#:     game's host wires), so a sheet that grows a colour is covered without
+#:     an edit here. The `preview` view's own `preview_color_*` twin needs no
+#:     prefix rule: that view records the modal's whole `ids` dict.
 BP_VIEW_ID_PREFIXES = {
-    "upgrade": ("stat_",),
-    "construct": ("card_",),
+    "upgrade": ("stat_", "upgrade_cond_card_", "upgrade_swatch"),
+    # `build_cond_card_` is construct mode's terrain-card family (one tree
+    # per DISTINCT condition among the selected tiles); the mock forces all
+    # four onto the selection so every card is recorded, exactly as the unlock
+    # mock forces them onto its chunk.
+    "construct": ("card_", "build_cond_card_"),
+    # The terrain cards are unlock mode's own dynamic-count family — one card
+    # tree per DISTINCT condition in the purchase. `_all_conditions_chunk`
+    # below forces all four onto the mock chunk so every card is recorded.
+    "unlock": ("cond_card_",),
 }
 
 #: Back-compat aliases for the pre-generalization single-family rule.
@@ -213,7 +239,102 @@ def _unlock_every_type(session):
             1, state.tiers_unlocked.get(btype, 0))
 
 
-def build_bp_view(view, view_w, view_h, balances, session, skinning=None):
+def _all_conditions_chunk(tilemap, tile, registry):
+    """Force ``tile``'s 2x2 chunk to carry all four `TileCondition` members,
+    each with its ART resolved.
+
+    `_build_cond_cards` emits one card tree per DISTINCT condition in the
+    purchase, so a chunk that rolled four Grass tiles would record ONE card
+    and leave the other three with no `screen_defaults.json` entry — i.e.
+    invisible to the editor and un-overridable on disk. Same argument, and
+    same fix, as `_unlock_every_type` makes for the construct cards.
+
+    The SLOT matters as much as the condition now: a card is sized around the
+    composite it draws (bare ground is 32px tall, ground + condition art 96),
+    so a chunk with unresolved `condition_slot`s would record four
+    ground-only cards and the editor's boxes would not match the game. The
+    mock `TileMap` is built without a registry (headless, no art), so this
+    resolves the slots itself, at variant 0 for determinism.
+
+    Writes `condition` directly rather than going through the roll: the roll
+    is chance-driven and this file's whole contract is byte-identical output
+    on every call.
+    """
+    from game.map.tile_map import _resolve_condition_slot
+    from game.map.tiles import TileCondition, TileState
+
+    chunk = tilemap.get_chunk_for_tile(tile)
+    for t, condition in zip(chunk, TileCondition):
+        t.condition = condition
+        t.condition_rolled = True
+        t.condition_variant_idx = 0
+        # COMBAT for every tile, not the tile's own state: a 2x2 chunk on
+        # the pinned map straddles BACKGROUND, which has no condition art by
+        # rule, so resolving honestly would record two of the four cards as
+        # bare ground and understate their height. COMBAT is the state a tile
+        # being BOUGHT is in, so it is also what the panel shows in play.
+        t.condition_slot = _resolve_condition_slot(registry, condition,
+                                                   TileState.COMBAT, 0)
+
+
+#: Fallback data root for a caller that does not thread one through (every
+#: shipping caller does — this only keeps `build_bp_view`'s signature
+#: backward-compatible).
+DEFAULT_DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
+
+
+def build_asset_store(data_root=None):
+    """A METADATA-only `AssetStore` over the live manifest + slot registry.
+
+    The terrain cards size themselves to their sprite's own frame
+    (`BuildingUI._cond_sprite_size`), so without a store the exporter would
+    record every card at the fallback size and the editor's boxes would
+    disagree with the game. `frame_size` reads the manifest entry only — no
+    PNG is ever opened here, and `sprites_dir` is deliberately left unset so
+    nothing can.
+    """
+    from engine.assets.manifest import load_manifest
+    from engine.assets.registry import load_registry
+
+    data_root = Path(data_root if data_root is not None else DEFAULT_DATA_ROOT)
+    return AssetStore(
+        manifest=load_manifest(data_root / "sprites" / "asset_manifest.json"),
+        registry=load_registry(data_root))
+
+
+def build_colour_columns(registry, data_root=None):
+    """``{slot_key: (colour_name, ...)}`` for the mock — the SAME capability
+    map the game's host derives at boot (MasterSheetColumnsPLAN B1).
+
+    Wired through `game.main._derive_colour_columns` rather than re-derived
+    here on purpose: the two rules that make a slot colour-capable (its master
+    sheet declares `columns` AND its manifest entry is `column_mode ==
+    "building_color"`) live in ONE place, so a mock can never offer swatches
+    the game would not, or hide swatches it would.
+
+    Without this the panel's `colour_columns` stayed `{}` and the construct
+    modal's `building_colors` stayed `None`, so `ColorSwatchRow` built zero
+    buttons, contributed zero ids, and the swatches were absent from BOTH
+    generated artifacts — invisible in the editor and impossible to override,
+    though the game draws them on every colour-capable building.
+
+    `registry` is the slot registry the mock's `AssetStore` already holds
+    (`store.registry`); the manifest is re-read here because the store keeps
+    its own private.
+
+    E-37: `_derive_colour_columns` already degrades an unreadable registry to
+    an empty map with one warning, which simply means "no swatches recorded".
+    """
+    from engine.assets.manifest import load_manifest
+    from game.main import _derive_colour_columns
+
+    data_root = Path(data_root if data_root is not None else DEFAULT_DATA_ROOT)
+    manifest = load_manifest(data_root / "sprites" / "asset_manifest.json")
+    return _derive_colour_columns(registry, manifest, data_root)
+
+
+def build_bp_view(view, view_w, view_h, balances, session, skinning=None,
+                  data_root=None):
     """Construct ONE `building_panel` view's mock. See `BP_VIEW_ORDER`."""
     from game.buildings.registry import build_cost, create
     from game.map.tiles import TileState
@@ -225,36 +346,84 @@ def build_bp_view(view, view_w, view_h, balances, session, skinning=None):
     panel = BuildingUI(view_w, view_h, ui, skinning=skinning)
     panel._session = session
     panel._buildings_balance = buildings
+    # Metadata-only: the panel needs `frame_size` to size a terrain card to
+    # its sprite. `defaults.use_card_portrait_slot` is the only OTHER thing
+    # on this panel that consults the store, and it ships off.
+    panel.assets = build_asset_store(data_root)
+    # MasterSheetColumnsPLAN B2/B3: the capability map the HOST wires at boot
+    # (`game/main.py:1134`). Without it the upgrade panel's swatch row and the
+    # construct modal's both build inert, so neither contributes ids and the
+    # swatches are missing from every generated artifact.
+    panel.colour_columns = build_colour_columns(panel.assets.registry,
+                                                data_root)
     preview = None
 
     if view == "unlock":
         tile = _first_tile_in_state(tm, TileState.COMBAT)
         panel.mode, panel.tile = "unlock", tile
         panel.selected_tiles = [tile]
+        _all_conditions_chunk(tm, tile, panel.assets.registry)
         panel._build_unlock(session)
         note = (f"{COMMON_NOTE}; the lowest-(row,col) COMBAT tile of the "
-                f"{PINNED_MAP!r} map, its real 2x2 chunk and unlock cost")
+                f"{PINNED_MAP!r} map, its real 2x2 chunk and unlock cost, "
+                "with the chunk's four tiles forced to the four distinct "
+                "tile conditions so every `cond_card_<condition>` tree is "
+                "recorded — the count is dynamic in game, the ids are not")
     elif view in ("construct", "preview"):
         tile = _first_tile_in_state(tm, TileState.BUILDABLE)
         panel.mode, panel.tile = "construct", tile
         panel.selected_tiles = [tile]
         _unlock_every_type(session)
         panel._build_construct()
+        if view == "construct":
+            # feature: construct-terrain-card — the panel emits one
+            # `build_cond_card_<condition>` tree per DISTINCT condition among
+            # the SELECTED tiles, so this single selection records ONE card
+            # and would leave the other three with no `screen_defaults.json`
+            # entry, i.e. invisible to the editor (`_all_conditions_chunk`'s
+            # argument, for the build family).
+            #
+            # It re-drives the builder with all four rows instead of SELECTING
+            # four tiles: the selection is what every construct card's price
+            # is a batch of, so a four-tile mock would quadruple every
+            # recorded price and make the panel unaffordable.
+            _all_conditions_chunk(tm, tile, panel.assets.registry)
+            panel._build_construct_cond_cards(
+                [(t.condition, 1, panel._cond_slot(t))
+                 for t in tm.get_chunk_for_tile(tile)])
         note = (f"{COMMON_NOTE}; the lowest-(row,col) BUILDABLE tile of the "
                 f"{PINNED_MAP!r} map, with EVERY building type unlocked so "
                 "each construct card (`card_<building_type>`) is recorded — "
-                "the count is dynamic in game, the ids are not")
+                "the count is dynamic in game, the ids are not"
+                + ("; its 2x2 chunk's four tiles are forced to the four "
+                   "distinct tile conditions and fed to the terrain-card "
+                   "builder so every `build_cond_card_<condition>` tree is "
+                   "recorded too" if view == "construct" else ""))
         if view == "preview":
+            # `ConstructPreview.__init__` rolls its starting colour column off
+            # the MODULE-GLOBAL `random` (MasterSheetColumnsPLAN B2 rolls it
+            # there so the modal cannot show a colour the placement will not
+            # use). Once the swatch row is non-empty that roll decides which
+            # swatch gets the selection ring, i.e. it decides the recorded
+            # draw list — so the global is pinned here, exactly as the session
+            # pins its own `random.Random(3)`. Without this the previews
+            # artifact differs run to run and
+            # `test_previews_are_deterministic` fails.
+            random.seed(MOCK_SEED)
             tier_idx = 0
             cost = build_cost(MOCK_BUILDING_TYPE, buildings, tier_idx)
             preview = ConstructPreview(
                 MOCK_BUILDING_TYPE, cost, buildings, ui, view_w, view_h,
-                count=1, tier_idx=tier_idx, skinning=skinning)
+                count=1, tier_idx=tier_idx, skinning=skinning,
+                building_colors=panel.colour_columns)
             panel.preview = preview
             note = (f"{COMMON_NOTE}; ConstructPreview({MOCK_BUILDING_TYPE!r}) "
                     "modal open over the construct panel, count=1, tier_idx=0 "
                     "(preview_cancel_btn present iff "
-                    "ui.Timing.construct_show_cancel)")
+                    "ui.Timing.construct_show_cancel), with the live colour "
+                    "columns of that building's tier-0 slot wired so every "
+                    "`preview_color_<i>` swatch is recorded — the count is "
+                    "dynamic in game, the ids are not")
     elif view == "upgrade":
         tile = _first_tile_in_state(tm, TileState.BUILDABLE)
         building = create(MOCK_BUILDING_TYPE, tile.col, tile.row, buildings)
@@ -262,9 +431,21 @@ def build_bp_view(view, view_w, view_h, balances, session, skinning=None):
         panel._selected = building
         panel.selected_tiles = [tile]
         panel._build_upgrade()
+        # feature: construct-terrain-card (upgrade half) — ONE building means
+        # ONE `upgrade_cond_card_<condition>` tree, so the builder is re-driven
+        # with all four rows; the same seam, and the same reason, as the
+        # construct view above.
+        _all_conditions_chunk(tm, tile, panel.assets.registry)
+        panel._build_upgrade_cond_cards(
+            building, [(t.condition, 1, panel._cond_slot(t))
+                       for t in tm.get_chunk_for_tile(tile)])
         note = (f"{COMMON_NOTE}; a freshly created {MOCK_BUILDING_TYPE!r} "
                 "building (tier 0, level 1) — upgrade_gate resolves "
-                "'in_tier' deterministically")
+                "'in_tier' deterministically, with that slot's live colour "
+                "columns wired so every `upgrade_swatch_<i>` is recorded, and "
+                "its 2x2 chunk forced to the four distinct tile conditions so "
+                "every `upgrade_cond_card_<condition>` tree is too — the "
+                "count is dynamic in game, the ids are not")
     elif view == "base_info":
         tile = tm.get(tm.base_col, tm.base_row)
         panel.mode, panel.tile = "base_info", tile

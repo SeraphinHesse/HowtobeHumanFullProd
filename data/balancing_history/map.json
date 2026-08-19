@@ -1,6 +1,283 @@
 [
   {
     "description": "",
+    "id": "6d044f35-2b31-4cee-9501-ebb9cce8a3fe",
+    "name": "tile purchase",
+    "snapshot": {
+      "Pathfinding": {
+        "buildings_overwrite_tileweights": true,
+        "content_weight_overwrites": {
+          "aoe_defence_building": false,
+          "base_building": false,
+          "blocker_building": false,
+          "boost_damage_building": false,
+          "boost_hp_building": false,
+          "boost_speed_building": false,
+          "defence_building": false,
+          "economic_building": false,
+          "meditator_building": false,
+          "painter_building": false,
+          "storm_priest_building": false,
+          "sun_scorcher_building": false,
+          "wall_builder_building": false
+        },
+        "content_weights": {
+          "aoe_defence_building": 2,
+          "base_building": 0,
+          "blocker_building": 1,
+          "boost_damage_building": 1,
+          "boost_hp_building": 1,
+          "boost_speed_building": 1,
+          "buildable_tile": 1,
+          "combat_tile": 1,
+          "defence_building": 2,
+          "economic_building": 1,
+          "impassable": 999,
+          "meditator_building": 1,
+          "painter_building": 1,
+          "spawning_tile": 1,
+          "storm_priest_building": 2,
+          "sun_scorcher_building": 2,
+          "wall_builder_building": 1
+        },
+        "damage_reduction": {
+          "min_round": 10,
+          "reduction": 0.5,
+          "top_n": 3
+        }
+      },
+      "Sounds": {
+        "buy_plot": {
+          "clips": [
+            {
+              "end": 0.0,
+              "file": "imported/trumpet.mp3",
+              "start": 0.0,
+              "volume": 0.2
+            }
+          ],
+          "loop": false,
+          "pick": "random"
+        },
+        "tile_placement": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        }
+      },
+      "SpawnDeco": {
+        "tree_chance": 0.8
+      },
+      "TileConditions": {
+        "min_speed_fraction": 0.5,
+        "modifiers": {
+          "Forest": {
+            "eco_yield_bonus": 0.1
+          },
+          "Mountain": {
+            "def_range_bonus": 1
+          }
+        },
+        "path_weight_overwritable": {
+          "forest": false,
+          "mountain": false,
+          "pond": false
+        },
+        "path_weights": {
+          "forest": 1,
+          "mountain": 2,
+          "pond": 9
+        },
+        "spawn_chances": {
+          "forest": 0.06,
+          "grass": 0.8,
+          "mountain": 0.07,
+          "pond": 0.07
+        }
+      },
+      "TileUnlocking": {
+        "adjacent_unlock_only": true,
+        "base_unlock_cost": 7,
+        "spawn_recede_enabled": true,
+        "unlock_cost_distance_mod": 4
+      }
+    },
+    "timestamp": "2026-08-18T17:45:55"
+  },
+  {
+    "description": "",
+    "id": "578d3866-64c6-4fad-8b2e-cb3aa48cb5db",
+    "name": "sdsdas",
+    "snapshot": {
+      "Pathfinding": {
+        "buildings_overwrite_tileweights": true,
+        "content_weight_overwrites": {
+          "aoe_defence_building": false,
+          "base_building": false,
+          "blocker_building": false,
+          "boost_damage_building": false,
+          "boost_hp_building": false,
+          "boost_speed_building": false,
+          "defence_building": false,
+          "economic_building": false,
+          "meditator_building": false,
+          "painter_building": false,
+          "storm_priest_building": false,
+          "sun_scorcher_building": false,
+          "wall_builder_building": false
+        },
+        "content_weights": {
+          "aoe_defence_building": 2,
+          "base_building": 0,
+          "blocker_building": 1,
+          "boost_damage_building": 1,
+          "boost_hp_building": 1,
+          "boost_speed_building": 1,
+          "buildable_tile": 1,
+          "combat_tile": 1,
+          "defence_building": 2,
+          "economic_building": 1,
+          "impassable": 999,
+          "meditator_building": 1,
+          "painter_building": 1,
+          "spawning_tile": 1,
+          "storm_priest_building": 2,
+          "sun_scorcher_building": 2,
+          "wall_builder_building": 1
+        },
+        "damage_reduction": {
+          "min_round": 10,
+          "reduction": 0.5,
+          "top_n": 3
+        }
+      },
+      "SpawnDeco": {
+        "tree_chance": 0.3
+      },
+      "TileConditions": {
+        "min_speed_fraction": 0.5,
+        "modifiers": {
+          "Forest": {
+            "eco_yield_bonus": 0.1
+          },
+          "Mountain": {
+            "def_range_bonus": 1
+          }
+        },
+        "path_weight_overwritable": {
+          "forest": false,
+          "mountain": false,
+          "pond": false
+        },
+        "path_weights": {
+          "forest": 1,
+          "mountain": 2,
+          "pond": 9
+        },
+        "spawn_chances": {
+          "forest": 0.06,
+          "grass": 0.8,
+          "mountain": 0.07,
+          "pond": 0.07
+        }
+      },
+      "TileUnlocking": {
+        "adjacent_unlock_only": true,
+        "base_unlock_cost": 7,
+        "spawn_recede_enabled": true,
+        "unlock_cost_distance_mod": 4
+      }
+    },
+    "timestamp": "2026-08-18T16:34:17"
+  },
+  {
+    "description": "",
+    "id": "8590625c-f60b-4565-847d-cd73293daa20",
+    "name": "less trees",
+    "snapshot": {
+      "Pathfinding": {
+        "buildings_overwrite_tileweights": true,
+        "content_weight_overwrites": {
+          "aoe_defence_building": false,
+          "base_building": false,
+          "blocker_building": false,
+          "boost_damage_building": false,
+          "boost_hp_building": false,
+          "boost_speed_building": false,
+          "defence_building": false,
+          "economic_building": false,
+          "meditator_building": false,
+          "painter_building": false,
+          "storm_priest_building": false,
+          "sun_scorcher_building": false,
+          "wall_builder_building": false
+        },
+        "content_weights": {
+          "aoe_defence_building": 2,
+          "base_building": 0,
+          "blocker_building": 1,
+          "boost_damage_building": 1,
+          "boost_hp_building": 1,
+          "boost_speed_building": 1,
+          "buildable_tile": 1,
+          "combat_tile": 1,
+          "defence_building": 2,
+          "economic_building": 1,
+          "impassable": 999,
+          "meditator_building": 1,
+          "painter_building": 1,
+          "spawning_tile": 1,
+          "storm_priest_building": 2,
+          "sun_scorcher_building": 2,
+          "wall_builder_building": 1
+        },
+        "damage_reduction": {
+          "min_round": 10,
+          "reduction": 0.5,
+          "top_n": 3
+        }
+      },
+      "SpawnDeco": {
+        "tree_chance": 0.6
+      },
+      "TileConditions": {
+        "min_speed_fraction": 0.5,
+        "modifiers": {
+          "Forest": {
+            "eco_yield_bonus": 0.1
+          },
+          "Mountain": {
+            "def_range_bonus": 1
+          }
+        },
+        "path_weight_overwritable": {
+          "forest": false,
+          "mountain": false,
+          "pond": false
+        },
+        "path_weights": {
+          "forest": 1,
+          "mountain": 2,
+          "pond": 9
+        },
+        "spawn_chances": {
+          "forest": 0.06,
+          "grass": 0.8,
+          "mountain": 0.07,
+          "pond": 0.07
+        }
+      },
+      "TileUnlocking": {
+        "adjacent_unlock_only": true,
+        "base_unlock_cost": 7,
+        "spawn_recede_enabled": true,
+        "unlock_cost_distance_mod": 4
+      }
+    },
+    "timestamp": "2026-08-18T16:33:16"
+  },
+  {
+    "description": "",
     "id": "498392db-a737-4a56-a920-8c04bb2ab9dd",
     "name": "Less frequent tiles",
     "snapshot": {

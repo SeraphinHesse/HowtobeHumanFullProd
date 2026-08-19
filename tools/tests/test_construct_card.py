@@ -18,7 +18,8 @@ if str(REPO) not in sys.path:
 
 from game.buildings.registry import BUILDING_CLASSES  # noqa: E402
 from game.ui import widgets  # noqa: E402
-from game.ui.building_ui import _CARD_ID_PREFIX  # noqa: E402
+from game.ui.building_ui import (  # noqa: E402
+    _CARD_BODY, _CARD_H, _CARD_ID_PREFIX, _CARD_W)
 from tools import screen_mocks  # noqa: E402
 
 #: LIVE data/ on purpose — allowlisted in test_fixture_guard.py. The whole
@@ -30,8 +31,30 @@ from tools import screen_mocks  # noqa: E402
 DATA = REPO / "data"
 
 #: The child ids every card carries, relative to its own `card_<btype>` id.
-CARD_PARTS = ("_portrait", "_name", "_name2", "_price", "_price_icon",
-              "_price_text")
+CARD_PARTS = ("_plate", "_frame", "_portrait", "_name", "_name2", "_price",
+              "_price_icon", "_price_text")
+
+
+def _slot(btn):
+    """The card SLOT `btn`'s body sits in — the 140x77 box that IS the card.
+
+    The body is a small sub-box (`_CARD_BODY`): the portrait backing and the
+    click target, deliberately much smaller than the card's visual extent. So
+    "inside the card" is a question about the slot, and the slot is recovered
+    from the body by subtracting its own offset."""
+    return (btn.rect[0] - _CARD_BODY[0], btn.rect[1] - _CARD_BODY[1],
+            _CARD_W, _CARD_H)
+
+
+class _NullRenderer:
+    """`submit` only needs somewhere to drop primitives — the point of
+    calling it here is the `panel_rect` it resolves off `skinning.apply`."""
+
+    def submit_hud(self, item):
+        pass
+
+    def submit_overlay_lines(self, *args, **kwargs):
+        pass
 
 
 def _panel():
@@ -67,7 +90,8 @@ class TestCardWidgetTree(unittest.TestCase):
         btype = panel.cards[0][0]
         key = f"{_CARD_ID_PREFIX}{btype}"
         expected = {
-            key: "button", key + "_portrait": "panel",
+            key: "button", key + "_plate": "panel", key + "_frame": "panel",
+            key + "_portrait": "panel",
             key + "_name": "label", key + "_name2": "label",
             key + "_price": "button", key + "_price_icon": "panel",
             key + "_price_text": "label",
@@ -78,13 +102,14 @@ class TestCardWidgetTree(unittest.TestCase):
     def test_children_sit_inside_their_card(self):
         panel = _panel()
         for btype, btn in panel.cards:
-            cx, cy, cw, ch = btn.rect
+            cx, cy, cw, ch = _slot(btn)
             parts = panel._card_parts[btype]
-            for child in (parts.portrait, parts.price, parts.icon):
+            for child in (parts.plate, parts.frame, parts.portrait,
+                          parts.price, parts.icon):
                 x, y, w, h = child.rect
                 self.assertTrue(cx <= x and x + w <= cx + cw
                                 and cy <= y and y + h <= cy + ch,
-                                f"{btype}: {child.rect} escapes {btn.rect}")
+                                f"{btype}: {child.rect} escapes {_slot(btn)}")
 
     def test_clear_card_ids_sweeps_the_whole_tree(self):
         panel = _panel()
@@ -128,6 +153,15 @@ class TestPriceIsClickTarget(unittest.TestCase):
         # The portrait is inside the card but outside the price pill.
         portrait = panel._card_parts[btype].portrait.rect
         self.assertTrue(self._click(panel, portrait))
+        self.assertIsNotNone(panel.preview)
+
+    def test_off_by_default_the_price_pill_ALSO_clicks(self):
+        """The pill is the obvious "press me" on a card; off used to mean it
+        was drawn and never hit-tested, so the one part that looks like a
+        button did nothing."""
+        panel = _panel()
+        btype, _btn = panel.cards[0]
+        self.assertTrue(self._click(panel, panel._card_parts[btype].price.rect))
         self.assertIsNotNone(panel.preview)
 
     def test_on_only_the_price_clicks(self):
@@ -174,6 +208,57 @@ class TestPortraitSlot(unittest.TestCase):
         for btype, _btn in panel.cards:
             self.assertEqual(panel._card_parts[btype].portrait.skin,
                              f"card_portrait_{btype}")
+
+
+class TestTheHostAsksThePanelWhoOwnsTheWheel(unittest.TestCase):
+    """`wants_scroll` is the seam `main.py`'s MOUSEWHEEL arm consults before
+    it zooms the camera instead. It used to be hand-rolled there as
+    `mode == "construct" and preview is None and contains(panel_rect, ...)`,
+    which missed two cases: a card list a designer moved outside the sidebar
+    BODY, and unlock mode — whose `handle_scroll` branch existed but was
+    unreachable, so the terrain list could not be wheel-scrolled at all."""
+
+    def test_a_point_in_the_card_list_owns_the_wheel(self):
+        panel = _panel()
+        panel.submit(_NullRenderer(), panel._session)   # resolves panel_rect
+        lx, ly, lw, lh = panel._list_rect("construct_card_list",
+                                          panel._construct_list)
+        self.assertTrue(panel.wants_scroll(lx + lw // 2, ly + lh // 2))
+        self.assertFalse(panel.wants_scroll(lx - 200, ly + lh // 2))
+
+    def test_an_open_preview_and_other_modes_do_not(self):
+        panel = _panel()
+        panel.submit(_NullRenderer(), panel._session)
+        inside = (panel.panel_rect[0] + 4, panel.panel_rect[1] + 4)
+        self.assertTrue(panel.wants_scroll(*inside))
+        panel.mode = "upgrade"
+        self.assertFalse(panel.wants_scroll(*inside))
+        self.assertFalse(panel.wants_scroll(5, 5))
+
+    def test_an_open_preview_swallows_the_wheel_from_anywhere(self):
+        """A modal must not let the wheel reach the camera behind it.
+
+        `handle_click` has always treated an open preview as modal; the wheel
+        did not, so a tick over an open build preview ZOOMED THE MAP while the
+        card list sat visibly underneath refusing to move."""
+        panel = _panel()
+        panel.submit(_NullRenderer(), panel._session)
+        panel.preview = object()
+        self.assertTrue(panel.wants_scroll(5, 5))          # far off the panel
+        before = panel.scroll_offset
+        panel.handle_scroll(1)
+        self.assertEqual(panel.scroll_offset, before,
+                         "swallowed, not applied to the list underneath")
+
+    def test_unlock_mode_owns_it_too(self):
+        balances = screen_mocks.load_balances(DATA)
+        session = screen_mocks.build_session(DATA, balances)
+        panel = screen_mocks.build_bp_view("unlock", 640, 360, balances,
+                                           session).panel
+        panel.submit(_NullRenderer(), session)
+        lx, ly, lw, lh = panel._list_rect("terrain_card_list",
+                                          panel._terrain_list)
+        self.assertTrue(panel.wants_scroll(lx + lw // 2, ly + lh // 2))
 
 
 class TestCardListScrolling(unittest.TestCase):
@@ -262,20 +347,25 @@ class TestCardColumnFollowsThePanel(unittest.TestCase):
     def test_children_stay_inside_the_body_after_the_panel_moves(self):
         panel = self._panel_with((472, 0, 167, 360))
         for btype, btn in panel.cards:
-            cx, cy, cw, ch = btn.rect
+            cx, cy, cw, ch = _slot(btn)
             parts = panel._card_parts[btype]
-            for child in (parts.portrait, parts.price, parts.icon):
+            for child in (parts.plate, parts.frame, parts.portrait,
+                          parts.price, parts.icon):
                 x, y, w, h = child.rect
                 self.assertTrue(cx <= x and x + w <= cx + cw
                                 and cy <= y and y + h <= cy + ch,
-                                f"{btype}: {child.rect} escapes {btn.rect}")
+                                f"{btype}: {child.rect} escapes {_slot(btn)}")
 
     def test_no_override_keeps_the_code_layout(self):
         """`screen_defaults.json` is recorded with a disk-free skinning, so an
-        absent override must reproduce the ctor geometry exactly."""
+        absent override must reproduce the ctor geometry exactly.
+
+        The group is `_CARD_W` wide, not the panel column: a card IS 140px
+        across, so a group narrower than one card would window a list its own
+        cards spill out of."""
         plain = _panel()
         self.assertEqual(plain._card_column(),
-                         (plain.panel_x + 6, plain.panel_w - 12))
+                         (plain.panel_x + 6, _CARD_W))
 
 
 class TestCardDrawOrder(unittest.TestCase):
@@ -310,6 +400,57 @@ class TestCardDrawOrder(unittest.TestCase):
         self.assertIn(tuple(portrait), rec.sizes)
         self.assertLess(rec.sizes.index(body), rec.sizes.index(tuple(portrait)),
                         "the card body must be drawn UNDER its portrait")
+
+    def test_the_plate_is_under_and_the_frame_is_over_the_portrait(self):
+        """The stack is plate -> body -> portrait -> frame. That is what the
+        two panels meant while they were CUSTOM widgets banded "under" and
+        "over": the plate is the backdrop the name and price sit on, and the
+        frame is a border in FRONT of the portrait, not behind it."""
+        panel = _panel()
+        _set_defaults(panel, button_skin="ui_button_card")
+
+        class Rec:
+            def __init__(self):
+                self.sizes = []
+
+            def submit_hud(self, item):
+                size = getattr(item, "size", None)
+                if size:
+                    self.sizes.append(tuple(size))
+
+            def __getattr__(self, name):
+                return lambda *a, **k: None
+
+        rec = Rec()
+        panel.submit(rec, panel._session)
+        btype, btn = panel.cards[0]
+        parts = panel._card_parts[btype]
+        order = [rec.sizes.index(tuple(r)) for r in
+                 (parts.plate.rect[2:], btn.rect[2:],
+                  parts.portrait.rect[2:], parts.frame.rect[2:])]
+        self.assertEqual(order, sorted(order),
+                         "card stack must be plate/body/portrait/frame")
+
+
+class TestNoPinnedCardRects(unittest.TestCase):
+    """A hand-pinned `card_<btype>` rect in the shipped screen JSON is a card
+    that cannot scroll.
+
+    `BuildingUI.submit` runs `skinning.apply` every frame, so a stored rect
+    overwrites the scroll-adjusted one `_build_construct` just computed: the
+    wheel moves `scroll_offset` and nothing on screen moves. One pinned
+    outside `construct_card_list`'s window is also culled at draw AND at hit
+    — i.e. that building type becomes unbuyable. Twelve of them shipped that
+    way once; this is the guard.
+    """
+
+    def test_the_screen_json_pins_no_card_rect(self):
+        import json
+        path = DATA / "ui" / "screens" / "building_panel.json"
+        widgets_spec = json.loads(path.read_text(encoding="utf-8"))["widgets"]
+        pinned = sorted(name for name, spec in widgets_spec.items()
+                        if name.startswith(_CARD_ID_PREFIX) and "rect" in spec)
+        self.assertEqual(pinned, [], "card rects must stay code-owned")
 
 
 class TestPriceSkin(unittest.TestCase):

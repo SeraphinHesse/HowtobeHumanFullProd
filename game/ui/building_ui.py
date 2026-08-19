@@ -82,6 +82,16 @@ from . import widgets
 # colliding with BuildingUI's own).
 SCREEN_ID = "building_panel"
 
+#: The VIEW id (`data/ui/screen_defaults.json`'s `views` keys, ordered by
+#: `tools/screen_mocks.BP_VIEW_ORDER`) the two MODALS draw under. Every other
+#: view id is a `BuildingUI.mode` verbatim — `construct`, `unlock`, `upgrade`,
+#: `base_info` — which is why the panel passes `self.mode` straight through
+#: and only the modals need a name of their own. `move_select` is a real mode
+#: with no recorded view, so a view-scoped custom widget never draws there;
+#: that is the honest answer for a mode the exporter does not record, not a
+#: gap to paper over.
+_PREVIEW_VIEW = "preview"
+
 #: Id prefix for a construct card, completed by the card's `building_type`
 #: (`card_defence`, `card_economic`, …). The type is the stable key that makes
 #: a dynamic-count card list individually overridable; `_clear_card_ids` uses
@@ -115,48 +125,211 @@ _CARD_PORTRAIT_PREFIX = "card_portrait_"
 _CARD_LOVE_ICON = "ui_icon_love"
 
 # -- Construct-card geometry (the widget-tree card) ------------------------
-# A card is a PARENT holding four children: a square creature portrait on the
-# left, a wrapped name block top-right, and a price button under it carrying a
-# love icon + the number. Every rect below is ABSOLUTE — `parent` is EDITOR
-# authoring metadata that nothing in `game/` reads (`editor/widget_tree.py`),
-# so `_build_construct` lays its own children out and no cascade exists at
-# runtime.
+# A card is a THREE-PIECE composition holding nine id'd parts: a decorative
+# PLATE on the right carrying the name rows and the price pill, a small square
+# BODY behind the creature portrait on the left, and a FRAME drawn in front of
+# that portrait. The body is the only click target — it is deliberately much
+# smaller than the card, because the card's visual extent is the plate+frame
+# union and none of that is meant to be pressable.
 #
-# The vertical fit, at "sm" (`layout_h` 11, so `_row_step("sm")` == 12):
-#   portrait   y+3  .. y+37   (34 square)
-#   name       two rows from y+2 -> last row ends y+2+12+11 = y+25
-#   price btn  y+24 .. y+38   (14 tall: over the 12px click-target floor and
-#                              over its own layout_h 11 — `test_ui_min_targets`)
-# The name's second row and the price button share one pixel of the card's
-# 40px height; the glyphs themselves do not touch, since "sm" draws 9px tall
-# inside its 11px layout box.
+# Every rect below is an OFFSET from the card SLOT's top-left, and the slot is
+# positioned off `construct_card_list`'s box (`_card_column` /
+# `_card_list_viewport`) — so moving or resizing that ONE group container in
+# the editor moves all twelve cards together. `parent` in the screen JSON is
+# EDITOR authoring metadata that nothing in `game/` reads
+# (`editor/widget_tree.py`); `_build_construct` lays every part out itself and
+# no cascade exists at runtime.
+#
+# NEVER hand-pin a `card_<btype>` rect in `data/ui/screens/building_panel.json`.
+# `BuildingUI.submit` runs `skinning.apply` every frame, so a stored rect
+# overwrites the scroll-adjusted one this module just computed: the wheel moves
+# `scroll_offset`, `_build_construct` re-runs, and `apply` clobbers the result.
+# A pinned card is a card that cannot scroll, and one pinned outside
+# `construct_card_list`'s window is culled at draw AND at hit — i.e. unbuyable.
+#
+# The slot, 140x77 (`_CARD_W` x `_CARD_H`), at "sm" (`layout_h` 11, so
+# `_row_step("sm")` == 12):
+#   plate     +63,+0   77x64   the name/price backdrop; drawn FIRST, under all
+#   body      +10,+24  44x45   the portrait backing + the click target
+#   portrait  +14,+28  34 sq   the creature, inside the body
+#   frame     +0,+13   64x64   drawn AFTER the portrait — a border in front
+#   name      +69,+26          two rows, stepping `_row_step("sm")`
+#   price     +62,+46  74x23   over the 12px click-target floor and over its
+#                              own layout_h 11 — `test_ui_min_targets`
+# The union of every part is exactly the slot: the plate's right edge lands on
+# +140 and the frame's bottom on +77, which is what lets `_card_in_viewport`
+# window the list on the slot and know nothing spills out of the group.
 _CARD_INSET = 6            # card column inset inside the panel (`_card_column`)
-_CARD_H = 40
-_CARD_GAP = 4              # list pitch = _CARD_H + _CARD_GAP
-_CARD_PAD = 3              # portrait inset from the card's top-left corner
+_CARD_W = 140              # the card SLOT: the union of every part
+_CARD_H = 77
+# The pitch is its own number, NOT `_CARD_H + gap`, because the gap the eye
+# sees is not the gap between SLOTS. The plate and the frame are 64 tall
+# inside a 77-tall slot, so two cards a pitch P apart show `P - 64` of empty
+# space between them: P = 81 read as a 17px gap, and halving that to 8 gives
+# P = 72. At 72 a slot overlaps its neighbour's by 5px, which is harmless —
+# the frame's bottom band and the next plate's top band share exactly one
+# column of x (the frame ends at +64, the plate starts at +63), so there is
+# nothing to collide. Spelling this as a `_CARD_GAP` of -5 would be a name
+# that lies about what it measures.
+#
+# Tightened 72 -> 67 on request: the visible gap is `P - 64`, so the list now
+# breathes 3px between cards instead of 8, and a slot overlaps its neighbour's
+# by 10px rather than 5 — still only the frame's bottom band against the next
+# plate's top band, which share one column of x and nothing else.
+_CARD_PITCH = 67           # 64 visible + 3 gap — see the note above
+_CARD_PLATE = (63, 0, 77, 64)    # name/price backdrop, relative to the slot
+_CARD_FRAME = (0, 13, 64, 64)    # portrait frame, relative to the slot
+_CARD_BODY = (10, 24, 44, 45)    # click target + portrait backing
+_CARD_PORTRAIT_AT = (14, 28)     # portrait top-left, relative to the slot
 _CARD_PORTRAIT = 34        # square portrait side
-_CARD_COL_X = 41           # right column x, relative to the card's left edge
-_CARD_PRICE_TOP = 24       # price button top, relative to the card's top
-_CARD_PRICE_H = 14
+_CARD_COL_X = 69           # right column x, relative to the slot's left edge
+_CARD_NAME_TOP = 26        # first name row's y, relative to the slot's top
+_CARD_PRICE = (62, 46, 74, 23)   # price button, relative to the slot
 _CARD_ICON = 10            # love icon side, inside the price button
-_CARD_LIST_TOP = 32        # first card's y at scroll offset 0
-_CARD_LIST_BOTTOM_PAD = 30 # clearance for the terrain badge at the panel foot
+_CARD_ICON_AT = (14, 8)    # love icon top-left, inside the price button
+_CARD_TEXT_AT = (28, 7)    # price text anchor, inside the price button
+_CARD_LIST_TOP = 8         # first card's y at scroll offset 0
+_CARD_LIST_BOTTOM_PAD = 32 # clearance for the terrain badge at the panel foot
 # Construct-panel-only grey fill alpha for a tile already barred from hosting
 # another Painter (widgets.C_PAINTER_USED) — same alpha-tuple pattern as
 # overlays.py's _TIER_OVERVIEW_ALPHA.
 _PAINTER_USED_ALPHA = 130
 # The price pill carries its OWN skin rather than inheriting the card body's
-# `defaults.button_skin`: the body is a full-card 9-slice, and stretching that
-# same art through a 74x14 pill reads as a squashed card. Baked here for the
-# same reason `_CARD_LOVE_ICON` is — it names a specific piece of art, and a
-# designer who wants another one overrides `card_<btype>_price`'s `skin` in the
-# editor, per card, without touching the body.
-_CARD_PRICE_SKIN = "ui_button_pill"
+# `defaults.button_skin`: the body is a small portrait backing, and stretching
+# that same art through a 74x23 pill reads as a squashed card. Baked here for
+# the same reason `_CARD_LOVE_ICON` is — it names a specific piece of art, and
+# a designer who wants another one overrides `card_<btype>_price`'s `skin` in
+# the editor, per card, without touching the body.
+_CARD_PRICE_SKIN = "ui_button_panel"
+# The plate and the frame carry their own skins for the same reason, and for
+# one more: `defaults.panel_skin` is shared with every other panel on this
+# screen (the panel body, the terrain badge, the effect box), so inheriting it
+# here would tie a card's chrome to theirs. Overridable per card in the editor
+# as `card_<btype>_plate` / `card_<btype>_frame`.
+_CARD_PLATE_SKIN = "ui_panel_v11"
+_CARD_FRAME_SKIN = "ui_panel_v7"
 # -- /construct-card geometry ---------------------------------------------
 
-# 10I: tooltip chrome — dark panel, 1px border in the condition colour
-# (prototype building_ui.py:1440-1455).
-_COND_TOOLTIP_BG = (20, 15, 35)
+# -- Tile-condition cards (unlock mode) + the editable terrain box ---------
+# The unlock panel names the terrain the player is buying, one card per
+# DISTINCT condition across every 2x2 chunk in the selection (a chunk is four
+# tiles, so a single-chunk unlock is at most four cards and usually one or
+# two). Cards are DYNAMIC-count content in the `_build_construct` sense — the
+# COUNT varies with the roll, the KEY does not — so each card is id'd
+# `cond_card_<condition>` and every part of it is individually overridable.
+#
+# The vertical fit, at "sm" (`layout_h` 11, so `_row_step("sm")` == 12), for a
+# sprite `sh` tall (see the frame-size note below):
+#   sprite    y+3 .. y+3+sh   centred horizontally; it owns the top band alone
+#   name      one row under it, full width, with the tile count right-aligned
+#   effects   under that: ONE row naming the effect, one row carrying its
+#             number (see `_COND_EFFECT_LINES`)
+# so a card is `_COND_CARD_PAD*2 + sh + step*(1 + rows)` tall, laid out at
+# BUILD time (the `_layout_upgrade_rows` precedent: writing the default anchor
+# before `skinning.apply` is what lets a designer's rect override win), and
+# positioned inside its GROUP container rather than off `panel`.
+#
+# The sprite is drawn at the art's OWN frame size — `assets.frame_size(slot)`,
+# 64x96 for a condition (the tile diamond plus the headroom a mountain or a
+# tree needs), 64x32 for the plain ground tile grass falls back to.
+# `HudSprite` STRETCHES a frame to the box it is given rather than fitting it,
+# so any box that is not the frame's own size distorts the art; a card is
+# sized to the sprite instead of the other way round.
+#
+# A frame size is committed DATA (`asset_manifest.json`), not a font metric,
+# so it is deterministic across platforms and may reach a stored rect. The
+# fallback is only for a headless panel with no asset store at all.
+_COND_CARD_ID_PREFIX = "cond_card_"
+_COND_CARD_PAD = 3
+_COND_CARD_SPRITE_FALLBACK = (64, 96)
+
+#: The preview a card shows when its condition has no art of its own: the
+#: regular buildable ground tile, which is what the bought tile becomes.
+#: GRASS is the absence of a condition (its `cond_grass_*` slot ships without
+#: art, and the world's own emitter skips it for the same reason), and an
+#: un-imported condition slot would otherwise blit the engine's grey X (E-37).
+#:
+#: Nothing composites a ground tile UNDER the condition art any more — a card
+#: draws exactly ONE sprite, at the `cond_card_<condition>_sprite` id, so
+#: every card's preview is the same widget and a designer's downsize/position
+#: override applies to all four identically. (It used to draw a `_ground`
+#: sibling as well; that widget is gone.)
+_CARD_GROUND_SLOT = "tile_buildable"
+
+_COND_CARD_GAP = 4         # list pitch = card height + this
+_COND_CARD_LIST_TOP = 112  # first card's y, clear of the UNLOCK button (75..93)
+                           # and the not-adjacent warning under it (98)
+_COND_CARD_LIST_BOTTOM_PAD = 6
+
+#: The two card GROUPS, as their own id'd container widgets. Cards are laid
+#: out INSIDE whichever rect their container carries, so moving or resizing
+#: one container in the editor shifts and re-windows its whole list — the
+#: thing a designer could not do while every card's rect was derived straight
+#: off `panel`. Each is the exporter-recorded PARENT of its cards too, so the
+#: editor's widget tree shows the group as a branch rather than N roots.
+#:
+#: A container DRAWS only once it carries a `skin`: unskinned it is pure
+#: layout, which keeps the shipped look byte-identical (the golden-parity
+#: contract) while letting a designer give the group a real backdrop.
+_TERRAIN_LIST_ID = "terrain_card_list"
+_CONSTRUCT_LIST_ID = "construct_card_list"
+
+#: Each terrain card reserves exactly TWO id'd effect rows,
+#: and the two are a PAIR, not a list: row 0 names the effect ("Range"), row 1
+#: carries its number ("+1"). That is what lets a designer place the name and
+#: the value independently — side by side, or stacked — the same split the
+#: per-stat `stat_<key>_label`/`stat_<key>_value` widgets use.
+#:
+#: It replaces five rows of full sentences ("+1 range for defenders"), which
+#: were written for a tooltip that grew to fit them and wrapped once the boxes
+#: became a fixed 112px wide. Nothing wraps now: both halves are short by
+#: construction, so `_tile_cond_effect_lines` may reach a stored rect with no
+#: live font measurement anywhere in the path.
+#:
+#: Only the FIRST effect a condition carries is shown. Today every condition
+#: has exactly one and `map.json` ships modifiers for two conditions at all;
+#: a second effect on one condition would need a second pair of rows, not a
+#: longer list.
+_COND_EFFECT_LINES = 2
+
+#: **feature: construct-terrain-card** — the CONSTRUCT panel's own terrain
+#: card family. Build mode used to name the tile's terrain with a footer PILL
+#: (`cond_badge`) whose effect box only appeared while the pill was hovered;
+#: it shows the same terrain CARD unlock mode shows instead, always-on, at the
+#: panel foot. Nothing is hover-gated any more — the info is simply there.
+#:
+#: It is a SEPARATE id family from `cond_card_*` on purpose. An override is
+#: per-ID, not per-view (`skinning.apply` walks one `widgets` table for the
+#: whole screen), so reusing the unlock ids would pin the build card to
+#: wherever the unlock LIST put it and make the two modes impossible to place
+#: independently. Same tree shape, same builder, its own keys.
+#:
+#: The badge/effect-box widgets are NOT deleted: upgrade mode still draws
+#: them, for the building's placement snapshot.
+_BUILD_COND_CARD_ID_PREFIX = "build_cond_card_"
+_BUILD_TERRAIN_LIST_ID = "build_terrain_card_list"
+
+#: …and the UPGRADE panel's, on the same argument. The badge is GONE from
+#: this panel entirely now: all three modes that ever named a terrain draw
+#: the card, so `cond_badge` / `cond_badge_text` / `cond_effect_box` /
+#: `cond_effect_line_<i>` and the whole `_layout_cond_box` / hover-tooltip
+#: path they existed for are deleted rather than left as widgets no mode
+#: reaches (an id in no view has no `screen_defaults.json` record, which the
+#: override validator then rejects — dead ids here are not free).
+_UPGRADE_COND_CARD_ID_PREFIX = "upgrade_cond_card_"
+_UPGRADE_TERRAIN_LIST_ID = "upgrade_terrain_card_list"
+
+#: The build/upgrade card GROUP's DEFAULT height: the band the badge + effect
+#: box used to own at the panel foot (`view_h - 52` .. `view_h`), so a card
+#: lands at
+#: the same height the thing it replaces did. A full-size (64x96-sprite) card
+#: is taller than the band and overflows it — index 0 always draws, see
+#: `_cond_card_in_viewport` — which is deliberate: the shipped screen places
+#: this family from `data/ui/screens/building_panel.json`, and a default that
+#: silently WINDOWED the only card away would read as "the card is gone".
+_BUILD_COND_LIST_H = 52
+# -- /tile-condition cards -------------------------------------------------
+
 # -- 10J: the name-dice glyph (prototype building_ui.py:106) --
 #: UT-3: the dice caption is `building.btn.dice` in the string table now.
 #: This stays as the UNCONFIGURED fallback the table was seeded from —
@@ -196,6 +369,18 @@ def _boss_upgrade_copy(session, upgrade_id):
     except (KeyError, IndexError, ValueError):
         pass
     return entry.get("name", upgrade_id), desc
+
+
+def _cond_effect_rows(lines):
+    """The `(name, value)` pair padded/capped to exactly `_COND_EFFECT_LINES`
+    entries, so row `i` always addresses the same half of the effect.
+
+    No wrapping: both halves are short by construction (see
+    `_COND_EFFECT_LINES`), which is what lets the same list drive the BUILD-time
+    row budget and the DRAW-time text with no live font measurement between
+    them."""
+    rows = list(lines[:_COND_EFFECT_LINES])
+    return rows + [""] * (_COND_EFFECT_LINES - len(rows))
 
 
 def _row_step(font_key, leading=1):
@@ -282,6 +467,21 @@ _BASE_INFO_ROWS = ("lives", "wave", "enemies_killed", "buildings",
 #: widening that method's contract, which nothing else consumes.
 _BOOSTED_STAT_KEYS = {"HP": "hp_base", "Damage": "damage_base",
                       "Atk speed": "atk_speed_base"}
+
+#: The nested plates behind the upgrade view's stat block:
+#: ``{custom widget id: the fewest stat rows that still needs it}``. The
+#: block is as tall as the building has stats (``_building_stats``), and the
+#: three plates are a stack (``17`` parents ``16`` parents ``19``), so each
+#: one peels off as the block shrinks: 5+ rows shows all three, 4 drops
+#: ``19``, 3 drops ``16`` too, 2 or fewer leaves none of them. Under its
+#: threshold a plate is simply not drawn (``_hidden_stat_backdrops``, fed to
+#: ``ScreenSkinning.submit_layers``).
+#: Code-owned rather than a key in `data/ui/screens/building_panel.json`
+#: because the doc has no expression for "how many stat rows does the
+#: SELECTED building have" — the ids are the designer's, the threshold is
+#: the rule.
+_STAT_BACKDROP_MIN_ROWS = {"custom_panel_17": 3, "custom_panel_16": 4,
+                           "custom_panel_19": 5}
 
 
 def _building_stats(b):
@@ -548,7 +748,13 @@ class ConstructPreview:
         #   `data/ui/screen_defaults.json` needs no regeneration.
         # 12 is the UR-5 click-target floor exactly and the largest square the
         # 13px band holds (11 would fail the floor, 13 would hit the name box).
-        colors = (building_colors or {}).get(temp.slot_key(), ())
+        # Booster exclusion (feature: boost buildings never recolour): a
+        # booster (the "boost" tag, `game/buildings/boost.py` EXTRA_TAGS) is
+        # excluded from colour ENTIRELY, even on a colour-capable sheet — no
+        # swatch row is ever built for one, matching `registry.place_building`
+        # (`game/buildings/registry.py`)'s own "boost" tag guard on the roll.
+        colors = ((building_colors or {}).get(temp.slot_key(), ())
+                  if "boost" not in temp.tags else ())
         if len(colors) < 2:
             colors = ()
         self.swatches = ColorSwatchRow(
@@ -595,18 +801,52 @@ class ConstructPreview:
         # ids/apply run ONCE here rather than every layout() — there is no
         # per-frame layout() to hook.
         self._panel = SimpleNamespace(rect=self.rect, skin=None)
+        # The modal's four texts and its name box are WIDGETS (UT-1/UT-3):
+        # the master name at the top, the price under it, the "Name:" caption
+        # and the field's own content each get an id, and the box behind them
+        # is a `panel` a designer can move, resize, skin or hide. They were
+        # bare `submit_text`/`HudRect` draws — the only part of this modal
+        # the editor could not touch.
+        self._name_box = SimpleNamespace(rect=self.name_rect, skin=None,
+                                         visible=True)
+        cx = x + pw // 2
+        self._text = {
+            # `text_id=None`: the title is a live tier/batch name, not a
+            # template a designer can write — `submit()` passes `text=`.
+            "preview_title": label_holder((cx, y + 6, 0, 0), font_key="lg",
+                                          align="center"),
+            "preview_cost": label_holder((cx, y + 22, 0, 0),
+                                         text_id="building.preview.cost",
+                                         font_key="md", align="center"),
+            "preview_name_label": label_holder(
+                (x + 8, y + 38, 0, 0),
+                text_id="building.preview.name_label", font_key="sm"),
+            # The placeholder is the holder's own template; a typed name
+            # arrives as `text=`, exactly like the upgrade panel's twin.
+            "preview_name": label_holder(
+                (self.name_rect[0] + 4, self.name_rect[1] + 3, 0, 0),
+                text_id="building.preview.click_to_name", font_key="md"),
+        }
         self.ids = {"preview_panel": ("panel", self._panel),
+                    "preview_name_box": ("panel", self._name_box),
                     "preview_close_btn": ("button", self.close_btn),
                     "preview_confirm_btn": ("button", self.confirm_btn),
                     "preview_dice_btn": ("button", self.dice_btn)}
         if self.cancel_btn is not None:
             self.ids["preview_cancel_btn"] = ("button", self.cancel_btn)
+        for name, holder in self._text.items():
+            self.ids[name] = ("label", holder)
         # B2: the swatches join the ids BEFORE apply, so a screen override can
         # skin/hide them like any other widget. Empty when the row is inert,
         # so a colourless building's id set is byte-identical to before.
         self.ids.update(self.swatches.ids)
         self.skinning.apply(self.screen_id, self.ids)
         self.rect = self._panel.rect
+        # Same read-back as `self.rect` above: a moved box must be CLICKED
+        # where it is drawn (`handle_click` tests `name_rect`). One-shot,
+        # like every other rect here — this modal's geometry is fixed for its
+        # instance's lifetime, so there is no per-frame `layout()` to redo it.
+        self.name_rect = self._name_box.rect
 
     @property
     def total_cost(self):
@@ -692,11 +932,10 @@ class ConstructPreview:
             self.name += char
 
     def submit(self, renderer, anim_ms=0):
-        from engine.render import HudRect
-
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "under", self.skinning.state_of)
-        x, y, w, h = self.rect
+                                    "under", self.skinning.state_of,
+                                    view=_PREVIEW_VIEW)
+        x, y, w, _h = self.rect
         # Submission order (game/ui/CLAUDE.md "panel -> button -> text"):
         # ALL panel/background submissions first, THEN all buttons, THEN all
         # text — HUD draw order is submission order (engine/render/CLAUDE.md).
@@ -705,17 +944,19 @@ class ConstructPreview:
                         border=widgets.C_UI_BORDER, skin=self._panel.skin,
                         tint=getattr(self._panel, "tint", None),
                         anim_ms=anim_ms)
-        nx, ny, nw, nh = self.name_rect
-        renderer.submit_hud(HudRect(self.name_rect, widgets.C_PANEL_STONE))
-        renderer.submit_hud(HudRect(
-            self.name_rect,
-            # VA-5: the focus ring borrows the SELECTION colour deliberately —
-            # it read the same `highlight` palette key before that key moved
-            # into procedural.highlights, so this is zero visual change with
-            # one home rather than a second copy of the value.
-            (widgets.highlight_color("tile_selected") if self.editing
-             else widgets.C_UI_BORDER),
-            width=1))
+        if is_visible(self._name_box):
+            submit_panel(
+                renderer, self.name_rect, fill=widgets.C_PANEL_STONE,
+                # VA-5: the focus ring borrows the SELECTION colour
+                # deliberately — it read the same `highlight` palette key
+                # before that key moved into procedural.highlights, so this is
+                # zero visual change with one home rather than a second copy
+                # of the value. It stays code-owned for the same reason the
+                # upgrade panel's does: it is focus state, not decoration.
+                border=(widgets.highlight_color("tile_selected")
+                        if self.editing else widgets.C_UI_BORDER),
+                skin=self._name_box.skin,
+                tint=getattr(self._name_box, "tint", None), anim_ms=anim_ms)
         if is_visible(self.dice_btn):
             self.dice_btn.submit(renderer, anim_ms=anim_ms,
                                  **button_kwargs(self.dice_btn))
@@ -731,21 +972,20 @@ class ConstructPreview:
         # B2: inside the BUTTON block, never the text block (the swatches ARE
         # buttons). Its own selection ring rides immediately behind its swatch.
         self.swatches.submit(renderer, self.chosen_column, anim_ms=anim_ms)
-        cx = x + w // 2
-        submit_text(renderer, self.title, (cx, y + 6), "lg", widgets.C_UI_TEXT,
-                    align="center")
-        submit_text(renderer, T("building.preview.cost", cost=self.total_cost),
-                    (cx, y + 22),
-                    "md", widgets.C_GOLD, align="center")
-        submit_text(renderer, T("building.preview.name_label"), (x + 8, y + 38),
-                    "sm", widgets.C_UI_TEXT_DIM)
+        txt = self._text
+        submit_label(renderer, txt["preview_title"], text=self.title,
+                     color=widgets.C_UI_TEXT)
+        submit_label(renderer, txt["preview_cost"], color=widgets.C_GOLD,
+                     cost=self.total_cost)
+        submit_label(renderer, txt["preview_name_label"],
+                     color=widgets.C_UI_TEXT_DIM)
         if self.name or self.editing:
-            shown = self.name + ("_" if self.editing else "")
-            tcol = widgets.C_UI_TEXT
+            submit_label(renderer, txt["preview_name"],
+                         text=self.name + ("_" if self.editing else ""),
+                         color=widgets.C_UI_TEXT)
         else:
-            shown = T("building.preview.click_to_name")
-            tcol = widgets.C_UI_TEXT_DIM
-        submit_text(renderer, shown, (nx + 4, ny + 3), "md", tcol)
+            submit_label(renderer, txt["preview_name"],
+                         color=widgets.C_UI_TEXT_DIM)
         sy = y + 69
         # Font-scale row step (see _row_step). leading=0 here, deliberately:
         # this modal is height-constrained. The widest stat list a FRESH
@@ -769,7 +1009,8 @@ class ConstructPreview:
                         align="right")
             sy += step
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "over", self.skinning.state_of)
+                                    "over", self.skinning.state_of,
+                                    view=_PREVIEW_VIEW)
 
 
 class MovePreview:
@@ -921,7 +1162,8 @@ class MovePreview:
 
     def submit(self, renderer, anim_ms=0):
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "under", self.skinning.state_of)
+                                    "under", self.skinning.state_of,
+                                    view=_PREVIEW_VIEW)
         x, y, w, h = self.rect
         # Submission order (game/ui/CLAUDE.md "panel -> button -> text").
         if is_visible(self._panel):
@@ -963,7 +1205,8 @@ class MovePreview:
                         align="center")
             wy += step
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "over", self.skinning.state_of)
+                                    "over", self.skinning.state_of,
+                                    view=_PREVIEW_VIEW)
 
 
 class BuildingUI:
@@ -1009,12 +1252,23 @@ class BuildingUI:
         # inside it is "sm" (layout_h 11) drawn at +2, and the dice glyph is
         # "md" (layout_h 13); an 11px row clipped both, and the 12x11 dice was
         # under the 12px click-target floor.
-        self._name_box_rect = (self.panel_x + 7, 20, self.panel_w - 32, 15)
+        #: The rename box is a WIDGET (``upgrade_name_box``), not a pair of
+        #: bare rects: a designer can move, resize, skin, tint or hide it like
+        #: any other, and because ``_name_box_rect`` reads straight off the
+        #: holder, ``apply()``'s override moves the CLICK ZONE with the box —
+        #: the field is typed into where it is drawn, not where the code
+        #: originally put it.
+        self._name_box = SimpleNamespace(
+            rect=(self.panel_x + 7, 20, self.panel_w - 32, 15),
+            skin=None, visible=True)
         self._dice_up = Button(
             (self.panel_x + 7 + self.panel_w - 32 + 3, 20, 14, 15),
             T("building.btn.dice"), "md")
         self.log = None               # GameLog, wired by the host
-        self.on_build_vfx = None      # (col, row, kind) -> None, wired by host
+        # (col, row, kind, building) -> None, wired by the host. The 4th
+        # arg is the building the celebration is FOR — the vfx sheet is cut
+        # in its colour column.
+        self.on_build_vfx = None
         # SD-4: (kind, building) -> None, wired by the host to the game's sound
         # dispatcher. The panel never imports game.sounds and knows nothing
         # about buses or slots — it only names the EVENT that just succeeded.
@@ -1040,6 +1294,9 @@ class BuildingUI:
         #: `self.cards` stays `[(btype, card_button)]` so `card_rect`, the
         #: hover pass and `_construct_click` are unchanged in shape.
         self._card_parts = {}
+        #: The card rects `_build_construct` computed, re-asserted after every
+        #: `skinning.apply` (`_restore_card_rects`).
+        self._card_rects = {}
         # -- construct-card list: first VISIBLE card index. The list is taller
         # than the panel once several types are unlocked (12 cards x 44px
         # against a ~298px viewport), so it scrolls; the host routes the wheel
@@ -1110,11 +1367,18 @@ class BuildingUI:
         self._boss_popup_open = False
         self._boss_hover_row = -1
         # -- /10G --
-        # -- 10I: terrain badge hover/tooltip state --
-        self._cond_badge_rect = None    # last-submitted badge rect (hit probe)
-        self._cond_hover = False
-        self._cond_tooltip = None       # (condition, color, rect, above)
-        # -- /10I --
+        # unlock-mode terrain cards: [(condition, parts)], one per DISTINCT
+        # condition across the selection's chunks (see `_build_cond_cards`)
+        self._cond_cards = []
+        self._cond_row_count = 0
+        self.cond_scroll_offset = 0
+        # construct-mode terrain cards: the same [(condition, parts)] shape,
+        # one per DISTINCT condition among the SELECTED tiles (one card for a
+        # single selection, which is the normal case).
+        self._construct_cond_cards = []
+        # upgrade-mode terrain card: always exactly one — the placement
+        # snapshot of the building being looked at.
+        self._upgrade_cond_cards = []
         # -- 10L-B: mode-independent ids (submit() has no separate layout()) --
         # ``rename_dice_btn``/``boss_close_btn`` close a Phase-3 id-coverage
         # gap: both are created once here with a fixed lifetime rect (the
@@ -1129,6 +1393,7 @@ class BuildingUI:
             "boss_btn": ("button", self.boss_btn),
             "rename_dice_btn": ("button", self._dice_up),
             "boss_close_btn": ("button", self._boss_close_btn),
+            "upgrade_name_box": ("panel", self._name_box),
         }
         # -- /10L-B --
         self._build_text_holders()
@@ -1208,9 +1473,40 @@ class BuildingUI:
             self._text[f"info_{key}_value"] = lab(y, "building.stat.value",
                                                   align="right")
             y += 15
+        # -- the card GROUPS (see `_TERRAIN_LIST_ID`) ------------------------
+        # The panel's card column: every group is laid out inside it.
+        cx, cw = self.panel_x + _CARD_INSET, self.panel_w - 2 * _CARD_INSET
+        # The construct group is `_CARD_W` wide, not the panel column `cw`:
+        # a card IS 140px across (plate + frame union), so a group narrower
+        # than one card would window a list its own cards spill out of.
+        self._construct_list = SimpleNamespace(
+            rect=(cx, _CARD_LIST_TOP, _CARD_W,
+                  self.view_h - _CARD_LIST_BOTTOM_PAD - _CARD_LIST_TOP),
+            skin=None, visible=True)
+        self._terrain_list = SimpleNamespace(
+            rect=(cx, _COND_CARD_LIST_TOP, cw,
+                  self.view_h - _COND_CARD_LIST_BOTTOM_PAD
+                  - _COND_CARD_LIST_TOP),
+            skin=None, visible=True)
+        # feature: construct-terrain-card — build mode's own card group, at
+        # the panel foot (see `_BUILD_COND_LIST_H`).
+        self._build_terrain_list = SimpleNamespace(
+            rect=(cx, self.view_h - _BUILD_COND_LIST_H, cw,
+                  _BUILD_COND_LIST_H),
+            skin=None, visible=True)
+        self.ids[_CONSTRUCT_LIST_ID] = ("panel", self._construct_list)
+        self.ids[_TERRAIN_LIST_ID] = ("panel", self._terrain_list)
+        self._upgrade_terrain_list = SimpleNamespace(
+            rect=(cx, self.view_h - _BUILD_COND_LIST_H, cw,
+                  _BUILD_COND_LIST_H),
+            skin=None, visible=True)
+        self.ids[_BUILD_TERRAIN_LIST_ID] = ("panel", self._build_terrain_list)
+        self.ids[_UPGRADE_TERRAIN_LIST_ID] = ("panel",
+                                              self._upgrade_terrain_list)
+        # -- /card groups ---------------------------------------------------
         for name, holder in self._text.items():
             self.ids[name] = ("label", holder)
-        del md, sm      # step values are recomputed per submit (font-scale)
+        del md, sm, cx, cw   # recomputed per submit (font-scale / overrides)
 
     # -- open / close -----------------------------------------------------
 
@@ -1228,6 +1524,14 @@ class BuildingUI:
         the host routes keyboard input here instead of the shortcut keys."""
         return self._name_editing
 
+    @property
+    def _name_box_rect(self):
+        """The rename box's LIVE rect — read off the ``upgrade_name_box``
+        widget, which ``apply()`` has already written this frame's override
+        onto. A property, not a stored tuple, so the draw and the click test
+        can never disagree about where the box is."""
+        return self._name_box.rect
+
     def close(self):
         self.mode = None
         self.tile = None
@@ -1240,6 +1544,7 @@ class BuildingUI:
         self._hover_cost = None
         self.cards = []
         self._card_parts = {}
+        self._card_rects = {}
         self._clear_colour_ids()   # B3: the swatch row is per-selection
         self.scroll_offset = 0   # a fresh panel always opens at the top
         # -- 10J --
@@ -1249,11 +1554,10 @@ class BuildingUI:
         # -- /10J --
         self._stats_bottom = _STAT_BLOCK_TOP  # UT-3, set by _layout_upgrade_rows
         self._boss_popup_open = False  # -- 10G boss --
-        # -- 10I: terrain badge state resets with the panel --
-        self._cond_badge_rect = None
-        self._cond_hover = False
-        self._cond_tooltip = None
-        # -- /10I --
+        self._clear_cond_card_ids()
+        self._clear_build_cond_card_ids()
+        self._clear_upgrade_cond_card_ids()
+        self.cond_scroll_offset = 0
 
     def dismiss(self):
         """One stage of the Esc / right-click dismiss ladder; True if consumed.
@@ -1410,6 +1714,393 @@ class BuildingUI:
                 if t is not sel:
                     hl.append((t.col, t.row, "section_2x2"))
         self._highlight_tiles = hl
+        self._build_cond_cards(session)
+
+    # -- unlock-mode terrain cards ------------------------------------------
+
+    def _cond_card_rows(self, session):
+        """``[(condition, count, slot)]`` for the tiles this unlock buys.
+
+        Every 2x2 chunk in the selection contributes its four tiles (not just
+        the primary tile's chunk — a shift multi-select buys them all, and the
+        player is entitled to see what they are getting), DEDUPED by condition
+        so the list is at most one card per `TileCondition`. ``count`` is how
+        many of the bought tiles carry it; ``slot`` is the terrain art slot of
+        the FIRST such tile that has condition art of its own, falling back to
+        `_CARD_GROUND_SLOT` (the plain ground tile) when none of them does —
+        never a grey X, the E-37 rule the construct-card portrait follows.
+
+        Ordered by the `TileCondition` declaration order, never by scan order,
+        so the same purchase always produces the same list.
+        """
+        tm = session.tilemap
+        seen = {}
+        for rep, _cost in self._unlock_chunks(session):
+            for t in tm.get_chunk_for_tile(rep):
+                count, slot = seen.get(t.condition, (0, None))
+                # Keep looking past a ground fallback: a chunk can straddle a
+                # BACKGROUND/SPAWNING tile whose condition resolves to no art
+                # at all, and the card should show a sibling's real terrain.
+                if slot in (None, _CARD_GROUND_SLOT):
+                    slot = self._cond_slot(t)
+                seen[t.condition] = (count + 1, slot)
+        return [(cond, *seen[cond]) for cond in TileCondition if cond in seen]
+
+    def _cond_slot(self, tile):
+        """The art slot one tile contributes to its condition's card.
+
+        GRASS always answers `_CARD_GROUND_SLOT`: it is the absence of a
+        condition, and its `cond_grass_*` slot ships without art anyway (the
+        world's own emitter skips it for the same reason), so the plain ground
+        tile IS its preview. Every other condition uses the tile's resolved
+        `condition_slot` — `None` on a tile whose state has no condition art at
+        all (BACKGROUND / SPAWNING), which a chunk can straddle, so the caller
+        keeps looking for a sibling that has art (`_cond_card_rows` prefers any
+        non-ground answer) — and only if that slot is actually IMPORTED. An
+        un-imported slot would otherwise blit the engine's grey X (E-37); the
+        card falls back to the ground tile, exactly as the map falls back to
+        its colour diamond."""
+        if tile.condition == TileCondition.GRASS:
+            return _CARD_GROUND_SLOT
+        slot = tile.condition_slot
+        return slot if slot and self._has_art(slot) else _CARD_GROUND_SLOT
+
+    def _has_art(self, slot):
+        """Is ``slot`` actually imported? The `animation_total_ms(...) is not
+        None` probe `_card_portrait_slot` already uses, so the two cannot
+        disagree about what "imported" means. No store — or one that cannot
+        answer, which is what a test's stub is — ⇒ assume yes: a headless
+        panel draws nothing anyway. The `assets` seam promises it NEVER
+        raises (see its note in `__init__`), so this asks by `getattr`."""
+        probe = getattr(self.assets, "animation_total_ms", None)
+        if probe is None:
+            return True
+        return probe(slot, "idle") is not None
+
+    def _cond_sprite_size(self, slot):
+        """The slot's OWN frame size — the card is sized to the sprite, never
+        the sprite to the card (`HudSprite` stretches). Falls back for a
+        headless panel with no asset store, and for a stub that cannot answer
+        `frame_size` — same never-raises seam as `_has_art`."""
+        probe = getattr(self.assets, "frame_size", None)
+        if probe is None or not slot:
+            return _COND_CARD_SPRITE_FALLBACK
+        try:
+            return probe(slot)
+        except KeyError:
+            return _COND_CARD_SPRITE_FALLBACK
+
+    def _cond_tile_rect(self, x, y, slot):
+        """The one sprite rect a card draws, top-left at ``(x, y)``.
+
+        Its own frame size, never scaled to fit — see `_cond_sprite_size`.
+        There is no composite any more: a card draws exactly one sprite, so
+        every card's preview is the same widget and a designer's override
+        lands on all four the same way.
+        """
+        w, h = self._cond_sprite_size(slot)
+        return (x, y, w, h)
+
+    def _cond_card_column(self):
+        """``(x, w)`` of the terrain card column — its GROUP's box."""
+        rect = self._list_rect(_TERRAIN_LIST_ID, self._terrain_list)
+        return rect[0], rect[2]
+
+    def _cond_list_viewport(self, list_id, holder):
+        """``(top, bottom)`` of ANY terrain-card group's box — one of the two
+        families (`terrain_card_list` in unlock mode, `build_terrain_card_list`
+        in construct mode)."""
+        rect = self._list_rect(list_id, holder)
+        return rect[1], rect[1] + rect[3]
+
+    def _cond_card_viewport(self):
+        """``(top, bottom)`` of the UNLOCK terrain-card list — its GROUP's box.
+
+        At full-size sprites a card is 74-138px tall, so four of them do NOT
+        fit at once and this really is a scrolling window (`handle_scroll`),
+        not the belt-and-braces clip it was at thumbnail sizes."""
+        return self._cond_list_viewport(_TERRAIN_LIST_ID, self._terrain_list)
+
+    def _cond_card_in_viewport(self, rect, index=None, viewport=None):
+        """Is this card fully inside the group's window?
+
+        ``index`` 0 always answers True: a full-size card is 138px, so a
+        designer who sizes the group under that would otherwise get an EMPTY
+        list rather than a clipped one. Same argument, same answer, as
+        `_cards_visible`'s `max(1, ...)` — always show the card the wheel is
+        scrolled to.
+
+        ``viewport`` names the group to clip against; it defaults to the
+        unlock list's, so the construct family passes its own."""
+        if index == 0:
+            return True
+        top, bottom = viewport or self._cond_card_viewport()
+        return rect[1] >= top and rect[1] + rect[3] <= bottom
+
+    def _build_cond_cards(self, session):
+        """One id'd card tree per distinct condition in the purchase.
+
+        Same contract as the construct cards: DYNAMIC count, STABLE key. The
+        key is the condition name (`cond_card_grass`, …), so every part of
+        every card — body, sprite, name, count, and each of its
+        `_COND_EFFECT_LINES` effect rows — is individually overridable, and a
+        card whose condition is not in this purchase simply has no widget this
+        frame. Laid out here, before `skinning.apply`, so a rect override wins.
+        """
+        self._clear_cond_card_ids()
+        rows = self._cond_card_rows(session)
+        # The FULL row count, kept for `handle_scroll`'s clamp. It may not use
+        # `len(self._cond_cards)`: that list only holds the cards from the
+        # current offset down, so clamping against it shrinks the limit as you
+        # scroll and a scroll past the end walks BACKWARDS.
+        self._cond_row_count = len(rows)
+        offset = max(0, min(self.cond_scroll_offset, max(0, len(rows) - 1)))
+        self.cond_scroll_offset = offset
+        self._cond_cards = self._layout_cond_card_list(
+            rows[offset:], _TERRAIN_LIST_ID, self._terrain_list,
+            _COND_CARD_ID_PREFIX)
+
+    def _layout_cond_card_list(self, rows, list_id, holder, prefix):
+        """Lay a ``[(condition, count, slot)]`` list out as id'd card trees
+        inside ``list_id``'s box, and return ``[(condition, parts)]``.
+
+        The ONE terrain-card layout, shared by unlock mode's list and build
+        mode's (feature: construct-terrain-card) — the two differ only in
+        their GROUP and their id PREFIX, which is the whole point: a build
+        card is the same tree as an unlock card, so the look a designer
+        authored for one reads identically in the other.
+        """
+        skin = self.skinning.defaults(self.screen_id).get("panel_skin")
+        rect = self._list_rect(list_id, holder)
+        cx, cw, y = rect[0], rect[2], rect[1]
+        step = _row_step("sm")
+        cards = []
+        for cond, count, slot in rows:
+            lines = self._tile_cond_effect_lines(cond)
+            # The sprite owns the card's top band on its own; the name + count
+            # row goes UNDER it, and the effect name/value pair under that,
+            # spanning the card's full inner width. The row count is the PAIR's
+            # length, so a stored height never depends on a font measurement.
+            n_rows = _COND_EFFECT_LINES
+            # Centred horizontally: a 64px frame in a 118px card would
+            # otherwise sit hard against the left edge with 51px of dead space
+            # beside it.
+            probe_w, _probe_h = self._cond_sprite_size(slot)
+            sprite_x = cx + max(_COND_CARD_PAD, (cw - probe_w) // 2)
+            sprite_rect = self._cond_tile_rect(
+                sprite_x, y + _COND_CARD_PAD, slot)
+            rh = sprite_rect[3]
+            card_h = 2 * _COND_CARD_PAD + rh + step * (1 + n_rows)
+            body = SimpleNamespace(rect=(cx, y, cw, card_h), skin=skin,
+                                   visible=True)
+            # The card's ONE sprite keeps the `_sprite` id it has always had,
+            # so a designer's existing override still points at it — and now
+            # applies to grass identically, since grass draws the plain ground
+            # tile through this same widget instead of a separate `_ground`.
+            sprite = SimpleNamespace(rect=sprite_rect, skin=slot, visible=True)
+            name_y = y + _COND_CARD_PAD + rh
+            name = label_holder((cx + _COND_CARD_PAD, name_y, 0, 0),
+                                text_id="building.cond_card.name",
+                                font_key="sm")
+            count_lbl = label_holder(
+                (cx + cw - _COND_CARD_PAD, name_y, 0, 0),
+                text_id="building.cond_card.count", font_key="sm",
+                align="right")
+            effects = []
+            effect_top = name_y + step
+            for i in range(_COND_EFFECT_LINES):
+                effects.append(label_holder(
+                    (cx + _COND_CARD_PAD, effect_top + step * i, 0, 0),
+                    font_key="sm"))
+            parts = SimpleNamespace(body=body, sprite=sprite,
+                                    name=name, count=count_lbl,
+                                    count_value=count, effects=effects,
+                                    lines=lines)
+            cards.append((cond, parts))
+            key = f"{prefix}{cond.name.lower()}"
+            self.ids[key] = ("panel", body)
+            self.ids[f"{key}_sprite"] = ("panel", sprite)
+            self.ids[f"{key}_name"] = ("label", name)
+            self.ids[f"{key}_count"] = ("label", count_lbl)
+            for i, row_holder in enumerate(effects):
+                self.ids[f"{key}_effect_{i}"] = ("label", row_holder)
+            y += card_h + _COND_CARD_GAP
+        return cards
+
+    # -- construct-mode terrain card (feature: construct-terrain-card) ------
+
+    def _construct_cond_rows(self):
+        """``[(condition, count, slot)]`` for the tile(s) being built on.
+
+        `_cond_card_rows`'s shape, over the SELECTION instead of over the
+        bought chunks: one row per DISTINCT condition among the selected
+        tiles, so a single selection (the normal case) yields exactly one
+        card, and a shift multi-select spanning two terrains names both rather
+        than letting the primary tile speak for all of them. Ordered by the
+        `TileCondition` declaration order, never by scan order.
+        """
+        tiles = list(self.selected_tiles) or (
+            [self.tile] if self.tile is not None else [])
+        seen = {}
+        for t in tiles:
+            count, slot = seen.get(t.condition, (0, None))
+            if slot in (None, _CARD_GROUND_SLOT):
+                slot = self._cond_slot(t)
+            seen[t.condition] = (count + 1, slot)
+        return [(cond, *seen[cond]) for cond in TileCondition if cond in seen]
+
+    def _build_construct_cond_cards(self, rows=None):
+        """Build mode's terrain card(s), inside `build_terrain_card_list`.
+
+        Runs from `_build_construct` — i.e. before `skinning.apply` — which is
+        what makes a designer's rect override win, the same contract
+        the deleted `_layout_cond_box` kept for the pill this replaces.
+
+        ``rows`` overrides what the selection says, for ONE caller: the
+        exporter's mock, which has to record all four `build_cond_card_*`
+        trees off a SINGLE selected tile (a four-tile selection would quadruple
+        the batch price every other recorded construct id is derived from —
+        see `screen_mocks`).
+        """
+        self._clear_build_cond_card_ids()
+        self._construct_cond_cards = self._layout_cond_card_list(
+            self._construct_cond_rows() if rows is None else rows,
+            _BUILD_TERRAIN_LIST_ID, self._build_terrain_list,
+            _BUILD_COND_CARD_ID_PREFIX)
+
+    def _clear_build_cond_card_ids(self):
+        """`_clear_cond_card_ids`, for the build-mode family."""
+        for key in [k for k in self.ids
+                    if k.startswith(_BUILD_COND_CARD_ID_PREFIX)]:
+            del self.ids[key]
+        self._construct_cond_cards = []
+
+    # -- upgrade-mode terrain card ------------------------------------------
+
+    def _upgrade_cond_rows(self, building):
+        """``[(condition, count, slot)]`` for the building being looked at —
+        always exactly ONE row.
+
+        The condition is the building's PLACEMENT SNAPSHOT
+        (`_tile_condition`), which is what its stats were rolled against and
+        what the badge read before this; the tile underneath can be
+        re-terraformed in principle, so the snapshot wins over
+        `self.tile.condition` and Grass is shown rather than hidden. ``count``
+        is how many of the selected buildings sit on that same terrain, so a
+        shift multi-select reads `×3` instead of silently describing one.
+
+        The art comes from the tile only when the tile agrees with the
+        snapshot; otherwise the card falls back to plain ground rather than
+        showing terrain the building was not placed on.
+        """
+        cond = (getattr(building, "_tile_condition", None)
+                or TileCondition.GRASS)
+        tile = self.tile
+        slot = (self._cond_slot(tile)
+                if tile is not None and tile.condition == cond
+                else _CARD_GROUND_SLOT)
+        count = sum(1 for t in self.selected_tiles if t.condition == cond) or 1
+        return [(cond, count, slot)]
+
+    def _build_upgrade_cond_cards(self, building, rows=None):
+        """The upgrade panel's terrain card, in `upgrade_terrain_card_list`.
+
+        Runs from `_build_upgrade`, before `skinning.apply`, so a designer's
+        rect override wins — `_build_construct_cond_cards`'s contract, and
+        `rows` is the same exporter-only seam (the mock has one building but
+        must record all four condition trees).
+        """
+        self._clear_upgrade_cond_card_ids()
+        self._upgrade_cond_cards = self._layout_cond_card_list(
+            self._upgrade_cond_rows(building) if rows is None else rows,
+            _UPGRADE_TERRAIN_LIST_ID, self._upgrade_terrain_list,
+            _UPGRADE_COND_CARD_ID_PREFIX)
+
+    def _clear_upgrade_cond_card_ids(self):
+        """`_clear_cond_card_ids`, for the upgrade-mode family."""
+        for key in [k for k in self.ids
+                    if k.startswith(_UPGRADE_COND_CARD_ID_PREFIX)]:
+            del self.ids[key]
+        self._upgrade_cond_cards = []
+
+    def _clear_cond_card_ids(self):
+        """Drop the last build's `cond_card_*` entries from `self.ids` — the
+        `_clear_card_ids` sweep, for the other dynamic-count family. A
+        condition that is no longer in the selection must not leave `apply`
+        writing overrides onto a widget nothing draws."""
+        for key in [k for k in self.ids
+                    if k.startswith(_COND_CARD_ID_PREFIX)]:
+            del self.ids[key]
+        self._cond_cards = []
+        self._cond_row_count = 0
+
+    def _submit_list_group(self, renderer, holder, anim_ms=0):
+        """Draw a card GROUP's container — but only once it carries a `skin`.
+
+        Unskinned it is pure layout, so the shipped screen is byte-identical
+        to before the groups existed (the golden-parity contract); a designer
+        who wants a real backdrop behind the list gives the container art and
+        it appears BEHIND its cards, which are submitted after it."""
+        if holder.skin and is_visible(holder):
+            submit_panel(renderer, holder.rect, skin=holder.skin,
+                         tint=getattr(holder, "tint", None), anim_ms=anim_ms)
+
+    def _submit_cond_cards(self, renderer, anim_ms=0):
+        """Draw UNLOCK mode's terrain cards."""
+        self._submit_cond_card_list(renderer, self._cond_cards,
+                                    _TERRAIN_LIST_ID, self._terrain_list,
+                                    anim_ms)
+
+    def _submit_construct_cond_cards(self, renderer, anim_ms=0):
+        """Draw BUILD mode's terrain card(s) (feature:
+        construct-terrain-card) — the same tree, its own group and ids.
+
+        Nothing here is hover-gated: the effect rows the old `cond_badge`
+        pill only revealed under the cursor are part of the card, so the
+        info is simply on screen."""
+        self._submit_cond_card_list(
+            renderer, self._construct_cond_cards, _BUILD_TERRAIN_LIST_ID,
+            self._build_terrain_list, anim_ms)
+
+    def _submit_upgrade_cond_cards(self, renderer, anim_ms=0):
+        """Draw UPGRADE mode's terrain card — the same tree, its own group and
+        ids, and (like build mode) nothing hover-gated."""
+        self._submit_cond_card_list(
+            renderer, self._upgrade_cond_cards, _UPGRADE_TERRAIN_LIST_ID,
+            self._upgrade_terrain_list, anim_ms)
+
+    def _submit_cond_card_list(self, renderer, cards, list_id, holder,
+                               anim_ms=0):
+        """Draw one terrain-card family back-to-front: body, sprite, then text
+        — the house order every widget tree on this panel uses (the HUD queue
+        is drawn in submission order, so anything submitted later lands on
+        top).
+        """
+        self._submit_list_group(renderer, holder, anim_ms)
+        viewport = self._cond_list_viewport(list_id, holder)
+        for index, (cond, parts) in enumerate(cards):
+            if not self._cond_card_in_viewport(parts.body.rect, index,
+                                               viewport):
+                continue
+            label, color = widgets.cond_label(cond.name)
+            if is_visible(parts.body):
+                submit_panel(renderer, parts.body.rect,
+                             fill=widgets.C_PANEL_STONE, border=color,
+                             skin=parts.body.skin,
+                             tint=getattr(parts.body, "tint", None),
+                             anim_ms=anim_ms)
+            piece = parts.sprite
+            if is_visible(piece) and piece.skin:
+                submit_panel(renderer, piece.rect, skin=piece.skin,
+                             tint=getattr(piece, "tint", None),
+                             anim_ms=anim_ms)
+            submit_label(renderer, parts.name, color=color, label=label)
+            submit_label(renderer, parts.count, color=widgets.C_UI_TEXT_DIM,
+                         count=parts.count_value)
+            for row_holder, text in zip(parts.effects,
+                                        _cond_effect_rows(parts.lines)):
+                submit_label(renderer, row_holder, text=text,
+                             color=widgets.C_UI_TEXT)
 
     # -- construct card: geometry, art + the two screen-level bools ---------
 
@@ -1427,39 +2118,58 @@ class BuildingUI:
         """
         return self.skinning.defaults(self.screen_id)
 
+    def _list_rect(self, list_id, holder):
+        """The rect a card GROUP occupies: the designer's authored rect for
+        ``list_id`` if there is one, else ``holder``'s code default.
+
+        Read straight off the skinning rather than off the holder, because a
+        list builder runs BEFORE `skinning.apply` has written the override
+        onto it — the same reason `_card_column` used to read `panel` this
+        way. No override (and the disk-free `ScreenSkinning.empty()` the
+        exporter records with) falls back to the default, so
+        `screen_defaults.json` is unchanged by this."""
+        return self.skinning.widget_rect(self.screen_id, list_id)             or holder.rect
+
     def _card_column(self):
-        """``(x, w)`` of the card column — the panel's own box, inset.
+        """``(x, w)`` of the construct card column — its GROUP's box.
 
         Cards are DYNAMIC-count content: they are laid out in code and cannot
-        be re-authored id-by-id in the editor the way a static widget can. So
-        when a designer resizes or moves the `panel` container, the column has
-        to follow it in code or it is left stranded in the old panel's
-        footprint. `self.panel_x`/`panel_w` are the ctor's CODE defaults and
-        never see the override (only `panel_rect` is refreshed, and only at
-        submit — after `_build_construct` has already run), which is exactly
-        why the authored rect is read straight off the skinning here.
-
-        No override (every screen that ships one absent, and the disk-free
-        `ScreenSkinning.empty()` the exporter records with) falls back to the
-        code defaults, so `screen_defaults.json` is unchanged by this."""
-        rect = self.skinning.widget_rect(self.screen_id, "panel")
-        px, pw = (rect[0], rect[2]) if rect else (self.panel_x, self.panel_w)
-        return px + _CARD_INSET, pw - 2 * _CARD_INSET
+        be re-authored id-by-id in the editor the way a static widget can. The
+        group container is what a designer moves instead, and the cards follow
+        it here."""
+        rect = self._list_rect(_CONSTRUCT_LIST_ID, self._construct_list)
+        return rect[0], rect[2]
 
     def _card_list_viewport(self):
-        """``(top, bottom)`` of the scrolling card list. Derived, never a
-        literal: the bottom clears the terrain badge `_submit_construct` draws
-        at the panel foot (`self.view_h - 20`, tooltip above)."""
-        return _CARD_LIST_TOP, self.view_h - _CARD_LIST_BOTTOM_PAD
+        """``(top, bottom)`` of the scrolling construct card list — its
+        GROUP's box. Derived, never a literal, so shrinking the group in the
+        editor re-windows the list instead of letting cards spill out of it."""
+        rect = self._list_rect(_CONSTRUCT_LIST_ID, self._construct_list)
+        return rect[1], rect[1] + rect[3]
 
     def _cards_visible(self):
         """How many cards fit in the viewport at once (at least 1, so a very
-        short surface still shows the card the wheel is scrolled to)."""
+        short surface still shows the card the wheel is scrolled to).
+
+        A card occupies `_CARD_H`, but only the GAPS between cards cost extra
+        — so it is one card plus however many whole pitches fit in what is
+        left, NOT `height // pitch`. The plain division under-counts by one
+        whenever the trailing gap does not fit, which would let the wheel
+        scroll a step past the end of the list."""
         top, bottom = self._card_list_viewport()
-        return max(1, (bottom - top) // (_CARD_H + _CARD_GAP))
+        room = bottom - top - _CARD_H
+        return max(1, room // _CARD_PITCH + 1) if room >= 0 else 1
 
     def _card_in_viewport(self, rect):
         """Is this card fully inside the scrolling list's window?
+
+        ``rect`` is the card BODY's rect (what every call site has to hand),
+        but the window is tested against the card SLOT — the body is a 44x45
+        sub-box sitting `_CARD_BODY`'s offset into a 140x77 slot, so windowing
+        on it would let a card's plate and frame spill out of the group. The
+        slot top is recovered by subtracting that offset, which stays correct
+        even after `skinning.apply` has written a designer's rect override
+        onto the body.
 
         Gated on at DRAW and at HIT, ANDed with `is_visible` — deliberately
         NOT expressed by setting `visible = False` on the off-window cards:
@@ -1468,7 +2178,8 @@ class BuildingUI:
         frame regardless of scroll, so `self.ids` (and therefore
         `skinning.apply` and the exporter) always sees the full id set."""
         top, bottom = self._card_list_viewport()
-        return rect[1] >= top and rect[1] + rect[3] <= bottom
+        slot_top = rect[1] - _CARD_BODY[1]
+        return slot_top >= top and slot_top + _CARD_H <= bottom
 
     def _card_portrait_slot(self, btype, tier_idx):
         """The sprite slot a card's portrait panel draws.
@@ -1495,19 +2206,78 @@ class BuildingUI:
         has_art = store.animation_total_ms(slot, "idle") is not None
         return slot if has_art else tier_slot
 
+    def wants_scroll(self, mx, my):
+        """Does a wheel tick at ``(mx, my)`` belong to this panel?
+
+        THE seam the host asks before zooming the camera instead — it used to
+        hand-roll the test as `mode == "construct" and preview is None and
+        contains(panel_rect, ...)`, which is wrong in one direction that
+        matters: `panel_rect` is the sidebar BODY, while the construct card
+        list is its own authored group that a designer can (and did) move to
+        a rect reaching outside it. A wheel tick over a card that sits left of
+        the body then zoomed the map, so the list scrolled over part of
+        itself and not the rest — "scrolling is broken", intermittently and
+        depending on where the cursor sat.
+
+        Both boxes count, so moving either one in the editor keeps the wheel
+        working.
+
+        An open preview answers **True from anywhere on screen** and then
+        `handle_scroll` does nothing: the preview is a MODAL (it already
+        swallows every click, see `handle_click`), so the wheel must not
+        reach the camera behind it. Answering False here is what used to
+        let a tick over an open build preview ZOOM THE MAP — the card list
+        visibly underneath it, refusing to move.
+
+        UNLOCK mode answers True as well. `handle_scroll` has always had a
+        branch for it — the terrain-condition list is the other thing on this
+        panel that overflows — but the host's inline test was
+        construct-ONLY, so that branch was unreachable and the terrain list
+        could not be scrolled by wheel at all. Every other mode answers
+        False."""
+        if self.preview is not None:
+            return True          # modal: swallowed, see `handle_scroll`
+        if self.mode == "construct":
+            list_id, holder = _CONSTRUCT_LIST_ID, self._construct_list
+        elif self.mode == "unlock":
+            list_id, holder = _TERRAIN_LIST_ID, self._terrain_list
+        else:
+            return False
+        if widgets.contains(self.panel_rect, mx, my):
+            return True
+        return widgets.contains(self._list_rect(list_id, holder), mx, my)
+
     def handle_scroll(self, dy):
         """Scroll the construct card list by ``dy`` cards, clamped.
 
         Sign follows `HighscoresScreen.scroll` (the repo's only other scroll
         seam): a POSITIVE ``dy`` moves DOWN the list. pygame's `MOUSEWHEEL.y`
         is positive scrolling UP, so the host negates it — same as the menu
-        wheel arm in `main.py`. A no-op outside construct mode.
+        wheel arm in `main.py`. In unlock mode it scrolls the terrain
+        cards instead; a no-op in every other mode.
 
         Rebuilds the card list, because a card's rect is ABSOLUTE and the
         offset is baked into it at build time — `open_for_tile` is otherwise
         the only thing that ever calls `_build_construct`, so without this the
         offset would move and nothing on screen would. Cheap: this runs on a
-        wheel event, never per frame."""
+        wheel event, never per frame.
+
+        A no-op while a preview is open — that modal owns the wheel only
+        to keep it away from the camera zoom behind it.
+        """
+        if self.preview is not None:
+            return
+        if self.mode == "unlock":
+            # The terrain-card list scrolls on the same seam. Its cards have
+            # VARIABLE height (a condition with more effect lines is taller),
+            # so the offset is an INDEX into the list and `_build_cond_cards`
+            # re-stacks from there — there is no uniform pitch to multiply.
+            limit = max(0, self._cond_row_count - 1)
+            offset = max(0, min(limit, self.cond_scroll_offset + int(dy)))
+            if offset != self.cond_scroll_offset:
+                self.cond_scroll_offset = offset
+                self._build_cond_cards(self._session)
+            return
         if self.mode != "construct":
             return
         limit = max(0, len(self.cards) - self._cards_visible())
@@ -1539,10 +2309,13 @@ class BuildingUI:
         repeat_count = count_tag(self._session.tilemap, LIGHTNING_SOURCE_TAG)
         cx, cw = self._card_column()
         col_x = cx + _CARD_COL_X                 # the right column's left edge
-        col_w = cw - _CARD_COL_X - _CARD_PAD     # name wrap width + price width
+        # Name WRAP width only — the price pill carries its own `_CARD_PRICE`
+        # width now. Derived off the group's width so widening the group in
+        # the editor widens the name block with it.
+        col_w = max(1, cw - _CARD_COL_X)
         step = _row_step("sm")
         top, _bottom = self._card_list_viewport()
-        y = top - self.scroll_offset * (_CARD_H + _CARD_GAP)
+        y = top - self.scroll_offset * _CARD_PITCH
         for btype in BUILDING_CLASSES:
             if not buildable(state, btype):
                 continue  # type not unlocked / tier 1 not researched (10A)
@@ -1557,12 +2330,30 @@ class BuildingUI:
             # is on) the click target. Its own label is empty — the name is
             # its own child widget now, so a designer can place the two
             # independently.
-            btn = Button((cx, y, cw, _CARD_H), "", "sm", skin=skin)
+            # `(cx, y)` is the card SLOT's top-left; every part below is that
+            # plus its own offset from the geometry block.
+            btn = Button((cx + _CARD_BODY[0], y + _CARD_BODY[1],
+                          _CARD_BODY[2], _CARD_BODY[3]), "", "sm", skin=skin)
+            # The plate and the frame are ordinary CODE-OWNED card parts —
+            # they were custom widgets once, which put them on every mode of
+            # this screen (unlock, upgrade, base_info, move_select) and on top
+            # of the previews, because a custom widget is drawn by
+            # `submit_layers` off the SCREEN id and this whole panel shares
+            # one. Built here, they exist only while construct mode does.
+            plate = SimpleNamespace(
+                rect=(cx + _CARD_PLATE[0], y + _CARD_PLATE[1],
+                      _CARD_PLATE[2], _CARD_PLATE[3]),
+                skin=_CARD_PLATE_SKIN, visible=True)
+            frame = SimpleNamespace(
+                rect=(cx + _CARD_FRAME[0], y + _CARD_FRAME[1],
+                      _CARD_FRAME[2], _CARD_FRAME[3]),
+                skin=_CARD_FRAME_SKIN, visible=True)
             portrait = SimpleNamespace(
-                rect=(cx + _CARD_PAD, y + _CARD_PAD,
+                rect=(cx + _CARD_PORTRAIT_AT[0], y + _CARD_PORTRAIT_AT[1],
                       _CARD_PORTRAIT, _CARD_PORTRAIT),
                 skin=self._card_portrait_slot(btype, tier_idx), visible=True)
-            price = Button((col_x, y + _CARD_PRICE_TOP, col_w, _CARD_PRICE_H),
+            price = Button((cx + _CARD_PRICE[0], y + _CARD_PRICE[1],
+                            _CARD_PRICE[2], _CARD_PRICE[3]),
                            "", "sm", skin=_CARD_PRICE_SKIN)
             # Painter, every selected tile already barred (`used_painter_tiles`):
             # disable the card outright rather than let the player click through
@@ -1579,12 +2370,14 @@ class BuildingUI:
                 btn.enabled = False
                 price.enabled = False
             icon = SimpleNamespace(
-                rect=(col_x + _CARD_PAD, y + _CARD_PRICE_TOP + 2,
+                rect=(price.rect[0] + _CARD_ICON_AT[0],
+                      price.rect[1] + _CARD_ICON_AT[1],
                       _CARD_ICON, _CARD_ICON),
                 skin=_CARD_LOVE_ICON, visible=True)
             price_text = label_holder(
-                (col_x + _CARD_PAD + _CARD_ICON + 3, y + _CARD_PRICE_TOP + 2,
-                 0, 0), text_id="building.stat.value", font_key="sm")
+                (price.rect[0] + _CARD_TEXT_AT[0],
+                 price.rect[1] + _CARD_TEXT_AT[1], 0, 0),
+                text_id="building.stat.value", font_key="sm")
             # The name occupies TWO id'd rows so a designer can place them
             # independently. `cost` is passed even though the shipped template
             # no longer spends it: `T` is `str.format`, which ignores a surplus
@@ -1603,26 +2396,36 @@ class BuildingUI:
             # DRAW time, where a live metric is allowed. Row 2's stored label
             # is always empty for the same reason.
             name = T("building.construct.card", name=tier_name, cost=cost)
-            name_1 = label_holder((col_x, y + 2, 0, 0), label=name,
-                                  font_key="sm")
+            name_1 = label_holder((col_x, y + _CARD_NAME_TOP, 0, 0),
+                                  label=name, font_key="sm")
             # `_name2`, NOT `_name_2`: the exporter derives a card child's
             # parent from its id prefix, and `card_x_name_2` would nest under
             # `card_x_name` instead of sitting beside it as a sibling row.
-            name_2 = label_holder((col_x, y + 2 + step, 0, 0), font_key="sm")
+            name_2 = label_holder((col_x, y + _CARD_NAME_TOP + step, 0, 0),
+                                  font_key="sm")
             self.cards.append((btype, btn))
             self._card_parts[btype] = SimpleNamespace(
+                plate=plate, frame=frame,
                 portrait=portrait, price=price, icon=icon,
                 price_text=price_text, name_1=name_1, name_2=name_2,
                 name_w=col_w, cost=cost)
             key = f"{_CARD_ID_PREFIX}{btype}"
             self.ids[key] = ("button", btn)
+            self.ids[f"{key}_plate"] = ("panel", plate)
+            self.ids[f"{key}_frame"] = ("panel", frame)
             self.ids[f"{key}_portrait"] = ("panel", portrait)
             self.ids[f"{key}_name"] = ("label", name_1)
             self.ids[f"{key}_name2"] = ("label", name_2)
             self.ids[f"{key}_price"] = ("button", price)
             self.ids[f"{key}_price_icon"] = ("panel", icon)
             self.ids[f"{key}_price_text"] = ("label", price_text)
-            y += _CARD_H + _CARD_GAP
+            y += _CARD_PITCH
+        # The scroll-adjusted geometry this build just computed, kept so
+        # `submit`'s per-frame `skinning.apply` cannot overwrite it — see
+        # `_restore_card_rects`.
+        self._card_rects = {
+            k: w.rect for k, (_kind, w) in self.ids.items()
+            if k.startswith(_CARD_ID_PREFIX)}
         # The construct panel's own selected tile(s) — the SELECTION
         # highlight, not a batch (see the note at the upgrade-batch site).
         self._highlight_tiles = [(t.col, t.row, "tile_selected")
@@ -1637,6 +2440,11 @@ class BuildingUI:
             (col, row) for col, row in getattr(state, "used_painter_tiles", ())
             if (t := tm.get(col, row)) is not None
             and t.state == TileState.BUILDABLE]
+        # feature: construct-terrain-card — the footer terrain CARD, laid
+        # out here (before apply) so a designer's rect override wins. It
+        # replaces the `cond_badge` pill + hover-gated effect box this mode
+        # used to end with; both widgets live on for upgrade mode.
+        self._build_construct_cond_cards()
 
     def _clear_card_ids(self):
         """Drop last build's `card_*` entries from `self.ids`.
@@ -1653,6 +2461,28 @@ class BuildingUI:
         for key in [k for k in self.ids if k.startswith(_CARD_ID_PREFIX)]:
             del self.ids[key]
         self._card_parts = {}
+        self._card_rects = {}
+
+    def _restore_card_rects(self):
+        """Re-assert the card layout `_build_construct` computed, undoing any
+        `rect` a designer pinned onto a `card_*` id.
+
+        A card's rect is ABSOLUTE and carries `scroll_offset` baked into it,
+        while `submit` runs `skinning.apply` EVERY frame — so a stored rect
+        overwrites the scroll-adjusted one on the very next frame and the
+        wheel moves `scroll_offset` while nothing on screen moves. That is
+        what "NEVER hand-pin a `card_<btype>` rect" (see the geometry block at
+        the top of this module) has always meant; the editor still lets a
+        designer drag one, so the rule is now ENFORCED here rather than only
+        documented. Every OTHER override key on a card — skin, tint, label,
+        colour, visibility — is untouched and still applies.
+
+        Cards are the only widgets on this screen laid out from live scroll
+        state, so nothing else is restored."""
+        for key, rect in self._card_rects.items():
+            entry = self.ids.get(key)
+            if entry is not None:
+                entry[1].rect = rect
 
     def _batch_upgrade_targets(self):
         """``[(building, cost)]`` across the selection whose upgrade state is
@@ -1730,6 +2560,9 @@ class BuildingUI:
         self._action_cost = cost if self.action_btn.enabled else 0
         self._upgrade_hint = hint
         self._layout_upgrade_rows()
+        # feature: construct-terrain-card (upgrade half) — the terrain CARD in
+        # place of the badge + its hover-gated effect box.
+        self._build_upgrade_cond_cards(self._selected)
         self._build_move_btn()
         self._build_colour_row()   # MasterSheetColumnsPLAN B3
 
@@ -1768,8 +2601,9 @@ class BuildingUI:
                 y += sm
             died = self._text["died_last_round"]
             died.rect = (died.rect[0], y, 0, 0)
-            if rs.dmg_taken_last_round >= b.max_hp():
-                y += sm
+            # The tag draws either DIED or SURVIVED now, so it always takes a
+            # row — no outcome-dependent gap under the next-tier card.
+            y += sm
         #: where the next-tier card starts — read by ``_submit_upgrade``.
         self._stats_bottom = y
 
@@ -1839,6 +2673,12 @@ class BuildingUI:
         self._clear_colour_ids()
         b = self._selected
         if b is None or len(self.selected_tiles) != 1:
+            return
+        # Booster exclusion (feature: boost buildings never recolour) — the
+        # SAME "boost" tag guard `ConstructPreview` and `registry
+        # .place_building` apply; a booster's row stays inert regardless of
+        # what its sheet declares.
+        if "boost" in b.tags:
             return
         # The LIVE animator's slot key, not `b.slot_key()`: it is the key the
         # host's map is built on (`registry.place_building` stamps the column
@@ -1980,13 +2820,8 @@ class BuildingUI:
 
     def hover(self, mx, my, mouse_down=False):
         self._hover_cost = None
-        # -- 10I: terrain badge hover (rect inflated 2px, prototype
-        # building_ui.py:1121-1130); off while the modal preview is open --
-        r = self._cond_badge_rect
-        self._cond_hover = (
-            self.preview is None and r is not None
-            and contains((r[0] - 2, r[1] - 2, r[2] + 4, r[3] + 4), mx, my))
-        # -- /10I --
+        # No terrain hover of any kind: every mode that names a terrain draws
+        # a CARD, which carries its effect rows outright.
         if self.preview is not None:
             self.preview.hover(mx, my, mouse_down)
             # feature: move-building-time-only-cost — a MovePreview's cost is
@@ -2194,13 +3029,17 @@ class BuildingUI:
         price_clicks = bool(self._card_defaults().get("price_is_click_target"))
         for btype, btn in self.cards:
             parts = self._card_parts.get(btype)
-            if price_clicks:
-                target = parts.price if parts is not None else None
-            else:
-                target = btn
-            if (target is not None and is_visible(target)
-                    and self._card_in_viewport(btn.rect)
-                    and target.hit(mx, my)):
+            # The price pill is ALWAYS a click target: clicking the button on
+            # a card is the obvious way to buy it, and the body shrank to a
+            # 44px portrait backing that is not an obvious "press me". The
+            # body comes along too unless `price_is_click_target` is on,
+            # which keeps that flag's original meaning — ONLY the pill —
+            # rather than turning it into a no-op.
+            targets = [parts.price] if parts is not None else []
+            if not price_clicks:
+                targets.append(btn)
+            if (any(is_visible(t) and t.hit(mx, my) for t in targets)
+                    and self._card_in_viewport(btn.rect)):
                 tier_idx = tiers_unlocked_for(session.state, btype) - 1
                 # feature-storm-acolyte-multi-build: the same already-placed
                 # count `_build_construct` priced the card off.
@@ -2218,11 +3057,15 @@ class BuildingUI:
                 total = _batch_cost(btype, buildings_balance, tier_idx,
                                     repeat_count, count, session.state, bub)
                 if session.state.love < total:
-                    # Always flash the CARD, never the price pill, whichever
-                    # was clicked: the message is a sentence and the card body
-                    # is the only part of the tree wide enough to read it.
-                    btn.start_flash(self._flash_dur,
-                                        T("building.flash.not_enough_love"))
+                    # Always flash the PRICE PILL, whichever part was clicked:
+                    # the message is a sentence, and since the body shrank to
+                    # a 44px portrait backing the 74px pill is the widest
+                    # Button in the tree — the only one wide enough to read
+                    # it. (This flashed the body while the body WAS the card.)
+                    flash_on = parts.price if parts is not None else btn
+                    flash_on.start_flash(
+                        self._flash_dur,
+                        T("building.flash.not_enough_love"))
                     sound.play_not_enough_love()
                 else:
                     self.preview = ConstructPreview(
@@ -2259,7 +3102,7 @@ class BuildingUI:
                 self._name_buf = random.choice(names)
                 self._name_editing = True
             return True
-        if contains(self._name_box_rect, mx, my):
+        if is_visible(self._name_box) and contains(self._name_box_rect, mx, my):
             if not self._name_editing:
                 self._name_editing = True
                 self._name_buf = ""
@@ -2320,7 +3163,8 @@ class BuildingUI:
                     if self.on_build_vfx is not None:
                         lvl = tb.get_component(TierState).current_level_in_tier
                         self.on_build_vfx(tb.col, tb.row,
-                                          "level1" if lvl == 2 else "level2")
+                                          "level1" if lvl == 2 else "level2",
+                                          tb)
             elif advance_targets:
                 # Stage B: every selected building already at level 3 —
                 # advance whichever can reach their next tier now, one
@@ -2346,7 +3190,7 @@ class BuildingUI:
                             tier=tb.get_component(TierState).current_tier,
                             cost=c)
                     if self.on_build_vfx is not None:
-                        self.on_build_vfx(tb.col, tb.row, "tier")
+                        self.on_build_vfx(tb.col, tb.row, "tier", tb)
             elif mode not in ("in_tier", "tier_upgrade"):
                 return True  # max / not researched / round-gated: inert
             elif mode == "tier_upgrade":
@@ -2368,7 +3212,7 @@ class BuildingUI:
                         tier=b.get_component(TierState).current_tier,
                         cost=cost)
                 if self.on_build_vfx is not None:
-                    self.on_build_vfx(b.col, b.row, "tier")
+                    self.on_build_vfx(b.col, b.row, "tier", b)
             else:
                 # Single-selection in-tier upgrade (a multi-select is
                 # handled by `upgrade_targets` above; `_batch_upgrade_targets`
@@ -2387,7 +3231,8 @@ class BuildingUI:
                     if self.on_build_vfx is not None:
                         lvl = tb.get_component(TierState).current_level_in_tier
                         self.on_build_vfx(tb.col, tb.row,
-                                          "level1" if lvl == 2 else "level2")
+                                          "level1" if lvl == 2 else "level2",
+                                          tb)
             # SD-4: ONE upgrade sound per successful click. All four success
             # branches above (batch level-up, batch advance, single advance,
             # single level-up) fall through to here; every failure path (not
@@ -2505,7 +3350,9 @@ class BuildingUI:
             if i == 0:
                 building.set_name(p.chosen_name)
             if self.on_build_vfx is not None:  # 10J: sparks + gold highlight
-                self.on_build_vfx(tile.col, tile.row, "place")
+                # 4th arg: the building just placed — the vfx sheet is cut
+                # in ITS colour column, not the entry's stored one.
+                self.on_build_vfx(tile.col, tile.row, "place", building)
         if not placed_any:
             msg = (T("building.flash.painter_tile_used") if painter_blocked
                    else T("building.flash.not_enough_love"))
@@ -2546,7 +3393,15 @@ class BuildingUI:
         if self.preview is not None:
             self.preview.update(dt)
 
-    def submit(self, renderer, session):
+    def submit_world(self, renderer):
+        """The panel's WORLD-space half: tile highlights, the painter-used
+        grey, wall edges and a live move's path line.
+
+        Split out of `submit` so the host can keep drawing these BEFORE the
+        scene (which is what makes a same-tile building draw on top of its own
+        highlight — `game/CLAUDE.md`'s wall/highlight render-order section)
+        while the panel's HUD half draws AFTER the whole HUD. Everything here
+        sits outside the `visible` guard, exactly as it did inline."""
         t = anim_ms(self._clock)
         for col, row, event in self._highlight_tiles:
             widgets.submit_highlight(renderer, event, col, row,
@@ -2576,22 +3431,29 @@ class BuildingUI:
             renderer.submit_overlay_lines(path_pts,
                                      widgets.highlight_color("move_target"),
                                           width=3)
+    def submit(self, renderer, session):
+        """The panel's HUD half. The host calls this AFTER `Hud.submit` so the
+        panel always paints over the HUD (see the module's render-order note
+        and `game/main.py`); `submit_world` runs at the earlier, world-pass
+        slot."""
         if not self.visible:
             return
-        # -- 10I: badge rect/tooltip refresh each frame (base_info shows no
-        # badge, so a mode without a badge must clear last frame's rect) --
-        self._cond_badge_rect = None
-        self._cond_tooltip = None
-        # -- /10I --
+        t = anim_ms(self._clock)
         # -- 10L-B: no separate layout() step, so apply() runs here (once per
         # visible frame, before the panel/buttons it may reposition/reskin) --
         self._panel.rect = self.panel_rect
         self.skinning.apply(self.screen_id, self.ids)
         self.panel_rect = self._panel.rect
+        # A card's position is live SCROLL state, not authorable geometry —
+        # apply() must not be allowed to pin it. See `_restore_card_rects`.
+        self._restore_card_rects()
         self.skinning.submit_background(renderer, self.screen_id,
                                         self.view_w, self.view_h)
+        hidden_customs = self._hidden_stat_backdrops()
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "under", self.skinning.state_of)
+                                    "under", self.skinning.state_of,
+                                    view=self.mode,
+                                    hidden_customs=hidden_customs)
         if is_visible(self._panel):
             submit_panel(renderer, self.panel_rect, skin=self._panel.skin,
                         tint=getattr(self._panel, "tint", None), anim_ms=t)
@@ -2607,15 +3469,23 @@ class BuildingUI:
             self._submit_move_select(renderer, t)
         elif self.mode == "base_info":
             self._submit_base_info(renderer, session, t)
-        # -- 10I: the hovered terrain tooltip draws LAST, on top of the panel
-        # (prototype building_ui.py:1121-1130) --
-        if self._cond_hover and self._cond_tooltip is not None:
-            self._submit_cond_tooltip(renderer, *self._cond_tooltip)
-        # -- /10I --
         if self.preview is not None:
             self.preview.submit(renderer, anim_ms=t)
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "over", self.skinning.state_of)
+                                    "over", self.skinning.state_of,
+                                    view=self.mode,
+                                    hidden_customs=hidden_customs)
+
+    def _hidden_stat_backdrops(self):
+        """The ``_STAT_BACKDROP_MIN_ROWS`` plates that have nothing to back
+        this frame — ``frozenset()`` outside upgrade mode with a selection,
+        where the rule has no subject and every plate keeps its authored
+        behaviour."""
+        if self.mode != "upgrade" or self._selected is None:
+            return frozenset()
+        rows = len(_building_stats(self._selected))
+        return frozenset(name for name, need in _STAT_BACKDROP_MIN_ROWS.items()
+                         if rows < need)
 
     def _submit_unlock(self, renderer, session, anim_ms=0):
         txt = self._text
@@ -2627,14 +3497,18 @@ class BuildingUI:
         if is_visible(self.action_btn):
             self.action_btn.submit(renderer, anim_ms=anim_ms,
                                    **button_kwargs(self.action_btn))
-        # -- 10I: tile terrain footer badge (tooltip above) --
-        self._submit_cond_badge(renderer, self.tile.condition,
-                                self.view_h - 20, above=True)
-        # -- /10I --
+        # The terrain CARDS replace the footer badge + hover tooltip in this
+        # mode: every condition the purchase covers is spelled out inline, so
+        # a pill naming only the primary tile's condition would say a fourth
+        # of the same thing twice. Construct mode draws a card of its own now
+        # too (feature: construct-terrain-card); UPGRADE is the last mode with
+        # a badge, where there is exactly one placed building to describe.
+        self._submit_cond_cards(renderer, anim_ms)
 
     def _submit_construct(self, renderer, anim_ms=0):
         submit_label(renderer, self._text["construct_title"],
                      color=widgets.C_UI_TEXT)
+        self._submit_list_group(renderer, self._construct_list, anim_ms)
         # Each card is a widget tree, drawn in the house back-to-front order
         # (panel/background -> buttons -> standalone text). Every part follows
         # the same rules as any other id'd widget: a `visible: false` override
@@ -2646,14 +3520,27 @@ class BuildingUI:
             parts = self._card_parts.get(btype)
             if parts is None or not self._card_in_viewport(btn.rect):
                 continue
-            # The card BODY first: it is this tree's background, and the HUD
-            # queue is drawn in pure submission order (`Renderer.submit_hud`
-            # appends; nothing sorts), so anything submitted after it lands on
-            # top. Drawing the portrait first instead hides it completely the
-            # moment the body carries real art — the whole 34x34 sits inside
-            # the body's rect. That stayed invisible for as long as
-            # `defaults.button_skin` was unset and the body drew as a flat
-            # rect, and broke the screen the day a designer skinned the card.
+            # Order matters and there is no sorting to fall back on: the HUD
+            # queue draws in pure submission order (`Renderer.submit_hud`
+            # appends; nothing sorts), so anything submitted later lands on
+            # top. The card's back-to-front stack is
+            #   plate -> body -> portrait -> frame -> price -> icon -> text
+            # which is what the plate and the frame meant while they were
+            # custom widgets banded "under" and "over": the plate is the
+            # backdrop the name and price sit on, and the frame is a BORDER in
+            # front of the portrait, not behind it.
+            #
+            # The body before the portrait, for the older reason: the whole
+            # 34x34 portrait sits inside the body's rect, so drawing it first
+            # hides it completely the moment the body carries real art. That
+            # stayed invisible for as long as `defaults.button_skin` was unset
+            # and the body drew as a flat rect, and broke the screen the day a
+            # designer skinned the card.
+            if is_visible(parts.plate):
+                submit_panel(renderer, parts.plate.rect,
+                             skin=parts.plate.skin,
+                             tint=getattr(parts.plate, "tint", None),
+                             anim_ms=anim_ms)
             if is_visible(btn):
                 btn.submit(renderer, anim_ms=anim_ms, **button_kwargs(btn))
             # then the portrait, on top of the body it sits in
@@ -2662,10 +3549,24 @@ class BuildingUI:
                              skin=parts.portrait.skin,
                              tint=getattr(parts.portrait, "tint", None),
                              anim_ms=anim_ms)
+            # and the frame in front of the portrait it borders
+            if is_visible(parts.frame):
+                submit_panel(renderer, parts.frame.rect,
+                             skin=parts.frame.skin,
+                             tint=getattr(parts.frame, "tint", None),
+                             anim_ms=anim_ms)
+            # While the pill is showing its NOT ENOUGH LOVE flash it draws
+            # that sentence across its own 74px width — so the love icon and
+            # the price number are hidden for exactly that long, instead of
+            # being overprinted by the message they were refused for.
+            # `flash_showing`, not `flash > 0`: an armed flash is still
+            # playing out the press it followed and the price must stay
+            # readable until the red actually lands (`widgets.Button`).
+            price_flashing = parts.price.flash_showing
             if is_visible(parts.price):
                 parts.price.submit(renderer, anim_ms=anim_ms,
                                    **button_kwargs(parts.price))
-            if is_visible(parts.icon):
+            if is_visible(parts.icon) and not price_flashing:
                 submit_panel(renderer, parts.icon.rect, skin=parts.icon.skin,
                              tint=getattr(parts.icon, "tint", None),
                              anim_ms=anim_ms)
@@ -2681,12 +3582,14 @@ class BuildingUI:
             for holder, line in zip((parts.name_1, parts.name_2), lines):
                 submit_label(renderer, holder, text=line,
                              color=widgets.C_UI_TEXT)
-            submit_label(renderer, parts.price_text, value=parts.cost,
-                         color=widgets.C_UI_TEXT)
-        # -- 10I: tile terrain footer badge (tooltip above) --
-        self._submit_cond_badge(renderer, self.tile.condition,
-                                self.view_h - 20, above=True)
-        # -- /10I --
+            if not price_flashing:
+                submit_label(renderer, parts.price_text, value=parts.cost,
+                             color=widgets.C_UI_TEXT)
+        # feature: construct-terrain-card — the terrain card at the panel
+        # foot, in place of the 10I badge + its hover tooltip. The effect rows
+        # are always drawn, as part of the card; there is no hover probe on
+        # this panel at all any more.
+        self._submit_construct_cond_cards(renderer, anim_ms)
 
     def _next_level_rows(self, b):
         """``_building_stats`` at the NEXT in-tier level, computed on a
@@ -2706,7 +3609,6 @@ class BuildingUI:
             trcv.damage_pct = rcv.damage_pct
             trcv.speed_pct = rcv.speed_pct
             trcv.hp_pct = rcv.hp_pct
-            trcv.explosion_debuffs = list(rcv.explosion_debuffs)
         ye = b.get_component(YieldEconomy)
         tye = temp.get_component(YieldEconomy)
         if ye is not None and tye is not None:
@@ -2783,11 +3685,19 @@ class BuildingUI:
         submit_label(renderer, txt["upgrade_title"], text=_display_name(b),
                      color=widgets.C_UI_TEXT)
         # -- 10J rename row: input box + dice --
-        renderer.submit_hud(HudRect(self._name_box_rect, widgets.C_PANEL_STONE))
-        renderer.submit_hud(HudRect(
-            self._name_box_rect,
-            (widgets.highlight_color("tile_selected") if self._name_editing
-             else widgets.C_UI_BORDER), width=1))
+        # The box is the ``upgrade_name_box`` widget: skinless it is still the
+        # same fill+1px-border pair it always was, and a designer's ``skin``
+        # replaces both with one nine-slice. The border colour stays code-owned
+        # because it is the FOCUS ring, not decoration.
+        if is_visible(self._name_box):
+            submit_panel(renderer, self._name_box_rect,
+                         fill=widgets.C_PANEL_STONE,
+                         border=(widgets.highlight_color("tile_selected")
+                                 if self._name_editing
+                                 else widgets.C_UI_BORDER),
+                         skin=self._name_box.skin,
+                         tint=getattr(self._name_box, "tint", None),
+                         anim_ms=anim_ms)
         if self._name_buf or self._name_editing:
             submit_label(renderer, txt["upgrade_name"],
                          text=self._name_buf + "_", color=widgets.C_UI_TEXT)
@@ -2801,13 +3711,10 @@ class BuildingUI:
         submit_label(renderer, txt["upgrade_tier_level"],
                      color=widgets.C_UI_TEXT_DIM,
                      tier=_tier_name(b), level=b.level)
-        # -- 10I: terrain badge (ALWAYS shown incl. Grass), reading the
-        # building's placement snapshot; tooltip below the badge --
-        self._submit_cond_badge(
-            renderer,
-            getattr(b, "_tile_condition", None) or TileCondition.GRASS,
-            45, above=False)
-        # -- /10I --
+        # The terrain card, reading the building's placement snapshot
+        # (Grass included — the card names it "No effect" rather than
+        # vanishing, exactly as the badge always did).
+        self._submit_upgrade_cond_cards(renderer, anim_ms)
         # 10J: hovering an enabled in-tier UPGRADE button previews the next
         # level's stats in green (prototype building_ui.py:1021, 1057-58).
         preview = None
@@ -2854,10 +3761,19 @@ class BuildingUI:
                 submit_label(renderer, txt[value_key],
                              color=widgets.C_UI_TEXT, value=amount)
             # -- 10J: a building whose last-round damage covered its full HP
-            # died last round (prototype building_ui.py:1083-86) --
-            if rs.dmg_taken_last_round >= b.max_hp():
-                submit_label(renderer, txt["died_last_round"],
-                             color=widgets.C_RED)
+            # died last round (prototype building_ui.py:1083-86). The tag is
+            # now ALWAYS drawn: the survived case is the same slot with the
+            # counterpart string in green, so the row never appears/vanishes
+            # under the player (and the layout below never has to gate on it).
+            # ``text=`` rather than a second holder — one designer-owned
+            # widget id whose two states are code-chosen (submit_label's
+            # runtime-content bypass).
+            died = rs.dmg_taken_last_round >= b.max_hp()
+            submit_label(
+                renderer, txt["died_last_round"],
+                text=T("building.upgrade.died_last_round" if died
+                       else "building.upgrade.survived_last_round"),
+                color=widgets.C_RED if died else widgets.C_GREEN_STAT)
         y = self._stats_bottom
         # -- 10J: next-tier card when a tier advance is on the table
         # (prototype ``_draw_next_tier_preview``; hidden while round-gated) --
@@ -2922,78 +3838,37 @@ class BuildingUI:
         for key in ("move_hint_1", "move_hint_2", "move_hint_cancel"):
             submit_label(renderer, txt[key], color=widgets.C_UI_TEXT_DIM)
 
-    # -- 10I: terrain badge + effect tooltip (prototype building_ui.py
-    # :998-1014 badge, :1418-1438 effect lines, :1440-1477 chrome/footer) ----
+    # -- the effect PAIR every terrain card carries (prototype building_ui.py
+    # :1418-1438 effect lines) ---------------------------------------------
 
     def _tile_cond_effect_lines(self, condition):
-        """Human copy for a condition's effects, values read LIVE from the map
-        balancing. Prototype-exact: the enemy dmg/speed effects are
+        """``[name, value]`` for a condition's effect — the NAME of the thing
+        it changes ("Range") and the change itself ("+1") — values read LIVE
+        from the map balancing.
+
+        Two entries, always, so row `i` always addresses the same half (see
+        `_COND_EFFECT_LINES`); a condition with nothing to say leaves the
+        value blank. Only the FIRST effect is reported — every condition has
+        exactly one today. Prototype-exact: the enemy dmg/speed effects are
         deliberately NOT listed."""
         if condition == TileCondition.GRASS:
-            return ["No terrain effect"]
+            return ["No effect", ""]
         if condition in CONDITION_BLOCKS_BUILD:
-            return ["Unbuildable tile"]
+            return ["Unbuildable", ""]
         mods = self._session.tilemap.balance["TileConditions"]["modifiers"]
         m = mods.get(CONDITION_MODIFIER_KEY.get(condition), {})
-        lines = []
         if m.get("def_range_bonus"):
-            lines.append(f'+{m["def_range_bonus"]} range for defenders')
+            return ["Range", f'+{m["def_range_bonus"]}']
         if m.get("def_attack_speed_penalty"):
-            lines.append(
-                f'-{m["def_attack_speed_penalty"] * 100:.0f}% atk speed'
-                ' for defenders')
+            return ["Atk speed",
+                    f'-{m["def_attack_speed_penalty"] * 100:.0f}%']
         if m.get("def_dmg_penalty"):
-            lines.append(
-                f'-{m["def_dmg_penalty"] * 100:.0f}% damage for defenders')
+            return ["Damage", f'-{m["def_dmg_penalty"] * 100:.0f}%']
         if m.get("eco_yield_penalty"):
-            lines.append(
-                f'-{m["eco_yield_penalty"] * 100:.0f}%/round'
-                ' for economy')
+            return ["Economy", f'-{m["eco_yield_penalty"] * 100:.0f}%']
         if m.get("eco_yield_bonus"):
-            lines.append(
-                f'+{m["eco_yield_bonus"] * 100:.0f}%/round'
-                ' for economy')
-        return lines or ["No terrain effect"]
-
-    def _submit_cond_badge(self, renderer, condition, y, above):
-        """The ``Terrain: <Label>`` pill, centred in the panel, in the
-        condition colour. Records its rect (the hover probe) and the pending
-        tooltip — drawn last by ``submit`` so it sits on top."""
-        from engine.render import HudRect  # local: keep module imports lean
-
-        label, color = widgets.cond_label(condition.name)
-        text = T("building.terrain_badge", label=label)
-        w = text_size(text, "sm")[0] + 8
-        h = text_h("sm") + 4
-        x = self.panel_x + (self.panel_w - w) // 2
-        rect = (x, y, w, h)
-        self._cond_badge_rect = rect
-        renderer.submit_hud(HudRect(rect, widgets.C_PANEL_STONE))
-        renderer.submit_hud(HudRect(rect, color, width=1))
-        submit_text(renderer, text, (x + 4, y + 2), "sm", color)
-        self._cond_tooltip = (condition, color, rect, above)
-
-    def _submit_cond_tooltip(self, renderer, condition, color, badge_rect,
-                             above):
-        """The effect tooltip: dark panel, 1px border in the condition colour,
-        centred horizontally on the panel, above or below the badge."""
-        from engine.render import HudRect
-
-        lines = self._tile_cond_effect_lines(condition)
-        lh = text_h("sm") + 2
-        w = max(text_size(t, "sm")[0] for t in lines) + 8
-        h = lh * len(lines) + 5
-        bx, by, bw, bh = badge_rect
-        x = self.panel_x + (self.panel_w - w) // 2
-        y = by - h - 3 if above else by + bh + 3
-        renderer.submit_hud(HudRect((x, y, w, h), _COND_TOOLTIP_BG))
-        renderer.submit_hud(HudRect((x, y, w, h), color, width=1))
-        ty = y + 2
-        for t in lines:
-            submit_text(renderer, t, (x + 4, ty), "sm", widgets.C_UI_TEXT)
-            ty += lh
-
-    # -- /10I ---------------------------------------------------------------
+            return ["Economy", f'+{m["eco_yield_bonus"] * 100:.0f}%']
+        return ["No effect", ""]
 
     def _submit_base_info(self, renderer, session, anim_ms=0):
         st, txt = session.state, self._text

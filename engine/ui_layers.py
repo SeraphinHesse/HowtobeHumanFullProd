@@ -14,7 +14,8 @@ the schema key and this pure vocabulary.
 __all__ = ["resolve", "ordered", "validate_offsets", "hit"]
 
 _APPEARANCE_KEYS = (
-    "slot", "text_id", "label", "font", "align", "color", "text_color", "tint",
+    "slot", "text_id", "label", "font", "font_family", "align", "color",
+    "text_color", "tint",
 )
 
 

@@ -39,6 +39,24 @@ def set_skin_hit_test(fn):
     _skin_hit_test = fn
 
 
+# How long one of a skin's rows plays. The `_skin_hit_test` seam's sibling,
+# and unset for the same reason: `game/ui` may not reach into the asset layer
+# (D6/E-37), so the HOST injects it (`game/main.py`, beside
+# `set_skin_hit_test`). Only ONE thing consults it — a button holding its
+# not-enough-love flash back until its `pressed` row has actually played
+# (`Button.start_flash`). Unset (a bare test/tool button) means "no idea how
+# long", i.e. no hold, which is exactly the pre-feature behaviour.
+_skin_anim_ms = None
+
+
+def set_skin_anim_length(fn):
+    """Inject a skin-row LENGTH lookup. Signature:
+    ``fn(slot_key, animation) -> ms | None`` (`AssetStore.animation_total_ms`).
+    ``None`` back means that slot has no such row."""
+    global _skin_anim_ms
+    _skin_anim_ms = fn
+
+
 def anim_ms(clock_s):
     """A screen's float seconds accumulator -> the integer ms a skinned
     HudSprite wants (10L-A). ONE conversion, so no screen re-derives it.
@@ -142,13 +160,19 @@ def cond_label(name):
 # -- /10I --
 
 
-def text_size(text, font_key):
-    """(w, h) of ``text`` in the given font — pure metric, no blit."""
-    return _METRICS.size(text, font_key)
+def text_size(text, font_key, family=None):
+    """(w, h) of ``text`` in the given font — pure metric, no blit.
+
+    ``family`` (UH-Font-B) measures in a font family other than the active
+    one. Legal here because these are DRAW-TIME-ONLY metrics (word wrap, a
+    hover hint's width): nothing they produce lands in a stored rect or a
+    captured stream, so they may track the real font. Layout math must keep
+    using ``layout_h``, which has no family axis on purpose."""
+    return _METRICS.size(text, font_key, family)
 
 
-def text_h(font_key):
-    return _METRICS.size("Ag", font_key)[1]
+def text_h(font_key, family=None):
+    return _METRICS.size("Ag", font_key, family)[1]
 
 
 def pretty(slug):
@@ -156,13 +180,13 @@ def pretty(slug):
     return slug.replace("_", " ").title()
 
 
-def wrap_text(text, font_key, max_w, max_lines=None):
+def wrap_text(text, font_key, max_w, max_lines=None, family=None):
     """Greedy word wrap to ``max_w`` pixels. A word longer than the line is not
     broken (it just overhangs). Truncates to ``max_lines`` when given."""
     lines, current = [], ""
     for word in text.split():
         trial = f"{current} {word}" if current else word
-        if current and text_size(trial, font_key)[0] > max_w:
+        if current and text_size(trial, font_key, family)[0] > max_w:
             lines.append(current)
             current = word
             if max_lines is not None and len(lines) == max_lines:
@@ -199,12 +223,15 @@ def click(btn, mx, my):
 
 
 def submit_panel(renderer, rect, *, fill=None, border=None, skin=None,
-                 tint=None, anim_ms=0):
+                 tint=None, anim_ms=0, animation="idle"):
     """A filled, bordered panel body. With ``skin`` (a slot key, 10L-A) the
     two flat rects are replaced by one nine-sliced HudSprite covering the same
     rect; ``fill``/``border`` are then ignored and ``tint`` (D6/UH-6 — the
     sheet-multiply color, ``None`` = unchanged) rides along instead. Panels
-    carry no interaction state, so they always animate the ``idle`` row.
+    carry no interaction state, so they animate the ``idle`` row unless the
+    caller names another: a panel holder that owns a ``_state()`` (the three
+    HUD life counters) passes its own row in, which is the ONLY way a
+    panel-kind widget reaches the ``pressed``/``disabled`` sheet rows.
     Panels are not click targets — no hit-test wiring.
 
     ``fill``/``border`` default to ``None`` and resolve to the CURRENT
@@ -219,24 +246,47 @@ def submit_panel(renderer, rect, *, fill=None, border=None, skin=None,
     if skin:
         x, y, w, h = rect
         renderer.submit_hud(HudSprite(skin, (x, y), (w, h),
-                                      animation="idle", anim_time_ms=anim_ms,
+                                      animation=animation,
+                                      anim_time_ms=anim_ms,
                                       tint=tint))
         return
     renderer.submit_hud(HudRect(rect, fill))
     renderer.submit_hud(HudRect(rect, border, width=1))
 
 
-def submit_text(renderer, text, pos, font_key, color, align="left"):
-    renderer.submit_hud(HudText(text, pos, font_key, color, align=align))
+def announce_top_y(view_h):
+    """Screen y of the TOP of the centred announce banner's first line
+    (``effects.submit_announce``'s two ``xl`` lines: the boss banner and the
+    "YOU / LOST 1 LIFE" banner). ONE home for that geometry, so the HUD's
+    centred life icon cannot drift away from the text it hangs under.
+
+    ``layout_h``, never a live measurement — this reaches a drawn position on
+    every frame of the lost-life flight (game/ui/CLAUDE.md)."""
+    return view_h // 2 - layout_h("xl") - 6
 
 
-def submit_centered(renderer, text, cx, cy, font_key, color):
+def announce_bottom_y(view_h):
+    """Screen y of the BOTTOM of that banner's SECOND line — i.e. the first
+    free row under the announce text. ``announce_top_y``'s companion; the two
+    are the only places the banner's vertical layout is stated."""
+    return announce_top_y(view_h) + 2 * layout_h("xl") + 8
+
+
+def submit_text(renderer, text, pos, font_key, color, align="left",
+                family=None):
+    renderer.submit_hud(HudText(text, pos, font_key, color, align=align,
+                                family=family))
+
+
+def submit_centered(renderer, text, cx, cy, font_key, color, family=None):
     """Text centred horizontally on ``cx`` with its top at ``cy``."""
-    renderer.submit_hud(HudText(text, (cx, cy), font_key, color, align="center"))
+    renderer.submit_hud(HudText(text, (cx, cy), font_key, color,
+                                align="center", family=family))
 
 
 def label_holder(rect=(0, 0, 0, 0), *, text_id=None, label="", font_key="md",
-                 text_color=None, align="left", visible=True):
+                 font_family=None, text_color=None, align="left",
+                 visible=True):
     """A ``label``-kind widget holder for an id'd piece of text (UT-1).
 
     The ``SimpleNamespace`` shadow object every screen already builds by hand
@@ -252,9 +302,17 @@ def label_holder(rect=(0, 0, 0, 0), *, text_id=None, label="", font_key="md",
     through ``T()`` at draw time, so the template is designer-editable and the
     live values stay code-owned. A holder with no ``text_id`` falls back to its
     static ``label`` — the pre-UT-1 behaviour, unchanged.
+
+    ``font_family`` (UH-Font-B) is the font FAMILY the holder draws in — a
+    ``data/fonts/font_manifest.json`` entry id, orthogonal to ``font_key``'s
+    size/bold preset. ``None`` inherits the active family, so every holder
+    that predates the per-text axis is unchanged. Like every other field
+    here it is designer-ownable: ``ScreenSkinning.apply`` setattrs a
+    ``font_family`` override straight onto the holder.
     """
     return SimpleNamespace(rect=rect, text_id=text_id, label=label,
-                           font_key=font_key, text_color=text_color,
+                           font_key=font_key, font_family=font_family,
+                           text_color=text_color,
                            align=align, visible=visible)
 
 
@@ -355,7 +413,8 @@ def submit_label(renderer, holder, *, text=None, color=None, align=None, **fmt):
     # text anchor, whose w/h are nominal 0 — see game/ui/CLAUDE.md).
     dx, dy, _dw, _dh = _state_offset(patch)
     renderer.submit_hud(HudText(text, (rect[0] + dx, rect[1] + dy),
-                                holder.font_key, tcol, align=align))
+                                holder.font_key, tcol, align=align,
+                                family=getattr(holder, "font_family", None)))
 
 
 # ===========================================================================
@@ -655,16 +714,37 @@ class Button:
     seam or no skin, behaves as today (rect test).
     """
 
-    def __init__(self, rect, label, font_key="lg", enabled=True, skin=None):
+    def __init__(self, rect, label, font_key="lg", enabled=True, skin=None,
+                 font_family=None):
         self.rect = rect
         self.label = label
         self.font_key = font_key
+        # UH-Font-B: the font FAMILY this button's label draws in, or None for
+        # the active one. Appended LAST in the signature on purpose — the
+        # shipping call sites pass (rect, label, font_key) positionally, so
+        # `enabled`/`skin` must keep their places.
+        self.font_family = font_family
         self.enabled = enabled
         self.skin = skin          # 10L-A: slot key, or None = flat rects
         self.hovered = False
         self.mouse_down = False   # 10L-A: host's held-left-button flag
         self.flash = 0.0
         self.flash_label = None
+        #: This button's OWN animation clock (seconds), restarted every time
+        #: `_state()` changes — see `update`. `None` until the first
+        #: `update(dt)`, which is what keeps a button nobody ticks on the
+        #: caller's screen clock instead of frozen at frame 0.
+        self._anim_t = None
+        self._anim_state = None
+        #: Seconds of `pressed` still owed before a pending flash may paint
+        #: (`start_flash`). Counted down by `update`.
+        self._flash_delay = 0.0
+        #: Seconds of the `pressed` ROW still owed after the press itself
+        #: ended — the press LATCH (see `update`). A click is 2-6 frames and
+        #: every shipped `pressed` row is 750-1336ms, so without this the row
+        #: never got past frame 0 and the press animation was invisible.
+        self._press_hold = 0.0
+        self._was_pressed = False
 
     def _surface_hit(self, mx, my):
         """Rect hit-test; if skin + seam exists, delegate to the injected
@@ -692,26 +772,114 @@ class Button:
         return self.enabled and self._surface_hit(mx, my)
 
     def start_flash(self, duration, label=None):
+        """Arm the red not-enough-love flash — AFTER the press finishes.
+
+        The click that refuses is still a press, and cutting straight to red
+        threw the `pressed` row away mid-play: the button read as flashing
+        out of `idle`. So the flash is held for whatever is LEFT of that row
+        (`_press_remaining`), during which `_state()` still resolves to
+        `pressed` — the animation plays out, THEN the button goes red for its
+        full `duration`. An unskinned button, a skin with no `pressed` row and
+        an un-wired host seam all answer 0 and flash immediately, exactly as
+        before.
+
+        The wait is the PRESS LATCH's own remainder (`update`), not a second
+        independent countdown: the latch is what holds `_state()` on the
+        `pressed` row, so reading anything else here could let the red start
+        before or after the row it is waiting for. A flash with no press
+        behind it (nothing armed the latch) therefore shows immediately."""
+        self._flash_delay = self._press_hold
         self.flash = duration
         self.flash_label = label
 
+    def _row_seconds(self, animation):
+        """How long one play of this skin's ``animation`` row lasts, in
+        seconds — ``0.0`` when there is no skin, no host seam, or no such
+        row. The ONE reader of the ``_skin_anim_ms`` seam."""
+        if not self.skin or _skin_anim_ms is None:
+            return 0.0
+        return (_skin_anim_ms(self.skin, animation) or 0) / 1000.0
+
+    @property
+    def flash_showing(self):
+        """True once an armed flash has actually started painting red — i.e.
+        the press animation it waited on is done."""
+        return self.flash > 0 and self._flash_delay <= 0
+
     def update(self, dt):
-        if self.flash > 0:
+        if self._flash_delay > 0:
+            # Snapped, not just clamped: float dt accumulation leaves a delay
+            # counted down in exact steps sitting a 1e-16 hair above zero, and
+            # the flash would then wait one more whole frame.
+            self._flash_delay = max(0.0, self._flash_delay - dt)
+            if self._flash_delay < 1e-6:
+                self._flash_delay = 0.0
+        elif self.flash > 0:
             self.flash = max(0.0, self.flash - dt)
             if self.flash == 0:
                 self.flash_label = None
+        # -- the press LATCH ------------------------------------------------
+        # A real click holds the button down for 2-6 frames (~100ms); every
+        # shipped `ui_button*` sheet's `pressed` row runs 750-1336ms. Without
+        # a latch the row was released back to `hover` on frame 0 or 1 and the
+        # press animation was never actually seen — the ONLY time it played
+        # through was the not-enough-love flash, which used to force `pressed`
+        # for the whole flash (it no longer does — see `_state`). So the
+        # RISING EDGE of `pressed` arms the full row length and `_state` keeps
+        # answering "pressed" until it drains, whether or not the button is
+        # still held.
+        now_pressed = self.pressed
+        if now_pressed and not self._was_pressed:
+            self._press_hold = self._row_seconds("pressed")
+        self._was_pressed = now_pressed
+        if self._press_hold > 0:
+            self._press_hold = max(0.0, self._press_hold - dt)
+        # The per-state animation clock (10L-A's skin rows are play-once, so
+        # a shared free-running screen clock left every hover/pressed row
+        # sitting on its LAST frame — the animation never appeared to fire).
+        # Restart on every state change; otherwise accumulate.
+        state = self._state()
+        if state != self._anim_state:
+            self._anim_state, self._anim_t = state, 0.0
+        else:
+            self._anim_t = (self._anim_t or 0.0) + dt
 
     def _state(self):
         """Skin animation row. Same priority as the flat fill selection below,
         so skinned and unskinned never disagree about the button's state
-        (plan lines 58-61: flash -> pressed art, disabled -> disabled row)."""
-        if self.flash > 0:
-            return "pressed"
+        (plan lines 58-61: disabled -> disabled row).
+
+        **A flash does NOT select the pressed row.** It used to (`if
+        self.flash > 0: return "pressed"` sat at the top), which made the
+        not-enough-love refusal the one and only place a `pressed` row was
+        ever seen playing — the exact opposite of what it should signal. The
+        red flash is its own feedback; the press that earned it plays through
+        the LATCH below like any other press, then the button goes red."""
         if not self.enabled:
             return "disabled"
-        if self.pressed:
+        if self.pressed or self._press_hold > 0:
             return "pressed"
         return "hover" if self.hovered else "idle"
+
+    def _anim_time(self, fallback_ms):
+        """This button's own state clock in ms, or the caller's screen clock
+        when nothing ticks it (a bare test/tool button).
+
+        CLAMPED to one play of the row being drawn, so a `loop_count: 1` row
+        plays once and HOLDS its last frame. `Manifest.current_frame` resolves
+        a time with `% total_ms` and knows nothing about `loop_count`, so an
+        un-clamped clock looped every hover row forever (measured: a hovered
+        End Turn cycled frames 0,1,2,0,1,2... indefinitely) — motion that
+        reads as jitter rather than as a hover-in. The clamp lands one ms
+        inside the last frame's bucket. No skin, no host `_skin_anim_ms` seam
+        or no such row answers 0 and is left unclamped, i.e. exactly the
+        pre-clamp behaviour (which is what keeps every bare test/tool button
+        and the golden pins unchanged)."""
+        if self._anim_t is None:
+            return fallback_ms
+        t = anim_ms(self._anim_t)
+        total_ms = int(self._row_seconds(self._state()) * 1000)
+        return min(t, total_ms - 1) if total_ms > 0 else t
 
     def submit(self, renderer, *, color=None, text_color=None, anim_ms=0):
         x, y, w, h = self.rect
@@ -719,7 +887,10 @@ class Button:
         # ``_state()`` the skinned sprite row uses below — so the flat fill,
         # the skin row and this patch can never disagree about the state.
         patch = _state_patch(self, self._state())
-        if self.flash > 0:
+        # ``flash_showing``, not ``flash > 0``: an armed flash still owes the
+        # ``pressed`` row its remaining play time (``start_flash``), and the
+        # button must look PRESSED for that, not red.
+        if self.flash_showing:
             fill, tcol = C_RED, C_UI_TEXT
             label = self.flash_label or self.label
         elif not self.enabled:
@@ -746,9 +917,15 @@ class Button:
             # skinned button (or one whose screen doc assigned it) ever
             # carries the attribute, so ``getattr`` covers dynamic
             # (non-id'd) buttons too, which never gain one.
+            # The button's OWN clock wins over the caller's screen clock
+            # whenever it has one (i.e. whenever something calls
+            # ``update(dt)``): a skin's hover/pressed rows are play-once, so
+            # a free-running shared clock hands them a time long past their
+            # end and the row shows only its last frame. ``_anim_t`` restarts
+            # at the state change, which is what makes the row PLAY.
             renderer.submit_hud(HudSprite(self.skin, (x, y), (w, h),
                                           animation=self._state(),
-                                          anim_time_ms=anim_ms,
+                                          anim_time_ms=self._anim_time(anim_ms),
                                           tint=getattr(self, "tint", None)))
         else:
             renderer.submit_hud(HudRect((x, y, w, h), fill, border_radius=3))
@@ -757,4 +934,7 @@ class Button:
         # layout_h, not text_h: this positions every Button label recorded in
         # the parity/exporter streams (engine/render/fonts.py "layout_h").
         ty = y + (h - layout_h(self.font_key)) // 2
-        submit_centered(renderer, label, x + w // 2, ty, self.font_key, tcol)
+        # layout_h above takes no family (the pinned-layout rule): a family
+        # swap changes the glyphs this line draws, never where it draws them.
+        submit_centered(renderer, label, x + w // 2, ty, self.font_key, tcol,
+                        family=getattr(self, "font_family", None))

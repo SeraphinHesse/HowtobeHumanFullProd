@@ -844,12 +844,32 @@ class ViewportPanel(QWidget):
         return self._with_custom_widgets(entry)
 
     def _custom_widgets(self):
-        """The open doc's `custom_widgets` table (UL-13) — the LIVE dict, read
-        every frame, so never mutated here."""
+        """The open doc's `custom_widgets` table (UL-13), filtered to the
+        ACTIVE VIEW — the LIVE dict when nothing is dropped, so never mutated
+        here.
+
+        Filtering at this ONE read is what keeps a view-scoped widget out of
+        the preview, the hit-test, the selection chrome and the band passes
+        together: every one of them goes through here."""
         if self._screen_session is None or self._screen_session.doc is None:
             return {}
         table = self._screen_session.doc.get("custom_widgets")
-        return table if isinstance(table, dict) else {}
+        if not isinstance(table, dict):
+            return {}
+        return _screen_rules.custom_widgets_for_view(
+            table, self._screen_session.view)
+
+    def _banded_widget_ids(self, defaults):
+        """Every CODE-OWNED widget id the open doc relocated into a band
+        (UL-14) — what the plain widget loops must skip, since a banded
+        widget is drawn (box AND layers) by its band pass instead. `set()`
+        when no session/doc is open, so every caller stays a plain `in`."""
+        if self._screen_session is None or self._screen_session.doc is None:
+            return set()
+        return _screen_rules.banded_widget_ids(
+            (defaults or {}).get("widgets", {}),
+            self._screen_session.doc.get("widgets", {}),
+            self._custom_widgets())
 
     def _with_custom_widgets(self, entry):
         """`entry` with the open doc's designer-authored custom widgets folded
@@ -990,7 +1010,8 @@ class ViewportPanel(QWidget):
             self._effective_rect(widget_id, defaults),
             text=self._widget_text(widget_id, spec),
             font_key=self._widget_font_key(widget_id, spec),
-            align=_screen_primitives.resolve_align(spec, override))
+            align=_screen_primitives.resolve_align(spec, override),
+            family=self._widget_font_family(widget_id))
 
     def _widget_font_key(self, widget_id, spec):
         """The font the widget's text is drawn at: the doc's own `font`
@@ -1001,6 +1022,19 @@ class ViewportPanel(QWidget):
         style = self._screen_session.doc.get("defaults", {})
         return (override.get("font") or spec.get("font_key")
                 or style.get("font") or "md")
+
+    def _widget_font_family(self, widget_id):
+        """The font FAMILY the widget's text is drawn in (UH-Font-B): the
+        doc's own `font_family` override, else the screen's
+        `defaults.font_family`, else None for the active family — the same
+        chain `skinning._submit_text_for` resolves it with.
+
+        Unlike `_widget_font_key` there is no `screen_defaults.json` rung:
+        that file records CODE-authored defaults and a family is designer
+        data only, so no code-owned widget can carry one."""
+        override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
+        style = self._screen_session.doc.get("defaults", {})
+        return override.get("font_family") or style.get("font_family") or None
 
     def _is_anchor_widget(self, widget_id, defaults):
         """True when the widget stores no size — it can be MOVED but not
@@ -1068,7 +1102,8 @@ class ViewportPanel(QWidget):
         return _screen_primitives.layer_interaction_rect(
             resolved["rect"], text=self._layer_text(resolved),
             font_key=resolved.get("font") or "md",
-            align=resolved.get("align") or "left")
+            align=resolved.get("align") or "left",
+            family=resolved.get("font_family") or None)
 
     def _layer_boxes(self, widget_id, defaults):
         """`[(layer_id, resolved, interaction rect)]` for every DRAWABLE layer
@@ -2838,6 +2873,9 @@ class ViewportPanel(QWidget):
         # treatment, and the same reason, as layers). Never bake one into
         # that file.
         customs = self._custom_widgets()
+        # UL-14: same treatment for a code-owned widget a `band` override
+        # relocated — the band pass owns it, so the plain loops skip it.
+        banded = self._banded_widget_ids(defaults)
         preview = self._current_screen_preview()
         if preview is not None:
             # UT-2: the recorded game draw list — real background, real fonts,
@@ -2846,20 +2884,22 @@ class ViewportPanel(QWidget):
                 self._renderer.submit_hud(item)
             if self._preview_in_sync():
                 # The recording already shows the open doc, so drawing the
-                # widgets again would only double them. The one exception is
-                # the widget under an in-flight drag, whose live rect no
-                # recording can know yet.
-                dragging = self._selected_widget if (
-                    self._drag_start and self._selected_layer is None) else None
-                if dragging in defaults.get("widgets", {}):
-                    self._submit_screen_widget(
-                        dragging, defaults["widgets"][dragging], doc, scale,
-                        ox, oy, hidden)
-                self._submit_screen_layers(defaults, scale, ox, oy, hidden)
+                # widgets again would only double them. That is equally true
+                # of LAYERS and CUSTOM widgets: the editor re-records against
+                # the open doc (`MainWindow._render_screen_preview` passes it
+                # as `--overrides`), so `submit_layers` ran for real inside
+                # the recording and both bands are already in it, in the
+                # game's own order. Re-drawing them here composited every
+                # layer and custom widget ON TOP of the replay — which is why
+                # an `under` custom widget never went under anything and the
+                # Band control looked broken. Only an in-flight drag needs a
+                # live draw, because no recording can know a rect that is
+                # still moving.
+                self._submit_drag_preview(defaults, doc, scale, ox, oy, hidden)
                 return
             for widget_id, spec in defaults.get("widgets", {}).items():
-                if widget_id in customs:
-                    continue    # UL-13: composited by _submit_screen_layers
+                if widget_id in customs or widget_id in banded:
+                    continue    # UL-13/UL-14: composited by the band passes
                 self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy,
                                            hidden)
             self._submit_screen_layers(defaults, scale, ox, oy, hidden)
@@ -2869,8 +2909,8 @@ class ViewportPanel(QWidget):
         # their widgets here, because this path draws the widgets itself.
         self._submit_screen_layer_band(defaults, "under", scale, ox, oy, hidden)
         for widget_id, spec in defaults.get("widgets", {}).items():
-            if widget_id in customs:
-                continue        # UL-13: drawn by its own band pass
+            if widget_id in customs or widget_id in banded:
+                continue        # UL-13/UL-14: drawn by its own band pass
             self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy,
                                        hidden)
         self._submit_screen_layer_band(defaults, "over", scale, ox, oy, hidden)
@@ -2940,13 +2980,17 @@ class ViewportPanel(QWidget):
         # made the flat-box fallback disagree with the real screen.
         font_key = (override.get("font") or spec.get("font_key")
                     or style.get("font") or "md")
+        # UH-Font-B: the family axis, resolved down its own chain (there is
+        # no recorded rung for it — see `_widget_font_family`).
+        family = self._widget_font_family(widget_id)
         if _screen_primitives.is_anchor_rect(rect):
             # A position-only anchor has no box to centre in; measure the
             # same box the designer clicks and outlines (`_interaction_rect`),
             # so the fallback text lands on the glyphs' real spot.
             rect = _screen_primitives.interaction_rect(
                 rect, text=self._widget_text(widget_id, spec),
-                font_key=font_key, align=spec.get("align", "left"))
+                font_key=font_key, align=spec.get("align", "left"),
+                family=family)
         dest = self._to_screen_rect(rect, scale, ox, oy)
         text_color = override.get("text_color", style.get("text_color"))
         if skin:
@@ -2961,31 +3005,59 @@ class ViewportPanel(QWidget):
                 anim_time_ms=int(self._screen_anim_ms)))
             label_item = _screen_primitives.centered_label_item(
                 dest, label, font_key,
-                tuple(text_color) if text_color is not None else (255, 255, 255))
+                tuple(text_color) if text_color is not None else (255, 255, 255),
+                family)
             if label_item is not None:
                 self._renderer.submit_hud(label_item)
         else:
             fill = tuple(override["color"]) if "color" in override else None
             for item in _screen_primitives.fallback_hud_items(
                     dest, kind, label, font_key=font_key,
-                    text_color=text_color, fill=fill):
+                    text_color=text_color, fill=fill, family=family):
                 self._renderer.submit_hud(item)
 
+    def _submit_drag_preview(self, defaults, doc, scale, ox, oy, hidden=()):
+        """The ONE thing an in-sync replay cannot show: whatever is under an
+        in-flight drag, at its live rect.
+
+        Only the dragged widget is drawn (its box when the drag is on the
+        widget itself, and its own layers either way) — everything else is
+        already in the recording at the right depth, and re-drawing it would
+        put it back on top. It ghosts against its recorded self for the
+        duration of the drag; the re-record on release settles it. That is
+        the same trade `_preview_in_sync` documents, now paid by one widget
+        instead of the whole screen."""
+        widget_id = self._selected_widget
+        if not self._drag_start or widget_id is None:
+            return
+        spec = defaults.get("widgets", {}).get(widget_id)
+        if spec is None:
+            return
+        if self._selected_layer is None:
+            self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy,
+                                       hidden)
+        for band in ("under", "over"):
+            self._submit_widget_band_layers(widget_id, defaults, band, scale,
+                                            ox, oy, hidden)
+
     def _submit_screen_layers(self, defaults, scale, ox, oy, hidden=()):
-        """Both bands, `under` first — the PREVIEW-REPLAY path (UL-7).
+        """Both bands, `under` first — the OUT-OF-SYNC replay path (UL-7).
 
-        `data/ui/screen_previews.json` is override-free by design: a layer can
-        never be baked into it, so layers composite ON TOP of the whole replay
-        and an `under` layer cannot actually get behind a recorded widget. It
-        is still drawn before the `over` ones, so the two bands' relative order
-        is honest even where their relation to the widget is not. (Baking
-        layers into the recording instead would mean regenerating a file this
-        phase is explicitly forbidden to touch — and the recording describes
-        the SHIPPED screen, not the doc being edited.)
+        Reached only when the recording does NOT describe the open doc (an
+        edit has landed and the re-record has not finished, or none ran). The
+        committed `data/ui/screen_previews.json` is override-free by design,
+        so a layer or custom widget can never be baked into THAT file, and
+        here they composite ON TOP of the whole replay: an `under` entry
+        cannot get behind a recorded widget. It is still drawn before the
+        `over` ones, so the two bands' relative order is honest even where
+        their relation to the widget is not. This is the same stale-picture
+        trade `_preview_in_sync` documents — a frame that hides your edit is
+        worse than one that draws it at the wrong depth.
 
-        UL-13: the same argument, verbatim, for CUSTOM widgets — they live in
-        the override doc, so the recording cannot know them either, and each
-        band pass draws its own customs at its tail."""
+        The IN-SYNC path no longer calls this at all: a live re-record runs
+        the real `submit_layers`, so both bands are already in the recording
+        at the right depth. Calling it there is what made `under` look
+        broken."""
         self._submit_screen_layer_band(defaults, "under", scale, ox, oy, hidden)
         self._submit_screen_layer_band(defaults, "over", scale, ox, oy, hidden)
 
@@ -2998,18 +3070,21 @@ class ViewportPanel(QWidget):
         `_submit_screen_items` submits them in."""
         doc = self._screen_session.doc
         customs = self._custom_widgets()
+        banded = self._banded_widget_ids(defaults)
         for widget_id in defaults.get("widgets", {}):
-            if widget_id in customs:
-                continue    # UL-13: drawn (box AND layers) by the pass below
+            if widget_id in customs or widget_id in banded:
+                continue    # UL-13/UL-14: drawn (box AND layers) below
             self._submit_widget_band_layers(widget_id, defaults, band, scale,
                                             ox, oy, hidden)
-        # UL-13: this screen's designer-authored widgets, at the TAIL of the
-        # band — the same place `skinning.submit_layers` draws them, after
-        # every code-owned widget's layers of the same band. Each draws its
-        # own box and then its own layers, so its `under` layer really does
-        # sit under it.
-        for widget_id, _entry in _screen_rules.custom_widgets_in_band(customs,
-                                                                     band):
+        # UL-13/UL-14: this screen's designer-authored widgets AND any
+        # code-owned widget a `band` override relocated here, at the TAIL of
+        # the band in one shared `z` order — the same place, and the same
+        # order, `skinning.submit_layers` draws them. Each draws its own box
+        # and then its own layers, so its `under` layer really does sit
+        # under it.
+        for widget_id, _is_custom in _screen_rules.widgets_in_band(
+                defaults.get("widgets", {}), doc.get("widgets", {}),
+                customs, band):
             spec = defaults.get("widgets", {}).get(widget_id)
             if spec is None:
                 continue
@@ -3056,7 +3131,8 @@ class ViewportPanel(QWidget):
                 text, (dest[0], dest[1]), resolved.get("font") or "md",
                 tuple(resolved["text_color"]) if resolved.get("text_color")
                 else LAYER_TEXT_COLOR,
-                align=resolved.get("align") or "left"))
+                align=resolved.get("align") or "left",
+                family=resolved.get("font_family") or None))
             return
         color = resolved.get("color")
         if color:

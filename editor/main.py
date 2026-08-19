@@ -199,7 +199,8 @@ class MainWindow(QMainWindow):
         try:
             configure_fonts(
                 theme_ops.load_fonts(self._data_dir),
-                font_path=theme_ops.resolve_active_font_path(self._data_dir))
+                font_path=theme_ops.resolve_active_font_path(self._data_dir),
+                family_paths=theme_ops.resolve_family_paths(self._data_dir))
         except Exception:
             pass
         self._node = None   # (category_key, group_path) of the tree selection
@@ -276,6 +277,11 @@ class MainWindow(QMainWindow):
         self.palette.eye_toggled.connect(self.viewport.set_eye)
         self.palette.grid_toggled.connect(self.viewport.set_grid_lines)
         self.palette.manifest_changed.connect(self._on_manifest_changed)
+        # A master-sheet column-width edit re-stamps every linking manifest
+        # entry, so the same ED-42 reload the import panel triggers has to run
+        # here or open previews keep slicing at the old column width until an
+        # editor restart.
+        self.master_sheets.manifest_changed.connect(self._on_manifest_changed)
         self.palette.add_level_requested.connect(self._on_add_level)
         self.palette.add_prop_requested.connect(self._on_add_prop)
         self.palette.add_deco_variant_requested.connect(
@@ -1390,11 +1396,16 @@ class MainWindow(QMainWindow):
         consumer to reconfigure (game/ui.widgets is game-only — off limits
         to the editor, ED layering rule); the game re-reads palette.json at
         its own next boot. Graceful degrade mirrors the boot-time load
-        above (UH-Font-A: `resolve_active_font_path` degrades to None)."""
+        above (UH-Font-A: `resolve_active_font_path` degrades to None).
+
+        `family_paths` (UH-Font-B) is re-resolved here too, so a font
+        the designer just IMPORTED becomes selectable per text run
+        immediately rather than after an editor restart."""
         try:
             configure_fonts(
                 theme_ops.load_fonts(self._data_dir),
-                font_path=theme_ops.resolve_active_font_path(self._data_dir))
+                font_path=theme_ops.resolve_active_font_path(self._data_dir),
+                family_paths=theme_ops.resolve_family_paths(self._data_dir))
         except Exception:
             pass
         self.viewport.render_frame()

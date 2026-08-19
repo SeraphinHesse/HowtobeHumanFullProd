@@ -43,7 +43,14 @@
   },
   "Sounds": {
     "buy_plot": {
-      "clips": [],
+      "clips": [
+        {
+          "end": 0.0,
+          "file": "imported/trumpet.mp3",
+          "start": 0.0,
+          "volume": 0.2
+        }
+      ],
       "loop": false,
       "pick": "random"
     },
@@ -54,7 +61,7 @@
     }
   },
   "SpawnDeco": {
-    "tree_chance": 0.8
+    "tree_chance": 0.3
   },
   "TileConditions": {
     "min_speed_fraction": 0.5,
