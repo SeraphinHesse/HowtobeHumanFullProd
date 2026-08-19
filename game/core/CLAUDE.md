@@ -100,9 +100,10 @@ Four files beside `balance.py`:
   - **10D filled slot 7**: `_process_boosts` sweeps every `"boost"`-tagged building
     on a built tile BEFORE revive. Alive boosters (ramp mode) accumulate their
     per-turn `boost_value` onto cardinal-adjacent combat neighbours' `BoostReceiver`
-    (one `boost_events` floater each); a booster dead THIS round explodes its debuff
-    onto neighbours once (guarded by `BoostEmitter.exploded`, reset in `rebuild()`)
-    and, in flat mode, reverses its 10× contribution. Runs before revive for the
+    (one `boost_events` floater each); a booster dead THIS round reverses its 10×
+    contribution in flat mode (idempotent via `BoostEmitter.flat_applied`) and does
+    nothing at all in ramp mode — the explosion-on-death debuff it used to stamp on
+    neighbours is REMOVED. Runs before revive for the
     same reason painters do — it must see the dead booster as `alive == False`.
   - **debug-mode-telemetry threads three hooks BETWEEN existing steps,
     never reordering them**: `debug.on_payday_start(state, tilemap,
@@ -851,6 +852,30 @@ round by construction.
 `game/core/names.py append_random_name` persists the add-name menu's typed name to
 `buildings.json` `BuildingsGlobal.random_names` via `write_validated` — the one
 runtime data write (disk I/O stays out of pygame-pure `game/ui`).
+
+## Per-machine preference files (`settings/`)
+Two sibling modules write the gitignored `settings/` directory at the repo
+root — NOT `data/`, because these are per-machine player preferences, not
+designer content (the `scores/highscores.json` precedent). Both validate
+through `engine.data_io.write_validated` against a schema that lives in
+`data/schemas/` with no `data/` content file at all, and both **read without
+ever raising**: a missing/corrupt preference file returns the defaults with one
+logged warning, because it must never stop the game booting. Writes DO raise on
+invalid data (D-2).
+- **`audio_settings.py` → `settings/audio.json`** (SD-6): the three volumes,
+  `{master, music, sfx}`, 0..1. The host applies them to the engine buses and
+  rewrites the file on the settings screen's `set_volume` intent.
+- **`render_settings.py` → `settings/render.json`** (settings-cut): the GPU/CPU
+  switch's choice, `{backend: auto|gpu|surface}` ("cpu" is the player-facing
+  name for `surface`). **Read at BOOT only**, and only when nobody asked
+  louder — an explicit `--backend=` flag or `HTBH_RENDER_BACKEND` still wins,
+  and a HEADLESS run (`max_frames is not None`) ignores the file entirely so a
+  machine-global preference can never move what `tools/smoke.py` measures. It
+  is boot-only because `main.py` builds the window, the `Renderer` and the
+  ground cache as ONE stack; swapping that under a live world would mean
+  destroying every GPU texture behind it. Hence the settings screen's permanent
+  "Applies on restart" note — the intent (`set_renderer`) records the choice
+  and changes nothing about the running frame.
 
 ## Verify
 Phase-machine unit tests; headless 3-round currency ledger matches

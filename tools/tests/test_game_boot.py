@@ -157,6 +157,94 @@ class TempDataBoot(DataDirCase):
         _restore_font_state_after(self)
 
 
+class TestFineScrollIsNotDiscarded(unittest.TestCase):
+    """LIVE BUG: the wheel arms were guarded on ``and event.y``.
+
+    ``event.y`` is an INTEGER. A precision touchpad, a free-spin wheel and
+    macOS inertial scrolling all report the gesture in ``precise_y`` and leave
+    ``y`` at **0**, so every such event was discarded before any handler ran
+    and nothing scrolled or zoomed at all — while the same code worked
+    perfectly on a notched mouse. That asymmetry is why the construct card
+    list measured green at every layer (model, host routing, draw) and was
+    still unusable for the person reporting it."""
+
+    def _wheel(self, y, precise_y):
+        return pygame.event.Event(
+            pygame.MOUSEWHEEL,
+            {"y": y, "x": 0, "precise_y": precise_y, "precise_x": 0.0,
+             "flipped": False, "touch": precise_y != y})
+
+    def test_fractions_accumulate_into_whole_ticks(self):
+        w = game_main_module._WheelTicks()
+        got = [w.of(self._wheel(0, -0.34)) for _ in range(6)]
+        self.assertEqual([t for t in got if t], [-1, -1],
+                         "six 0.34 nudges are two whole ticks, not zero")
+
+    def test_a_notched_wheel_is_one_tick_each(self):
+        w = game_main_module._WheelTicks()
+        self.assertEqual(w.of(self._wheel(1, 1.0)), 1)
+        self.assertEqual(w.of(self._wheel(-1, -1.0)), -1)
+
+    def test_a_backend_that_leaves_precise_y_empty_falls_back_to_y(self):
+        w = game_main_module._WheelTicks()
+        self.assertEqual(w.of(self._wheel(1, 0.0)), 1)
+
+    def test_a_reversal_drops_the_residue(self):
+        w = game_main_module._WheelTicks()
+        w.of(self._wheel(0, 0.9))              # nearly a tick, held
+        self.assertEqual(w.of(self._wheel(0, -0.9)), 0,
+                         "the up-residue must not delay the first down tick")
+        self.assertEqual(w.of(self._wheel(0, -0.2)), -1)
+
+
+class TestHoverReadsTheSameCursorAsClicks(TempDataBoot):
+    """LIVE BUG, the mirror of
+    ``test_map_event_does_not_rescale_an_already_logical_mouse_pos`` above.
+
+    Clicks have always used ``event.pos``; hover used to read
+    ``presenter.mouse_pos()`` — a DIFFERENT source, and the only one either
+    presenter remaps. When the two disagree, every hover/pressed skin row
+    fires for whatever widget sits under the *other* coordinate: buttons that
+    still click correctly never light up, widgets near the top-left light up
+    with the cursor nowhere near them, and the cursor-anchored lightning
+    progress bar draws at the wrong place. One source now, so they cannot.
+
+    The stub below makes them disagree on purpose: ``get_pos()`` answers a
+    point over the RANGE pill while the mouse EVENT reports one over End
+    Turn. The event must win.
+    """
+
+    def test_the_event_position_wins_over_get_pos(self):
+        end_turn_pt = (600, 300)     # inside btn_end_turn's authored rect
+        elsewhere = (10, 112)        # inside the RANGE overlay pill's rect
+        seen = {}
+        real_submit = _widgets.Button.submit
+
+        def record(button, renderer, **kwargs):
+            if button.skin:
+                seen.setdefault(button.skin, set()).add(button._state())
+            return real_submit(button, renderer, **kwargs)
+
+        real_get = pygame.event.get
+
+        def with_motion(*args, **kwargs):
+            events = list(real_get(*args, **kwargs))
+            events.append(pygame.event.Event(
+                pygame.MOUSEMOTION,
+                {"pos": end_turn_pt, "rel": (0, 0), "buttons": (0, 0, 0),
+                 "touch": False}))
+            return events
+
+        with unittest.mock.patch.object(_widgets.Button, "submit", record),                 unittest.mock.patch.object(pygame.event, "get", with_motion),                 unittest.mock.patch.object(pygame.mouse, "get_pos",
+                                           lambda: elsewhere):
+            game_main(max_frames=6, data_dir=self.data_dir, autostart=True)
+
+        self.assertIn("hover", seen.get("ui_button_end_turn", set()),
+                      "the button under the EVENT position must hover")
+        self.assertNotIn("hover", seen.get("ui_panel_stone", set()),
+                         "no widget under the stale get_pos() may hover")
+
+
 class TestCorruptManifestBoot(TempDataBoot):
     def test_corrupt_manifest_boots_and_logs(self):
         self.manifest_path.write_text("{this is not json", encoding="utf-8")
@@ -296,50 +384,162 @@ class TestRenderBackendSelection(TempDataBoot):
         self.assertEqual(len(updates), 5, "the HUD composite must upload once "
                                           "per frame, or the HUD freezes")
 
-    def test_map_event_does_not_rescale_an_already_logical_mouse_pos(self):
-        """LIVE BUG (G4 follow-up): every main-menu button was dead on
-        --backend=gpu while its hover animation still worked.
+    # -- cursor space: which source is scaled is MEASURED, not assumed ----
+    #
+    # This pair of tests used to be one test pinning a hard-coded answer, and
+    # it has been wrong in each direction in turn. `event.pos` and
+    # `pygame.mouse.get_pos()` both report the cursor, and on the GPU path one
+    # of them is in window pixels while the other is already renderer-logical
+    # — but WHICH one differs between pygame/SDL builds:
+    #
+    #   * 1280x720 window at logical 640x360: events arrived logical and
+    #     get_pos() was window pixels. A `map_event` that mapped anyway put
+    #     every click at a third of its position, so no menu button fired
+    #     while hover (the other source) stayed correct.
+    #   * 1920x1080 window at logical 640x360, direct3d: the reverse. MEASURED
+    #     live — `event.pos == (1652, 536)` for the cursor `get_pos()` reports
+    #     as (549, 177). `mouse_pos()` divided that correct value again and
+    #     handed hover (183, 59), which lit widgets near the top-left, drew
+    #     the lightning cooldown bar in the wrong place, and made the
+    #     construct card list refuse the wheel — `wants_scroll` was asked
+    #     about a point three times too far up and left to be on the panel.
+    #
+    # `_calibrate` compares the two readings of the SAME cursor and derives
+    # the answer. Both directions are pinned here; neither is the default.
 
-        pygame-ce ALREADY delivers mouse events in renderer-logical
-        coordinates once ``renderer.logical_size`` is set (MEASURED, pygame-ce
-        2.5.7 / SDL 2.32.10: a 1280x720 window at logical 640x360 reports
-        ``pos == (320, 180)`` for a click at physical (640, 360), and
-        ``rel == (100, 50)`` for a physical (+200, +100) move). ``map_event``
-        mapped them a SECOND time, so at the shipped fullscreen default every
-        click landed at a third of its true position. ``mouse_pos()`` reads
-        ``pygame.mouse.get_pos()``, which is NOT scaled, so hover stayed
-        correct and nothing else looked wrong.
+    def _presenter(self, window_size=(1920, 1080)):
+        p = game_main_module._GpuPresenter.__new__(
+            game_main_module._GpuPresenter)
 
-        The stub renderer below rescales, so a reintroduced mapping shows up
-        as a wrong coordinate rather than an AttributeError."""
         class _StubRenderer:
             def coordinates_from_window(self, point):
                 return point[0] / 3.0, point[1] / 3.0
 
-        presenter = game_main_module._GpuPresenter.__new__(
-            game_main_module._GpuPresenter)
-        presenter._renderer = _StubRenderer()
+        p._renderer = _StubRenderer()
+        p._window = unittest.mock.Mock(size=window_size)
+        p._view_w, p._view_h = 640, 360
+        p._map_events = None
+        p._map_get_pos = False
+        return p
 
+    def test_events_in_window_pixels_are_mapped_and_get_pos_is_not(self):
+        """The live case: `event.pos` is window pixels, `get_pos()` logical."""
+        p = self._presenter()
+        motion = pygame.event.Event(
+            pygame.MOUSEMOTION,
+            {"pos": (1647, 531), "rel": (300, 150), "buttons": (0, 0, 0),
+             "touch": False})
+        with unittest.mock.patch.object(pygame.mouse, "get_pos",
+                                        lambda: (549, 177)):
+            mapped = p.map_event(motion)
+            self.assertEqual(mapped.pos, (549, 177))
+            self.assertEqual(mapped.rel, (100, 50),
+                             "rel rides the same scale, or panning is 3x fast")
+            self.assertEqual(p.mouse_pos(), (549, 177),
+                             "get_pos() is already logical — do not divide it")
+
+    def test_get_pos_in_window_pixels_is_mapped_and_events_are_not(self):
+        """The other build: events arrive logical, `get_pos()` does not."""
+        p = self._presenter()
         down = pygame.event.Event(
             pygame.MOUSEBUTTONDOWN,
             {"pos": (320, 163), "button": 1, "clicks": 1, "touch": False})
-        mapped = game_main_module._GpuPresenter.map_event(presenter, down)
-        self.assertEqual(mapped.pos, (320, 163))
-        self.assertEqual(mapped.button, 1)
-
-        motion = pygame.event.Event(
-            pygame.MOUSEMOTION,
-            {"pos": (250, 200), "rel": (100, 50), "buttons": (0, 0, 0),
-             "touch": False})
-        mapped = game_main_module._GpuPresenter.map_event(presenter, motion)
-        self.assertEqual(mapped.pos, (250, 200))
-        self.assertEqual(mapped.rel, (100, 50))
-
-        # The other half of the asymmetry: get_pos() IS window pixels, so
-        # mouse_pos() must keep remapping it.
         with unittest.mock.patch.object(pygame.mouse, "get_pos",
                                         lambda: (960, 489)):
-            self.assertEqual(presenter.mouse_pos(), (320, 163))
+            mapped = p.map_event(down)
+            self.assertEqual(mapped.pos, (320, 163))
+            self.assertEqual(mapped.button, 1)
+            self.assertEqual(p.mouse_pos(), (320, 163))
+
+    def test_an_unscaled_window_maps_neither(self):
+        p = self._presenter(window_size=(640, 360))
+        down = pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            {"pos": (320, 163), "button": 1, "clicks": 1, "touch": False})
+        with unittest.mock.patch.object(pygame.mouse, "get_pos",
+                                        lambda: (320, 163)):
+            self.assertEqual(p.map_event(down).pos, (320, 163))
+            self.assertEqual(p.mouse_pos(), (320, 163))
+
+    def test_two_sources_that_already_agree_map_neither(self):
+        p = self._presenter()
+        down = pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            {"pos": (549, 177), "button": 1, "clicks": 1, "touch": False})
+        with unittest.mock.patch.object(pygame.mouse, "get_pos",
+                                        lambda: (549, 177)):
+            self.assertEqual(p.map_event(down).pos, (549, 177))
+            self.assertEqual(p.mouse_pos(), (549, 177))
+        self.assertFalse(p._map_events)
+        self.assertFalse(p._map_get_pos)
+
+    def test_a_sample_taken_mid_flick_defers_instead_of_guessing(self):
+        """The two reads are a frame apart. If neither relation holds the
+        cursor moved between them — freezing a verdict from that sample is how
+        a coordinate bug becomes intermittent."""
+        p = self._presenter()
+        down = pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            {"pos": (1647, 531), "button": 1, "clicks": 1, "touch": False})
+        with unittest.mock.patch.object(pygame.mouse, "get_pos",
+                                        lambda: (77, 301)):
+            p.map_event(down)
+        self.assertIsNone(p._map_events)
+        # a clean sample right after still decides
+        with unittest.mock.patch.object(pygame.mouse, "get_pos",
+                                        lambda: (549, 177)):
+            self.assertEqual(p.map_event(down).pos, (549, 177))
+        self.assertTrue(p._map_events)
+
+    def test_a_cursor_at_the_origin_does_not_decide_anything(self):
+        """Every space agrees at (0, 0) — calibrating there would coin-flip."""
+        p = self._presenter()
+        down = pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            {"pos": (1, 2), "button": 1, "clicks": 1, "touch": False})
+        with unittest.mock.patch.object(pygame.mouse, "get_pos",
+                                        lambda: (0, 0)):
+            p.map_event(down)
+        self.assertIsNone(p._map_events, "still undecided, try the next event")
+
+    def test_the_wheel_is_left_alone(self):
+        """MOUSEWHEEL carries no `pos` — mapping it would raise."""
+        p = self._presenter()
+        wheel = pygame.event.Event(
+            pygame.MOUSEWHEEL,
+            {"y": -1, "x": 0, "precise_y": -1.0, "precise_x": 0.0,
+             "flipped": False, "touch": False})
+        self.assertIs(p.map_event(wheel), wheel)
+
+
+class TestDpiAwareness(unittest.TestCase):
+    """The frame is a fixed 640x360 buffer upscaled whole to the monitor, so a
+    DPI-unaware process gets its window bilinear-stretched by the Windows
+    compositor AFTER SDL is done — blur nothing inside the frame can undo, plus
+    a non-integer scale factor that deforms glyph stems. See
+    `_enable_dpi_awareness`."""
+
+    _HINT = "SDL_WINDOWS_DPI_AWARENESS"
+
+    def setUp(self):
+        self._saved = os.environ.get(self._HINT)
+        os.environ.pop(self._HINT, None)
+
+    def tearDown(self):
+        if self._saved is None:
+            os.environ.pop(self._HINT, None)
+        else:
+            os.environ[self._HINT] = self._saved
+
+    def test_sets_per_monitor_awareness(self):
+        game_main_module._enable_dpi_awareness()
+        self.assertEqual(os.environ[self._HINT], "permonitorv2")
+
+    def test_env_override_wins(self):
+        """setdefault, not assignment — a launcher may pin a different mode."""
+        os.environ[self._HINT] = "system"
+        game_main_module._enable_dpi_awareness()
+        self.assertEqual(os.environ[self._HINT], "system")
 
 
 if __name__ == "__main__":

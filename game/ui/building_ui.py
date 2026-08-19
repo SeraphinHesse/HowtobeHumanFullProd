@@ -2206,6 +2206,47 @@ class BuildingUI:
         has_art = store.animation_total_ms(slot, "idle") is not None
         return slot if has_art else tier_slot
 
+    def wants_scroll(self, mx, my):
+        """Does a wheel tick at ``(mx, my)`` belong to this panel?
+
+        THE seam the host asks before zooming the camera instead — it used to
+        hand-roll the test as `mode == "construct" and preview is None and
+        contains(panel_rect, ...)`, which is wrong in one direction that
+        matters: `panel_rect` is the sidebar BODY, while the construct card
+        list is its own authored group that a designer can (and did) move to
+        a rect reaching outside it. A wheel tick over a card that sits left of
+        the body then zoomed the map, so the list scrolled over part of
+        itself and not the rest — "scrolling is broken", intermittently and
+        depending on where the cursor sat.
+
+        Both boxes count, so moving either one in the editor keeps the wheel
+        working.
+
+        An open preview answers **True from anywhere on screen** and then
+        `handle_scroll` does nothing: the preview is a MODAL (it already
+        swallows every click, see `handle_click`), so the wheel must not
+        reach the camera behind it. Answering False here is what used to
+        let a tick over an open build preview ZOOM THE MAP — the card list
+        visibly underneath it, refusing to move.
+
+        UNLOCK mode answers True as well. `handle_scroll` has always had a
+        branch for it — the terrain-condition list is the other thing on this
+        panel that overflows — but the host's inline test was
+        construct-ONLY, so that branch was unreachable and the terrain list
+        could not be scrolled by wheel at all. Every other mode answers
+        False."""
+        if self.preview is not None:
+            return True          # modal: swallowed, see `handle_scroll`
+        if self.mode == "construct":
+            list_id, holder = _CONSTRUCT_LIST_ID, self._construct_list
+        elif self.mode == "unlock":
+            list_id, holder = _TERRAIN_LIST_ID, self._terrain_list
+        else:
+            return False
+        if widgets.contains(self.panel_rect, mx, my):
+            return True
+        return widgets.contains(self._list_rect(list_id, holder), mx, my)
+
     def handle_scroll(self, dy):
         """Scroll the construct card list by ``dy`` cards, clamped.
 
@@ -2219,7 +2260,13 @@ class BuildingUI:
         offset is baked into it at build time — `open_for_tile` is otherwise
         the only thing that ever calls `_build_construct`, so without this the
         offset would move and nothing on screen would. Cheap: this runs on a
-        wheel event, never per frame."""
+        wheel event, never per frame.
+
+        A no-op while a preview is open — that modal owns the wheel only
+        to keep it away from the camera zoom behind it.
+        """
+        if self.preview is not None:
+            return
         if self.mode == "unlock":
             # The terrain-card list scrolls on the same seam. Its cards have
             # VARIABLE height (a condition with more effect lines is taller),
@@ -3562,7 +3609,6 @@ class BuildingUI:
             trcv.damage_pct = rcv.damage_pct
             trcv.speed_pct = rcv.speed_pct
             trcv.hp_pct = rcv.hp_pct
-            trcv.explosion_debuffs = list(rcv.explosion_debuffs)
         ye = b.get_component(YieldEconomy)
         tye = temp.get_component(YieldEconomy)
         if ye is not None and tye is not None:

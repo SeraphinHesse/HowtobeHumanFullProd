@@ -10,12 +10,15 @@ validating writer; don't hand-edit the JSON.
 
 ## What lives here
 - `schemas/` — one JSON Schema per file type.
-  `dispatch_handoff.schema.json`, `highscores.schema.json` and
-  `keybindings.schema.json` are the THREE schemas with no `data/` content
+  `dispatch_handoff.schema.json`, `highscores.schema.json`,
+  `keybindings.schema.json`, `audio_settings.schema.json` and
+  `render_settings.schema.json` are the FIVE schemas with no `data/` content
   file at all (handoffs are written to the gitignored `.claude/dispatch/`,
-  high scores AND a player's rebind overrides to the gitignored `scores/`,
-  all still through `write_validated` — the single write path holds), which
-  is legal: `tools/smoke.py::validate_data` skips `data/schemas/` entirely.
+  high scores AND a player's rebind overrides to the gitignored `scores/`, the
+  audio volumes and the GPU/CPU render-backend pick to the gitignored
+  `settings/`, all still through `write_validated` — the single write path
+  holds), which is legal: `tools/smoke.py::validate_data` skips
+  `data/schemas/` entirely.
   When a schema governs per-machine runtime state rather than designer
   content, this is the shape to copy — `keybindings.schema.json` validates
   `scores/keybindings.json` (feature: rebindable hotkeys, `engine/input.py`);

@@ -1,0 +1,22 @@
+{
+  "$id": "render_settings.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "settings/render.json (gitignored per-machine render-backend preference; no data/ content file pairs with this schema - validate_data skips data/schemas/). Written ONLY by game/core/render_settings.py through engine.data_io.write_validated and read back through the same module, which returns the default backend rather than raising when the file is missing or unreadable. Read at BOOT only: an explicit --backend flag or HTBH_RENDER_BACKEND still wins.",
+  "properties": {
+    "backend": {
+      "description": "Which render stack to build at the next launch: 'gpu' (SDL2 texture), 'surface' (CPU blitter - the settings screen calls this CPU), or 'auto' (try GPU, fall back to Surface whole).",
+      "enum": [
+        "auto",
+        "gpu",
+        "surface"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "backend"
+  ],
+  "title": "render_settings",
+  "type": "object"
+}

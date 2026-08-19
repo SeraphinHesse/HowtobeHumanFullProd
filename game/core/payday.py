@@ -149,10 +149,11 @@ def _process_boosts(state, tilemap, boss_upgrades_balance=None):
     An ALIVE booster in RAMP mode accumulates one turn of its stat onto its
     cardinal-adjacent combat neighbours (a floater per neighbour); in FLAT mode the
     boost was already applied at placement, so it only pays upkeep. A booster that
-    DIED this round (seen here BEFORE the revive step, exactly like painters) stamps
-    its one-shot explosion debuff on those neighbours — guarded by ``BoostEmitter``
-    so a single death explodes once; flat mode also reverses its 10× contribution
-    here. The revive step then rebuilds it and clears the guard.
+    DIED this round (seen here BEFORE the revive step, exactly like painters) has
+    its 10× flat contribution reversed here — idempotent via
+    ``BoostEmitter.flat_applied``. In RAMP mode a death does nothing at all: the
+    one-shot explosion debuff a dead booster used to stamp on its neighbours is
+    removed. The revive step then rebuilds it.
 
     ``boss_upgrades_balance`` (BU-3 3.6, #10 ``boost_double_trigger``): with the
     upgrade picked, ``apply_per_turn()`` runs ``extra_triggers`` ADDITIONAL
@@ -173,12 +174,9 @@ def _process_boosts(state, tilemap, boss_upgrades_balance=None):
                 for _ in range(1 + extra):
                     for col, row, text in b.apply_per_turn(tilemap):
                         state.boost_events.append((col, row, text))
-        elif not emitter.exploded:
-            if b.flat_mode() and emitter.flat_applied:
-                b.remove_flat(tilemap)
-                emitter.flat_applied = False
-            b.apply_explosion_debuff(tilemap)
-            emitter.exploded = True
+        elif b.flat_mode() and emitter.flat_applied:
+            b.remove_flat(tilemap)
+            emitter.flat_applied = False
 
 
 def _process_wall_teardown(tilemap):
@@ -299,7 +297,7 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None,
         debug.on_payday_end(state, tilemap)
 
     # 7. Boost sweep — BEFORE revive (10D): alive boosters accumulate their
-    #    per-turn buff, dead boosters explode their debuff onto neighbours.
+    #    per-turn buff, dead boosters (flat mode only) give theirs back.
     #    BU-3 3.6 (#10): the boss upgrade adds EXTRA per-turn triggers INSIDE
     #    this slot — the ordinal position of the step is untouched.
     _process_boosts(state, tilemap, boss_upgrades_balance)

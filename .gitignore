@@ -37,5 +37,6 @@ logs/
 # ── High scores (game/core/highscores.py) — per-machine play history ──
 scores/
 
-# ── Audio volumes (game/core/audio_settings.py) — per-machine preferences ──
+# ── Per-machine preferences: audio volumes (game/core/audio_settings.py)
+#    and the render backend (game/core/render_settings.py) ──
 settings/
