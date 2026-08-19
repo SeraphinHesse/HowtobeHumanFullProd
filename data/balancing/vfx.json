@@ -453,7 +453,7 @@
     },
     "enemy_death": {
       "draw_in_front": true,
-      "procedural": "splatter",
+      "procedural": "",
       "sprite_slot": "",
       "variant_select": {
         "misc_key": "",

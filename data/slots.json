@@ -1027,7 +1027,8 @@
             {
               "label": "Stone Panel",
               "slots": [
-                "ui_panel_stone"
+                "ui_panel_stone",
+                "ui_panel_stone_v2"
               ]
             }
           ],

@@ -60,6 +60,78 @@
       "view": "upgrade",
       "z": 2
     },
+    "custom_panel_14": {
+      "band": "under",
+      "kind": "panel",
+      "rect": [
+        220,
+        120,
+        200,
+        120
+      ],
+      "view": "upgrade",
+      "z": 1
+    },
+    "custom_panel_15": {
+      "band": "under",
+      "kind": "panel",
+      "rect": [
+        220,
+        120,
+        200,
+        120
+      ],
+      "view": "upgrade",
+      "z": 2
+    },
+    "custom_panel_16": {
+      "band": "under",
+      "kind": "panel",
+      "rect": [
+        220,
+        120,
+        200,
+        120
+      ],
+      "view": "upgrade",
+      "z": 3
+    },
+    "custom_panel_17": {
+      "band": "under",
+      "kind": "panel",
+      "rect": [
+        220,
+        120,
+        200,
+        120
+      ],
+      "view": "upgrade",
+      "z": 2
+    },
+    "custom_panel_18": {
+      "band": "under",
+      "kind": "panel",
+      "rect": [
+        220,
+        120,
+        200,
+        120
+      ],
+      "view": "upgrade",
+      "z": 1
+    },
+    "custom_panel_19": {
+      "band": "under",
+      "kind": "panel",
+      "rect": [
+        220,
+        120,
+        200,
+        120
+      ],
+      "view": "upgrade",
+      "z": 4
+    },
     "custom_panel_2": {
       "band": "under",
       "kind": "panel",
@@ -70,6 +142,18 @@
         120
       ],
       "view": "unlock",
+      "z": 1
+    },
+    "custom_panel_20": {
+      "band": "under",
+      "kind": "panel",
+      "rect": [
+        220,
+        120,
+        200,
+        120
+      ],
+      "view": "upgrade",
       "z": 1
     },
     "custom_panel_3": {
@@ -162,8 +246,8 @@
     "action_btn": {
       "font": "md",
       "rect": [
-        489,
-        261,
+        485,
+        256,
         140,
         40
       ],
@@ -457,11 +541,193 @@
         70
       ]
     },
+    "card_aoe_defence_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_aoe_defence_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "card_blocker_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_blocker_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "card_boost_damage_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_boost_damage_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "card_boost_hp_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_boost_hp_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "card_boost_speed_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_boost_speed_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "card_defence_frame": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_defence_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_defence_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "card_economic_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_economic_name2": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_economic_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "card_meditator_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_meditator_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "card_painter_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_painter_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "card_storm_priest_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_storm_priest_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "card_sun_scorcher_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_sun_scorcher_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "card_wall_builder_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_wall_builder_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
     "close_btn": {
       "label": "",
       "rect": [
-        430,
-        58,
+        431,
+        59,
         42,
         55
       ],
@@ -790,8 +1056,8 @@
       ],
       "parent": "upgrade_terrain_card_list",
       "rect": [
-        488,
-        300,
+        484,
+        310,
         40,
         40
       ],
@@ -805,12 +1071,101 @@
       ],
       "parent": "custom_panel_12",
       "rect": [
-        488,
-        300,
+        484,
+        310,
         40,
         40
       ],
       "skin": "ui_panel_v7"
+    },
+    "custom_panel_14": {
+      "color": [
+        70,
+        70,
+        100
+      ],
+      "rect": [
+        489,
+        172,
+        133,
+        96
+      ],
+      "skin": "ui_panel_v19"
+    },
+    "custom_panel_15": {
+      "color": [
+        70,
+        70,
+        100
+      ],
+      "parent": "custom_panel_14",
+      "rect": [
+        488,
+        211,
+        133,
+        66
+      ],
+      "skin": "ui_panel_v16"
+    },
+    "custom_panel_16": {
+      "color": [
+        70,
+        70,
+        100
+      ],
+      "parent": "custom_panel_17",
+      "rect": [
+        501,
+        64,
+        113,
+        96
+      ],
+      "skin": "ui_panel_v19"
+    },
+    "custom_panel_17": {
+      "color": [
+        70,
+        70,
+        100
+      ],
+      "parent": "custom_panel_20",
+      "rect": [
+        501,
+        44,
+        113,
+        96
+      ],
+      "skin": "ui_panel_v19"
+    },
+    "custom_panel_18": {
+      "color": [
+        70,
+        70,
+        100
+      ],
+      "rect": [
+        520,
+        40,
+        73,
+        27
+      ],
+      "skin": "ui_panel_stone",
+      "visible": false
+    },
+    "custom_panel_19": {
+      "color": [
+        70,
+        70,
+        100
+      ],
+      "parent": "custom_panel_16",
+      "rect": [
+        501,
+        84,
+        113,
+        96
+      ],
+      "skin": "ui_panel_v19"
     },
     "custom_panel_2": {
       "color": [
@@ -826,6 +1181,20 @@
         40
       ],
       "skin": "ui_panel_v6"
+    },
+    "custom_panel_20": {
+      "color": [
+        70,
+        70,
+        100
+      ],
+      "rect": [
+        501,
+        37,
+        113,
+        96
+      ],
+      "skin": "ui_panel_v9"
     },
     "custom_panel_3": {
       "color": [
@@ -926,24 +1295,27 @@
       "parent": "unlock_title",
       "rect": [
         494,
-        -11,
+        -9,
         132,
         128
       ],
       "skin": "ui_panel_v11"
     },
     "died_last_round": {
+      "font": "pixel_azure",
+      "parent": "custom_panel_15",
       "rect": [
-        556,
-        158,
+        554,
+        236,
         0,
         0
       ]
     },
     "dmg_dealt_label": {
+      "parent": "custom_panel_14",
       "rect": [
-        500,
-        134,
+        497,
+        216,
         0,
         0
       ],
@@ -954,17 +1326,26 @@
       ]
     },
     "dmg_dealt_value": {
+      "align": "center",
+      "font": "lg",
+      "parent": "custom_panel_14",
       "rect": [
-        610,
-        134,
+        592,
+        212,
         0,
         0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
       ]
     },
     "dmg_taken_label": {
+      "parent": "custom_panel_14",
       "rect": [
-        500,
-        146,
+        496,
+        196,
         0,
         0
       ],
@@ -975,11 +1356,19 @@
       ]
     },
     "dmg_taken_value": {
+      "align": "center",
+      "font": "lg",
+      "parent": "custom_panel_14",
       "rect": [
-        610,
-        146,
+        592,
+        195,
         0,
         0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
       ]
     },
     "info_base_income_label": {
@@ -1088,17 +1477,19 @@
       ]
     },
     "move_btn": {
+      "font": "sm",
       "rect": [
-        500,
-        329,
+        496,
+        296,
         118,
-        15
-      ]
+        18
+      ],
+      "skin": "ui_button_panel_v5"
     },
     "next_tier_header": {
       "rect": [
-        518,
-        1,
+        191,
+        66,
         0,
         0
       ]
@@ -1106,8 +1497,8 @@
     "panel": {
       "band": "under",
       "rect": [
-        472,
-        1,
+        473,
+        2,
         167,
         360
       ],
@@ -1159,8 +1550,8 @@
     },
     "rename_dice_btn": {
       "rect": [
-        611,
-        21,
+        612,
+        22,
         14,
         15
       ],
@@ -1168,8 +1559,8 @@
     },
     "stat_atk_speed_base_label": {
       "rect": [
-        500,
-        157,
+        148,
+        48,
         0,
         0
       ],
@@ -1180,17 +1571,20 @@
       ]
     },
     "stat_atk_speed_base_value": {
+      "align": "right",
+      "parent": "stat_atk_speed_base_label",
       "rect": [
-        610,
-        157,
+        225,
+        48,
         0,
         0
       ]
     },
     "stat_atk_speed_label": {
+      "parent": "custom_panel_17",
       "rect": [
-        500,
-        101,
+        513,
+        125,
         0,
         0
       ],
@@ -1201,17 +1595,20 @@
       ]
     },
     "stat_atk_speed_value": {
+      "align": "center",
+      "parent": "stat_atk_speed_label",
       "rect": [
-        610,
-        101,
+        590,
+        125,
         0,
         0
       ]
     },
     "stat_boost_damage_label": {
+      "parent": "custom_panel_17",
       "rect": [
-        501,
-        199,
+        513,
+        86,
         0,
         0
       ],
@@ -1222,17 +1619,20 @@
       ]
     },
     "stat_boost_damage_value": {
+      "align": "center",
+      "parent": "stat_boost_damage_label",
       "rect": [
-        610,
-        199,
+        590,
+        86,
         0,
         0
       ]
     },
     "stat_boost_hp_label": {
+      "parent": "custom_panel_17",
       "rect": [
-        500,
-        213,
+        513,
+        86,
         0,
         0
       ],
@@ -1243,17 +1643,20 @@
       ]
     },
     "stat_boost_hp_value": {
+      "align": "center",
+      "parent": "stat_boost_hp_label",
       "rect": [
-        610,
-        213,
+        590,
+        86,
         0,
         0
       ]
     },
     "stat_boost_label": {
+      "parent": "custom_panel_17",
       "rect": [
-        500,
-        171,
+        513,
+        105,
         0,
         0
       ],
@@ -1264,9 +1667,10 @@
       ]
     },
     "stat_boost_speed_label": {
+      "parent": "custom_panel_17",
       "rect": [
-        500,
-        185,
+        513,
+        86,
         0,
         0
       ],
@@ -1277,17 +1681,21 @@
       ]
     },
     "stat_boost_speed_value": {
+      "align": "center",
+      "parent": "stat_boost_speed_label",
       "rect": [
-        610,
-        185,
+        590,
+        86,
         0,
         0
       ]
     },
     "stat_boost_value": {
+      "align": "center",
+      "parent": "stat_boost_label",
       "rect": [
-        610,
-        171,
+        590,
+        105,
         0,
         0
       ],
@@ -1299,24 +1707,28 @@
     },
     "stat_damage_base_label": {
       "rect": [
-        500,
-        143,
+        148,
+        22,
         0,
         0
       ]
     },
     "stat_damage_base_value": {
+      "align": "center",
+      "parent": "stat_damage_base_label",
       "rect": [
-        610,
-        143,
+        225,
+        22,
         0,
         0
       ]
     },
     "stat_damage_label": {
+      "align": "left",
+      "parent": "custom_panel_17",
       "rect": [
-        500,
-        73,
+        513,
+        86,
         0,
         0
       ],
@@ -1327,33 +1739,39 @@
       ]
     },
     "stat_damage_value": {
+      "align": "center",
+      "parent": "stat_damage_label",
       "rect": [
-        610,
-        73,
+        590,
+        86,
         0,
         0
       ]
     },
     "stat_hp_base_label": {
       "rect": [
-        500,
-        129,
+        148,
+        44,
         0,
         0
       ]
     },
     "stat_hp_base_value": {
+      "align": "center",
+      "parent": "stat_hp_base_label",
       "rect": [
-        610,
-        129,
+        225,
+        44,
         0,
         0
       ]
     },
     "stat_hp_label": {
+      "align": "left",
+      "parent": "custom_panel_17",
       "rect": [
-        500,
-        59,
+        513,
+        67,
         0,
         0
       ],
@@ -1364,17 +1782,20 @@
       ]
     },
     "stat_hp_value": {
+      "align": "center",
+      "parent": "stat_hp_label",
       "rect": [
-        610,
-        59,
+        590,
+        67,
         0,
         0
       ]
     },
     "stat_payout_label": {
+      "parent": "custom_panel_17",
       "rect": [
-        501,
-        255,
+        513,
+        125,
         0,
         0
       ],
@@ -1385,33 +1806,39 @@
       ]
     },
     "stat_payout_value": {
+      "align": "center",
+      "parent": "stat_payout_label",
       "rect": [
-        610,
-        255,
+        590,
+        125,
         0,
         0
       ]
     },
     "stat_pays_in_label": {
+      "parent": "custom_panel_17",
       "rect": [
-        517,
-        269,
+        513,
+        105,
         0,
         0
       ]
     },
     "stat_pays_in_value": {
+      "align": "center",
+      "parent": "stat_pays_in_label",
       "rect": [
-        633,
-        269,
+        590,
+        105,
         0,
         0
       ]
     },
     "stat_progress_label": {
+      "parent": "custom_panel_17",
       "rect": [
-        500,
-        241,
+        513,
+        86,
         0,
         0
       ],
@@ -1422,17 +1849,20 @@
       ]
     },
     "stat_progress_value": {
+      "align": "center",
+      "parent": "stat_progress_label",
       "rect": [
-        610,
-        241,
+        590,
+        86,
         0,
         0
       ]
     },
     "stat_range_label": {
+      "parent": "custom_panel_17",
       "rect": [
-        500,
-        87,
+        513,
+        105,
         0,
         0
       ],
@@ -1443,33 +1873,39 @@
       ]
     },
     "stat_range_value": {
+      "align": "center",
+      "parent": "stat_range_label",
       "rect": [
-        610,
-        87,
+        590,
+        105,
         0,
         0
       ]
     },
     "stat_streak_label": {
+      "parent": "custom_panel_17",
       "rect": [
-        500,
-        297,
+        513,
+        86,
         0,
         0
       ]
     },
     "stat_streak_value": {
+      "align": "center",
+      "parent": "stat_streak_label",
       "rect": [
-        610,
-        297,
+        590,
+        86,
         0,
         0
       ]
     },
     "stat_upkeep_label": {
+      "parent": "custom_panel_17",
       "rect": [
-        500,
-        115,
+        513,
+        145,
         0,
         0
       ],
@@ -1480,17 +1916,20 @@
       ]
     },
     "stat_upkeep_value": {
+      "align": "center",
+      "parent": "stat_upkeep_label",
       "rect": [
-        610,
-        115,
+        590,
+        145,
         0,
         0
       ]
     },
     "stat_wall_hp_label": {
+      "parent": "custom_panel_17",
       "rect": [
-        500,
-        227,
+        513,
+        86,
         0,
         0
       ],
@@ -1501,27 +1940,32 @@
       ]
     },
     "stat_wall_hp_value": {
+      "align": "center",
+      "parent": "stat_wall_hp_label",
       "rect": [
-        610,
-        227,
+        590,
+        86,
         0,
         0
       ]
     },
     "stat_yield_label": {
+      "parent": "custom_panel_17",
       "rect": [
-        500,
-        283,
+        513,
+        86,
         0,
         0
       ]
     },
     "stat_yield_value": {
+      "align": "center",
+      "parent": "stat_yield_label",
       "rect": [
-        610,
-        283,
+        590,
+        86,
         0,
-        0
+        11
       ]
     },
     "terrain_card_list": {
@@ -1558,10 +2002,9 @@
     },
     "unlock_title": {
       "align": "left",
-      "font_family": "pixel_musketeer",
       "rect": [
         512,
-        43,
+        44,
         0,
         0
       ],
@@ -1574,8 +2017,8 @@
     },
     "upgrade_cond_card_forest": {
       "rect": [
-        524,
-        305,
+        520,
+        315,
         100,
         30
       ],
@@ -1584,8 +2027,8 @@
     "upgrade_cond_card_forest_count": {
       "align": "center",
       "rect": [
-        596,
-        308,
+        592,
+        318,
         0,
         0
       ],
@@ -1593,12 +2036,13 @@
         255,
         255,
         255
-      ]
+      ],
+      "visible": false
     },
     "upgrade_cond_card_forest_effect_0": {
       "rect": [
-        530,
-        320,
+        526,
+        330,
         0,
         0
       ],
@@ -1611,8 +2055,8 @@
     "upgrade_cond_card_forest_effect_1": {
       "align": "center",
       "rect": [
-        596,
-        320,
+        592,
+        330,
         0,
         0
       ],
@@ -1624,16 +2068,16 @@
     },
     "upgrade_cond_card_forest_name": {
       "rect": [
-        536,
-        308,
+        532,
+        318,
         0,
         0
       ]
     },
     "upgrade_cond_card_forest_sprite": {
       "rect": [
-        496,
-        310,
+        492,
+        320,
         24,
         24
       ]
@@ -1641,8 +2085,8 @@
     "upgrade_cond_card_grass": {
       "align": "left",
       "rect": [
-        524,
-        305,
+        520,
+        315,
         100,
         30
       ],
@@ -1651,8 +2095,8 @@
     "upgrade_cond_card_grass_count": {
       "align": "center",
       "rect": [
-        596,
-        308,
+        592,
+        318,
         0,
         0
       ],
@@ -1660,12 +2104,13 @@
         255,
         255,
         255
-      ]
+      ],
+      "visible": false
     },
     "upgrade_cond_card_grass_effect_0": {
       "rect": [
-        533,
-        320,
+        529,
+        330,
         0,
         0
       ],
@@ -1677,32 +2122,32 @@
     },
     "upgrade_cond_card_grass_effect_1": {
       "rect": [
-        552,
-        332,
+        548,
+        342,
         0,
         0
       ]
     },
     "upgrade_cond_card_grass_name": {
       "rect": [
-        534,
-        307,
+        530,
+        317,
         0,
         0
       ]
     },
     "upgrade_cond_card_grass_sprite": {
       "rect": [
-        496,
-        316,
+        492,
+        326,
         26,
         8
       ]
     },
     "upgrade_cond_card_mountain": {
       "rect": [
-        524,
-        305,
+        520,
+        315,
         100,
         30
       ],
@@ -1711,8 +2156,8 @@
     "upgrade_cond_card_mountain_count": {
       "align": "center",
       "rect": [
-        596,
-        308,
+        592,
+        318,
         0,
         0
       ],
@@ -1720,12 +2165,13 @@
         255,
         255,
         255
-      ]
+      ],
+      "visible": false
     },
     "upgrade_cond_card_mountain_effect_0": {
       "rect": [
-        534,
-        321,
+        530,
+        331,
         0,
         0
       ],
@@ -1738,8 +2184,8 @@
     "upgrade_cond_card_mountain_effect_1": {
       "align": "center",
       "rect": [
-        596,
-        321,
+        592,
+        331,
         0,
         0
       ],
@@ -1751,24 +2197,24 @@
     },
     "upgrade_cond_card_mountain_name": {
       "rect": [
-        531,
-        307,
+        527,
+        317,
         0,
         0
       ]
     },
     "upgrade_cond_card_mountain_sprite": {
       "rect": [
-        496,
-        308,
+        492,
+        318,
         24,
         24
       ]
     },
     "upgrade_cond_card_pond": {
       "rect": [
-        524,
-        305,
+        520,
+        315,
         100,
         30
       ],
@@ -1777,8 +2223,8 @@
     "upgrade_cond_card_pond_count": {
       "align": "center",
       "rect": [
-        596,
-        308,
+        592,
+        318,
         0,
         0
       ],
@@ -1786,12 +2232,13 @@
         255,
         255,
         255
-      ]
+      ],
+      "visible": false
     },
     "upgrade_cond_card_pond_effect_0": {
       "rect": [
-        534,
-        320,
+        530,
+        330,
         0,
         0
       ],
@@ -1803,88 +2250,86 @@
     },
     "upgrade_cond_card_pond_effect_1": {
       "rect": [
-        550,
-        325,
+        546,
+        335,
         0,
         0
       ]
     },
     "upgrade_cond_card_pond_name": {
       "rect": [
-        536,
-        309,
+        532,
+        319,
         0,
         0
       ]
     },
     "upgrade_cond_card_pond_sprite": {
       "rect": [
-        496,
-        307,
+        492,
+        317,
         24,
         24
       ]
     },
     "upgrade_hint": {
       "rect": [
-        0,
         1,
-        0,
-        0
-      ]
-    },
-    "upgrade_name": {
-      "rect": [
-        496,
-        23,
+        2,
         0,
         0
       ]
     },
     "upgrade_swatch_0": {
+      "parent": "custom_panel_18",
       "rect": [
-        481,
-        213,
+        574,
+        49,
         12,
         12
       ]
     },
     "upgrade_swatch_1": {
+      "parent": "custom_panel_18",
       "rect": [
-        481,
-        199,
+        559,
+        49,
         12,
         12
       ]
     },
     "upgrade_swatch_2": {
+      "parent": "custom_panel_18",
       "rect": [
-        481,
-        170,
+        529,
+        49,
         12,
         12
       ]
     },
     "upgrade_swatch_3": {
+      "parent": "custom_panel_18",
       "rect": [
-        481,
-        185,
+        544,
+        49,
         12,
         12
       ]
     },
     "upgrade_terrain_card_list": {
+      "parent": null,
       "rect": [
-        490,
-        290,
+        486,
+        300,
         150,
         70
       ]
     },
     "upgrade_tier_level": {
+      "font": "sm",
       "rect": [
-        492,
-        46,
+        499,
+        36,
         0,
         0
       ],
@@ -1896,8 +2341,8 @@
     },
     "upgrade_title": {
       "rect": [
-        517,
-        6,
+        518,
+        7,
         0,
         0
       ]

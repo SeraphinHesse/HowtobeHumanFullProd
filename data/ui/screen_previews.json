@@ -4200,6 +4200,22 @@
             "type": "text"
           },
           {
+            "align": "center",
+            "color": [
+              80,
+              210,
+              80
+            ],
+            "family": null,
+            "font_key": "sm",
+            "pos": [
+              575,
+              157
+            ],
+            "text": "SURVIVED LAST ROUND",
+            "type": "text"
+          },
+          {
             "border_radius": 3,
             "color": [
               75,

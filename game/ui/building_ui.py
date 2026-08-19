@@ -468,6 +468,21 @@ _BASE_INFO_ROWS = ("lives", "wave", "enemies_killed", "buildings",
 _BOOSTED_STAT_KEYS = {"HP": "hp_base", "Damage": "damage_base",
                       "Atk speed": "atk_speed_base"}
 
+#: The nested plates behind the upgrade view's stat block:
+#: ``{custom widget id: the fewest stat rows that still needs it}``. The
+#: block is as tall as the building has stats (``_building_stats``), and the
+#: three plates are a stack (``17`` parents ``16`` parents ``19``), so each
+#: one peels off as the block shrinks: 5+ rows shows all three, 4 drops
+#: ``19``, 3 drops ``16`` too, 2 or fewer leaves none of them. Under its
+#: threshold a plate is simply not drawn (``_hidden_stat_backdrops``, fed to
+#: ``ScreenSkinning.submit_layers``).
+#: Code-owned rather than a key in `data/ui/screens/building_panel.json`
+#: because the doc has no expression for "how many stat rows does the
+#: SELECTED building have" — the ids are the designer's, the threshold is
+#: the rule.
+_STAT_BACKDROP_MIN_ROWS = {"custom_panel_17": 3, "custom_panel_16": 4,
+                           "custom_panel_19": 5}
+
 
 def _building_stats(b):
     """``[(stat_key, value)]`` for a building's current tier — the panel/
@@ -786,18 +801,52 @@ class ConstructPreview:
         # ids/apply run ONCE here rather than every layout() — there is no
         # per-frame layout() to hook.
         self._panel = SimpleNamespace(rect=self.rect, skin=None)
+        # The modal's four texts and its name box are WIDGETS (UT-1/UT-3):
+        # the master name at the top, the price under it, the "Name:" caption
+        # and the field's own content each get an id, and the box behind them
+        # is a `panel` a designer can move, resize, skin or hide. They were
+        # bare `submit_text`/`HudRect` draws — the only part of this modal
+        # the editor could not touch.
+        self._name_box = SimpleNamespace(rect=self.name_rect, skin=None,
+                                         visible=True)
+        cx = x + pw // 2
+        self._text = {
+            # `text_id=None`: the title is a live tier/batch name, not a
+            # template a designer can write — `submit()` passes `text=`.
+            "preview_title": label_holder((cx, y + 6, 0, 0), font_key="lg",
+                                          align="center"),
+            "preview_cost": label_holder((cx, y + 22, 0, 0),
+                                         text_id="building.preview.cost",
+                                         font_key="md", align="center"),
+            "preview_name_label": label_holder(
+                (x + 8, y + 38, 0, 0),
+                text_id="building.preview.name_label", font_key="sm"),
+            # The placeholder is the holder's own template; a typed name
+            # arrives as `text=`, exactly like the upgrade panel's twin.
+            "preview_name": label_holder(
+                (self.name_rect[0] + 4, self.name_rect[1] + 3, 0, 0),
+                text_id="building.preview.click_to_name", font_key="md"),
+        }
         self.ids = {"preview_panel": ("panel", self._panel),
+                    "preview_name_box": ("panel", self._name_box),
                     "preview_close_btn": ("button", self.close_btn),
                     "preview_confirm_btn": ("button", self.confirm_btn),
                     "preview_dice_btn": ("button", self.dice_btn)}
         if self.cancel_btn is not None:
             self.ids["preview_cancel_btn"] = ("button", self.cancel_btn)
+        for name, holder in self._text.items():
+            self.ids[name] = ("label", holder)
         # B2: the swatches join the ids BEFORE apply, so a screen override can
         # skin/hide them like any other widget. Empty when the row is inert,
         # so a colourless building's id set is byte-identical to before.
         self.ids.update(self.swatches.ids)
         self.skinning.apply(self.screen_id, self.ids)
         self.rect = self._panel.rect
+        # Same read-back as `self.rect` above: a moved box must be CLICKED
+        # where it is drawn (`handle_click` tests `name_rect`). One-shot,
+        # like every other rect here — this modal's geometry is fixed for its
+        # instance's lifetime, so there is no per-frame `layout()` to redo it.
+        self.name_rect = self._name_box.rect
 
     @property
     def total_cost(self):
@@ -883,12 +932,10 @@ class ConstructPreview:
             self.name += char
 
     def submit(self, renderer, anim_ms=0):
-        from engine.render import HudRect
-
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
                                     "under", self.skinning.state_of,
                                     view=_PREVIEW_VIEW)
-        x, y, w, h = self.rect
+        x, y, w, _h = self.rect
         # Submission order (game/ui/CLAUDE.md "panel -> button -> text"):
         # ALL panel/background submissions first, THEN all buttons, THEN all
         # text — HUD draw order is submission order (engine/render/CLAUDE.md).
@@ -897,17 +944,19 @@ class ConstructPreview:
                         border=widgets.C_UI_BORDER, skin=self._panel.skin,
                         tint=getattr(self._panel, "tint", None),
                         anim_ms=anim_ms)
-        nx, ny, nw, nh = self.name_rect
-        renderer.submit_hud(HudRect(self.name_rect, widgets.C_PANEL_STONE))
-        renderer.submit_hud(HudRect(
-            self.name_rect,
-            # VA-5: the focus ring borrows the SELECTION colour deliberately —
-            # it read the same `highlight` palette key before that key moved
-            # into procedural.highlights, so this is zero visual change with
-            # one home rather than a second copy of the value.
-            (widgets.highlight_color("tile_selected") if self.editing
-             else widgets.C_UI_BORDER),
-            width=1))
+        if is_visible(self._name_box):
+            submit_panel(
+                renderer, self.name_rect, fill=widgets.C_PANEL_STONE,
+                # VA-5: the focus ring borrows the SELECTION colour
+                # deliberately — it read the same `highlight` palette key
+                # before that key moved into procedural.highlights, so this is
+                # zero visual change with one home rather than a second copy
+                # of the value. It stays code-owned for the same reason the
+                # upgrade panel's does: it is focus state, not decoration.
+                border=(widgets.highlight_color("tile_selected")
+                        if self.editing else widgets.C_UI_BORDER),
+                skin=self._name_box.skin,
+                tint=getattr(self._name_box, "tint", None), anim_ms=anim_ms)
         if is_visible(self.dice_btn):
             self.dice_btn.submit(renderer, anim_ms=anim_ms,
                                  **button_kwargs(self.dice_btn))
@@ -923,21 +972,20 @@ class ConstructPreview:
         # B2: inside the BUTTON block, never the text block (the swatches ARE
         # buttons). Its own selection ring rides immediately behind its swatch.
         self.swatches.submit(renderer, self.chosen_column, anim_ms=anim_ms)
-        cx = x + w // 2
-        submit_text(renderer, self.title, (cx, y + 6), "lg", widgets.C_UI_TEXT,
-                    align="center")
-        submit_text(renderer, T("building.preview.cost", cost=self.total_cost),
-                    (cx, y + 22),
-                    "md", widgets.C_GOLD, align="center")
-        submit_text(renderer, T("building.preview.name_label"), (x + 8, y + 38),
-                    "sm", widgets.C_UI_TEXT_DIM)
+        txt = self._text
+        submit_label(renderer, txt["preview_title"], text=self.title,
+                     color=widgets.C_UI_TEXT)
+        submit_label(renderer, txt["preview_cost"], color=widgets.C_GOLD,
+                     cost=self.total_cost)
+        submit_label(renderer, txt["preview_name_label"],
+                     color=widgets.C_UI_TEXT_DIM)
         if self.name or self.editing:
-            shown = self.name + ("_" if self.editing else "")
-            tcol = widgets.C_UI_TEXT
+            submit_label(renderer, txt["preview_name"],
+                         text=self.name + ("_" if self.editing else ""),
+                         color=widgets.C_UI_TEXT)
         else:
-            shown = T("building.preview.click_to_name")
-            tcol = widgets.C_UI_TEXT_DIM
-        submit_text(renderer, shown, (nx + 4, ny + 3), "md", tcol)
+            submit_label(renderer, txt["preview_name"],
+                         color=widgets.C_UI_TEXT_DIM)
         sy = y + 69
         # Font-scale row step (see _row_step). leading=0 here, deliberately:
         # this modal is height-constrained. The widest stat list a FRESH
@@ -1204,7 +1252,15 @@ class BuildingUI:
         # inside it is "sm" (layout_h 11) drawn at +2, and the dice glyph is
         # "md" (layout_h 13); an 11px row clipped both, and the 12x11 dice was
         # under the 12px click-target floor.
-        self._name_box_rect = (self.panel_x + 7, 20, self.panel_w - 32, 15)
+        #: The rename box is a WIDGET (``upgrade_name_box``), not a pair of
+        #: bare rects: a designer can move, resize, skin, tint or hide it like
+        #: any other, and because ``_name_box_rect`` reads straight off the
+        #: holder, ``apply()``'s override moves the CLICK ZONE with the box —
+        #: the field is typed into where it is drawn, not where the code
+        #: originally put it.
+        self._name_box = SimpleNamespace(
+            rect=(self.panel_x + 7, 20, self.panel_w - 32, 15),
+            skin=None, visible=True)
         self._dice_up = Button(
             (self.panel_x + 7 + self.panel_w - 32 + 3, 20, 14, 15),
             T("building.btn.dice"), "md")
@@ -1334,6 +1390,7 @@ class BuildingUI:
             "boss_btn": ("button", self.boss_btn),
             "rename_dice_btn": ("button", self._dice_up),
             "boss_close_btn": ("button", self._boss_close_btn),
+            "upgrade_name_box": ("panel", self._name_box),
         }
         # -- /10L-B --
         self._build_text_holders()
@@ -1463,6 +1520,14 @@ class BuildingUI:
         """True while the upgrade panel's rename row is capturing keys (10J) —
         the host routes keyboard input here instead of the shortcut keys."""
         return self._name_editing
+
+    @property
+    def _name_box_rect(self):
+        """The rename box's LIVE rect — read off the ``upgrade_name_box``
+        widget, which ``apply()`` has already written this frame's override
+        onto. A property, not a stored tuple, so the draw and the click test
+        can never disagree about where the box is."""
+        return self._name_box.rect
 
     def close(self):
         self.mode = None
@@ -2457,8 +2522,9 @@ class BuildingUI:
                 y += sm
             died = self._text["died_last_round"]
             died.rect = (died.rect[0], y, 0, 0)
-            if rs.dmg_taken_last_round >= b.max_hp():
-                y += sm
+            # The tag draws either DIED or SURVIVED now, so it always takes a
+            # row — no outcome-dependent gap under the next-tier card.
+            y += sm
         #: where the next-tier card starts — read by ``_submit_upgrade``.
         self._stats_bottom = y
 
@@ -2957,7 +3023,7 @@ class BuildingUI:
                 self._name_buf = random.choice(names)
                 self._name_editing = True
             return True
-        if contains(self._name_box_rect, mx, my):
+        if is_visible(self._name_box) and contains(self._name_box_rect, mx, my):
             if not self._name_editing:
                 self._name_editing = True
                 self._name_buf = ""
@@ -3287,9 +3353,11 @@ class BuildingUI:
         self.panel_rect = self._panel.rect
         self.skinning.submit_background(renderer, self.screen_id,
                                         self.view_w, self.view_h)
+        hidden_customs = self._hidden_stat_backdrops()
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
                                     "under", self.skinning.state_of,
-                                    view=self.mode)
+                                    view=self.mode,
+                                    hidden_customs=hidden_customs)
         if is_visible(self._panel):
             submit_panel(renderer, self.panel_rect, skin=self._panel.skin,
                         tint=getattr(self._panel, "tint", None), anim_ms=t)
@@ -3309,7 +3377,19 @@ class BuildingUI:
             self.preview.submit(renderer, anim_ms=t)
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
                                     "over", self.skinning.state_of,
-                                    view=self.mode)
+                                    view=self.mode,
+                                    hidden_customs=hidden_customs)
+
+    def _hidden_stat_backdrops(self):
+        """The ``_STAT_BACKDROP_MIN_ROWS`` plates that have nothing to back
+        this frame — ``frozenset()`` outside upgrade mode with a selection,
+        where the rule has no subject and every plate keeps its authored
+        behaviour."""
+        if self.mode != "upgrade" or self._selected is None:
+            return frozenset()
+        rows = len(_building_stats(self._selected))
+        return frozenset(name for name, need in _STAT_BACKDROP_MIN_ROWS.items()
+                         if rows < need)
 
     def _submit_unlock(self, renderer, session, anim_ms=0):
         txt = self._text
@@ -3501,11 +3581,19 @@ class BuildingUI:
         submit_label(renderer, txt["upgrade_title"], text=_display_name(b),
                      color=widgets.C_UI_TEXT)
         # -- 10J rename row: input box + dice --
-        renderer.submit_hud(HudRect(self._name_box_rect, widgets.C_PANEL_STONE))
-        renderer.submit_hud(HudRect(
-            self._name_box_rect,
-            (widgets.highlight_color("tile_selected") if self._name_editing
-             else widgets.C_UI_BORDER), width=1))
+        # The box is the ``upgrade_name_box`` widget: skinless it is still the
+        # same fill+1px-border pair it always was, and a designer's ``skin``
+        # replaces both with one nine-slice. The border colour stays code-owned
+        # because it is the FOCUS ring, not decoration.
+        if is_visible(self._name_box):
+            submit_panel(renderer, self._name_box_rect,
+                         fill=widgets.C_PANEL_STONE,
+                         border=(widgets.highlight_color("tile_selected")
+                                 if self._name_editing
+                                 else widgets.C_UI_BORDER),
+                         skin=self._name_box.skin,
+                         tint=getattr(self._name_box, "tint", None),
+                         anim_ms=anim_ms)
         if self._name_buf or self._name_editing:
             submit_label(renderer, txt["upgrade_name"],
                          text=self._name_buf + "_", color=widgets.C_UI_TEXT)
@@ -3569,10 +3657,19 @@ class BuildingUI:
                 submit_label(renderer, txt[value_key],
                              color=widgets.C_UI_TEXT, value=amount)
             # -- 10J: a building whose last-round damage covered its full HP
-            # died last round (prototype building_ui.py:1083-86) --
-            if rs.dmg_taken_last_round >= b.max_hp():
-                submit_label(renderer, txt["died_last_round"],
-                             color=widgets.C_RED)
+            # died last round (prototype building_ui.py:1083-86). The tag is
+            # now ALWAYS drawn: the survived case is the same slot with the
+            # counterpart string in green, so the row never appears/vanishes
+            # under the player (and the layout below never has to gate on it).
+            # ``text=`` rather than a second holder — one designer-owned
+            # widget id whose two states are code-chosen (submit_label's
+            # runtime-content bypass).
+            died = rs.dmg_taken_last_round >= b.max_hp()
+            submit_label(
+                renderer, txt["died_last_round"],
+                text=T("building.upgrade.died_last_round" if died
+                       else "building.upgrade.survived_last_round"),
+                color=widgets.C_RED if died else widgets.C_GREEN_STAT)
         y = self._stats_bottom
         # -- 10J: next-tier card when a tier advance is on the table
         # (prototype ``_draw_next_tier_preview``; hidden while round-gated) --

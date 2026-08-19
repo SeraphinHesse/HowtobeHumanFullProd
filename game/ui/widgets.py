@@ -39,6 +39,24 @@ def set_skin_hit_test(fn):
     _skin_hit_test = fn
 
 
+# How long one of a skin's rows plays. The `_skin_hit_test` seam's sibling,
+# and unset for the same reason: `game/ui` may not reach into the asset layer
+# (D6/E-37), so the HOST injects it (`game/main.py`, beside
+# `set_skin_hit_test`). Only ONE thing consults it — a button holding its
+# not-enough-love flash back until its `pressed` row has actually played
+# (`Button.start_flash`). Unset (a bare test/tool button) means "no idea how
+# long", i.e. no hold, which is exactly the pre-feature behaviour.
+_skin_anim_ms = None
+
+
+def set_skin_anim_length(fn):
+    """Inject a skin-row LENGTH lookup. Signature:
+    ``fn(slot_key, animation) -> ms | None`` (`AssetStore.animation_total_ms`).
+    ``None`` back means that slot has no such row."""
+    global _skin_anim_ms
+    _skin_anim_ms = fn
+
+
 def anim_ms(clock_s):
     """A screen's float seconds accumulator -> the integer ms a skinned
     HudSprite wants (10L-A). ONE conversion, so no screen re-derives it.
@@ -712,6 +730,15 @@ class Button:
         self.mouse_down = False   # 10L-A: host's held-left-button flag
         self.flash = 0.0
         self.flash_label = None
+        #: This button's OWN animation clock (seconds), restarted every time
+        #: `_state()` changes — see `update`. `None` until the first
+        #: `update(dt)`, which is what keeps a button nobody ticks on the
+        #: caller's screen clock instead of frozen at frame 0.
+        self._anim_t = None
+        self._anim_state = None
+        #: Seconds of `pressed` still owed before a pending flash may paint
+        #: (`start_flash`). Counted down by `update`.
+        self._flash_delay = 0.0
 
     def _surface_hit(self, mx, my):
         """Rect hit-test; if skin + seam exists, delegate to the injected
@@ -739,14 +766,57 @@ class Button:
         return self.enabled and self._surface_hit(mx, my)
 
     def start_flash(self, duration, label=None):
+        """Arm the red not-enough-love flash — AFTER the press finishes.
+
+        The click that refuses is still a press, and cutting straight to red
+        threw the `pressed` row away mid-play: the button read as flashing
+        out of `idle`. So the flash is held for whatever is LEFT of that row
+        (`_press_remaining`), during which `_state()` still resolves to
+        `pressed` — the animation plays out, THEN the button goes red for its
+        full `duration`. An unskinned button, a skin with no `pressed` row and
+        an un-wired host seam all answer 0 and flash immediately, exactly as
+        before."""
+        self._flash_delay = self._press_remaining()
         self.flash = duration
         self.flash_label = label
 
+    def _press_remaining(self):
+        """Seconds of this skin's `pressed` row still unplayed, or 0.0."""
+        if not self.skin or _skin_anim_ms is None:
+            return 0.0
+        total = _skin_anim_ms(self.skin, "pressed")
+        if not total:
+            return 0.0
+        played = self._anim_t if self._anim_state == "pressed" else 0.0
+        return max(0.0, total / 1000.0 - (played or 0.0))
+
+    @property
+    def flash_showing(self):
+        """True once an armed flash has actually started painting red — i.e.
+        the press animation it waited on is done."""
+        return self.flash > 0 and self._flash_delay <= 0
+
     def update(self, dt):
-        if self.flash > 0:
+        if self._flash_delay > 0:
+            # Snapped, not just clamped: float dt accumulation leaves a delay
+            # counted down in exact steps sitting a 1e-16 hair above zero, and
+            # the flash would then wait one more whole frame.
+            self._flash_delay = max(0.0, self._flash_delay - dt)
+            if self._flash_delay < 1e-6:
+                self._flash_delay = 0.0
+        elif self.flash > 0:
             self.flash = max(0.0, self.flash - dt)
             if self.flash == 0:
                 self.flash_label = None
+        # The per-state animation clock (10L-A's skin rows are play-once, so
+        # a shared free-running screen clock left every hover/pressed row
+        # sitting on its LAST frame — the animation never appeared to fire).
+        # Restart on every state change; otherwise accumulate.
+        state = self._state()
+        if state != self._anim_state:
+            self._anim_state, self._anim_t = state, 0.0
+        else:
+            self._anim_t = (self._anim_t or 0.0) + dt
 
     def _state(self):
         """Skin animation row. Same priority as the flat fill selection below,
@@ -760,13 +830,23 @@ class Button:
             return "pressed"
         return "hover" if self.hovered else "idle"
 
+    def _anim_time(self, fallback_ms):
+        """This button's own state clock in ms, or the caller's screen clock
+        when nothing ticks it (a bare test/tool button)."""
+        if self._anim_t is None:
+            return fallback_ms
+        return anim_ms(self._anim_t)
+
     def submit(self, renderer, *, color=None, text_color=None, anim_ms=0):
         x, y, w, h = self.rect
         # UL-5: the per-state appearance patch, resolved through the SAME
         # ``_state()`` the skinned sprite row uses below — so the flat fill,
         # the skin row and this patch can never disagree about the state.
         patch = _state_patch(self, self._state())
-        if self.flash > 0:
+        # ``flash_showing``, not ``flash > 0``: an armed flash still owes the
+        # ``pressed`` row its remaining play time (``start_flash``), and the
+        # button must look PRESSED for that, not red.
+        if self.flash_showing:
             fill, tcol = C_RED, C_UI_TEXT
             label = self.flash_label or self.label
         elif not self.enabled:
@@ -793,9 +873,15 @@ class Button:
             # skinned button (or one whose screen doc assigned it) ever
             # carries the attribute, so ``getattr`` covers dynamic
             # (non-id'd) buttons too, which never gain one.
+            # The button's OWN clock wins over the caller's screen clock
+            # whenever it has one (i.e. whenever something calls
+            # ``update(dt)``): a skin's hover/pressed rows are play-once, so
+            # a free-running shared clock hands them a time long past their
+            # end and the row shows only its last frame. ``_anim_t`` restarts
+            # at the state change, which is what makes the row PLAY.
             renderer.submit_hud(HudSprite(self.skin, (x, y), (w, h),
                                           animation=self._state(),
-                                          anim_time_ms=anim_ms,
+                                          anim_time_ms=self._anim_time(anim_ms),
                                           tint=getattr(self, "tint", None)))
         else:
             renderer.submit_hud(HudRect((x, y, w, h), fill, border_radius=3))
