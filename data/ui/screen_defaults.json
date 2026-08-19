@@ -8269,7 +8269,19 @@
         "parent": "backdrop",
         "rect": [
           240,
-          210,
+          122,
+          160,
+          26
+        ]
+      },
+      "btn_continue": {
+        "font_key": "lg",
+        "kind": "button",
+        "label": "CONTINUE",
+        "parent": "backdrop",
+        "rect": [
+          0,
+          0,
           160,
           26
         ]
@@ -8282,7 +8294,7 @@
         "parent": "backdrop",
         "rect": [
           240,
-          300,
+          242,
           160,
           26
         ]
@@ -8294,7 +8306,7 @@
         "parent": "backdrop",
         "rect": [
           240,
-          240,
+          152,
           160,
           26
         ]
@@ -8307,7 +8319,7 @@
         "parent": "backdrop",
         "rect": [
           240,
-          150,
+          62,
           160,
           26
         ]
@@ -8319,7 +8331,7 @@
         "parent": "backdrop",
         "rect": [
           240,
-          180,
+          92,
           160,
           26
         ]
@@ -8331,7 +8343,7 @@
         "parent": "backdrop",
         "rect": [
           405,
-          180,
+          92,
           30,
           26
         ]
@@ -8344,7 +8356,19 @@
         "parent": "backdrop",
         "rect": [
           240,
-          330,
+          272,
+          160,
+          26
+        ]
+      },
+      "btn_save_files": {
+        "font_key": "lg",
+        "kind": "button",
+        "label": "SAVE FILES",
+        "parent": "backdrop",
+        "rect": [
+          240,
+          182,
           160,
           26
         ]
@@ -8357,7 +8381,7 @@
         "parent": "backdrop",
         "rect": [
           240,
-          270,
+          212,
           160,
           26
         ]
@@ -8370,7 +8394,7 @@
         "parent": "backdrop",
         "rect": [
           320,
-          125,
+          42,
           0,
           0
         ]
@@ -8383,7 +8407,7 @@
         "parent": "backdrop",
         "rect": [
           320,
-          105,
+          22,
           0,
           0
         ]
