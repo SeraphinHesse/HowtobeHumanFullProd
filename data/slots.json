@@ -1079,7 +1079,11 @@
             {
               "label": "Lives",
               "slots": [
-                "ui_icon_lives"
+                {
+                  "frame_h": 32,
+                  "frame_w": 32,
+                  "key": "ui_icon_lives"
+                }
               ]
             },
             {
