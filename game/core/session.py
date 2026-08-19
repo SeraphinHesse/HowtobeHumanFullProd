@@ -441,9 +441,18 @@ class Session:
         # never sees round 0, so the same entry lands on its authored round
         # exactly as an unflagged one would. `.get` (not `[...]`) because the
         # bare-dict fixtures in the logic tests predate the field.
+        #
+        # An entry with a non-empty `show_on_spawn_of` is NOT a round trigger
+        # at all — it waits for that etype to actually enter the scene
+        # (`_queue_spawn_intros`, drained in post_sim). The Commander is the
+        # case that needs it: nothing puts one in a wave, the boss summons it
+        # partway through its own fight, so a round-10 card would introduce an
+        # enemy the player has not seen and may never see.
         tutorial_round = st.round_num == 0
         matches = []
         for e in self.core_balance["EnemyIntro"]["entries"]:
+            if e.get("show_on_spawn_of", ""):
+                continue
             if e.get("show_on_tutorial_round", False):
                 if tutorial_round:
                     matches.append(e)
@@ -552,6 +561,42 @@ class Session:
                 and not scene.queued_by_tag("kidnapper")):
             self._award_building_deaths(scene, force=True)
             self._begin_round_end()
+        elif st.phase == GamePhase.ENEMY:
+            # Still mid-round: a spawn-triggered intro may be owed. Last in
+            # post_sim on purpose — the wave-clear branches above own the
+            # phase when the round is over, and an intro must never preempt
+            # ROUND_END.
+            self._queue_spawn_intros()
+
+    def _queue_spawn_intros(self):
+        """Fire any ``show_on_spawn_of`` intro whose etype just entered the
+        scene (feature-enemy-intro-dialogue).
+
+        Drains the Spawner's per-frame spawn log — every construction site in
+        that class feeds it, so a Commander counts whether it came from a wave,
+        a death-spawn burst or the boss's second phase. Each etype introduces
+        itself ONCE per run (``state.spawn_intros_shown``, serialized), and the
+        queue + phase flip are the SAME two lines ``end_turn`` uses for a
+        round-triggered entry, so the host opens, holds and resolves it
+        identically — it just happens mid-round, freezing the fight while the
+        card is up."""
+        st = self.state
+        spawned = self.spawner.drain_spawned_types()
+        if not spawned:
+            return
+        fresh = [e for e in spawned if e not in st.spawn_intros_shown]
+        if not fresh:
+            return
+        matches = [e for etype in dict.fromkeys(fresh)
+                   for e in self.core_balance["EnemyIntro"]["entries"]
+                   if e.get("show_on_spawn_of", "") == etype]
+        # Mark every fresh etype shown, matched or not: an etype with no entry
+        # never gets one later either, and this keeps the list from re-scanning
+        # the whole roster on every spawn of a type nobody authored a card for.
+        st.spawn_intros_shown.extend(dict.fromkeys(fresh))
+        if matches:
+            st.pending_enemy_intros = matches
+            st.phase = GamePhase.ENEMY_INTRO
 
     # -- LEVELUP (10A) ----------------------------------------------------
 
