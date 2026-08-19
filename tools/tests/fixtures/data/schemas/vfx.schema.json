@@ -761,6 +761,12 @@
           "additionalProperties": false,
           "description": "Fallback dot appearance for an in-flight shot with no imported sprite on vfx_projectile/vfx_shell (submit_projectiles): a coloured HudRect, lifted off the ground plane by a fraction of tile_h. Shell (mortar) and stone (every other defender) get independent colours/sizes. The max(2, size*zoom) low-zoom floor is a degeneracy guard, not a tunable, and stays inline in game/ui/effects.py.",
           "properties": {
+            "arc_height_frac": {
+              "description": "Mortar shell's cosmetic flight-arc apex, as a fraction of tile_h * zoom above the straight muzzle->landing line (0 = flat, no arc). Purely visual — the shell's flight TIME is a simulation constant (AOE_TRAVEL_TIME), never this.",
+              "maximum": 12,
+              "minimum": 0,
+              "type": "number"
+            },
             "lift_frac": {
               "description": "Screen-space lift off the ground plane as a fraction of tile_h * zoom.",
               "maximum": 2,
@@ -787,6 +793,7 @@
             }
           },
           "required": [
+            "arc_height_frac",
             "lift_frac",
             "shell_color",
             "shell_size",
