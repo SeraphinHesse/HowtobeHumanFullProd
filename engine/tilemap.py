@@ -34,6 +34,28 @@ DEFAULT_BACKGROUNDS = (
     ("o", "tile_ocean"),
 )
 
+# -- fix/y-sorted-deco -------------------------------------------------------
+# Map deco rides the SAME draw layer as buildings and enemies, so a tree and an
+# enemy sort against each other by ordinary iso depth (and by their authored
+# `depth_pivot` feet) instead of by a fixed layer. Same move, same reason, as
+# `game/map/wall_render.py`'s LAYER.
+#
+# It used to be the `deco` layer (LAYERS index 3, ABOVE `entities`), and since
+# `CoordinateSystem.depth_key` makes the layer the PRIMARY key, that meant every
+# deco sprite drew over every enemy unconditionally — an enemy whose feet were
+# visibly a tile in FRONT of a tree still drew behind it. Worse, it was silently
+# self-defeating: `Renderer._depth_pos` only resolves `depth_pivot` on the
+# `entities` layer, so the feet anchors authored on every `deco_tree_*` /
+# `deco_bush*` / `deco_prop_*` slot were being read by nothing.
+DECO_LAYER = "entities"
+
+# The tie-break when deco and an entity land on the SAME tile — an exact depth
+# tie that `rank` is the last word on (VA-3). -1 = the tree loses, i.e. a unit
+# standing on a deco tile draws in FRONT of it, which is what "standing on"
+# looks like. Without this the tie falls to submission order, which is an
+# emitter-call-order accident rather than a decision.
+DECO_RANK = -1
+
 
 @dataclass
 class TileMapDoc:
@@ -341,7 +363,8 @@ def render_items(doc, *, terrain=True, base=True, deco=True, camera=False,
         for d in doc.deco:
             phase = (d["col"] * 131 + d["row"] * 197) % 997   # ms, deterministic & pure
             items.append(RenderItem(d["slot"], (d["col"], d["row"]),
-                                    layer="deco", anim_time_ms=anim_time_ms + phase,
+                                    layer=DECO_LAYER, rank=DECO_RANK,
+                                    anim_time_ms=anim_time_ms + phase,
                                     flip=d.get("flip", False)))
     return items
 
@@ -399,7 +422,8 @@ def visible_render_items(doc, col_min, col_max, row_min, row_max, *,
             if tc0 <= d["col"] <= tc1 and tr0 <= d["row"] <= tr1:
                 phase = (d["col"] * 131 + d["row"] * 197) % 997   # ms, deterministic & pure
                 items.append(RenderItem(d["slot"], (d["col"], d["row"]),
-                                        layer="deco", anim_time_ms=anim_time_ms + phase,
+                                        layer=DECO_LAYER, rank=DECO_RANK,
+                                        anim_time_ms=anim_time_ms + phase,
                                         flip=d.get("flip", False), column=column))
     return items
 

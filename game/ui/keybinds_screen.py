@@ -34,7 +34,6 @@ string-table migration (UT-5) scoped to the original + wave-3 screens.
 """
 from types import SimpleNamespace
 
-from engine.render import HudRect
 
 from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import Button, anim_ms, submit_centered, submit_text
@@ -199,8 +198,9 @@ class KeybindsScreen:
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
-        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
-        renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
+        self.skinning.submit_background(renderer, self.screen_id, view_w,
+                                        view_h, anim_ms=t)
+        widgets.submit_backdrop(renderer, self._backdrop, anim_ms=t)
         cx = self._cx
         if self._title.visible:
             submit_centered(renderer, self._title.label, self._title.rect[0],

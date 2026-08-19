@@ -764,6 +764,29 @@
       ],
       "type": "object"
     },
+    "Cutscene": {
+      "additionalProperties": false,
+      "description": "Fade-in/fade-out timing for the full-screen video cutscenes (game/ui/cutscene_player.py CutscenePlayer). The fade is ADDED on top of the cutscene's own video length, never overlapped with it — a video's own playback is unmodified; the fade-in freezes on the first decoded frame before playback starts and the fade-out holds the last decoded frame after it ends.",
+      "properties": {
+        "fade_in_seconds": {
+          "description": "Seconds the screen fades in from black before a cutscene's video starts playing. 0 disables the fade-in entirely (no added time).",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        },
+        "fade_out_seconds": {
+          "description": "Seconds the screen fades out to black after a cutscene's video finishes playing. 0 disables the fade-out entirely (no added time).",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "fade_in_seconds",
+        "fade_out_seconds"
+      ],
+      "type": "object"
+    },
     "Debug": {
       "additionalProperties": false,
       "description": "Debug-mode run telemetry (game/debug) and the main-menu entry points that arm it. These gate which run modes the menu offers and what a debug run captures by default; they never change gameplay balance.",
@@ -1269,6 +1292,7 @@
   },
   "required": [
     "Camera",
+    "Cutscene",
     "Debug",
     "EnemyIntro",
     "General",

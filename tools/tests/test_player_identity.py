@@ -301,9 +301,15 @@ class TestMenuAvailabilityMatrix(unittest.TestCase):
 
     def test_bare_construction_is_both_available(self):
         """No ``debug_balance`` at all (the exporter / the golden pin) behaves
-        exactly as it did before this feature."""
+        exactly as it did before this feature. SaveGamePLAN SG-6 exception:
+        CONTINUE is hidden on a bare construction (``has_saves`` defaults to
+        ``False``, a user decision — hidden entirely with no saves yet), so
+        it is excluded from the "everything visible" check rather than
+        changing that decision."""
         menu = MainMenu(VW, VH)
-        self.assertTrue(all(self._visible(menu).values()))
+        visible = self._visible(menu)
+        del visible["continue"]
+        self.assertTrue(all(visible.values()))
         self.assertEqual(self._start_slot_action(menu), "new_game")
 
 

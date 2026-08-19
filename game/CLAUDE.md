@@ -298,19 +298,49 @@ the only place the words `"placement"`/`"upgrade"`/`"buy_plot"` and the
   unusable for the person reporting it. One `_WheelTicks` instance per run
   serves both arms; it accumulates fractions into whole ticks and drops the
   residue on a reversal. `tools/tests/test_game_boot.py` pins it.
-- **Two loading screens (feature: loading screen), two different mechanisms,
-  one shared look.** Both draw the editor-adjustable `ui_bg_loading`
-  background slot + a white progress ring (`game/ui/loading_screen.py` is the
-  ONE place the slot key and ring style constants are defined — `main.py`
-  imports them for both uses rather than re-declaring them, so they cannot
-  visually drift apart).
-  - **Pre-boot** (`main.py`'s `_submit_loading_frame`/`_flush_loading`): shown
-    before the `Shell` even exists, so it needs its OWN throwaway
-    presenter/renderer pair (no real window yet) — 15 real checkpoints
-    (boot's data/balance-domain loads, each already a real sequential
-    sub-step) rather than 5, so the ring's motion reads as smooth instead of
-    jumpy. No added delay and no eased/faked animation — just finer-grained
-    real boot sub-steps; `_loading_steps_total` documents the count.
+- **ONE loading screen, ONE window, two entry points (feature: loading
+  screen; rewritten by fix: seamless launch).** The launch screen and the
+  post-"Start Game" screen are the SAME `game/ui/loading_screen.py`
+  `LoadingScreen` OBJECT (`main.py`'s `boot_loading_screen`, which
+  `loading_screen` is simply assigned from) drawn through the SAME
+  presenter/renderer — so they cannot drift apart in look, in screen doc, or
+  in animation phase. Two things used to be true here and no longer are; both
+  were visible defects, not tidiness:
+  - **There is no throwaway pre-boot presenter any more.** `_build_render_stack`
+    now runs at the TOP of boot, right after the `AssetStore`, and its
+    presenter/renderer pump the boot checkpoints. It used to build a
+    `_SurfacePresenter` + `Renderer` pair just for boot, `close()` it
+    (`pygame.display.quit()`) and let `_build_render_stack` open a fresh
+    window in its place — which on the GPU path is an entirely separate
+    `pygame._sdl2.video.Window`. That destroy-then-recreate is the desktop
+    flash between the loading screen and the intro cutscene. One window for
+    the whole process means there is no teardown left to see through.
+    Consequences to keep in mind when touching boot order: the backend
+    `choice` (the `--backend`/`HTBH_RENDER_BACKEND`/`settings/render.json`
+    ladder, plus the headless `max_frames` override) is resolved up there
+    too, and the window opens in `data/display.json`'s `display_mode`
+    directly rather than via `shell.settings.display_mode` — the same value,
+    since `SessionSettings.display_mode` is seeded from that key, but the
+    `Shell` does not exist yet. `render_settings.apply_to_settings(...)` (which
+    seeds the settings screen's GPU/CPU row) is the ONE half still done later,
+    because it needs the `Shell`. `_SurfacePresenter.close()` stays a real
+    `pygame.display.quit()`; it now has exactly one call site plus the
+    GPU-init-failure fallback.
+  - **The launch screen honours `data/ui/screens/loading.json`.** It used to
+    be `_submit_loading_frame`, a hand-rolled twin drawing the bare
+    `ui_bg_loading` slot plus `default_ring_rect`'s centred ring and reading
+    no screen doc at all — so a designer moving the ring or skinning the
+    backdrop in the editor changed the in-game screen and nothing at launch.
+    That function is DELETED. `ScreenSkinning(data_dir)` is therefore built
+    early (before the boot loop) rather than beside the `Shell`.
+  - **`_flush_loading` drives the screen's anim clock off `time.perf_counter()`
+    deltas**, not off a frame `dt` — boot has no frame loop. Without it an
+    animated backdrop slot would advance one frame per boot checkpoint.
+  - **15 real checkpoints** (boot's data/balance-domain loads, each already a
+    real sequential sub-step) rather than 5, so the ring's motion reads as
+    smooth instead of jumpy. No added delay and no eased/faked animation —
+    just finer-grained real boot sub-steps; `_loading_steps_total` documents
+    the count.
   - **Post-"Start Game"** (`GameState.LOADING`, `game/ui/loading_screen.py`'s
     `LoadingScreen`): the real presenter/renderer already exist by the time
     the player clicks START NEW GAME, so no second window is needed. The
@@ -339,6 +369,103 @@ the only place the words `"placement"`/`"upgrade"`/`"buy_plot"` and the
     this feature. Detail (why `GameState.LOADING` is host-driven rather than
     `Shell`-driven, unlike every other full-screen state since 9H) →
     `game/ui/CLAUDE.md`'s Shell + menus section.
+  - **Continue / Load Save arm the SAME queue on the click's own frame, with
+    the DISK READ deferred into a checkpoint.** `_build_gameplay_steps` takes
+    a `restore_loader` — a zero-arg CALLABLE, not a loaded document — and
+    prepends `_step_restore`, which calls it and publishes into a one-cell
+    dict every later closure reads. Both reads used to happen at the call site
+    (`_load_save` loaded the slot; `"continue_most_recent"` loaded the index
+    AND the slot) before `_arm_loading` was even called, so the menu sat there
+    with the button still lit for as long as `jsonschema` took to validate the
+    save. A loader that returns `None` — a missing/corrupt slot, or a Continue
+    that finds no slots — sets `loading_abort["failed"]`; the LOADING driver
+    drops the rest of the queue and returns to the main menu, which is the
+    no-op the synchronous read used to give. Never silently build a fresh run
+    in a save's place.
+  - **A cutscene plays AFTER the load (feature: start-game cutscene).**
+    `_arm_loading(cutscene_id=…)` takes a `data/video/cutscenes.json` id; the
+    two fresh-run intents pass `START_GAME_CUTSCENE` (`"start_game"`, a host
+    constant — never a search of the registry by `trigger`, so a designer
+    retriggering an entry cannot silently re-point it). Order:
+    **loading screen → cutscene → gameplay.** The checkpoint queue drains
+    behind `loading_screen` exactly as it does with no cutscene at all; only
+    once the queue is empty AND `min_display_seconds` has elapsed does the
+    driver push SD-7's music and call `player.start()`. From that frame on
+    `GameState.LOADING` renders the video exactly the way the boot-time
+    `GameState.CUTSCENE` branch renders the intro (blit, skip prompt, fade
+    overlay); it is the LAST gate into gameplay, and skipping (the shared 2s
+    hold) drops straight into the already-built world.
+    **`loading_cutscene` means ARMED and `loading_cutscene_started` means
+    PLAYING, and every consumer keys off the second** — the render branch,
+    `director.tick`'s in-a-cutscene flag, and the abort path's
+    release/`leave_cutscene` (an armed-but-never-started player has nothing to
+    release and nothing on the music stack). Conflating the two is how the
+    video ends up back over the load.
+    **This reverses how the feature originally shipped**, and the old prose
+    was an argument, not an accident: the video used to start the instant
+    START was clicked and render INSTEAD of the loading screen while the
+    checkpoints ran underneath — "the cutscene is what the loading time is
+    spent on, not something bolted in front of it", with a skip dropping to
+    the loading screen for whatever was left. It is a user decision that the
+    two are now sequential; do not "restore" the overlap as an optimisation.
+    Still no new `GameState` member. Continue/Load Save deliberately pass NO
+    cutscene, and neither does the game-over screen's PLAY AGAIN. A
+    missing/unopenable video (`CutscenePlayer.enabled`) leaves
+    `loading_cutscene` `None` and the loading screen runs straight into
+    gameplay, exactly as it does for those three.
+- **Autosave (SaveGamePLAN SG-5)** rides the SAME round-edge watcher chain as
+  N1's season clock, immediately after it: `if session.state.phase ==
+  GamePhase.BUILDING and gp["prev_phase"] != GamePhase.BUILDING and
+  session.state.round_num % savegame.AUTOSAVE_EVERY_N_ROUNDS == 0:
+  _autosave(world, session, map_doc.map_id)` — the round-boundary edge
+  (D1: the one point no enemy/projectile is alive, so `RunState.to_dict()`'s
+  round-boundary assertion never trips). `_autosave` (a nested `main()`
+  helper, beside `build_gameplay`/`teardown_gameplay`) assembles one save
+  document — `RunState.to_dict`/`Session.to_dict`/`TileMap.save_state` plus
+  `save_building` per live building (`game/buildings/registry.py`, SG-3).
+  **Buildings currently mid-move are included explicitly**
+  (`tile_map.moving_orders`), not just tile occupants — a moving building is
+  despawned and held alive ONLY by that list (`game/map/CLAUDE.md`'s
+  Building Movement section), so a save that only swept `built_tiles()` would
+  silently drop it. The base building is excluded (re-attached fresh via
+  `attach_base` on load).
+  - **The disk-side write runs on a BACKGROUND THREAD (perf fix, take 2 —
+    found and measured by live testing).** A first attempt spread
+    `savegame.add_slot`'s ORCHESTRATION (eviction, the body write, the index
+    write) across three frames via a checkpoint queue, the `loading_queue`
+    pattern applied invisibly. **Measured, that barely helped**: the cost is
+    overwhelmingly ONE atomic call — `jsonschema` validating the save doc
+    (~100ms at 400 buildings, ~320ms at 1500, roughly linear; `json.dumps`
+    itself is ~5ms) — and chunking the orchestration AROUND a single
+    un-choppable call does not shrink that call. Document ASSEMBLY still
+    stays fully synchronous on the round-edge frame (it reads live mutable
+    world state and must capture it exactly at that instant); the frozen
+    `slot_doc` is then handed to a `threading.Thread(daemon=True)` running
+    `savegame.add_slot(...)` + `shell.main_menu.set_has_saves(True)`. The
+    GIL means this is not true parallelism, but it still lets the render
+    loop get scheduled slices every ~5ms while the thread is CPU-bound
+    inside `jsonschema`, so the cost degrades gracefully across several
+    frames instead of freezing one. `game/core/savegame.py`'s module-level
+    `_LOCK` (a `threading.RLock`) is what makes this safe: EVERY save-file
+    read and write in that module, on either thread, takes it, so the Save
+    Files screen opening/pinning/deleting on the main thread can never
+    observe a save file mid-write from this thread or race it — pinned by
+    `tools/tests/test_savegame.py`'s `TestConcurrentAccess`, which actually
+    drives concurrent threads against the same files rather than reasoning
+    about the lock in isolation. The background thread's own body keeps the
+    same broad `except Exception` + one logged warning (the
+    highscores-append precedent) — a disk failure never crashes a mid-game
+    autosave, it just never reaches the `set_has_saves(True)` call.
+  - **No minimap, and no `unlocked_tiles` in the save doc at all** (removed
+    after a live-testing report — cut from the schema, the assembly, and
+    `game/ui/save_files.py`'s row rendering, not just the UI). It existed
+    solely to feed the Save Files screen's per-slot thumbnail; computing it
+    (a full sweep of `buildable_tiles()` + `built_tiles()`) also meaningfully
+    padded both the assembly and the schema-validation cost on a large
+    unlocked map, so cutting the feature and cutting a real chunk of the
+    frame cost were the same change. `TileMap.save_state()`'s `cols`/`rows`
+    fields are gone too — they existed only for the minimap's sizing and had
+    no other reader (`game/map/CLAUDE.md`).
 - **Camera input mapping (E-5) lives here**, on pure engine camera state: **both
   left- and right-click-drag pan** (`cs.pan` + `cs.clamp`, which bounds the view
   to **map bounds ∩ the camera leash**). The leash is `core` balancing's

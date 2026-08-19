@@ -244,10 +244,11 @@ class BossCutscene:
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
-        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        self.skinning.submit_background(renderer, self.screen_id, view_w,
+                                        view_h, anim_ms=t)
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
                                     "under", self.skinning.state_of)
-        renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
+        widgets.submit_backdrop(renderer, self._backdrop, anim_ms=t)
         # Phase C / fix/bossfight-outro-cleanup: the TEXT is string-table
         # content (boss_cutscene.subtitle/subtitle_reward) — the plain-vs-
         # reward PICK stays logic-owned (a 2-variant runtime string), just

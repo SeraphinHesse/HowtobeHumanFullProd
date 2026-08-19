@@ -33,6 +33,24 @@ Four files beside `balance.py`:
   `ground_cache.invalidate()`, so the cached ground layer repaints on a season
   crossing and on no other round. `add_love`/`spend_love` clamp
   at ≥0 (prototype clamps every currency write).
+  - **`to_dict()`/`from_dict()` (SaveGamePLAN SG-2)** are the save-slot
+    serialization pair, and round-trip only the DURABLE fields — every field
+    this file comments "never serialized" resets to its dataclass default
+    on load (D8), which `from_dict` gets for free simply by never passing
+    those as constructor kwargs; a bare `RunState()`'s defaults already sit
+    at the round boundary (`phase=BUILDING`, `state=GAMEPLAY`), so a fresh
+    run's own dict round-trips with zero special-casing. `to_dict()` takes
+    an optional `buildings=()` — needed ONLY to translate
+    `mortar_slow_snapshot_ids` (raw `id(building)` memory addresses, not
+    portable across a save boundary) to the buildings' stable
+    `GameObject.id` uuids; `from_dict` takes the same parameter to translate
+    back. **`to_dict()` raises unless called at a round boundary**
+    (`phase == BUILDING`, `state == GAMEPLAY`) — the host's autosave hook
+    (`game/main.py`, SG-5) never calls it anywhere else, so this is a hard
+    assertion, not a soft warning. `scripted_leveling` is deliberately NOT
+    saved — it mirrors `progression_balance` and is re-derived the same way
+    a fresh run derives it, at `Session.__init__`. Detail (the exhaustive
+    save/reset field table, the schema shape) → `planning/SaveGamePLAN.md`.
 - **`payday.py`** — `run_payday(state, tilemap, core, occupancy=None, scene=None)`
   mirrors `_begin_income_phase` **step for step; the ordering is SACROSANCT**. 9F
   drives: snapshot RoundStats (this→last) → base income + duck-typed `yield_amount`
@@ -433,6 +451,15 @@ in `game/ui/CLAUDE.md`.
   lives-faces indicator are 10L** (the UI-editor phase) — 10F ships the mechanic
   and the `1`/`2`/`3` + `P` keys only, so `toggle_pause` currently has no key bound
   to it.
+  - **`Session.to_dict()` (SaveGamePLAN SG-2)** is the ONE session-level save
+    field this persistence rule implies: `{"combat_speed_idx": …}`. Restoring
+    it is a single assignment onto an already-built `Session`
+    (`build_gameplay_from_save`, SG-6) — there is no matching `from_dict`
+    classmethod, since a full alternate constructor would need every one of
+    `Session.create`'s balance/registry arguments for no benefit over that
+    one-line patch. Everything else on `Session` (balance references,
+    `tutorial_gate`/`tutorial_director`/`debug`) is re-attached at load time
+    exactly like a fresh `Session.create`, never serialized.
 
 ## Boss cutscene + upgrades (Phase 10G; BossUpgradeTimelinePLAN BU-4)
 - **`boss_bonuses.py` is DELETED (BU-4/D6)**, and with it the six A/B story
@@ -450,8 +477,12 @@ in `game/ui/CLAUDE.md`.
   boss_upgrades_balance, core_balance, tilemap=self.tilemap, scene=scene)` —
   THE seam that both counts the stack every hook site reads and fires the
   one-time effects/pick-time hooks — then appends `(boss_num, option, outcome)`
-  to `boss_upgrade_choices` (the per-run history the base-info popup reads; no
-  disk persistence).
+  to `boss_upgrade_choices` (the per-run history the base-info popup reads).
+  **It now DOES persist across a save/load (SaveGamePLAN SG-2)** — full-fidelity
+  resume needs the base-info popup's history to survive a load, so
+  `RunState.to_dict()` writes it verbatim; this reverses the earlier "no disk
+  persistence, same as its predecessor" note (below) — that line now describes
+  only the pre-SG-2 state.
 - **`_boss_loss_reward(era)` reads the TIMELINE** (D7):
   `boss_upgrades.retaliation_love(self.boss_upgrades_balance, era + 1)` — the
   4-cycle `retaliation_bonus_love` table is the sole source of truth, and

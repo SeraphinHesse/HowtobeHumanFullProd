@@ -66,6 +66,35 @@ def anim_ms(clock_s):
     Sec 1.5 rules out for per-frame accumulation, just at the read instead."""
     return round(clock_s * 1000)
 
+
+def submit_backdrop(renderer, backdrop, anim_ms=0):
+    """A screen's full-view ``backdrop`` holder — ONE draw site for all 14
+    screens, so a designer's ``backdrop.skin`` cannot work on some and be
+    silently dropped on others.
+
+    ``skin`` set (``skinning.apply`` setattr'd it from
+    ``data/ui/screens/<id>.json``) -> a ``HudSprite`` of that slot, threaded
+    with the screen's own ``anim_ms`` clock so an ANIMATED background slot
+    actually plays. Unset -> the flat ``HudRect`` fill every screen drew
+    before, verbatim, which is the parity path (no screen doc, no change).
+
+    A backdrop holder with no ``color`` (``loading_screen``'s) and no skin
+    draws nothing at all, exactly as it did.
+
+    A skin REPLACES the fill rather than layering over it — the same
+    precedence ``Button.submit`` already gives a skin over ``color``, so the
+    two skinned kinds cannot disagree."""
+    skin = getattr(backdrop, "skin", None)
+    x, y, w, h = backdrop.rect
+    if skin:
+        renderer.submit_hud(HudSprite(skin, (x, y), (w, h),
+                                      anim_time_ms=int(anim_ms),
+                                      tint=getattr(backdrop, "tint", None)))
+        return
+    color = getattr(backdrop, "color", None)
+    if color is not None:
+        renderer.submit_hud(HudRect(backdrop.rect, color))
+
 # -- palette (prototype constants.py, verbatim RGB) -------------------------
 C_GOLD = (255, 200, 50)
 C_RED = (210, 55, 55)

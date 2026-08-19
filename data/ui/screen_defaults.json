@@ -408,9 +408,9 @@
             "parent": "build_terrain_card_list",
             "rect": [
               516,
-              670,
+              542,
               118,
-              138
+              74
             ]
           },
           "build_cond_card_forest_count": {
@@ -422,7 +422,7 @@
             "parent": "build_cond_card_forest",
             "rect": [
               631,
-              769,
+              577,
               0,
               0
             ],
@@ -436,7 +436,7 @@
             "parent": "build_cond_card_forest",
             "rect": [
               519,
-              781,
+              589,
               0,
               0
             ]
@@ -449,7 +449,7 @@
             "parent": "build_cond_card_forest",
             "rect": [
               519,
-              793,
+              601,
               0,
               0
             ]
@@ -462,7 +462,7 @@
             "parent": "build_cond_card_forest",
             "rect": [
               519,
-              769,
+              577,
               0,
               0
             ],
@@ -475,9 +475,9 @@
             "parent": "build_cond_card_forest",
             "rect": [
               543,
-              673,
+              545,
               64,
-              96
+              32
             ]
           },
           "build_cond_card_grass": {
@@ -568,7 +568,7 @@
               516,
               386,
               118,
-              138
+              74
             ]
           },
           "build_cond_card_mountain_count": {
@@ -580,7 +580,7 @@
             "parent": "build_cond_card_mountain",
             "rect": [
               631,
-              485,
+              421,
               0,
               0
             ],
@@ -594,7 +594,7 @@
             "parent": "build_cond_card_mountain",
             "rect": [
               519,
-              497,
+              433,
               0,
               0
             ]
@@ -607,7 +607,7 @@
             "parent": "build_cond_card_mountain",
             "rect": [
               519,
-              509,
+              445,
               0,
               0
             ]
@@ -620,7 +620,7 @@
             "parent": "build_cond_card_mountain",
             "rect": [
               519,
-              485,
+              421,
               0,
               0
             ],
@@ -635,7 +635,7 @@
               543,
               389,
               64,
-              96
+              32
             ]
           },
           "build_cond_card_pond": {
@@ -645,9 +645,9 @@
             "parent": "build_terrain_card_list",
             "rect": [
               516,
-              528,
+              464,
               118,
-              138
+              74
             ]
           },
           "build_cond_card_pond_count": {
@@ -659,7 +659,7 @@
             "parent": "build_cond_card_pond",
             "rect": [
               631,
-              627,
+              499,
               0,
               0
             ],
@@ -673,7 +673,7 @@
             "parent": "build_cond_card_pond",
             "rect": [
               519,
-              639,
+              511,
               0,
               0
             ]
@@ -686,7 +686,7 @@
             "parent": "build_cond_card_pond",
             "rect": [
               519,
-              651,
+              523,
               0,
               0
             ]
@@ -699,7 +699,7 @@
             "parent": "build_cond_card_pond",
             "rect": [
               519,
-              627,
+              499,
               0,
               0
             ],
@@ -712,9 +712,9 @@
             "parent": "build_cond_card_pond",
             "rect": [
               543,
-              531,
+              467,
               64,
-              96
+              32
             ]
           },
           "build_terrain_card_list": {
@@ -730,7 +730,7 @@
             ]
           },
           "card_aoe_defence": {
-            "display_name": "Mortar card",
+            "display_name": "Little Mortar card",
             "font_key": "sm",
             "kind": "button",
             "label": "",
@@ -743,7 +743,7 @@
             ]
           },
           "card_aoe_defence_frame": {
-            "display_name": "Mortar card frame",
+            "display_name": "Little Mortar card frame",
             "kind": "panel",
             "label": "",
             "parent": "card_aoe_defence",
@@ -755,10 +755,10 @@
             ]
           },
           "card_aoe_defence_name": {
-            "display_name": "Mortar card name",
+            "display_name": "Little Mortar card name",
             "font_key": "sm",
             "kind": "label",
-            "label": "Mortar",
+            "label": "Little Mortar",
             "parent": "card_aoe_defence",
             "rect": [
               585,
@@ -768,7 +768,7 @@
             ]
           },
           "card_aoe_defence_name2": {
-            "display_name": "Mortar card name2",
+            "display_name": "Little Mortar card name2",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -781,7 +781,7 @@
             ]
           },
           "card_aoe_defence_plate": {
-            "display_name": "Mortar card plate",
+            "display_name": "Little Mortar card plate",
             "kind": "panel",
             "label": "",
             "parent": "card_aoe_defence",
@@ -793,19 +793,19 @@
             ]
           },
           "card_aoe_defence_portrait": {
-            "display_name": "Mortar card portrait",
+            "display_name": "Little Mortar card portrait",
             "kind": "panel",
             "label": "",
             "parent": "card_aoe_defence",
             "rect": [
-              530,
-              170,
-              34,
-              34
+              515,
+              145,
+              64,
+              96
             ]
           },
           "card_aoe_defence_price": {
-            "display_name": "Mortar card price",
+            "display_name": "Little Mortar card price",
             "font_key": "sm",
             "kind": "button",
             "label": "",
@@ -818,7 +818,7 @@
             ]
           },
           "card_aoe_defence_price_icon": {
-            "display_name": "Mortar card price icon",
+            "display_name": "Little Mortar card price icon",
             "kind": "panel",
             "label": "",
             "parent": "card_aoe_defence_price",
@@ -830,7 +830,7 @@
             ]
           },
           "card_aoe_defence_price_text": {
-            "display_name": "Mortar card price text",
+            "display_name": "Little Mortar card price text",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -912,10 +912,10 @@
             "label": "",
             "parent": "card_blocker",
             "rect": [
-              530,
-              706,
-              34,
-              34
+              515,
+              681,
+              64,
+              96
             ]
           },
           "card_blocker_price": {
@@ -1026,10 +1026,10 @@
             "label": "",
             "parent": "card_boost_damage",
             "rect": [
-              530,
-              572,
-              34,
-              34
+              515,
+              547,
+              64,
+              96
             ]
           },
           "card_boost_damage_price": {
@@ -1140,10 +1140,10 @@
             "label": "",
             "parent": "card_boost_hp",
             "rect": [
-              530,
-              639,
-              34,
-              34
+              515,
+              614,
+              64,
+              96
             ]
           },
           "card_boost_hp_price": {
@@ -1254,10 +1254,10 @@
             "label": "",
             "parent": "card_boost_speed",
             "rect": [
-              530,
-              505,
-              34,
-              34
+              515,
+              480,
+              64,
+              96
             ]
           },
           "card_boost_speed_price": {
@@ -1368,10 +1368,10 @@
             "label": "",
             "parent": "card_defence",
             "rect": [
-              530,
-              36,
-              34,
-              34
+              515,
+              11,
+              64,
+              96
             ]
           },
           "card_defence_price": {
@@ -1482,10 +1482,10 @@
             "label": "",
             "parent": "card_economic",
             "rect": [
-              530,
-              103,
-              34,
-              34
+              515,
+              78,
+              64,
+              96
             ]
           },
           "card_economic_price": {
@@ -1528,7 +1528,7 @@
             "text_id": "building.stat.value"
           },
           "card_meditator": {
-            "display_name": "Meditator card",
+            "display_name": "Contemplator card",
             "font_key": "sm",
             "kind": "button",
             "label": "",
@@ -1541,7 +1541,7 @@
             ]
           },
           "card_meditator_frame": {
-            "display_name": "Meditator card frame",
+            "display_name": "Contemplator card frame",
             "kind": "panel",
             "label": "",
             "parent": "card_meditator",
@@ -1553,10 +1553,10 @@
             ]
           },
           "card_meditator_name": {
-            "display_name": "Meditator card name",
+            "display_name": "Contemplator card name",
             "font_key": "sm",
             "kind": "label",
-            "label": "Meditator",
+            "label": "Contemplator",
             "parent": "card_meditator",
             "rect": [
               585,
@@ -1566,7 +1566,7 @@
             ]
           },
           "card_meditator_name2": {
-            "display_name": "Meditator card name2",
+            "display_name": "Contemplator card name2",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -1579,7 +1579,7 @@
             ]
           },
           "card_meditator_plate": {
-            "display_name": "Meditator card plate",
+            "display_name": "Contemplator card plate",
             "kind": "panel",
             "label": "",
             "parent": "card_meditator",
@@ -1591,19 +1591,19 @@
             ]
           },
           "card_meditator_portrait": {
-            "display_name": "Meditator card portrait",
+            "display_name": "Contemplator card portrait",
             "kind": "panel",
             "label": "",
             "parent": "card_meditator",
             "rect": [
-              530,
-              438,
-              34,
-              34
+              515,
+              413,
+              64,
+              96
             ]
           },
           "card_meditator_price": {
-            "display_name": "Meditator card price",
+            "display_name": "Contemplator card price",
             "font_key": "sm",
             "kind": "button",
             "label": "",
@@ -1616,7 +1616,7 @@
             ]
           },
           "card_meditator_price_icon": {
-            "display_name": "Meditator card price icon",
+            "display_name": "Contemplator card price icon",
             "kind": "panel",
             "label": "",
             "parent": "card_meditator_price",
@@ -1628,7 +1628,7 @@
             ]
           },
           "card_meditator_price_text": {
-            "display_name": "Meditator card price text",
+            "display_name": "Contemplator card price text",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -1710,10 +1710,10 @@
             "label": "",
             "parent": "card_painter",
             "rect": [
-              530,
-              371,
-              34,
-              34
+              515,
+              346,
+              64,
+              96
             ]
           },
           "card_painter_price": {
@@ -1756,7 +1756,7 @@
             "text_id": "building.stat.value"
           },
           "card_storm_priest": {
-            "display_name": "Storm Acolyte card",
+            "display_name": "Lightning Charger card",
             "font_key": "sm",
             "kind": "button",
             "label": "",
@@ -1769,7 +1769,7 @@
             ]
           },
           "card_storm_priest_frame": {
-            "display_name": "Storm Acolyte card frame",
+            "display_name": "Lightning Charger card frame",
             "kind": "panel",
             "label": "",
             "parent": "card_storm_priest",
@@ -1781,10 +1781,10 @@
             ]
           },
           "card_storm_priest_name": {
-            "display_name": "Storm Acolyte card name",
+            "display_name": "Lightning Charger card name",
             "font_key": "sm",
             "kind": "label",
-            "label": "Storm Acolyte",
+            "label": "Lightning Charger",
             "parent": "card_storm_priest",
             "rect": [
               585,
@@ -1794,7 +1794,7 @@
             ]
           },
           "card_storm_priest_name2": {
-            "display_name": "Storm Acolyte card name2",
+            "display_name": "Lightning Charger card name2",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -1807,7 +1807,7 @@
             ]
           },
           "card_storm_priest_plate": {
-            "display_name": "Storm Acolyte card plate",
+            "display_name": "Lightning Charger card plate",
             "kind": "panel",
             "label": "",
             "parent": "card_storm_priest",
@@ -1819,19 +1819,19 @@
             ]
           },
           "card_storm_priest_portrait": {
-            "display_name": "Storm Acolyte card portrait",
+            "display_name": "Lightning Charger card portrait",
             "kind": "panel",
             "label": "",
             "parent": "card_storm_priest",
             "rect": [
-              530,
-              304,
-              34,
-              34
+              515,
+              279,
+              64,
+              96
             ]
           },
           "card_storm_priest_price": {
-            "display_name": "Storm Acolyte card price",
+            "display_name": "Lightning Charger card price",
             "font_key": "sm",
             "kind": "button",
             "label": "",
@@ -1844,7 +1844,7 @@
             ]
           },
           "card_storm_priest_price_icon": {
-            "display_name": "Storm Acolyte card price icon",
+            "display_name": "Lightning Charger card price icon",
             "kind": "panel",
             "label": "",
             "parent": "card_storm_priest_price",
@@ -1856,7 +1856,7 @@
             ]
           },
           "card_storm_priest_price_text": {
-            "display_name": "Storm Acolyte card price text",
+            "display_name": "Lightning Charger card price text",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -1938,10 +1938,10 @@
             "label": "",
             "parent": "card_sun_scorcher",
             "rect": [
-              530,
-              237,
-              34,
-              34
+              515,
+              212,
+              64,
+              96
             ]
           },
           "card_sun_scorcher_price": {
@@ -1984,7 +1984,7 @@
             "text_id": "building.stat.value"
           },
           "card_wall_builder": {
-            "display_name": "Bush Wall Builder card",
+            "display_name": "Wall Lookout card",
             "font_key": "sm",
             "kind": "button",
             "label": "",
@@ -1997,7 +1997,7 @@
             ]
           },
           "card_wall_builder_frame": {
-            "display_name": "Bush Wall Builder card frame",
+            "display_name": "Wall Lookout card frame",
             "kind": "panel",
             "label": "",
             "parent": "card_wall_builder",
@@ -2009,10 +2009,10 @@
             ]
           },
           "card_wall_builder_name": {
-            "display_name": "Bush Wall Builder card name",
+            "display_name": "Wall Lookout card name",
             "font_key": "sm",
             "kind": "label",
-            "label": "Bush Wall Builder",
+            "label": "Wall Lookout",
             "parent": "card_wall_builder",
             "rect": [
               585,
@@ -2022,7 +2022,7 @@
             ]
           },
           "card_wall_builder_name2": {
-            "display_name": "Bush Wall Builder card name2",
+            "display_name": "Wall Lookout card name2",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -2035,7 +2035,7 @@
             ]
           },
           "card_wall_builder_plate": {
-            "display_name": "Bush Wall Builder card plate",
+            "display_name": "Wall Lookout card plate",
             "kind": "panel",
             "label": "",
             "parent": "card_wall_builder",
@@ -2047,19 +2047,19 @@
             ]
           },
           "card_wall_builder_portrait": {
-            "display_name": "Bush Wall Builder card portrait",
+            "display_name": "Wall Lookout card portrait",
             "kind": "panel",
             "label": "",
             "parent": "card_wall_builder",
             "rect": [
-              530,
-              773,
-              34,
-              34
+              515,
+              748,
+              64,
+              96
             ]
           },
           "card_wall_builder_price": {
-            "display_name": "Bush Wall Builder card price",
+            "display_name": "Wall Lookout card price",
             "font_key": "sm",
             "kind": "button",
             "label": "",
@@ -2072,7 +2072,7 @@
             ]
           },
           "card_wall_builder_price_icon": {
-            "display_name": "Bush Wall Builder card price icon",
+            "display_name": "Wall Lookout card price icon",
             "kind": "panel",
             "label": "",
             "parent": "card_wall_builder_price",
@@ -2084,7 +2084,7 @@
             ]
           },
           "card_wall_builder_price_text": {
-            "display_name": "Bush Wall Builder card price text",
+            "display_name": "Wall Lookout card price text",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -2377,9 +2377,9 @@
             "parent": "terrain_card_list",
             "rect": [
               516,
-              474,
+              346,
               118,
-              138
+              74
             ]
           },
           "cond_card_forest_count": {
@@ -2391,7 +2391,7 @@
             "parent": "cond_card_forest",
             "rect": [
               631,
-              573,
+              381,
               0,
               0
             ],
@@ -2405,7 +2405,7 @@
             "parent": "cond_card_forest",
             "rect": [
               519,
-              585,
+              393,
               0,
               0
             ]
@@ -2418,7 +2418,7 @@
             "parent": "cond_card_forest",
             "rect": [
               519,
-              597,
+              405,
               0,
               0
             ]
@@ -2431,7 +2431,7 @@
             "parent": "cond_card_forest",
             "rect": [
               519,
-              573,
+              381,
               0,
               0
             ],
@@ -2444,9 +2444,9 @@
             "parent": "cond_card_forest",
             "rect": [
               543,
-              477,
+              349,
               64,
-              96
+              32
             ]
           },
           "cond_card_grass": {
@@ -2537,7 +2537,7 @@
               516,
               190,
               118,
-              138
+              74
             ]
           },
           "cond_card_mountain_count": {
@@ -2549,7 +2549,7 @@
             "parent": "cond_card_mountain",
             "rect": [
               631,
-              289,
+              225,
               0,
               0
             ],
@@ -2563,7 +2563,7 @@
             "parent": "cond_card_mountain",
             "rect": [
               519,
-              301,
+              237,
               0,
               0
             ]
@@ -2576,7 +2576,7 @@
             "parent": "cond_card_mountain",
             "rect": [
               519,
-              313,
+              249,
               0,
               0
             ]
@@ -2589,7 +2589,7 @@
             "parent": "cond_card_mountain",
             "rect": [
               519,
-              289,
+              225,
               0,
               0
             ],
@@ -2604,7 +2604,7 @@
               543,
               193,
               64,
-              96
+              32
             ]
           },
           "cond_card_pond": {
@@ -2614,9 +2614,9 @@
             "parent": "terrain_card_list",
             "rect": [
               516,
-              332,
+              268,
               118,
-              138
+              74
             ]
           },
           "cond_card_pond_count": {
@@ -2628,7 +2628,7 @@
             "parent": "cond_card_pond",
             "rect": [
               631,
-              431,
+              303,
               0,
               0
             ],
@@ -2642,7 +2642,7 @@
             "parent": "cond_card_pond",
             "rect": [
               519,
-              443,
+              315,
               0,
               0
             ]
@@ -2655,7 +2655,7 @@
             "parent": "cond_card_pond",
             "rect": [
               519,
-              455,
+              327,
               0,
               0
             ]
@@ -2668,7 +2668,7 @@
             "parent": "cond_card_pond",
             "rect": [
               519,
-              431,
+              303,
               0,
               0
             ],
@@ -2681,9 +2681,9 @@
             "parent": "cond_card_pond",
             "rect": [
               543,
-              335,
+              271,
               64,
-              96
+              32
             ]
           },
           "panel": {
@@ -2802,7 +2802,7 @@
             "text_id": "building.upgrade.died_last_round"
           },
           "dmg_dealt_label": {
-            "display_name": "Damage dealt label",
+            "display_name": "DMG dealt label",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -2813,12 +2813,12 @@
               0,
               0
             ],
-            "sample": "Damage dealt",
+            "sample": "DMG dealt",
             "text_id": "building.upgrade.dmg_dealt"
           },
           "dmg_dealt_value": {
             "align": "right",
-            "display_name": "Damage dealt value",
+            "display_name": "DMG dealt value",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -2832,7 +2832,7 @@
             "text_id": "building.stat.value"
           },
           "dmg_taken_label": {
-            "display_name": "Damage taken label",
+            "display_name": "DMG taken label",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -2843,12 +2843,12 @@
               0,
               0
             ],
-            "sample": "Damage taken",
+            "sample": "DMG taken",
             "text_id": "building.upgrade.dmg_taken"
           },
           "dmg_taken_value": {
             "align": "right",
-            "display_name": "Damage taken value",
+            "display_name": "DMG taken value",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -3183,7 +3183,7 @@
             "text_id": "building.stat.value"
           },
           "stat_hp_label": {
-            "display_name": "HP label",
+            "display_name": "Health label",
             "font_key": "md",
             "kind": "label",
             "label": "",
@@ -3194,12 +3194,12 @@
               0,
               0
             ],
-            "sample": "HP",
+            "sample": "Health",
             "text_id": "building.stat.hp"
           },
           "stat_hp_value": {
             "align": "right",
-            "display_name": "HP value",
+            "display_name": "Health value",
             "font_key": "md",
             "kind": "label",
             "label": "",
@@ -3459,9 +3459,9 @@
             "parent": "upgrade_terrain_card_list",
             "rect": [
               516,
-              670,
+              542,
               118,
-              138
+              74
             ]
           },
           "upgrade_cond_card_forest_count": {
@@ -3473,7 +3473,7 @@
             "parent": "upgrade_cond_card_forest",
             "rect": [
               631,
-              769,
+              577,
               0,
               0
             ],
@@ -3487,7 +3487,7 @@
             "parent": "upgrade_cond_card_forest",
             "rect": [
               519,
-              781,
+              589,
               0,
               0
             ]
@@ -3500,7 +3500,7 @@
             "parent": "upgrade_cond_card_forest",
             "rect": [
               519,
-              793,
+              601,
               0,
               0
             ]
@@ -3513,7 +3513,7 @@
             "parent": "upgrade_cond_card_forest",
             "rect": [
               519,
-              769,
+              577,
               0,
               0
             ],
@@ -3526,9 +3526,9 @@
             "parent": "upgrade_cond_card_forest",
             "rect": [
               543,
-              673,
+              545,
               64,
-              96
+              32
             ]
           },
           "upgrade_cond_card_grass": {
@@ -3619,7 +3619,7 @@
               516,
               386,
               118,
-              138
+              74
             ]
           },
           "upgrade_cond_card_mountain_count": {
@@ -3631,7 +3631,7 @@
             "parent": "upgrade_cond_card_mountain",
             "rect": [
               631,
-              485,
+              421,
               0,
               0
             ],
@@ -3645,7 +3645,7 @@
             "parent": "upgrade_cond_card_mountain",
             "rect": [
               519,
-              497,
+              433,
               0,
               0
             ]
@@ -3658,7 +3658,7 @@
             "parent": "upgrade_cond_card_mountain",
             "rect": [
               519,
-              509,
+              445,
               0,
               0
             ]
@@ -3671,7 +3671,7 @@
             "parent": "upgrade_cond_card_mountain",
             "rect": [
               519,
-              485,
+              421,
               0,
               0
             ],
@@ -3686,7 +3686,7 @@
               543,
               389,
               64,
-              96
+              32
             ]
           },
           "upgrade_cond_card_pond": {
@@ -3696,9 +3696,9 @@
             "parent": "upgrade_terrain_card_list",
             "rect": [
               516,
-              528,
+              464,
               118,
-              138
+              74
             ]
           },
           "upgrade_cond_card_pond_count": {
@@ -3710,7 +3710,7 @@
             "parent": "upgrade_cond_card_pond",
             "rect": [
               631,
-              627,
+              499,
               0,
               0
             ],
@@ -3724,7 +3724,7 @@
             "parent": "upgrade_cond_card_pond",
             "rect": [
               519,
-              639,
+              511,
               0,
               0
             ]
@@ -3737,7 +3737,7 @@
             "parent": "upgrade_cond_card_pond",
             "rect": [
               519,
-              651,
+              523,
               0,
               0
             ]
@@ -3750,7 +3750,7 @@
             "parent": "upgrade_cond_card_pond",
             "rect": [
               519,
-              627,
+              499,
               0,
               0
             ],
@@ -3763,9 +3763,9 @@
             "parent": "upgrade_cond_card_pond",
             "rect": [
               543,
-              531,
+              467,
               64,
-              96
+              32
             ]
           },
           "upgrade_hint": {
@@ -3794,7 +3794,7 @@
               0,
               0
             ],
-            "sample": "click here to change",
+            "sample": "R",
             "text_id": "building.upgrade.name_placeholder"
           },
           "upgrade_name_box": {
@@ -3965,9 +3965,9 @@
         "parent": "build_terrain_card_list",
         "rect": [
           516,
-          670,
+          542,
           118,
-          138
+          74
         ]
       },
       "build_cond_card_forest_count": {
@@ -3979,7 +3979,7 @@
         "parent": "build_cond_card_forest",
         "rect": [
           631,
-          769,
+          577,
           0,
           0
         ],
@@ -3993,7 +3993,7 @@
         "parent": "build_cond_card_forest",
         "rect": [
           519,
-          781,
+          589,
           0,
           0
         ]
@@ -4006,7 +4006,7 @@
         "parent": "build_cond_card_forest",
         "rect": [
           519,
-          793,
+          601,
           0,
           0
         ]
@@ -4019,7 +4019,7 @@
         "parent": "build_cond_card_forest",
         "rect": [
           519,
-          769,
+          577,
           0,
           0
         ],
@@ -4032,9 +4032,9 @@
         "parent": "build_cond_card_forest",
         "rect": [
           543,
-          673,
+          545,
           64,
-          96
+          32
         ]
       },
       "build_cond_card_grass": {
@@ -4125,7 +4125,7 @@
           516,
           386,
           118,
-          138
+          74
         ]
       },
       "build_cond_card_mountain_count": {
@@ -4137,7 +4137,7 @@
         "parent": "build_cond_card_mountain",
         "rect": [
           631,
-          485,
+          421,
           0,
           0
         ],
@@ -4151,7 +4151,7 @@
         "parent": "build_cond_card_mountain",
         "rect": [
           519,
-          497,
+          433,
           0,
           0
         ]
@@ -4164,7 +4164,7 @@
         "parent": "build_cond_card_mountain",
         "rect": [
           519,
-          509,
+          445,
           0,
           0
         ]
@@ -4177,7 +4177,7 @@
         "parent": "build_cond_card_mountain",
         "rect": [
           519,
-          485,
+          421,
           0,
           0
         ],
@@ -4192,7 +4192,7 @@
           543,
           389,
           64,
-          96
+          32
         ]
       },
       "build_cond_card_pond": {
@@ -4202,9 +4202,9 @@
         "parent": "build_terrain_card_list",
         "rect": [
           516,
-          528,
+          464,
           118,
-          138
+          74
         ]
       },
       "build_cond_card_pond_count": {
@@ -4216,7 +4216,7 @@
         "parent": "build_cond_card_pond",
         "rect": [
           631,
-          627,
+          499,
           0,
           0
         ],
@@ -4230,7 +4230,7 @@
         "parent": "build_cond_card_pond",
         "rect": [
           519,
-          639,
+          511,
           0,
           0
         ]
@@ -4243,7 +4243,7 @@
         "parent": "build_cond_card_pond",
         "rect": [
           519,
-          651,
+          523,
           0,
           0
         ]
@@ -4256,7 +4256,7 @@
         "parent": "build_cond_card_pond",
         "rect": [
           519,
-          627,
+          499,
           0,
           0
         ],
@@ -4269,9 +4269,9 @@
         "parent": "build_cond_card_pond",
         "rect": [
           543,
-          531,
+          467,
           64,
-          96
+          32
         ]
       },
       "build_terrain_card_list": {
@@ -4287,7 +4287,7 @@
         ]
       },
       "card_aoe_defence": {
-        "display_name": "Mortar card",
+        "display_name": "Little Mortar card",
         "font_key": "sm",
         "kind": "button",
         "label": "",
@@ -4300,7 +4300,7 @@
         ]
       },
       "card_aoe_defence_frame": {
-        "display_name": "Mortar card frame",
+        "display_name": "Little Mortar card frame",
         "kind": "panel",
         "label": "",
         "parent": "card_aoe_defence",
@@ -4312,10 +4312,10 @@
         ]
       },
       "card_aoe_defence_name": {
-        "display_name": "Mortar card name",
+        "display_name": "Little Mortar card name",
         "font_key": "sm",
         "kind": "label",
-        "label": "Mortar",
+        "label": "Little Mortar",
         "parent": "card_aoe_defence",
         "rect": [
           585,
@@ -4325,7 +4325,7 @@
         ]
       },
       "card_aoe_defence_name2": {
-        "display_name": "Mortar card name2",
+        "display_name": "Little Mortar card name2",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -4338,7 +4338,7 @@
         ]
       },
       "card_aoe_defence_plate": {
-        "display_name": "Mortar card plate",
+        "display_name": "Little Mortar card plate",
         "kind": "panel",
         "label": "",
         "parent": "card_aoe_defence",
@@ -4350,19 +4350,19 @@
         ]
       },
       "card_aoe_defence_portrait": {
-        "display_name": "Mortar card portrait",
+        "display_name": "Little Mortar card portrait",
         "kind": "panel",
         "label": "",
         "parent": "card_aoe_defence",
         "rect": [
-          530,
-          170,
-          34,
-          34
+          515,
+          145,
+          64,
+          96
         ]
       },
       "card_aoe_defence_price": {
-        "display_name": "Mortar card price",
+        "display_name": "Little Mortar card price",
         "font_key": "sm",
         "kind": "button",
         "label": "",
@@ -4375,7 +4375,7 @@
         ]
       },
       "card_aoe_defence_price_icon": {
-        "display_name": "Mortar card price icon",
+        "display_name": "Little Mortar card price icon",
         "kind": "panel",
         "label": "",
         "parent": "card_aoe_defence_price",
@@ -4387,7 +4387,7 @@
         ]
       },
       "card_aoe_defence_price_text": {
-        "display_name": "Mortar card price text",
+        "display_name": "Little Mortar card price text",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -4469,10 +4469,10 @@
         "label": "",
         "parent": "card_blocker",
         "rect": [
-          530,
-          706,
-          34,
-          34
+          515,
+          681,
+          64,
+          96
         ]
       },
       "card_blocker_price": {
@@ -4583,10 +4583,10 @@
         "label": "",
         "parent": "card_boost_damage",
         "rect": [
-          530,
-          572,
-          34,
-          34
+          515,
+          547,
+          64,
+          96
         ]
       },
       "card_boost_damage_price": {
@@ -4697,10 +4697,10 @@
         "label": "",
         "parent": "card_boost_hp",
         "rect": [
-          530,
-          639,
-          34,
-          34
+          515,
+          614,
+          64,
+          96
         ]
       },
       "card_boost_hp_price": {
@@ -4811,10 +4811,10 @@
         "label": "",
         "parent": "card_boost_speed",
         "rect": [
-          530,
-          505,
-          34,
-          34
+          515,
+          480,
+          64,
+          96
         ]
       },
       "card_boost_speed_price": {
@@ -4925,10 +4925,10 @@
         "label": "",
         "parent": "card_defence",
         "rect": [
-          530,
-          36,
-          34,
-          34
+          515,
+          11,
+          64,
+          96
         ]
       },
       "card_defence_price": {
@@ -5039,10 +5039,10 @@
         "label": "",
         "parent": "card_economic",
         "rect": [
-          530,
-          103,
-          34,
-          34
+          515,
+          78,
+          64,
+          96
         ]
       },
       "card_economic_price": {
@@ -5085,7 +5085,7 @@
         "text_id": "building.stat.value"
       },
       "card_meditator": {
-        "display_name": "Meditator card",
+        "display_name": "Contemplator card",
         "font_key": "sm",
         "kind": "button",
         "label": "",
@@ -5098,7 +5098,7 @@
         ]
       },
       "card_meditator_frame": {
-        "display_name": "Meditator card frame",
+        "display_name": "Contemplator card frame",
         "kind": "panel",
         "label": "",
         "parent": "card_meditator",
@@ -5110,10 +5110,10 @@
         ]
       },
       "card_meditator_name": {
-        "display_name": "Meditator card name",
+        "display_name": "Contemplator card name",
         "font_key": "sm",
         "kind": "label",
-        "label": "Meditator",
+        "label": "Contemplator",
         "parent": "card_meditator",
         "rect": [
           585,
@@ -5123,7 +5123,7 @@
         ]
       },
       "card_meditator_name2": {
-        "display_name": "Meditator card name2",
+        "display_name": "Contemplator card name2",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -5136,7 +5136,7 @@
         ]
       },
       "card_meditator_plate": {
-        "display_name": "Meditator card plate",
+        "display_name": "Contemplator card plate",
         "kind": "panel",
         "label": "",
         "parent": "card_meditator",
@@ -5148,19 +5148,19 @@
         ]
       },
       "card_meditator_portrait": {
-        "display_name": "Meditator card portrait",
+        "display_name": "Contemplator card portrait",
         "kind": "panel",
         "label": "",
         "parent": "card_meditator",
         "rect": [
-          530,
-          438,
-          34,
-          34
+          515,
+          413,
+          64,
+          96
         ]
       },
       "card_meditator_price": {
-        "display_name": "Meditator card price",
+        "display_name": "Contemplator card price",
         "font_key": "sm",
         "kind": "button",
         "label": "",
@@ -5173,7 +5173,7 @@
         ]
       },
       "card_meditator_price_icon": {
-        "display_name": "Meditator card price icon",
+        "display_name": "Contemplator card price icon",
         "kind": "panel",
         "label": "",
         "parent": "card_meditator_price",
@@ -5185,7 +5185,7 @@
         ]
       },
       "card_meditator_price_text": {
-        "display_name": "Meditator card price text",
+        "display_name": "Contemplator card price text",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -5267,10 +5267,10 @@
         "label": "",
         "parent": "card_painter",
         "rect": [
-          530,
-          371,
-          34,
-          34
+          515,
+          346,
+          64,
+          96
         ]
       },
       "card_painter_price": {
@@ -5313,7 +5313,7 @@
         "text_id": "building.stat.value"
       },
       "card_storm_priest": {
-        "display_name": "Storm Acolyte card",
+        "display_name": "Lightning Charger card",
         "font_key": "sm",
         "kind": "button",
         "label": "",
@@ -5326,7 +5326,7 @@
         ]
       },
       "card_storm_priest_frame": {
-        "display_name": "Storm Acolyte card frame",
+        "display_name": "Lightning Charger card frame",
         "kind": "panel",
         "label": "",
         "parent": "card_storm_priest",
@@ -5338,10 +5338,10 @@
         ]
       },
       "card_storm_priest_name": {
-        "display_name": "Storm Acolyte card name",
+        "display_name": "Lightning Charger card name",
         "font_key": "sm",
         "kind": "label",
-        "label": "Storm Acolyte",
+        "label": "Lightning Charger",
         "parent": "card_storm_priest",
         "rect": [
           585,
@@ -5351,7 +5351,7 @@
         ]
       },
       "card_storm_priest_name2": {
-        "display_name": "Storm Acolyte card name2",
+        "display_name": "Lightning Charger card name2",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -5364,7 +5364,7 @@
         ]
       },
       "card_storm_priest_plate": {
-        "display_name": "Storm Acolyte card plate",
+        "display_name": "Lightning Charger card plate",
         "kind": "panel",
         "label": "",
         "parent": "card_storm_priest",
@@ -5376,19 +5376,19 @@
         ]
       },
       "card_storm_priest_portrait": {
-        "display_name": "Storm Acolyte card portrait",
+        "display_name": "Lightning Charger card portrait",
         "kind": "panel",
         "label": "",
         "parent": "card_storm_priest",
         "rect": [
-          530,
-          304,
-          34,
-          34
+          515,
+          279,
+          64,
+          96
         ]
       },
       "card_storm_priest_price": {
-        "display_name": "Storm Acolyte card price",
+        "display_name": "Lightning Charger card price",
         "font_key": "sm",
         "kind": "button",
         "label": "",
@@ -5401,7 +5401,7 @@
         ]
       },
       "card_storm_priest_price_icon": {
-        "display_name": "Storm Acolyte card price icon",
+        "display_name": "Lightning Charger card price icon",
         "kind": "panel",
         "label": "",
         "parent": "card_storm_priest_price",
@@ -5413,7 +5413,7 @@
         ]
       },
       "card_storm_priest_price_text": {
-        "display_name": "Storm Acolyte card price text",
+        "display_name": "Lightning Charger card price text",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -5495,10 +5495,10 @@
         "label": "",
         "parent": "card_sun_scorcher",
         "rect": [
-          530,
-          237,
-          34,
-          34
+          515,
+          212,
+          64,
+          96
         ]
       },
       "card_sun_scorcher_price": {
@@ -5541,7 +5541,7 @@
         "text_id": "building.stat.value"
       },
       "card_wall_builder": {
-        "display_name": "Bush Wall Builder card",
+        "display_name": "Wall Lookout card",
         "font_key": "sm",
         "kind": "button",
         "label": "",
@@ -5554,7 +5554,7 @@
         ]
       },
       "card_wall_builder_frame": {
-        "display_name": "Bush Wall Builder card frame",
+        "display_name": "Wall Lookout card frame",
         "kind": "panel",
         "label": "",
         "parent": "card_wall_builder",
@@ -5566,10 +5566,10 @@
         ]
       },
       "card_wall_builder_name": {
-        "display_name": "Bush Wall Builder card name",
+        "display_name": "Wall Lookout card name",
         "font_key": "sm",
         "kind": "label",
-        "label": "Bush Wall Builder",
+        "label": "Wall Lookout",
         "parent": "card_wall_builder",
         "rect": [
           585,
@@ -5579,7 +5579,7 @@
         ]
       },
       "card_wall_builder_name2": {
-        "display_name": "Bush Wall Builder card name2",
+        "display_name": "Wall Lookout card name2",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -5592,7 +5592,7 @@
         ]
       },
       "card_wall_builder_plate": {
-        "display_name": "Bush Wall Builder card plate",
+        "display_name": "Wall Lookout card plate",
         "kind": "panel",
         "label": "",
         "parent": "card_wall_builder",
@@ -5604,19 +5604,19 @@
         ]
       },
       "card_wall_builder_portrait": {
-        "display_name": "Bush Wall Builder card portrait",
+        "display_name": "Wall Lookout card portrait",
         "kind": "panel",
         "label": "",
         "parent": "card_wall_builder",
         "rect": [
-          530,
-          773,
-          34,
-          34
+          515,
+          748,
+          64,
+          96
         ]
       },
       "card_wall_builder_price": {
-        "display_name": "Bush Wall Builder card price",
+        "display_name": "Wall Lookout card price",
         "font_key": "sm",
         "kind": "button",
         "label": "",
@@ -5629,7 +5629,7 @@
         ]
       },
       "card_wall_builder_price_icon": {
-        "display_name": "Bush Wall Builder card price icon",
+        "display_name": "Wall Lookout card price icon",
         "kind": "panel",
         "label": "",
         "parent": "card_wall_builder_price",
@@ -5641,7 +5641,7 @@
         ]
       },
       "card_wall_builder_price_text": {
-        "display_name": "Bush Wall Builder card price text",
+        "display_name": "Wall Lookout card price text",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -5674,9 +5674,9 @@
         "parent": "terrain_card_list",
         "rect": [
           516,
-          474,
+          346,
           118,
-          138
+          74
         ]
       },
       "cond_card_forest_count": {
@@ -5688,7 +5688,7 @@
         "parent": "cond_card_forest",
         "rect": [
           631,
-          573,
+          381,
           0,
           0
         ],
@@ -5702,7 +5702,7 @@
         "parent": "cond_card_forest",
         "rect": [
           519,
-          585,
+          393,
           0,
           0
         ]
@@ -5715,7 +5715,7 @@
         "parent": "cond_card_forest",
         "rect": [
           519,
-          597,
+          405,
           0,
           0
         ]
@@ -5728,7 +5728,7 @@
         "parent": "cond_card_forest",
         "rect": [
           519,
-          573,
+          381,
           0,
           0
         ],
@@ -5741,9 +5741,9 @@
         "parent": "cond_card_forest",
         "rect": [
           543,
-          477,
+          349,
           64,
-          96
+          32
         ]
       },
       "cond_card_grass": {
@@ -5834,7 +5834,7 @@
           516,
           190,
           118,
-          138
+          74
         ]
       },
       "cond_card_mountain_count": {
@@ -5846,7 +5846,7 @@
         "parent": "cond_card_mountain",
         "rect": [
           631,
-          289,
+          225,
           0,
           0
         ],
@@ -5860,7 +5860,7 @@
         "parent": "cond_card_mountain",
         "rect": [
           519,
-          301,
+          237,
           0,
           0
         ]
@@ -5873,7 +5873,7 @@
         "parent": "cond_card_mountain",
         "rect": [
           519,
-          313,
+          249,
           0,
           0
         ]
@@ -5886,7 +5886,7 @@
         "parent": "cond_card_mountain",
         "rect": [
           519,
-          289,
+          225,
           0,
           0
         ],
@@ -5901,7 +5901,7 @@
           543,
           193,
           64,
-          96
+          32
         ]
       },
       "cond_card_pond": {
@@ -5911,9 +5911,9 @@
         "parent": "terrain_card_list",
         "rect": [
           516,
-          332,
+          268,
           118,
-          138
+          74
         ]
       },
       "cond_card_pond_count": {
@@ -5925,7 +5925,7 @@
         "parent": "cond_card_pond",
         "rect": [
           631,
-          431,
+          303,
           0,
           0
         ],
@@ -5939,7 +5939,7 @@
         "parent": "cond_card_pond",
         "rect": [
           519,
-          443,
+          315,
           0,
           0
         ]
@@ -5952,7 +5952,7 @@
         "parent": "cond_card_pond",
         "rect": [
           519,
-          455,
+          327,
           0,
           0
         ]
@@ -5965,7 +5965,7 @@
         "parent": "cond_card_pond",
         "rect": [
           519,
-          431,
+          303,
           0,
           0
         ],
@@ -5978,9 +5978,9 @@
         "parent": "cond_card_pond",
         "rect": [
           543,
-          335,
+          271,
           64,
-          96
+          32
         ]
       },
       "construct_card_list": {
@@ -6027,7 +6027,7 @@
         "text_id": "building.upgrade.died_last_round"
       },
       "dmg_dealt_label": {
-        "display_name": "Damage dealt label",
+        "display_name": "DMG dealt label",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -6038,12 +6038,12 @@
           0,
           0
         ],
-        "sample": "Damage dealt",
+        "sample": "DMG dealt",
         "text_id": "building.upgrade.dmg_dealt"
       },
       "dmg_dealt_value": {
         "align": "right",
-        "display_name": "Damage dealt value",
+        "display_name": "DMG dealt value",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -6057,7 +6057,7 @@
         "text_id": "building.stat.value"
       },
       "dmg_taken_label": {
-        "display_name": "Damage taken label",
+        "display_name": "DMG taken label",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -6068,12 +6068,12 @@
           0,
           0
         ],
-        "sample": "Damage taken",
+        "sample": "DMG taken",
         "text_id": "building.upgrade.dmg_taken"
       },
       "dmg_taken_value": {
         "align": "right",
-        "display_name": "Damage taken value",
+        "display_name": "DMG taken value",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -6744,7 +6744,7 @@
         "text_id": "building.stat.value"
       },
       "stat_hp_label": {
-        "display_name": "HP label",
+        "display_name": "Health label",
         "font_key": "md",
         "kind": "label",
         "label": "",
@@ -6755,12 +6755,12 @@
           0,
           0
         ],
-        "sample": "HP",
+        "sample": "Health",
         "text_id": "building.stat.hp"
       },
       "stat_hp_value": {
         "align": "right",
-        "display_name": "HP value",
+        "display_name": "Health value",
         "font_key": "md",
         "kind": "label",
         "label": "",
@@ -7077,9 +7077,9 @@
         "parent": "upgrade_terrain_card_list",
         "rect": [
           516,
-          670,
+          542,
           118,
-          138
+          74
         ]
       },
       "upgrade_cond_card_forest_count": {
@@ -7091,7 +7091,7 @@
         "parent": "upgrade_cond_card_forest",
         "rect": [
           631,
-          769,
+          577,
           0,
           0
         ],
@@ -7105,7 +7105,7 @@
         "parent": "upgrade_cond_card_forest",
         "rect": [
           519,
-          781,
+          589,
           0,
           0
         ]
@@ -7118,7 +7118,7 @@
         "parent": "upgrade_cond_card_forest",
         "rect": [
           519,
-          793,
+          601,
           0,
           0
         ]
@@ -7131,7 +7131,7 @@
         "parent": "upgrade_cond_card_forest",
         "rect": [
           519,
-          769,
+          577,
           0,
           0
         ],
@@ -7144,9 +7144,9 @@
         "parent": "upgrade_cond_card_forest",
         "rect": [
           543,
-          673,
+          545,
           64,
-          96
+          32
         ]
       },
       "upgrade_cond_card_grass": {
@@ -7237,7 +7237,7 @@
           516,
           386,
           118,
-          138
+          74
         ]
       },
       "upgrade_cond_card_mountain_count": {
@@ -7249,7 +7249,7 @@
         "parent": "upgrade_cond_card_mountain",
         "rect": [
           631,
-          485,
+          421,
           0,
           0
         ],
@@ -7263,7 +7263,7 @@
         "parent": "upgrade_cond_card_mountain",
         "rect": [
           519,
-          497,
+          433,
           0,
           0
         ]
@@ -7276,7 +7276,7 @@
         "parent": "upgrade_cond_card_mountain",
         "rect": [
           519,
-          509,
+          445,
           0,
           0
         ]
@@ -7289,7 +7289,7 @@
         "parent": "upgrade_cond_card_mountain",
         "rect": [
           519,
-          485,
+          421,
           0,
           0
         ],
@@ -7304,7 +7304,7 @@
           543,
           389,
           64,
-          96
+          32
         ]
       },
       "upgrade_cond_card_pond": {
@@ -7314,9 +7314,9 @@
         "parent": "upgrade_terrain_card_list",
         "rect": [
           516,
-          528,
+          464,
           118,
-          138
+          74
         ]
       },
       "upgrade_cond_card_pond_count": {
@@ -7328,7 +7328,7 @@
         "parent": "upgrade_cond_card_pond",
         "rect": [
           631,
-          627,
+          499,
           0,
           0
         ],
@@ -7342,7 +7342,7 @@
         "parent": "upgrade_cond_card_pond",
         "rect": [
           519,
-          639,
+          511,
           0,
           0
         ]
@@ -7355,7 +7355,7 @@
         "parent": "upgrade_cond_card_pond",
         "rect": [
           519,
-          651,
+          523,
           0,
           0
         ]
@@ -7368,7 +7368,7 @@
         "parent": "upgrade_cond_card_pond",
         "rect": [
           519,
-          627,
+          499,
           0,
           0
         ],
@@ -7381,9 +7381,9 @@
         "parent": "upgrade_cond_card_pond",
         "rect": [
           543,
-          531,
+          467,
           64,
-          96
+          32
         ]
       },
       "upgrade_hint": {
@@ -7412,7 +7412,7 @@
           0,
           0
         ],
-        "sample": "click here to change",
+        "sample": "R",
         "text_id": "building.upgrade.name_placeholder"
       },
       "upgrade_name_box": {
@@ -8247,6 +8247,34 @@
       }
     }
   },
+  "loading": {
+    "mock_note": "love=123, round=7 (idle, no world state — the ring at 0%)",
+    "widgets": {
+      "backdrop": {
+        "display_name": "Background backdrop",
+        "kind": "backdrop",
+        "label": "",
+        "rect": [
+          0,
+          0,
+          640,
+          360
+        ]
+      },
+      "ring": {
+        "display_name": "Progress ring",
+        "kind": "panel",
+        "label": "",
+        "parent": "backdrop",
+        "rect": [
+          296,
+          156,
+          48,
+          48
+        ]
+      }
+    }
+  },
   "main_menu": {
     "mock_note": "love=123, round=7 (idle, no world state)",
     "widgets": {
@@ -8269,7 +8297,19 @@
         "parent": "backdrop",
         "rect": [
           240,
-          210,
+          122,
+          160,
+          26
+        ]
+      },
+      "btn_continue": {
+        "font_key": "lg",
+        "kind": "button",
+        "label": "CONTINUE",
+        "parent": "backdrop",
+        "rect": [
+          0,
+          0,
           160,
           26
         ]
@@ -8282,7 +8322,7 @@
         "parent": "backdrop",
         "rect": [
           240,
-          300,
+          242,
           160,
           26
         ]
@@ -8294,7 +8334,7 @@
         "parent": "backdrop",
         "rect": [
           240,
-          240,
+          152,
           160,
           26
         ]
@@ -8307,7 +8347,7 @@
         "parent": "backdrop",
         "rect": [
           240,
-          150,
+          62,
           160,
           26
         ]
@@ -8319,7 +8359,7 @@
         "parent": "backdrop",
         "rect": [
           240,
-          180,
+          92,
           160,
           26
         ]
@@ -8331,7 +8371,7 @@
         "parent": "backdrop",
         "rect": [
           405,
-          180,
+          92,
           30,
           26
         ]
@@ -8344,7 +8384,19 @@
         "parent": "backdrop",
         "rect": [
           240,
-          330,
+          272,
+          160,
+          26
+        ]
+      },
+      "btn_save_files": {
+        "font_key": "lg",
+        "kind": "button",
+        "label": "SAVE FILES",
+        "parent": "backdrop",
+        "rect": [
+          240,
+          182,
           160,
           26
         ]
@@ -8357,7 +8409,7 @@
         "parent": "backdrop",
         "rect": [
           240,
-          270,
+          212,
           160,
           26
         ]
@@ -8370,7 +8422,7 @@
         "parent": "backdrop",
         "rect": [
           320,
-          125,
+          42,
           0,
           0
         ]
@@ -8383,7 +8435,7 @@
         "parent": "backdrop",
         "rect": [
           320,
-          105,
+          22,
           0,
           0
         ]

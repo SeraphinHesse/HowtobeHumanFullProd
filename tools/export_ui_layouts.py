@@ -55,8 +55,8 @@ from tools import screen_mocks  # noqa: E402
 # build_screen_defaults is invoked in, not the file's byte layout.
 SCREEN_IDS = [
     "add_name", "boss_cutscene", "building_panel", "cheat_menu", "credits",
-    "enemy_intro", "game_log", "game_over", "hud", "levelup", "main_menu",
-    "overlays", "pause", "settings",
+    "enemy_intro", "game_log", "game_over", "hud", "levelup", "loading",
+    "main_menu", "overlays", "pause", "settings",
 ]
 
 # Common mock state (§1.3): every screen construction reads these where it
@@ -218,6 +218,13 @@ _DISPLAY_NAMES = {
         "title": "Title label",
         "btn_back": "Back button",
     },
+    # feature: loading screen — `ring` is a geometry-only holder. The screen
+    # draws the ring itself from its rect, so "moving the loading widget" is
+    # moving `ring`.
+    "loading": {
+        "backdrop": "Background backdrop",
+        "ring": "Progress ring",
+    },
     "add_name": {
         "backdrop": "Background backdrop",
         "panel": "Add name panel",
@@ -374,6 +381,7 @@ _PARENT_CONTAINERS = {
     "game_over": ("backdrop", ()),
     "boss_cutscene": ("backdrop", ()),
     "levelup": ("backdrop", ()),
+    "loading": ("backdrop", ()),
     # `backdrop` is the full-screen dimmer BEHIND the panel, not a sibling
     # inside it — the panel and it are both roots.
     "add_name": ("panel", ("backdrop",)),
@@ -690,6 +698,16 @@ def _build_add_name(view_w, view_h, data_root):
     return _widgets_from_ids(screen.ids), f"{_COMMON_NOTE} (idle, no world state)"
 
 
+def _build_loading(view_w, view_h, data_root):
+    from game.ui.loading_screen import LoadingScreen
+
+    # `__init__` lays out already (the MainMenu precedent) — the ring holders
+    # carry no state, so there is nothing to drive here.
+    screen = LoadingScreen(view_w, view_h)
+    return (_widgets_from_ids(screen.ids),
+            f"{_COMMON_NOTE} (idle, no world state — the ring at 0%)")
+
+
 def _build_game_over(view_w, view_h, data_root):
     from game.ui.game_over import GameOverScreen
 
@@ -850,6 +868,7 @@ _BUILDERS = {
     "game_over": _build_game_over,
     "hud": _build_hud,
     "levelup": _build_levelup,
+    "loading": _build_loading,
     "main_menu": _build_main_menu,
     "overlays": _build_overlays,
     "pause": _build_pause,

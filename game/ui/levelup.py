@@ -183,10 +183,11 @@ class LevelupWindow:
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
-        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        self.skinning.submit_background(renderer, self.screen_id, view_w,
+                                        view_h, anim_ms=t)
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
                                     "under", self.skinning.state_of)
-        renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
+        widgets.submit_backdrop(renderer, self._backdrop, anim_ms=t)
         submit_label(renderer, self._heading, color=widgets.C_GOLD)
         default_skin = self.skinning.defaults(self.screen_id).get("panel_skin")
         for i, option in enumerate(self.options):

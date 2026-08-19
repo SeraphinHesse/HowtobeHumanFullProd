@@ -105,6 +105,7 @@ def capture_screens(data_root, view_w, view_h, *, skinning=None,
     from game.ui.game_over import GameOverScreen
     from game.ui.hud import Hud
     from game.ui.levelup import LevelupWindow
+    from game.ui.loading_screen import LoadingScreen
     from game.ui.main_menu import MainMenu
     from game.ui.pause import PauseScreen
     from game.ui.settings import SessionSettings, SettingsScreen
@@ -160,6 +161,12 @@ def capture_screens(data_root, view_w, view_h, *, skinning=None,
     game_log.post("Test message")
     game_log.update(0.0)
 
+    # feature: loading screen — recorded at 0%, i.e. the empty ring. `assets`
+    # is None: the only thing the screen asks a store is whether the
+    # `ui_bg_loading` background is imported, and the committed artifact is
+    # recorded override-free and art-free like every other screen's.
+    loading = LoadingScreen(view_w, view_h, **kw)
+
     boss = BossCutscene(view_w, view_h, core, **kw)
     boss.open(1, "win")
     boss.update(0.0, *OFF, False)
@@ -178,6 +185,8 @@ def capture_screens(data_root, view_w, view_h, *, skinning=None,
         "building_panel": _capture(lambda r: panel.submit(r, session)),
         "cheat_menu": _capture(lambda r: cheat.submit(r, view_w, view_h)),
         "game_log": _capture(lambda r: game_log.submit(r, view_h)),
+        "loading": _capture(lambda r: loading.submit(
+            r, None, view_w, view_h, 0.0)),
         "boss_cutscene": _capture(lambda r: boss.submit(r, view_w, view_h)),
     }
 

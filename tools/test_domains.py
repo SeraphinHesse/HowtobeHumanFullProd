@@ -82,9 +82,16 @@ DOMAINS = {
         "test_buildings_state_in_components.py",
         "test_buildings_tier_math.py",
         "test_defence_aoe_beam.py",
+        # SaveGamePLAN SG-2: RunState.to_dict/from_dict is economy/
+        # progression state (rule-5 tie-breaker), same bucket as levelup/
+        # boss_upgrades below.
+        "test_game_state_savegame.py",
         "test_levelup.py",
         "test_lightning.py",
         "test_painter_meditator.py",
+        # SaveGamePLAN SG-3: game/buildings/registry.py's save_building/
+        # restore_building generic round-trip.
+        "test_registry_savegame.py",
         # SD-4: the building/map sound trigger dispatcher (game/sounds.py)
         "test_sound_triggers_buildings.py",
         "test_structure.py",
@@ -112,6 +119,8 @@ DOMAINS = {
         "test_picking.py",
         "test_spawn_deco.py",
         "test_tile_conditions.py",
+        # SaveGamePLAN SG-4: TileMap.save_state/apply_state
+        "test_tile_map_savegame.py",
         "test_tile_runtime.py",
         "test_tile_unlock.py",
         "test_tilemap_model.py",
@@ -142,6 +151,18 @@ DOMAINS = {
         "test_projectile_anchored_flight.py",
         "test_projectile_sprites.py",
         "test_right_click_dismiss.py",
+        # SaveGamePLAN: save-slot storage is backend-only in SG-1, but the
+        # feature it serves (Save Files screen, minimap) is UI-facing — the
+        # test_player_identity.py/test_names.py precedent for persistence
+        # modules that exist for a menu feature.
+        "test_savegame.py",
+        # SaveGamePLAN SG-5: the autosave assembly chain end to end
+        "test_savegame_integration.py",
+        # SaveGamePLAN SG-6: _apply_save_to_world (game/main.py), the
+        # test_game_boot.py precedent for a game.main-exercising test
+        "test_main_savegame.py",
+        # SaveGamePLAN SG-6: main_menu CONTINUE visibility + SaveFilesScreen
+        "test_save_files_ui.py",
         "test_shell.py",
         "test_sound_triggers_ui.py",
         "test_sound_music.py",  # SD-7: music arbitration + game stings
@@ -195,6 +216,7 @@ DOMAINS = {
         "test_details_panel.py",
         "test_editor_anchors.py",
         "test_editor_asset_import.py",
+        "test_editor_house_colors.py",
         "test_editor_map_mode.py",
         "test_editor_panels.py",
         "test_editor_preview_footprint.py",

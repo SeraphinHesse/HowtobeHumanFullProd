@@ -283,7 +283,7 @@ class TestOptionRoll(unittest.TestCase):
         st = RunState.from_balance(CORE, BUILD)
         options = self.roll(st)
         self.assertEqual([o["title"] for o in options],
-                         ["Slinger", "Harp Player", "Unlock Maw Mortar"])
+                         ["Slinger", "Harp Player", "Unlock Mortar"])
         self.assertFalse([o for o in options if o["kind"] == "fallback"])
 
     def test_fully_researched_pool_pads_with_fallbacks(self):
@@ -718,7 +718,7 @@ class TestDefence10BGates(unittest.TestCase):
         card = next(o for o in self.roll(st)
                     if o.get("building_type") == "aoe_defence")
         self.assertEqual(card["kind"], "unlock_building")
-        self.assertEqual(card["title"], "Unlock Maw Mortar")
+        self.assertEqual(card["title"], "Unlock Mortar")
         self.assertEqual(card["building_types"], ("aoe_defence",))
         self.assertEqual(card["cost"], 0)                    # free unlock
         self.assertEqual(card["display_cost"],

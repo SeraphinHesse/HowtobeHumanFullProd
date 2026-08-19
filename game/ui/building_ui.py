@@ -181,8 +181,18 @@ _CARD_PITCH = 67           # 64 visible + 3 gap — see the note above
 _CARD_PLATE = (63, 0, 77, 64)    # name/price backdrop, relative to the slot
 _CARD_FRAME = (0, 13, 64, 64)    # portrait frame, relative to the slot
 _CARD_BODY = (10, 24, 44, 45)    # click target + portrait backing
-_CARD_PORTRAIT_AT = (14, 28)     # portrait top-left, relative to the slot
-_CARD_PORTRAIT = 34        # square portrait side
+# The portrait is the building's REAL sprite frame now, not a 34px icon: one
+# whole 64x96 manifest frame (`data/sprites/asset_manifest.json` — the size
+# 230 of the 322 slots use), drawn at 1:1 instead of squashed into the body.
+# It is CENTRED on the old 34x34 icon's centre so nothing else on the card
+# moves: that icon sat at +14,+28 and so was centred on +31,+45, which puts a
+# 64x96 frame's top-left at +31-32, +45-48 = -1,-3 — plus a 6px nudge DOWN on
+# request, so the shipped y is +3. It therefore overhangs the card slot top
+# and bottom by design; `_card_in_viewport` windows the list on the SLOT,
+# which is unchanged, so scrolling and hit-testing are untouched.
+_CARD_PORTRAIT_AT = (-1, 3)      # portrait top-left, relative to the slot
+_CARD_PORTRAIT_W = 64      # one full manifest frame, drawn unscaled
+_CARD_PORTRAIT_H = 96
 _CARD_COL_X = 69           # right column x, relative to the slot's left edge
 _CARD_NAME_TOP = 26        # first name row's y, relative to the slot's top
 _CARD_PRICE = (62, 46, 74, 23)   # price button, relative to the slot
@@ -2365,7 +2375,7 @@ class BuildingUI:
                 skin=_CARD_FRAME_SKIN, visible=True)
             portrait = SimpleNamespace(
                 rect=(cx + _CARD_PORTRAIT_AT[0], y + _CARD_PORTRAIT_AT[1],
-                      _CARD_PORTRAIT, _CARD_PORTRAIT),
+                      _CARD_PORTRAIT_W, _CARD_PORTRAIT_H),
                 skin=self._card_portrait_slot(btype, tier_idx), visible=True)
             price = Button((cx + _CARD_PRICE[0], y + _CARD_PRICE[1],
                             _CARD_PRICE[2], _CARD_PRICE[3]),
@@ -3516,7 +3526,7 @@ class BuildingUI:
         # apply() must not be allowed to pin it. See `_restore_card_rects`.
         self._restore_card_rects()
         self.skinning.submit_background(renderer, self.screen_id,
-                                        self.view_w, self.view_h)
+                                        self.view_w, self.view_h, anim_ms=t)
         hidden_customs = self._hidden_stat_backdrops()
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
                                     "under", self.skinning.state_of,
@@ -3592,18 +3602,25 @@ class BuildingUI:
             # queue draws in pure submission order (`Renderer.submit_hud`
             # appends; nothing sorts), so anything submitted later lands on
             # top. The card's back-to-front stack is
-            #   plate -> body -> portrait -> frame -> price -> icon -> text
+            #   plate -> body -> frame -> portrait -> price -> icon -> text
             # which is what the plate and the frame meant while they were
             # custom widgets banded "under" and "over": the plate is the
-            # backdrop the name and price sit on, and the frame is a BORDER in
-            # front of the portrait, not behind it.
+            # backdrop the name and price sit on, and the frame is a border
+            # around the portrait.
             #
-            # The body before the portrait, for the older reason: the whole
-            # 34x34 portrait sits inside the body's rect, so drawing it first
-            # hides it completely the moment the body carries real art. That
-            # stayed invisible for as long as `defaults.button_skin` was unset
-            # and the body drew as a flat rect, and broke the screen the day a
-            # designer skinned the card.
+            # The portrait moved to AFTER the frame when it grew from a 34px
+            # icon to the building's whole 64x96 sprite frame: it is now TALLER
+            # than the 64x64 frame it used to sit inside, so a frame drawn last
+            # would rule its border straight across the creature's body. The
+            # frame still reads as a border because the sprite is transparent
+            # out at its edges.
+            #
+            # The body before both, for the older reason: the portrait sits
+            # over the body's rect, so drawing the body first is what keeps it
+            # from hiding the portrait the moment the body carries real art.
+            # That stayed invisible for as long as `defaults.button_skin` was
+            # unset and the body drew as a flat rect, and broke the screen the
+            # day a designer skinned the card.
             if is_visible(parts.plate):
                 submit_panel(renderer, parts.plate.rect,
                              skin=parts.plate.skin,
@@ -3611,18 +3628,23 @@ class BuildingUI:
                              anim_ms=anim_ms)
             if is_visible(btn):
                 btn.submit(renderer, anim_ms=anim_ms, **button_kwargs(btn))
-            # then the portrait, on top of the body it sits in
-            if is_visible(parts.portrait):
-                submit_panel(renderer, parts.portrait.rect,
-                             skin=parts.portrait.skin,
-                             tint=getattr(parts.portrait, "tint", None),
-                             anim_ms=anim_ms)
-            # and the frame in front of the portrait it borders
+            # the frame, the border the portrait sits inside
             if is_visible(parts.frame):
                 submit_panel(renderer, parts.frame.rect,
                              skin=parts.frame.skin,
                              tint=getattr(parts.frame, "tint", None),
                              anim_ms=anim_ms)
+            # then the portrait on top of it: the building's real sprite,
+            # pinned to `anim_ms=0` so every card shows the FIRST frame of the
+            # first manifest row (always `idle`) as a still. A card list of a
+            # dozen creatures all cycling their idle loops is noise, and the
+            # frame a player sees must not depend on when they opened the
+            # panel.
+            if is_visible(parts.portrait):
+                submit_panel(renderer, parts.portrait.rect,
+                             skin=parts.portrait.skin,
+                             tint=getattr(parts.portrait, "tint", None),
+                             anim_ms=0)
             # While the pill is showing its NOT ENOUGH LOVE flash it draws
             # that sentence across its own 74px width — so the love icon and
             # the price number are hidden for exactly that long, instead of

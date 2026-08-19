@@ -1,5 +1,5 @@
 """Spawn-band tree deco: the per-tile roll (folded into `TileMap.__init__`'s
-condition-art pass) + the `deco`-layer emitter, `game/map/spawn_deco.py`.
+condition-art pass) + the tree emitter, `game/map/spawn_deco.py`.
 
 Headless and fixture-pinned: the registry is built from an in-memory
 `slots.json` document rather than read from `data/`, so an artist adding a
@@ -18,7 +18,7 @@ from engine.assets.registry import SlotRegistry
 from engine.render import LAYERS
 from game.core.balance import load_balance
 from game.map.spawn_deco import (
-    LAYER, SPAWN_TREE_EXCLUDED, spawn_deco_render_items, spawn_tree_slots,
+    LAYER, RANK, SPAWN_TREE_EXCLUDED, spawn_deco_render_items, spawn_tree_slots,
 )
 from game.map.tile_map import TileMap
 from game.map.tiles import DECO_CATEGORY, SPAWN_DECO_GROUP, TileState
@@ -216,9 +216,16 @@ class TestSpawnDecoRenderItems(unittest.TestCase):
     def setUp(self):
         self.tm = synth(ROWS, rng=random.Random(4), registry=REGISTRY)
 
-    def test_layer_sits_above_entities(self):
-        self.assertEqual(LAYER, "deco")
-        self.assertLess(LAYERS.index("entities"), LAYERS.index(LAYER))
+    def test_layer_is_the_entities_layer_so_trees_y_sort(self):
+        """fix/y-sorted-deco: the treeline sorts AGAINST enemies by iso depth,
+        it does not sit on a layer above them. The old assertion here pinned
+        the opposite (`LAYER == "deco"`, strictly above `entities`), which is
+        exactly the bug — an enemy whose feet were in front of a tree still
+        drew behind it, and `Renderer._depth_pos` skipped the trees' authored
+        `depth_pivot` because that resolver only runs on `entities`."""
+        self.assertEqual(LAYER, "entities")
+        self.assertIn(LAYER, LAYERS)
+        self.assertEqual(RANK, -1)   # loses an exact same-tile tie to a unit
 
     def test_spawning_tile_with_a_roll_emits_exactly_one_item(self):
         tile = next(t for t in self.tm.all_tiles()
@@ -227,7 +234,8 @@ class TestSpawnDecoRenderItems(unittest.TestCase):
             self.tm, tile.col, tile.col, tile.row, tile.row, TREE_SLOTS)
         self.assertEqual(len(items), 1)
         item = items[0]
-        self.assertEqual(item.layer, "deco")
+        self.assertEqual(item.layer, "entities")
+        self.assertEqual(item.rank, -1)
         self.assertEqual(item.world_pos, (tile.col, tile.row))
 
     def test_conversion_to_combat_stops_the_emission(self):

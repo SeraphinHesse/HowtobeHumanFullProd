@@ -825,8 +825,9 @@ class Hud:
         self._observe_lives(st.base_lives)
         self.layout(view_w, view_h)
         self._layout_readouts()  # 10L-B: second apply() pass (pill-relative)
-        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
         t = anim_ms(self._clock)  # 10L-A skin anim clock, shared by every skin draw
+        self.skinning.submit_background(renderer, self.screen_id, view_w,
+                                        view_h, anim_ms=t)
         # t is resolved BEFORE the layer pass so an authored multi-frame layer
         # sheet animates instead of freezing on frame 0.
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,

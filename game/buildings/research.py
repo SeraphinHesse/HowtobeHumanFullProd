@@ -71,7 +71,8 @@ class ResearchSpec:
     gate_path: tuple = ()           # path into buildings.json holding the gate value
     starts_unlocked_path: tuple = ()  # override for starts_unlocked_for's default
     unlock_group: tuple = ()        # types unlocked together (the boost trio)
-    unlock_title: str = ""          # UI copy for the unlock card
+    unlock_title: str = ""          # UI copy override; default is
+                                    # "Unlock <tier 1 name>" (see levelup)
     unlock_explanation: str = ""
     tier_group: tuple = ()          # types whose TIERS research together (the trio)
     tier_copy_path: tuple = ()      # buildings.json path holding the tier card copy
@@ -92,10 +93,8 @@ RESEARCH = {
     "aoe_defence": ResearchSpec(
         gate_kind="min_village_level",
         gate_path=("DefenceBuildings", "AOEDefence", "unlock_min_village_level"),
-        unlock_title="Unlock Maw Mortar",
         unlock_explanation="An organic mortar that rains splash damage on hordes."),
     "sun_scorcher": ResearchSpec(
-        unlock_title="Unlock Sun Scorcher",
         unlock_explanation="A burning beam that ramps up — slow to anger, "
                            "deadly to tanks."),
     # Storm Priest — a LOCKED defence type earned via a level-up unlock card,
@@ -104,7 +103,6 @@ RESEARCH = {
     # to unlock lightning strikes (game/core/lightning.py.unlock_from_placement,
     # wired by game/ui/building_ui.py._do_place off its "lightning_source" tag).
     "storm_priest": ResearchSpec(
-        unlock_title="Unlock Storm Priest",
         unlock_explanation="A priest whose presence summons lightning strikes."),
     # 10C — the two economy lines. Painter is a LOCKED type earned via a
     # level-up unlock card gated by village level (available from the first
@@ -115,7 +113,6 @@ RESEARCH = {
     "painter": ResearchSpec(
         gate_kind="min_village_level",
         gate_path=("EconomyBuildings", "Painters", "unlock_min_village_level"),
-        unlock_title="Unlock Painter",
         unlock_explanation="A risky artist who pays a large lump sum after "
                            "surviving a few rounds — then is gone for good."),
     "meditator": ResearchSpec(),

@@ -28,6 +28,20 @@
       "frame_h": 96,
       "frame_w": 96
     },
+    "ss_booster": {
+      "column_width": 18,
+      "display_name": "SS_Booster",
+      "file": "master/ss_booster.png",
+      "frame_h": 96,
+      "frame_w": 192
+    },
+    "ss_booster_vfx": {
+      "column_width": 18,
+      "display_name": "SS_Booster_VFX",
+      "file": "master/ss_booster_vfx.png",
+      "frame_h": 96,
+      "frame_w": 192
+    },
     "ss_fluteplayer": {
       "column_width": 17,
       "columns": [
@@ -144,6 +158,20 @@
       "file": "master/ts_alltiles.png",
       "frame_h": 32,
       "frame_w": 64
+    },
+    "ts_deco_summer": {
+      "column_width": 12,
+      "display_name": "TS_Deco_Summer",
+      "file": "master/ts_deco_summer.png",
+      "frame_h": 32,
+      "frame_w": 64
+    },
+    "vfx_projectiles": {
+      "column_width": 1,
+      "display_name": "VFX_Projectiles",
+      "file": "master/vfx_projectiles.png",
+      "frame_h": 32,
+      "frame_w": 32
     },
     "vfx_spawn": {
       "column_width": 20,

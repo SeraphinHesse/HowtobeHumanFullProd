@@ -35,7 +35,7 @@ relies on.
 import logging
 from types import SimpleNamespace
 
-from engine.render import HudRect, HudSprite
+from engine.render import HudSprite
 
 from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .widgets import Button, anim_ms, submit_centered
@@ -51,9 +51,11 @@ _SUBTITLE = "defend the munckins"
 # availability matrix in the module docstring).
 _ITEMS = [
     ("START NEW GAME", "new_game"),
+    ("CONTINUE", "continue"),
     ("PLAY DEBUG", "play_debug"),
     ("ADD A NAME", "add_name"),
     ("HIGHSCORES", "highscores"),
+    ("SAVE FILES", "save_files"),
     ("SETTINGS", "settings"),
     ("CREDITS", "credits"),
     ("QUIT", "quit"),
@@ -61,8 +63,10 @@ _ITEMS = [
 # slot_key -> the ids name a designer picks it by (10L-B). These are the
 # on-disk contract (data/ui/screens/main_menu.json + screen_defaults.json).
 _SLOT_IDS = {
-    "new_game": "btn_new_game", "play_debug": "btn_play_debug",
+    "new_game": "btn_new_game", "continue": "btn_continue",
+    "play_debug": "btn_play_debug",
     "add_name": "btn_add_name", "highscores": "btn_highscores",
+    "save_files": "btn_save_files",
     "settings": "btn_settings", "credits": "btn_credits", "quit": "btn_quit",
 }
 
@@ -94,7 +98,8 @@ SCREEN_ID = "main_menu"
 
 
 class MainMenu:
-    def __init__(self, view_w, view_h, skinning=None, debug_balance=None):
+    def __init__(self, view_w, view_h, skinning=None, debug_balance=None,
+                has_saves=False):
         self.screen_id = SCREEN_ID
         self.skinning = skinning or ScreenSkinning.empty()
         # player-identity: ``core.json``'s ``Debug`` group. ``None`` (and the
@@ -102,6 +107,13 @@ class MainMenu:
         # is read with ``.get(key, True)``, so a bare construction behaves
         # exactly as it did before this feature.
         self.debug_balance = debug_balance or {}
+        # SaveGamePLAN SG-6: whether at least one save slot exists. The host
+        # keeps this fresh via ``set_has_saves`` (the same "runtime data the
+        # menu needs but does not own" shape as ``Shell.set_highscores`` —
+        # this screen does no disk I/O itself). ``False`` (every bare
+        # construction, every existing test) hides the CONTINUE row —
+        # user decision: hidden entirely, never a disabled/greyed row.
+        self.has_saves = has_saves
         self.buttons = [(Button((0, 0, _BTN_W, _BTN_H), label), slot)
                         for label, slot in _ITEMS]
         #: slot_key -> the action ``hit()`` returns, recomputed every
@@ -129,6 +141,12 @@ class MainMenu:
         self._clock = 0.0  # 10L-A: one anim clock per screen
         self.layout(view_w, view_h)  # lay out now so hit() works before submit()
 
+    def set_has_saves(self, value):
+        """Host keeps this fresh (SaveGamePLAN SG-6) — called at boot and
+        whenever a save is created/deleted, so CONTINUE's visibility never
+        goes stale mid-session (the ``Shell.set_highscores`` shape)."""
+        self.has_saves = bool(value)
+
     def _availability(self):
         """``(visible_by_slot, gear_slot)`` for the current balance flags, with
         ``self.actions`` recomputed. The fail-safe (both modes off) reverts to
@@ -145,6 +163,10 @@ class MainMenu:
             regular, debug = True, False
         self.actions = {slot: slot for _label, slot in _ITEMS}
         visible = {slot: True for _label, slot in _ITEMS}
+        # SaveGamePLAN SG-6: CONTINUE is hidden entirely with no saves yet
+        # (user decision) — set here, before either early return below, so
+        # both the debug-only and the fail-safe paths honour it too.
+        visible["continue"] = self.has_saves
         if not debug:
             # No debug launcher at all: the PLAY DEBUG row and the gear go.
             visible["play_debug"] = False
@@ -160,7 +182,18 @@ class MainMenu:
     def layout(self, view_w, view_h):
         visible, gear_slot = self._availability()
         x = view_w // 2 - _BTN_W // 2
-        y = view_h // 2 - 30
+        # SaveGamePLAN SG-6: the row count grew from 7 to up to 9
+        # (CONTINUE + SAVE FILES) and now varies with `has_saves` on top of
+        # the existing debug-availability variance, so the stack's vertical
+        # START is computed from however many rows are ACTUALLY visible this
+        # layout, centered in the view, rather than a fixed offset tuned for
+        # exactly 7 rows (the old `view_h // 2 - 30`, which a 9-row stack
+        # would overflow the 360px logical surface by ~55px). This keeps the
+        # stack correctly centered for any row count, past or future.
+        visible_count = sum(1 for v in visible.values() if v)
+        stack_h = visible_count * _BTN_H + max(0, visible_count - 1) * _GAP
+        y = (view_h - stack_h) // 2
+        stack_top = y   # title/subtitle position off this, below
         for btn, slot in self.buttons:
             # Set ``visible`` on EVERY row every layout (never only in the
             # hiding branch) so a stale False cannot linger; and advance the
@@ -175,8 +208,15 @@ class MainMenu:
             y += _BTN_H + _GAP
         self.debug_gear.visible = gear_slot is not None
         self._backdrop.rect = (0, 0, view_w, view_h)
-        self._title.rect = (view_w // 2, view_h // 2 - 75, 0, 0)
-        self._subtitle.rect = (view_w // 2, view_h // 2 - 55, 0, 0)
+        # SaveGamePLAN SG-6: positioned relative to the now row-count-
+        # dependent `stack_top` (above) instead of the old fixed `view_h //
+        # 2 - 75`/`- 55` (tuned for exactly 7 rows), so title/subtitle never
+        # overlap the button stack for any visible row count — this is a
+        # real position change (not byte-identical to the pre-SG-6 layout)
+        # and needs a live look in SG-7's Quick Test, same as the row-count
+        # change itself.
+        self._title.rect = (view_w // 2, max(10, stack_top - 40), 0, 0)
+        self._subtitle.rect = (view_w // 2, max(28, stack_top - 20), 0, 0)
         self.ids = {
             "backdrop": ("backdrop", self._backdrop),
             "title": ("label", self._title),
@@ -228,11 +268,19 @@ class MainMenu:
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
-        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        self.skinning.submit_background(renderer, self.screen_id, view_w,
+                                        view_h, anim_ms=t)
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
                                     "under", self.skinning.state_of)
-        renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
-        renderer.submit_hud(HudSprite(_BG_SLOT, (0, 0), (view_w, view_h)))
+        widgets.submit_backdrop(renderer, self._backdrop, anim_ms=t)
+        # The baked-in hand-painted art is the DEFAULT, not an unconditional
+        # overpaint: a designer who skinned the `backdrop` widget in
+        # data/ui/screens/main_menu.json picked a different background, and
+        # blitting `main_menu_bg` over it on the very next line is what made
+        # that choice look like it did nothing.
+        if not getattr(self._backdrop, "skin", None):
+            renderer.submit_hud(HudSprite(_BG_SLOT, (0, 0), (view_w, view_h),
+                                          anim_time_ms=t))
         if self._title.visible:
             submit_centered(renderer, self._title.label, self._title.rect[0],
                             self._title.rect[1], self._title.font_key,

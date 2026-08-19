@@ -5,7 +5,8 @@ Qt-free, pygame-free (the ``editor/asset_import.py`` sibling — in
 is the only caller.
 
 Registry shape (TU-1): ``id -> {video, audio (nullable), length, trigger}``,
-``trigger`` a closed enum (``intro``/``first_end_turn``). This module never
+``trigger`` a closed enum (``intro``/``first_end_turn``/``start_game``).
+This module never
 adds or removes an entry — TU-1 owns which ids exist.
 """
 import shutil
@@ -21,8 +22,10 @@ _SCHEMA_FILE = "cutscenes.schema.json"
 # alphabetically, so iterating the doc directly would show the
 # "first_end_turn" placeholder row before the seeded "intro" row. A future
 # trigger (room to grow — boss, etc.) still displays, appended after these
-# two, with no code change (see ordered_entry_ids).
-TRIGGER_ORDER = ("intro", "first_end_turn")
+# three, with no code change (see ordered_entry_ids). "start_game" sits
+# between them because that is the order a player meets them: the boot intro,
+# then the Start-Game cutscene, then the first end of turn.
+TRIGGER_ORDER = ("intro", "start_game", "first_end_turn")
 
 # Fallback length-spinbox floor/ceiling used only when the schema declares
 # no minimum/maximum for this key.
