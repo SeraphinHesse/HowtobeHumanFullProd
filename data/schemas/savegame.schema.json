@@ -238,6 +238,13 @@
           "minimum": 0,
           "type": "integer"
         },
+        "spawn_intros_shown": {
+          "description": "Enemy etypes whose spawn-triggered intro dialogue (core.json EnemyIntro entries with a non-empty show_on_spawn_of) has already been shown in this run, so it does not replay at a later boss fight or after a reload.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "state": {
           "description": "Always GAMEPLAY - RunState.to_dict() only ever saves a live, non-game-over run.",
           "enum": [
@@ -314,6 +321,7 @@
         "player_xp",
         "round_num",
         "season",
+        "spawn_intros_shown",
         "state",
         "tiers_unlocked",
         "tutorial_intros_shown",

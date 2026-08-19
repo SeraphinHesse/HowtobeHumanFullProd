@@ -100,6 +100,23 @@
           "minimum": 1,
           "type": "integer"
         },
+        "show_on_spawn_of": {
+          "description": "Fire this dialogue the FIRST time an enemy of this type is actually spawned in the run, instead of at the start of the `round` above. \"\" (the default) keeps the round trigger. Any other value names an enemy etype: the entry is ignored by the round match entirely and pops the moment that type first enters the field from ANY spawn path — the wave queue, a death-spawn burst, or a boss's second phase. That is what the Commander needs: it is never in a wave, it is summoned partway through the boss fight, so a round-triggered card would show before the player ever sees one. Shown once per run (tracked in the save), and the world freezes for it exactly as a round-triggered one does.",
+          "enum": [
+            "",
+            "boss",
+            "commander",
+            "digger",
+            "drummer",
+            "formation",
+            "raider",
+            "siege",
+            "sniper",
+            "standard",
+            "tutorial"
+          ],
+          "type": "string"
+        },
         "show_on_tutorial_round": {
           "description": "Show this dialogue on the tutorial's own combat round (round 0) instead of the round above — the tutorial fight IS the first walkers, so its intro belongs there. A run that skipped the tutorial has no round 0, so it lands on the round above as normal. Either way it shows once, never twice.",
           "type": "boolean"
@@ -628,6 +645,7 @@
         "enemy_label",
         "hidden_frames",
         "round",
+        "show_on_spawn_of",
         "show_on_tutorial_round",
         "sprite_flip_h",
         "sprite_h",

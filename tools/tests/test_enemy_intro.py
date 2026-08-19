@@ -334,5 +334,52 @@ class TestTutorialRoundEntry(unittest.TestCase):
         self.assertFalse(st.tutorial_intros_shown)
 
 
+class TestSpawnTriggeredEntry(unittest.TestCase):
+    """`show_on_spawn_of` entries wait for the etype to actually spawn (the
+    Commander is summoned mid-boss-fight, never queued into a wave), so they
+    must NOT fire on their authored round the way an unflagged entry does."""
+
+    def _session(self):
+        core = copy.deepcopy(CORE)
+        core["EnemyIntro"]["entries"] = [
+            {**_MOCK_ENTRY, "round": 1, "show_on_spawn_of": "commander"}]
+        return build_session(core)
+
+    def test_end_turn_ignores_it_even_on_its_authored_round(self):
+        session, _scene = self._session()
+        session.end_turn()
+        self.assertEqual(session.state.phase, GamePhase.ENEMY)
+        self.assertEqual(session.state.pending_enemy_intros, [])
+
+    def test_it_fires_when_that_etype_spawns(self):
+        # `_queue_spawn_intros` direct rather than through `post_sim`: this
+        # 4x4 synth map has no spawn tiles, so the wave is empty and post_sim
+        # would end the round before ever reaching the intro check.
+        session, scene = self._session()
+        session.end_turn()
+        session.spawner._spawned_types.append("commander")
+        session._queue_spawn_intros()
+        st = session.state
+        self.assertEqual(st.phase, GamePhase.ENEMY_INTRO)
+        self.assertEqual(len(st.pending_enemy_intros), 1)
+        self.assertIn("commander", st.spawn_intros_shown)
+        # Back to the round the moment the card closes, and never a second
+        # time however many more Commanders the fight summons.
+        session.resolve_enemy_intro()
+        self.assertEqual(st.phase, GamePhase.ENEMY)
+        session.spawner._spawned_types.append("commander")
+        session._queue_spawn_intros()
+        self.assertEqual(st.phase, GamePhase.ENEMY)
+        self.assertEqual(st.pending_enemy_intros, [])
+
+    def test_another_etype_spawning_does_not_fire_it(self):
+        session, scene = self._session()
+        session.end_turn()
+        session.spawner._spawned_types.append("standard")
+        session._queue_spawn_intros()
+        self.assertEqual(session.state.phase, GamePhase.ENEMY)
+        self.assertEqual(session.state.pending_enemy_intros, [])
+
+
 if __name__ == "__main__":
     unittest.main()
