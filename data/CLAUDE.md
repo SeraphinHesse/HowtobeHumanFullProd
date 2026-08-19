@@ -683,6 +683,28 @@ validating writer; don't hand-edit the JSON.
     must AGREE on its frame size or the loader raises `ValueError`. Schemas for
     what schemas can express; loader cross-checks for what they cannot (the
     `engine/tilemap.py` precedent).
+- **`slots[]` entries can also carry a `display_name`** — the designer-facing
+  name of ONE slot, written by the slot editor's **Name** field
+  (`editor/registry_ops.py::set_slot_display_name`) and read back by
+  `SlotRegistry.display_name(slot_key)`. It exists because a variant family's
+  members are distinguishable only by key (`ui_panel_v2` vs `ui_panel_v3`),
+  and the UI screen editor's Skin pickers had nothing else to show. **It is
+  EDITOR-ONLY — nothing in `game/` reads it**, and it is deliberately NOT a
+  required field: absent means "the key is its own label".
+  - Storing one needs the object form, so a bare-key slot is promoted to
+    `{key, display_name}` and demoted back to a bare string when the name is
+    cleared and it carries no frame-size override either (the same "never
+    store an override that overrides nothing" rule `set_slot_frame_size`
+    follows).
+  - **That is why `frame_w`/`frame_h` are no longer `required` in
+    `slot_entry`** — they are a `dependentRequired` PAIR instead (both or
+    neither), so an object entry that exists only to name a slot still
+    inherits its category's frame size. `_slot_frame_override` in
+    `engine/assets/registry.py` is the one place that distinction is read.
+  - A key repeated across groups of one category keeps the FIRST name it was
+    given — unlike frame size, two labels for one slot are cosmetic, not a
+    data error, so the loader does not raise. The editor's writer updates
+    EVERY occurrence, so it cannot author that disagreement in the first place.
 - **`conditions` (Tile Conditions) is an asset-only category** (no
   `balancing/conditions.json`, no `schemas/conditions.schema.json`) holding the
   art for the four runtime tile conditions, restructured so each condition
@@ -975,7 +997,10 @@ validating writer; don't hand-edit the JSON.
   - Keys: `kind` (REQUIRED, the closed enum `panel | label | backdrop` — a
     SUBSET of the six-value widget kind enum, since only these three have a
     meaningful code-free draw), `rect` (REQUIRED, `[x, y, w, h]`, 4 ints),
-    `band` (`under | over`, absent = `over`), `z` (int, absent = 0, ordering
+    `band` (`under | over`, **absent = `under`** — the opposite of a LAYER
+    entry's absent-band `over`, because a custom widget is decoration and must
+    not default on top of the screen's own readouts; the editor writes the key
+    explicitly on creation), `z` (int, absent = 0, ordering
     among custom widgets of the same band only), `display_name` (non-empty
     string, editor-outliner label the game never reads).
   - **The entry is DEFAULT GEOMETRY ONLY.** Everything paintable — `skin`,
@@ -1245,6 +1270,37 @@ validating writer; don't hand-edit the JSON.
   then builds via `pygame.font.Font(font_path, size)` instead of
   `SysFont`. `layout_h`/`_LAYOUT_H` are unaffected either way (same
   invariant as a plain size change above).
+- **`font_family` in `data/ui/screens/<id>.json`** (UH-Font-B) — the
+  PER-TEXT font family, the second axis to `font`'s size/bold preset.
+  `active_font.json` above answers "which family does text that names none
+  get"; this answers "which family does THIS text get". A
+  `font_manifest.json` entry id, valid at all 11 places `font` is: screen
+  `defaults`, a widget, a widget's four state patches, a layer, and a
+  layer's four state patches (`schemas/ui_screen.schema.json`'s
+  `$defs/font_family`). ABSENT means inherit — widget, then
+  `defaults.font_family`, then `active_font.json` — so a doc written before
+  the key existed draws identically.
+  - Unlike `active_font.json`, an id here that names no manifest entry does
+    NOT fail the boot: `engine.render.fonts.get_font` degrades it to the
+    inherited family. Deleting a font must not make one stale screen doc
+    kill every frame, and the loud D-2 cross-check still covers the pointer
+    that every screen depends on.
+  - **A family change moves NO stored rect.** `layout_h` is keyed by preset
+    only, deliberately — keying it by family would make every widget rect
+    shift when a designer swaps a face, and `screen_defaults.json` +
+    `test_ui_skinning.py`'s golden stream would stop reproducing across
+    Windows/Linux. So text in a wider family can overflow its widget: the
+    same pinned-layout contract a preset SIZE change already has.
+  - Every manifest entry is resolved at boot and handed to
+    `configure_fonts(..., family_paths=)` (files slurped to BYTES, never
+    paths — SDL_ttf holds a path-built font's file open for its lifetime,
+    which is a hard lock on Windows). `game/main.py` fails loud on a
+    manifest entry whose file is missing; `editor.theme_ops
+    .resolve_family_paths` drops it instead (E-37).
+  - `data/ui/screen_defaults.json` never carries it — that file records
+    CODE-authored defaults and a family is designer data only.
+    `screen_previews.json` DOES: every recorded text item gets a `family`
+    (null when inherited), because `hud_item_to_json` emits every field.
 
 ## Map data (Phase 6, D-20/21/22 specifics)
 - **`maps/<id>.json` (map files)**: `id` (== filename stem, loader-enforced),

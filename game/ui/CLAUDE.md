@@ -90,6 +90,26 @@ dimension is **>= 12 logical px**, its static label fits in `w - 4`, and the
 button is at least `layout_h(font_key)` tall. Filter on the `kind` from the ids
 PAIR, never on `type(widget)` — panels/labels/bars are not click targets.
 
+### A text run has TWO font axes (UH-Font-B)
+
+`font_key` picks a size/bold preset; `font_family` picks the face those
+glyphs come from. They are independent, and both are designer-ownable off
+the screen doc — `ScreenSkinning.apply`'s generic setattr loop threads
+`font_family` onto a widget for free (it needs no `_SPEC_TO_ATTR` entry,
+unlike `font` → `font_key`).
+
+Every text run in this package reaches `HudText` through
+`widgets.submit_text` / `submit_centered` / `submit_label` / `Button.submit`
+or `skinning`'s two draw paths, so those are the only places that thread the
+family — no screen module does it itself. A holder carries it as
+`font_family` (see `label_holder`), `None` meaning "inherit".
+
+**`layout_h` takes no family, on purpose.** Positioning stays keyed by the
+preset alone, so a family swap changes drawn glyphs and never a stored rect.
+`text_size`/`text_h`/`wrap_text` DO take one — they are draw-time-only
+measurements (word wrap, a hover hint's width) whose output is never stored
+or captured, which is exactly the line the `layout_h` rule above draws.
+
 **That test measures the font the game actually SHIPS**, not whatever font
 state the process happens to be in. `data/ui/active_font.json` boots
 `pixel_emulator`, which is wider per glyph than the `SysFont("monospace")`
@@ -775,6 +795,42 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
     exactly one place; a full SCREEN off the menu, with its own back
     navigation and its own place in `in_menu`/`_MENU_STATES`, earns the enum
     member instead. That is the line: overlay ⇒ flag, full screen ⇒ state.
+  - **`GameState.LOADING` (feature: loading screen) is the second state added
+    since 9H, and it BREAKS the "full screen ⇒ `Shell`-driven" half of that
+    line on purpose.** It is a real full screen (the `ui_bg_loading`
+    background + a white progress ring, `game/ui/loading_screen.py`'s
+    `LoadingScreen`, the `debug_settings.py` code-only-screen shape — no
+    `data/ui/screens/loading.json`, no `screen_defaults.json` entry), but
+    `Shell` never constructs or dispatches it: `main.py` owns `loading_screen`
+    directly and drives it from the frame loop, exactly like
+    `GAMEPLAY`/`GAME_OVER` (which are also full screens `Shell` doesn't own).
+    The reason is that driving it needs host-only things `Shell` structurally
+    cannot have — `assets` (the E-37 "is `ui_bg_loading` imported yet" check)
+    and the queued `build_gameplay()` checkpoints only `main.py` knows about.
+    `main.py`'s "new_game"/"new_game_debug" intents no longer call
+    `build_gameplay()` synchronously; they set `shell.state =
+    GameState.LOADING` and arm the checkpoint queue (`_build_gameplay_steps()`
+    — `build_gameplay()` itself is now a thin wrapper that just runs every
+    step in one shot, kept for the headless autostart seam and any other
+    direct caller). The frame loop's `LOADING` branch runs one queued step
+    per frame, submits `loading_screen` at `completed/total` progress, and —
+    once the queue drains AND a minimum-duration timer (accumulated real
+    frame `dt`, never `time.time()`; `ui.json LoadingScreen
+    .min_display_seconds`) has also elapsed — calls `shell.enter_gameplay()`.
+    Both gates matter: `build_gameplay()`'s work is genuinely fast today (no
+    asset I/O happens there — everything is already loaded at boot), so
+    without the duration floor the screen would flicker for a frame or two;
+    without the real-checkpoint half it would be a fake spinner, not a
+    progress indicator. The PRE-BOOT loading screen (`main.py`'s
+    `_submit_loading_frame`, shown before the `Shell` even exists — see
+    `game/CLAUDE.md`'s Host conventions section) shares the exact same
+    background slot and ring style by importing them from
+    `game/ui/loading_screen.py` rather than re-declaring them, so the two
+    screens cannot visually drift apart; it is a SEPARATE mechanism (its own
+    throwaway presenter/renderer pair, since no real window exists yet) and
+    was also given more, smaller real checkpoints (15 instead of 5) so its
+    ring's motion reads as smooth rather than jumpy — not an eased/faked
+    animation, just finer-grained real boot sub-steps.
   - **`Shell.handle_scroll(dy)` is a duck-typed forwarder, not a generic
     ScrollView.** It calls the active screen's `scroll` attribute when it is
     callable (only the high-score table has one), so every other screen and
@@ -1145,14 +1201,163 @@ phase edge; blue→yellow→red ramp in `heat_color`). `widgets.cond_label(name)
 (condition label + colour, keyed by `TileCondition.name` — the label text is
 Phase C string-table content, `widgets.condition.*`; see "Global UI string
 table" below) is shared with
-`building_ui`'s new terrain badges: a `Terrain: <Label>` pill in the upgrade
-panel (below Level, reads the building's `_tile_condition` snapshot) and at the
-unlock/construct panel foot (reads the tile), each with a hover tooltip whose
-effect lines read LIVE from `TileConditions.modifiers` (enemy effects
-deliberately unlisted, prototype-exact); the tooltip draws last/on top.
-`base_info` shows NO badge. The panel Range row + selection range highlight use
+`building_ui`'s terrain CARDS. There is no `Terrain: <Label>` badge any more
+and no hover anywhere on this panel: unlock, construct and upgrade each draw
+terrain cards (below), whose effect rows read LIVE from
+`TileConditions.modifiers` (enemy effects deliberately unlisted,
+prototype-exact). `base_info` names no terrain at all. The panel Range row + selection range highlight use
 `effective_range_tiles()` when present (mountain +1); the RANGE overlay stays
 raw.
+
+### Terrain cards + the terrain box as WIDGETS (unlock-screen rework)
+
+**Unlock mode lists the terrain the purchase covers.** `_build_cond_cards`
+emits one card per **distinct** `TileCondition` across every 2x2 chunk in the
+selection — not just the primary tile's chunk, because a shift multi-select
+buys them all — each carrying the condition's own terrain art, its name, how
+many bought tiles have it, and its effect lines. `_cond_card_rows` does the
+dedupe in `TileCondition` declaration order (never scan order) and keeps the
+first NON-`None` `condition_slot` it sees: a chunk straddling BACKGROUND or
+SPAWNING has tiles with no art at all, and the card should show the art of a
+sibling that has it rather than nothing.
+
+This is the SECOND dynamic-count family on this panel, and it follows the
+construct card's contract exactly (see "A construct card is a widget TREE"):
+COUNT is dynamic, KEY is stable, so every part of every card is individually
+overridable — `cond_card_<condition>` plus `_sprite`, `_name`, `_count` and
+`_effect_<i>`. `_clear_cond_card_ids` sweeps the one prefix. `screen_mocks.
+_all_conditions_chunk` forces all four conditions onto the exporter's mock
+chunk for the same reason `_unlock_every_type` unlocks every building type:
+a card with no `screen_defaults.json` record is invisible to the editor.
+
+**Construct and upgrade mode show a terrain CARD too** (feature:
+construct-terrain-card). Both used to end in the badge pill plus an effect box
+that only appeared while the cursor was over it; both draw the same card
+unlock mode draws, at the panel foot, with nothing hover-gated — the effect
+rows are part of the card, so the info is simply on screen. Each mode builder
+calls its `_build_*_cond_cards` where it used to call `_layout_cond_box`, and
+each `_submit_*` draws the card where it drew the badge.
+
+`_layout_cond_card_list` is the ONE card layout all three share; they differ
+only in their GROUP and their id PREFIX:
+
+| mode | group | card ids | rows from |
+|---|---|---|---|
+| unlock | `terrain_card_list` | `cond_card_<condition>` | `_cond_card_rows` (every 2x2 chunk bought) |
+| construct | `build_terrain_card_list` | `build_cond_card_<condition>` | `_construct_cond_rows` (the SELECTED tiles) |
+| upgrade | `upgrade_terrain_card_list` | `upgrade_cond_card_<condition>` | `_upgrade_cond_rows` (the building's `_tile_condition` snapshot) |
+
+Three id families rather than one, because **an override is per-ID, not
+per-view** — `skinning.apply` walks a single `widgets` table for the whole
+screen. Sharing the ids would pin every mode's card to wherever the unlock
+LIST put it and make them impossible to place apart. The trees are otherwise
+identical, so art authored for one reads the same in the others. Each family
+has its own `_clear_*_cond_card_ids` sweep; `screen_mocks` re-drives the
+construct and upgrade builders with all four condition rows (rather than
+SELECTING four tiles, which would quadruple the batch price every recorded
+construct id is derived from) so every tree reaches `screen_defaults.json`,
+and `export_ui_layouts._CARD_TREE_ROOTS` maps each prefix to its group so the
+editor shows one movable branch per mode.
+
+**The badge is DELETED, not merely unused.** `cond_badge` /
+`cond_badge_text` / `cond_effect_box` / `cond_effect_line_<i>`,
+`_layout_cond_box`, `_submit_cond_badge`, `_submit_cond_tooltip` and the
+`_cond_hover` / `_cond_badge_rect` / `_cond_tooltip` state are all gone, along
+with the panel's ONLY hover probe. Leaving them as widgets no mode draws is
+not free: an id in no view gets no `screen_defaults.json` record, and the
+override validator then rejects any authored override that names it.
+
+**The two effect rows are a PAIR: a name and a number.** `_COND_EFFECT_LINES`
+is **2**, and the two rows are not a list — row 0 names the effect (`Range`),
+row 1 carries its value (`+1`). Each is its own widget
+(`cond_effect_line_0`/`_1`, `cond_card_<condition>_effect_0`/`_1`) so a
+designer can place the name and the number independently, side by side or
+stacked; that is the same split the per-stat `stat_<key>_label`/`_value`
+widgets use. `_tile_cond_effect_lines` returns exactly that pair, and
+`_cond_effect_rows` only pads/caps it to the reserved count.
+
+**Nothing wraps any more, and there is no row budget.** This replaces five
+rows of full sentences (`+1 range for defenders`) written for a tooltip that
+grew to fit them — 188px of copy against 112px of box, so they wrapped at
+DRAW while the HEIGHT had to be budgeted at 2 rows per line to stay off a live
+font measurement. Both halves are short by construction now, so the same list
+drives the build-time row count and the drawn text with no measurement between
+them. Only the FIRST effect a condition carries is reported; every condition
+has exactly one today, and `map.json` ships modifiers for two conditions at
+all. A second effect on one condition needs a second PAIR of rows, not a
+longer list.
+
+**A card is sized to its sprite, never the sprite to the card.** `HudSprite`
+STRETCHES a frame to whatever box it is given, so any box that is not the
+frame's own size distorts the art. `_cond_sprite_size` asks the asset store
+for `frame_size(slot)` and the card is built around the answer: 64x96 for a
+condition, 64x32 for the plain ground tile grass falls back to, making a card
+138px or 74px tall. A frame
+size is committed DATA (`asset_manifest.json`), not a font metric — platform-
+deterministic, so it may reach a stored rect. **The exporter therefore needs
+an asset store too** (`screen_mocks.build_asset_store`, metadata-only — no PNG
+is ever opened and `sprites_dir` is deliberately unset), or its recorded rects
+would use the fallback and the editor's boxes would disagree with the game.
+
+*Consequence:* four full-size cards are ~500px of content in a 242px list, so
+the terrain list REALLY scrolls (`handle_scroll` serves unlock mode too, by
+list INDEX since the cards have variable height). Its clamp reads
+`_cond_row_count`, the full row count — **not** `len(self._cond_cards)`, which
+holds only the cards from the current offset down, so clamping against it
+shrank the limit as you scrolled and a scroll past the end walked backwards.
+
+**A card draws exactly ONE sprite, at the `_sprite` id.** There is no ground
+composite: a card used to blit `_CARD_GROUND_SLOT` (`tile_buildable`) and then
+its condition art over it, in the same order the board draws its `ground` and
+`terrain` layers — but that gave grass a full-size ground tile where every
+other card showed a condition thumbnail, and a designer's per-card size/position
+override reached only the overlay. The `_ground` sibling widget is **deleted**;
+`_cond_tile_rect` places the one sprite at its own frame size, centred in the
+card's inner width.
+
+`_CARD_GROUND_SLOT` survives as the FALLBACK PREVIEW, resolved in `_cond_slot`
+rather than drawn as a second layer. GRASS always answers it — grass is the
+absence of a condition and its `cond_grass_*` slot ships without art anyway
+(the world's own emitter skips it for the same reason) — and so does an
+UN-IMPORTED condition slot, rather than blitting the engine's grey X (E-37).
+`_has_art` uses the same `animation_total_ms(..., "idle") is not None` probe
+`_card_portrait_slot` does, so the two cannot disagree about what "imported"
+means; that is the card's analogue of the map falling back to its colour
+diamond. `_cond_card_rows` keeps scanning a chunk past a ground answer, so a
+chunk straddling a BACKGROUND/SPAWNING tile still shows a sibling's real
+terrain.
+
+Consequence for `skinning`: `cond_card_grass_sprite` and
+`cond_card_mountain_sprite` are now the same KIND of widget showing the same
+kind of art, so one authored box downsizes and positions every card's preview
+identically.
+
+Because the export mock's `TileMap` has no registry, `screen_mocks.
+_all_conditions_chunk` resolves the four slots itself — at COMBAT for every
+tile, not at the tile's own state, since a 2x2 chunk on the pinned map
+straddles BACKGROUND (no condition art by rule) and two of the four cards
+would otherwise be recorded as bare ground and understate their height.
+
+### The two card GROUPS are containers (`construct_card_list`, `terrain_card_list`)
+
+Both dynamic-count families hang off an id'd container of their own rather
+than off `panel`, so a designer can shift or resize a whole list in one drag —
+and the exporter records the container as each card's PARENT, so the editor's
+widget tree shows one movable branch instead of N roots beside `panel`.
+
+`_list_rect(list_id, holder)` is the single read: the authored rect if there
+is one, else the holder's code default. It goes through `skinning.widget_rect`
+rather than the holder, because a list builder runs BEFORE `skinning.apply`
+has written the override onto it — the same reason `_card_column` used to read
+`panel` that way. `_card_column` / `_card_list_viewport` (construct) and
+`_cond_card_column` / `_cond_card_viewport` (terrain) all derive from it, so
+shrinking a group re-windows its list instead of letting cards spill out.
+
+A container **draws only once it carries a `skin`** (`_submit_list_group`).
+Unskinned it is pure layout, which keeps the shipped screen byte-identical to
+before the groups existed — the golden-parity contract — while letting a
+designer give a list a real backdrop, drawn behind its cards because it is
+submitted first.
 
 ## TIERS pill (`btn_tier_overview`)
 The third `MapOverlays` toggle pill, added after 10I, sitting beside RANGE
@@ -1270,6 +1475,25 @@ imports:
   upgrades/advances one step at a time via the original primary-only
   branches in `_build_upgrade`/`_upgrade_click`, byte-identical to before
   this rework.
+- **The name field is a WIDGET on both screens** (rename-box-widgets). The
+  upgrade panel's rename box is `upgrade_name_box` and the construct modal's
+  is `preview_name_box` — `panel`-kind holders drawn through `submit_panel`,
+  so a designer can move, resize, skin, tint or hide either. Skinless they
+  emit the same fill + 1px border pair they always did (golden parity), and
+  the border COLOUR stays code-owned: it is the focus ring
+  (`highlight_color("tile_selected")` while typing), not decoration.
+  **The rect drives the hit test, not just the draw**: `BuildingUI
+  ._name_box_rect` is a property reading the holder, and `ConstructPreview`
+  reads `self.name_rect` back off it after `apply()` (beside the existing
+  `self.rect = self._panel.rect`), so a moved box is typed into where it is
+  drawn. A hidden box refuses focus (`is_visible` gates the click too).
+  The modal's four texts became id'd labels in the same pass —
+  `preview_title` (the master name, `text=`: a live tier/batch name),
+  `preview_cost`, `preview_name_label` and `preview_name` (placeholder
+  `text_id`, typed buffer via `text=`) — the last un-id'd copy on that
+  screen. `screen_defaults.json` gained six records and NOTHING moved;
+  `screen_previews.json` is byte-identical, which is what says the
+  conversion was a rendering no-op.
 - **Name dice + rename row** — "⚄" beside the ConstructPreview name box and in
   the upgrade panel's new rename row (both fill the edit buffer from
   `BuildingsGlobal.random_names`); the upgrade title is now the DISPLAY name
@@ -1280,8 +1504,11 @@ imports:
   (`_next_level_rows`, a throwaway `create()` clone copying tier cursor +
   boost/condition/streak context) + the `_next_tier_card` (divider, "Next:
   <name>", sprite thumb, first 3 stats) in `tier_upgrade`/`tier_locked` modes;
-  plus the red **DIED LAST ROUND** tag when `RoundStats.dmg_taken_last_round >=
-  max_hp()`.
+  plus the last-round outcome tag on the `died_last_round` widget: red **DIED
+  LAST ROUND** when `RoundStats.dmg_taken_last_round >= max_hp()`, green
+  **SURVIVED LAST ROUND** otherwise (one holder, two string ids, chosen with
+  `submit_label(text=…)`; the row is always drawn, so the layout never gates
+  its height on the outcome).
 - **Income tooltip** — `hud.income_sources(session)` is the ordered per-source
   list (Base/Musicians/Meditators/Story/−Upkeep); `income_breakdown` sums it so
   pill and tooltip can't drift; hovering the income line shows the prototype's
@@ -1490,7 +1717,30 @@ hover→`"hover"`, else `"idle"`, missing rows fall back to idle via the manifes
 
 **One anim clock per screen** (`self._clock` seconds → `widgets.anim_ms()`), no
 per-widget phase; skins are assigned by 10L-B's screen JSON (see "UI screen
-customization" below). `levelup.py`/`boss_cutscene.py` own no `widgets.Button`
+customization" below).
+
+**…except a `Button`, which runs its OWN state clock** (fix: hover/pressed
+rows never played). Every shipped `ui_button*` sheet's `hover`/`pressed` rows
+are `loop_count: 1`, i.e. play-once, and a free-running screen clock hands
+them a time long past their end — so the row was only ever seen on its LAST
+frame and the animation looked like it never fired. `Button.update(dt)` now
+keeps `_anim_t`, RESTARTED whenever `_state()` changes, and `submit` feeds
+that to the `HudSprite` instead of the caller's `anim_ms=` — which is still
+the fallback for a button nothing ticks (a bare test/tool one), so no call
+site changed. **A button must therefore be `update(dt)`-ed to animate**;
+`enemy_intro`'s close X was the one that never was, and now is.
+
+**A refused click plays its press first.** `start_flash` (NOT ENOUGH LOVE /
+CANNOT MOVE THERE) used to cut straight to red mid-`pressed`-row, so the
+button read as flashing out of `idle`. It now holds the flash for whatever is
+LEFT of that row — `_state()` still resolves to `pressed` during the hold,
+`flash_showing` (not `flash > 0`) is what turns the fill red and swaps in the
+flash label, and the flash's own duration starts only afterward. The row's
+LENGTH comes from `widgets.set_skin_anim_length(fn)`, the `set_skin_hit_test`
+seam's sibling wired in `game/main.py` to `AssetStore.animation_total_ms`
+(`game/ui` may not reach the asset layer itself). Unskinned buttons, skins
+with no `pressed` row and an un-wired seam all answer 0 and flash
+immediately, exactly as before. `levelup.py`/`boss_cutscene.py` own no `widgets.Button`
 (plain option-box rects), so they accept `mouse_down` on `update()` only for
 main.py's uniform threading call. `levelup.py` still carries no clock/anim_ms
 (its boxes stay unconditionally raw); `boss_cutscene.py` gained one in B2 —
@@ -1648,9 +1898,47 @@ sets one).
     extra primitives. `apply()` and the real-widget loops need no change —
     both iterate `ids` (the game's own widget objects), so a custom id is
     simply never matched there.
-  - **Order**: band first (absent = `over`, so `under` puts it behind
-    EVERYTHING on the screen — the same no-depth-sort trade-off as a layer),
-    then ascending `z` (absent = 0) among the custom widgets of that band, ties
+  - **`view` scopes an entry to ONE of the screen's views** — the keys of
+    `screen_defaults.json`'s `views` (`construct`, `unlock`, `upgrade`,
+    `base_info`, `preview` on `building_panel`). **Absent = every view**,
+    which is the single-view screen and what every entry authored before the
+    key meant. It exists because a screen ID is not a screen: `building_panel`
+    is five `BuildingUI.mode`s plus `ConstructPreview`/`MovePreview`, all
+    declaring the same id, so an unscoped custom widget is drawn by every one
+    of them — a plate authored for the build list also landing on the unlock
+    and upgrade panels, and again on top of an open preview. `submit_layers`
+    takes a `view=` and drops entries naming a different one; a screen that
+    passes none filters nothing. `BuildingUI` passes `self.mode` (its view ids
+    ARE its mode names) and the two modals pass `_PREVIEW_VIEW`. `move_select`
+    is a mode the exporter records no view for, so a scoped widget simply
+    never draws there. Only CUSTOM widgets need this — a code-owned widget is
+    already view-scoped by construction, because a mode only puts the widgets
+    it built into `ids`.
+  - **`hidden_customs=` is the LIVE-STATE gate**, the caller's counterpart to
+    the doc-authored `view`: a set of custom ids `submit_layers` drops for
+    this frame only. `view` answers "does this decoration belong to this
+    mode"; this answers "does it have anything to decorate right now", which
+    the doc cannot express. Today's only user is `BuildingUI`, whose
+    `_hidden_stat_backdrops()` drops the plates in
+    `_STAT_BACKDROP_MIN_ROWS` — the nested stack behind the stat block
+    (`custom_panel_17` parents `16` parents `19`) peeling off as the block
+    shrinks: 5+ stat rows shows all three, 4 drops `19`, 3 drops `16` too, 2
+    or fewer leaves none. The block is as tall as the selected building has
+    stats, so on a Blocker or an economy building a plate cut for five rows
+    would hang below the text it backs. The ids are the
+    designer's (whatever the editor generated), the THRESHOLD is code. The
+    default is empty, so every other screen is unchanged, and hiding a plate
+    never moves its `parent`-anchored children — `apply()` resolves parents
+    and is untouched by this gate.
+  - **Order**: band first — **absent = `under`**, so by default a custom
+    widget goes behind EVERYTHING on the screen (the same no-depth-sort
+    trade-off as a layer). Note this is the OPPOSITE of an undecorated LAYER
+    entry, which `engine/ui_layers.ordered` still defaults to `over`, and the
+    difference is deliberate: a custom widget is decoration a designer
+    invented, and a decorative box defaulting on top of the screen's own
+    readouts, counters and buttons hides the information the player needs.
+    `over` is still authorable per widget. Then ascending `z` (absent = 0)
+    among the custom widgets of that band, ties
     keeping the file's own authoring order. `z` never orders a custom widget
     against a code-owned one; the band alone decides that.
   - **Kind → primitives.** `panel`: `skin` (falling back to this screen's
@@ -2147,21 +2435,45 @@ instead of two) changed, not its code.
 above.** A card used to bake the building's name and its price into a single
 string; it is now a parent holding a creature portrait, a two-row name block
 and a price pill with the baked love icon — each part independently id'd,
-placeable and skinnable in the UI editor. Seven ids per buildable type, all
+placeable and skinnable in the UI editor. NINE ids per buildable type, all
 sharing the ONE `card_` prefix, so `_clear_card_ids()` needed no change:
 
-Widths below are the **no-override** ones (`cw` = 118); with a `panel` rect
-authored they follow it — see "the card column FOLLOWS the `panel` container".
+The card SLOT is 140×77 (`_CARD_W` × `_CARD_H`), positioned off
+`construct_card_list`'s box. Offsets below are from the slot's top-left.
 
-| id | kind | rect (relative to the card at `(cx, y)`) |
+The list pitch is `_CARD_PITCH`, its OWN number and deliberately not
+`_CARD_H + gap`: the plate and the frame are 64 tall inside the 77-tall slot,
+so what the eye reads as the gap between two cards is `pitch - 64`, not
+`pitch - 77`. At the shipped 72 that is an 8px gap, and a slot overlaps its
+neighbour's by 5px — harmless, since the frame's bottom band and the next
+plate's top band share exactly one column of x. Spelling it as a negative
+`_CARD_GAP` would be a name that lies about what it measures.
+
+| id | kind | rect (relative to the slot at `(cx, y)`) |
 |---|---|---|
-| `card_<btype>` | button | `(cx, y, 118, 40)` — the parent, and the click target |
-| `card_<btype>_portrait` | panel | `(+3, +3, 34, 34)`, `skin` = the sprite slot |
-| `card_<btype>_name` | label | `(+41, +2, 0, 0)`, `sm` |
-| `card_<btype>_name2` | label | `(+41, +14, 0, 0)`, `sm` |
-| `card_<btype>_price` | button | `(+41, +24, 74, 14)` |
-| `card_<btype>_price_icon` | panel | `(+44, +26, 10, 10)`, `skin` = `ui_icon_love` |
-| `card_<btype>_price_text` | label | `(+57, +26, 0, 0)`, `sm`, `building.stat.value` |
+| `card_<btype>_plate` | panel | `(+63, +0, 77, 64)`, `skin` = `ui_panel_v11` |
+| `card_<btype>` | button | `(+10, +24, 44, 45)` — the click target |
+| `card_<btype>_portrait` | panel | `(+14, +28, 34, 34)`, `skin` = the sprite slot |
+| `card_<btype>_frame` | panel | `(+0, +13, 64, 64)`, `skin` = `ui_panel_v7` |
+| `card_<btype>_name` | label | `(+69, +26, 0, 0)`, `sm` |
+| `card_<btype>_name2` | label | `(+69, +26 + step, 0, 0)`, `sm` |
+| `card_<btype>_price` | button | `(+62, +46, 74, 23)` |
+| `card_<btype>_price_icon` | panel | price `+14, +8`, `10×10`, `ui_icon_love` |
+| `card_<btype>_price_text` | label | price `+28, +7`, `sm`, `building.stat.value` |
+
+- **The BODY is not the card.** It is a 44×45 portrait backing that happens to
+  be the only click target; the card's visual extent is the plate+frame union,
+  i.e. the slot. Anything asking "is this inside the card" — `_card_in_viewport`
+  above all — must ask about the SLOT, which it recovers from the body by
+  subtracting `_CARD_BODY`'s offset. Windowing on the body instead lets a
+  card's plate and frame spill out of the group.
+- **The plate and the frame are ordinary code-owned parts, and must stay
+  that way.** They were authored as CUSTOM widgets first, which put them on
+  every mode of this screen — `unlock`, `upgrade`, `base_info`,
+  `move_select` — and on top of `ConstructPreview`/`MovePreview` as well,
+  because a custom widget is drawn by `ScreenSkinning.submit_layers` off the
+  SCREEN id and all of those share `building_panel`. A custom widget is the
+  wrong tool for anything that belongs to one mode's content.
 
 - **Rects are ABSOLUTE, as everywhere else here.** `parent` is editor
   authoring metadata nothing in `game/` reads (`editor/widget_tree.py`);
@@ -2185,13 +2497,16 @@ authored they follow it — see "the card column FOLLOWS the `panel` container".
   changed the committed file.
 - **The love icon is a sprite, not a glyph** (`ui_icon_love`, the `hud.py`
   idiom) — `widgets.HEART` stays deleted.
-- **The card BODY is submitted first, then the portrait on top of it.**
+- **The stack is plate → body → portrait → frame → price → icon → text.**
   `Renderer.submit_hud` appends and nothing sorts it, so submission order IS
-  z-order, and the portrait sits wholly inside the body's rect — submit the
-  portrait first and a skinned body hides it outright. This is latent while
+  z-order. The plate is the backdrop the name and price sit on and the frame
+  is a border in FRONT of the portrait — which is exactly what those two meant
+  as custom widgets banded `"under"` and `"over"`. The body before the
+  portrait for the older reason: the portrait sits wholly inside the body's
+  rect, so submit it first and a skinned body hides it outright. Latent while
   `defaults.button_skin` is unset (the body draws as a flat rect and the
-  portrait survives) and breaks the screen the moment a designer skins the
-  card, so it is pinned by `TestCardDrawOrder` rather than left to the eye.
+  portrait survives), a screen-breaker the moment a designer skins the card —
+  so the whole order is pinned by `TestCardDrawOrder`, not left to the eye.
 - **The card column FOLLOWS the `panel` container** (`_card_column()`, reading
   `ScreenSkinning.widget_rect(screen_id, "panel")`), so `cx`/`cw` above are the
   authored panel inset by `_CARD_INSET`, not the ctor's `panel_x`/`panel_w`.
@@ -2205,27 +2520,41 @@ authored they follow it — see "the card column FOLLOWS the `panel` container".
   code defaults**, so `screen_defaults.json` (recorded with the disk-free
   `ScreenSkinning.empty()`) is byte-unchanged by any of this.
   - **Hand-pinning the 12 `card_<btype>` rects is NOT the way to move the
-    column, and actively breaks it**: an authored rect reaches only the card
-    BODY, while that card's portrait/name/price children stay on the code
-    layout — so the parts of every card drift apart down the list. A designer
-    who did this against the pre-tree 21px card left twelve stale pins behind
-    that tore the whole screen up; `TestCardColumnFollowsThePanel` guards it.
-- **The price pill names its own skin** (`_CARD_PRICE_SKIN`, `ui_button_pill`)
-  instead of inheriting the body's `defaults.button_skin`: the body art is a
-  full-card 9-slice and stretching it through a 74×14 pill reads as a squashed
-  card. Baked for the same reason `_CARD_LOVE_ICON` is — it names one specific
-  piece of art; a designer wanting another overrides `card_<btype>_price`'s
-  `skin` per card, leaving the body alone.
+    column, and actively breaks it** — three ways, all of which have shipped:
+    (1) an authored rect reaches only the card BODY while that card's
+    portrait/name/price children stay on the code layout, so the parts of
+    every card drift apart down the list; (2) `BuildingUI.submit` runs
+    `skinning.apply` EVERY FRAME, so the pin overwrites the scroll-adjusted
+    rect `_build_construct` just computed — the wheel moves `scroll_offset`
+    and nothing on screen moves; (3) a card pinned outside
+    `construct_card_list`'s window is culled at draw AND at hit, i.e. that
+    building type is unbuyable. Twelve pins once did all three at once, with
+    five types unclickable. `TestCardColumnFollowsThePanel` guards the first
+    and `TestNoPinnedCardRects` the other two.
+- **The price pill, the plate and the frame name their own skins**
+  (`_CARD_PRICE_SKIN` = `ui_button_panel`, `_CARD_PLATE_SKIN` =
+  `ui_panel_v11`, `_CARD_FRAME_SKIN` = `ui_panel_v7`) instead of inheriting
+  `defaults.button_skin` / `defaults.panel_skin`: the body art is a small
+  portrait backing and stretching it through a 74×23 pill reads as a squashed
+  card, while `panel_skin` is shared with the panel body, the terrain badge
+  and the effect box, so inheriting it would tie a card's chrome to theirs.
+  Baked for the same reason `_CARD_LOVE_ICON` is — each names one specific
+  piece of art; a designer wanting another overrides
+  `card_<btype>_price`/`_plate`/`_frame`'s `skin` per card, leaving the body
+  alone.
 - **Two screen-level bools**, both in `data/ui/screens/building_panel.json`'s
   `defaults` (read fresh via `_card_defaults()`, the `defaults.button_skin`
   precedent — `defaults` values are never id-validated, so `ScreenSkinning`
   needed no change), both defaulting **false**:
   - `price_is_click_target` — on, ONLY the price pill opens the construct
-    preview and the portrait/name go inert; off, the whole card is the click
-    target as it always was and the pill is drawn but never hit-tested.
-    Nothing downstream of the hit changes. The NOT-ENOUGH-LOVE flash always
-    lands on the card body either way — it is the only part wide enough to
-    read a sentence.
+    preview and the body goes inert. Off (the default), **both** the pill and
+    the body open it: the pill is the obvious "press me" on a card, and the
+    body is a 44px portrait backing that is not. It did not always work this
+    way — off used to mean the pill was drawn but never hit-tested, which
+    made the one part of the card that looks like a button do nothing.
+    Nothing downstream of the hit changes. The NOT-ENOUGH-LOVE flash lands on
+    the PILL either way: it is a sentence, and since the body shrank the 74px
+    pill is the widest `Button` in the tree.
   - `use_card_portrait_slot` — on, the portrait draws
     `card_portrait_<btype>` (`data/slots.json`'s `ui` → "Card Portraits"),
     falling back to the building's own tier sprite whenever that slot has no

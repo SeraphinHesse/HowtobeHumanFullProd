@@ -29,8 +29,25 @@ class Category:
 
 
 def _slot_key(entry):
-    """A slots[] entry is a bare key string, or {key, frame_w, frame_h}."""
+    """A slots[] entry is a bare key string, or an object form
+    ``{key, frame_w?, frame_h?, display_name?}``."""
     return entry if isinstance(entry, str) else entry["key"]
+
+
+def _slot_frame_override(entry):
+    """The entry's per-slot frame size, or None when it inherits the category's.
+
+    The object form carries frame_w/frame_h as a PAIR or not at all (the
+    schema's `dependentRequired`), so an object entry that exists only to name
+    a slot still inherits its category's size."""
+    if isinstance(entry, str) or "frame_w" not in entry:
+        return None
+    return (int(entry["frame_w"]), int(entry["frame_h"]))
+
+
+def _slot_display_name(entry):
+    """The entry's designer-facing name, or "" when it has none."""
+    return "" if isinstance(entry, str) else entry.get("display_name", "")
 
 
 def _parse_group(raw):
@@ -71,6 +88,7 @@ class SlotRegistry:
         self._categories = {}
         self._slot_category = {}   # slot_key -> Category, first-seen order
         self._slot_frame = {}      # slot_key -> (frame_w, frame_h) override
+        self._slot_names = {}      # slot_key -> display_name (editor-only)
         declared = {}              # slot_key -> its override, None = inherit
         for raw in doc["categories"]:
             category = Category(
@@ -92,8 +110,7 @@ class SlotRegistry:
                         raise ValueError(
                             f"slot {slot_key!r} declared in two categories: "
                             f"{owner.key!r} and {category.key!r}")
-                    override = None if isinstance(entry, str) else (
-                        int(entry["frame_w"]), int(entry["frame_h"]))
+                    override = _slot_frame_override(entry)
                     if slot_key in declared and declared[slot_key] != override:
                         raise ValueError(
                             f"slot {slot_key!r} declared with conflicting frame "
@@ -101,6 +118,13 @@ class SlotRegistry:
                     declared[slot_key] = override
                     if override is not None:
                         self._slot_frame[slot_key] = override
+                    # A repeated key (shared art under two groups of one
+                    # category) keeps the FIRST name it was given: unlike frame
+                    # size, two labels for one slot are cosmetic, not a data
+                    # error, so this does not raise.
+                    name = _slot_display_name(entry)
+                    if name and slot_key not in self._slot_names:
+                        self._slot_names[slot_key] = name
                     self._slot_category.setdefault(slot_key, category)
 
     def categories(self):
@@ -148,6 +172,16 @@ class SlotRegistry:
         category = self._slot_category[slot_key]
         return self._slot_frame.get(
             slot_key, (category.frame_w, category.frame_h))
+
+    def display_name(self, slot_key):
+        """The slot's designer-facing name, or "" when it has none (the key is
+        then its own label).
+
+        EDITOR-ONLY: nothing in `game/` reads this. It is what the slot
+        editor's Name field writes and what the UI screen editor's skin
+        pickers show beside the key. An unknown key answers "" rather than
+        raising, so a caller can safely label a stale slot ref."""
+        return self._slot_names.get(slot_key, "")
 
     def animations(self, slot_key):
         return self._slot_category[slot_key].animations

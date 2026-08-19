@@ -24,8 +24,9 @@ from game.core.xp import scaled_base_income
 
 from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .widgets import (
-    Button, anim_ms, contains, label_holder, submit_bar, submit_centered,
-    submit_label, submit_panel, submit_text, text_h, text_size
+    Button, anim_ms, announce_bottom_y, contains, label_holder, submit_bar,
+    submit_centered, submit_label, submit_panel, submit_text, text_h,
+    text_size
 )
 from . import widgets
 from .strings import T
@@ -43,12 +44,15 @@ _LIGHTNING_COOLING = (120, 120, 140)
 _BOSS_NEXT_TINT_ON = (255, 140, 140, 255)
 _BOSS_NEXT_TINT_OFF = (150, 150, 150, 255)
 # -- /boss-round indicator icon --
-# -- UL-11: the three life counters' death-transition duration. A hardcoded
-# module constant (the _LIGHTNING_READY precedent above), NOT a
-# data/balancing/ui.json key: there is no art to time it against yet, so this
-# is a placeholder to be promoted to a tunable once one exists. --
-_LIFE_TRANSITION_MS = 600
-# -- /UL-11 --
+# -- The lost-life flight: the gap between the announce banner's bottom line
+# and the top of the enlarged life icon hanging under it. Code chrome (the
+# _FLOATER_STACK_STEP / HP_BAR_PAD precedent), not balancing -- the
+# designer's lever is FX.life_lost_anim.center_offset_y. It SUPERSEDES
+# UL-11's _LIFE_TRANSITION_MS, which timed the death transition off a
+# hardcoded 600ms because no art existed to time it against; the flight's
+# three legs are now two balancing values plus the imported row's own
+# length. --
+_LIFE_ICON_GAP = 6
 
 # The phase readout's two-state copy. It used to be a six-way GamePhase ->
 # string-id map (``_PHASE_LABEL_ID``) resolved through the Phase C string
@@ -196,9 +200,22 @@ SCREEN_ID = "hud"
 
 
 class Hud:
-    def __init__(self, view_w, view_h, skinning=None):
+    def __init__(self, view_w, view_h, skinning=None, ui_balance=None):
         self.screen_id = SCREEN_ID
         self.skinning = skinning or ScreenSkinning.empty()
+        # The lost-life flight's two durations + its centred size/offset.
+        # None (every bare Hud: the layout exporter, screen_preview.py, the
+        # golden recorder, every unit test) means NO flight -- the icons stay
+        # in their HUD slots and only the state row changes, which is what
+        # keeps screen_defaults.json / screen_previews.json / the parity pin
+        # stable without threading balancing into any of them.
+        self._life_fx = (ui_balance or {}).get("FX", {}).get(
+            "life_lost_anim")
+        # AssetStore, wired by the host in build_gameplay() (the
+        # BuildingUI.assets / FloaterManager.assets precedent). Read ONLY for
+        # pure manifest metadata -- animation_total_ms -- never to load a
+        # surface, so game/ui stays pygame-free.
+        self.assets = None
         # font "md", not "lg": "END TURN" has no words left to cut and needs
         # 90px at "lg" under the SHIPPED pixel font (data/ui/active_font.json
         # -> pixel_emulator, wider per glyph than the SysFont fallback these
@@ -324,16 +341,18 @@ class Hud:
         # individually. Three separate attrs (the _icon_love/_icon_xp/
         # _icon_lives precedent), not a list. The default skin reuses the
         # existing lives art so an unauthored screen still shows something
-        # recognisable; per-state art arrives as a `layers` override.
+        # recognisable -- ui_icon_life ships seeded off the same PNG
+        # ui_icon_lives uses, and a designer adds the dying/dead rows on
+        # top of it. A `layers` override can still replace this outright.
         # Each carries its own `_state` callable, which is the SAME seam
         # ScreenSkinning.state_of/submit_layers already dispatch through for
         # Buttons -- zero changes needed in skinning.py. --
         self._life_1 = SimpleNamespace(rect=(0, 0, 0, 0),
-                                       skin="ui_icon_lives", visible=True)
+                                       skin="ui_icon_life", visible=True)
         self._life_2 = SimpleNamespace(rect=(0, 0, 0, 0),
-                                       skin="ui_icon_lives", visible=True)
+                                       skin="ui_icon_life", visible=True)
         self._life_3 = SimpleNamespace(rect=(0, 0, 0, 0),
-                                       skin="ui_icon_lives", visible=True)
+                                       skin="ui_icon_life", visible=True)
         # base_lives DELTA tracking, not the life_lost_events ledger: main.py
         # runs the floaters' effects step (which DRAINS state.life_lost_events)
         # BEFORE Hud.update() every frame, so the ledger is already empty on
@@ -482,39 +501,158 @@ class Hud:
         })
         self.skinning.apply(self.screen_id, self.ids)
 
-    # -- UL-11 ------------------------------------------------------------
+    # -- UL-11 + the lost-life flight -------------------------------------
+    def _dying_seconds(self):
+        """How long the enlarged icon holds at screen centre: EXACTLY as long
+        as the slot's imported ``pressed`` row lasts. Deliberately not a
+        balancing key -- the hold IS the animation, so a designer retiming the
+        sheet retimes the hold with it and the two can never disagree.
+
+        ``animation_total_ms`` is the right probe (and ``current_frame`` is
+        not): it returns None for a row a sheet does not carry instead of
+        falling back to idle. No store wired, or no ``pressed`` row authored,
+        is a zero-length hold -- the icon flies straight out and back."""
+        store = self.assets
+        if store is None:
+            return 0.0
+        total = store.animation_total_ms(self._life_1.skin, "pressed")
+        return (total or 0) / 1000.0
+
+    def _dead_art_available(self, slot):
+        """True only when this slot really carries a ``disabled`` row. The
+        manifest falls back to idle for a missing row, so WITHOUT this probe an
+        unauthored dead state would draw the ALIVE art -- a lost life would look
+        untouched. A dead life with no dead art draws nothing at all instead."""
+        store = self.assets
+        return (store is not None
+                and store.animation_total_ms(slot, "disabled") is not None)
+
+    def _life_anim(self):
+        """``(phase, k)`` for the life currently in flight, else
+        ``(None, 0.0)``. ``phase`` is ``"out"`` | ``"dying"`` | ``"back"`` and
+        ``k`` is 0..1 progress WITHIN that phase.
+
+        Derived from the ONE mutable float ``_life_transition_age`` rather than
+        stored as a separate field, so ``submit()`` -- which receives no dt --
+        can recompute the row, the position and the size with no risk of the
+        three drifting apart."""
+        if self._life_transition_idx is None or not self._life_fx:
+            return (None, 0.0)
+        age = self._life_transition_age
+        out = float(self._life_fx["fly_out"])
+        dying = self._dying_seconds()
+        back = float(self._life_fx["fly_back"])
+        # A zero-length leg is legal (a designer may set either duration to 0,
+        # and the hold is 0 until dying art is imported), so every divide is
+        # guarded and a skipped leg reports k = 1.0 rather than raising.
+        if age < out:
+            return ("out", age / out if out > 0 else 1.0)
+        age -= out
+        if age < dying:
+            return ("dying", age / dying if dying > 0 else 1.0)
+        age -= dying
+        if age < back:
+            return ("back", age / back if back > 0 else 1.0)
+        return ("back", 1.0)
+
     def _life_state_token(self, idx):
         """One life counter's per-state key, on the pinned four-token
         vocabulary (the schema is untouched by this phase):
         alive -> ``idle`` (loops), dying -> ``pressed`` (plays once),
         dead -> ``disabled`` (static). ``hover`` is never produced -- a
-        designer may author it, but nothing selects it."""
+        designer may author it, but nothing selects it.
+
+        The life in flight walks all three: it leaves its HUD slot still ALIVE,
+        plays the dying row only once it has arrived and scaled up at centre,
+        then flies home already showing its dead art."""
         if idx == self._life_transition_idx:
-            return "pressed"
+            phase, _ = self._life_anim()
+            if phase == "out":
+                return "idle"
+            if phase == "dying":
+                return "pressed"
+            if phase == "back":
+                return "disabled"
         lives = self._prev_base_lives
         if lives is None:
-            return "idle"   # before the first update(): nothing observed yet
+            return "idle"   # before the first observation: nothing seen yet
         return "idle" if idx <= lives else "disabled"
 
-    def _update_life_states(self, dt, base_lives):
-        """Drive the life counters off base_lives DELTAS (see __init__ on why
-        not life_lost_events). The first call only seeds: a run that STARTS
-        below full lives shows dead-and-static lives, never a transition."""
-        if self._life_transition_idx is not None:
-            self._life_transition_age += dt
-            if self._life_transition_age >= _LIFE_TRANSITION_MS / 1000.0:
-                self._life_transition_idx = None
-                self._life_transition_age = 0.0
+    def _observe_lives(self, base_lives):
+        """The EDGE DETECTOR half of the old ``_update_life_states``: arm a
+        flight on a strict decrease, then store the count. Drives the life
+        counters off base_lives DELTAS (see __init__ on why not
+        life_lost_events). The first call only seeds: a run that STARTS below
+        full lives shows dead-and-static lives, never a replayed flight.
+
+        Split from the clock so ``submit()`` can call it too -- and it MUST.
+        ``Session.on_base_hit`` fires inside ``resolve_combat``, which main.py
+        runs BETWEEN ``Hud.update`` and ``Hud.submit``, so a token read only
+        from update()'s observation is a whole frame stale on the one frame
+        that matters. Idempotent for a repeated value: the arm branch tests a
+        STRICT decrease against the stored count, which this call also
+        updates, so calling it twice a frame cannot double-arm."""
         if self._prev_base_lives is not None and base_lives < self._prev_base_lives:
             self._life_transition_idx = base_lives + 1  # the life that died
             self._life_transition_age = 0.0
         self._prev_base_lives = base_lives
-    # -- /UL-11 -----------------------------------------------------------
+
+    def _advance_life_anim(self, dt):
+        """The CLOCK half. Ends the flight once the age passes all three legs;
+        the life then settles on ``disabled`` through the ordinary
+        ``idx <= lives`` test, which needs no transition state."""
+        if self._life_transition_idx is None:
+            return
+        self._life_transition_age += dt
+        if not self._life_fx:
+            # No balancing wired: nothing animates, so retire the flight at
+            # once rather than latching an index that never clears.
+            self._life_transition_idx = None
+            self._life_transition_age = 0.0
+            return
+        total = (float(self._life_fx["fly_out"]) + self._dying_seconds()
+                 + float(self._life_fx["fly_back"]))
+        if self._life_transition_age >= total:
+            self._life_transition_idx = None
+            self._life_transition_age = 0.0
+
+    def _life_draw_box(self, idx, rect, view_w, view_h):
+        """This frame's ``(x, y, w, h)`` for one life counter: its own
+        post-override rect, unless it is the life in flight.
+
+        The centred box hangs UNDER the announce banner --
+        ``widgets.announce_bottom_y`` is the ONE home for that geometry, shared
+        with ``effects.submit_announce``, so the icon cannot drift away from the
+        text it sits below. Linear, no easing: that is what every hand-rolled
+        tween in this package does (``_announce_k``, ``_start_love_anim``,
+        ``Button.start_flash``), and one flight does not justify a tween
+        library.
+
+        ``HudSprite`` carries an explicit size, so 2x is simply a doubled box
+        with a recentred origin -- no engine work."""
+        phase, k = self._life_anim()
+        if phase is None or idx != self._life_transition_idx:
+            return rect
+        hw, hh = rect[2], rect[3]
+        scale = float(self._life_fx["center_scale"])
+        cw, ch = round(hw * scale), round(hh * scale)
+        cx = view_w // 2 - cw // 2
+        cy = (announce_bottom_y(view_h) + _LIFE_ICON_GAP
+              + int(self._life_fx["center_offset_y"]))
+        centre = (cx, cy, cw, ch)
+        if phase == "dying":
+            return centre
+        a, b = ((rect, centre) if phase == "out" else (centre, rect))
+        # round, not int: both endpoints are integers, so a rounded lerp keeps
+        # every drawn box integral and the recorded HUD stream reproducible.
+        return tuple(round(av + (bv - av) * k) for av, bv in zip(a, b))
+    # -- /UL-11 + the lost-life flight ------------------------------------
 
     def update(self, dt, mx, my, session, panel, mouse_down=False):
         self._mx, self._my = mx, my  # 10H: the cursor cooldown-bar anchor
         st = session.state
-        self._update_life_states(dt, st.base_lives)  # UL-11
+        self._observe_lives(st.base_lives)      # UL-11 edge detector
+        self._advance_life_anim(dt)            # ...and its clock
         self._clock += dt
         # unlock / construct / upgrade / base_info, plus the construct preview
         # modal — any of them owns the right column.
@@ -623,12 +761,19 @@ class Hud:
         from engine.render import HudRect  # local: keep module import list lean
 
         st = session.state
+        # BEFORE anything resolves a state token (submit_layers below reaches
+        # every life counter's _state()): base_lives can change between
+        # update() and here, since Session.on_base_hit fires inside
+        # resolve_combat, which main.py runs between the two. Idempotent.
+        self._observe_lives(st.base_lives)
         self.layout(view_w, view_h)
         self._layout_readouts()  # 10L-B: second apply() pass (pill-relative)
         self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
-        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "under", self.skinning.state_of)
         t = anim_ms(self._clock)  # 10L-A skin anim clock, shared by every skin draw
+        # t is resolved BEFORE the layer pass so an authored multi-frame layer
+        # sheet animates instead of freezing on frame 0.
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "under", self.skinning.state_of, t)
 
         # -- love pill (top-left) -----------------------------------------
         pill = self._love_panel.rect
@@ -696,13 +841,35 @@ class Hud:
         submit_label(renderer, self._lives_text, count=st.base_lives)
         # -- UL-11: the three counters' default (unauthored) draw -- the same
         # skinned submit_panel path icon_lives uses, one call per holder. The
-        # per-state layer stack that replaces this is authored as an override
-        # and rides Hud.submit()'s existing submit_layers calls, which already
-        # cover every id in self.ids. --
-        for _life in (self._life_1, self._life_2, self._life_3):
-            if is_visible(_life):
-                submit_panel(renderer, _life.rect, skin=_life.skin,
-                             tint=getattr(_life, "tint", None), anim_ms=t)
+        # per-state layer stack that can replace this is authored as an
+        # override and rides Hud.submit()'s existing submit_layers calls,
+        # which already cover every id in self.ids.
+        #
+        # Unlike every other panel draw in this file these pass a real
+        # `animation` row -- alive/dying/dead are rows 0/1/2 of ONE slot --
+        # and the life in flight gets its box from _life_draw_box instead of
+        # its stored rect. --
+        for _i, _life in enumerate(
+                (self._life_1, self._life_2, self._life_3), start=1):
+            if not is_visible(_life):
+                continue
+            _row = self._life_state_token(_i)
+            # A dead life with no `disabled` row authored draws NOTHING: the
+            # manifest would otherwise fall back to idle and a lost life
+            # would look alive. Deliberate (see _dead_art_available).
+            if _row == "disabled" and not self._dead_art_available(_life.skin):
+                continue
+            # The in-flight life runs on the FLIGHT's own clock, not the
+            # screen's free-running one: that is what makes the dying row
+            # start at frame 0 every time, i.e. play once rather than catch
+            # the loop wherever `t` happens to be.
+            _t = (round(self._life_transition_age * 1000)
+                  if _i == self._life_transition_idx else t)
+            submit_panel(renderer,
+                         self._life_draw_box(_i, _life.rect, view_w, view_h),
+                         skin=_life.skin,
+                         tint=getattr(_life, "tint", None),
+                         anim_ms=_t, animation=_row)
         built, unlocked = _tile_counts(session.tilemap)
         submit_label(renderer, self._tiles_text, built=built,
                      unlocked=unlocked)
@@ -713,7 +880,6 @@ class Hud:
         # leave the round label floating over the panel.
         boss_tooltip = None  # set below, read at the deferred draw at the end
         if not self._panel_open:
-            bx, by, bw, bh = self.end_turn.rect
             # -- phase readout (bottom-right, directly above the round label).
             # Unclickable: a plain label holder, never hit-tested. It joins the
             # right-edge cluster's _panel_open gate rather than drawing
@@ -736,11 +902,6 @@ class Hud:
                               if st.round_num == 0 else None)
                 submit_label(renderer, self._round_label, text=round_text,
                              n=st.round_num)
-            # a faint separator under the round text keeps the corner legible
-            # (panel-kind — submitted before the button it sits near so it
-            # never draws on top of it; game/ui/CLAUDE.md "panel -> button ->
-            # text").
-            renderer.submit_hud(HudRect((bx, by - 2, bw, 1), widgets.C_UI_BORDER))
             if is_visible(self.end_turn):
                 self.end_turn.submit(renderer, anim_ms=t,
                                      **button_kwargs(self.end_turn))
@@ -797,6 +958,15 @@ class Hud:
         # the scene's placed casters now, not a single RunState field) ------
         self._submit_lightning(renderer, session, view_h, scene)
 
+        # -- authored per-widget "over" layers (UL-4), after every widget has
+        # drawn and before the tooltips, which stay topmost. This pass used to
+        # sit at the very end of this method; inserting
+        # `_submit_love_hover_cost` directly above it captured it into that
+        # method's body instead, where `t` is not defined — so hovering any
+        # cost raised NameError and crashed the frame.
+        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
+                                    "over", self.skinning.state_of, t)
+
         # -- income tooltip, LAST: topmost HUD layer (see the deferral above)
         if tooltip is not None:
             self._submit_income_tooltip(renderer, tooltip, income_pill)
@@ -849,9 +1019,6 @@ class Hud:
         current_w, _h = text_size(current_text, holder.font_key)
         submit_text(renderer, price_text, (x + current_w, y), holder.font_key,
                    widgets.C_RED)
-
-        self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "over", self.skinning.state_of)
 
     def _submit_income_tooltip(self, renderer, sources, anchor):
         """The 10J per-source breakdown below the income line (prototype

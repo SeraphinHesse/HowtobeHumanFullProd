@@ -1,4 +1,10 @@
 {
+  "$defs": {
+    "font_family": {
+      "description": "UH-Font-B: the font FAMILY this text draws in \u2014 a data/fonts/font_manifest.json entry id. ORTHOGONAL to `font`, which selects only a data/ui/fonts.json size/bold PRESET; the two axes combine, so any preset can be drawn in any imported family. ABSENT means \"inherit\": a widget falls back to its screen's `defaults.font_family`, and that falls back to data/ui/active_font.json \u2014 so a doc that predates this key draws exactly as it always did. That the id must name a real manifest entry is a cross-file check a schema can't express; unlike active_font.json (which game/main.py cross-checks and fails LOUD on, D-2) an unknown id here DEGRADES to the inherited family at draw time (engine/render/fonts.py's `get_font`), because a stale id in one screen doc must not kill the frame. Changing the family moves NO stored rect: `layout_h` is keyed by preset only, so text in a wider family can overflow its widget \u2014 the same pinned-layout contract a preset size change already has.",
+      "type": "string"
+    }
+  },
   "$id": "https://example.com/schemas/ui_screen.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -39,13 +45,13 @@
     },
     "custom_widgets": {
       "additionalProperties": false,
-      "description": "Designer-AUTHORED widgets that exist only in this file: a hand-written twin of ONE screen_defaults.json widget entry, for decoration a designer wants and no code owns. This entry is the widget's DEFAULT GEOMETRY ONLY. Everything paintable -- skin, color, label, text_id, font, text_color, tint, align, visible, parent, layers, states -- is an ORDINARY override under widgets/<the same id>, exactly as for a code-owned widget; there is no second styling vocabulary here. The game draws these at the tail of the two submit_layers calls every screen already makes, so a screen with no custom_widgets emits not one extra primitive. Custom widgets are NEVER click targets: neither the widget nor its layers are hit-tested, and a click passes straight through to the real UI underneath. parent on a custom widget is authoring-only metadata the game never reads.",
+      "description": "Designer-AUTHORED widgets that exist only in this file: a hand-written twin of ONE screen_defaults.json widget entry, for decoration a designer wants and no code owns. This entry is the widget's DEFAULT GEOMETRY ONLY. Everything paintable -- skin, color, label, text_id, font, font_family, text_color, tint, align, visible, parent, layers, states -- is an ORDINARY override under widgets/<the same id>, exactly as for a code-owned widget; there is no second styling vocabulary here. The game draws these at the tail of the two submit_layers calls every screen already makes, so a screen with no custom_widgets emits not one extra primitive. Custom widgets are NEVER click targets: neither the widget nor its layers are hit-tested, and a click passes straight through to the real UI underneath. parent on a custom widget is authoring-only metadata the game never reads.",
       "patternProperties": {
         "^[a-z][a-z0-9_]*$": {
           "additionalProperties": false,
           "properties": {
             "band": {
-              "description": "Which of the screen's two layer passes draws it: \"under\" (behind EVERYTHING on the screen -- the HUD pass has no depth sort) or \"over\" (in front of everything). Absent means \"over\".",
+              "description": "Which of the screen's two layer passes draws it: \"under\" (behind EVERYTHING on the screen -- the HUD pass has no depth sort) or \"over\" (in front of everything). Absent means \"under\", the opposite of an undecorated LAYER entry, which defaults to \"over\": a custom widget is decoration a designer invented, and defaulting it on top of the screen's own readouts and buttons hides the game. The editor writes this key explicitly on creation.",
               "enum": [
                 "under",
                 "over"
@@ -73,6 +79,11 @@
               "minItems": 4,
               "type": "array"
             },
+            "view": {
+              "description": "Restrict this custom widget to ONE of the screen's VIEWS (screen_defaults.json's `views` keys -- `construct`, `unlock`, `upgrade`, `base_info`, `preview` on building_panel). ABSENT means every view, which is what a single-view screen wants and what this key meant before it existed. A screen id is shared by every MODE of its panel and by the modals that declare it, so an unscoped custom widget -- drawn off the screen id alone at the tail of submit_layers -- appears in all of them at once; naming a view is how a designer says \"this decoration belongs to the build list\", not \"to the building panel\". The editor stamps whichever view was open when the widget was created and lets you change it; the game filters on the view its own submit() passes in, and a screen that passes none draws every custom widget regardless.",
+              "minLength": 1,
+              "type": "string"
+            },
             "z": {
               "description": "Paint order among the custom widgets of the SAME band, ascending; absent means 0. It orders custom widgets against each other only -- never against the screen's own code-owned widgets, which the band alone decides.",
               "type": "integer"
@@ -95,6 +106,9 @@
         },
         "font": {
           "type": "string"
+        },
+        "font_family": {
+          "$ref": "#/$defs/font_family"
         },
         "panel_skin": {
           "type": "string"
@@ -127,13 +141,20 @@
           "additionalProperties": false,
           "properties": {
             "align": {
-              "description": "Which way the widget's text spreads from its stored anchor x — the same three values game/ui/widgets.submit_label already reads off the holder. Absent means \"left\", submit_label's own fallback, so a screen doc that predates this key draws unchanged.",
+              "description": "Which way the widget's text spreads from its stored anchor x \u2014 the same three values game/ui/widgets.submit_label already reads off the holder. Absent means \"left\", submit_label's own fallback, so a screen doc that predates this key draws unchanged.",
               "enum": [
                 "left",
                 "center",
                 "right"
               ],
               "type": "string"
+            },
+            "band": {
+              "description": "RELOCATE this CODE-OWNED widget out of the screen's own draw and into one of the two layer passes (UL-14): \"under\" (behind EVERYTHING the screen draws) or \"over\" (in front of everything), where it sorts by `z` against the custom widgets of that band. ABSENT is the normal case and means \"not banded\" -- the screen draws the widget itself, exactly where its own submit() always did; there is no default band for a code-owned widget. Honoured only for kind panel | backdrop | label (a banded widget is drawn generically from its AUTHORED appearance, and button/bar/field have no generic draw); on any other kind it is ignored and the widget draws normally. A banded widget is INERT: like a custom widget it is no longer hit-tested, and a click passes through to whatever is under it. On a CUSTOM widget id this key is ignored -- custom_widgets/<id>'s own band is what places it.",
+              "enum": [
+                "under",
+                "over"
+              ]
             },
             "color": {
               "items": {
@@ -148,6 +169,9 @@
             "font": {
               "type": "string"
             },
+            "font_family": {
+              "$ref": "#/$defs/font_family"
+            },
             "label": {
               "type": "string"
             },
@@ -155,39 +179,24 @@
               "items": {
                 "additionalProperties": false,
                 "properties": {
-                  "id": {
+                  "align": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
                     "type": "string"
-                  },
-                  "offset": {
-                    "items": {
-                      "type": "integer"
-                    },
-                    "maxItems": 4,
-                    "minItems": 4,
-                    "type": "array"
-                  },
-                  "z": {
-                    "type": "integer"
                   },
                   "band": {
-                    "enum": ["under", "over"],
+                    "enum": [
+                      "under",
+                      "over"
+                    ],
                     "type": "string"
                   },
-                  "slot": {
-                    "type": "string"
-                  },
-                  "text_id": {
-                    "type": "string"
-                  },
-                  "label": {
-                    "type": "string"
-                  },
-                  "font": {
-                    "type": "string"
-                  },
-                  "align": {
-                    "enum": ["left", "center", "right"],
-                    "type": "string"
+                  "clickable": {
+                    "description": "Is this layer a click target (UL-9)? Absent means false -- an ordinary decorative layer is never hit, and is TRANSPARENT to a click rather than blocking it. Static per layer, never per state: D9's four states govern appearance only.",
+                    "type": "boolean"
                   },
                   "color": {
                     "items": {
@@ -198,6 +207,29 @@
                     "maxItems": 4,
                     "minItems": 3,
                     "type": "array"
+                  },
+                  "font": {
+                    "type": "string"
+                  },
+                  "font_family": {
+                    "$ref": "#/$defs/font_family"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "offset": {
+                    "items": {
+                      "type": "integer"
+                    },
+                    "maxItems": 4,
+                    "minItems": 4,
+                    "type": "array"
+                  },
+                  "slot": {
+                    "type": "string"
                   },
                   "states": {
                     "additionalProperties": false,
@@ -226,6 +258,9 @@
                           },
                           "font": {
                             "type": "string"
+                          },
+                          "font_family": {
+                            "$ref": "#/$defs/font_family"
                           },
                           "label": {
                             "type": "string"
@@ -294,6 +329,9 @@
                           "font": {
                             "type": "string"
                           },
+                          "font_family": {
+                            "$ref": "#/$defs/font_family"
+                          },
                           "label": {
                             "type": "string"
                           },
@@ -360,6 +398,9 @@
                           },
                           "font": {
                             "type": "string"
+                          },
+                          "font_family": {
+                            "$ref": "#/$defs/font_family"
                           },
                           "label": {
                             "type": "string"
@@ -428,6 +469,9 @@
                           "font": {
                             "type": "string"
                           },
+                          "font_family": {
+                            "$ref": "#/$defs/font_family"
+                          },
                           "label": {
                             "type": "string"
                           },
@@ -474,6 +518,11 @@
                     },
                     "type": "object"
                   },
+                  "target": {
+                    "description": "What a click on this layer MEANS (UL-9, D7 as amended): a widget id in the same screen, or one of the reserved tokens close_window / back / noop. Deliberately NOT a closed enum -- an id-shaped string matching neither still validates and saves; the editor WARNS about an unroutable target instead of failing validation.",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "type": "string"
+                  },
                   "text_color": {
                     "items": {
                       "maximum": 255,
@@ -483,6 +532,9 @@
                     "maxItems": 4,
                     "minItems": 3,
                     "type": "array"
+                  },
+                  "text_id": {
+                    "type": "string"
                   },
                   "tint": {
                     "items": {
@@ -497,14 +549,8 @@
                   "visible": {
                     "type": "boolean"
                   },
-                  "clickable": {
-                    "description": "Is this layer a click target (UL-9)? Absent means false -- an ordinary decorative layer is never hit, and is TRANSPARENT to a click rather than blocking it. Static per layer, never per state: D9's four states govern appearance only.",
-                    "type": "boolean"
-                  },
-                  "target": {
-                    "description": "What a click on this layer MEANS (UL-9, D7 as amended): a widget id in the same screen, or one of the reserved tokens close_window / back / noop. Deliberately NOT a closed enum -- an id-shaped string matching neither still validates and saves; the editor WARNS about an unroutable target instead of failing validation.",
-                    "pattern": "^[a-z][a-z0-9_]*$",
-                    "type": "string"
+                  "z": {
+                    "type": "integer"
                   }
                 },
                 "type": "object"
@@ -512,7 +558,7 @@
               "type": "array"
             },
             "parent": {
-              "description": "Designer re-parenting (authoring metadata the game never reads): the widget id this widget hangs off in the editor's outliner, overriding screen_defaults.json's own `parent`. Explicit null re-roots a widget whose default parent the designer rejected — distinct from the key being ABSENT, which keeps the default. A cyclic or dangling chain resolves to root in the editor rather than failing.",
+              "description": "Designer re-parenting (authoring metadata the game never reads): the widget id this widget hangs off in the editor's outliner, overriding screen_defaults.json's own `parent`. Explicit null re-roots a widget whose default parent the designer rejected \u2014 distinct from the key being ABSENT, which keeps the default. A cyclic or dangling chain resolves to root in the editor rather than failing.",
               "type": [
                 "string",
                 "null"
@@ -552,6 +598,9 @@
                     },
                     "font": {
                       "type": "string"
+                    },
+                    "font_family": {
+                      "$ref": "#/$defs/font_family"
                     },
                     "label": {
                       "type": "string"
@@ -603,6 +652,9 @@
                     "font": {
                       "type": "string"
                     },
+                    "font_family": {
+                      "$ref": "#/$defs/font_family"
+                    },
                     "label": {
                       "type": "string"
                     },
@@ -653,6 +705,9 @@
                     "font": {
                       "type": "string"
                     },
+                    "font_family": {
+                      "$ref": "#/$defs/font_family"
+                    },
                     "label": {
                       "type": "string"
                     },
@@ -702,6 +757,9 @@
                     },
                     "font": {
                       "type": "string"
+                    },
+                    "font_family": {
+                      "$ref": "#/$defs/font_family"
                     },
                     "label": {
                       "type": "string"
@@ -766,6 +824,10 @@
             },
             "visible": {
               "type": "boolean"
+            },
+            "z": {
+              "description": "Paint order within this widget's `band`, ascending; absent means 0. Read ONLY when `band` is set, and it orders this widget against the custom widgets AND the other banded widgets of the same band -- which is the whole point of banding a code-owned widget. Ties keep pass order: custom widgets first (in file order), then banded code-owned widgets (in screen_defaults.json order).",
+              "type": "integer"
             }
           },
           "type": "object"

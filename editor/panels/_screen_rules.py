@@ -162,7 +162,8 @@ TOOLTIP_COLOR_CODE_OWNED = (
 # widget's DEFAULT GEOMETRY ONLY (`kind` + `rect`, plus the authoring-only
 # `band`/`z`/`display_name`) — the designer-authored twin of ONE
 # `data/ui/screen_defaults.json` widget entry. Everything paintable (skin,
-# color, label, text_id, font, text_color, tint, align, visible, parent,
+# color, label, text_id, font, font_family, text_color, tint, align,
+# visible, parent,
 # layers, states) is an ORDINARY override under `widgets/<the same id>`,
 # exactly as for a code-owned widget.
 #
@@ -214,17 +215,94 @@ def is_custom(widget_id, custom_widgets):
     return bool(custom_widgets) and widget_id in custom_widgets
 
 
+def custom_widgets_for_view(custom_widgets, view):
+    """`custom_widgets` minus every entry scoped to a DIFFERENT view — the
+    editor twin of the `view` filter in `game/ui/skinning.py::_custom_in_band`
+    (matched BY EYE; `editor/` may never import `game/`).
+
+    An entry with no `view` is unscoped and always kept: that is the
+    single-view screen, and every widget authored before the key existed. A
+    `view` of None (a screen with no views open) keeps everything, so nothing
+    filters where there is nothing to filter by.
+
+    Returns the SAME object when nothing is dropped — this runs every frame
+    from the viewport."""
+    if not custom_widgets or view is None:
+        return custom_widgets
+    kept = {name: entry for name, entry in custom_widgets.items()
+            if not isinstance(entry, dict) or not entry.get("view")
+            or entry.get("view") == view}
+    return custom_widgets if len(kept) == len(custom_widgets) else kept
+
+
 def custom_widgets_in_band(custom_widgets, band):
     """`[(id, entry), ...]` for the custom widgets drawn in `band`, ascending
     `z` — a LITERAL mirror of `game/ui/skinning.py::_custom_in_band` (absent
-    band == "over", absent z == 0, `sorted` stable so authoring order is the
+    band == "under", absent z == 0, `sorted` stable so authoring order is the
     tie-break). Duplicated rather than imported: `editor/` may never import
-    `game/`, the same accepted drift `_screen_primitives` records."""
+    `game/`, the same accepted drift `_screen_primitives` records.
+
+    The absent-band default is "under" — see that method for why it differs
+    from an undecorated LAYER entry's "over"."""
     if not custom_widgets:
         return []
     rows = [(name, entry) for name, entry in custom_widgets.items()
-            if isinstance(entry, dict) and (entry.get("band") or "over") == band]
+            if isinstance(entry, dict)
+            and (entry.get("band") or "under") == band]
     return sorted(rows, key=lambda pair: pair[1].get("z") or 0)
+
+
+#: The widget kinds a `band` override may RELOCATE (UL-14) — a hand-kept
+#: mirror of `game/ui/skinning.py::_BANDABLE_KINDS`, the same accepted
+#: editor/game drift `custom_widgets_in_band` above records.
+BANDABLE_KINDS = ("panel", "backdrop", "label")
+
+
+def band_of(kind, override):
+    """The band a CODE-OWNED widget was relocated into, or None (UL-14) — the
+    mirror of `game/ui/skinning.py::band_of`. Absent `band` means "not
+    banded", NOT the "under" an absent band means on a custom widget."""
+    band = (override or {}).get("band")
+    if band and kind in BANDABLE_KINDS:
+        return band
+    return None
+
+
+def widgets_in_band(defaults_widgets, doc_widgets, custom_widgets, band):
+    """`[(id, is_custom), ...]` for everything drawn in `band`, in the game's
+    own paint order — the editor twin of `game/ui/skinning.py`'s merged band
+    list, matched BY EYE (editor/ may never import game/).
+
+    Custom widgets first, then the banded code-owned ones, the whole thing
+    stably sorted by `z` — so a z tie keeps custom-before-code exactly as the
+    game's own `sorted` does. `defaults_widgets` supplies the kinds (and the
+    code-owned iteration order); `doc_widgets` the overrides carrying band/z.
+    """
+    rows = [(name, True, entry.get("z") or 0)
+            for name, entry in custom_widgets_in_band(custom_widgets, band)]
+    for name, spec in (defaults_widgets or {}).items():
+        if name in (custom_widgets or {}):
+            continue
+        override = (doc_widgets or {}).get(name) or {}
+        if band_of((spec or {}).get("kind"), override) != band:
+            continue
+        rows.append((name, False, override.get("z") or 0))
+    return [(name, is_custom)
+            for name, is_custom, _z in sorted(rows, key=lambda r: r[2])]
+
+
+def banded_widget_ids(defaults_widgets, doc_widgets, custom_widgets):
+    """Every CODE-OWNED widget id this doc relocated into EITHER band — what
+    the preview's plain widget loops must skip, since a banded widget is
+    drawn (box and layers) by its band pass instead."""
+    out = set()
+    for name, spec in (defaults_widgets or {}).items():
+        if name in (custom_widgets or {}):
+            continue
+        if band_of((spec or {}).get("kind"),
+                   (doc_widgets or {}).get(name) or {}):
+            out.add(name)
+    return out
 
 
 # -- honest controls for a CUSTOM widget -------------------------------------

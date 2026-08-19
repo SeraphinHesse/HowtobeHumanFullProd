@@ -212,6 +212,88 @@ class TestScreenThreading(unittest.TestCase):
         self.assertEqual(anim_ms(mm._clock), 1000)
 
 
+class TestPerStateAnimClock(unittest.TestCase):
+    """A skin's hover/pressed rows are play-once, so a button feeding them the
+    caller's free-running screen clock only ever showed their LAST frame — the
+    animation never appeared to fire. Each button now runs its own clock,
+    restarted whenever its state changes."""
+
+    def _sprite(self, btn, screen_ms):
+        rec = _Rec()
+        btn.submit(rec, anim_ms=screen_ms)
+        return next(c for c in rec.calls if isinstance(c, HudSprite))
+
+    def test_the_clock_restarts_on_every_state_change(self):
+        btn = Button(RECT, "GO", skin="ui_button")
+        cx, cy = _center(RECT)
+        for _ in range(20):                       # the first update SEEDS
+            btn.update(0.1)                       # the clock, so 19 accumulate
+        self.assertEqual(self._sprite(btn, 9_999).anim_time_ms, 1900)
+
+        btn.hover(cx, cy)                         # idle -> hover
+        btn.update(0.1)
+        sprite = self._sprite(btn, 9_999)
+        self.assertEqual(sprite.animation, "hover")
+        self.assertEqual(sprite.anim_time_ms, 0)  # NOT the 9999 screen clock
+
+        btn.hover(cx, cy, mouse_down=True)        # hover -> pressed
+        btn.update(0.1)
+        self.assertEqual(self._sprite(btn, 9_999).animation, "pressed")
+        self.assertEqual(self._sprite(btn, 9_999).anim_time_ms, 0)
+
+    def test_an_unticked_button_still_uses_the_screen_clock(self):
+        """Nothing calls `update()` on a bare test/tool button — it must keep
+        the caller's clock rather than freeze at frame 0."""
+        btn = Button(RECT, "GO", skin="ui_button")
+        self.assertEqual(self._sprite(btn, 750).anim_time_ms, 750)
+
+
+class TestFlashWaitsForThePressAnim(unittest.TestCase):
+    """A refused click (NOT ENOUGH LOVE) used to cut straight to red, throwing
+    the `pressed` row away mid-play — the button read as flashing out of idle.
+    The flash now waits out whatever is left of that row."""
+
+    def setUp(self):
+        self.addCleanup(widgets.set_skin_anim_length, None)
+        widgets.set_skin_anim_length(
+            lambda slot, animation: 400 if animation == "pressed" else 100)
+
+    def _label(self, btn):
+        rec = _Rec()
+        btn.submit(rec)
+        return next(c for c in rec.calls if isinstance(c, HudText)).text
+
+    def test_the_press_row_plays_before_the_red_flash(self):
+        btn = Button(RECT, "UPGRADE", skin="ui_button")
+        btn.start_flash(1.0, "NOT ENOUGH LOVE")
+        self.assertFalse(btn.flash_showing)
+        self.assertEqual(self._label(btn), "UPGRADE")
+        self.assertEqual(btn._state(), "pressed")
+
+        for _ in range(4):                        # the 400ms pressed row
+            btn.update(0.1)
+        self.assertTrue(btn.flash_showing)
+        self.assertEqual(self._label(btn), "NOT ENOUGH LOVE")
+        self.assertEqual(btn.flash, 1.0)          # the hold spends no flash
+
+    def test_time_already_spent_pressed_is_credited(self):
+        btn = Button(RECT, "UPGRADE", skin="ui_button")
+        cx, cy = _center(RECT)
+        btn.hover(cx, cy, mouse_down=True)
+        for _ in range(3):                        # 200ms held (1 seeds)
+            btn.update(0.1)
+        btn.start_flash(1.0, "NOT ENOUGH LOVE")   # 400 - 200 left to play
+        btn.update(0.2)
+        self.assertTrue(btn.flash_showing)
+
+    def test_no_seam_flashes_immediately(self):
+        widgets.set_skin_anim_length(None)
+        btn = Button(RECT, "UPGRADE", skin="ui_button")
+        btn.start_flash(1.0, "NOT ENOUGH LOVE")
+        self.assertTrue(btn.flash_showing)
+        self.assertEqual(self._label(btn), "NOT ENOUGH LOVE")
+
+
 class TestR2HitSeam(unittest.TestCase):
     """The host-injected per-pixel alpha hit test. Every test that wires a fake
     seam MUST clean it up — an unset seam is the module-level default that

@@ -7,6 +7,13 @@
       "frame_h": 96,
       "frame_w": 64
     },
+    "htbh_enemie_sheet": {
+      "column_width": 21,
+      "display_name": "HtbH_Enemie_Sheet",
+      "file": "master/htbh_enemie_sheet.png",
+      "frame_h": 96,
+      "frame_w": 64
+    },
     "slinger_t2_lvl3": {
       "column_width": 15,
       "display_name": "slinger_t2_lvl3",
@@ -79,6 +86,19 @@
       "frame_h": 96,
       "frame_w": 64
     },
+    "ss_thunderman": {
+      "column_width": 31,
+      "columns": [
+        "pink",
+        "red",
+        "purple",
+        "yellow"
+      ],
+      "display_name": "SS_Thunderman",
+      "file": "master/ss_thunderman.png",
+      "frame_h": 96,
+      "frame_w": 64
+    },
     "ss_wallbuilder": {
       "column_width": 1,
       "columns": [
@@ -116,6 +136,19 @@
       "display_name": "TS_Alltiles",
       "file": "master/ts_alltiles.png",
       "frame_h": 32,
+      "frame_w": 64
+    },
+    "vfx_spawn": {
+      "column_width": 20,
+      "columns": [
+        "pink",
+        "red",
+        "purple",
+        "yellow"
+      ],
+      "display_name": "VFX_Spawn",
+      "file": "master/vfx_spawn.png",
+      "frame_h": 96,
       "frame_w": 64
     }
   },

@@ -244,6 +244,43 @@
           "description": "If true income/upkeep floater numbers rise from buildings during the income phase (canonical flag; was FEATURE_INCOME_FLOATERS).",
           "type": "boolean"
         },
+        "life_lost_anim": {
+          "additionalProperties": false,
+          "description": "The lost-life flight: when a life is lost, that HUD life icon flies to screen centre under the LOST 1 LIFE banner, scales up, plays its dying animation row, switches to its dead art and flies home. The hold at centre is NOT tunable here -- it lasts exactly as long as the slot's imported `pressed` row.",
+          "properties": {
+            "center_offset_y": {
+              "description": "Vertical nudge in logical pixels of the centred icon, relative to the bottom of the LOST 1 LIFE line. Positive moves it down.",
+              "maximum": 4096,
+              "minimum": -4096,
+              "type": "integer"
+            },
+            "center_scale": {
+              "description": "Size multiplier applied to the life icon while it sits at screen centre.",
+              "maximum": 8,
+              "minimum": 1,
+              "type": "number"
+            },
+            "fly_back": {
+              "description": "Seconds the icon takes to fly from screen centre back to its HUD position and original size, already showing its dead art.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "fly_out": {
+              "description": "Seconds the lost life icon takes to fly from its HUD position to screen centre while scaling up. It still shows its alive art for this leg.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "center_offset_y",
+            "center_scale",
+            "fly_back",
+            "fly_out"
+          ],
+          "type": "object"
+        },
         "love_counter_anim_duration": {
           "description": "Seconds the HUD love-pill counter takes to animate from its current displayed value to a new one, whenever state.love changes (spending, cheats, boss bonuses, and each payout beat). Fixed regardless of the size of the change.",
           "maximum": 60,
@@ -256,6 +293,7 @@
         "boss_announce",
         "gore_enabled",
         "income_floaters_enabled",
+        "life_lost_anim",
         "love_counter_anim_duration"
       ],
       "type": "object"
@@ -377,6 +415,22 @@
       ],
       "type": "object"
     },
+    "LoadingScreen": {
+      "additionalProperties": false,
+      "description": "Post-\"Start Game\" loading-screen timing (feature: loading screen).",
+      "properties": {
+        "min_display_seconds": {
+          "description": "Minimum seconds the post-\"Start Game\" loading screen stays visible even if build_gameplay() finishes its checkpointed steps faster, so it never just flickers.",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "min_display_seconds"
+      ],
+      "type": "object"
+    },
     "Menu": {
       "additionalProperties": false,
       "description": "Top-level shell/menu tunables (Phase 9H): the intro-cutscene timing.",
@@ -443,6 +497,7 @@
     "Debug",
     "FX",
     "Keybindings",
+    "LoadingScreen",
     "Menu",
     "Sounds",
     "Timing"

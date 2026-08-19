@@ -31,7 +31,7 @@ class RecordingRenderer:
         self.items.append(item)
 
 
-def _emit(doc, band="over"):
+def _emit(doc, band="under"):
     """The HUD primitives ``submit_layers`` emits for ``doc`` in ``band``.
 
     ``ids`` is deliberately EMPTY: a custom widget has no game-side widget
@@ -44,6 +44,15 @@ def _emit(doc, band="over"):
     return renderer.items
 
 
+def _emit_in_view(doc, view, band="under"):
+    """`_emit`, for a screen whose `submit()` names which VIEW is showing."""
+    renderer = RecordingRenderer()
+    skinning = ScreenSkinning.from_overrides({SCREEN: doc})
+    skinning.submit_layers(renderer, SCREEN, {}, band, skinning.state_of,
+                           view=view)
+    return renderer.items
+
+
 class CustomWidgetDrawTests(unittest.TestCase):
 
     def test_panel_draws_box_and_caption_in_its_band_only(self):
@@ -53,13 +62,15 @@ class CustomWidgetDrawTests(unittest.TestCase):
             },
             "widgets": {"deco_box": {"color": [1, 2, 3], "label": "Hi"}},
         }
-        items = _emit(doc, "over")
+        items = _emit(doc, "under")
         self.assertEqual([type(i) for i in items], [HudRect, HudText])
         self.assertEqual(items[0], HudRect((10, 20, 100, 40), (1, 2, 3)))
         self.assertEqual(items[1].text, "Hi")
         self.assertEqual(items[1].align, "center")
-        # band defaults to "over", so the under pass draws nothing at all.
-        self.assertEqual(_emit(doc, "under"), [])
+        # band defaults to "under" (NOT a layer's "over") — a custom widget
+        # is decoration and must never default on top of the screen's own
+        # readouts — so the over pass draws nothing at all.
+        self.assertEqual(_emit(doc, "over"), [])
 
     def test_panel_skin_falls_back_to_screen_panel_default(self):
         doc = {
@@ -86,6 +97,120 @@ class CustomWidgetDrawTests(unittest.TestCase):
         # An empty resolved string draws NOTHING, never a blank HudText.
         with mock.patch.object(skinning_module.strings, "T", return_value=""):
             self.assertEqual(_emit(doc), [])
+
+
+class CustomWidgetViewTests(unittest.TestCase):
+    """A `view` scopes a custom widget to ONE of the screen's views.
+
+    Without it a screen ID is not a screen: `building_panel` is five modes
+    plus two modals that all declare the same id, so a decoration authored
+    for the build list also landed on the unlock and upgrade panels and on
+    top of an open preview.
+    """
+
+    DOC = {
+        "custom_widgets": {
+            "scoped": {"band": "under", "kind": "panel", "rect": [0, 0, 4, 4],
+                       "view": "construct"},
+            "everywhere": {"band": "under", "kind": "panel",
+                           "rect": [8, 0, 4, 4]},
+        },
+        "widgets": {"scoped": {"color": [255, 0, 0]},
+                    "everywhere": {"color": [0, 255, 0]}},
+    }
+
+    def _colors(self, items):
+        return {tuple(i.color) for i in items if isinstance(i, HudRect)}
+
+    def test_a_scoped_widget_draws_only_in_its_own_view(self):
+        self.assertEqual(self._colors(_emit_in_view(self.DOC, "construct")),
+                         {(255, 0, 0), (0, 255, 0)})
+        self.assertEqual(self._colors(_emit_in_view(self.DOC, "upgrade")),
+                         {(0, 255, 0)})
+
+    def test_no_view_from_the_caller_filters_nothing(self):
+        """A single-view screen passes none, and must keep every widget —
+        including one a hand-edited doc scoped to a view it does not have."""
+        self.assertEqual(self._colors(_emit(self.DOC)),
+                         {(255, 0, 0), (0, 255, 0)})
+
+
+class CustomWidgetHiddenTests(unittest.TestCase):
+    """`hidden_customs`: the CALLER drops a custom widget for this frame
+    only — the live-state gate the doc cannot express (a plate sized to back
+    N stat rows, on a building with fewer)."""
+
+    DOC = {
+        "custom_widgets": {
+            "plate": {"kind": "panel", "rect": [0, 0, 4, 4]},
+            "other": {"kind": "panel", "rect": [8, 0, 4, 4]},
+        },
+        "widgets": {"plate": {"color": [255, 0, 0]},
+                    "other": {"color": [0, 255, 0]}},
+    }
+
+    def _emit_hidden(self, hidden):
+        renderer = RecordingRenderer()
+        skinning = ScreenSkinning.from_overrides({SCREEN: self.DOC})
+        skinning.submit_layers(renderer, SCREEN, {}, "under",
+                               skinning.state_of, hidden_customs=hidden)
+        return {tuple(i.color) for i in renderer.items
+                if isinstance(i, HudRect)}
+
+    def test_a_hidden_name_drops_only_that_widget(self):
+        self.assertEqual(self._emit_hidden({"plate"}), {(0, 255, 0)})
+
+    def test_the_default_hides_nothing(self):
+        self.assertEqual(self._emit_hidden(()), {(255, 0, 0), (0, 255, 0)})
+
+    def test_hiding_a_parent_keeps_its_children(self):
+        """`parent` is an EDIT-time relationship (`editor/widget_tree.py`:
+        nothing in `game/` reads it), so dropping a plate must never take the
+        widgets authored inside it with it — only the plate goes."""
+        doc = {
+            "custom_widgets": {
+                "plate": {"kind": "panel", "rect": [0, 0, 40, 40]},
+                "inner": {"kind": "panel", "rect": [4, 4, 8, 8]},
+            },
+            "widgets": {"plate": {"color": [255, 0, 0]},
+                        "inner": {"color": [0, 0, 255], "parent": "plate"}},
+        }
+        renderer = RecordingRenderer()
+        skinning = ScreenSkinning.from_overrides({SCREEN: doc})
+        skinning.submit_layers(renderer, SCREEN, {}, "under",
+                               skinning.state_of, hidden_customs={"plate"})
+        self.assertEqual([i for i in renderer.items if isinstance(i, HudRect)],
+                         [HudRect((4, 4, 8, 8), (0, 0, 255))])
+
+
+class BuildingPanelStatBackdropTests(unittest.TestCase):
+    """`BuildingUI._hidden_stat_backdrops` — the rule that feeds it: a plate
+    cut for N stat rows is dropped on a building with fewer."""
+
+    def test_threshold_per_plate(self):
+        from game.ui import building_ui
+
+        def hidden(rows):
+            panel = building_ui.BuildingUI.__new__(building_ui.BuildingUI)
+            panel.mode, panel._selected = "upgrade", object()
+            with mock.patch.object(building_ui, "_building_stats",
+                                   return_value=[("k", 0)] * rows):
+                return panel._hidden_stat_backdrops()
+
+        self.assertEqual(hidden(5), frozenset())
+        self.assertEqual(hidden(4), frozenset({"custom_panel_19"}))
+        self.assertEqual(hidden(3),
+                         frozenset({"custom_panel_19", "custom_panel_16"}))
+        self.assertEqual(hidden(2),
+                         frozenset({"custom_panel_19", "custom_panel_16",
+                                    "custom_panel_17"}))
+
+    def test_no_selection_hides_nothing(self):
+        from game.ui import building_ui
+
+        panel = building_ui.BuildingUI.__new__(building_ui.BuildingUI)
+        panel.mode, panel._selected = "construct", None
+        self.assertEqual(panel._hidden_stat_backdrops(), frozenset())
 
 
 class CustomWidgetOverrideTests(unittest.TestCase):
