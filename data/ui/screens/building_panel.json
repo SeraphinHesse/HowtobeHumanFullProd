@@ -165,7 +165,8 @@
         200,
         120
       ],
-      "view": "upgrade"
+      "view": "upgrade",
+      "z": 2
     },
     "custom_panel_22": {
       "band": "under",
@@ -176,7 +177,8 @@
         200,
         120
       ],
-      "view": "upgrade"
+      "view": "upgrade",
+      "z": 1
     },
     "custom_panel_3": {
       "band": "under",
@@ -1286,13 +1288,14 @@
         70,
         100
       ],
+      "parent": "custom_panel_22",
       "rect": [
-        185,
-        40,
-        200,
-        120
+        540,
+        -16,
+        102,
+        67
       ],
-      "skin": "ui_panel_v22"
+      "skin": "ui_panel_v5"
     },
     "custom_panel_22": {
       "color": [
@@ -1301,11 +1304,12 @@
         100
       ],
       "rect": [
-        75,
-        180,
-        200,
-        120
-      ]
+        424,
+        -4,
+        233,
+        67
+      ],
+      "skin": "ui_panel_v22"
     },
     "custom_panel_3": {
       "color": [
@@ -1594,13 +1598,14 @@
     },
     "move_btn": {
       "font": "sm",
+      "label": "MOVE",
       "rect": [
-        494,
-        295,
-        118,
-        18
+        526,
+        290,
+        64,
+        24
       ],
-      "skin": "ui_button_panel_v5",
+      "skin": "ui_button_panel_v7",
       "text_color": [
         255,
         255,
@@ -2518,9 +2523,10 @@
     "upgrade_tier_level": {
       "font": "sm",
       "font_family": "pixel_emulator",
+      "parent": "custom_panel_22",
       "rect": [
-        480,
-        62,
+        465,
+        28,
         0,
         0
       ],
@@ -2528,14 +2534,14 @@
         255,
         255,
         255
-      ],
-      "visible": false
+      ]
     },
     "upgrade_title": {
       "align": "center",
+      "font": "md",
       "rect": [
-        554,
-        33,
+        558,
+        58,
         0,
         0
       ]

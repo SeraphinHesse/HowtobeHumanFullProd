@@ -96,7 +96,7 @@
   "building.upgrade.next_tier": "Next: {name}",
   "building.upgrade.next_tier_row": "{label}  {value}",
   "building.upgrade.survived_last_round": "SURVIVED LAST ROUND",
-  "building.upgrade.tier_level": "{tier} — Level {level}",
+  "building.upgrade.tier_level": "{tier}   Level {level}",
   "cheat_menu.round_placeholder": "round",
   "credits.name": "{name}",
   "credits.role": "{role}",
