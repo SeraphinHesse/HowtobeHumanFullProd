@@ -93,7 +93,7 @@
   "building.upgrade.died_last_round": "DIED LAST ROUND",
   "building.upgrade.dmg_dealt": "Damage dealt",
   "building.upgrade.dmg_taken": "Damage taken",
-  "building.upgrade.name_placeholder": "click here to change name",
+  "building.upgrade.name_placeholder": "click here to change",
   "building.upgrade.next_tier": "Next: {name}",
   "building.upgrade.next_tier_row": "{label}  {value}",
   "building.upgrade.survived_last_round": "SURVIVED LAST ROUND",

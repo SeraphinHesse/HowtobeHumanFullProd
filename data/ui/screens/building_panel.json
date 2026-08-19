@@ -246,8 +246,8 @@
     "action_btn": {
       "font": "md",
       "rect": [
-        485,
-        256,
+        482,
+        255,
         140,
         40
       ],
@@ -759,8 +759,8 @@
     "close_btn": {
       "label": "",
       "rect": [
-        431,
-        59,
+        428,
+        58,
         42,
         55
       ],
@@ -1118,8 +1118,8 @@
         100
       ],
       "rect": [
-        489,
-        172,
+        490,
+        166,
         133,
         96
       ],
@@ -1133,8 +1133,8 @@
       ],
       "parent": "custom_panel_14",
       "rect": [
-        488,
-        211,
+        489,
+        206,
         133,
         66
       ],
@@ -1149,7 +1149,7 @@
       "parent": "custom_panel_17",
       "rect": [
         501,
-        64,
+        79,
         113,
         96
       ],
@@ -1164,7 +1164,7 @@
       "parent": "custom_panel_20",
       "rect": [
         501,
-        44,
+        59,
         113,
         96
       ],
@@ -1178,7 +1178,7 @@
       ],
       "rect": [
         520,
-        40,
+        51,
         73,
         27
       ],
@@ -1194,7 +1194,7 @@
       "parent": "custom_panel_16",
       "rect": [
         501,
-        84,
+        99,
         113,
         96
       ],
@@ -1223,7 +1223,7 @@
       ],
       "rect": [
         501,
-        37,
+        52,
         113,
         96
       ],
@@ -1338,8 +1338,8 @@
       "font": "pixel_azure",
       "parent": "custom_panel_15",
       "rect": [
-        554,
-        236,
+        555,
+        230,
         0,
         0
       ],
@@ -1352,8 +1352,8 @@
     "dmg_dealt_label": {
       "parent": "custom_panel_14",
       "rect": [
-        497,
-        216,
+        498,
+        210,
         0,
         0
       ],
@@ -1368,8 +1368,8 @@
       "font": "lg",
       "parent": "custom_panel_14",
       "rect": [
-        592,
-        212,
+        593,
+        206,
         0,
         0
       ],
@@ -1382,8 +1382,8 @@
     "dmg_taken_label": {
       "parent": "custom_panel_14",
       "rect": [
-        496,
-        196,
+        497,
+        190,
         0,
         0
       ],
@@ -1398,8 +1398,8 @@
       "font": "lg",
       "parent": "custom_panel_14",
       "rect": [
-        592,
-        195,
+        593,
+        190,
         0,
         0
       ],
@@ -1517,8 +1517,8 @@
     "move_btn": {
       "font": "sm",
       "rect": [
-        496,
-        296,
+        493,
+        295,
         118,
         18
       ],
@@ -1531,8 +1531,8 @@
     },
     "next_tier_header": {
       "rect": [
-        191,
-        66,
+        188,
+        65,
         0,
         0
       ]
@@ -1540,8 +1540,8 @@
     "panel": {
       "band": "under",
       "rect": [
-        473,
-        2,
+        470,
+        1,
         167,
         360
       ],
@@ -1593,8 +1593,8 @@
     },
     "rename_dice_btn": {
       "rect": [
-        612,
-        22,
+        604,
+        31,
         14,
         15
       ],
@@ -1602,8 +1602,8 @@
     },
     "stat_atk_speed_base_label": {
       "rect": [
-        148,
-        48,
+        145,
+        47,
         0,
         0
       ],
@@ -1617,8 +1617,8 @@
       "align": "right",
       "parent": "stat_atk_speed_base_label",
       "rect": [
-        225,
-        48,
+        222,
+        47,
         0,
         0
       ]
@@ -1627,7 +1627,7 @@
       "parent": "custom_panel_17",
       "rect": [
         513,
-        125,
+        140,
         0,
         0
       ],
@@ -1642,7 +1642,7 @@
       "parent": "stat_atk_speed_label",
       "rect": [
         590,
-        125,
+        140,
         0,
         0
       ]
@@ -1651,7 +1651,7 @@
       "parent": "custom_panel_17",
       "rect": [
         513,
-        86,
+        101,
         0,
         0
       ],
@@ -1666,7 +1666,7 @@
       "parent": "stat_boost_damage_label",
       "rect": [
         590,
-        86,
+        101,
         0,
         0
       ]
@@ -1675,7 +1675,7 @@
       "parent": "custom_panel_17",
       "rect": [
         513,
-        86,
+        101,
         0,
         0
       ],
@@ -1690,7 +1690,7 @@
       "parent": "stat_boost_hp_label",
       "rect": [
         590,
-        86,
+        101,
         0,
         0
       ]
@@ -1699,7 +1699,7 @@
       "parent": "custom_panel_17",
       "rect": [
         513,
-        105,
+        120,
         0,
         0
       ],
@@ -1713,7 +1713,7 @@
       "parent": "custom_panel_17",
       "rect": [
         513,
-        86,
+        101,
         0,
         0
       ],
@@ -1728,7 +1728,7 @@
       "parent": "stat_boost_speed_label",
       "rect": [
         590,
-        86,
+        101,
         0,
         0
       ]
@@ -1738,7 +1738,7 @@
       "parent": "stat_boost_label",
       "rect": [
         590,
-        105,
+        120,
         0,
         0
       ],
@@ -1750,8 +1750,8 @@
     },
     "stat_damage_base_label": {
       "rect": [
-        148,
-        22,
+        145,
+        21,
         0,
         0
       ]
@@ -1760,8 +1760,8 @@
       "align": "center",
       "parent": "stat_damage_base_label",
       "rect": [
-        225,
-        22,
+        222,
+        21,
         0,
         0
       ]
@@ -1771,7 +1771,7 @@
       "parent": "custom_panel_17",
       "rect": [
         513,
-        86,
+        101,
         0,
         0
       ],
@@ -1786,15 +1786,15 @@
       "parent": "stat_damage_label",
       "rect": [
         590,
-        86,
+        101,
         0,
         0
       ]
     },
     "stat_hp_base_label": {
       "rect": [
-        148,
-        44,
+        145,
+        43,
         0,
         0
       ]
@@ -1803,8 +1803,8 @@
       "align": "center",
       "parent": "stat_hp_base_label",
       "rect": [
-        225,
-        44,
+        222,
+        43,
         0,
         0
       ]
@@ -1814,7 +1814,7 @@
       "parent": "custom_panel_17",
       "rect": [
         513,
-        67,
+        82,
         0,
         0
       ],
@@ -1829,7 +1829,7 @@
       "parent": "stat_hp_label",
       "rect": [
         590,
-        67,
+        82,
         0,
         0
       ]
@@ -1838,7 +1838,7 @@
       "parent": "custom_panel_17",
       "rect": [
         513,
-        125,
+        140,
         0,
         0
       ],
@@ -1853,7 +1853,7 @@
       "parent": "stat_payout_label",
       "rect": [
         590,
-        125,
+        140,
         0,
         0
       ]
@@ -1862,7 +1862,7 @@
       "parent": "custom_panel_17",
       "rect": [
         513,
-        105,
+        120,
         0,
         0
       ]
@@ -1872,7 +1872,7 @@
       "parent": "stat_pays_in_label",
       "rect": [
         590,
-        105,
+        120,
         0,
         0
       ]
@@ -1881,7 +1881,7 @@
       "parent": "custom_panel_17",
       "rect": [
         513,
-        86,
+        101,
         0,
         0
       ],
@@ -1896,7 +1896,7 @@
       "parent": "stat_progress_label",
       "rect": [
         590,
-        86,
+        101,
         0,
         0
       ]
@@ -1905,7 +1905,7 @@
       "parent": "custom_panel_17",
       "rect": [
         513,
-        105,
+        120,
         0,
         0
       ],
@@ -1920,7 +1920,7 @@
       "parent": "stat_range_label",
       "rect": [
         590,
-        105,
+        120,
         0,
         0
       ]
@@ -1929,7 +1929,7 @@
       "parent": "custom_panel_17",
       "rect": [
         513,
-        86,
+        101,
         0,
         0
       ]
@@ -1939,7 +1939,7 @@
       "parent": "stat_streak_label",
       "rect": [
         590,
-        86,
+        101,
         0,
         0
       ]
@@ -1948,7 +1948,7 @@
       "parent": "custom_panel_17",
       "rect": [
         513,
-        145,
+        160,
         0,
         0
       ],
@@ -1963,7 +1963,7 @@
       "parent": "stat_upkeep_label",
       "rect": [
         590,
-        145,
+        160,
         0,
         0
       ]
@@ -1972,7 +1972,7 @@
       "parent": "custom_panel_17",
       "rect": [
         513,
-        86,
+        101,
         0,
         0
       ],
@@ -1987,7 +1987,7 @@
       "parent": "stat_wall_hp_label",
       "rect": [
         590,
-        86,
+        101,
         0,
         0
       ]
@@ -1996,7 +1996,7 @@
       "parent": "custom_panel_17",
       "rect": [
         513,
-        86,
+        101,
         0,
         0
       ]
@@ -2006,7 +2006,7 @@
       "parent": "stat_yield_label",
       "rect": [
         590,
-        86,
+        101,
         0,
         11
       ]
@@ -2337,17 +2337,34 @@
     },
     "upgrade_hint": {
       "rect": [
+        -2,
         1,
-        2,
         0,
         0
+      ]
+    },
+    "upgrade_name": {
+      "parent": "upgrade_name_box",
+      "rect": [
+        505,
+        42,
+        0,
+        0
+      ]
+    },
+    "upgrade_name_box": {
+      "rect": [
+        504,
+        42,
+        98,
+        15
       ]
     },
     "upgrade_swatch_0": {
       "parent": "custom_panel_18",
       "rect": [
         574,
-        49,
+        60,
         12,
         12
       ]
@@ -2356,7 +2373,7 @@
       "parent": "custom_panel_18",
       "rect": [
         559,
-        49,
+        60,
         12,
         12
       ]
@@ -2365,7 +2382,7 @@
       "parent": "custom_panel_18",
       "rect": [
         529,
-        49,
+        60,
         12,
         12
       ]
@@ -2374,7 +2391,7 @@
       "parent": "custom_panel_18",
       "rect": [
         544,
-        49,
+        60,
         12,
         12
       ]
@@ -2391,8 +2408,8 @@
     "upgrade_tier_level": {
       "font": "sm",
       "rect": [
-        499,
-        36,
+        496,
+        35,
         0,
         0
       ],
@@ -2400,12 +2417,14 @@
         255,
         255,
         255
-      ]
+      ],
+      "visible": false
     },
     "upgrade_title": {
+      "align": "center",
       "rect": [
-        518,
-        7,
+        553,
+        22,
         0,
         0
       ]
