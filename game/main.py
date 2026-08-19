@@ -132,11 +132,7 @@ from game.ui import (
 from game.ui import widgets  # 10L-A: R2 hit-seam wiring
 from game.ui.building_ui import MovePreview  # Building Movement confirm modal
 from game.ui.cutscene_player import CutscenePlayer, load_cutscene_registry
-from game.ui.loading_screen import (  # feature: loading screen
-    BG_SLOT as LOADING_BG_SLOT, LoadingScreen,
-    default_ring_rect as loading_default_ring_rect,
-    submit_ring as loading_submit_ring,
-)
+from game.ui.loading_screen import LoadingScreen  # feature: loading screen
 from game.ui.skinning import ScreenSkinning  # 10L-B: per-screen overrides
 from game.ui.strings import configure_strings  # Phase C: global string table
 
@@ -1032,27 +1028,6 @@ def _submit_cutscene_fade(renderer, view_w, view_h, alpha):
     renderer.submit_hud(HudRect((0, 0, view_w, view_h), (0, 0, 0, alpha)))
 
 
-def _submit_loading_frame(renderer, assets, view_w, view_h, progress):
-    """The pre-boot loading screen (feature: loading screen). Background is
-    the editor-adjustable ``ui_bg_loading`` slot (E-37: a flat fallback fill
-    — ``presenter.begin_frame()`` already painted ``BACKGROUND`` — until a
-    designer imports art), plus the skip-cutscene hold-ring widget
-    (`widgets.submit_progress_ring`) reused in WHITE rather than its default
-    gold, so it never reads as the cutscene skip prompt.
-
-    The ring itself is composed by ``loading_screen.submit_ring``, not here:
-    that is the ONE place the ring is drawn, so this pre-boot screen and
-    the post-"Start Game" ``LoadingScreen`` it precedes can never visually
-    drift apart. This caller passes the CENTRED defaults, having no
-    ``ScreenSkinning`` (or ``Shell``) yet to override them — a designer's
-    ``data/ui/screens/loading.json`` moves the in-game screen only."""
-    if assets.animation_total_ms(LOADING_BG_SLOT, "idle") is not None:
-        renderer.submit_hud(HudSprite(
-            LOADING_BG_SLOT, (0, 0), (view_w, view_h)))
-    loading_submit_ring(renderer, loading_default_ring_rect(view_w, view_h),
-                        progress)
-
-
 # TEMPORARY (wheel-dead investigation): set HTBH_WHEEL_DEBUG=1 to trace every
 # MOUSEWHEEL event from arrival to verdict. Remove once the cause is found.
 _WHEEL_DEBUG = bool(os.environ.get("HTBH_WHEEL_DEBUG"))
@@ -1196,20 +1171,74 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     )
 
     # Pre-boot loading screen (feature: loading screen): a real window comes
-    # up now, right after the asset store exists, and pumps frames through
-    # the remaining (slower) boot steps below — discarded in favor of the
-    # real render stack (`_build_render_stack`) once boot finishes. A
-    # headless run (`max_frames is not None`, tools/smoke.py) still opens
-    # this window; it costs one extra `set_mode` call, no extra window.
+    # up now, right after the asset store exists, and pumps frames through the
+    # remaining (slower) boot steps below.
+    #
+    # **It is the REAL render stack, built here rather than after boot** (fix:
+    # seamless launch). It used to be a throwaway `_SurfacePresenter` +
+    # `Renderer` pair, closed at the end of boot and replaced by
+    # `_build_render_stack`'s own — which meant `pygame.display.quit()` tearing
+    # the only window down and a brand-new one (a whole separate
+    # `pygame._sdl2.video.Window` on the GPU path) coming up in its place,
+    # i.e. the desktop visible between the loading screen and the intro
+    # cutscene. There is now exactly ONE window for the entire process, so
+    # there is no teardown to see through.
+    #
     # `display["display_mode"]` (shipped default: fullscreen), NOT a hardcoded
     # "windowed": the pre-boot screen is the FIRST thing a player sees, and
     # coming up in a small window only to slam fullscreen once boot finished
-    # read as the game restarting itself. `_build_render_stack` below hands
-    # the real stack the same mode off `shell.settings`, so this is the same
-    # window shape start to finish.
-    loading_presenter = _SurfacePresenter(view_w, view_h, caption,
-                                          display["display_mode"])
-    loading_renderer = Renderer(cs, assets)
+    # read as the game restarting itself. `SessionSettings.display_mode` is
+    # seeded from this same `data/display.json` key, so building the stack
+    # BEFORE the `Shell` exists picks the identical mode it used to be handed
+    # off `shell.settings`.
+    #
+    # G4 (D6/D8): the frame target, the render backend and the ground cache are
+    # ONE stack, chosen once, falling back whole. `auto` tries the GPU path; a
+    # headless run (`max_frames is not None`, the same seam `tune_gc` uses)
+    # stays on the Surface path unless GPU was asked for explicitly, which is
+    # how tools/smoke.py needs no flag of its own.
+    #
+    # settings-cut: the GPU/CPU switch on the settings screen. The persisted
+    # per-machine preference (`settings/render.json`, the audio_settings
+    # precedent) is consulted only when nobody asked LOUDER — an explicit
+    # `--backend=gpu`/`surface` or HTBH_RENDER_BACKEND still wins, so a saved
+    # preference can never silently invalidate an A/B measurement. The settings
+    # screen is seeded from the same document further down
+    # (`render_settings.apply_to_settings`, which needs the `Shell`), so it
+    # always shows what the NEXT boot will build.
+    from game.core import render_settings
+    render_path = render_settings.default_path(REPO)
+    render_doc = render_settings.load(render_path, data_dir)
+    choice = backend if backend is not None else "auto"
+    if choice == "auto" and max_frames is not None:
+        # A headless run never consults the preference: the machine-global
+        # `settings/render.json` must not be able to move what tools/smoke.py
+        # and the boot tests measure.
+        choice = "surface"
+    elif choice == "auto":
+        choice = render_doc["backend"]
+    presenter, renderer, ground_cache, backend_log = _build_render_stack(
+        choice, view_w, view_h, caption, display["display_mode"], cs, assets)
+    # print(), NOT _log.info: this module's logger has no basicConfig, so an
+    # info record is silently dropped — and this line's whole purpose is
+    # screenshot self-identification (which backend am I looking at?).
+    print(backend_log)
+    # 10L-B: one ScreenSkinning for the whole run, loaded once here (the shell
+    # shares it with its five menu screens; build_gameplay threads the SAME
+    # instance into the seven gameplay screens it constructs itself). Built
+    # this early because the PRE-BOOT loading screen below is an ordinary
+    # skinned screen now and needs it — see `boot_loading_screen`.
+    skinning = ScreenSkinning(data_dir)
+    # The pre-boot screen is the SAME `LoadingScreen` the post-"Start Game"
+    # state drives (fix: one loading screen, not two). It used to be
+    # `_submit_loading_frame`, a hand-rolled twin that drew the bare
+    # `ui_bg_loading` slot plus a centred default ring and read NO screen doc —
+    # so everything a designer authored in the editor (`data/ui/screens/
+    # loading.json`: the backdrop's skin, the ring's rect) reached the in-game
+    # screen and was invisible on the one shown at launch. Same class, same
+    # doc, same look.
+    boot_loading_screen = LoadingScreen(view_w, view_h, skinning=skinning)
+    _boot_clock = time.perf_counter()
     # 15 real checkpoints (was 5): one after the asset store, one after each
     # of the 5 theme/font docs below, one after each of the 7 balance
     # domains, and the pre-existing two before backend selection — smaller
@@ -1219,15 +1248,21 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     _loading_step = 0
 
     def _flush_loading():
-        nonlocal _loading_step
+        nonlocal _loading_step, _boot_clock
         _loading_step += 1
         pygame.event.pump()
-        loading_presenter.begin_frame()
-        _submit_loading_frame(loading_renderer, assets, view_w, view_h,
-                              _loading_step / _loading_steps_total)
-        loading_renderer.flush(loading_presenter.world_target,
-                               hud_target=loading_presenter.hud_target)
-        loading_presenter.end_frame()
+        # Real wall-clock dt between checkpoints — boot has no frame loop and
+        # therefore no `dt`, but an ANIMATED backdrop slot still has to play at
+        # its authored rate rather than at one frame per boot step.
+        now = time.perf_counter()
+        boot_dt, _boot_clock = now - _boot_clock, now
+        boot_loading_screen.update(boot_dt)
+        presenter.begin_frame()
+        boot_loading_screen.submit(renderer, assets, view_w, view_h,
+                                   _loading_step / _loading_steps_total)
+        renderer.flush(presenter.world_target,
+                       hud_target=presenter.hud_target)
+        presenter.end_frame()
 
     _flush_loading()
 
@@ -1479,10 +1514,6 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # above: which id fires at which point is a HOST decision, and a designer
     # renaming or retriggering an entry must not silently re-point it.
     START_GAME_CUTSCENE = "start_game"
-    # 10L-B: one ScreenSkinning for the whole run, loaded once here (the
-    # shell shares it with its five menu screens; build_gameplay threads the
-    # SAME instance into the seven gameplay screens it constructs itself).
-    skinning = ScreenSkinning(data_dir)
     # player-identity: `core.json`'s `Debug` group gates the menu's two
     # launcher rows and the identity prompt. Indexed directly, never `.get` —
     # the schema requires the key, so missing data must fail LOUD (D-2).
@@ -1495,7 +1526,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # than Shell-driven like the menu states, since driving it needs `assets`
     # (the E-37 art-imported check) and the checkpoint queue only the host
     # knows about — see `game/ui/CLAUDE.md`'s Shell + menus section.
-    loading_screen = LoadingScreen(view_w, view_h, skinning=skinning)
+    #
+    # It is literally the SAME object the pre-boot screen used
+    # (`boot_loading_screen`), not a second instance: one screen, one screen
+    # doc, one continuously-running anim clock, so the launch screen and the
+    # start-a-run screen cannot drift apart in look OR in animation phase.
+    loading_screen = boot_loading_screen
     # -- SD-6: the UI slot table (SD-1's `ui.Sounds` subtree) + the persisted
     # volumes. The document is a per-machine PREFERENCE, so it lives in the
     # gitignored `settings/` dir at the repo root, not in `data/` (the
@@ -1526,39 +1562,54 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     shell.main_menu.set_has_saves(bool(save_index_doc["slots"]))
     _flush_loading()
 
-    # G4 (D6/D8): pick the frame target, and with it the render backend and the
-    # ground cache — one stack, chosen once, falling back whole. `auto` tries
-    # the GPU path; a headless run (`max_frames is not None`, the same seam
-    # `tune_gc` uses) stays on the Surface path unless GPU was asked for
-    # explicitly, which is how tools/smoke.py needs no flag of its own.
-    choice = backend if backend is not None else "auto"
-    # settings-cut: the GPU/CPU switch on the settings screen. The persisted
-    # per-machine preference (`settings/render.json`, the audio_settings
-    # precedent) is consulted only when nobody asked LOUDER — an explicit
-    # `--backend=gpu`/`surface` or HTBH_RENDER_BACKEND still wins, so a saved
-    # preference can never silently invalidate an A/B measurement. The screen
-    # is seeded from the same document either way, so it always shows what the
-    # NEXT boot will build.
-    from game.core import render_settings
-    render_path = render_settings.default_path(REPO)
-    render_doc = render_settings.load(render_path, data_dir)
+    # settings-cut: seed the settings screen's GPU/CPU row from the SAME
+    # persisted document the stack was actually built from at the top of boot,
+    # so the screen always shows what the NEXT boot will build. The stack
+    # itself is long since built (see `_build_render_stack` up there) — this
+    # needs the `Shell`, which is why it is the one half left down here.
     render_settings.apply_to_settings(render_doc, shell.settings)
-    if choice == "auto" and max_frames is not None:
-        # A headless run never consults the preference: the machine-global
-        # `settings/render.json` must not be able to move what tools/smoke.py
-        # and the boot tests measure.
-        choice = "surface"
-    elif choice == "auto":
-        choice = render_doc["backend"]
     _flush_loading()
-    loading_presenter.close()
-    presenter, renderer, ground_cache, backend_log = _build_render_stack(
-        choice, view_w, view_h, caption, shell.settings.display_mode, cs,
-        assets)
-    # print(), NOT _log.info: this module's logger has no basicConfig, so an
-    # info record is silently dropped — and this line's whole purpose is
-    # screenshot self-identification (which backend am I looking at?).
-    print(backend_log)
+
+    # fix: seamless launch — hand the loading screen off to the intro cutscene
+    # through BLACK, so the launch reads as one continuous shot.
+    #
+    # The intro fades UP from black (`Cutscene.fade_in_seconds`), and until
+    # this existed the frame before it was the finished loading screen at full
+    # brightness: loading screen -> black, in one frame, i.e. a hard cut in the
+    # middle of what is supposed to be the game opening. This fades the loading
+    # screen DOWN to black first, so the two fades meet at black and nothing
+    # ever jumps.
+    #
+    # A black `HudRect` with rising alpha over the screen's own draw, NOT an
+    # alpha on the screen itself: the backdrop is a `HudSprite` and the HUD
+    # sprite path carries no per-primitive alpha (`engine/render/CLAUDE.md`) —
+    # an RGBA `HudRect` is the one alpha primitive the HUD pass has.
+    #
+    # It runs ONLY when the intro is actually going to play. With no cutscene
+    # (no cv2, no file) the shell opens straight on the MAIN MENU, and fading
+    # to black just to pop a fully-lit menu back in is a worse cut than the one
+    # this removes. It is also skipped headless (`max_frames`), where nothing
+    # is on screen to fade and the wall-clock wait would just slow the suite.
+    _launch_fade_s = _cutscene_bal["fade_out_seconds"]
+    if (start == GameState.CUTSCENE and max_frames is None
+            and _launch_fade_s > 0):
+        _fade_t = 0.0
+        _fade_clock = time.perf_counter()
+        while _fade_t < _launch_fade_s:
+            _now = time.perf_counter()
+            _fade_dt, _fade_clock = _now - _fade_clock, _now
+            _fade_t += _fade_dt
+            pygame.event.pump()
+            boot_loading_screen.update(_fade_dt)
+            presenter.begin_frame()
+            boot_loading_screen.submit(renderer, assets, view_w, view_h, 1.0)
+            renderer.submit_hud(HudRect(
+                (0, 0, view_w, view_h),
+                (0, 0, 0, min(255, round(255 * _fade_t / _launch_fade_s)))))
+            renderer.flush(presenter.world_target,
+                           hud_target=presenter.hud_target)
+            presenter.end_frame()
+
     clock = pygame.time.Clock()
 
     # -- SD-7: the hardcoded boot track is RETIRED. The same WAV is now the
@@ -1620,13 +1671,27 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     loading_total = 0
     loading_elapsed = 0.0
     loading_min_seconds = ui_balance["LoadingScreen"]["min_display_seconds"]
-    # feature: start-game cutscene — the CutscenePlayer covering this load, or
-    # None (every load that is not a fresh "Start Game", and a fresh one whose
-    # video will not open). While it is set, the LOADING state renders the
-    # video instead of the loading screen and swallows input the same way
-    # GameState.CUTSCENE does; the checkpoint queue below keeps draining
-    # underneath it, one step per frame, exactly as it does without one.
+    # feature: start-game cutscene — the CutscenePlayer queued for this load,
+    # or None (every load that is not a fresh "Start Game", and a fresh one
+    # whose video will not open).
+    #
+    # **The cutscene plays AFTER the loading screen, not over it** (user
+    # decision, reversing the original design this feature shipped with). It
+    # used to start the instant START was clicked and render INSTEAD of the
+    # loading screen while the checkpoint queue drained underneath — "the
+    # cutscene is what the loading time is spent on". It now waits: the
+    # loading screen owns the whole build, and only once the queue has drained
+    # AND the minimum display duration has elapsed does the video start. It is
+    # still the LAST gate into gameplay, so the two-flag split matters —
+    # `loading_cutscene` means ARMED, `loading_cutscene_started` means PLAYING,
+    # and every consumer (the render branch, the music director, the skip
+    # hold) keys off the second.
     loading_cutscene = None
+    loading_cutscene_started = False
+    #: The armed cutscene's registry id — kept because SD-7's music push needs
+    #: `cutscene_registry.get(id)`, and that now happens at START time (in the
+    #: driver) rather than at ARM time (in `_arm_loading`).
+    loading_cutscene_id = None
     # SG-6: set by the deferred save-read checkpoint when it comes back empty,
     # read (and cleared) by the LOADING driver below. A dict rather than a
     # plain local because `_build_gameplay_steps`'s closures publish into it.
@@ -2026,16 +2091,18 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         call site. `None` (a fresh game) is byte-identical to before.
 
         `cutscene_id` (feature: start-game cutscene) names a
-        `data/video/cutscenes.json` entry to play OVER this load. The
-        checkpoints keep running underneath it at their usual one per frame,
-        so the run is built by the time the video ends — the cutscene is what
-        the loading time is SPENT on, not something bolted in front of it. A
+        `data/video/cutscenes.json` entry to play once this load FINISHES —
+        armed here, started by the LOADING driver below (see
+        `loading_cutscene_started`). It is only armed at this point, never
+        started: the loading screen owns the whole build, and the video is
+        the last gate before gameplay rather than a cover over the build. A
         missing entry, or one whose video will not open (no cv2, no file —
         `CutscenePlayer.enabled`), leaves `loading_cutscene` None and the
-        plain loading screen shows, exactly as before this feature."""
+        plain loading screen runs straight into gameplay, exactly as it does
+        for a Continue/Load Save (neither of which arms one)."""
         nonlocal loading_queue, loading_total, loading_elapsed
         nonlocal loading_just_armed, loading_cutscene
-        nonlocal mouse_idle_t
+        nonlocal loading_cutscene_started, loading_cutscene_id
         loading_queue = _build_gameplay_steps(restore_loader)
         loading_total = len(loading_queue)
         loading_elapsed = 0.0
@@ -2043,15 +2110,14 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         loading_just_armed = True
         shell.state = GameState.LOADING
         loading_cutscene = None
+        loading_cutscene_started = False
+        loading_cutscene_id = cutscene_id
         player = cutscenes.get(cutscene_id) if cutscene_id else None
         if player is not None and player.enabled:
-            # SD-7: push BEFORE start(), so the phase track is stacked and the
-            # cutscene's own companion audio wins the stream — the same
-            # ordering the in-gameplay TU-5 request uses.
-            director.enter_cutscene(cutscene_registry.get(cutscene_id))
-            player.start()
+            # ARMED only — `enter_cutscene`/`start()` fire in the driver, at
+            # the moment the video actually begins (SD-7 requires the music
+            # push to sit immediately before `start()`, so both moved together).
             loading_cutscene = player
-            mouse_idle_t = 0.0   # skip prompt starts fully visible (TU-5)
 
     def _load_save(slot_id):
         """SaveGamePLAN SG-6: arm the SAME checkpointed loading-screen flow a
@@ -3072,7 +3138,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                       (gp["world"].session.state.phase
                        if gp["world"] is not None else None),
                       gp["cutscene"] is not None
-                      or loading_cutscene is not None)
+                      or loading_cutscene_started)
         if st == GameState.CUTSCENE:
             # SD-7: stack the (silent, at boot) previous track under the intro
             # — idempotent, so this per-frame branch pushes exactly once.
@@ -3092,19 +3158,20 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # see `_step_finish`'s docstring) fires only once ALL gates
             # pass, so the very next frame renders GAMEPLAY.
             loading_elapsed += dt
-            # feature: start-game cutscene — the video runs on the same frames
-            # the checkpoints do, never instead of them: the whole point is
-            # that the run is being built while the player watches. Skipping
-            # (the usual 2s hold, polled into `skip_held` above) drops to the
-            # loading screen for whatever is left, rather than into a
-            # half-built world.
-            if loading_cutscene is not None:
+            # feature: start-game cutscene — the video plays AFTER the load,
+            # so it is only ticked once it has actually been STARTED (below,
+            # at the point the queue drains). Until then this whole block is
+            # inert and the loading screen is what the player sees. Skipping
+            # (the usual 2s hold, polled into `skip_held` above) drops
+            # straight into the already-built world.
+            if loading_cutscene_started:
                 loading_cutscene.update(dt)
                 loading_cutscene.update_skip_hold(dt, skip_held)
                 if loading_cutscene.done:
                     loading_cutscene.release()
                     director.leave_cutscene()   # SD-7: resume what played
                     loading_cutscene = None
+                    loading_cutscene_started = False
             if loading_just_armed:
                 # The frame that just clicked START runs NO checkpoint —
                 # `_step_world` alone can take the better part of a second on
@@ -3122,19 +3189,30 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 # document — and hand the player back the menu they clicked
                 # from, the no-op the synchronous read used to give them.
                 loading_queue = None
-                if loading_cutscene is not None:
+                if loading_cutscene_started:
                     loading_cutscene.release()
                     director.leave_cutscene()
-                    loading_cutscene = None
+                # An ARMED-but-never-started player has nothing to release and
+                # nothing pushed onto the music stack — just drop it.
+                loading_cutscene = None
+                loading_cutscene_started = False
                 loading_abort["failed"] = False
                 shell.to_main_menu()
-            elif (not loading_queue and loading_elapsed >= loading_min_seconds
-                    and loading_cutscene is None):
-                # The cutscene is the LAST gate: a run that finished building
-                # in three seconds still owes the player the rest of the
-                # video they are watching.
-                shell.enter_gameplay()
-                loading_queue = None
+            elif not loading_queue and loading_elapsed >= loading_min_seconds:
+                if loading_cutscene is not None and not loading_cutscene_started:
+                    # The load is DONE — now play the cutscene, as the last
+                    # gate before gameplay. SD-7: push BEFORE start(), so the
+                    # phase track is stacked and the cutscene's own companion
+                    # audio wins the stream (the in-gameplay TU-5 ordering).
+                    director.enter_cutscene(
+                        cutscene_registry.get(loading_cutscene_id))
+                    loading_cutscene.start()
+                    loading_cutscene_started = True
+                    mouse_idle_t = 0.0   # skip prompt fully visible (TU-5)
+                elif loading_cutscene is None:
+                    # No cutscene armed, or it has finished/been skipped.
+                    shell.enter_gameplay()
+                    loading_queue = None
         elif st in _WORLD_STATES:
             world = gp["world"]
             session = world.session
@@ -3526,12 +3604,13 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             _t_flush_start = time.perf_counter()
             flush_frame()
         elif st == GameState.LOADING:
-            # feature: start-game cutscene — while one is covering this load
-            # the video IS the screen, drawn exactly the way the boot-time
-            # GameState.CUTSCENE branch above draws its own (full-screen blit,
-            # skip prompt, fade overlay). The loading screen comes back
-            # underneath the moment it ends or is skipped.
-            if loading_cutscene is not None:
+            # feature: start-game cutscene — once the load has FINISHED and
+            # the video has started, it IS the screen, drawn exactly the way
+            # the boot-time GameState.CUTSCENE branch above draws its own
+            # (full-screen blit, skip prompt, fade overlay). Before that the
+            # loading screen owns the frame; keying on `_started` rather than
+            # on "a player is armed" is what puts the two in that order.
+            if loading_cutscene_started:
                 surf = loading_cutscene.frame_surface()
                 if surf is not None:
                     presenter.blit_fullscreen(surf)
@@ -3543,12 +3622,15 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 _t_flush_start = time.perf_counter()
                 flush_frame()
             else:
-                # feature: loading screen — same visuals as the pre-boot
-                # screen (`_submit_loading_frame`), through `loading_screen`
-                # instead: both compose the ring through the ONE
-                # `loading_screen.submit_ring`.
+                # feature: loading screen — the SAME `LoadingScreen` object the
+                # pre-boot screen drew through, so the launch screen and this
+                # one are the same screen by construction, not by two code
+                # paths agreeing.
                 progress = ((loading_total - len(loading_queue)) / loading_total
                             if loading_total else 1.0)
+                # The screen's own anim clock (the `main_menu` shape) — an
+                # ANIMATED background/backdrop slot holds frame 0 without it.
+                loading_screen.update(dt)
                 loading_screen.submit(renderer, assets, view_w, view_h,
                                       progress)
                 _t_flush_start = time.perf_counter()

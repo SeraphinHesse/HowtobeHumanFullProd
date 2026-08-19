@@ -3499,7 +3499,7 @@ class BuildingUI:
         # apply() must not be allowed to pin it. See `_restore_card_rects`.
         self._restore_card_rects()
         self.skinning.submit_background(renderer, self.screen_id,
-                                        self.view_w, self.view_h)
+                                        self.view_w, self.view_h, anim_ms=t)
         hidden_customs = self._hidden_stat_backdrops()
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
                                     "under", self.skinning.state_of,

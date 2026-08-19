@@ -8,7 +8,6 @@ else can happen until the player dismisses or skips it.
 """
 from types import SimpleNamespace
 
-from engine.render import HudRect
 from engine.render.fonts import layout_h
 
 from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
@@ -89,9 +88,10 @@ class TutorialMessageScreen:
     def submit(self, renderer, text, view_w, view_h):
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
-        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        self.skinning.submit_background(renderer, self.screen_id, view_w,
+                                        view_h, anim_ms=t)
         if is_visible(self._backdrop):
-            renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
+            widgets.submit_backdrop(renderer, self._backdrop, anim_ms=t)
         if is_visible(self._panel):
             submit_panel(renderer, self._panel.rect, skin=self._panel.skin,
                         tint=getattr(self._panel, "tint", None), anim_ms=t)

@@ -11,7 +11,6 @@ dynamic content" rule as every other screen's list-shaped body).
 """
 from types import SimpleNamespace
 
-from engine.render import HudRect
 
 from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .widgets import (
@@ -88,10 +87,11 @@ class CreditsScreen:
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
-        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        self.skinning.submit_background(renderer, self.screen_id, view_w,
+                                        view_h, anim_ms=t)
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
                                     "under", self.skinning.state_of)
-        renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
+        widgets.submit_backdrop(renderer, self._backdrop, anim_ms=t)
         cx = view_w // 2
         if self._title.visible:
             submit_centered(renderer, self._title.label, self._title.rect[0],

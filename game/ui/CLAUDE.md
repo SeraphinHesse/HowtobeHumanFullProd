@@ -862,9 +862,14 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
     `_BASELINE_EXEMPT` with a dedicated `TestLoadingScreenParity` pinning the
     ring's colour, width, closedness, centre and radius instead. Do not grow
     that set to dodge a baseline update.
-    **A cutscene may cover this state** (feature: start-game cutscene) — the
-    video renders instead of the screen while the checkpoints keep draining
-    underneath; host wiring → `game/CLAUDE.md`'s matching bullet. The PRE-BOOT loading screen (`main.py`'s
+    **A cutscene may FOLLOW this state** (feature: start-game cutscene) — the
+    screen owns the whole build, and the video starts only once the queue has
+    drained and `min_display_seconds` has elapsed, as the last gate before
+    gameplay. It used to render INSTEAD of the screen while the checkpoints
+    drained underneath; that overlap was reversed by user decision (host
+    wiring, and the `loading_cutscene` vs `loading_cutscene_started` split
+    that enforces the order → `game/CLAUDE.md`'s matching bullet).
+    The PRE-BOOT loading screen (`main.py`'s
     `_submit_loading_frame`, shown before the `Shell` even exists — see
     `game/CLAUDE.md`'s Host conventions section) shares the exact same
     background slot and ring style by importing them from
@@ -1993,6 +1998,55 @@ file emits the exact HUD-primitive stream it emitted before B2,
 background(screen_id)` / `submit_background(...)` add an OPTIONAL full-view
 background layer (slot or flat color) — a no-op today (no shipped screen JSON
 sets one).
+
+### Backgrounds ANIMATE, and a `backdrop` skin is what draws one
+
+Two fixes that belong together, because the symptom was one thing ("the
+background does not play its animation") and the cause was two.
+
+- **Every background draw site threads the screen's anim clock.**
+  `submit_background(renderer, screen_id, view_w, view_h, anim_ms=t)` takes
+  the same `t = anim_ms(self._clock)` every skinned widget on that screen
+  already gets, and so do the two baked-in full-view sprites
+  (`main_menu`'s `main_menu_bg`, `loading_screen`'s `ui_bg_loading`). They all
+  used to submit a `HudSprite` with the default `anim_time_ms=0`, which
+  `Manifest.current_frame` resolves to frame 0 forever — a multi-frame
+  background sheet drew as a still image with the suite green, because the
+  golden pin captures a single frame at `t = 0` where the two are identical.
+  `anim_ms` defaults to `0`, so an omitted argument is the old still frame
+  rather than a crash. **A new full-view sprite MUST pass the clock.**
+- **`widgets.submit_backdrop(renderer, backdrop, anim_ms=t)` is the ONE
+  backdrop draw**, shared by all 14 screens. A `backdrop.skin` set in the
+  screen doc draws that slot as an animated `HudSprite`; unset falls back to
+  the flat `HudRect(rect, color)` fill every screen emitted inline before,
+  verbatim — which is what keeps the parity pin byte-identical (the pin runs
+  through `ScreenSkinning.empty()`, so no skin ever resolves). A skin
+  REPLACES the fill, the same precedence `Button.submit` gives a skin over
+  `color`. The fourteen inline `renderer.submit_hud(HudRect(self._backdrop
+  .rect, self._backdrop.color))` calls are gone; do not reintroduce one, or
+  that screen silently stops honouring the designer's background.
+  `main_menu`/`loading_screen` additionally skip their BAKED-IN background
+  sprite whenever the backdrop carries a skin — blitting the hand-painted art
+  over the designer's choice on the very next line is what made picking one
+  look like it did nothing.
+
+### `defaults.button_skin` reaches code-owned buttons
+
+`ScreenSkinning.apply` resolves the screen's `defaults.button_skin` onto any
+`kind == "button"` widget with no per-widget `skin` of its own — the fallback
+`editor/panels/viewport.py`'s `_submit_screen_widget` (and its mirror
+`editor/panels/_screen_rules.resolved_skin`) has always PREVIEWED. The game
+read only the per-widget key, so setting a screen's Button skin changed the
+editor and nothing else. Precedence matches the editor exactly: a per-widget
+`skin` wins, including an explicit `null` (how a designer opts one button out
+of the screen default), and a button id absent from the `widgets` table is
+un-customized, not opted out — it takes the default too.
+
+**`panel_skin` is deliberately NOT resolved the same way** (user decision).
+It has the identical editor/game gap, but `hud.json` and
+`building_panel.json` already set it while ~70 of their panels carry no
+per-widget skin, so honouring it would silently reskin most of the HUD and
+every construct card. That is an art-directed change, not a bug fix.
 
 - **Per-widget `layers` (UL-4)**: a widget's override may carry a `layers`
   array (`data/ui/screens/<id>.json` ONLY — never `screen_defaults.json`), each

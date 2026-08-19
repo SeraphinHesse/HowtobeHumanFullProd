@@ -275,12 +275,36 @@ class ScreenSkinning:
         if screen_id not in self._validated_ids:
             self._validate_ids(screen_id, widgets_spec)
             self._validated_ids.add(screen_id)
-        if not widgets_spec:
+        # The screen-level default skin for CODE-OWNED buttons. The editor
+        # has always previewed this fallback (``editor/panels/viewport.py``'s
+        # `_submit_screen_widget`, mirrored in `_screen_rules.resolved_skin`)
+        # while the game read only the per-widget `skin` — so picking a
+        # screen's *Button skin* default changed the editor and nothing else.
+        # Resolving it here is what makes the two agree.
+        #
+        # BUTTONS ONLY, deliberately: `panel_skin` has the same editor/game
+        # gap, but `hud.json` and `building_panel.json` already set it and
+        # ~70 of their panels carry no per-widget skin, so honouring it would
+        # silently reskin most of the HUD and every construct card. That is a
+        # separate, art-directed decision — not this fix (user decision).
+        default_button_skin = self.defaults(screen_id).get("button_skin")
+        if not widgets_spec and not default_button_skin:
             return
         for name, (kind, widget) in ids.items():
             spec = widgets_spec.get(name)
             if not spec:
+                # No per-widget override at all: the screen default is still
+                # this button's skin (an id absent from `widgets` is
+                # un-customized, not opted out).
+                if default_button_skin and kind == "button":
+                    widget.skin = default_button_skin
                 continue
+            # A per-widget `skin` WINS (including an explicit null, which is
+            # how a designer opts one button out of the screen default) —
+            # same precedence as the editor's `resolved_skin`.
+            if (default_button_skin and kind == "button"
+                    and "skin" not in spec):
+                widget.skin = default_button_skin
             for key, value in spec.items():
                 setattr(widget, _SPEC_TO_ATTR.get(key, key), _as_tuple(value))
             # UL-14: a BANDED widget is drawn by ``submit_layers``'s band
@@ -356,15 +380,24 @@ class ScreenSkinning:
             return {"color": _as_tuple(bg["color"])}
         return {"slot": bg["slot"]}
 
-    def submit_background(self, renderer, screen_id: str, view_w, view_h) -> None:
+    def submit_background(self, renderer, screen_id: str, view_w, view_h,
+                          anim_ms: int = 0) -> None:
         """Draw the full-view background override (if any) — one call at the
         top of a screen's ``submit()``. A no-op with no ``background`` key
-        (every shipped screen JSON today), so it never changes parity."""
+        (every shipped screen JSON today), so it never changes parity.
+
+        ``anim_ms``: the owning screen's animation clock, threaded into the
+        sprite exactly like ``submit_layers``' — a background slot with a
+        multi-frame ``idle`` row otherwise draws frame 0 forever, which is
+        what every background did before this argument existed. Defaults to
+        0 so a caller that omits it keeps the old still-frame behaviour
+        rather than crashing."""
         bg = self.screen_background(screen_id)
         if bg is None:
             return
         if "slot" in bg:
-            renderer.submit_hud(HudSprite(bg["slot"], (0, 0), (view_w, view_h)))
+            renderer.submit_hud(HudSprite(bg["slot"], (0, 0), (view_w, view_h),
+                                          anim_time_ms=int(anim_ms)))
         else:
             renderer.submit_hud(HudRect((0, 0, view_w, view_h), bg["color"]))
 
