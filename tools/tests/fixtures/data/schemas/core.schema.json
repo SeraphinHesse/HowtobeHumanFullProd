@@ -100,6 +100,10 @@
           "minimum": 1,
           "type": "integer"
         },
+        "show_on_tutorial_round": {
+          "description": "Show this dialogue on the tutorial's own combat round (round 0) instead of the round above — the tutorial fight IS the first walkers, so its intro belongs there. A run that skipped the tutorial has no round 0, so it lands on the round above as normal. Either way it shows once, never twice.",
+          "type": "boolean"
+        },
         "sprite_flip_h": {
           "description": "Mirrors the sprite horizontally.",
           "type": "boolean"
@@ -127,6 +131,15 @@
           "enum": [
             "base_hole",
             "blocker",
+            "blocker_t1_lvl1",
+            "blocker_t1_lvl2",
+            "blocker_t1_lvl3",
+            "blocker_t2_lvl1",
+            "blocker_t2_lvl2",
+            "blocker_t2_lvl3",
+            "blocker_t3_lvl1",
+            "blocker_t3_lvl2",
+            "blocker_t3_lvl3",
             "boost_damage_t1_lvl1",
             "boost_damage_t1_lvl2",
             "boost_damage_t1_lvl3",
@@ -284,8 +297,17 @@
             "enemy_stage_1_v2",
             "enemy_stage_1_v3",
             "enemy_stage_1_v4",
+            "enemy_stage_1_v5",
             "enemy_stage_2",
+            "enemy_stage_2_v2",
+            "enemy_stage_2_v3",
+            "enemy_stage_2_v4",
+            "enemy_stage_2_v5",
             "enemy_stage_3",
+            "enemy_stage_3_v2",
+            "enemy_stage_3_v3",
+            "enemy_stage_3_v4",
+            "enemy_stage_3_v5",
             "enemy_stage_4_v1",
             "enemy_stage_4_v2",
             "flute_player_t1_lvl1",
@@ -322,9 +344,13 @@
             "painter_t2_lvl1",
             "painter_t2_lvl2",
             "painter_t2_lvl3",
+            "painter_t2_lvl4",
             "painter_t3_lvl1",
             "painter_t3_lvl2",
             "painter_t3_lvl3",
+            "painter_t3_lvl4",
+            "painter_t3_lvl5",
+            "painter_t3_lvl6",
             "pistoleer_t3_lvl1",
             "pistoleer_t3_lvl2",
             "pistoleer_t3_lvl3",
@@ -332,8 +358,19 @@
             "radiant_beam_t2_lvl2",
             "radiant_beam_t2_lvl3",
             "raider_stage_1",
+            "raider_stage_1_v2",
+            "raider_stage_1_v3",
+            "raider_stage_1_v4",
             "raider_stage_2",
+            "raider_stage_2_v2",
+            "raider_stage_2_v3",
+            "raider_stage_2_v4",
+            "raider_stage_2_v5",
             "raider_stage_3",
+            "raider_stage_3_v2",
+            "raider_stage_3_v3",
+            "raider_stage_3_v4",
+            "raider_stage_3_v5",
             "raider_stage_4",
             "shaman_t2_lvl1",
             "shaman_t2_lvl2",
@@ -394,46 +431,116 @@
             "tutorial_stone",
             "tutorial_stone_2",
             "tutorial_unlock",
+            "ui_bg_loading",
             "ui_bg_main_menu",
             "ui_button",
             "ui_button_card",
             "ui_button_cheat",
             "ui_button_end_turn",
+            "ui_button_end_turn_v2",
             "ui_button_panel",
             "ui_button_panel_v2",
             "ui_button_panel_v3",
+            "ui_button_panel_v4",
+            "ui_button_panel_v5",
+            "ui_button_panel_v6",
+            "ui_button_panel_v7",
+            "ui_button_panel_v8",
             "ui_button_pause",
+            "ui_button_pause_v2",
             "ui_button_pill",
             "ui_choice_box",
+            "ui_icon_boss_next",
+            "ui_icon_boss_next_off",
+            "ui_icon_life",
             "ui_icon_lives",
             "ui_icon_love",
+            "ui_icon_love_v2",
             "ui_icon_xp",
             "ui_panel",
             "ui_panel_stone",
+            "ui_panel_stone_v2",
+            "ui_panel_v10",
+            "ui_panel_v11",
+            "ui_panel_v12",
+            "ui_panel_v13",
+            "ui_panel_v14",
+            "ui_panel_v15",
+            "ui_panel_v16",
+            "ui_panel_v17",
+            "ui_panel_v18",
+            "ui_panel_v19",
             "ui_panel_v2",
+            "ui_panel_v20",
             "ui_panel_v3",
+            "ui_panel_v4",
+            "ui_panel_v5",
+            "ui_panel_v6",
+            "ui_panel_v7",
+            "ui_panel_v8",
+            "ui_panel_v9",
             "vfx_attack_range",
             "vfx_beam",
+            "vfx_boost_damage_aura",
+            "vfx_boost_damage_aura_v2",
+            "vfx_boost_damage_aura_v3",
+            "vfx_boost_damage_aura_v4",
+            "vfx_boost_damage_aura_v5",
+            "vfx_boost_damage_aura_v6",
+            "vfx_boost_damage_aura_v7",
+            "vfx_boost_damage_aura_v8",
+            "vfx_boost_damage_aura_v9",
+            "vfx_boost_hp_aura",
+            "vfx_boost_hp_aura_v2",
+            "vfx_boost_hp_aura_v3",
+            "vfx_boost_hp_aura_v4",
+            "vfx_boost_hp_aura_v5",
+            "vfx_boost_hp_aura_v6",
+            "vfx_boost_hp_aura_v7",
+            "vfx_boost_hp_aura_v8",
+            "vfx_boost_hp_aura_v9",
+            "vfx_boost_speed_aura",
+            "vfx_boost_speed_aura_v2",
+            "vfx_boost_speed_aura_v3",
+            "vfx_boost_speed_aura_v4",
+            "vfx_boost_speed_aura_v5",
+            "vfx_boost_speed_aura_v6",
+            "vfx_boost_speed_aura_v7",
+            "vfx_boost_speed_aura_v8",
+            "vfx_boost_speed_aura_v9",
             "vfx_buff_arrow",
             "vfx_crater",
             "vfx_death",
+            "vfx_debuff_arrow",
             "vfx_digger_direction",
             "vfx_digger_marker",
             "vfx_dirt_pile",
             "vfx_explosion",
             "vfx_hit",
+            "vfx_move_blocked",
             "vfx_move_target",
             "vfx_muzzle",
             "vfx_projectile",
+            "vfx_projectile_v2",
             "vfx_respawn",
             "vfx_section_2x2",
             "vfx_shell",
             "vfx_slash",
+            "vfx_test",
             "vfx_tile_selected",
             "vfx_tutorial_highlight",
             "vfx_upgrade_batch",
             "vfx_wall_edge",
             "wall_builder",
+            "wall_builder_t1_lvl1",
+            "wall_builder_t1_lvl2",
+            "wall_builder_t1_lvl3",
+            "wall_builder_t2_lvl1",
+            "wall_builder_t2_lvl2",
+            "wall_builder_t2_lvl3",
+            "wall_builder_t3_lvl1",
+            "wall_builder_t3_lvl2",
+            "wall_builder_t3_lvl3",
             "wall_t1_lvl1",
             "wall_t1_lvl1_era1",
             "wall_t1_lvl1_era2",
@@ -516,6 +623,7 @@
         "enemy_label",
         "hidden_frames",
         "round",
+        "show_on_tutorial_round",
         "sprite_flip_h",
         "sprite_h",
         "sprite_offset_x",
@@ -525,6 +633,74 @@
         "title"
       ],
       "type": "object"
+    },
+    "sound_clip": {
+      "additionalProperties": false,
+      "description": "One audio clip in a sound slot's playlist: a file plus its volume and trim window.",
+      "properties": {
+        "end": {
+          "description": "Trim out-point in seconds. 0.0 is the SENTINEL for 'play to the end of the file' (never null -- a nullable/union node breaks the balancing panel). Bounded at 3600 s for the same reason as start.",
+          "maximum": 3600.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "file": {
+          "description": "Path relative to data/audio/ (e.g. 'imported/building_death_a.ogg'). Empty string = no clip.",
+          "type": "string"
+        },
+        "start": {
+          "description": "Trim in-point in seconds; 0.0 plays from the beginning. Bounded at 3600 s (one hour), a deliberate approved deviation from the 0-60 s convention, which was written for VFX timings -- music tracks run minutes.",
+          "maximum": 3600.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "volume": {
+          "description": "Clip gain as a fraction 0..1, multiplied by the bus volume and the master volume.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "end",
+        "file",
+        "start",
+        "volume"
+      ],
+      "type": "object"
+    },
+    "sound_slot": {
+      "additionalProperties": false,
+      "description": "A sound event: zero or more clips plus how to play them. Empty clips on a global default means silence; empty clips on a per-element override means inherit the global default.",
+      "properties": {
+        "clips": {
+          "description": "The clips this event may play. Empty on a global default = silence; empty on a per-element override = inherit the global default.",
+          "items": {
+            "$ref": "#/$defs/sound_clip"
+          },
+          "minItems": 0,
+          "type": "array"
+        },
+        "loop": {
+          "description": "Repeat the chosen clip until stopped (music and ambience) rather than playing it once.",
+          "type": "boolean"
+        },
+        "pick": {
+          "description": "How the next clip is chosen when the slot holds more than one: 'random' picks any, 'sequential' cycles in order.",
+          "enum": [
+            "random",
+            "sequential"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "clips",
+        "loop",
+        "pick"
+      ],
+      "type": "object",
+      "x-widget": "sound_slot"
     }
   },
   "$id": "core.schema.json",
@@ -532,78 +708,6 @@
   "additionalProperties": false,
   "description": "Core balancing domain (D-10), REPLAN nested tree (Phase 9A): camera, general, phase loop, XP, the hole, lightning strike, debug-mode telemetry. Values are the prototype's live tuning, verbatim. Bounds policy: fractions 0-1, costs/counts 0-10000, rounds/levels 0-1000, seconds 0-60, camera zoom factors 0.1-100.",
   "properties": {
-    "BossBonuses": {
-      "additionalProperties": false,
-      "description": "The six stacking boss A/B story bonuses (boss1a..boss3b). Each stack multiplies its own magnitude; the counted quantity is read off the live board/state.",
-      "properties": {
-        "dmg_per_building": {
-          "description": "Boss1B: extra per-shot damage every defender gains, per stack, for each ALIVE non-base building on the board (x10 combat scale, D-12).",
-          "maximum": 100000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "dmg_per_lightning_building": {
-          "description": "Boss3B: extra per-shot damage every defender gains, per stack, for each ALIVE lightning-source building built (x10 combat scale, D-12).",
-          "maximum": 100000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "dmg_per_love_chunk": {
-          "description": "Boss3A: extra per-shot damage every defender gains, per stack, for each whole love_chunk_size of love held at End Turn (x10 combat scale, D-12).",
-          "maximum": 100000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "dmg_per_unbuilt_tile": {
-          "description": "Boss1A: extra per-shot damage every defender gains, per stack, for each unbuilt (BUILDABLE) tile (x10 combat scale, D-12).",
-          "maximum": 100000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "level_past_threshold": {
-          "description": "Boss2A: the in-tier level a building must exceed to pay love (a building at level_past_threshold+2 pays twice).",
-          "maximum": 1000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "love_chunk_size": {
-          "description": "Boss3A: the love-held chunk size the damage bonus is counted per. A divisor - never 0.",
-          "maximum": 10000,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "love_per_level_past": {
-          "description": "Boss2A: love per round, per stack, for each in-tier building level past level_past_threshold.",
-          "maximum": 10000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "love_per_low_level_building": {
-          "description": "Boss2B: love per round, per stack, for each ALIVE non-base building sitting at in-tier level low_level_target.",
-          "maximum": 10000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "low_level_target": {
-          "description": "Boss2B: the exact in-tier level a building must sit at to pay love.",
-          "maximum": 1000,
-          "minimum": 0,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "dmg_per_building",
-        "dmg_per_lightning_building",
-        "dmg_per_love_chunk",
-        "dmg_per_unbuilt_tile",
-        "level_past_threshold",
-        "love_chunk_size",
-        "love_per_level_past",
-        "love_per_low_level_building",
-        "low_level_target"
-      ],
-      "type": "object"
-    },
     "Camera": {
       "additionalProperties": false,
       "description": "Camera zoom and travel limits (E-5). Overrides geometry.json's zoom_levels/default fallback at load time (engine/coords/__init__.py::load_coordinate_system) so zoom is a designer-editable balancing tunable, not baked into geometry.json.",
@@ -794,8 +898,20 @@
     },
     "LightningStrike": {
       "additionalProperties": false,
-      "description": "The click-to-strike active ability. Per-level arrays are index-aligned: level N uses damage[N-1], radius[N-1], cooldown[N-1].",
+      "description": "The click-to-strike active ability. Per-level arrays are index-aligned: level N uses damage[N-1], radius[N-1], cooldown[N-1], attack_hold_seconds[N-1].",
       "properties": {
+        "attack_hold_seconds": {
+          "description": "Seconds the firing Storm Priest holds its \"attack\" sprite-animation pose before reverting to \"idle\", per level.",
+          "items": {
+            "description": "Attack-pose hold duration in seconds at this level.",
+            "maximum": 60,
+            "minimum": 0,
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
         "cooldown": {
           "description": "Cooldown in rounds per level.",
           "items": {
@@ -840,6 +956,7 @@
         }
       },
       "required": [
+        "attack_hold_seconds",
         "cooldown",
         "damage",
         "max_level",
@@ -888,6 +1005,121 @@
         "round_end_delay",
         "speed_1_5x_min_round",
         "speed_2x_min_round"
+      ],
+      "type": "object"
+    },
+    "Seasons": {
+      "additionalProperties": false,
+      "description": "Ground-art season clock: how the run's season index advances.",
+      "properties": {
+        "rounds_per_season": {
+          "description": "Number of rounds each season lasts before the season index advances (rounds; 10 = rounds 1-10 are season 0, 11-20 season 1).",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "rounds_per_season"
+      ],
+      "type": "object"
+    },
+    "Sounds": {
+      "additionalProperties": false,
+      "description": "Global game audio: music tracks, ambience and one-shot game stings.",
+      "properties": {
+        "Ambient": {
+          "additionalProperties": false,
+          "description": "Looping ambience, played on the sfx bus.",
+          "properties": {
+            "default": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "The ambience loop that runs under play."
+            }
+          },
+          "required": [
+            "default"
+          ],
+          "type": "object"
+        },
+        "Game": {
+          "additionalProperties": false,
+          "description": "One-shot game-state stings, played on the sfx bus.",
+          "properties": {
+            "game_over": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Sting played on the game-over screen."
+            },
+            "game_start": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Sting played when a new game starts."
+            },
+            "level_up": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Sting played when the player levels up."
+            },
+            "round_loss": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Sting played when a round is lost."
+            },
+            "round_start": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Sting played when a round starts."
+            },
+            "round_win": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Sting played when a round is won."
+            }
+          },
+          "required": [
+            "game_over",
+            "game_start",
+            "level_up",
+            "round_loss",
+            "round_start",
+            "round_win"
+          ],
+          "type": "object"
+        },
+        "Music": {
+          "additionalProperties": false,
+          "description": "Looping music tracks, played on the music bus.",
+          "properties": {
+            "building_phase": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Music for the building phase (overrides default)."
+            },
+            "combat_phase": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Music for the combat phase (overrides default)."
+            },
+            "cutscene": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Music for cutscenes."
+            },
+            "default": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Fallback music track when no phase-specific track is set."
+            },
+            "menu": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Music for the main menu."
+            }
+          },
+          "required": [
+            "building_phase",
+            "combat_phase",
+            "cutscene",
+            "default",
+            "menu"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "Ambient",
+        "Game",
+        "Music"
       ],
       "type": "object"
     },
@@ -1031,13 +1263,14 @@
     }
   },
   "required": [
-    "BossBonuses",
     "Camera",
     "Debug",
     "EnemyIntro",
     "General",
     "LightningStrike",
     "PhaseLoop",
+    "Seasons",
+    "Sounds",
     "TheHole",
     "Tutorial",
     "XP"

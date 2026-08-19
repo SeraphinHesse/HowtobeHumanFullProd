@@ -1,4 +1,10 @@
 {
+  "$defs": {
+    "font_family": {
+      "description": "UH-Font-B: the font FAMILY this text draws in \u2014 a data/fonts/font_manifest.json entry id. ORTHOGONAL to `font`, which selects only a data/ui/fonts.json size/bold PRESET; the two axes combine, so any preset can be drawn in any imported family. ABSENT means \"inherit\": a widget falls back to its screen's `defaults.font_family`, and that falls back to data/ui/active_font.json \u2014 so a doc that predates this key draws exactly as it always did. That the id must name a real manifest entry is a cross-file check a schema can't express; unlike active_font.json (which game/main.py cross-checks and fails LOUD on, D-2) an unknown id here DEGRADES to the inherited family at draw time (engine/render/fonts.py's `get_font`), because a stale id in one screen doc must not kill the frame. Changing the family moves NO stored rect: `layout_h` is keyed by preset only, so text in a wider family can overflow its widget \u2014 the same pinned-layout contract a preset size change already has.",
+      "type": "string"
+    }
+  },
   "$id": "https://example.com/schemas/ui_screen.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -37,6 +43,61 @@
       ],
       "type": "object"
     },
+    "custom_widgets": {
+      "additionalProperties": false,
+      "description": "Designer-AUTHORED widgets that exist only in this file: a hand-written twin of ONE screen_defaults.json widget entry, for decoration a designer wants and no code owns. This entry is the widget's DEFAULT GEOMETRY ONLY. Everything paintable -- skin, color, label, text_id, font, font_family, text_color, tint, align, visible, parent, layers, states -- is an ORDINARY override under widgets/<the same id>, exactly as for a code-owned widget; there is no second styling vocabulary here. The game draws these at the tail of the two submit_layers calls every screen already makes, so a screen with no custom_widgets emits not one extra primitive. Custom widgets are NEVER click targets: neither the widget nor its layers are hit-tested, and a click passes straight through to the real UI underneath. parent on a custom widget is authoring-only metadata the game never reads.",
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "additionalProperties": false,
+          "properties": {
+            "band": {
+              "description": "Which of the screen's two layer passes draws it: \"under\" (behind EVERYTHING on the screen -- the HUD pass has no depth sort) or \"over\" (in front of everything). Absent means \"under\", the opposite of an undecorated LAYER entry, which defaults to \"over\": a custom widget is decoration a designer invented, and defaulting it on top of the screen's own readouts and buttons hides the game. The editor writes this key explicitly on creation.",
+              "enum": [
+                "under",
+                "over"
+              ]
+            },
+            "display_name": {
+              "description": "Authoring-only label for the editor's outliner, so a designer reads something friendlier than a raw id. The game never reads it.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "kind": {
+              "description": "What the widget draws before its own layers. \"panel\": skin (falling back to this screen's defaults.panel_skin) as a sprite, else color as a rect -- and THEN a centred label/text_id on top when one is set, so a panel may emit two primitives. \"backdrop\": the same box, no text and no kind-matched default (its own skin only). \"label\": text only, no box. An empty resolved string draws nothing, never a blank text item.",
+              "enum": [
+                "panel",
+                "label",
+                "backdrop"
+              ]
+            },
+            "rect": {
+              "description": "The widget's DEFAULT [x, y, w, h] in screen pixels -- its creation geometry, standing in for what screen_defaults.json holds for a code-owned widget. A rect under widgets/<the same id> still wins over it, so a designer moves a custom widget down the ordinary override path like every other widget.",
+              "items": {
+                "type": "integer"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            "view": {
+              "description": "Restrict this custom widget to ONE of the screen's VIEWS (screen_defaults.json's `views` keys -- `construct`, `unlock`, `upgrade`, `base_info`, `preview` on building_panel). ABSENT means every view, which is what a single-view screen wants and what this key meant before it existed. A screen id is shared by every MODE of its panel and by the modals that declare it, so an unscoped custom widget -- drawn off the screen id alone at the tail of submit_layers -- appears in all of them at once; naming a view is how a designer says \"this decoration belongs to the build list\", not \"to the building panel\". The editor stamps whichever view was open when the widget was created and lets you change it; the game filters on the view its own submit() passes in, and a screen that passes none draws every custom widget regardless.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "z": {
+              "description": "Paint order among the custom widgets of the SAME band, ascending; absent means 0. It orders custom widgets against each other only -- never against the screen's own code-owned widgets, which the band alone decides.",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "kind",
+            "rect"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
     "defaults": {
       "additionalProperties": false,
       "properties": {
@@ -45,6 +106,9 @@
         },
         "font": {
           "type": "string"
+        },
+        "font_family": {
+          "$ref": "#/$defs/font_family"
         },
         "panel_skin": {
           "type": "string"
@@ -76,6 +140,22 @@
         "^[a-z][a-z0-9_]*$": {
           "additionalProperties": false,
           "properties": {
+            "align": {
+              "description": "Which way the widget's text spreads from its stored anchor x \u2014 the same three values game/ui/widgets.submit_label already reads off the holder. Absent means \"left\", submit_label's own fallback, so a screen doc that predates this key draws unchanged.",
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ],
+              "type": "string"
+            },
+            "band": {
+              "description": "RELOCATE this CODE-OWNED widget out of the screen's own draw and into one of the two layer passes (UL-14): \"under\" (behind EVERYTHING the screen draws) or \"over\" (in front of everything), where it sorts by `z` against the custom widgets of that band. ABSENT is the normal case and means \"not banded\" -- the screen draws the widget itself, exactly where its own submit() always did; there is no default band for a code-owned widget. Honoured only for kind panel | backdrop | label (a banded widget is drawn generically from its AUTHORED appearance, and button/bar/field have no generic draw); on any other kind it is ignored and the widget draws normally. A banded widget is INERT: like a custom widget it is no longer hit-tested, and a click passes through to whatever is under it. On a CUSTOM widget id this key is ignored -- custom_widgets/<id>'s own band is what places it.",
+              "enum": [
+                "under",
+                "over"
+              ]
+            },
             "color": {
               "items": {
                 "maximum": 255,
@@ -89,11 +169,396 @@
             "font": {
               "type": "string"
             },
+            "font_family": {
+              "$ref": "#/$defs/font_family"
+            },
             "label": {
               "type": "string"
             },
+            "layers": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "align": {
+                    "enum": [
+                      "left",
+                      "center",
+                      "right"
+                    ],
+                    "type": "string"
+                  },
+                  "band": {
+                    "enum": [
+                      "under",
+                      "over"
+                    ],
+                    "type": "string"
+                  },
+                  "clickable": {
+                    "description": "Is this layer a click target (UL-9)? Absent means false -- an ordinary decorative layer is never hit, and is TRANSPARENT to a click rather than blocking it. Static per layer, never per state: D9's four states govern appearance only.",
+                    "type": "boolean"
+                  },
+                  "color": {
+                    "items": {
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 4,
+                    "minItems": 3,
+                    "type": "array"
+                  },
+                  "font": {
+                    "type": "string"
+                  },
+                  "font_family": {
+                    "$ref": "#/$defs/font_family"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "offset": {
+                    "items": {
+                      "type": "integer"
+                    },
+                    "maxItems": 4,
+                    "minItems": 4,
+                    "type": "array"
+                  },
+                  "slot": {
+                    "type": "string"
+                  },
+                  "states": {
+                    "additionalProperties": false,
+                    "description": "Per-state appearance patch (UL-5) for this layer, resolved from the OWNING widget's state: idle | hover | pressed | disabled, falling back to \"idle\" when the resolved key is absent. Every sub-key overrides this layer entry's own value for that state only; \"offset\" REPLACES (never adds to) the layer's own offset -- a 2-length [dx, dy] form moves the layer and keeps the base offset's w/h.",
+                    "properties": {
+                      "disabled": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "align": {
+                            "enum": [
+                              "left",
+                              "center",
+                              "right"
+                            ],
+                            "type": "string"
+                          },
+                          "color": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "font": {
+                            "type": "string"
+                          },
+                          "font_family": {
+                            "$ref": "#/$defs/font_family"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "offset": {
+                            "items": {
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 2,
+                            "type": "array"
+                          },
+                          "slot": {
+                            "type": "string"
+                          },
+                          "text_color": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "text_id": {
+                            "type": "string"
+                          },
+                          "tint": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "visible": {
+                            "type": "boolean"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "hover": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "align": {
+                            "enum": [
+                              "left",
+                              "center",
+                              "right"
+                            ],
+                            "type": "string"
+                          },
+                          "color": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "font": {
+                            "type": "string"
+                          },
+                          "font_family": {
+                            "$ref": "#/$defs/font_family"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "offset": {
+                            "items": {
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 2,
+                            "type": "array"
+                          },
+                          "slot": {
+                            "type": "string"
+                          },
+                          "text_color": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "text_id": {
+                            "type": "string"
+                          },
+                          "tint": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "visible": {
+                            "type": "boolean"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "idle": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "align": {
+                            "enum": [
+                              "left",
+                              "center",
+                              "right"
+                            ],
+                            "type": "string"
+                          },
+                          "color": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "font": {
+                            "type": "string"
+                          },
+                          "font_family": {
+                            "$ref": "#/$defs/font_family"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "offset": {
+                            "items": {
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 2,
+                            "type": "array"
+                          },
+                          "slot": {
+                            "type": "string"
+                          },
+                          "text_color": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "text_id": {
+                            "type": "string"
+                          },
+                          "tint": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "visible": {
+                            "type": "boolean"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "pressed": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "align": {
+                            "enum": [
+                              "left",
+                              "center",
+                              "right"
+                            ],
+                            "type": "string"
+                          },
+                          "color": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "font": {
+                            "type": "string"
+                          },
+                          "font_family": {
+                            "$ref": "#/$defs/font_family"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "offset": {
+                            "items": {
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 2,
+                            "type": "array"
+                          },
+                          "slot": {
+                            "type": "string"
+                          },
+                          "text_color": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "text_id": {
+                            "type": "string"
+                          },
+                          "tint": {
+                            "items": {
+                              "maximum": 255,
+                              "minimum": 0,
+                              "type": "integer"
+                            },
+                            "maxItems": 4,
+                            "minItems": 3,
+                            "type": "array"
+                          },
+                          "visible": {
+                            "type": "boolean"
+                          }
+                        },
+                        "type": "object"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "target": {
+                    "description": "What a click on this layer MEANS (UL-9, D7 as amended): a widget id in the same screen, or one of the reserved tokens close_window / back / noop. Deliberately NOT a closed enum -- an id-shaped string matching neither still validates and saves; the editor WARNS about an unroutable target instead of failing validation.",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "text_color": {
+                    "items": {
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 4,
+                    "minItems": 3,
+                    "type": "array"
+                  },
+                  "text_id": {
+                    "type": "string"
+                  },
+                  "tint": {
+                    "items": {
+                      "maximum": 255,
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "maxItems": 4,
+                    "minItems": 3,
+                    "type": "array"
+                  },
+                  "visible": {
+                    "type": "boolean"
+                  },
+                  "z": {
+                    "type": "integer"
+                  }
+                },
+                "type": "object"
+              },
+              "type": "array"
+            },
             "parent": {
-              "description": "Designer re-parenting (authoring metadata the game never reads): the widget id this widget hangs off in the editor's outliner, overriding screen_defaults.json's own `parent`. Explicit null re-roots a widget whose default parent the designer rejected — distinct from the key being ABSENT, which keeps the default. A cyclic or dangling chain resolves to root in the editor rather than failing.",
+              "description": "Designer re-parenting (authoring metadata the game never reads): the widget id this widget hangs off in the editor's outliner, overriding screen_defaults.json's own `parent`. Explicit null re-roots a widget whose default parent the designer rejected \u2014 distinct from the key being ABSENT, which keeps the default. A cyclic or dangling chain resolves to root in the editor rather than failing.",
               "type": [
                 "string",
                 "null"
@@ -113,6 +578,225 @@
             "sound": {
               "description": "Optional per-button click sound: a clip path relative to data/audio/ (the same shape as a sound_slot clip's `file`). Absent or empty = this button plays ui.Sounds.button_click like every other. game/ui/skinning.py's generic setattr loop threads it onto the widget as `.sound`, and game/ui/sound.py wraps it as a one-clip slot on the sfx bus.",
               "type": "string"
+            },
+            "states": {
+              "additionalProperties": false,
+              "description": "Per-state appearance patch (UL-5). Keys: idle | hover | pressed | disabled, resolved from the widget's own state (Button._state(); any widget with no _state() is always \"idle\"), falling back to \"idle\" when the resolved key is absent and to no patch at all when \"states\" is absent. Every sub-key OVERRIDES the widget's own value for that state only; \"offset\" is a [dx, dy] or [dx, dy, dw, dh] NUDGE from the widget's own rect applied at DRAW time -- never a new absolute rect, and never written back onto the widget.",
+              "properties": {
+                "disabled": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "color": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    },
+                    "font": {
+                      "type": "string"
+                    },
+                    "font_family": {
+                      "$ref": "#/$defs/font_family"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "offset": {
+                      "items": {
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 2,
+                      "type": "array"
+                    },
+                    "text_color": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    },
+                    "tint": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                },
+                "hover": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "color": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    },
+                    "font": {
+                      "type": "string"
+                    },
+                    "font_family": {
+                      "$ref": "#/$defs/font_family"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "offset": {
+                      "items": {
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 2,
+                      "type": "array"
+                    },
+                    "text_color": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    },
+                    "tint": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                },
+                "idle": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "color": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    },
+                    "font": {
+                      "type": "string"
+                    },
+                    "font_family": {
+                      "$ref": "#/$defs/font_family"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "offset": {
+                      "items": {
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 2,
+                      "type": "array"
+                    },
+                    "text_color": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    },
+                    "tint": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                },
+                "pressed": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "color": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    },
+                    "font": {
+                      "type": "string"
+                    },
+                    "font_family": {
+                      "$ref": "#/$defs/font_family"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "offset": {
+                      "items": {
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 2,
+                      "type": "array"
+                    },
+                    "text_color": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    },
+                    "tint": {
+                      "items": {
+                        "maximum": 255,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxItems": 4,
+                      "minItems": 3,
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "type": "object"
             },
             "text_color": {
               "items": {
@@ -140,6 +824,10 @@
             },
             "visible": {
               "type": "boolean"
+            },
+            "z": {
+              "description": "Paint order within this widget's `band`, ascending; absent means 0. Read ONLY when `band` is set, and it orders this widget against the custom widgets AND the other banded widgets of the same band -- which is the whole point of banding a code-owned widget. Ties keep pass order: custom widgets first (in file order), then banded code-owned widgets (in screen_defaults.json order).",
+              "type": "integer"
             }
           },
           "type": "object"

@@ -1000,8 +1000,7 @@ The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
     `_batch_cost` helper, so the label, the hover figure and what
     `place_building` actually charges can never disagree.
 - **`hud.py _submit_lightning`** — ENEMY-phase-only bottom-left readout
-  (`⚡ CLICK TO STRIKE` / countdown) + a 22×3 cursor-attached progress bar
-  (`Hud.update` now stores `_mx/_my`). **feature-storm-acolyte-multi-build**:
+  (`⚡ CLICK TO STRIKE` / countdown). **feature-storm-acolyte-multi-build**:
   takes a new `scene` argument (threaded through `Hud.submit`, wired from
   `main.py`'s `world.scene`) and walks `scene.by_tag("lightning_source")` for
   the SOONEST-ready alive caster (the smallest `LightningCaster.cooldown`) —
@@ -1009,6 +1008,17 @@ The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
   tracks whichever will fire next. No placed caster at all → nothing drawn,
   even if `lightning_level` is latched > 0 from one that died and hasn't
   revived yet.
+  - **The cursor-attached progress bar is REMOVED (feature: remove-
+    lightning-cursor-bar)** — it used to draw an 11×2 bar anchored at
+    `self._mx`/`self._my` right under this text readout, duplicating the
+    exact same fraction. It gated no input and nothing else read it, so
+    removal touched only these two lines plus the now-simplified
+    soonest-caster scan (no more per-caster tier-cooldown lookup, since the
+    bar was the only consumer of that second value). `Hud.update` still
+    stores `_mx`/`_my` every frame — they remain the income-pill and
+    boss-icon hover-tooltip anchor. The cooldown is still shown two other
+    ways: this text readout, and the per-building overhead charge bar
+    (`effects.py submit_lightning_charge_bars`, below).
 - **`effects.py submit_lightning`** — draws each `"lightning_fx"` scene object
   (the `submit_craters` pattern): a jagged screen-space `HudLines` bolt from
   y=0 to the impact (±6 px jitter per frame, white→yellow over 0.5 s) + a
@@ -1161,19 +1171,43 @@ picker and the confirmation.
   positioned by `_build_move_btn` directly under `action_btn` in upgrade mode.
   **Visible only on a SINGLE selection** — a move is not batchable (unlike
   UPGRADE/ADVANCE, which do batch — see the fix/batch-tier-advance note
-  below). A Wall Builder gets the button DISABLED + relabelled
+  below). **A WallBuilder CAN move (feature: wallbuilder-restricted-move,
+  superseding the original "can never be moved" rule), but only within its
+  own wall perimeter** — `is_movable(self._selected, self._session.tilemap)`
+  now needs the tilemap to answer that; with no legal destination right now
+  (an empty `wall_snapshot()`, or every one of its own walled tiles
+  occupied/in-transit) the button is DISABLED + relabelled
   `CANNOT BE MOVED` with an `_upgrade_hint`, the same mechanism
-  `RESEARCH REQUIRED`/`NEXT TIER LOCKED` use; `start_move` is the real
-  enforcement.
+  `RESEARCH REQUIRED`/`NEXT TIER LOCKED` use; `start_move`
+  (`game/buildings/CLAUDE.md`) is the real enforcement either way.
 - **`mode == "move_select"`** — a fifth panel mode. `_build_move_select` fills
   `_highlight_tiles` with every `buildable_tiles()` tile that is not already
-  `tilemap.is_moving`, in the new `widgets.C_MOVE_HIGHLIGHT` (cyan; a plain
-  code constant NOT in `_PALETTE_KEYS`, the `C_TUTORIAL_HIGHLIGHT`
-  precedent). The panel body becomes a short instruction card
-  (`_submit_move_select`). **The panel only ever handles panel-space clicks**,
-  so `_move_select_click` just cancels back to upgrade; the destination TILE
-  pick is `game/main.py`'s (see `game/CLAUDE.md`). `dismiss()` gained one more
-  rung — move_select peels back to upgrade before the bare-panel close.
+  `tilemap.is_moving`, event `move_target` (cyan; VA-5 tile-highlight data,
+  `data/balancing/vfx.json procedural.highlights.move_target` —
+  `widgets.C_MOVE_HIGHLIGHT` no longer exists, see "The seven tile
+  highlights are EFFECTS now" below). **For a WallBuilder specifically
+  (feature: wallbuilder-restricted-move) that list is NOT uniform**: tiles
+  its own claimed wall edges are attached to
+  (`game.buildings.movement.wall_builder_move_targets`) still draw
+  `move_target`; every OTHER otherwise-legal buildable tile ALSO highlights,
+  but GREYED OUT — the new **eighth** highlight event, `move_blocked` — so
+  the tile visibly exists and is visibly off-limits rather than silently
+  omitted. Its own wall EDGES draw too, via the SAME
+  `edge_world_points`/`_highlight_edges` mechanism `_set_wall_highlight` uses
+  elsewhere (`wall_edge`, yellow) — reusing the ownership walk
+  (`edge.owner is b` over `tilemap.wall_edges`) rather than calling
+  `_set_wall_highlight` itself, since that method also tints each owned
+  tile `attack_range`, which would double-highlight every tile this mode
+  already colours cyan/grey. Every non-WallBuilder selection is
+  byte-identical to before this feature. The panel body becomes a short
+  instruction card (`_submit_move_select`). **The panel only ever handles
+  panel-space clicks**, so `_move_select_click` just cancels back to
+  upgrade; the destination TILE pick is `game/main.py`'s
+  `_pick_move_destination` (see `game/CLAUDE.md`), which applies the SAME
+  `wall_builder_move_targets` narrowing — a click on a greyed-out tile is a
+  silent no-op, exactly like a click on any other illegal tile. `dismiss()`
+  gained one more rung — move_select peels back to upgrade before the
+  bare-panel close.
 - **`MovePreview`** — the `ConstructPreview` sibling, minus the name field,
   the dice and the stat list (nothing about the building changes, it just
   relocates): display name, ONE `Cost` line quoting ROUNDS (`Instant` at
@@ -2296,9 +2330,12 @@ the shipped screens, which name only the 7), and that is what keeps the
 committed artifacts reproducible. If code ever DOES lay out against a custom
 `font_key`, that stored rect becomes machine-dependent — pin the value first.
 
-## The seven tile highlights are EFFECTS now (VfxAuthoringPLAN VA-5)
+## The tile highlights are EFFECTS now (VfxAuthoringPLAN VA-5 + feature: wallbuilder-restricted-move)
 `tile_selected`, `section_2x2`, `attack_range`, `move_target`, `wall_edge`,
-`upgrade_batch` and `tutorial_highlight` are `data/balancing/vfx.json` entries:
+`upgrade_batch` and `tutorial_highlight` (VA-5's original seven), plus
+`move_blocked` (the WallBuilder move-picker's greyed-out-tile twin of
+`move_target`, added by the wallbuilder-restricted-move feature — see the
+Move Building section above), are `data/balancing/vfx.json` entries:
 a `procedural.highlights.<name>` param block (colour / outline width / fill
 alpha) plus a `triggers.<name>` row, so each can be retuned, replaced by an
 imported `vfx_<name>` spritesheet, and put in front of or behind a same-tile

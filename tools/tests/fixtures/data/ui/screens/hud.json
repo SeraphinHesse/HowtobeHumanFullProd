@@ -1,18 +1,81 @@
 {
+  "custom_widgets": {
+    "custom_panel_1": {
+      "band": "under",
+      "kind": "panel",
+      "rect": [
+        220,
+        120,
+        200,
+        120
+      ]
+    },
+    "custom_panel_2": {
+      "kind": "panel",
+      "rect": [
+        220,
+        120,
+        200,
+        120
+      ]
+    },
+    "custom_panel_3": {
+      "band": "under",
+      "kind": "panel",
+      "rect": [
+        220,
+        120,
+        200,
+        120
+      ]
+    },
+    "custom_panel_4": {
+      "band": "under",
+      "kind": "panel",
+      "rect": [
+        220,
+        120,
+        200,
+        120
+      ]
+    },
+    "custom_panel_5": {
+      "band": "under",
+      "kind": "panel",
+      "rect": [
+        220,
+        120,
+        200,
+        120
+      ]
+    }
+  },
+  "defaults": {
+    "button_skin": "ui_panel_v3",
+    "panel_skin": "ui_panel_v3"
+  },
   "widgets": {
     "btn_drag_select": {
+      "font": "md",
+      "label": "DRAG",
       "rect": [
-        11,
-        131,
-        45,
-        14
+        3,
+        75,
+        48,
+        22
+      ],
+      "skin": "ui_panel_stone",
+      "text_color": [
+        198,
+        81,
+        151
       ]
     },
     "btn_end_turn": {
       "label": "",
       "rect": [
-        568,
-        310,
+        567,
+        283,
         72,
         50
       ],
@@ -31,72 +94,309 @@
         48,
         49
       ],
-      "skin": "ui_button_pause"
+      "skin": "ui_button_pause_v2"
     },
     "btn_speed_1_5x": {
+      "parent": "custom_panel_5",
       "rect": [
-        36,
-        107,
+        149,
+        4,
         28,
         14
       ],
-      "skin": "ui_button_pill"
+      "skin": "ui_panel_stone",
+      "text_color": [
+        255,
+        255,
+        255
+      ]
     },
     "btn_speed_1x": {
+      "parent": "custom_panel_5",
       "rect": [
+        117,
         4,
-        108,
         28,
         14
       ],
-      "skin": "ui_button_pill"
+      "skin": "ui_panel_stone",
+      "text_color": [
+        255,
+        255,
+        255
+      ]
     },
     "btn_speed_2x": {
+      "parent": "custom_panel_5",
       "rect": [
-        68,
-        109,
+        179,
+        4,
         28,
         14
       ],
-      "skin": "ui_button_pill"
+      "skin": "ui_panel_stone",
+      "text_color": [
+        222,
+        158,
+        65
+      ]
+    },
+    "custom_panel_1": {
+      "align": "right",
+      "color": [
+        70,
+        70,
+        100
+      ],
+      "parent": "love_panel",
+      "rect": [
+        0,
+        -25,
+        112,
+        50
+      ],
+      "skin": "ui_panel_v3"
+    },
+    "custom_panel_2": {
+      "color": [
+        70,
+        70,
+        100
+      ],
+      "parent": "love_panel",
+      "rect": [
+        0,
+        -2,
+        102,
+        45
+      ],
+      "skin": "ui_panel_v4"
+    },
+    "custom_panel_3": {
+      "color": [
+        70,
+        70,
+        100
+      ],
+      "rect": [
+        -6,
+        20,
+        77,
+        44
+      ],
+      "skin": "ui_panel_v5"
+    },
+    "custom_panel_4": {
+      "color": [
+        70,
+        70,
+        100
+      ],
+      "parent": "btn_end_turn",
+      "rect": [
+        536,
+        300,
+        122,
+        66
+      ],
+      "skin": "ui_panel_v5"
+    },
+    "custom_panel_5": {
+      "color": [
+        70,
+        70,
+        100
+      ],
+      "rect": [
+        118,
+        4,
+        89,
+        27
+      ],
+      "skin": "ui_button",
+      "visible": false
+    },
+    "icon_boss_next": {
+      "rect": [
+        568,
+        6,
+        15,
+        15
+      ]
+    },
+    "icon_lives": {
+      "parent": "lives_text",
+      "rect": [
+        -1,
+        287,
+        13,
+        11
+      ],
+      "visible": false
+    },
+    "icon_love": {
+      "parent": "love_text",
+      "rect": [
+        19,
+        2,
+        16,
+        12
+      ],
+      "tint": [
+        198,
+        81,
+        151
+      ]
     },
     "icon_xp": {
+      "parent": "xp_bar",
       "rect": [
-        234,
-        9,
+        201,
+        -10,
         9,
         9
       ]
     },
-    "love_panel": {
+    "income_text": {
+      "font": "md",
+      "parent": "custom_panel_2",
       "rect": [
-        6,
-        6,
-        93,
-        62
-      ]
-    },
-    "readout_panel": {
-      "rect": [
-        1,
-        66,
-        84,
-        36
-      ]
-    },
-    "round_label": {
-      "text_color": [
-        0,
+        22,
+        22,
         0,
         0
       ]
     },
+    "life_1": {
+      "rect": [
+        25,
+        268,
+        9,
+        9
+      ]
+    },
+    "life_2": {
+      "rect": [
+        36,
+        268,
+        9,
+        9
+      ]
+    },
+    "life_3": {
+      "rect": [
+        47,
+        268,
+        9,
+        9
+      ]
+    },
+    "lives_text": {
+      "rect": [
+        13,
+        285,
+        0,
+        0
+      ],
+      "visible": false
+    },
+    "love_panel": {
+      "rect": [
+        -26,
+        -14,
+        171,
+        113
+      ],
+      "skin": "ui_panel_v3",
+      "visible": false
+    },
+    "love_text": {
+      "align": "left",
+      "font": "hud_phase",
+      "parent": "custom_panel_1",
+      "rect": [
+        39,
+        -2,
+        0,
+        0
+      ],
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "lvl_label": {
+      "font": "md",
+      "parent": "custom_panel_3",
+      "rect": [
+        18,
+        46,
+        0,
+        0
+      ],
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "phase_label": {
+      "rect": [
+        242,
+        340,
+        0,
+        0
+      ]
+    },
+    "readout_panel": {
+      "rect": [
+        -4,
+        279,
+        84,
+        36
+      ],
+      "visible": false
+    },
+    "round_label": {
+      "parent": "custom_panel_4",
+      "rect": [
+        597,
+        342,
+        0,
+        0
+      ],
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "tiles_text": {
+      "parent": "custom_panel_4",
+      "rect": [
+        1000,
+        348,
+        0,
+        0
+      ],
+      "visible": false
+    },
     "xp_bar": {
       "rect": [
-        248,
-        12,
+        216,
+        -8,
         55,
         4
+      ]
+    },
+    "xp_text": {
+      "parent": "xp_bar",
+      "rect": [
+        204,
+        3,
+        0,
+        0
       ]
     }
   }

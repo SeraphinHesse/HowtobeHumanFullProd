@@ -1924,7 +1924,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             shell.state = GameState.PAUSED
             return
         if hud_action == "end_turn":
-            session.end_turn()
+            session.end_turn(world.scene)
             # fix/highlight-render-order: the heatmap always shows the round
             # currently in progress — blank it here so nothing lingers from
             # the round just ended; track()/the ENEMY-phase-edge snapshot
@@ -2389,7 +2389,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                     else:
                         shell.state = GameState.PAUSED  # Esc opens pause
                 elif _binding_key_name(event) == key_bindings["end_turn"]:
-                    session.end_turn()  # dev convenience beside the button
+                    session.end_turn(world.scene)  # dev convenience beside the button
                     gp["overlays"].path_heatmap.clear()  # fix/highlight-render-order
                     gp["tutorial"].on_end_turn()  # TU-6: no-op unless gated step
                 elif _binding_key_name(event) == key_bindings["toggle_heatmap"]:
