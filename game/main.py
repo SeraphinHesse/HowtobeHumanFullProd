@@ -69,7 +69,7 @@ import engine.audio as game_audio  # SD-4
 from engine.coords import CameraLimit, load_coordinate_system
 from engine.core import Scene, SpriteAnimator
 from engine.physics import TileOccupancy
-from engine.render import HudSprite, HudText, Renderer
+from engine.render import HudRect, HudSprite, HudText, Renderer
 from engine.render.fonts import configure_fonts
 from engine.render.ground_cache import GroundCache
 from game.buildings import BaseBuilding, attach_base
@@ -972,6 +972,18 @@ def _submit_cutscene_skip(renderer, view_w, view_h, skip_progress, idle_t):
         align="right"))
 
 
+def _submit_cutscene_fade(renderer, view_w, view_h, alpha):
+    """The fade-in/fade-out black overlay (feature: cutscene-fade-in-out).
+    Submitted LAST of a cutscene frame's HUD content — the HUD pass has no
+    depth sort (`game/ui/CLAUDE.md`'s submission-order rule), so this must
+    be the final `submit_hud` call of the frame to sit on top of both the
+    video frame and the skip prompt. A no-op at ``alpha <= 0`` (every frame
+    of an unconfigured/no-fade cutscene)."""
+    if alpha <= 0:
+        return
+    renderer.submit_hud(HudRect((0, 0, view_w, view_h), (0, 0, 0, alpha)))
+
+
 def _submit_loading_frame(renderer, assets, view_w, view_h, progress):
     """The pre-boot loading screen (feature: loading screen). Background is
     the editor-adjustable ``ui_bg_loading`` slot (E-37: a flat fallback fill
@@ -1391,8 +1403,14 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # cv2/file absent -> MAIN_MENU); "first_end_turn" is an in-gameplay
     # overlay Session.end_turn() requests via state.pending_cutscene.
     cutscene_registry = load_cutscene_registry(data_dir)
+    # feature: cutscene-fade-in-out — same fade-in/out for every registry
+    # entry (one designer-tunable pair, not per-entry).
+    _cutscene_bal = core_balance["Cutscene"]
     cutscenes = {
-        cid: CutscenePlayer(data_dir, entry, target_size=(view_w, view_h))
+        cid: CutscenePlayer(
+            data_dir, entry, target_size=(view_w, view_h),
+            fade_in=_cutscene_bal["fade_in_seconds"],
+            fade_out=_cutscene_bal["fade_out_seconds"])
         for cid, entry in cutscene_registry.items()
     }
     intro_player = cutscenes.get("intro")
@@ -3319,6 +3337,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 presenter.blit_fullscreen(surf)
             _submit_cutscene_skip(renderer, view_w, view_h,
                                   intro_player.skip_progress, mouse_idle_t)
+            _submit_cutscene_fade(renderer, view_w, view_h,
+                                  intro_player.fade_alpha)
             _t_flush_start = time.perf_counter()
             flush_frame()
         elif st == GameState.LOADING:
@@ -3620,6 +3640,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 _submit_cutscene_skip(renderer, view_w, view_h,
                                       gp["cutscene"].skip_progress,
                                       mouse_idle_t)
+                _submit_cutscene_fade(renderer, view_w, view_h,
+                                      gp["cutscene"].fade_alpha)
                 flush_frame()
             # -- 10G boss: undo the shake pan exactly (no clamp in between) --
             if shake_ox or shake_oy:

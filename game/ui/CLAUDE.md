@@ -3109,6 +3109,72 @@ trigger call sites in `main.py`, never unified into one state machine:
   frame from the moment it first appears — only one trailing fractional
   point (the exact tip) is recomputed each call.
 
+## Cutscene fade in/out (feature: cutscene-fade-in-out)
+Every registry-driven cutscene (`intro`, `first_end_turn`, and any future
+entry — one `CutscenePlayer`, one mechanism) now fades in from black and
+out to black. Two designer tunables, `data/balancing/core.json`'s new
+`Cutscene.fade_in_seconds`/`fade_out_seconds` group (both default `1.0`,
+both `0`-`60`), read once in `main.py` and passed to EVERY `CutscenePlayer`
+alike (one shared pair, not per-entry) — `main.py` never hardcodes a fade
+duration.
+
+- **The fade is ADDED on top of the cutscene's own length, never
+  overlapped with it (explicit user decision — not the more obvious
+  "fade over the first/last N seconds of the existing video" reading).**
+  A video's own playback is byte-for-byte unmodified: `CutscenePlayer`
+  gains a `_phase` state machine (`"fade_in" -> "playing" -> "fade_out"`)
+  and the wrapped `VideoSource.update(dt)` is only ever called during
+  `"playing"` — it is simply not ticked during either fade, so a
+  `fade_in_seconds: 1, fade_out_seconds: 1` config makes the cutscene take
+  exactly 2 seconds longer overall, not 2 seconds shorter.
+- **The fade-in holds on the video's real FIRST frame, frozen, not on a
+  blank black screen with nothing behind it.** `engine.video.VideoSource`
+  gained `prime()` — decode exactly one frame without advancing the
+  playback clock — called once when `"fade_in"` starts (constructor, and
+  again every `start()`). `CutscenePlayer.frame_surface()` returns that
+  primed, unmoving frame for the whole fade-in; only once `_phase` flips to
+  `"playing"` does `update()` start pacing real playback from frame 0.
+- **The fade-out holds the real LAST frame, not nothing.** A live capture
+  clears its own last frame at EOF (`VideoSource._mark_source_ended` wipes
+  `_bgr`, so a query one tick after `done` flips true already returns
+  `None`) — so `CutscenePlayer.update()` caches `frame_surface()` into
+  `self._last_frame` on every `"playing"`-phase tick (only when
+  `fade_out > 0`, so this costs an unconfigured cutscene nothing extra),
+  and `frame_surface()` returns that cached frame throughout `"fade_out"`.
+- **The overlay is a HOST-drawn HUD primitive, not something `CutscenePlayer`
+  paints itself** (`game/ui` stays pygame-free, D2). `CutscenePlayer.fade_alpha`
+  (0 = fully revealed, 255 = fully black) is a pure computed property off
+  `_phase`/`_phase_t`; `main.py`'s new `_submit_cutscene_fade(renderer,
+  view_w, view_h, alpha)` submits a full-view `HudRect((0,0,view_w,view_h),
+  (0,0,0,alpha))` as the LAST `submit_hud` call of a cutscene frame — after
+  `_submit_cutscene_skip`, so the black overlay sits on top of the skip
+  prompt too (the HUD pass has no depth sort; submission order is z-order,
+  `game/ui`'s own submission-order rule above). Both cutscene render sites
+  in `main.py` (the pre-menu `GameState.CUTSCENE` branch and the in-gameplay
+  `gp["cutscene"]` overlay) call it identically.
+- **Skip (the 2-second hold, above) bypasses the WHOLE cutscene, fade-out
+  included** (explicit user decision — "skip still works during fades"): a
+  hold that completes during `"fade_in"` or `"fade_out"` ends the cutscene
+  immediately rather than fast-forwarding into (or waiting out) a fade.
+  `CutscenePlayer.skip()` sets a `_skipped` latch `done` checks first,
+  ahead of the phase logic.
+- **`_fade_in <= 0` / `_fade_out <= 0` (an unconfigured `CutscenePlayer`, or
+  either balancing value set to `0`) is an EXACT no-op**, not an
+  approximation: `_phase` starts at (and, with `fade_out` off, forever
+  stays) `"playing"`, so `done`/`update()`/`frame_surface()` all reduce to
+  their pre-feature one-line bodies (`self._video.done`, `self._video
+  .update(dt)`, `self._video.frame_surface()`) and `fade_alpha` is always
+  `0`. This is what keeps `tools/tests/test_cutscene_player.py`'s whole
+  existing suite green unmodified — none of those tests pass fade
+  arguments, so every one of them exercises this exact fallback path.
+- **`CutscenePlayer.done` is a COMPUTED property, not a stored terminal
+  flag** — deliberately, because several existing tests poke
+  `player._video.done` directly (bypassing `update()`) to simulate an
+  in-progress video without a real file. A cached/latched `done` would stop
+  reflecting that poke; the live computation
+  (`self._video.done and self._fade_out <= 0` while `_phase == "playing"`)
+  reads it correctly with zero special-casing for tests.
+
 ## Tutorial message box + guided-chain highlights (Phase TU-6)
 - **`game/ui/tutorial_message.py`** (`TutorialMessageScreen`) — the
   `game_over.py` construct→layout→update→hit→submit template: a centred
