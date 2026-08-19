@@ -33,11 +33,25 @@ def make_cs(zoom=1.0):
 
 
 class FakeAssets:
+    #: {slot_key: {anchor_name: (x, y)}} — empty means "no sheet authors an
+    #: anchor", the state every pre-depth_pivot test runs in.
+    def __init__(self, anchors=None):
+        self.anchors = dict(anchors or {})
+
     def frame(self, slot_key, animation="idle", anim_time_ms=0,
               extra_hidden=None, column=None):
         from engine.assets.types import Frame
         return Frame(surface=f"SURF:{slot_key}", frame_w=64, frame_h=32,
                      offset_x=0, offset_y=0, slice=None)
+
+    def frame_size(self, slot_key):
+        return (64, 32)
+
+    def offset(self, slot_key):
+        return (0, 0)
+
+    def anchor(self, slot_key, name):
+        return self.anchors.get(slot_key, {}).get(name)
 
 
 class RecordingBackend:
@@ -313,6 +327,95 @@ class TestSubmitWorldMatchesSubmitHud(unittest.TestCase):
         self.assertTrue(cap.hud)
         self.assertEqual(cap.world_rects, [])
         self.assertEqual(cap.world_lines, [])
+
+
+
+# ===========================================================================
+# depth_pivot — feet-based Y-sorting (sort only, opt-in per sheet)
+# ===========================================================================
+class TestDepthPivot(unittest.TestCase):
+    """A `depth_pivot` anchor moves where a sprite SORTS and nothing else."""
+
+    def _order(self, assets, items):
+        backend = RecordingBackend()
+        r = Renderer(make_cs(), assets, backend=backend)
+        for item in items:
+            r.submit(item)
+        r.flush(target=None)
+        return [c.surface for c in backend.calls]
+
+    def test_unauthored_sheets_sort_exactly_as_before(self):
+        """The no-op proof: with no anchor authored anywhere, order is the
+        old world_pos order, written out rather than taken from the renderer."""
+        near = RenderItem("near", (5.0, 5.0))
+        far = RenderItem("far", (2.0, 2.0))
+        self.assertEqual(self._order(FakeAssets(), [near, far]),
+                         ["SURF:far", "SURF:near"])
+
+    def test_a_lower_pivot_draws_in_front_of_a_same_tile_sprite(self):
+        """Both on the SAME tile, so world_pos alone ties and submission
+        order would win. The pivot at the feet (+y is DOWN the frame) breaks
+        the tie the way the art reads."""
+        assets = FakeAssets({"feet": {"depth_pivot": (0, 24)}})
+        # `feet` submitted FIRST: without the pivot the stable sort would
+        # leave it behind `head`, so this can only pass via the pivot.
+        order = self._order(assets, [RenderItem("feet", (4.0, 4.0)),
+                                     RenderItem("head", (4.0, 4.0))])
+        self.assertEqual(order, ["SURF:head", "SURF:feet"])
+
+    def test_the_pivot_sorts_against_a_building_in_the_same_queue(self):
+        """One shared queue: a pivoted enemy sorts against non-enemy sprites
+        too, not only against other pivoted ones."""
+        assets = FakeAssets({"enemy": {"depth_pivot": (0, 24)}})
+        building = RenderItem("building", (4.4, 4.4))
+        enemy = RenderItem("enemy", (4.0, 4.0))
+        # Unpivoted, the enemy sits behind the building (4.0+4.0 < 4.4+4.4);
+        # the pivot at its feet pushes it in front.
+        self.assertEqual(self._order(FakeAssets(), [enemy, building]),
+                         ["SURF:enemy", "SURF:building"])
+        self.assertEqual(self._order(assets, [enemy, building]),
+                         ["SURF:building", "SURF:enemy"])
+
+    def test_the_pivot_never_moves_the_blit(self):
+        """Sort only: the DrawCall dest/size for a pivoted sprite is
+        byte-identical to the same sprite with no anchor authored."""
+        item = RenderItem("e", (3.0, 7.0))
+        plain = RecordingBackend()
+        r = Renderer(make_cs(), FakeAssets(), backend=plain)
+        r.submit(item)
+        r.flush(target=None)
+        pivoted = RecordingBackend()
+        r2 = Renderer(make_cs(), FakeAssets({"e": {"depth_pivot": (7, 24)}}),
+                      backend=pivoted)
+        r2.submit(item)
+        r2.flush(target=None)
+        self.assertEqual([(c.dest, c.size) for c in plain.calls],
+                         [(c.dest, c.size) for c in pivoted.calls])
+
+    def test_a_non_entities_layer_ignores_the_pivot(self):
+        """Layer stays primary and only `entities` is depth-contested — a
+        deco sprite that happens to author the anchor sorts at its tile."""
+        assets = FakeAssets({"a": {"depth_pivot": (0, 240)}})
+        order = self._order(assets, [RenderItem("a", (2.0, 2.0), layer="deco"),
+                                     RenderItem("b", (5.0, 5.0), layer="deco")])
+        self.assertEqual(order, ["SURF:a", "SURF:b"])
+
+    def test_the_order_does_not_depend_on_zoom(self):
+        """`sprite_anchor_screen` multiplies zoom in and `screen_to_world`
+        divides it back out, so a pivoted queue sorts the same at every
+        zoom level."""
+        assets = FakeAssets({"feet": {"depth_pivot": (0, 24)}})
+        items = [RenderItem("feet", (4.0, 4.0)), RenderItem("head", (4.0, 4.0))]
+        orders = []
+        for zoom in (0.5, 1.0, 2.0):
+            backend = RecordingBackend()
+            r = Renderer(make_cs(zoom), assets, backend=backend)
+            for item in items:
+                r.submit(item)
+            r.flush(target=None)
+            orders.append([c.surface for c in backend.calls])
+        self.assertEqual(orders[0], orders[1])
+        self.assertEqual(orders[1], orders[2])
 
 
 if __name__ == "__main__":

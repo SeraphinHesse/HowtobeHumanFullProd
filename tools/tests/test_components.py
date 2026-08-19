@@ -24,6 +24,18 @@ class FakeAssets:
               column=None):
         return Frame(surface=f"SURF:{slot_key}", frame_w=64, frame_h=96)
 
+    # The depth-sort side of the store contract (Renderer._depth_pos reads it
+    # for every entities-layer sprite). No sheet here authors an anchor, so
+    # the pivot never engages and these items sort at their transform.
+    def anchor(self, slot_key, name):
+        return None
+
+    def frame_size(self, slot_key):
+        return (64, 96)
+
+    def offset(self, slot_key):
+        return (0, 0)
+
 
 class RecordingBackend:
     def __init__(self):

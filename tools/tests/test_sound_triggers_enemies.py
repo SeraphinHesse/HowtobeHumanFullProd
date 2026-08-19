@@ -186,6 +186,20 @@ class SoundTriggerCase(unittest.TestCase):
         ec.update(0.1)                      # still cooling -> silent
         self.assertEqual(self.fake.files, ["default_attack.wav"])
 
+    # 2b -- a corpse gets one more update() and must swing at nothing -------
+    def test_a_dead_enemy_lands_no_extra_swing(self):
+        """`Scene.despawn` only queues and the queue drains AFTER the update
+        loop, so an enemy killed in frame N is still updated once in N+1 —
+        with its cooldown possibly expiring on that very tick."""
+        target = _StubBuilding()
+        owner = _StubEnemy(alive=False,
+                           components=[PathAgent(blocked=True),
+                                       EnemyCombat(dmg=1, attack_speed=1.0)])
+        owner.get_component(PathAgent)._target = target
+        owner.get_component(EnemyCombat).update(0.5)   # cooldown 0 -> would swing
+        self.assertEqual(self.fake.files, [])
+        self.assertEqual(target.get_component(Health).hp, 100)
+
     # 3 -- a non-empty per-type override wins; an empty one inherits -------
     def test_per_type_override_resolution(self):
         self.assertEqual(

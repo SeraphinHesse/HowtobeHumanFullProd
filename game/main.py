@@ -76,7 +76,7 @@ from game.buildings import BaseBuilding, attach_base
 from game.buildings.coverage import wire_defence_coverage
 # -- /10I --
 # -- B1: the slots.json category whose slots may carry a colour column --
-from game.buildings.registry import BUILDINGS_CATEGORY
+from game.buildings.registry import BUILDINGS_CATEGORY, placement_blocker
 from game.buildings import painter as painter_art  # progress-art seam
 # -- Building Movement: the in-transit sign slot + the cost/time formulas the
 # destination-pick preview quotes --
@@ -2011,20 +2011,21 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     def _pick_move_destination(tile, session):
         """Building Movement: the world half of destination-picking.
 
-        A legal destination is an unbuilt BUILDABLE tile that is not already an
-        endpoint of a move in progress — exactly the set
-        ``BuildingUI._build_move_select`` highlighted. A WallBuilder narrows
-        that further to its own wall-attached tiles (feature:
-        wallbuilder-restricted-move) — the same set the panel drew GREYED OUT
+        A legal destination is any tile ``registry.placement_blocker`` clears
+        for this building -- exactly the set ``BuildingUI._build_move_select``
+        highlighted, and exactly what ``start_move`` enforces. A WallBuilder
+        narrows that further to its own wall-attached tiles (feature:
+        wallbuilder-restricted-move) -- the same set the panel drew GREYED OUT
         for everything outside it. Anything else is a silent no-op (the
         player keeps picking). On a legal pick this only OPENS the
         confirmation modal; ``start_move`` (via ``BuildingUI._do_move``) stays
         the single legal seam that actually moves anything."""
         panel = gp["panel"]
         building = panel._selected
-        if (tile is None or building is None
-                or tile.state != TileState.BUILDABLE
-                or session.tilemap.is_moving(tile.col, tile.row)):
+        if tile is None or building is None:
+            return
+        if placement_blocker(session.tilemap, tile, building.building_type,
+                             session.state, ignore=building) is not None:
             return
         if (hasattr(building, "wall_hp")
                 and (tile.col, tile.row) not in wall_builder_move_targets(
@@ -2778,6 +2779,21 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                                 bool(assets.animation_total_ms(
                                     anim.slot_key, KIDNAP_ANIM)))
 
+                    # A carrier shot down mid-walk-home: the COSMETIC half
+                    # only — the same `death` row a normal death plays, via
+                    # the same Corpse. No `session.on_enemy_death`: the XP +
+                    # kill count were already paid at `_on_kidnap` above, and
+                    # the stolen building's flight home + 1-HP revive are
+                    # `release_kidnap`'s, inside the sweep that calls this.
+                    def _on_kidnapper_death(enemy, building,
+                                            _scene=world.scene):
+                        anim = enemy.get_component(SpriteAnimator)
+                        if anim is not None:
+                            ms = assets.animation_total_ms(anim.slot_key,
+                                                           DEATH_ANIM)
+                            if ms:
+                                spawn_corpse(_scene, enemy, ms)
+
                     resolve_combat(world.scene, world.tile_map, sim_dt,
                                    buildings_balance, vfx_balance,
                                    on_base_hit=session.on_base_hit,
@@ -2787,6 +2803,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                                    on_defender_fire=_on_defender_fire,
                                    on_projectile_hit=_on_projectile_hit,
                                    on_kidnap=_on_kidnap,
+                                   on_kidnapper_death=_on_kidnapper_death,
                                    on_damage=_debug_on_damage,
                                    # BU-3: the standard hook pair, spelled off
                                    # the Session (#3 mortar_slow).
