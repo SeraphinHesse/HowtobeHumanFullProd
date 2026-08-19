@@ -2864,7 +2864,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                                     renderer, col, row,
                                     widgets.highlight_color("tile_selected") + (70,))
             # -- /drag-select --
-            gp["panel"].submit(renderer, session)
+            # The panel's WORLD half only — its tile highlights must stay
+            # BEFORE the scene so a same-tile building draws on top of its own
+            # highlight. Its HUD half (the sidebar itself) is submitted after
+            # the HUD, further down.
+            gp["panel"].submit_world(renderer)
             # -- /fix/depth-sorted-world-fills --
             for item in world.scene.render_items():
                 renderer.submit(item)
@@ -2945,6 +2949,16 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                              love_display=gp["floaters"].love_display,
                              scene=world.scene,
                              drag_select_enabled=gp["drag_select_enabled"])
+            # The building panel's HUD half goes out AFTER the HUD: the panel
+            # is a full-height right sidebar and the HUD reaches under it, so
+            # the panel must always win. It used to submit before the HUD,
+            # which meant every HUD element overlapping the sidebar — and any
+            # decorative panel a designer adds to `hud.json` over there — drew
+            # ON TOP of an open construction screen. The HUD's own
+            # `_panel_open` gates (hud.py's right-edge cluster) stay: they
+            # skip drawing what the panel covers rather than relying on being
+            # painted over, which is still cheaper and still correct.
+            gp["panel"].submit(renderer, session)
             # -- TU-6: UI-box highlights (card/Confirm/End Turn/Close/Unlock)
             # + the message box, over the HUD. Same pulse/glow as the world
             # tile highlight above, off the same deco_clock_ms wall clock. --

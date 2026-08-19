@@ -766,8 +766,12 @@ DIFFERENT tile is automatic (the ordinary iso sort). `main.py` owns the ONE
 thing position can't resolve — a same-tile TIE, broken by submission order:
 - **Highlights submit BEFORE `world.scene.render_items()`** (`gp["overlays"]
   .submit(...)`, the tutorial highlight, the drag-select live rectangle,
-  `gp["panel"].submit(...)`) — so a same-tile building draws ON TOP of its
-  own highlight.
+  `gp["panel"].submit_world(...)`) — so a same-tile building draws ON TOP of
+  its own highlight. Note the **`submit_world`**: `BuildingUI.submit()` is
+  split, and only its world half belongs at this slot. Its HUD half (the
+  sidebar) is submitted AFTER `gp["hud"].submit(...)`, so the building panel
+  always paints over the HUD — see `game/ui/CLAUDE.md`'s "The building panel
+  draws AFTER the HUD".
 - **Wall edges split around it**: the two far sides (`edge_nw`/`edge_ne`)
   submit BEFORE (same-tile building draws over its own back wall); the two
   near sides (`edge_se`/`edge_sw`, `game.map.wall_render.FRONT_SIDES`) submit
