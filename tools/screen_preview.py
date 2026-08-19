@@ -121,8 +121,14 @@ def capture_screens(data_root, view_w, view_h, *, skinning=None,
     ps = PauseScreen(view_w, view_h, **kw)
     ps.update(0.0, *OFF, False)
 
-    settings = SettingsScreen(view_w, view_h, SessionSettings.from_balance(ui),
-                              **kw)
+    settings_state = SessionSettings.from_balance(ui)
+    settings = SettingsScreen(view_w, view_h, settings_state, **kw)
+    # What the HOST sets from `data/display.json` at boot, so the recorded
+    # preview carries the "Boot: ..." note under SET DEFAULT. Pinned to the
+    # mock's OWN mode, never read off disk — flipping the shipped boot mode
+    # must not re-record every preview (the same determinism rule the pinned
+    # `first_light` map follows).
+    settings.saved_default = settings_state.display_mode
     settings.update(0.0, *OFF, False)
 
     credits = CreditsScreen(view_w, view_h, **kw)

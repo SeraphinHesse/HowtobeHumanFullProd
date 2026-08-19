@@ -8694,6 +8694,7 @@
         ]
       },
       "btn_set_default": {
+        "display_name": "Set boot display mode button",
         "font_key": "md",
         "kind": "button",
         "label": "DEFAULT",
@@ -8730,6 +8731,20 @@
           16,
           16
         ]
+      },
+      "default_note": {
+        "display_name": "Saved boot display mode note",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "backdrop",
+        "rect": [
+          405,
+          145,
+          0,
+          0
+        ],
+        "text_id": "settings.saved_default"
       },
       "dm_label": {
         "align": "center",

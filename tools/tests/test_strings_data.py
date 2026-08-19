@@ -171,6 +171,7 @@ _FIXTURE_STRINGS = {
     "settings.no_audio": "(no audio yet)",
     "settings.renderer": "Renderer",
     "settings.renderer_note": "Applies on restart",
+    "settings.saved_default": "Boot: {mode}",
     "settings.sfx_audio": "SFX",
     "settings.volume_pct": "{pct}%",
     "widgets.condition.forest": "Forest",

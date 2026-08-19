@@ -39,6 +39,16 @@ action, and the host writes ``data/display.json`` (the same "anything touching
 disk is an intent" rule the rest of the shell follows). ``saved_default`` is
 the host-set string of what is on disk today (``None`` = unknown, e.g. a bare
 test/exporter construction — then no line is drawn).
+
+The button, its ``default_note`` line and the whole host side of that action
+were dead for three phases: the widget was built, positioned, id'd and hovered,
+but ``submit()`` never drew it and ``hit()`` had no branch for it, so
+``"save_display_default"`` had zero call sites repo-wide even though
+``display.schema.json`` documents ``display_mode`` as "the BOOT display mode
+the settings screen's SET DEFAULT button persists". It is wired now — and
+because the branch is genuinely side-effect-free (unlike the arrows, the
+renderer switch and the volume rows, which mutate ``settings`` inside their own
+branch), ``btn_set_default`` is the SECOND id a clickable layer may retarget.
 """
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -141,6 +151,11 @@ class SettingsScreen:
         self.default_btn = Button((0, 0, 85, 20), "DEFAULT", font_key="md")
         # What data/display.json currently boots into; host-set, None = unknown.
         self.saved_default = None
+        # The "what is on disk today" line under the button. Drawn only once
+        # the host has set `saved_default` — a bare construction says nothing
+        # rather than guessing at a file it has not read.
+        self._default_note = label_holder(text_id="settings.saved_default",
+                                          font_key="sm")
         # settings-cut: the GPU/CPU switch. One button that reads the current
         # position and flips it — a two-value cycler needs no arrows.
         self.renderer_btn = Button((0, 0, 60, 20), "GPU", font_key="md")
@@ -196,6 +211,8 @@ class SettingsScreen:
         self.dm_right.rect = (cx + 55, self._dm_y - 3, 20, 20)
         # Right of the ">" arrow, clear of the rows below.
         self.default_btn.rect = (cx + 85, self._dm_y - 3, 85, 20)
+        # Directly under the button, left-aligned with it.
+        self._default_note.rect = (cx + 85, self._dm_y + 20, 0, 0)
         # settings-cut: the renderer row takes the slot the three FX toggles
         # used to open on, and its note line sits to the right of the switch.
         self._renderer_y = self._dm_y + 35
@@ -236,6 +253,7 @@ class SettingsScreen:
             "btn_controls": ("button", self.controls_btn),
             "dm_label": ("label", self._dm_label),
             "dm_value": ("label", self._dm_value),
+            "default_note": ("label", self._default_note),
             "renderer_label": ("label", self._renderer_label),
             "renderer_note": ("label", self._renderer_note),
         }
@@ -296,19 +314,23 @@ class SettingsScreen:
         return action
 
     def hit(self, mx, my):
-        """Return ``"back"`` / ``"set_display_mode"`` / ``"set_volume"`` /
-        ``"set_renderer"`` / ``"open_controls"`` (the host must apply each of
-        those) or ``None``. An invisible button is never hit (10L-B)."""
-        # UL-10: clickable layers first. Only BACK is retargetable here — the
-        # display-mode arrows, the renderer switch and the volume controls
-        # MUTATE ``settings`` inside their own branch, so returning their
-        # action string from here would report a change that never happened. A
-        # layer aimed at one of them is therefore unroutable and swallows
-        # (Ruling 1), which is the honest answer until those branches grow a
-        # shared, side-effect-free seam.
+        """Return ``"back"`` / ``"set_display_mode"`` / ``"save_display_default"``
+        / ``"set_volume"`` / ``"set_renderer"`` / ``"open_controls"`` (the host
+        must apply each of those) or ``None``. An invisible button is never hit
+        (10L-B)."""
+        # UL-10: clickable layers first. Only BACK and SET DEFAULT are
+        # retargetable here — the display-mode arrows, the renderer switch and
+        # the volume controls MUTATE ``settings`` inside their own branch, so
+        # returning their action string from here would report a change that
+        # never happened. A layer aimed at one of them is therefore unroutable
+        # and swallows (Ruling 1), which is the honest answer until those
+        # branches grow a shared, side-effect-free seam. SET DEFAULT needs no
+        # such seam: it mutates nothing, it only names the mode already on
+        # ``settings`` as the one to persist.
         layer_action = hit_layer(
             self.ids, self.skinning.widgets_spec(self.screen_id), mx, my,
-            self.skinning.state_of, {"btn_back": "back"})
+            self.skinning.state_of,
+            {"btn_back": "back", "btn_set_default": "save_display_default"})
         if layer_action is not None:
             return layer_action
         # SD-6 + settings-cut: the three audio rows. The step buttons move the
@@ -333,6 +355,10 @@ class SettingsScreen:
             return "back"
         if widgets.click(self.controls_btn, mx, my):
             return "open_controls"
+        # Pure: the mode to persist is whatever ``settings`` already holds, so
+        # this branch writes nothing — the host does, to data/display.json.
+        if widgets.click(self.default_btn, mx, my):
+            return "save_display_default"
         if widgets.click(self.renderer_btn, mx, my):
             i = RENDERERS.index(self.settings.renderer)
             self.settings.renderer = RENDERERS[(i + 1) % len(RENDERERS)]
@@ -391,6 +417,15 @@ class SettingsScreen:
         if is_visible(self.dm_right):
             self.dm_right.submit(renderer, anim_ms=t,
                                  **button_kwargs(self.dm_right))
+        if is_visible(self.default_btn):
+            self.default_btn.submit(renderer, anim_ms=t,
+                                    **button_kwargs(self.default_btn))
+        # `saved_default is None` means the host never told us what is on disk
+        # (a bare test/exporter construction) — say nothing rather than guess.
+        if self.saved_default is not None:
+            submit_label(renderer, self._default_note,
+                         color=widgets.C_UI_TEXT_DIM,
+                         mode=self.saved_default.upper())
 
         # settings-cut: the renderer switch + its permanent restart warning.
         submit_label(renderer, self._renderer_label, color=widgets.C_UI_TEXT)

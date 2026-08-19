@@ -7555,6 +7555,70 @@
         "type": "text"
       },
       {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          405,
+          122,
+          85,
+          20
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          405,
+          122,
+          85,
+          20
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "family": null,
+        "font_key": "md",
+        "pos": [
+          447,
+          125
+        ],
+        "text": "DEFAULT",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "family": null,
+        "font_key": "sm",
+        "pos": [
+          405,
+          145
+        ],
+        "text": "Boot: FULLSCREEN",
+        "type": "text"
+      },
+      {
         "align": "left",
         "color": [
           235,
