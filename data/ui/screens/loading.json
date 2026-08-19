@@ -1,3 +1,15 @@
 {
-  "widgets": {}
+  "widgets": {
+    "backdrop": {
+      "skin": "ui_bg_main_menu"
+    },
+    "ring": {
+      "rect": [
+        583,
+        307,
+        48,
+        48
+      ]
+    }
+  }
 }
