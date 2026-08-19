@@ -93,6 +93,28 @@ O(path-length) walk down the resulting next-step tree.
   buildings-overwrite feature is off), and a dead defender must stop covering.
   The residual cost is the O(built tiles) scan the other two pre-query
   producers already pay, so coverage is no longer the outlier among them.
+- **The pre-query producers are memoised per FRAME, not per query.** Caching
+  the coverage *set* left the residual: all three producers
+  (`refresh_damage_weight_reductions`, the coverage signature,
+  `refresh_building_overwrite_flags`) are O(built tiles) sweeps and
+  `_pre_query_refresh` ran them before EVERY query — three sweeps per spawned
+  enemy, and a spawn *batch* (`Spawner._batch_size`) or a death swarm releases
+  many enemies in a single frame. `TileMap` now carries an **opt-in** frame
+  clock: the host calls `begin_sim_frame()` once per frame (top of
+  `Session.pre_sim`, before its GAMEPLAY/frozen early-outs) and
+  `_pre_query_refresh` returns immediately for every later query in that frame.
+  `_sim_frame is None` — nobody bumped it — means "never memoise", so every
+  headless fixture, editor stub and test that mutates a tilemap between two
+  `find_path` calls keeps the old run-every-query behaviour. Safe because all
+  three producers only drive *soft* weight preferences (damage discount,
+  coverage add, overwrite flags) — none of them changes PASSABILITY, so the
+  worst case is one frame of stale routing preference. Placement/unlock/wall
+  mutations bump `_path_version` directly and are NOT memoised, so the flow
+  field itself is never stale. Measured on the same 40x20 / 60-defender board
+  as the coverage-cache row above, 300 `find_path` queries: 22.4 ms with no
+  frame clock (today) -> 6.3 ms at 5 queries per frame (a spawn batch) ->
+  3.2 ms at 20 (a death swarm). One query per frame is unchanged (21.6 ms),
+  as it must be. Pinned by `test_flow_field.TestPreQueryFrameMemo`.
 - **Both base variants ride the field** (walls-respecting + walls-ignoring,
   cached side by side): when the player walls in the base, EVERY spawn takes
   the ignoring-walls fallback, so it must not stay a per-enemy Dijkstra. With

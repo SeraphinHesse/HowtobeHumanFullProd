@@ -36,6 +36,56 @@ except ImportError:  # pragma: no cover - exercised only pre-merge
 # scale is cached; flip/tint stay per-call (they vary per instance and copy).
 _scale_cache = weakref.WeakKeyDictionary()
 
+# Overlay/HUD scratch — ONE reused SRCALPHA buffer for every translucent
+# primitive, instead of a fresh `pygame.Surface(..., SRCALPHA)` per call per
+# frame. This is the Surface-backend port of the GPU backend's G5 buffer
+# (`backend_gpu._overlay_buffer`) and follows the same two rules:
+#
+#   * the bbox is CLIPPED to the target first, so an off-screen overlay costs
+#     nothing and a partly-visible one only ever sizes the buffer to what is
+#     actually on screen (`target.blit` clipped it anyway — this just stops the
+#     allocation from being paid);
+#   * the buffer GROWS to the high-water mark and is never shrunk, so a steady
+#     frame allocates nothing at all.
+#
+# Unlike the GPU path there is no companion Texture to invalidate on growth:
+# the blit reads a `(0, 0, w, h)` sub-rect via its `area` argument, so a small
+# primitive drawn from a large buffer draws only its used corner.
+_overlay_scratch = None
+
+
+def _clip_to_target(target, x, y, w, h):
+    """Intersect a primitive's bbox with the target's own bounds. Returns the
+    clipped `pygame.Rect` (whose `.x`/`.y` are the CLIPPED origin the caller
+    must translate its points by — the raw origin only matches when nothing
+    was clipped), or `None` when the primitive is wholly off-target."""
+    clipped = pygame.Rect(x, y, w, h).clip(target.get_rect())
+    if clipped.w <= 0 or clipped.h <= 0:
+        return None
+    return clipped
+
+
+def _overlay_buffer(w, h):
+    """The module-level reused scratch, grown (never shrunk) to at least
+    `w` x `h`, with its used `(0, 0, w, h)` corner cleared to transparent."""
+    global _overlay_scratch
+    cur_w = _overlay_scratch.get_width() if _overlay_scratch is not None else 0
+    cur_h = _overlay_scratch.get_height() if _overlay_scratch is not None else 0
+    if w > cur_w or h > cur_h:
+        _overlay_scratch = pygame.Surface((max(w, cur_w), max(h, cur_h)),
+                                          pygame.SRCALPHA)
+    else:
+        _overlay_scratch.fill((0, 0, 0, 0), pygame.Rect(0, 0, w, h))
+    return _overlay_scratch
+
+
+def clear_cache():
+    """Drop every cached scaled/9-patched/cropped surface and the reused
+    overlay scratch. Mirrors `backend_gpu.clear_cache()`."""
+    global _overlay_scratch
+    _scale_cache.clear()
+    _overlay_scratch = None
+
 
 def _scaled(surface, size):
     if size == surface.get_size():
@@ -198,11 +248,20 @@ def _draw_hud_rect(target, call):
                          border_radius=call.border_radius)
         return
     x, y, w, h = call.rect
+    x, y = _round(x), _round(y)
     w, h = max(1, _round(w)), max(1, _round(h))
-    scratch = pygame.Surface((w, h), pygame.SRCALPHA)
-    pygame.draw.rect(scratch, call.color, scratch.get_rect(), call.width,
+    clip = _clip_to_target(target, x, y, w, h)
+    if clip is None:
+        return
+    scratch = _overlay_buffer(clip.w, clip.h)
+    # Draw the FULL rect into the clipped buffer at a (possibly negative)
+    # offset rather than a shrunken rect: `border_radius` is authored against
+    # the whole rect, so re-sizing it to the clip would round the corners of a
+    # rectangle the caller never asked for.
+    pygame.draw.rect(scratch, call.color,
+                     pygame.Rect(x - clip.x, y - clip.y, w, h), call.width,
                      border_radius=call.border_radius)
-    target.blit(scratch, (_round(x), _round(y)))
+    target.blit(scratch, (clip.x, clip.y), pygame.Rect(0, 0, clip.w, clip.h))
 
 
 def _draw_polys(target, call):
@@ -215,10 +274,14 @@ def _draw_polys(target, call):
     min_x, min_y = min(xs), min(ys)
     w = max(1, max(xs) - min_x + 1)
     h = max(1, max(ys) - min_y + 1)
-    scratch = pygame.Surface((w, h), pygame.SRCALPHA)
+    clip = _clip_to_target(target, min_x, min_y, w, h)
+    if clip is None:
+        return
+    scratch = _overlay_buffer(clip.w, clip.h)
+    # Translate by the CLIPPED origin, not the raw bbox origin.
     pygame.draw.polygon(scratch, call.color,
-                        [(x - min_x, y - min_y) for x, y in points])
-    target.blit(scratch, (min_x, min_y))
+                        [(x - clip.x, y - clip.y) for x, y in points])
+    target.blit(scratch, (clip.x, clip.y), pygame.Rect(0, 0, clip.w, clip.h))
 
 
 def draw(target, draw_calls):

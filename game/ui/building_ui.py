@@ -360,6 +360,20 @@ _PREVIEW_BTN_FONT = "md"
 _BOSS_TIP_LINES = 4
 
 
+def _in_window(col, row, window):
+    """Is tile ``(col, row)`` inside the host's visible tile window?
+
+    ``window`` is ``(col_min, col_max, row_min, row_max)`` from
+    ``CoordinateSystem.visible_tile_window`` (bounds INCLUSIVE, already padded
+    by the caller's margin), or ``None`` for "no window given" — which answers
+    True for everything, so a host that passes nothing keeps the old
+    submit-everything behaviour."""
+    if window is None:
+        return True
+    col_min, col_max, row_min, row_max = window
+    return col_min <= col <= col_max and row_min <= row <= row_max
+
+
 def _boss_upgrade_copy(session, upgrade_id):
     """``(name, description)`` for a picked boss upgrade — the SAME catalog
     lookup `game/ui/boss_cutscene.py` does for its cards, with the live
@@ -3444,7 +3458,7 @@ class BuildingUI:
         if self.preview is not None:
             self.preview.update(dt)
 
-    def submit_world(self, renderer):
+    def submit_world(self, renderer, window=None):
         """The panel's WORLD-space half: tile highlights, the painter-used
         grey, wall edges and a live move's path line.
 
@@ -3452,12 +3466,25 @@ class BuildingUI:
         scene (which is what makes a same-tile building draw on top of its own
         highlight — `game/CLAUDE.md`'s wall/highlight render-order section)
         while the panel's HUD half draws AFTER the whole HUD. Everything here
-        sits outside the `visible` guard, exactly as it did inline."""
+        sits outside the `visible` guard, exactly as it did inline.
+
+        `window` is the host's `(col_min, col_max, row_min, row_max)` from
+        `CoordinateSystem.visible_tile_window` — the SAME window the terrain /
+        deco / wall emitters are already culled by, reused here so the per-tile
+        loops obey `game/CLAUDE.md`'s windowed-submission invariant. Without it
+        `move_select` submits a highlight for EVERY buildable tile on the map
+        (thousands per frame on a large unlocked area, all of them off-screen).
+        `None` means "no culling" — the tools/tests path (`screen_preview`),
+        which has no viewport to window against and draws a handful of tiles."""
         t = anim_ms(self._clock)
         for col, row, event in self._highlight_tiles:
+            if not _in_window(col, row, window):
+                continue
             widgets.submit_highlight(renderer, event, col, row,
                                      assets=self.assets, anim_time_ms=t)
         for col, row in self._painter_used_tiles:
+            if not _in_window(col, row, window):
+                continue
             submit_tile_diamond_fill(
                 renderer, col, row,
                 (*widgets.C_PAINTER_USED, _PAINTER_USED_ALPHA))

@@ -901,6 +901,33 @@ round by construction.
 `buildings.json` `BuildingsGlobal.random_names` via `write_validated` — the one
 runtime data write (disk I/O stays out of pygame-pure `game/ui`).
 
+## High scores (`scores/highscores.json`, player-identity)
+`game/core/highscores.py` owns the run-history document — the second runtime
+write, into the gitignored `scores/` dir (not `data/`), through
+`write_validated` like every other write.
+
+- **"Absent" and "unloadable" are DIFFERENT, and only a READER may conflate
+  them.** `load_highscores` returns an empty doc for both (a table with no rows
+  to draw is fine); `read_highscores` returns `(doc, ok)` and every WRITE path
+  goes through that one. This is not a nicety: `append_score` used to load
+  through `load_highscores` and write the result back, so one truncated byte
+  turned the entire play history into a one-entry file.
+- **A write NEVER overwrites bytes it could not read.** `append_score` moves
+  them to `highscores.corrupt[.N].json` first (deterministic name, numbered, so
+  a second corruption cannot clobber the first rescue) and then writes a fresh
+  document, so a finished run still records its row; `rename_entry` refuses
+  outright with an `OSError`, having nothing meaningful to rewrite. If even the
+  move-aside fails, the exception propagates and nothing is written — losing one
+  row beats losing the history. (The atomic `os.replace` in `engine/data_io.py`
+  covers the OTHER half of this: a crash mid-write cannot truncate the file.)
+- **`rename_entry(path, index, name, data_dir)` addresses the FILE, not the
+  table.** `index` is play order; the high-score screen sorts a copy, so a UI
+  caller must map its display row back through `ranked_rows(doc)` →
+  `[(disk_index, entry)]`. `ranked` is that without the indices. Renaming the
+  most recent entry refreshes `last_player` too, so the identity prompt cannot
+  go on pre-filling a name that exists nowhere in the file. Unlike the readers
+  it RAISES (`IndexError`, `OSError`) — the host logs and carries on.
+
 ## Per-machine preference files (`settings/`)
 Two sibling modules write the gitignored `settings/` directory at the repo
 root — NOT `data/`, because these are per-machine player preferences, not

@@ -104,6 +104,21 @@ class TestSettings(unittest.TestCase):
         self.assertEqual(intent, "set_display_mode")
         self.assertNotEqual(s.settings.display_mode, before)
 
+    def test_set_default_emits_intent_without_mutating_the_mode(self):
+        """The DEFAULT button was built, positioned and hovered but never drawn
+        and never hit-tested, so `save_display_default` had zero call sites."""
+        s = make_shell(GameState.SETTINGS)
+        s.settings.display_mode = "windowed"
+        intent = s.handle_click(*center(s.settings_screen.default_btn.rect))
+        self.assertEqual(intent, "save_display_default")
+        self.assertEqual(s.settings.display_mode, "windowed")
+
+    def test_set_display_default_seeds_the_mode_and_the_note(self):
+        s = make_shell(GameState.SETTINGS)
+        s.set_display_default("borderless")
+        self.assertEqual(s.settings.display_mode, "borderless")
+        self.assertEqual(s.settings_screen.saved_default, "borderless")
+
     def test_renderer_switch_flips_setting_and_emits_intent(self):
         # settings-cut: the FX toggles are gone; this row replaced them.
         s = make_shell(GameState.SETTINGS)

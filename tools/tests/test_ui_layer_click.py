@@ -157,5 +157,34 @@ class TestDeadTargetSwallows(unittest.TestCase):
         self.assertEqual("noop", hud.hit(*centre(hud.pause.rect)))
 
 
+class TestDisabledWidgetSwallowsNothing(unittest.TestCase):
+    """A layer on a DISABLED widget is dead — ``hit_layer`` runs before the
+    screen's own hit path, so ``Button.hit``'s ``enabled`` gate never gets a
+    chance to refuse the click."""
+
+    def test_layer_on_a_disabled_widget_is_not_hit(self):
+        ids = {"btn_a": ("button", SimpleNamespace(rect=(0, 0, 50, 20),
+                                                   enabled=False))}
+        spec = {"btn_a": {"layers": [{"offset": [0, 0, 10, 10],
+                                      "clickable": True, "target": "noop"}]}}
+        self.assertIsNone(hit_layer(ids, spec, 5, 5, idle, {"btn_a": "alpha"}))
+
+    def test_a_widget_without_an_enabled_attribute_still_hits(self):
+        ids = {"icon": ("holder", SimpleNamespace(rect=(0, 0, 50, 20)))}
+        spec = {"icon": {"layers": [{"offset": [0, 0, 10, 10],
+                                     "clickable": True, "target": "noop"}]}}
+        self.assertEqual("noop", hit_layer(ids, spec, 5, 5, idle, {}))
+
+    def test_hud_layer_cannot_end_the_turn_while_end_turn_is_disabled(self):
+        hud = hud_with({"btn_end_turn": [{"id": "munchkin",
+                                          "offset": [0, 0, 0, 0],
+                                          "clickable": True,
+                                          "target": "btn_end_turn"}]})
+        point = centre(hud.end_turn.rect)
+        self.assertEqual("end_turn", hud.hit(*point), "premise: enabled fires")
+        hud.end_turn.enabled = False       # what update() does off-BUILDING
+        self.assertIsNone(hud.hit(*point))
+
+
 if __name__ == "__main__":
     unittest.main()

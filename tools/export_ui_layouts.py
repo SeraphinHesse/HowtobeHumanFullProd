@@ -185,6 +185,8 @@ _DISPLAY_NAMES = {
         "title": "Title label",
         "btn_dm_left": "Display mode left button",
         "btn_dm_right": "Display mode right button",
+        "btn_set_default": "Set boot display mode button",
+        "default_note": "Saved boot display mode note",
         "btn_back": "Back button",
         # settings-cut: the three FX toggles are GONE (income floaters /
         # background art / gore are data-only now) and the GPU/CPU renderer
@@ -670,7 +672,14 @@ def _build_pause(view_w, view_h, data_root):
 def _build_settings(view_w, view_h, data_root):
     from game.ui.settings import SessionSettings, SettingsScreen
 
-    screen = SettingsScreen(view_w, view_h, SessionSettings())
+    settings = SessionSettings()
+    screen = SettingsScreen(view_w, view_h, settings)
+    # What the HOST sets from `data/display.json` at boot. Pinned to the mock
+    # SessionSettings' own mode rather than read off disk, so the recorded
+    # previews stay deterministic when a designer flips the shipped default —
+    # and so the "Boot: ..." note under SET DEFAULT is actually IN the preview
+    # (a `None` here would record the screen with that line missing).
+    screen.saved_default = settings.display_mode
     return (_widgets_from_ids(screen.ids),
             f"{_COMMON_NOTE} (idle, default SessionSettings — no world state)")
 
