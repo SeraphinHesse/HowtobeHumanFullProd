@@ -144,7 +144,8 @@
               "slots": [
                 "painter_t2_lvl1",
                 "painter_t2_lvl2",
-                "painter_t2_lvl3"
+                "painter_t2_lvl3",
+                "painter_t2_lvl4"
               ]
             },
             {
@@ -152,7 +153,10 @@
               "slots": [
                 "painter_t3_lvl1",
                 "painter_t3_lvl2",
-                "painter_t3_lvl3"
+                "painter_t3_lvl3",
+                "painter_t3_lvl4",
+                "painter_t3_lvl5",
+                "painter_t3_lvl6"
               ]
             }
           ],
@@ -316,16 +320,74 @@
           "label": "HP Booster"
         },
         {
-          "label": "Blocker",
-          "slots": [
-            "blocker"
-          ]
+          "children": [
+            {
+              "label": "Blocker",
+              "slots": [
+                "blocker_t1_lvl1",
+                "blocker_t1_lvl2",
+                "blocker_t1_lvl3"
+              ]
+            },
+            {
+              "label": "Bulwark",
+              "slots": [
+                "blocker_t2_lvl1",
+                "blocker_t2_lvl2",
+                "blocker_t2_lvl3"
+              ]
+            },
+            {
+              "label": "Bastion",
+              "slots": [
+                "blocker_t3_lvl1",
+                "blocker_t3_lvl2",
+                "blocker_t3_lvl3"
+              ]
+            },
+            {
+              "label": "Card",
+              "slots": [
+                "blocker"
+              ]
+            }
+          ],
+          "label": "Blocker"
         },
         {
-          "label": "Wall Builder",
-          "slots": [
-            "wall_builder"
-          ]
+          "children": [
+            {
+              "label": "Bush Wall Builder",
+              "slots": [
+                "wall_builder_t1_lvl1",
+                "wall_builder_t1_lvl2",
+                "wall_builder_t1_lvl3"
+              ]
+            },
+            {
+              "label": "Wooden Wall Builder",
+              "slots": [
+                "wall_builder_t2_lvl1",
+                "wall_builder_t2_lvl2",
+                "wall_builder_t2_lvl3"
+              ]
+            },
+            {
+              "label": "Stone Wall Builder",
+              "slots": [
+                "wall_builder_t3_lvl1",
+                "wall_builder_t3_lvl2",
+                "wall_builder_t3_lvl3"
+              ]
+            },
+            {
+              "label": "Card",
+              "slots": [
+                "wall_builder"
+              ]
+            }
+          ],
+          "label": "Wall Builder"
         }
       ],
       "key": "buildings"
@@ -870,6 +932,16 @@
                   "key": "ui_bg_main_menu"
                 }
               ]
+            },
+            {
+              "label": "Loading Screen",
+              "slots": [
+                {
+                  "frame_h": 360,
+                  "frame_w": 640,
+                  "key": "ui_bg_loading"
+                }
+              ]
             }
           ],
           "label": "Backgrounds"
@@ -1230,6 +1302,156 @@
               "label": "Test",
               "slots": [
                 "vfx_test"
+              ]
+            },
+            {
+              "label": "Boost Aura Speed",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v2"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v3"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v4"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v5"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v6"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v7"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v8"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v9"
+                }
+              ]
+            },
+            {
+              "label": "Boost Aura Damage",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v2"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v3"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v4"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v5"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v6"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v7"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v8"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v9"
+                }
+              ]
+            },
+            {
+              "label": "Boost Aura HP",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v2"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v3"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v4"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v5"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v6"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v7"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v8"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v9"
+                }
               ]
             }
           ],

@@ -29,14 +29,57 @@ class BuildingSprite(SpriteAnimator):
     the sprite fields onto the carrier (which redraws them in its arms) and
     leaves the dead victim standing on its tile, so this is what hides it until
     payday revives it.
+
+    ``reveal_delay`` (feature: placement reveal delay) is a PURELY COSMETIC
+    countdown, seconds remaining until this sprite starts drawing —
+    ``registry.place_building`` stamps it from
+    ``BuildingsGlobal.placement_reveal_delay_seconds`` right after placement,
+    so the building's occupancy/stats/combat are all live immediately while
+    only its VISUAL appearance is held back a beat (giving the placement VFX,
+    ``triggers.building_placed``, a moment to play before the sprite itself
+    pops in). Payday's revive sweep (``game/core/payday.py`` slot 9) stamps
+    the SAME value on a building that just came back from the dead, for the
+    same reason and with the same guarantee: the respawn is complete and
+    fully live the instant the slot runs — HP, occupancy, boosts, walls — and
+    only the sprite waits out the beat while ``triggers.building_respawn``
+    plays. It fits inside the INCOME phase (``PhaseLoop`` opens that phase for
+    ``income_phase_duration`` = 1.805s, longer than the 1.2s delay), so the
+    reveal never spills past the phase it belongs to. It counts down every frame in ``update`` alongside the existing
+    animation clock — no host wiring needed, the same "component renders
+    conditionally" shape the dead-building guard above already uses; it is
+    just a second condition on the same early-return.
     """
+
+    reveal_delay: float = 0.0
 
     def on_added(self, owner):
         self._owner = owner  # transient back-ref (never serialized)
 
-    def render_items(self, transform):
+    def update(self, dt):
+        if self.reveal_delay > 0.0:
+            self.reveal_delay = max(0.0, self.reveal_delay - dt)
+        super().update(dt)
+
+    @property
+    def hidden(self):
+        """True exactly when this sprite yields no RenderItem.
+
+        The dead-owner and reveal-delay conditions ``render_items`` used to
+        early-return on, factored into ONE predicate so an effect drawn
+        ALONGSIDE the building can hide on the identical condition instead of
+        keeping a second copy that can drift. ``game/ui/effects.py``'s
+        ``submit_boost_auras`` is the first such reader: a boost aura behind a
+        dead or not-yet-revealed booster must be absent for the same reasons
+        the sprite is, and "dead" here also covers kidnapped buildings (they
+        are the dead case — see the class docstring).
+        """
         owner = getattr(self, "_owner", None)
         if owner is not None and not getattr(owner, "alive", True):
+            return True
+        return self.reveal_delay > 0.0
+
+    def render_items(self, transform):
+        if self.hidden:
             return
         yield from super().render_items(transform)
 

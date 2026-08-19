@@ -376,6 +376,56 @@ multi-tile footprint) — see `game/anchors.py`'s module docstring and
 formula (`engine.render.sprite_anchor_screen`) every anchor consumer now
 resolves through.
 
+## Boost aura (feature: an always-on VFX at every boost building)
+**`submit_boost_auras`** (`game/ui/effects.py`, beside `submit_drummer_auras`;
+called from `game/main.py` right after it) — a continuous, looping sprite drawn
+BEHIND every live boost building, bound by
+`data/balancing/vfx.json`'s `triggers_by_type.<building_type>.boost_aura`
+(`data/CLAUDE.md` has the data half, including why that open registry exists).
+
+It is the third member of the CONTINUOUS-effect family, and the first one that
+is both entity-attached AND swappable art:
+- Unlike `_play`/`PlayOnceVfx` it re-submits a plain `RenderItem` every frame.
+  A despawn clock is the wrong mechanism for an always-on effect — it would
+  respawn the object each frame (the same VA-5 / `triggers.projectile`
+  reasoning `submit_highlight` carries).
+- Unlike `submit_highlight` (`widgets.py`) it walks the scene —
+  `scene.by_tag("boost")`, never `isinstance` — instead of being handed tiles.
+- Unlike `submit_drummer_auras` it is ART, not a procedural ring: its rows
+  ship `procedural: ""`, so with nothing imported it draws NOTHING (E-37).
+
+Four gates, each a `continue`, never a raise: no row / no slot; the building's
+`BuildingSprite.hidden`; no art on the RESOLVED variant; and `draw_in_front`
+→ `rank ∓1`.
+
+Three things worth knowing before touching it:
+- **`BuildingSprite.hidden` is now a SHARED predicate**
+  (`game/buildings/components.py`) — the dead-owner + `reveal_delay` pair the
+  sprite's own `render_items` early-returns on, factored out precisely so an
+  effect drawn alongside the building cannot drift from it. Read it; never
+  restate the condition. Kidnapped buildings are the dead case.
+- **The art gate tests the RESOLVED variant, not the family stem.**
+  `variant_select.mode "level"` means variant N is the booster's GLOBAL level
+  N, and a level whose art is not imported yet draws nothing rather than
+  falling back to a lower one (user decision — a half-imported family should
+  look half-imported).
+- **`fit_tiles` stays 0 even though the art is cut 192×96 to cover the 3×3
+  boost range.** With `fit_tiles == 0` the renderer centres the frame on the
+  tile diamond's centre, and a 3×3 iso block's bounding diamond is exactly
+  192×96 about that same point — the coverage lands with zero offset.
+  `fit_tiles=3` would instead trigger `block_center_offset` and shift the blit
+  by a tile, because the aura is addressed by its CENTRE tile, not a block
+  min-corner.
+
+The animation phase is offset per building by `_aura_phase_ms(col, row, total)`
+— a pure hash of the TILE, deliberately not an rng draw: `self._rng` is the
+shared global `random` stream, and drawing from it once per booster per FRAME
+would desync every downstream roll (the argument `vfx_variants.resolve`'s
+<2-variant short-circuit makes). It rides a monotonic `self._aura_clock_ms`
+(the `_beam_clock_ms` shape) that never resets, because
+`Manifest.current_frame` wraps modulo the track total — a forever-growing
+`anim_time_ms` is exactly what loops an idle track.
+
 ## Drummer buff-range telegraph + buffed-enemy arrow (feature, very-simple placeholders)
 Two new `FloaterManager` methods (`game/ui/effects.py`), both wired in
 `game/main.py` beside their closest existing analog:
@@ -725,6 +775,42 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
     exactly one place; a full SCREEN off the menu, with its own back
     navigation and its own place in `in_menu`/`_MENU_STATES`, earns the enum
     member instead. That is the line: overlay ⇒ flag, full screen ⇒ state.
+  - **`GameState.LOADING` (feature: loading screen) is the second state added
+    since 9H, and it BREAKS the "full screen ⇒ `Shell`-driven" half of that
+    line on purpose.** It is a real full screen (the `ui_bg_loading`
+    background + a white progress ring, `game/ui/loading_screen.py`'s
+    `LoadingScreen`, the `debug_settings.py` code-only-screen shape — no
+    `data/ui/screens/loading.json`, no `screen_defaults.json` entry), but
+    `Shell` never constructs or dispatches it: `main.py` owns `loading_screen`
+    directly and drives it from the frame loop, exactly like
+    `GAMEPLAY`/`GAME_OVER` (which are also full screens `Shell` doesn't own).
+    The reason is that driving it needs host-only things `Shell` structurally
+    cannot have — `assets` (the E-37 "is `ui_bg_loading` imported yet" check)
+    and the queued `build_gameplay()` checkpoints only `main.py` knows about.
+    `main.py`'s "new_game"/"new_game_debug" intents no longer call
+    `build_gameplay()` synchronously; they set `shell.state =
+    GameState.LOADING` and arm the checkpoint queue (`_build_gameplay_steps()`
+    — `build_gameplay()` itself is now a thin wrapper that just runs every
+    step in one shot, kept for the headless autostart seam and any other
+    direct caller). The frame loop's `LOADING` branch runs one queued step
+    per frame, submits `loading_screen` at `completed/total` progress, and —
+    once the queue drains AND a minimum-duration timer (accumulated real
+    frame `dt`, never `time.time()`; `ui.json LoadingScreen
+    .min_display_seconds`) has also elapsed — calls `shell.enter_gameplay()`.
+    Both gates matter: `build_gameplay()`'s work is genuinely fast today (no
+    asset I/O happens there — everything is already loaded at boot), so
+    without the duration floor the screen would flicker for a frame or two;
+    without the real-checkpoint half it would be a fake spinner, not a
+    progress indicator. The PRE-BOOT loading screen (`main.py`'s
+    `_submit_loading_frame`, shown before the `Shell` even exists — see
+    `game/CLAUDE.md`'s Host conventions section) shares the exact same
+    background slot and ring style by importing them from
+    `game/ui/loading_screen.py` rather than re-declaring them, so the two
+    screens cannot visually drift apart; it is a SEPARATE mechanism (its own
+    throwaway presenter/renderer pair, since no real window exists yet) and
+    was also given more, smaller real checkpoints (15 instead of 5) so its
+    ring's motion reads as smooth rather than jumpy — not an eased/faked
+    animation, just finer-grained real boot sub-steps.
   - **`Shell.handle_scroll(dy)` is a duck-typed forwarder, not a generic
     ScrollView.** It calls the active screen's `scroll` attribute when it is
     callable (only the high-score table has one), so every other screen and
@@ -921,7 +1007,12 @@ called from `close()`), ids `upgrade_swatch_0…`.
   `>= 2` colours for the building's LIVE `BuildingSprite.slot_key` (the key the
   host's map is built on, and `None` on the base, which has no animator).
   Anything else leaves the row inert: no row, no gap, no placeholder, no ids,
-  never a raise.
+  never a raise. **A fifth, unconditional gate (feature: boost buildings
+  excluded from colour): `"boost" in b.tags` returns before any of the above
+  are even checked** — a booster never gets a row, whatever its sheet
+  declares, matching `ConstructPreview`'s identical tag check and
+  `registry.place_building`'s guard on the roll itself
+  (`game/buildings/CLAUDE.md`).
 - **Clicking swatch `i` writes `i` onto `BuildingSprite.column`** — the field
   the renderer reads, so the board recolours next frame with no confirm step,
   nothing spent, nothing logged; it survives later upgrades for free because
@@ -968,6 +1059,15 @@ Rules this section fixes:
   `handle_click`'s `name_rect` branch (a plain containment test, the broadest
   one) and drawn inside `submit`'s BUTTON block, its selection ring right
   after its own swatch (the sanctioned "ring after its own button" exception).
+- **Booster buildings are excluded from colour entirely** (feature: boost
+  buildings excluded from colour). `ConstructPreview.__init__` skips the
+  `building_colors` lookup outright when `"boost" in temp.tags` (a booster,
+  `game/buildings/boost.py`'s `EXTRA_TAGS`) — `colors` is forced to `()`
+  regardless of what the building's master sheet declares, so no swatch row is
+  ever built, `chosen_column` stays `None`, and `place_building` never sees an
+  explicit `column` for one (`game/buildings/CLAUDE.md`'s matching guard on
+  the roll side is the actual enforcement; this is what keeps a player from
+  ever seeing a swatch that would do nothing).
 
 ## Move Building (Building Movement)
 The upgrade panel's fifth mode + a second preview modal. Rules live in

@@ -562,8 +562,12 @@ class FakeRenderer:
 
     def __init__(self):
         self.hud = []
+        self.items = []          # depth-sorted world RenderItems
         self.overlay_polys = []
         self.overlay_lines = []
+
+    def submit(self, item):
+        self.items.append(item)
 
     def submit_hud(self, item):
         self.hud.append(item)
@@ -1103,3 +1107,167 @@ class TestLoveCounterAnimation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# -- Boost aura: the always-on, per-type, per-level VFX behind every booster --
+
+from game.buildings.components import BuildingSprite
+from game.ui.effects import _aura_phase_ms, _triggers_by_type_from_balance
+
+
+def _boost_row(slot):
+    return {
+        "draw_in_front": False,
+        "procedural": "",
+        "sprite_slot": slot,
+        "variant_select": {"misc_key": "", "mode": "level"},
+    }
+
+
+class _FakeBooster(_AliveObj):
+    """The four things ``submit_boost_auras`` reads off a boost building:
+    the ``"boost"`` tag, ``building_type``, ``col``/``row`` and a
+    ``BuildingSprite``. Built by hand rather than through the real Building
+    hierarchy so the draw function is exercised without a TileMap, balancing
+    doc or occupancy grid."""
+
+    def __init__(self, building_type, col, row, reveal_delay=0.0, alive=True):
+        super().__init__(tags=("building", "boost"))
+        # Underscore-prefixed + exposed as properties, exactly as the real
+        # Building does it: E-11 forbids public gameplay state on a
+        # GameObject attribute.
+        self._building_type = building_type
+        self._col, self._row = col, row
+        self._alive = alive
+        self.add_component(BuildingSprite(slot_key="whatever",
+                                          reveal_delay=reveal_delay))
+
+    @property
+    def building_type(self):
+        return self._building_type
+
+    @property
+    def col(self):
+        return self._col
+
+    @property
+    def row(self):
+        return self._row
+
+    @property
+    def alive(self):
+        return self._alive
+
+
+class _FakeAssets:
+    """``animation_total_ms`` is the whole E-37 surface this draw reads.
+    ``registry`` is absent on purpose — ``vfx_variants.resolve`` returns the
+    stem unchanged when it cannot place a slot, which is the degrade every
+    other duck-typed read of ``self.assets`` keeps."""
+
+    def __init__(self, total=800.0):
+        self._total = total
+
+    def animation_total_ms(self, slot, animation):
+        return self._total
+
+
+def _boost_manager(rows):
+    fm = make_floater_manager()
+    fm._triggers_by_type = _triggers_by_type_from_balance(
+        {"triggers_by_type": rows})
+    fm.assets = _FakeAssets()
+    return fm
+
+
+class TestBoostAuraTable(unittest.TestCase):
+    def test_missing_key_degrades_to_empty(self):
+        """A balance doc predating the open table must not raise — every
+        bare-constructed FloaterManager in this suite hands one in."""
+        self.assertEqual(_triggers_by_type_from_balance({}), {})
+
+    def test_row_fields_are_read_into_the_dataclass(self):
+        table = _triggers_by_type_from_balance(
+            {"triggers_by_type": {"boost_speed": {
+                "boost_aura": _boost_row("vfx_boost_speed_aura")}}})
+        row = table["boost_speed"]["boost_aura"]
+        self.assertEqual(row.sprite_slot, "vfx_boost_speed_aura")
+        self.assertEqual(row.procedural, "")
+        self.assertEqual(row.variant_mode, "level")
+        self.assertFalse(row.draw_in_front)
+
+
+class TestBoostAuraSubmit(unittest.TestCase):
+    ROWS = {"boost_speed": {"boost_aura": _boost_row("vfx_boost_speed_aura")}}
+
+    def test_no_art_draws_nothing(self):
+        """E-37, and STRICTLY: no imported art means no aura, never a
+        placeholder and never a lower level's sheet."""
+        fm = _boost_manager(self.ROWS)
+        fm.assets = _FakeAssets(total=None)
+        r = FakeRenderer()
+        fm.submit_boost_auras(r, make_cs(),
+                              _TagScene([_FakeBooster("boost_speed", 3, 4)]))
+        self.assertEqual(r.items, [])
+
+    def test_unbound_type_draws_nothing(self):
+        fm = _boost_manager(self.ROWS)
+        r = FakeRenderer()
+        fm.submit_boost_auras(r, make_cs(),
+                              _TagScene([_FakeBooster("boost_hp", 3, 4)]))
+        self.assertEqual(r.items, [])
+
+    def test_one_item_behind_the_booster(self):
+        fm = _boost_manager(self.ROWS)
+        r = FakeRenderer()
+        fm.submit_boost_auras(r, make_cs(),
+                              _TagScene([_FakeBooster("boost_speed", 3, 4)]))
+        self.assertEqual(len(r.items), 1)
+        item = r.items[0]
+        self.assertEqual(item.slot_key, "vfx_boost_speed_aura")
+        self.assertEqual(item.world_pos, (3, 4))
+        self.assertEqual(item.animation, "idle")
+        self.assertEqual(item.rank, -1)      # draw_in_front false -> behind
+
+    def test_hidden_booster_draws_nothing(self):
+        """The aura hides on the SHARED BuildingSprite.hidden predicate, so it
+        can never disagree with the sprite it sits behind."""
+        for label, booster in (
+            ("dead", _FakeBooster("boost_speed", 1, 1, alive=False)),
+            ("revealing", _FakeBooster("boost_speed", 1, 1, reveal_delay=0.4)),
+        ):
+            with self.subTest(label):
+                self.assertTrue(
+                    booster.get_component(BuildingSprite).hidden)
+                fm = _boost_manager(self.ROWS)
+                r = FakeRenderer()
+                fm.submit_boost_auras(r, make_cs(), _TagScene([booster]))
+                self.assertEqual(r.items, [])
+
+    def test_phase_offsets_differ_per_tile(self):
+        fm = _boost_manager(self.ROWS)
+        r = FakeRenderer()
+        fm.submit_boost_auras(r, make_cs(), _TagScene([
+            _FakeBooster("boost_speed", 3, 4),
+            _FakeBooster("boost_speed", 5, 2)]))
+        self.assertEqual(len(r.items), 2)
+        self.assertNotEqual(r.items[0].anim_time_ms, r.items[1].anim_time_ms)
+
+    def test_clock_advances_the_track(self):
+        """A monotonic clock is what loops the idle track — Manifest
+        .current_frame wraps it modulo the total, so it must never reset."""
+        fm = _boost_manager(self.ROWS)
+        scene = _TagScene([_FakeBooster("boost_speed", 3, 4)])
+        first = FakeRenderer()
+        fm.submit_boost_auras(first, make_cs(), scene)
+        fm.update(0.5)
+        second = FakeRenderer()
+        fm.submit_boost_auras(second, make_cs(), scene)
+        self.assertEqual(
+            second.items[0].anim_time_ms - first.items[0].anim_time_ms, 500)
+
+    def test_phase_is_deterministic_and_in_range(self):
+        """Derived from the tile, never from the shared rng stream."""
+        self.assertEqual(_aura_phase_ms(3, 4, 800), _aura_phase_ms(3, 4, 800))
+        self.assertTrue(0 <= _aura_phase_ms(3, 4, 800) < 800)
+        self.assertEqual(_aura_phase_ms(3, 4, 0), 0)

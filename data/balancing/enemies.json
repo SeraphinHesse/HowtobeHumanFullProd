@@ -493,7 +493,7 @@
       "emerge_cooldown": 2.5,
       "endgame_scaling": {
         "count": 1.0,
-        "dmg": 0.0,
+        "dmg": 1.0,
         "hp": 1.0,
         "move_speed": 0.05
       },
@@ -635,9 +635,9 @@
       "dmg_increase": 0.15,
       "endgame_scaling": {
         "count": 1.0,
-        "dmg": 0.0,
-        "hp": 0.0,
-        "move_speed": 0.0
+        "dmg": 1.0,
+        "hp": 1.0,
+        "move_speed": 1.0
       },
       "eras": [
         {
@@ -811,7 +811,7 @@
         "count": 4.0,
         "dmg": 1.0,
         "hp": 1.0,
-        "move_speed": 0.0
+        "move_speed": 1.0
       },
       "eras": [
         {
@@ -955,9 +955,9 @@
       },
       "endgame_scaling": {
         "count": 3.0,
-        "dmg": 0.0,
-        "hp": 0.0,
-        "move_speed": 0.0
+        "dmg": 1.0,
+        "hp": 1.0,
+        "move_speed": 1.0
       },
       "eras": [
         {
@@ -1109,7 +1109,7 @@
         "count": 1.75,
         "dmg": 1.0,
         "hp": 1.0,
-        "move_speed": 0.0
+        "move_speed": 1.0
       },
       "eras": [
         {
@@ -1257,7 +1257,7 @@
         "count": 1.5,
         "dmg": 1.0,
         "hp": 1.0,
-        "move_speed": 0.0
+        "move_speed": 1.0
       },
       "eras": [
         {
@@ -1394,10 +1394,10 @@
         ]
       },
       "endgame_scaling": {
-        "count": 0.0,
+        "count": 1.0,
         "dmg": 1.0,
         "hp": 1.0,
-        "move_speed": 0.0
+        "move_speed": 1.0
       },
       "eras": [
         {

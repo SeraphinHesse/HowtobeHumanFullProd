@@ -146,9 +146,19 @@ class TestStructureStats(unittest.TestCase):
         for edge in tm.wall_edges.values():
             self.assertEqual((edge.hp, edge.max_hp), (tier2_hp, tier2_hp))
 
-    def test_wall_builder_flat_slot_key(self):
-        self.assertEqual(WallBuilder(0, 0, BUILD).slot_key(), "wall_builder")
-        self.assertEqual(Blocker(0, 0, BUILD).slot_key(), "blocker")
+    def test_structure_slot_key_is_per_tier_and_level(self):
+        """The PLACED structure uses the standard `_t{tier}_lvl{level}` family
+        like every other line; the flat `SLOT` survives for CARD art only."""
+        w = WallBuilder(0, 0, BUILD)
+        self.assertEqual(w.slot_key(), "wall_builder_t1_lvl1")
+        w.upgrade()
+        self.assertEqual(w.slot_key(), "wall_builder_t1_lvl2")
+        w.advance_tier()
+        self.assertEqual(w.slot_key(), "wall_builder_t2_lvl1")
+        self.assertEqual(Blocker(0, 0, BUILD).slot_key(), "blocker_t1_lvl1")
+        # Card art (research/unlock card, `card_slots`) stays one flat slot.
+        self.assertEqual((WallBuilder.SLOT, Blocker.SLOT),
+                         ("wall_builder", "blocker"))
 
 
 # ---------------------------------------------------------------------------

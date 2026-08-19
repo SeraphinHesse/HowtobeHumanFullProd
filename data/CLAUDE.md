@@ -297,6 +297,52 @@ validating writer; don't hand-edit the JSON.
   field (breaking every direct construction), an editor mirror and a preview
   path. Unlike `defender_fire`/`projectile_hit` this row ships DOING
   something: an inert respawn row would be a feature that is not there.
+  **The boost-aura feature added the FOURTH top-level key,
+  `triggers_by_type`, and it is the architectural part of that change** — the
+  OPEN, designer-growable per-TYPE trigger registry `/add-vfx`'s step 3 has
+  mandated since ESV, finally built because this is its first user.
+  `{<type>: {<event>: $defs/trigger_row}}`, two levels of
+  `additionalProperties` and no `properties`/`required` at all (the
+  `cutscenes.schema.json` precedent) — so the NEXT per-type VFX is a data
+  change, never another hand-typed key on the closed flat `triggers` object,
+  which is untouched and stays the GLOBAL event table. Nothing dispatches off
+  it automatically: each consumer in `game/` names the `(type, event)` pair it
+  reads, so an unread row is inert rather than magic.
+  - Today's one event is **`boost_aura`**, authored for all three boost lines
+    (`boost_speed`/`boost_damage`/`boost_hp`) — the always-on aura drawn
+    BEHIND a live boost building by `game/ui/effects.py`'s
+    `submit_boost_auras`. CONTINUOUS, so like `triggers.projectile` and the
+    VA-5 highlights it takes a row but never reaches `_play`/`PlayOnceVfx`,
+    whose despawn clock would respawn it every frame.
+  - All three rows ship **`procedural: ""`** — with no art imported the aura
+    draws NOTHING. That is the honest reading of the enum's `""`, not a
+    workaround: a boost aura is art or it is absent, and there is no particle
+    shape that means "+15% damage". Deliberately NOT a documentation-only
+    enum value like `projectile`/`crater`, which name families that genuinely
+    draw. The cost, accepted knowingly: the VFX panel shows an empty
+    Procedural box on these rows.
+  - **`variant_select.mode: "level"`, and STRICT.** Variant N is the
+    booster's GLOBAL level N (1..9 across three tiers). `slots.json`'s `vfx`
+    ▸ Effects grew three leaf child groups (`Boost Aura Speed`/`Damage`/`HP`)
+    of NINE slots each — `vfx_boost_<stat>_aura` plus `_v2`..`_v9`, 27 in
+    total, all art-less on landing. A level whose variant has no art imported
+    yet draws nothing rather than falling back to a lower level's sheet
+    (USER DECISION): a half-imported family should look half-imported.
+  - **192×96 per-slot override** on all 27 (the `vfx_section_2x2` precedent),
+    encoding today's `BoostBuildings.globals` `range_shape: "square"` +
+    `range_tiles: 1`: a 3×3 iso block's bounding diamond is exactly 192×96
+    about the centre tile's own diamond centre, so the frame lands centred
+    with zero offset and no `fit_tiles`. **Nothing at runtime reads those two
+    values for the aura** — retuning the boost range makes the art lie, and
+    the fix is new art, never scaling the sprite off `range_tiles` (a drawing
+    decision masquerading as a tunable).
+  - Knock-on: `editor/panels/balancing.py`'s `_build_object` indexed
+    `node["properties"]` unconditionally and raised `KeyError` on an open
+    object, which would have taken the whole vfx form down; it now falls back
+    to `additionalProperties` with the key list read off the DOC
+    (`_object_properties`). `tools/tests/test_balancing_data.py`'s
+    `doc_schema_pairs` carried the identical latent bug and was hardened the
+    same way.
   Since **Phase 9A** the other
   five hold the prototype's live tuning verbatim, restructured into the
   REPLAN nested feature tree (see planning/MIGRATION_PLAN.md): PascalCase
@@ -482,6 +528,14 @@ validating writer; don't hand-edit the JSON.
     leaf multiplied by `factor ** N`. **All ship 1.0**, so they are
     behaviour-neutral until a designer tunes them; that is the intended knob for
     "what happens after round 50", replacing the old freeze-forever cliff.
+    **`0.0` is NOT a valid "stop growing" value here — it zeroes the stat
+    outright the instant `N ≥ 1`, not a clamp.** A 2026-08-10 edit shipped
+    `move_speed: 0.0` on most enemy types, which froze every enemy on its
+    spawn tile from round 51 onward (`game/enemies/CLAUDE.md`'s D5 section
+    has the full incident writeup). Every `*_endgame_scaling` factor's schema
+    field (`boss_endgame_scaling`/`pacing_endgame_scaling`/
+    `type_endgame_scaling`) now declares `exclusiveMinimum: 0` instead of
+    `minimum: 0` specifically so `0.0` can never be saved here again.
     - **`Boss.endgame_boss_scaling` (BR-4) is the Boss's own version** — one
       block for all THREE of its per-era arrays (`stats[]`, `round_counts[]`,
       `second_phase.spawns[]`), 13 factors, all 1.0. Its KEY NAMES are the LEAF
