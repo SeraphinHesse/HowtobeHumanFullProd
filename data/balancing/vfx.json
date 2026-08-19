@@ -270,6 +270,7 @@
       "vy_min": -35.0
     },
     "projectile": {
+      "arc_height_frac": 3.0,
       "lift_frac": 0.6,
       "shell_color": [
         70,

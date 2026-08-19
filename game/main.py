@@ -384,6 +384,13 @@ _MOUSE_POS_EVENTS = (pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN,
                      pygame.MOUSEBUTTONUP)
 
 
+#: Escape hatch while the cursor-space calibration is being confirmed on real
+#: hardware: ``HTBH_CURSOR_MAP=off`` restores the pre-calibration behaviour
+#: (both presenters pass events through untouched). TEMPORARY.
+_CURSOR_MAP_OFF = os.environ.get("HTBH_CURSOR_MAP", "").lower() in (
+    "off", "0", "no", "false")
+
+
 class _CursorSpace:
     """The G4 §2.6 input-mapping seam, shared by BOTH presenters.
 
@@ -428,22 +435,38 @@ class _CursorSpace:
     #                     cursor position rather than calibrating on noise
 
     def _calibrate(self, event_pos):
-        """Decide, ONCE, which cursor source needs the window->logical remap.
+        """Re-derive which cursor source needs the window->logical remap.
 
-        Returns True when a verdict was reached. An ambiguous sample leaves
-        the presenter uncalibrated so the next event can try again."""
+        Runs on EVERY mouse-position event, not once. A one-shot verdict was
+        tried first and is a trap: the sample can land during the startup
+        fullscreen transition, when the window has one size and the cursor
+        sources briefly disagree for a different reason. That froze
+        "the event is window pixels" for the whole run, so every click was
+        then divided by the scale factor and NOTHING in the main menu could
+        be clicked — the exact dead-button symptom G4 hit from the other
+        direction. Re-deciding each event costs one `get_pos()` call and a
+        few floats, and cannot get stuck.
+
+        An INCONCLUSIVE sample (the cursor moved between the two reads)
+        leaves the previous verdict alone rather than clearing it, so a fast
+        flick does not make the mapping flap.
+
+        Returns True once any verdict is in force."""
         win_w, win_h = self._window_size()
         if not win_w or not win_h:
             return False
         if (win_w, win_h) == (self._view_w, self._view_h):
-            self._map_events = self._map_get_pos = False   # nothing is scaled
-            return self._log_calibration(event_pos)
+            if self._map_events or self._map_get_pos or self._map_events is None:
+                self._map_events = self._map_get_pos = False   # nothing scaled
+                self._log_calibration(event_pos)
+            return True
         ex, ey = event_pos
         gx, gy = pygame.mouse.get_pos()
         if max(abs(ex), abs(ey), abs(gx), abs(gy)) < self._CAL_MIN:
-            return False
+            return self._map_events is not None
         sx, sy = self._view_w / win_w, self._view_h / win_h
         tol = self._CAL_TOL
+        before = (self._map_events, self._map_get_pos)
 
         def close(a, b):
             return abs(a[0] - b[0]) <= tol and abs(a[1] - b[1]) <= tol
@@ -464,8 +487,10 @@ class _CursorSpace:
             # right behaviour for the agreeing case anyway, and the next
             # event tries again. Freezing a verdict from a sample taken
             # mid-flick is how a coordinate bug becomes intermittent.
-            return False
-        return self._log_calibration(event_pos)
+            return self._map_events is not None
+        if (self._map_events, self._map_get_pos) != before:
+            self._log_calibration(event_pos)
+        return True
 
     def _log_calibration(self, event_pos):
         if _WHEEL_DEBUG:
@@ -483,10 +508,10 @@ class _CursorSpace:
         build delivers them in window pixels. See `_calibrate`: the direction
         is measured in-process, never assumed. ``rel`` rides the same scale as
         ``pos``, or a right-drag pans the camera at the window's scale."""
-        if event.type not in _MOUSE_POS_EVENTS:
+        if event.type not in _MOUSE_POS_EVENTS or _CURSOR_MAP_OFF:
             return event
-        if self._map_events is None and not self._calibrate(event.pos):
-            return event            # still ambiguous — next event decides
+        if not self._calibrate(event.pos):
+            return event            # still undecided — next event tries again
         if not self._map_events:
             return event
         fields = dict(event.__dict__)
@@ -503,7 +528,23 @@ class _CursorSpace:
         before the first mouse event. Remapped only when `_calibrate` found
         ``get_pos()`` to be the window-pixel half."""
         pos = pygame.mouse.get_pos()
+        if _CURSOR_MAP_OFF:
+            return pos
         return self._to_logical(pos) if self._map_get_pos else pos
+
+    def _recalibrate_later(self):
+        """Forget the verdict — the window changed size.
+
+        The mapping FACTOR is read live from `_window_size()`, so a resize
+        alone stays correct. The VERDICT does not: a window that happened to
+        equal the logical size resolved to "map nothing", and going fullscreen
+        from there leaves that answer behind on a window that is now scaled.
+        Every `set_display_mode` therefore re-derives it from the next mouse
+        event. MEASURED as a live hazard, not hypothetical — two runs minutes
+        apart on the same machine calibrated against 2560x1440 and then
+        1920x1080."""
+        self._map_events = None
+        self._map_get_pos = False
 
 
 class _SurfacePresenter(_CursorSpace):
@@ -540,6 +581,7 @@ class _SurfacePresenter(_CursorSpace):
     def set_display_mode(self, mode):
         self._window = _apply_display_mode(mode, self._view_w, self._view_h,
                                            self._caption)
+        self._recalibrate_later()   # the window's size just changed
 
     def _window_size(self):
         # Under SCALED the drawing Surface stays view_w x view_h whatever the
@@ -667,6 +709,7 @@ class _GpuPresenter(_CursorSpace):
         else:
             window.set_windowed()
             window.borderless = False
+        self._recalibrate_later()   # the window's size just changed
 
     def _window_size(self):
         return self._window.size
@@ -2273,6 +2316,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # path; on the GPU path it rewrites a mouse event's pos/rel from
             # window pixels into the logical 640x360 space every handler below
             # already assumes.
+            _raw_pos = getattr(event, "pos", None)
             event = presenter.map_event(event)
             if event.type in (pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN,
                               pygame.MOUSEBUTTONUP):
@@ -2281,6 +2325,13 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 # branch, and the cursor position has to be recorded for all
                 # of them. MOUSEWHEEL carries no `pos` and is not listed.
                 event_mouse_pos = event.pos
+            if _WHEEL_DEBUG and event.type == pygame.MOUSEBUTTONDOWN:
+                print(f"CLICK mapped={event.pos} raw={_raw_pos} "
+                      f"get_pos={pygame.mouse.get_pos()} "
+                      f"window={presenter._window_size()} "
+                      f"map_events={presenter._map_events} "
+                      f"state={shell.state} in_menu={shell.in_menu}",
+                      flush=True)
             if _WHEEL_DEBUG and event.type == pygame.MOUSEWHEEL:
                 print(f"WHEEL arrived y={event.y} "
                       f"precise={getattr(event, 'precise_y', None)} "
