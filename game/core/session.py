@@ -756,7 +756,7 @@ class Session:
         still standing on its tile, exactly like one killed by a non-kidnapping
         enemy (user decision): payday's slots see it as ``alive == False`` (a
         kidnapped wall-builder's walls come down at slot 8 and back at slot 10,
-        a kidnapped booster explodes at slot 7) and the slot-9 revive rebuilds
+        a kidnapped booster gives back its flat boost at slot 7) and the revive
         it, so it reappears next phase. Its sprite is hidden meanwhile by
         ``BuildingSprite`` — nothing here has to hide or free anything."""
         self.state.enemies_killed += 1

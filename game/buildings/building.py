@@ -156,8 +156,7 @@ class Building(GameObject):
     # -- derived stats (prototype formulas; ×10 scale baked into the data) -
 
     def max_hp(self):
-        """Base tier HP, lifted by an adjacent ``boost_hp`` and cut by its
-        explosion penalty when a booster on this combat building dies (prototype
+        """Base tier HP, lifted by an adjacent ``boost_hp`` (prototype
         ``update_stats_from_tier``). Non-combat buildings carry no ``BoostReceiver``
         → the plain tier value."""
         d = self.tier_data()
@@ -165,7 +164,7 @@ class Building(GameObject):
         rcv = self.get_component(BoostReceiver)
         if rcv is None:
             return max(1, base)
-        return max(1, int(base * (1.0 + rcv.hp_pct)) - rcv.hp_penalty())
+        return max(1, int(base * (1.0 + rcv.hp_pct)))
 
     # -- BU-3 #2: wall_cost_discount ---------------------------------------
     #
@@ -245,8 +244,8 @@ class Building(GameObject):
     def on_placed(self, tilemap):
         """Post-placement hook (called once by ``registry.place_building`` after
         the tile/occupancy/scene wiring). Families that react to placement
-        override it: boosters clear a neighbour's explosion debuff / apply their
-        flat boost, a WallBuilder raises its perimeter walls. Default no-op."""
+        override it: boosters apply their flat boost, a WallBuilder raises its
+        perimeter walls. Default no-op."""
 
     def upgrade(self):
         """Level up within the current tier (never crosses a boundary).

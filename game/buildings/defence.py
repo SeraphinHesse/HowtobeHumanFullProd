@@ -18,16 +18,16 @@ class DefenceBuilding(Building):
 
     def _extra_components(self, tier0):
         # BoostReceiver makes this a boostable target (10D): a cardinal-adjacent
-        # booster writes its pct + explosion debuffs here; damage/attack_speed/
-        # max_hp read it below. Inert (all zero) until a booster touches it.
+        # booster writes its pct here; damage/attack_speed/max_hp read it below.
+        # Inert (all zero) until a booster touches it.
         return [Attacker(), RangeSensor(range_tiles=tier0["range_tiles"]),
                 BoostReceiver()]
 
     def damage(self):
-        """Base tier damage, lifted by an adjacent ``boost_damage``, cut by a
-        FOREST tile (10I), and halved per ``boost_damage`` explosion debuff —
-        prototype-exact order: boost → condition → debuffs → ``max(1, …)``
-        (prototype ``_effective_damage``, ``defence_building.py:125-147``)."""
+        """Base tier damage, lifted by an adjacent ``boost_damage`` and cut by a
+        FOREST tile (10I) — order: boost → condition → ``max(1, …)`` (prototype
+        ``_effective_damage``, ``defence_building.py:125-147``, minus the removed
+        booster-death explosion debuff)."""
         d = self.tier_data()
         base = d["base_dmg"] + self._lvl_idx * d["dmg_per_level"]
         rcv = self.get_component(BoostReceiver)
@@ -37,9 +37,6 @@ class DefenceBuilding(Building):
         if pen:
             dmg = int(dmg * (1.0 - pen))
         # -- /10I --
-        if rcv is not None:
-            for _ in range(rcv.count_debuffs("damage")):
-                dmg = max(1, dmg // 2)
         return max(1, dmg)
 
     def range_tiles(self):
@@ -73,10 +70,10 @@ class DefenceBuilding(Building):
     # -- /10I --
 
     def attack_speed(self):
-        """Seconds between shots, sped up by an adjacent ``boost_speed``, slowed
-        by a POND tile (10I, +30% interval), and slowed ×1.5 per ``boost_speed``
-        explosion debuff — prototype-exact order: boost → condition → debuffs
-        (prototype ``_effective_attack_speed``, ``defence_building.py:149-159``).
+        """Seconds between shots, sped up by an adjacent ``boost_speed`` and
+        slowed by a POND tile (10I, +30% interval) — order: boost → condition
+        (prototype ``_effective_attack_speed``, ``defence_building.py:149-159``,
+        minus the removed booster-death explosion debuff).
         The shared ``min_attack_speed`` floor is applied by the combat sweep
         (``combat.attack_interval``; the beam floors at ``BEAM_MIN_TICK``)."""
         spd = self.tier_data()["attack_speed"]
@@ -88,9 +85,6 @@ class DefenceBuilding(Building):
         if pen:
             spd *= (1.0 + pen)
         # -- /10I --
-        if rcv is not None:
-            for _ in range(rcv.count_debuffs("speed")):
-                spd *= 1.5
         return spd
 
     def boosted_stats(self):
