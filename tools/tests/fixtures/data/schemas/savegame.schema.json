@@ -1,0 +1,513 @@
+{
+  "$id": "savegame.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "scores/saves/<slot_id>.json (gitignored runtime save-slot body; no data/ content file pairs with this schema - validate_data skips data/schemas/). Written ONLY by game/core/savegame.py through engine.data_io.write_validated. 'run_state' (RunState.to_dict, SG-2) and 'session' (SG-2) are now tight; 'tile_map' and 'buildings' remain intentionally loose placeholders as of SG-2 - SG-3/SG-4 each tighten their own node in place as they land, per SaveGamePLAN's phased build order.",
+  "properties": {
+    "buildings": {
+      "description": "One entry per live building at save time (registry.py::save_building output, SG-3) - includes buildings currently mid-move (their tile holds no occupant; they are reachable only via tile_map.moving_orders).",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "building_type": {
+            "description": "LEAF_CLASSES key - selects the leaf class on restore.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "col": {
+            "maximum": 1023,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "gameobject": {
+            "additionalProperties": false,
+            "description": "GameObject.to_dict() output (engine/core, E-15) - id/name/tags/transform/components, generic for every building type.",
+            "properties": {
+              "components": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "fields": {
+                      "description": "Component.to_dict()'s field map - shape varies per component type, never validated further here (D-2's fail-loud belongs to restore_building's own component-match check, not the schema).",
+                      "type": "object"
+                    },
+                    "type": {
+                      "description": "Component class name (e.g. TierState, Health, BoostReceiver).",
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "fields",
+                    "type"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "id": {
+                "description": "GameObject.id uuid - the stable identity wall-owner/moving-order references and mortar_slow_snapshot_ids (SG-2) resolve against.",
+                "minLength": 1,
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "tags": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "transform": {
+                "additionalProperties": false,
+                "properties": {
+                  "layer": {
+                    "type": "string"
+                  },
+                  "rank": {
+                    "description": "Omitted at its default (0) - the manifest row_start/slice optional-by-omission convention.",
+                    "type": "integer"
+                  },
+                  "wx": {
+                    "type": "number"
+                  },
+                  "wy": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "layer",
+                  "wx",
+                  "wy"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "components",
+              "id",
+              "name",
+              "tags",
+              "transform"
+            ],
+            "type": "object"
+          },
+          "row": {
+            "maximum": 1023,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "building_type",
+          "col",
+          "gameobject",
+          "row"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "created_at": {
+      "description": "ISO-8601 timestamp this slot was created (the autosave that wrote it).",
+      "type": "string"
+    },
+    "map_id": {
+      "description": "The active map this run was played on.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "pinned": {
+      "description": "True if this slot is exempt from FIFO eviction.",
+      "type": "boolean"
+    },
+    "round_num": {
+      "description": "The round this save was taken at - always a multiple of 5 in practice (the autosave cadence). Duplicated from run_state.round_num so the index can show it without loading the full body.",
+      "maximum": 100000,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "run_state": {
+      "additionalProperties": false,
+      "description": "RunState.to_dict() output (SG-2) - the DURABLE fields only. Every other RunState field is a transient/drained-by-UI ledger that resets to its dataclass default on load (D8) and is never written here.",
+      "properties": {
+        "base_lives": {
+          "description": "Lives remaining.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boss_lives_snapshot": {
+          "description": "Base lives snapshotted at the last boss round's End Turn, for the win/loss compare.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boss_love_snapshot": {
+          "description": "Love snapshotted at the last boss round's End Turn.",
+          "maximum": 2147483647,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boss_upgrade_choices": {
+          "description": "Per-run history of (boss_num, upgrade_id, outcome) triples the base-info popup reads.",
+          "items": {
+            "items": {},
+            "maxItems": 3,
+            "minItems": 3,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "boss_upgrade_stacks": {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "description": "upgrade_id -> pick_count, the whole implementation of every persistent boss-upgrade passive.",
+          "type": "object"
+        },
+        "buildings_placed": {
+          "description": "Buildings placed over the whole run (a run stat).",
+          "maximum": 2147483647,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "enemies_killed": {
+          "description": "Enemies killed over the whole run (a run stat).",
+          "maximum": 2147483647,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "first_end_turn_cutscene_requested": {
+          "description": "One-shot latch: whether the run's first End Turn already requested the first_end_turn cutscene.",
+          "type": "boolean"
+        },
+        "levelup_pending": {
+          "description": "Whether an XP level-up is queued to open at the next ROUND_END (XP leveling mode only).",
+          "type": "boolean"
+        },
+        "lightning_level": {
+          "description": "0 = lightning locked; >0 = unlocked, a pure UI/gating signal (each firing building reads its own tier for damage/radius/cooldown).",
+          "maximum": 10,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "love": {
+          "description": "Current love (currency).",
+          "maximum": 2147483647,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "love_spent_on_tiles": {
+          "description": "Running total of love spent unlocking tiles this run (the tile_refund boss upgrade's payback source).",
+          "maximum": 2147483647,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "mortar_slow_snapshot_ids": {
+          "description": "GameObject.id uuids of every mortar alive when the mortar_slow boss upgrade was picked - id(building) memory addresses translated to stable uuids for this save (D5), translated back to id() on load.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "phase": {
+          "description": "Always BUILDING - RunState.to_dict() only ever saves at a round boundary (D1).",
+          "enum": [
+            "BUILDING"
+          ],
+          "type": "string"
+        },
+        "player_xp": {
+          "description": "Current XP toward the next village level.",
+          "maximum": 2147483647,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "round_num": {
+          "description": "The round this run is on.",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "season": {
+          "description": "0-based ground-art season index, derived from round_num.",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "state": {
+          "description": "Always GAMEPLAY - RunState.to_dict() only ever saves a live, non-game-over run.",
+          "enum": [
+            "GAMEPLAY"
+          ],
+          "type": "string"
+        },
+        "tiers_unlocked": {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "description": "building_type -> researched tier count.",
+          "type": "object"
+        },
+        "tutorial_intros_shown": {
+          "description": "Whether this run's tutorial-round enemy-intro entries have already been shown (suppresses their authored-round repeat).",
+          "type": "boolean"
+        },
+        "unlocked_buildings": {
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "description": "building_type -> whether that type is unlocked.",
+          "type": "object"
+        },
+        "used_painter_tiles": {
+          "description": "[col, row] of every tile that hosted a completed Painter payout - permanently barred from hosting another.",
+          "items": {
+            "items": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "village_level": {
+          "description": "Current village level.",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "xp_threshold": {
+          "description": "XP required to reach the next village level.",
+          "maximum": 2147483647,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "xp_threshold_inc": {
+          "description": "How much xp_threshold grows per level.",
+          "maximum": 2147483647,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "base_lives",
+        "boss_lives_snapshot",
+        "boss_love_snapshot",
+        "boss_upgrade_choices",
+        "boss_upgrade_stacks",
+        "buildings_placed",
+        "enemies_killed",
+        "first_end_turn_cutscene_requested",
+        "levelup_pending",
+        "lightning_level",
+        "love",
+        "love_spent_on_tiles",
+        "mortar_slow_snapshot_ids",
+        "phase",
+        "player_xp",
+        "round_num",
+        "season",
+        "state",
+        "tiers_unlocked",
+        "tutorial_intros_shown",
+        "unlocked_buildings",
+        "used_painter_tiles",
+        "village_level",
+        "xp_threshold",
+        "xp_threshold_inc"
+      ],
+      "type": "object"
+    },
+    "session": {
+      "additionalProperties": false,
+      "description": "Session-level save fields (SG-2). Everything else on Session is a balance reference re-attached at load time from the currently-loaded balancing files, never serialized.",
+      "properties": {
+        "combat_speed_idx": {
+          "description": "Index into Session.COMBAT_SPEEDS (1x/1.5x/2x/pause) - persists across rounds within a run.",
+          "maximum": 3,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "combat_speed_idx"
+      ],
+      "type": "object"
+    },
+    "slot_id": {
+      "description": "Unique id; also the stem of this file's own path, scores/saves/<slot_id>.json.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "tile_map": {
+      "additionalProperties": false,
+      "description": "TileMap.save_state() output (SG-4) - runtime deltas from the deterministic legend baseline only (state/condition/spawn-deco per tile, the stage-system counters, in-transit moving orders). No wall edges - see save_state()'s own docstring for why the caller re-derives those via rebuild_walls() instead.",
+      "properties": {
+        "moving_orders": {
+          "description": "Buildings currently in transit between two tiles (Building Movement) - despawned, held alive only by this list.",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "building_id": {
+                "description": "GameObject.id uuid of the moving building - resolved against the buildings list.",
+                "minLength": 1,
+                "type": "string"
+              },
+              "from_col": {
+                "maximum": 1023,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "from_row": {
+                "maximum": 1023,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "rounds_left": {
+                "maximum": 1000,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "to_col": {
+                "maximum": 1023,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "to_row": {
+                "maximum": 1023,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "building_id",
+              "from_col",
+              "from_row",
+              "rounds_left",
+              "to_col",
+              "to_row"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "retire_cursor": {
+          "description": "How many spawn-reserve batches have been retired past the scripted max.",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stage": {
+          "description": "The run's designer-driven stage counter (TileMap._stage) - never decreases.",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tile_deltas": {
+          "description": "One entry per tile whose runtime state differs from the map's legend-derived baseline: an unlock/recede zone-state change, a rolled (not painted) condition, or a rolled spawn-deco tree.",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "col": {
+                "maximum": 1023,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "condition": {
+                "description": "Present only when this tile's condition was RANDOMLY rolled (Tile.condition_rolled) - the TileCondition enum name.",
+                "enum": [
+                  "GRASS",
+                  "MOUNTAIN",
+                  "POND",
+                  "FOREST"
+                ],
+                "type": "string"
+              },
+              "condition_variant_idx": {
+                "description": "Present alongside condition - the stable art-variant index rolled for it.",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "row": {
+                "maximum": 1023,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "spawn_deco_roll": {
+                "description": "Present only when a spawn-band tree was rolled for this tile (!= -1, the packed variant_idx*2+flip_bit encoding).",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "state": {
+                "description": "The TileState enum name this tile is actually at.",
+                "enum": [
+                  "BUILT",
+                  "BUILDABLE",
+                  "COMBAT",
+                  "SPAWNING",
+                  "BACKGROUND"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "col",
+              "row",
+              "state"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "unlock_purchases": {
+          "description": "Raw tally of successful 2x2 unlock purchases this run (gates nothing; kept as a useful readout).",
+          "maximum": 1000000,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "moving_orders",
+        "retire_cursor",
+        "stage",
+        "tile_deltas",
+        "unlock_purchases"
+      ],
+      "type": "object"
+    },
+    "updated_at": {
+      "description": "ISO-8601 timestamp of the last write - equals created_at, since a slot is never overwritten by a later autosave (D3: every autosave creates a new slot).",
+      "type": "string"
+    },
+    "version": {
+      "description": "Document format version. Only 1 exists; a future bump is a schema change.",
+      "enum": [
+        1
+      ],
+      "minimum": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "buildings",
+    "created_at",
+    "map_id",
+    "pinned",
+    "round_num",
+    "run_state",
+    "session",
+    "slot_id",
+    "tile_map",
+    "updated_at",
+    "version"
+  ],
+  "title": "savegame",
+  "type": "object"
+}

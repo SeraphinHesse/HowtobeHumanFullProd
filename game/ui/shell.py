@@ -21,6 +21,17 @@ string** (the established ``hit() -> "end_turn"`` convention):
                                                      file so a just-finished run
                                                      shows, then calls
                                                      ``set_highscores``)
+  ``"open_save_files"``   the Save Files screen      (host RE-READS the save
+                          just opened                index, then calls
+                                                     ``set_save_index``)
+  ``("load_save", id)``   a save row was clicked     (host builds the world
+                                                     from that slot)
+  ``("pin_save", id)``    a PIN/UNPIN button clicked (host toggles the pin,
+                                                     re-reads the index, calls
+                                                     ``set_save_index`` again)
+  ``("delete_save", id)`` a DELETE button clicked    (host removes the slot,
+                                                     re-reads, calls
+                                                     ``set_save_index`` again)
 
 GAMEPLAY / GAME_OVER carry no shell screen (the host owns the HUD, building
 panel, and game-over screen, which need the live world); the shell only tracks
@@ -37,11 +48,13 @@ from .keybinds_screen import KeybindsScreen
 from .main_menu import MainMenu
 from .pause import PauseScreen
 from .player_intro import PlayerIntroScreen
+from .save_files import SaveFilesScreen
 from .settings import SessionSettings, SettingsScreen
 from .skinning import ScreenSkinning
 
 _MENU_STATES = (GameState.MAIN_MENU, GameState.SETTINGS, GameState.CREDITS,
-                GameState.ADD_NAME, GameState.PAUSED, GameState.HIGHSCORES)
+                GameState.ADD_NAME, GameState.PAUSED, GameState.HIGHSCORES,
+                GameState.SAVE_FILES)
 
 
 class Shell:
@@ -98,6 +111,9 @@ class Shell:
         # The high-score table IS a real state (a full screen off the menu).
         self.highscores_screen = HighscoresScreen(view_w, view_h,
                                                   skinning=self.skinning)
+        # SaveGamePLAN SG-6: the Save Files table is the SAME shape.
+        self.save_files_screen = SaveFilesScreen(view_w, view_h,
+                                                 skinning=self.skinning)
         #: ``(name, skill)`` the host reads when it builds this run's recorder
         #: and, later, the high-score entry. ``(None, None)`` = not asked.
         self.player_identity = (None, None)
@@ -150,6 +166,13 @@ class Shell:
         I/O). Called right after the ``"open_highscores"`` intent, and at boot."""
         self.highscores_screen.set_doc(doc)
 
+    def set_save_index(self, index_doc):
+        """Host hands the loaded save-slot index down (SaveGamePLAN SG-6,
+        the ``set_highscores`` shape exactly). Called right after
+        ``"open_save_files"``, again after a pin/delete round-trips, and at
+        boot (so ``main_menu.set_has_saves`` has something to read)."""
+        self.save_files_screen.set_index(index_doc)
+
     def prefill_identity(self, name, skill):
         """Host pre-fills the identity prompt from the last recorded player."""
         self.player_intro_screen.reset(name, skill)
@@ -183,6 +206,8 @@ class Shell:
             if self.highscores_screen.hit(mx, my) == "back":
                 self.state = GameState.MAIN_MENU
             return None
+        if st == GameState.SAVE_FILES:
+            return self._save_files_action(self.save_files_screen.hit(mx, my))
         return None
 
     def handle_key(self, char, key):
@@ -206,6 +231,9 @@ class Shell:
             if self.highscores_screen.handle_key(char, key) == "back":
                 self.state = GameState.MAIN_MENU
             return None
+        if st == GameState.SAVE_FILES:
+            return self._save_files_action(
+                self.save_files_screen.handle_key(char, key))
         if key == "escape":
             if st == GameState.MAIN_MENU and self.debug_settings_open:
                 self.debug_settings_open = False  # debug-mode-telemetry
@@ -253,6 +281,15 @@ class Shell:
             # The host re-reads the scores file (a run may have just finished)
             # and hands the fresh document back via ``set_highscores``.
             return "open_highscores"
+        if action == "save_files":
+            self.state = GameState.SAVE_FILES
+            # The host re-reads the save index and hands it back via
+            # set_save_index (SaveGamePLAN SG-6, the highscores precedent).
+            return "open_save_files"
+        if action == "continue":
+            # Loads the most recent slot directly, no screen shown — the host
+            # resolves "most recent" off the index it already holds.
+            return "continue_most_recent"
         if action == "quit":
             return "quit_app"
         if action == "settings":
@@ -325,6 +362,25 @@ class Shell:
             return "add_name_commit"
         return None
 
+    def _save_files_action(self, action):
+        """The ONE place SaveFilesScreen.hit()/handle_key()'s results are
+        mapped (SaveGamePLAN SG-6, the ``_player_intro_action`` shape).
+        ``action`` is ``"back"`` / ``("load"|"pin"|"delete", slot_id)`` /
+        ``None`` — see save_files.py's ``hit()`` docstring."""
+        if action == "back":
+            self.state = GameState.MAIN_MENU
+            return None
+        if action is None:
+            return None
+        kind, slot_id = action
+        if kind == "load":
+            return ("load_save", slot_id)
+        if kind == "pin":
+            return ("pin_save", slot_id)
+        if kind == "delete":
+            return ("delete_save", slot_id)
+        return None
+
     # -- per-frame -------------------------------------------------------
 
     def _active_screen(self):
@@ -348,6 +404,7 @@ class Shell:
             GameState.ADD_NAME: self.add_name_screen,
             GameState.PAUSED: self.pause,
             GameState.HIGHSCORES: self.highscores_screen,
+            GameState.SAVE_FILES: self.save_files_screen,
         }.get(self.state)
 
     def handle_scroll(self, dy):
@@ -368,7 +425,7 @@ class Shell:
         """True while a full-screen menu owns the frame (no world drawn)."""
         return self.state in (GameState.MAIN_MENU, GameState.SETTINGS,
                               GameState.CREDITS, GameState.ADD_NAME,
-                              GameState.HIGHSCORES)
+                              GameState.HIGHSCORES, GameState.SAVE_FILES)
 
     def update(self, dt, mx, my, mouse_down=False):
         """Advance the active screen and forward any host intent it raises.

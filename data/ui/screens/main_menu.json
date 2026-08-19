@@ -21,77 +21,7 @@
         360
       ]
     },
-    "btn_add_name": {
-      "rect": [
-        341,
-        162,
-        160,
-        26
-      ]
-    },
-    "btn_credits": {
-      "rect": [
-        342,
-        261,
-        160,
-        26
-      ]
-    },
-    "btn_highscores": {
-      "rect": [
-        340,
-        196,
-        160,
-        26
-      ]
-    },
-    "btn_new_game": {
-      "rect": [
-        340,
-        128,
-        160,
-        26
-      ]
-    },
-    "btn_play_debug": {
-      "rect": [
-        340,
-        96,
-        160,
-        26
-      ]
-    },
-    "btn_play_debug_settings": {
-      "rect": [
-        505,
-        96,
-        30,
-        26
-      ]
-    },
-    "btn_quit": {
-      "rect": [
-        342,
-        296,
-        160,
-        26
-      ]
-    },
-    "btn_settings": {
-      "rect": [
-        341,
-        229,
-        160,
-        26
-      ]
-    },
     "subtitle": {
-      "rect": [
-        158,
-        147,
-        0,
-        0
-      ],
       "skin": "ui_button_panel_v4",
       "text_color": [
         255,
@@ -100,12 +30,6 @@
       ]
     },
     "title": {
-      "rect": [
-        320,
-        105,
-        0,
-        0
-      ],
       "visible": false
     }
   }
