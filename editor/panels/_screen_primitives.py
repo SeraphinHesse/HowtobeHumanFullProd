@@ -78,7 +78,7 @@ def fallback_hud_items(rect, kind, label, *, font_key="md", text_color=None,
 # A widget whose stored rect is `(x, y, 0, 0)` is an ANCHOR, not a box: the
 # game draws text from that point and the extent is whatever the glyphs come
 # out as. `screen_defaults.json` is full of them (every hud.py readout, the
-# phase banner, boss_cutscene's headline/subtitle, ~40 building_panel stat
+# phase banner, boss_cutscene's subtitle, ~40 building_panel stat
 # cells). Left as literal zero-area rects they are unclickable, undraggable
 # and invisible when selected — the whole "these should be editable widgets"
 # complaint. `interaction_rect` gives the EDITOR (and only the editor) a real

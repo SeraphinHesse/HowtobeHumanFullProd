@@ -186,17 +186,30 @@ _DISPLAY_NAMES = {
         "btn_dm_left": "Display mode left button",
         "btn_dm_right": "Display mode right button",
         "btn_back": "Back button",
-        "btn_toggle_income_floaters": "Income Floaters toggle",
-        "btn_toggle_bg_art": "Background Art toggle",
-        "btn_toggle_gore": "Gore toggle",
+        # settings-cut: the three FX toggles are GONE (income floaters /
+        # background art / gore are data-only now) and the GPU/CPU renderer
+        # switch took their slot.
+        "btn_renderer": "Renderer switch",
+        "renderer_label": "Renderer label",
+        "renderer_note": "Renderer restart note",
         # SD-6: the three audio rows (`audio_label` is the Master row's label,
-        # kept under its shipped id).
+        # kept under its shipped id). settings-cut added each row's two step
+        # buttons and its % readout.
         "audio_label": "Master volume label",
         "bar_master_volume": "Master volume bar",
+        "btn_master_volume_down": "Master volume down button",
+        "btn_master_volume_up": "Master volume up button",
+        "label_master_volume_pct": "Master volume percent",
         "label_music_volume": "Music volume label",
         "bar_music_volume": "Music volume bar",
+        "btn_music_volume_down": "Music volume down button",
+        "btn_music_volume_up": "Music volume up button",
+        "label_music_volume_pct": "Music volume percent",
         "label_sfx_volume": "SFX volume label",
         "bar_sfx_volume": "SFX volume bar",
+        "btn_sfx_volume_down": "SFX volume down button",
+        "btn_sfx_volume_up": "SFX volume up button",
+        "label_sfx_volume_pct": "SFX volume percent",
     },
     "credits": {
         "backdrop": "Background backdrop",
@@ -213,6 +226,7 @@ _DISPLAY_NAMES = {
     "game_over": {
         "backdrop": "Background backdrop",
         "title": "Title label",
+        "btn_play_again": "Play Again button",
         "btn_return_to_menu": "Return To Menu button",
     },
     "cheat_menu": {
@@ -233,7 +247,6 @@ _DISPLAY_NAMES = {
     },
     "boss_cutscene": {
         "backdrop": "Background backdrop",
-        "headline": "Headline label",
         "subtitle": "Subtitle label",
         "box_a": "Boss upgrade slot 1 box",
         "box_b": "Boss upgrade slot 2 box",
@@ -583,7 +596,8 @@ def _widget_entry(kind, widget):
     ``label`` attribute or ``""``.
 
     A handful of B2's ``ids`` targets (``hud.phase_label``, ``cheat_menu.
-    title``/``jump_label``, ``boss_cutscene.headline``/``subtitle`` — every one
+    title``/``jump_label``, ``boss_cutscene.headline`` (since deleted —
+    ``subtitle`` inherited this) — every one
     a dynamically-positioned ``"label"`` whose on-screen spot is computed
     inline at submit() time, never stored) carry NO ``rect`` attribute at all;
     the schema still requires one, so those fall back to ``(0, 0, 0, 0)``
@@ -595,7 +609,7 @@ def _widget_entry(kind, widget):
              "label": label}
     # The two DRAW hints the editor needs to give a POSITION-ONLY text anchor
     # (a `rect` whose w/h are 0 — every readout in hud.py, the phase banner,
-    # boss_cutscene's headline, ~40 building_panel stat cells) a real hit box:
+    # boss_cutscene's subtitle, ~40 building_panel stat cells) a real hit box:
     # what font it is drawn at, and which way its text spreads from the
     # stored x. Without them such a widget is a zero-area rect — impossible to
     # click, drag or even see selected in the editor, though its id has been

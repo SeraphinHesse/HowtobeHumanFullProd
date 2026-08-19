@@ -96,7 +96,7 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   cardinal-4 behaviour) or `"square"` (a full Chebyshev square — e.g. every
   one of the 8 surrounding tiles at magnitude 1). `game/buildings/
   range_shape.py`'s pure `offsets(n, shape)` computes the tile deltas and is
-  shared by `_adjacent_combat`/`clear_explosion_debuff_from` here AND by the
+  shared by `_adjacent_combat`/`_adjacent_structures` here AND by the
   RANGE overlay (`game/ui/overlays.py`) and the panel's selection highlight +
   its own new Range row (`game/ui/building_ui.py`) — both duck-type an
   optional `range_shape()` alongside `range_tiles()`, defaulting to
@@ -108,15 +108,24 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   pathfinding-penalty shape are independent knobs. `BoostBuilding
   .range_tiles()`/`.range_shape()` read the balance directly; there is no
   per-instance override.
-  All buff/curse state lives on the NEIGHBOUR's `BoostReceiver` component
-  (`damage_pct`/`speed_pct`/`hp_pct` + a JSON-safe `explosion_debuffs` list) added
+  All buff state lives on the NEIGHBOUR's `BoostReceiver` component
+  (`damage_pct`/`speed_pct`/`hp_pct`) added
   to every `DefenceBuilding`; the booster only pushes deltas. Consumed transparently
   in `DefenceBuilding.damage()`/`attack_speed()` and `Building.max_hp()` (None-safe),
-  so the combat sweep needs no change. The per-turn accumulation + explosion-on-death
-  run in the payday **boost slot (slot 7, before revive)**; the cardinal-4 adjacency
-  placement block + `on_placed` debuff-clear/flat-apply run in `registry.place_building`.
-  A `BoostEmitter` marker holds the `exploded` (one-shot per death, reset on
-  `rebuild()`) + `flat_applied` guards. Both modes exist: ramp (default) accumulates
+  so the combat sweep needs no change. The per-turn accumulation (and, in flat mode,
+  the death rollback) runs in the payday **boost slot (slot 7, before revive)**; the
+  cardinal-4 adjacency placement block + `on_placed` flat-apply run in
+  `registry.place_building`.
+  A `BoostEmitter` marker holds the `flat_applied` guard.
+  **There is NO booster-death explosion debuff** — a dead booster used to stamp a
+  one-shot penalty (`explosion_debuffs` / `WallBuilderState.wall_hp_debuffs`,
+  `apply_explosion_debuff` / `clear_explosion_debuff_from`, the `BoostEmitter
+  .exploded` guard, and the `_boost_*` halve/x1.5 terms in
+  `DefenceBuilding.damage()`/`attack_speed()` and the `hp_penalty()` subtraction in
+  `Building.max_hp()`/`WallBuilder.wall_hp()`) on its neighbours "until rebuilt";
+  the whole mechanic is REMOVED. Death now only stops the ramp, or (flat mode)
+  reverses that booster's own 10x contribution. Do not reintroduce it.
+  Both modes exist: ramp (default) accumulates
   each income phase, flat (`BoostBuildings.globals.flat_mode`) applies 10× once on
   placement / reverses on death. Research: three rows sharing `unlock_group=(the
   trio)` (no `gate_kind` — only the LEAD's tier-0 Timeline placement is ever
@@ -147,14 +156,11 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
     independent of `boost_per_turn`/`boost_increase_per_level`, which only
     ever affects adjacent combat buildings. Every method that already loops
     `_adjacent_combat` for the `"hp"` stat (`apply_per_turn`/`apply_flat`/
-    `remove_flat`/`apply_explosion_debuff`) gained an additive, HP-gated
-    block that also loops `_adjacent_structures` — same ramp/flat modes,
-    same halve-on-booster-death/restore-on-replacement lifecycle, mirrored
-    via `WallBuilderState.wall_hp_debuffs` (`BoostReceiver.explosion_debuffs`'
-    shape, minus the unneeded `"stat"` key). `clear_explosion_debuff_from`
-    checks both receiver kinds unconditionally (any booster replacing any
-    previous occupant must clear whatever that occupant left, regardless of
-    either one's own stat). A boosted wall resyncs via `WallBuilder
+    `remove_flat`) gained an additive, HP-gated
+    block that also loops `_adjacent_structures` — same ramp/flat modes.
+    (The explosion-on-death half of this mirror is gone with the mechanic
+    itself — see the boost-family paragraph above.)
+    A boosted wall resyncs via `WallBuilder
     .resync_wall_hp(full_heal=False)` — heal-by-delta/clamp-on-decrease,
     the `_refresh_max_hp` shape — never the full-heal `_on_apply_stats` uses
     for a real upgrade.
@@ -470,11 +476,37 @@ Moving an ALREADY-PLACED building to another unbuilt buildable tile.
   `_col`/`_row` (the transient caches `Building.col`/`.row` read) AND the
   `Transform` — miss either and the building draws/targets from where it used
   to stand.
-- **A Wall Builder can NEVER be moved** — duck-typed on `hasattr(b,
-  "wall_hp")` (`is_movable`), the same check `game/ui/building_ui.py`'s
-  `_building_stats` already uses; its walls are a frozen perimeter snapshot
-  tied to the tile they were raised from. The UI shows the button DISABLED;
-  `start_move` raises `MoveError` regardless.
+- **A Wall Builder may move, but ONLY within its own wall perimeter**
+  (feature: wallbuilder-restricted-move, user decision — superseding the
+  original "can NEVER be moved" rule). Duck-typed on `hasattr(b, "wall_hp")`
+  throughout, the same check `game/ui/building_ui.py`'s `_building_stats`
+  already uses. `wall_builder_move_targets(building, tilemap)` is the ONE
+  definition of "its own wall perimeter": a WallBuilder's `wall_snapshot()`
+  is an arbitrary set of perimeter EDGES (whatever segments of the whole
+  player-territory boundary were unclaimed when it was placed), not a
+  rectangle, so there is no enclosed area to compute — the legal destination
+  set is simply the BUILDABLE, not-already-in-transit tiles those edges are
+  anchored to. `is_movable(building, tilemap=None)` now takes an optional
+  tilemap: every non-WallBuilder type is always movable (unchanged);
+  a WallBuilder needs the tilemap to know whether that set is non-empty, and
+  reports not-movable when it has nowhere legal to go (an empty
+  `wall_snapshot()`, or every one of its own walled tiles currently
+  occupied/in-transit) — `game/ui/building_ui.py`'s move button shows this
+  as DISABLED with a hint, same mechanism as before. `start_move` is still
+  the real enforcement: it raises `MoveError` for a WallBuilder whose chosen
+  destination is not in that set.
+  - **Arrival deliberately does NOT re-run `on_placed`** for a WallBuilder
+    (`movement.py`'s `_complete`, duck-typed the same way) — every other
+    building type still does (a moved booster re-applies its flat-mode buff
+    to its new neighbours, unchanged). Re-running it would call
+    `place_walls_for_builder` again, which re-scans the WHOLE map for
+    currently-unclaimed perimeter edges — exactly the "pick up new wall
+    ownership as a side effect of relocating" outcome the user decision
+    rejected. The walls a WallBuilder owns are exactly the frozen edges it
+    already had, both before and after any move; the skip is provably
+    harmless because `on_placed` does nothing else for this type (it only
+    caches the tilemap reference — already cached from the original
+    placement — and raises the perimeter).
 - **`rounds == 0` (time cost off, or tuned to zero) relocates synchronously**
   and records no order at all — nothing to tick, nothing to sign-post.
   Otherwise a `types.SimpleNamespace` order is appended and `process_moves`

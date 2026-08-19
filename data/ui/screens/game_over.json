@@ -1,5 +1,8 @@
 {
   "widgets": {
+    "btn_play_again": {
+      "skin": "ui_button"
+    },
     "btn_return_to_menu": {
       "skin": "ui_button"
     }

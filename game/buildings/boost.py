@@ -17,14 +17,14 @@ are pure identity:
 
 Two modes (``BoostBuildings.globals.flat_mode``): RAMP (default) accumulates a
 little every surviving income phase; FLAT applies a one-time 10× boost on placement,
-reversed on death. Either way, a booster that DIES stamps an "explosion" debuff on
-its neighbours until a new booster is placed on the same tile.
+reversed on death. A booster's death has NO other effect — the "explosion" debuff
+it used to stamp on its neighbours is removed.
 
-All the buff/curse state lives on the NEIGHBOUR's ``BoostReceiver`` component (E-11
+All the buff state lives on the NEIGHBOUR's ``BoostReceiver`` component (E-11
 — no ad-hoc attrs); this class only pushes deltas into it. The booster's own state
 is a ``BoostEmitter`` marker + the computed ``boost_value`` from the tier table.
-Orchestration (the per-turn sweep, explosion-on-death, placement adjacency block +
-debuff clearing) lives in ``game/core/payday.py`` and ``game/buildings/registry.py``
+Orchestration (the per-turn sweep and the placement adjacency block) lives in
+``game/core/payday.py`` and ``game/buildings/registry.py``
 — exactly where the prototype's ``Game`` drove it. The placement-adjacency block
 (no booster next to another booster) is a SEPARATE, fixed cardinal-4 rule in
 ``registry.py`` — deliberately independent of this configurable buff range.
@@ -37,11 +37,7 @@ dedicated rate (``wall_boost_per_turn``/``wall_boost_increase_per_level`` —
 ``wall_boost_value()``, independent of ``boost_value()``) pushed into
 ``WallBuilderState.wall_hp_pct`` (never ``BoostReceiver`` — a WallBuilder never
 carries one, so its own body HP is provably unaffected). Only the ``"hp"``
-stat does this; Speed/Damage never touch walls. The explosion-debuff halve/
-restore lifecycle is mirrored too, via ``WallBuilderState``'s own
-``wall_hp_debuffs`` list (``set_wall_hp_explosion``/``pop_wall_hp_explosion``,
-the ``BoostReceiver.explosion_debuffs`` shape without the unneeded ``"stat"``
-key, since this list only ever holds HP penalties).
+stat does this; Speed/Damage never touch walls.
 """
 from engine.core import Health
 
@@ -81,10 +77,8 @@ class BoostBuilding(Building):
         return self._balance["BoostBuildings"]["globals"]["flat_mode"]
 
     def on_placed(self, tilemap):
-        """Post-placement hook (prototype ``Game._on_boost_placed``): clear any
-        explosion debuffs the previous occupant of this tile left on neighbours,
-        and in flat mode apply this booster's one-time 10× boost immediately."""
-        self.clear_explosion_debuff_from(self._col, self._row, tilemap)
+        """Post-placement hook (prototype ``Game._on_boost_placed``): in flat
+        mode apply this booster's one-time 10× boost immediately."""
         if self.flat_mode():
             self.apply_flat(tilemap)
             self.get_component(BoostEmitter).flat_applied = True
@@ -112,12 +106,6 @@ class BoostBuilding(Building):
     def upkeep(self):
         d = self.tier_data()
         return d["base_upkeep"] + self._lvl_idx * d["upkeep_per_level"]
-
-    def rebuild(self):
-        """Round-end revive (prototype ``Building.rebuild``) + clear the one-shot
-        explosion guard so a booster that dies again later explodes again."""
-        super().rebuild()
-        self.get_component(BoostEmitter).exploded = False
 
     # -- adjacency (prototype ``adjacent_tiles`` / ``_adjacent_combat_buildings``) --
 
@@ -220,53 +208,6 @@ class BoostBuilding(Building):
             wall_flat = self.wall_boost_value() * 10
             for _tile, b in self._adjacent_structures(tilemap):
                 self._apply_wall_delta(b, -wall_flat)
-
-    # -- explosion debuff on death (prototype ``_set_explosion_debuff``) ---------
-
-    def apply_explosion_debuff(self, tilemap):
-        """On death: stamp the penalty on adjacent alive combat buildings (and,
-        for the HP line, adjacent WallBuilders' walls). Speed/damage are lazy
-        multiplier flags; HP removes half of current max HP, stored so a
-        rebuild can restore it exactly."""
-        for _tile, b in self._adjacent_combat(tilemap):
-            rcv = b.get_component(BoostReceiver)
-            if self._boost_stat == "hp":
-                health = b.get_component(Health)
-                penalty = max(1, health.max_hp // 2)
-                rcv.set_explosion(self._col, self._row, "hp", penalty)
-                _refresh_max_hp(b)
-            else:
-                rcv.set_explosion(self._col, self._row, self._boost_stat)
-        if self._boost_stat == "hp":
-            for _tile, b in self._adjacent_structures(tilemap):
-                state = b.get_component(WallBuilderState)
-                penalty = max(1, b.wall_hp() // 2)
-                state.set_wall_hp_explosion(self._col, self._row, penalty)
-                b.resync_wall_hp(full_heal=False)
-
-    def clear_explosion_debuff_from(self, col, row, tilemap):
-        """A new booster placed at ``(col, row)`` clears the debuffs the previous
-        one stamped on its neighbours (prototype ``clear_explosion_debuff_from``).
-        Only the HP case restores state (re-add the removed max-HP chunk + heal).
-        Runs regardless of THIS booster's own stat — the previous occupant may
-        have been any of the three lines, including a WallBuilder-adjacent HP
-        booster, so both receiver kinds are checked unconditionally."""
-        for dc, dr in range_shape.offsets(self.range_tiles(), self.range_shape()):
-            tile = tilemap.get(col + dc, row + dr)
-            if tile is None or tile.occupant is None:
-                continue
-            occupant = tile.occupant
-            rcv = occupant.get_component(BoostReceiver)
-            if rcv is not None:
-                entry = rcv.pop_explosion(col, row)
-                if entry is not None and entry["stat"] == "hp":
-                    _refresh_max_hp(occupant)
-                continue
-            state = occupant.get_component(WallBuilderState)
-            if state is not None:
-                popped = state.pop_wall_hp_explosion(col, row)
-                if popped is not None:
-                    occupant.resync_wall_hp(full_heal=False)
 
     def _vfx_text(self, value):
         return f"+{value * 100:.0f}%{self._boost_stat[:3]}"

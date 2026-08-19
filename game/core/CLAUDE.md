@@ -100,9 +100,10 @@ Four files beside `balance.py`:
   - **10D filled slot 7**: `_process_boosts` sweeps every `"boost"`-tagged building
     on a built tile BEFORE revive. Alive boosters (ramp mode) accumulate their
     per-turn `boost_value` onto cardinal-adjacent combat neighbours' `BoostReceiver`
-    (one `boost_events` floater each); a booster dead THIS round explodes its debuff
-    onto neighbours once (guarded by `BoostEmitter.exploded`, reset in `rebuild()`)
-    and, in flat mode, reverses its 10× contribution. Runs before revive for the
+    (one `boost_events` floater each); a booster dead THIS round reverses its 10×
+    contribution in flat mode (idempotent via `BoostEmitter.flat_applied`) and does
+    nothing at all in ramp mode — the explosion-on-death debuff it used to stamp on
+    neighbours is REMOVED. Runs before revive for the
     same reason painters do — it must see the dead booster as `alive == False`.
   - **debug-mode-telemetry threads three hooks BETWEEN existing steps,
     never reordering them**: `debug.on_payday_start(state, tilemap,
@@ -707,17 +708,31 @@ unlike LEVELUP/BOSS_CUTSCENE, which both sit AFTER ROUND_END.
   path). Each firing caster spawns its OWN `LightningFX` (`Crater` pattern:
   overlay object, ages in `scene.update` on the ENEMY-scaled sim dt,
   self-despawns; `BOLT_LIFE`/`MARKER_LIFE` are code constants like
-  `CRATER_LIFE`) and its OWN `LightningCaster.trigger()` — since Storm Priest
-  dropped the `"combat"` tag and no longer earns its "attack" pose through
-  combat, `strike()` is what flashes each firer: `SpriteAnimator` to "attack"
-  for `CASTER_FLASH_DURATION` (0.4s, a code constant like `BOLT_LIFE`) before
-  it reverts to "idle" in its own `update(dt)`. Both a hit and a whiff
-  trigger the flash (same "a whiff still pays + shows VFX" rule as the
-  cooldown spend).
+  `CRATER_LIFE`) and its OWN `LightningCaster.trigger(hold_seconds)` — since
+  Storm Priest dropped the `"combat"` tag and no longer earns its "attack"
+  pose through combat, `strike()` is what flashes each firer: `SpriteAnimator`
+  to "attack" for `core.json LightningStrike.attack_hold_seconds[idx]`
+  (feature: storm-acolyte-attack-hold-duration — an ordinary per-tier
+  balancing value, index-aligned with `cooldown`/`damage`/`radius`, seeded
+  equal to `cooldown` so the pose covers the whole reload window by default;
+  **not** a code constant — `CASTER_FLASH_DURATION` is gone) before it
+  reverts to "idle" in its own `update(dt)`. Both a hit and a whiff trigger
+  the flash (same "a whiff still pays + shows VFX" rule as the cooldown
+  spend).
 - **Cooldown ticks ONLY in `pre_sim`'s ENEMY branch** (`tick(state, dt,
   scene)`, walking every alive `lightning_source`'s own caster) on the host's
   sim dt (speed-scaled, pause-frozen); never reset by round end or a tier
   sync.
+- **`reset_all_cooldowns(scene)` (feature: storm-acolyte-round-start-reset)**
+  zeroes every alive caster's cooldown in one sweep. `Session.end_turn(scene=
+  None)` calls it at the BUILDING -> ENEMY edge whenever a `scene` is passed
+  (the host-set-optional shape — every pre-existing caller/test that still
+  calls `end_turn()` bare is byte-identical), so every placed Storm Priest is
+  ready to fire the instant a new round's enemies start attacking, however
+  much cooldown it had left over from the previous round. This is a
+  synchronized RESET only — each caster still ticks down independently on its
+  own per-tier cooldown for the rest of the round
+  (feature-storm-acolyte-multi-build is otherwise unchanged).
 - **`Session` cheat delegates** (all no-op outside GAMEPLAY; the Ctrl+L menu UI
   is `game/ui/cheat_menu.py`, the host maps its action strings here):
   `cheat_add_love`, `cheat_skip_round` (quick-skip's body WITHOUT the ENEMY
@@ -837,6 +852,30 @@ round by construction.
 `game/core/names.py append_random_name` persists the add-name menu's typed name to
 `buildings.json` `BuildingsGlobal.random_names` via `write_validated` — the one
 runtime data write (disk I/O stays out of pygame-pure `game/ui`).
+
+## Per-machine preference files (`settings/`)
+Two sibling modules write the gitignored `settings/` directory at the repo
+root — NOT `data/`, because these are per-machine player preferences, not
+designer content (the `scores/highscores.json` precedent). Both validate
+through `engine.data_io.write_validated` against a schema that lives in
+`data/schemas/` with no `data/` content file at all, and both **read without
+ever raising**: a missing/corrupt preference file returns the defaults with one
+logged warning, because it must never stop the game booting. Writes DO raise on
+invalid data (D-2).
+- **`audio_settings.py` → `settings/audio.json`** (SD-6): the three volumes,
+  `{master, music, sfx}`, 0..1. The host applies them to the engine buses and
+  rewrites the file on the settings screen's `set_volume` intent.
+- **`render_settings.py` → `settings/render.json`** (settings-cut): the GPU/CPU
+  switch's choice, `{backend: auto|gpu|surface}` ("cpu" is the player-facing
+  name for `surface`). **Read at BOOT only**, and only when nobody asked
+  louder — an explicit `--backend=` flag or `HTBH_RENDER_BACKEND` still wins,
+  and a HEADLESS run (`max_frames is not None`) ignores the file entirely so a
+  machine-global preference can never move what `tools/smoke.py` measures. It
+  is boot-only because `main.py` builds the window, the `Renderer` and the
+  ground cache as ONE stack; swapping that under a live world would mean
+  destroying every GPU texture behind it. Hence the settings screen's permanent
+  "Applies on restart" note — the intent (`set_renderer`) records the choice
+  and changes nothing about the running frame.
 
 ## Verify
 Phase-machine unit tests; headless 3-round currency ledger matches

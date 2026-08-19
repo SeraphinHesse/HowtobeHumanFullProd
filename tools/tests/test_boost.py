@@ -2,7 +2,7 @@
 
 Pure-Python, headless — same synth ``TileMap`` + real balancing fixtures as
 ``test_painter_meditator``. Covers the tier math, the ramp accumulation onto a
-range-adjacent defender, the explosion-on-death debuff + its restore, the
+range-adjacent defender, the
 cardinal-4 placement block, flat mode, the single-card trio unlock, and
 (booster-range-config feature) the configurable
 ``BoostBuildings.globals.range_tiles``/``.range_shape`` pair — the shipped
@@ -196,51 +196,6 @@ class TestRampBoost(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-class TestExplosionDebuff(unittest.TestCase):
-    """A dead booster curses its neighbours until a booster is rebuilt on the tile
-    (prototype ``apply_explosion_debuff`` / ``clear_explosion_debuff_from``)."""
-
-    def test_damage_debuff_halves_and_clears(self):
-        tm, scene, occ = board(["bbb"])
-        st = run_state("boost_damage")
-        dfn, _ = place_building(tm, tm.get(1, 0), "defence", 9999, BUILD,
-                                scene, occ, state=st)
-        booster, _ = place_building(tm, tm.get(2, 0), "boost_damage", 9999,
-                                    BUILD, scene, occ, state=st)
-        base = dfn.damage()
-        booster.apply_explosion_debuff(tm)
-        self.assertEqual(dfn.damage(), max(1, base // 2))
-        booster.clear_explosion_debuff_from(2, 0, tm)      # a fresh booster placed
-        self.assertEqual(dfn.damage(), base)
-
-    def test_hp_debuff_removes_half_and_restores_exactly(self):
-        tm, scene, occ = board(["bbb"])
-        st = run_state("boost_hp")
-        dfn, _ = place_building(tm, tm.get(1, 0), "defence", 9999, BUILD,
-                                scene, occ, state=st)
-        booster, _ = place_building(tm, tm.get(2, 0), "boost_hp", 9999, BUILD,
-                                    scene, occ, state=st)
-        base = dfn.max_hp()
-        booster.apply_explosion_debuff(tm)
-        self.assertEqual(dfn.max_hp(), max(1, base - max(1, base // 2)))
-        booster.clear_explosion_debuff_from(2, 0, tm)
-        self.assertEqual(dfn.max_hp(), base)
-
-    def test_dead_booster_explodes_once_via_payday(self):
-        tm, scene, occ = board(["bbb"])
-        st = run_state("boost_damage")
-        dfn, _ = place_building(tm, tm.get(1, 0), "defence", 9999, BUILD,
-                                scene, occ, state=st)
-        booster, _ = place_building(tm, tm.get(2, 0), "boost_damage", 9999,
-                                    BUILD, scene, occ, state=st)
-        base = dfn.damage()
-        booster.get_component(Health).hp = 0               # died this round
-        run_payday(st, tm, CORE, occ, scene)               # slot 7 explodes it
-        self.assertEqual(dfn.get_component(BoostReceiver).count_debuffs("damage"), 1)
-        self.assertEqual(dfn.damage(), max(1, base // 2))
-
-
-# ---------------------------------------------------------------------------
 class TestPlacementBlock(unittest.TestCase):
     def test_cardinal_adjacent_booster_blocked_diagonal_allowed(self):
         tm, scene, occ = board(["bbb", "bbb"])
@@ -274,8 +229,24 @@ class TestFlatMode(unittest.TestCase):
             int(base * (1 + FLAT_MULTIPLE * DMG_T1["boost_per_turn"])))
         booster.get_component(Health).hp = 0
         run_payday(st, tm, CORE, occ, scene)               # slot 7 removes the flat
-        # damage boost gone (explosion debuff still halves it), so not > base.
+        # The flat contribution is fully reversed — back to the raw base damage.
         self.assertLessEqual(dfn.get_component(BoostReceiver).damage_pct, 1e-9)
+        self.assertEqual(dfn.damage(), base)
+
+    def test_dead_booster_leaves_no_debuff(self):
+        """The booster-death explosion debuff is REMOVED: a dead booster in ramp
+        mode neither halves damage nor removes max HP from its neighbours."""
+        tm, scene, occ = board(["bbb"])
+        st = run_state("boost_damage")
+        dfn, _ = place_building(tm, tm.get(1, 0), "defence", 9999, BUILD,
+                                scene, occ, state=st)
+        booster, _ = place_building(tm, tm.get(2, 0), "boost_damage", 9999,
+                                    BUILD, scene, occ, state=st)
+        base_dmg, base_hp = dfn.damage(), dfn.max_hp()
+        booster.get_component(Health).hp = 0
+        run_payday(st, tm, CORE, occ, scene)
+        self.assertGreaterEqual(dfn.damage(), base_dmg)
+        self.assertGreaterEqual(dfn.max_hp(), base_hp)
 
 
 # ---------------------------------------------------------------------------

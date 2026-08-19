@@ -270,6 +270,11 @@
     "starting_currency": 32
   },
   "LightningStrike": {
+    "attack_hold_seconds": [
+      4,
+      3,
+      2
+    ],
     "cooldown": [
       4,
       3,

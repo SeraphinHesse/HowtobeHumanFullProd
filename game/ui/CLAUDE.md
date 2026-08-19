@@ -600,10 +600,14 @@ logic is `game/core` — see that doc.)
 ## Boss UI (10G)
 - **`boss_cutscene.py`** (`BossCutscene`) — the `levelup.py` modal template
   (construct→`open(boss_num, outcome)`→layout-on-open→update→hit→submit): opaque
-  near-black backdrop, win/loss headline + "How will we react?", and — since
+  near-black backdrop, a single "Choose an upgrade" subtitle, and — since
   **BossUpgradeTimelinePLAN BU-4** — **THREE 200×104 upgrade cards** (`box_a`/
   `box_b`/`box_c`, ids appended, the two old ones keeping their names and
-  meaning) instead of 10G's two `WinA`/`WinB` narrative boxes. A card's copy is
+  meaning) instead of 10G's two `WinA`/`WinB` narrative boxes. **The separate
+  win/loss headline row is GONE (fix/bossfight-outro-cleanup)** — the screen
+  used to open with a "Cutscene: Round Won/Lost" line above the subtitle; the
+  outcome is no longer announced on this screen at all, only the upgrade
+  picker is shown. A card's copy is
   the catalog's own `name` + `description` for that slot
   (`boss_upgrades.milestone_slots(balance, boss_num)`), the description
   `.format()`ed with its live `params` and WRAPPED to the box (`wrap_text`,
@@ -615,7 +619,9 @@ logic is `game/core` — see that doc.)
   `session.frozen` in `main.py`'s click ladder and the frozen key-gate
   swallows keys. Opened by the host on the BOSS_CUTSCENE phase edge from
   `state.pending_boss_cutscene` (the LEVELUP pattern); **a LOSS shows the
-  retaliation-love headline AND the same 3 cards** (D7).
+  same 3 cards, and if it paid consolation love the subtitle says so
+  (`boss_cutscene.subtitle_reward`) instead of the plain
+  `boss_cutscene.subtitle` copy** (D7).
   - **An EMPTY slot draws its frame and nothing else**, and is neither
     hoverable nor clickable. That is what `screen_defaults.json` /
     `screen_previews.json` / the golden pin record, because neither
@@ -866,8 +872,45 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
     default geometry changed on purpose" path, never relaxing the pin. Only
     `main_menu` moved; every other screen's entry is byte-identical, which is
     what says the change was contained.
-- **Deferred**: the settings audio slider is inert (no audio system beyond
-  music). (The pause dim landed with 10J's HUD alpha.)
+- **Settings screen rework (settings-cut)** — three changes, one section:
+  - **The three FX toggles are GONE** (income floaters / background art /
+    gore). The `SessionSettings` FIELDS stay, still seeded from
+    `data/balancing/ui.json`'s `FX` block and still read by `payday.py` /
+    `session.py` / `main_menu.py`, so the features remain designer-tunable in
+    the editor — they are simply not player-facing any more. Their three
+    `strings.json` ids, their `data/ui/screens/settings.json` entries and their
+    `screen_defaults.json` records are deleted; do not reintroduce them.
+  - **The three audio rows are real sliders**: a 10px track (was 6) with a
+    draggable MARKER, a `-`/`+` step button either side (`VOLUME_STEP`, 5%) and
+    a live `%` readout (`settings.volume_pct`). Click-to-set is unchanged from
+    SD-6 and now also ARMS the drag. **A drag is the first gesture in the shell
+    that has no click event of its own**, so `SettingsScreen.update()` returns
+    an intent — `"set_volume_live"` every held frame (apply to the buses, no
+    disk) and `"set_volume"` once on release (apply AND persist) — and
+    `Shell.update()` forwards whatever the active screen returns, which
+    `main.py` wraps in `execute(...)`. Every other screen's `update()` returns
+    `None`, so nothing else changed. The split is what keeps one drag to one
+    file write instead of sixty a second.
+  - **A GPU/CPU renderer switch** took the toggles' slot (`btn_renderer` +
+    `renderer_label` + `renderer_note`). It is a BOOT preference: the intent
+    `set_renderer` only persists the choice (`game/core/render_settings.py` →
+    `settings/render.json`), and the row carries a permanent
+    `settings.renderer_note` line saying it applies on restart. Do NOT try to
+    rebuild the render stack live — window, `Renderer` and ground cache are one
+    unit built once (`main.py::_build_render_stack`), with a live world's GPU
+    textures hanging off it.
+  - BACK/CONTROLS moved up with the rows (296 → 278), and
+    `data/ui/screens/settings.json`'s authored `btn_back` rect moved in
+    lockstep — an authored rect WINS, so leaving it behind would have stranded
+    BACK below its sibling.
+- **`game_over` has a PLAY AGAIN button (settings-cut)**, `btn_play_again`,
+  above MAIN MENU (which moved down one 29px slot). It returns `"play_again"`;
+  `main.py`'s GAME_OVER click branch runs the SAME `teardown_gameplay()` MAIN
+  MENU does and then `_arm_loading()` — the identical path the menu's START NEW
+  GAME takes, so a restarted run is a genuinely fresh `_World`, never a revived
+  dead one. No detour through `to_main_menu()`: `_arm_loading` sets
+  `shell.state` itself.
+- **Deferred**: (the pause dim landed with 10J's HUD alpha.)
 - **Controls screen (feature: rebindable hotkeys)** — `game/ui/keybinds_screen.py`
   (`KeybindsScreen`), the `debug_settings.py` code-only-screen shape: no
   `data/ui/screens/keybinds.json`, no `screen_defaults.json` entry, not in
@@ -957,8 +1000,7 @@ The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
     `_batch_cost` helper, so the label, the hover figure and what
     `place_building` actually charges can never disagree.
 - **`hud.py _submit_lightning`** — ENEMY-phase-only bottom-left readout
-  (`⚡ CLICK TO STRIKE` / countdown) + a 22×3 cursor-attached progress bar
-  (`Hud.update` now stores `_mx/_my`). **feature-storm-acolyte-multi-build**:
+  (`⚡ CLICK TO STRIKE` / countdown). **feature-storm-acolyte-multi-build**:
   takes a new `scene` argument (threaded through `Hud.submit`, wired from
   `main.py`'s `world.scene`) and walks `scene.by_tag("lightning_source")` for
   the SOONEST-ready alive caster (the smallest `LightningCaster.cooldown`) —
@@ -966,6 +1008,17 @@ The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
   tracks whichever will fire next. No placed caster at all → nothing drawn,
   even if `lightning_level` is latched > 0 from one that died and hasn't
   revived yet.
+  - **The cursor-attached progress bar is REMOVED (feature: remove-
+    lightning-cursor-bar)** — it used to draw an 11×2 bar anchored at
+    `self._mx`/`self._my` right under this text readout, duplicating the
+    exact same fraction. It gated no input and nothing else read it, so
+    removal touched only these two lines plus the now-simplified
+    soonest-caster scan (no more per-caster tier-cooldown lookup, since the
+    bar was the only consumer of that second value). `Hud.update` still
+    stores `_mx`/`_my` every frame — they remain the income-pill and
+    boss-icon hover-tooltip anchor. The cooldown is still shown two other
+    ways: this text readout, and the per-building overhead charge bar
+    (`effects.py submit_lightning_charge_bars`, below).
 - **`effects.py submit_lightning`** — draws each `"lightning_fx"` scene object
   (the `submit_craters` pattern): a jagged screen-space `HudLines` bolt from
   y=0 to the impact (±6 px jitter per frame, white→yellow over 0.5 s) + a
@@ -1118,19 +1171,43 @@ picker and the confirmation.
   positioned by `_build_move_btn` directly under `action_btn` in upgrade mode.
   **Visible only on a SINGLE selection** — a move is not batchable (unlike
   UPGRADE/ADVANCE, which do batch — see the fix/batch-tier-advance note
-  below). A Wall Builder gets the button DISABLED + relabelled
+  below). **A WallBuilder CAN move (feature: wallbuilder-restricted-move,
+  superseding the original "can never be moved" rule), but only within its
+  own wall perimeter** — `is_movable(self._selected, self._session.tilemap)`
+  now needs the tilemap to answer that; with no legal destination right now
+  (an empty `wall_snapshot()`, or every one of its own walled tiles
+  occupied/in-transit) the button is DISABLED + relabelled
   `CANNOT BE MOVED` with an `_upgrade_hint`, the same mechanism
-  `RESEARCH REQUIRED`/`NEXT TIER LOCKED` use; `start_move` is the real
-  enforcement.
+  `RESEARCH REQUIRED`/`NEXT TIER LOCKED` use; `start_move`
+  (`game/buildings/CLAUDE.md`) is the real enforcement either way.
 - **`mode == "move_select"`** — a fifth panel mode. `_build_move_select` fills
   `_highlight_tiles` with every `buildable_tiles()` tile that is not already
-  `tilemap.is_moving`, in the new `widgets.C_MOVE_HIGHLIGHT` (cyan; a plain
-  code constant NOT in `_PALETTE_KEYS`, the `C_TUTORIAL_HIGHLIGHT`
-  precedent). The panel body becomes a short instruction card
-  (`_submit_move_select`). **The panel only ever handles panel-space clicks**,
-  so `_move_select_click` just cancels back to upgrade; the destination TILE
-  pick is `game/main.py`'s (see `game/CLAUDE.md`). `dismiss()` gained one more
-  rung — move_select peels back to upgrade before the bare-panel close.
+  `tilemap.is_moving`, event `move_target` (cyan; VA-5 tile-highlight data,
+  `data/balancing/vfx.json procedural.highlights.move_target` —
+  `widgets.C_MOVE_HIGHLIGHT` no longer exists, see "The seven tile
+  highlights are EFFECTS now" below). **For a WallBuilder specifically
+  (feature: wallbuilder-restricted-move) that list is NOT uniform**: tiles
+  its own claimed wall edges are attached to
+  (`game.buildings.movement.wall_builder_move_targets`) still draw
+  `move_target`; every OTHER otherwise-legal buildable tile ALSO highlights,
+  but GREYED OUT — the new **eighth** highlight event, `move_blocked` — so
+  the tile visibly exists and is visibly off-limits rather than silently
+  omitted. Its own wall EDGES draw too, via the SAME
+  `edge_world_points`/`_highlight_edges` mechanism `_set_wall_highlight` uses
+  elsewhere (`wall_edge`, yellow) — reusing the ownership walk
+  (`edge.owner is b` over `tilemap.wall_edges`) rather than calling
+  `_set_wall_highlight` itself, since that method also tints each owned
+  tile `attack_range`, which would double-highlight every tile this mode
+  already colours cyan/grey. Every non-WallBuilder selection is
+  byte-identical to before this feature. The panel body becomes a short
+  instruction card (`_submit_move_select`). **The panel only ever handles
+  panel-space clicks**, so `_move_select_click` just cancels back to
+  upgrade; the destination TILE pick is `game/main.py`'s
+  `_pick_move_destination` (see `game/CLAUDE.md`), which applies the SAME
+  `wall_builder_move_targets` narrowing — a click on a greyed-out tile is a
+  silent no-op, exactly like a click on any other illegal tile. `dismiss()`
+  gained one more rung — move_select peels back to upgrade before the
+  bare-panel close.
 - **`MovePreview`** — the `ConstructPreview` sibling, minus the name field,
   the dice and the stat list (nothing about the building changes, it just
   relocates): display name, ONE `Cost` line quoting ROUNDS (`Instant` at
@@ -2061,7 +2138,7 @@ sets one).
   `love_text`/`lvl_label`/`xp_bar`/`xp_text`/`income_text`/`lives_text`/
   `tiles_text`/`phase_label`/`round_label`, `cheat_menu.py`'s `panel`/
   `title`/`round_field`/`jump_label`, `boss_cutscene.py`'s `backdrop`/
-  `headline`/`subtitle`/`box_a`/`box_b`, `game_log.py`'s `log`
+  `subtitle`/`box_a`/`box_b`, `game_log.py`'s `log`
   (`get_style_holder()` exposes the same object). Existing plain-tuple
   attributes some tests read directly (`CheatMenu.field_rect`,
   `LevelupWindow.rects`, `BuildingUI.panel_rect`) are kept as real,
@@ -2072,7 +2149,8 @@ sets one).
   degenerately renders at the origin in the editor's screen mode; a review
   fix caught five that computed their position inline at `submit()` time and
   never stored it: `hud.py`'s `phase_label`, `cheat_menu.py`'s `title`/
-  `jump_label`, `boss_cutscene.py`'s `headline`/`subtitle`). **The
+  `jump_label`, `boss_cutscene.py`'s `headline` (since deleted — see the Boss
+  UI section — its rect-storage precedent lives on in `subtitle`)). **The
   convention**: for a plain text label drawn via `submit_text`/
   `submit_centered` (no fill, no box), `rect` is the `(x, y, 0, 0)` anchor
   point the draw call reads its position from — W/H are nominal `0` (there is
@@ -2080,7 +2158,7 @@ sets one).
   readouts, the static titles, these five) follows this same shape. The
   anchor is computed and stored in `layout()` (or, where the position derives
   from a SIBLING widget's default geometry computed moments earlier in the
-  same `layout()` call — `boss_cutscene`'s `headline`/`subtitle` sit above
+  same `layout()` call — `boss_cutscene`'s `subtitle` sits above
   `box_a`'s pre-override default top — the "no cascade" convention above
   applies: a `box_a` rect override does not retarget them, they'd need their
   own override too), never inline at `submit()` time, so (a) a rect override
@@ -2134,10 +2212,16 @@ sets one).
 - **Every static title/header is an id too** (review fix, not just buttons/
   panels/backdrops): `main_menu`'s `title`/`subtitle`, `pause`'s/`settings`'s/
   `credits`'/`game_over`'s/`add_name`'s `title`, `cheat_menu`'s `title`/
-  `jump_label`, `boss_cutscene`'s `subtitle`. Their copy is NOT game-state,
+  `jump_label`. Their copy is NOT game-state,
   so — unlike the HUD readouts below — `label` (the text itself) is a
   legitimate override field for these, same shape as any other widget
-  (`rect`/`font_key`/`text_color`/`label`/`visible`).
+  (`rect`/`font_key`/`text_color`/`label`/`visible`). **`boss_cutscene`'s
+  `subtitle` is NOT in this list** — since fix/bossfight-outro-cleanup its
+  text is a runtime pick (plain "Choose an upgrade" vs. the consolation-love
+  variant on a loss that paid one), so it resolves through
+  `strings.json`/`T()` at submit time (see the Global UI string table
+  section) rather than the `label` override, the same reason the deleted
+  win/loss headline never took a `label` override either.
 - **`hud.py`'s ~13 stable readouts all carry ids now**: `love_panel`,
   `readout_panel` (the second stone pill, behind the income/lives/tiles
   column — same `C_PANEL_STONE` body + `C_PANEL_INSET` inset border as
@@ -2160,7 +2244,7 @@ sets one).
   text/bar it displaces moves right by `ICON_SIZE + GAP` (18 + 4px). For every one of these the displayed TEXT is a live game-state
   value (love count, round number, xp fraction, …) and stays code-owned —
   the override surface is `rect`/`font_key`/`text_color`/`visible` only, the
-  same principle as `boss_cutscene`'s headline colour staying win/loss-owned.
+  same principle as `hud.py`'s own phase-banner colour staying phase-owned.
   `love_text`/`xp_bar`'s pulse colour fall back to the computed value when
   `text_color`/`color` is left unset (`None`) and to the override otherwise —
   the same "`None` means compute" convention `boss_cutscene`'s `box.text_color`
@@ -2246,9 +2330,12 @@ the shipped screens, which name only the 7), and that is what keeps the
 committed artifacts reproducible. If code ever DOES lay out against a custom
 `font_key`, that stored rect becomes machine-dependent — pin the value first.
 
-## The seven tile highlights are EFFECTS now (VfxAuthoringPLAN VA-5)
+## The tile highlights are EFFECTS now (VfxAuthoringPLAN VA-5 + feature: wallbuilder-restricted-move)
 `tile_selected`, `section_2x2`, `attack_range`, `move_target`, `wall_edge`,
-`upgrade_batch` and `tutorial_highlight` are `data/balancing/vfx.json` entries:
+`upgrade_batch` and `tutorial_highlight` (VA-5's original seven), plus
+`move_blocked` (the WallBuilder move-picker's greyed-out-tile twin of
+`move_target`, added by the wallbuilder-restricted-move feature — see the
+Move Building section above), are `data/balancing/vfx.json` entries:
 a `procedural.highlights.<name>` param block (colour / outline width / fill
 alpha) plus a `triggers.<name>` row, so each can be retuned, replaced by an
 imported `vfx_<name>` spritesheet, and put in front of or behind a same-tile
@@ -2404,16 +2491,19 @@ data, so the two can never silently drift apart.
   their `submit()` read a hardcoded module-level string literal instead of
   `holder.label` — the override landed on the object (`apply()` doesn't care)
   but nothing ever read it back. Fixed: `cheat_menu.py`'s `title`/
-  `jump_label`, `boss_cutscene.py`'s `subtitle` now default `label=` to
+  `jump_label` now default `label=` to
   today's literal and their `submit()` reads `self._holder.label` — parity
   preserved (no override ⇒ identical output), override now honored.
-  `boss_cutscene.py`'s `headline` is the deliberate exception: its text is a
-  2-variant win/loss string built from runtime outcome (`self.outcome`), the
-  same "enum-varying, not a fixed title" exclusion HUD's dynamic readouts
-  already use — only its font stays overridable via THIS mechanism, and
-  color stays logic-owned; the two variant TEXTS themselves are Phase-C
-  string-table content instead (`boss_cutscene.headline_win`/`headline_loss`
-  — see "Global UI string table" below), not this `label` mechanism. Dynamic
+  **`boss_cutscene.py`'s `subtitle` USED to be a third fixed-`label` fix
+  here, and no longer is** (fix/bossfight-outro-cleanup): it took over the
+  enum-varying role the deleted win/loss `headline` used to hold — its copy
+  is now a runtime pick between the plain "Choose an upgrade" string and a
+  consolation-love variant on a loss that paid one, the same "enum-varying,
+  not a fixed title" exclusion HUD's dynamic readouts already use — only its
+  font/rect/colour stay overridable via THIS mechanism, and the TEXT itself
+  is Phase-C string-table content instead (`boss_cutscene.subtitle`/
+  `subtitle_reward` — see "Global UI string table" below), not this `label`
+  mechanism. Dynamic
   per-mode content (`building_ui.py`'s `action_btn` label text itself varies
   by mode/afford-ability, "UNLOCK TILE"/"BUILD"/"THE HOLE" mode headers,
   `levelup`'s/`credits`' list rows, HUD's ~12 game-state readouts) stays out
@@ -2629,9 +2719,27 @@ plate's top band share exactly one column of x. Spelling it as a negative
   `_cards_visible()`, itself derived from `_card_list_viewport()` — never a
   literal count. Sign follows `HighscoresScreen.scroll` (positive `dy` moves
   DOWN), and `game/main.py`'s gameplay MOUSEWHEEL branch negates pygame's `y`
-  and routes to the panel only while the cursor is over it in construct mode
-  with no preview open; everywhere else the wheel still zooms the camera.
-  `close()` resets the offset.
+  and asks **`wants_scroll(mx, my)`** whether the tick belongs to the panel;
+  everywhere else the wheel still zooms the camera. `close()` resets the
+  offset.
+- **`wants_scroll` is a PANEL method, not a test the host hand-rolls.** The
+  host used to inline it as `mode == "construct" and preview is None and
+  contains(panel_rect, …)`, which was wrong twice over. (1) `panel_rect` is
+  the sidebar BODY, but the card list is its own authored group
+  (`construct_card_list`) that a designer can move to a rect reaching outside
+  it — a wheel tick over a card sitting left of the body zoomed the map, so
+  the list scrolled over part of itself and not the rest. Both boxes count
+  now. (2) `handle_scroll` has always had an UNLOCK branch (the terrain
+  condition list overflows too), and the construct-only host test made it
+  unreachable — the terrain list could not be wheel-scrolled at all. (3) An
+  open preview answered **False**, which let a wheel tick over a modal
+  build preview ZOOM THE MAP behind it, the card list visible underneath
+  and refusing to move. It answers True from anywhere on screen now and
+  `handle_scroll` no-ops — the same modal rule `handle_click` has always
+  used. Add a mode with a scrolling list here, not in `main.py`.
+  The host reaches this seam only for whole wheel TICKS — a fine/touchpad
+  scroll is accumulated in `main.py`'s `_WheelTicks` first; see
+  `game/CLAUDE.md`.
 - **An off-window card is skipped at draw and at hit via
   `_card_in_viewport`, NOT by setting `visible = False`.** `visible` is the
   designer's override key and forcing it would fight an override; every card
@@ -2655,7 +2763,8 @@ a label whose alignment never varies, declare it on the holder**; reserve the
 ## Global UI string table (Phase C)
 `data/ui/strings.json` ↔ `game/ui/strings.py` covers what the per-widget
 `label` override above structurally cannot: text that varies by runtime/enum
-state (the HUD phase banner, the boss-cutscene win/loss headline) or is
+state (the HUD phase banner, the boss-cutscene subtitle's plain-vs-
+consolation-love pick) or is
 BUILT FROM A TEMPLATE with live values (`"LIVES {count}"`, `"ROUND {n}"`,
 `"{built}/{unlocked} tiles"`) — there is no single fixed string to attach to
 a widget id for those. Mirrors `engine/render/fonts.py`'s cache/configure
@@ -2672,7 +2781,7 @@ C_*-style early-binding trap to guard against, since nothing holds a
 reference to a resolved VALUE, only to the `T` function).
 - **Dotted ids grouped by source module** (`hud.phase.building`,
   `hud.income.base`, `widgets.condition.grass`, `levelup.heading`,
-  `boss_cutscene.headline_win`, …) — the editor's Strings panel groups rows
+  `boss_cutscene.subtitle`, …) — the editor's Strings panel groups rows
   by the id's prefix before the first dot.
 - **A dict literal built at import time is the SAME early-binding trap
   `configure_palette`'s `C_*` block warns about, one level up**:
@@ -2698,7 +2807,9 @@ reference to a resolved VALUE, only to the `T` function).
   re-reads it at its own next boot.
 - **Migration status**: Phase C covered `hud.py` in full,
   `widgets.cond_label`, `levelup.py`'s heading/cost/tier-progress lines, and
-  `boss_cutscene.py`'s win/loss headline. UT-3 took `building_ui.py`, UT-4
+  `boss_cutscene.py`'s win/loss headline (since deleted — fix/bossfight-
+  outro-cleanup moved its enum-varying role onto `subtitle`, still Phase-C
+  string-table content). UT-3 took `building_ui.py`, UT-4
   the rest of `hud.py`, and **UT-5 the remaining screens + `effects.py`** —
   see the UT-5 section below. There is no known un-migrated user-visible
   string left in `game/ui`; what stays a Python literal now does so for a
@@ -2778,7 +2889,8 @@ allowed to move a pixel.
   independently placeable, the per-stat rule), and `add_name`'s
   `hint`/`msg_text`/`pool_count`.
 - **`text=` (runtime-authored content, holder still owns everything else)**:
-  `boss_cutscene`'s headline (a 2-of-2 enum pick), `settings`' display-mode
+  `boss_cutscene`'s subtitle (a 2-of-2 enum pick, since fix/bossfight-outro-
+  cleanup — see the Boss UI section), `settings`' display-mode
   value, `add_name`'s feedback line, `game_over`'s numbers.
 - **String ids, no widget id**: `cheat_menu`'s round-field placeholder and
   `add_name`'s name-field placeholder (both positioned off their field's

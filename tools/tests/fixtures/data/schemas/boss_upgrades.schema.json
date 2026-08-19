@@ -1,0 +1,533 @@
+{
+  "$defs": {
+    "milestone": {
+      "additionalProperties": false,
+      "description": "One authored bossfight milestone: the 3 upgrade cards it offers and the love it pays out when that bossfight is LOST.",
+      "properties": {
+        "retaliation_bonus_love": {
+          "description": "Love paid to the player (RunState.add_love) when THIS milestone's bossfight is lost - the retaliation reward, and its sole source of truth (D7; replaces enemies.json's Boss loss_love_reward). Paid on a loss only; a win pays nothing. 0 = no payout.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "slots": {
+          "description": "Exactly 3 direct-assigned upgrade cards (D2 - always 3 shown, never randomized). Each entry is a Catalog key or null for an empty, still-persisted slot. An upgrade id may appear in at most ONE slot across the whole timeline (D3) - an authoring-time constraint JSON Schema cannot express, enforced by the editor's validate_uniqueness.",
+          "items": {
+            "$ref": "#/$defs/upgrade_ref"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        }
+      },
+      "required": [
+        "slots",
+        "retaliation_bonus_love"
+      ],
+      "type": "object"
+    },
+    "upgrade_ref": {
+      "description": "A BossUpgrades.Catalog key, or null for an empty slot. The enum is the closed set of 12 upgrades - each needs bespoke code, so a new id is a schema change, never a content one.",
+      "enum": [
+        null,
+        "boost_double_trigger",
+        "condition_dmg_bonus",
+        "mortar_slow",
+        "move_time_cap",
+        "musician_auto_level",
+        "restock_lives",
+        "stone_thrower_sync",
+        "stormpriest_slow",
+        "thorns",
+        "tile_discount",
+        "tile_refund",
+        "wall_cost_discount"
+      ],
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "$id": "boss_upgrades.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Boss upgrade timeline balancing domain (BossUpgradeTimelinePLAN D8): the 12 boss upgrades a player may be offered after a bossfight, plus the 4 authored milestones that decide which 3 are offered and how much retaliation love a LOST bossfight pays. Catalog is a CLOSED set of 12 fixed named keys (each one needs bespoke game code, so it is not an open array); a designer edits each upgrade's name, description and numeric params, never the roster. Milestones cycle every 4th bossfight: milestone_index = (boss_num - 1) % 4 (D1), so boss 5 re-offers milestone 1's identical 3 options. Bounds policy: percentages are whole-number 0-100 ints (never 0-1 fractions), seconds 0-60, love/counts 0-10000, rounds/levels 0-1000 - the repo's standard per-kind ranges.",
+  "properties": {
+    "BossUpgrades": {
+      "additionalProperties": false,
+      "description": "The whole boss-upgrade feature: the fixed upgrade catalog and the authored 4-milestone timeline over it.",
+      "properties": {
+        "Catalog": {
+          "additionalProperties": false,
+          "description": "The 12 boss upgrades, keyed by their permanent upgrade id (the id the game's effect engine and the timeline slots both reference). Closed set: additionalProperties false and all 12 required.",
+          "properties": {
+            "boost_double_trigger": {
+              "additionalProperties": false,
+              "description": "PERSISTENT, global. Boost buildings fire their per-turn payout more than once inside payday's slot-7 step (D18).",
+              "properties": {
+                "description": {
+                  "description": "Designer-authored card body text shown on the boss cutscene choice card. Formatted live against this upgrade's params, so a {param_name} placeholder always advertises the magnitude the math actually uses.",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Designer-authored card title shown on the boss cutscene choice card. Text only - boss upgrade cards carry no art (D9).",
+                  "type": "string"
+                },
+                "params": {
+                  "additionalProperties": false,
+                  "description": "Tunables for the boost double-trigger rule.",
+                  "properties": {
+                    "extra_triggers": {
+                      "description": "Extra apply_per_turn() calls every boost building makes inside payday's existing slot-7 boost step (1 = it triggers twice in total). A permanent global rule - boost buildings placed before AND after the pick are affected (D18).",
+                      "maximum": 10000,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "extra_triggers"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "name",
+                "description",
+                "params"
+              ],
+              "type": "object"
+            },
+            "condition_dmg_bonus": {
+              "additionalProperties": false,
+              "description": "PERSISTENT. Bonus damage against enemies standing on a non-Grass tile condition (D15).",
+              "properties": {
+                "description": {
+                  "description": "Designer-authored card body text shown on the boss cutscene choice card. Formatted live against this upgrade's params, so a {param_name} placeholder always advertises the magnitude the math actually uses.",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Designer-authored card title shown on the boss cutscene choice card. Text only - boss upgrade cards carry no art (D9).",
+                  "type": "string"
+                },
+                "params": {
+                  "additionalProperties": false,
+                  "description": "Tunables for the tile-condition damage bonus.",
+                  "properties": {
+                    "dmg_bonus_pct": {
+                      "description": "Whole-number percent of BONUS damage dealt to an enemy standing on a non-Grass tile condition - Mountain, Pond or Forest; Grass never counts (D15). Stacks ADDITIVELY across repeat picks.",
+                      "maximum": 100,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "dmg_bonus_pct"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "name",
+                "description",
+                "params"
+              ],
+              "type": "object"
+            },
+            "mortar_slow": {
+              "additionalProperties": false,
+              "description": "PERSISTENT, snapshot-scoped: only the AOE mortars alive at pick time gain slow-on-splash-hit; mortars built afterwards do not (D16).",
+              "properties": {
+                "description": {
+                  "description": "Designer-authored card body text shown on the boss cutscene choice card. Formatted live against this upgrade's params, so a {param_name} placeholder always advertises the magnitude the math actually uses.",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Designer-authored card title shown on the boss cutscene choice card. Text only - boss upgrade cards carry no art (D9).",
+                  "type": "string"
+                },
+                "params": {
+                  "additionalProperties": false,
+                  "description": "Tunables for the mortar slow-on-hit debuff (snapshot-scoped to the mortars alive when the upgrade is picked, D16).",
+                  "properties": {
+                    "duration_seconds": {
+                      "description": "Seconds the mortar slow rides on a hit enemy before its BuffState contribution expires. Defaults to the Storm Priest's own slow duration.",
+                      "maximum": 60,
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    "slow_pct": {
+                      "description": "Whole-number percent an AOE (mortar) splash hit cuts an enemy's move_speed by (20 = it moves at 80% speed). Applied through the shared BuffState debuff; stacks ADDITIVELY across repeat picks.",
+                      "maximum": 100,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "duration_seconds",
+                    "slow_pct"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "name",
+                "description",
+                "params"
+              ],
+              "type": "object"
+            },
+            "move_time_cap": {
+              "additionalProperties": false,
+              "description": "PERSISTENT, global. Caps how many ROUNDS a building move can take (the time dial only, D14).",
+              "properties": {
+                "description": {
+                  "description": "Designer-authored card body text shown on the boss cutscene choice card. Formatted live against this upgrade's params, so a {param_name} placeholder always advertises the magnitude the math actually uses.",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Designer-authored card title shown on the boss cutscene choice card. Text only - boss upgrade cards carry no art (D9).",
+                  "type": "string"
+                },
+                "params": {
+                  "additionalProperties": false,
+                  "description": "Tunables for the building-move time cap.",
+                  "properties": {
+                    "move_time_cap": {
+                      "description": "Maximum ROUNDS a building move may take: the distance-scaled move time is clamped down to this value. Same rounds unit as buildings.json BuildingsGlobal.Movement.base_moving_time. Caps the TIME dial only - the love cost dial is untouched (D14).",
+                      "maximum": 1000,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "move_time_cap"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "name",
+                "description",
+                "params"
+              ],
+              "type": "object"
+            },
+            "musician_auto_level": {
+              "additionalProperties": false,
+              "description": "PERSISTENT, global, Musician tier line only (D12). Newly placed musicians start a level higher.",
+              "properties": {
+                "description": {
+                  "description": "Designer-authored card body text shown on the boss cutscene choice card. Formatted live against this upgrade's params, so a {param_name} placeholder always advertises the magnitude the math actually uses.",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Designer-authored card title shown on the boss cutscene choice card. Text only - boss upgrade cards carry no art (D9).",
+                  "type": "string"
+                },
+                "params": {
+                  "additionalProperties": false,
+                  "description": "Tunables for the musician auto-level bonus.",
+                  "properties": {
+                    "bonus_levels": {
+                      "description": "Extra levels a freshly placed Musician-line building (Flute Player / Harp Player / Trio only, D12) starts at, each granted through the normal advance-one-level path. Stacks ADDITIVELY across repeat picks.",
+                      "maximum": 1000,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "bonus_levels"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "name",
+                "description",
+                "params"
+              ],
+              "type": "object"
+            },
+            "restock_lives": {
+              "additionalProperties": false,
+              "description": "ONE-TIME. Sets RunState.base_lives back to core.json's TheHole.base_lives the moment it is picked. Re-picking on a repeat milestone simply refills again (idempotent).",
+              "properties": {
+                "description": {
+                  "description": "Designer-authored card body text shown on the boss cutscene choice card. Formatted live against this upgrade's params, so a {param_name} placeholder always advertises the magnitude the math actually uses.",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Designer-authored card title shown on the boss cutscene choice card. Text only - boss upgrade cards carry no art (D9).",
+                  "type": "string"
+                },
+                "params": {
+                  "additionalProperties": false,
+                  "description": "This upgrade takes no tunable parameters - its effect is fixed by the code that applies it. The empty object is still required so every Catalog entry has the identical {name, description, params} shape.",
+                  "properties": {},
+                  "required": [],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "name",
+                "description",
+                "params"
+              ],
+              "type": "object"
+            },
+            "stone_thrower_sync": {
+              "additionalProperties": false,
+              "description": "ONE-TIME. Levels every placed stone thrower (Defender) up to match the highest one already placed. No ongoing re-sync rule (D17).",
+              "properties": {
+                "description": {
+                  "description": "Designer-authored card body text shown on the boss cutscene choice card. Formatted live against this upgrade's params, so a {param_name} placeholder always advertises the magnitude the math actually uses.",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Designer-authored card title shown on the boss cutscene choice card. Text only - boss upgrade cards carry no art (D9).",
+                  "type": "string"
+                },
+                "params": {
+                  "additionalProperties": false,
+                  "description": "This upgrade takes no tunable parameters - its effect is fixed by the code that applies it. The empty object is still required so every Catalog entry has the identical {name, description, params} shape.",
+                  "properties": {},
+                  "required": [],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "name",
+                "description",
+                "params"
+              ],
+              "type": "object"
+            },
+            "stormpriest_slow": {
+              "additionalProperties": false,
+              "description": "PERSISTENT, global and LIVE (no snapshot): every Storm Priest lightning strike slows what it damages, including priests built after the pick.",
+              "properties": {
+                "description": {
+                  "description": "Designer-authored card body text shown on the boss cutscene choice card. Formatted live against this upgrade's params, so a {param_name} placeholder always advertises the magnitude the math actually uses.",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Designer-authored card title shown on the boss cutscene choice card. Text only - boss upgrade cards carry no art (D9).",
+                  "type": "string"
+                },
+                "params": {
+                  "additionalProperties": false,
+                  "description": "Tunables for the Storm Priest slow-on-strike debuff (live, never snapshotted - priests built after the pick slow too, D7/#7).",
+                  "properties": {
+                    "duration_seconds": {
+                      "description": "Seconds the lightning slow rides on a hit enemy before its BuffState contribution expires.",
+                      "maximum": 60,
+                      "minimum": 0,
+                      "type": "number"
+                    },
+                    "slow_pct": {
+                      "description": "Whole-number percent a Storm Priest lightning hit cuts an enemy's move_speed by (20 = it moves at 80% speed). Applied through the shared BuffState debuff; stacks ADDITIVELY across repeat picks.",
+                      "maximum": 100,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "duration_seconds",
+                    "slow_pct"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "name",
+                "description",
+                "params"
+              ],
+              "type": "object"
+            },
+            "thorns": {
+              "additionalProperties": false,
+              "description": "PERSISTENT. Reflects part of an enemy's own damage back at it, on building hits AND wall hits (D13).",
+              "properties": {
+                "description": {
+                  "description": "Designer-authored card body text shown on the boss cutscene choice card. Formatted live against this upgrade's params, so a {param_name} placeholder always advertises the magnitude the math actually uses.",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Designer-authored card title shown on the boss cutscene choice card. Text only - boss upgrade cards carry no art (D9).",
+                  "type": "string"
+                },
+                "params": {
+                  "additionalProperties": false,
+                  "description": "Tunables for the damage-reflection (thorns) effect.",
+                  "properties": {
+                    "reflect_pct": {
+                      "description": "Whole-number percent of the damage an enemy deals that is reflected back into that enemy. Applies to hits on buildings AND on edge walls (D13). Stacks ADDITIVELY across repeat picks.",
+                      "maximum": 100,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "reflect_pct"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "name",
+                "description",
+                "params"
+              ],
+              "type": "object"
+            },
+            "tile_discount": {
+              "additionalProperties": false,
+              "description": "PERSISTENT. Cheapens every tile unlock.",
+              "properties": {
+                "description": {
+                  "description": "Designer-authored card body text shown on the boss cutscene choice card. Formatted live against this upgrade's params, so a {param_name} placeholder always advertises the magnitude the math actually uses.",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Designer-authored card title shown on the boss cutscene choice card. Text only - boss upgrade cards carry no art (D9).",
+                  "type": "string"
+                },
+                "params": {
+                  "additionalProperties": false,
+                  "description": "Tunables for the tile-unlock discount.",
+                  "properties": {
+                    "discount_pct": {
+                      "description": "Whole-number percent taken off TileMap.unlock_cost() (20 = the player pays 80% of list price). Stacks ADDITIVELY across repeat picks.",
+                      "maximum": 100,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "discount_pct"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "name",
+                "description",
+                "params"
+              ],
+              "type": "object"
+            },
+            "tile_refund": {
+              "additionalProperties": false,
+              "description": "ONE-TIME. Pays RunState.love_spent_on_tiles back to the player through RunState.add_love.",
+              "properties": {
+                "description": {
+                  "description": "Designer-authored card body text shown on the boss cutscene choice card. Formatted live against this upgrade's params, so a {param_name} placeholder always advertises the magnitude the math actually uses.",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Designer-authored card title shown on the boss cutscene choice card. Text only - boss upgrade cards carry no art (D9).",
+                  "type": "string"
+                },
+                "params": {
+                  "additionalProperties": false,
+                  "description": "This upgrade takes no tunable parameters - its effect is fixed by the code that applies it. The empty object is still required so every Catalog entry has the identical {name, description, params} shape.",
+                  "properties": {},
+                  "required": [],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "name",
+                "description",
+                "params"
+              ],
+              "type": "object"
+            },
+            "wall_cost_discount": {
+              "additionalProperties": false,
+              "description": "PERSISTENT. Cheapens Blocker / Wall Builder build and upgrade costs, floor-clamped to 1 love.",
+              "properties": {
+                "description": {
+                  "description": "Designer-authored card body text shown on the boss cutscene choice card. Formatted live against this upgrade's params, so a {param_name} placeholder always advertises the magnitude the math actually uses.",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "Designer-authored card title shown on the boss cutscene choice card. Text only - boss upgrade cards carry no art (D9).",
+                  "type": "string"
+                },
+                "params": {
+                  "additionalProperties": false,
+                  "description": "Tunables for the structure-building cost discount.",
+                  "properties": {
+                    "cost_reduction_pct": {
+                      "description": "Whole-number percent taken off a Blocker's / Wall Builder's build_cost() and upgrade_cost() (50 = half price). Stacks ADDITIVELY across repeat picks; the resulting cost is floor-clamped to a minimum of 1 love, so 100 never means free.",
+                      "maximum": 100,
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "cost_reduction_pct"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "name",
+                "description",
+                "params"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "boost_double_trigger",
+            "condition_dmg_bonus",
+            "mortar_slow",
+            "move_time_cap",
+            "musician_auto_level",
+            "restock_lives",
+            "stone_thrower_sync",
+            "stormpriest_slow",
+            "thorns",
+            "tile_discount",
+            "tile_refund",
+            "wall_cost_discount"
+          ],
+          "type": "object"
+        },
+        "Timeline": {
+          "additionalProperties": false,
+          "description": "The authored 4-milestone cycle. Every bossfight shows milestones[(boss_num - 1) % 4] verbatim, forever (D1) - decoupled from the 5-era enemy scaling in enemies.json.",
+          "properties": {
+            "milestones": {
+              "description": "Exactly 4 milestones, in cycle order (index 0 is the FIRST bossfight). Fixed length: the 4-cycle is a design decision (D1), not a designer dial.",
+              "items": {
+                "$ref": "#/$defs/milestone"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            }
+          },
+          "required": [
+            "milestones"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "Catalog",
+        "Timeline"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "BossUpgrades"
+  ],
+  "title": "boss_upgrades",
+  "type": "object"
+}

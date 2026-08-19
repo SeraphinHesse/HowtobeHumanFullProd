@@ -144,7 +144,8 @@
               "slots": [
                 "painter_t2_lvl1",
                 "painter_t2_lvl2",
-                "painter_t2_lvl3"
+                "painter_t2_lvl3",
+                "painter_t2_lvl4"
               ]
             },
             {
@@ -152,7 +153,10 @@
               "slots": [
                 "painter_t3_lvl1",
                 "painter_t3_lvl2",
-                "painter_t3_lvl3"
+                "painter_t3_lvl3",
+                "painter_t3_lvl4",
+                "painter_t3_lvl5",
+                "painter_t3_lvl6"
               ]
             }
           ],
@@ -221,7 +225,11 @@
             {
               "label": "Supporting Fan",
               "slots": [
-                "boost_speed_t1_lvl1",
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "boost_speed_t1_lvl1"
+                },
                 "boost_speed_t1_lvl2",
                 "boost_speed_t1_lvl3"
               ]
@@ -250,7 +258,11 @@
             {
               "label": "Supporting Fan",
               "slots": [
-                "boost_damage_t1_lvl1",
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "boost_damage_t1_lvl1"
+                },
                 "boost_damage_t1_lvl2",
                 "boost_damage_t1_lvl3"
               ]
@@ -279,7 +291,11 @@
             {
               "label": "Supporting Fan",
               "slots": [
-                "boost_hp_t1_lvl1",
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "boost_hp_t1_lvl1"
+                },
                 "boost_hp_t1_lvl2",
                 "boost_hp_t1_lvl3"
               ]
@@ -304,16 +320,74 @@
           "label": "HP Booster"
         },
         {
-          "label": "Blocker",
-          "slots": [
-            "blocker"
-          ]
+          "children": [
+            {
+              "label": "Blocker",
+              "slots": [
+                "blocker_t1_lvl1",
+                "blocker_t1_lvl2",
+                "blocker_t1_lvl3"
+              ]
+            },
+            {
+              "label": "Bulwark",
+              "slots": [
+                "blocker_t2_lvl1",
+                "blocker_t2_lvl2",
+                "blocker_t2_lvl3"
+              ]
+            },
+            {
+              "label": "Bastion",
+              "slots": [
+                "blocker_t3_lvl1",
+                "blocker_t3_lvl2",
+                "blocker_t3_lvl3"
+              ]
+            },
+            {
+              "label": "Card",
+              "slots": [
+                "blocker"
+              ]
+            }
+          ],
+          "label": "Blocker"
         },
         {
-          "label": "Wall Builder",
-          "slots": [
-            "wall_builder"
-          ]
+          "children": [
+            {
+              "label": "Bush Wall Builder",
+              "slots": [
+                "wall_builder_t1_lvl1",
+                "wall_builder_t1_lvl2",
+                "wall_builder_t1_lvl3"
+              ]
+            },
+            {
+              "label": "Wooden Wall Builder",
+              "slots": [
+                "wall_builder_t2_lvl1",
+                "wall_builder_t2_lvl2",
+                "wall_builder_t2_lvl3"
+              ]
+            },
+            {
+              "label": "Stone Wall Builder",
+              "slots": [
+                "wall_builder_t3_lvl1",
+                "wall_builder_t3_lvl2",
+                "wall_builder_t3_lvl3"
+              ]
+            },
+            {
+              "label": "Card",
+              "slots": [
+                "wall_builder"
+              ]
+            }
+          ],
+          "label": "Wall Builder"
         }
       ],
       "key": "buildings"
@@ -340,19 +414,28 @@
                 "enemy_stage_1_v1",
                 "enemy_stage_1_v2",
                 "enemy_stage_1_v3",
-                "enemy_stage_1_v4"
+                "enemy_stage_1_v4",
+                "enemy_stage_1_v5"
               ]
             },
             {
               "label": "Era 2",
               "slots": [
-                "enemy_stage_2"
+                "enemy_stage_2",
+                "enemy_stage_2_v2",
+                "enemy_stage_2_v3",
+                "enemy_stage_2_v4",
+                "enemy_stage_2_v5"
               ]
             },
             {
               "label": "Era 3",
               "slots": [
-                "enemy_stage_3"
+                "enemy_stage_3",
+                "enemy_stage_3_v2",
+                "enemy_stage_3_v3",
+                "enemy_stage_3_v4",
+                "enemy_stage_3_v5"
               ]
             },
             {
@@ -370,19 +453,30 @@
             {
               "label": "Era 1",
               "slots": [
-                "raider_stage_1"
+                "raider_stage_1",
+                "raider_stage_1_v2",
+                "raider_stage_1_v3",
+                "raider_stage_1_v4"
               ]
             },
             {
               "label": "Era 2",
               "slots": [
-                "raider_stage_2"
+                "raider_stage_2",
+                "raider_stage_2_v2",
+                "raider_stage_2_v3",
+                "raider_stage_2_v4",
+                "raider_stage_2_v5"
               ]
             },
             {
               "label": "Era 3",
               "slots": [
-                "raider_stage_3"
+                "raider_stage_3",
+                "raider_stage_3_v2",
+                "raider_stage_3_v3",
+                "raider_stage_3_v4",
+                "raider_stage_3_v5"
               ]
             },
             {
@@ -718,6 +812,11 @@
                   "frame_h": 50,
                   "frame_w": 72,
                   "key": "ui_button_end_turn"
+                },
+                {
+                  "frame_h": 48,
+                  "frame_w": 72,
+                  "key": "ui_button_end_turn_v2"
                 }
               ]
             },
@@ -728,6 +827,11 @@
                   "frame_h": 49,
                   "frame_w": 48,
                   "key": "ui_button_pause"
+                },
+                {
+                  "frame_h": 32,
+                  "frame_w": 32,
+                  "key": "ui_button_pause_v2"
                 }
               ]
             },
@@ -735,19 +839,56 @@
               "label": "Panel Button",
               "slots": [
                 {
+                  "display_name": "PanelButton70",
                   "frame_h": 23,
                   "frame_w": 70,
                   "key": "ui_button_panel"
                 },
                 {
+                  "display_name": "EndTurnButton",
                   "frame_h": 55,
                   "frame_w": 42,
                   "key": "ui_button_panel_v2"
                 },
                 {
+                  "display_name": "PanelButton103",
                   "frame_h": 30,
                   "frame_w": 103,
                   "key": "ui_button_panel_v3"
+                },
+                {
+                  "display_name": "mainmenubutton",
+                  "frame_h": 100,
+                  "frame_w": 245,
+                  "key": "ui_button_panel_v4"
+                },
+                {
+                  "display_name": "PanelButton112",
+                  "frame_h": 32,
+                  "frame_w": 112,
+                  "key": "ui_button_panel_v5"
+                },
+                {
+                  "display_name": "PanelButton88",
+                  "frame_h": 32,
+                  "frame_w": 88,
+                  "key": "ui_button_panel_v6"
+                },
+                {
+                  "display_name": "Panel Button 64 x24",
+                  "frame_h": 24,
+                  "frame_w": 64,
+                  "key": "ui_button_panel_v7"
+                },
+                {
+                  "frame_h": 36,
+                  "frame_w": 100,
+                  "key": "ui_button_panel_v8"
+                },
+                {
+                  "frame_h": 57,
+                  "frame_w": 41,
+                  "key": "ui_button_panel_v9"
                 }
               ]
             },
@@ -785,17 +926,119 @@
               "slots": [
                 "ui_panel",
                 {
+                  "display_name": "Build Screen Panel",
                   "frame_h": 360,
                   "frame_w": 167,
                   "key": "ui_panel_v2"
                 },
-                "ui_panel_v3"
+                {
+                  "display_name": "Love Panel",
+                  "frame_h": 50,
+                  "frame_w": 111,
+                  "key": "ui_panel_v3"
+                },
+                {
+                  "display_name": "Love per round panel",
+                  "frame_h": 45,
+                  "frame_w": 102,
+                  "key": "ui_panel_v4"
+                },
+                {
+                  "display_name": "Level Panel/waveCounter",
+                  "frame_h": 40,
+                  "frame_w": 70,
+                  "key": "ui_panel_v5"
+                },
+                "ui_panel_v6",
+                {
+                  "display_name": "Picture 64x64",
+                  "key": "ui_panel_v7"
+                },
+                {
+                  "display_name": "Stats Name 64x64",
+                  "key": "ui_panel_v8"
+                },
+                {
+                  "display_name": "StatsBlock 2 by 2",
+                  "frame_h": 64,
+                  "frame_w": 66,
+                  "key": "ui_panel_v9"
+                },
+                {
+                  "display_name": "StatsBlock 1 by 2",
+                  "frame_h": 64,
+                  "frame_w": 66,
+                  "key": "ui_panel_v10"
+                },
+                {
+                  "display_name": "Stats Name 66x64",
+                  "frame_h": 64,
+                  "frame_w": 66,
+                  "key": "ui_panel_v11"
+                },
+                {
+                  "display_name": "Picture Backgrnd",
+                  "frame_h": 100,
+                  "frame_w": 100,
+                  "key": "ui_panel_v12"
+                },
+                {
+                  "display_name": "PictureFrame",
+                  "frame_h": 101,
+                  "frame_w": 104,
+                  "key": "ui_panel_v13"
+                },
+                {
+                  "display_name": "Tile Condition Stats",
+                  "frame_h": 30,
+                  "frame_w": 100,
+                  "key": "ui_panel_v14"
+                },
+                {
+                  "frame_h": 360,
+                  "frame_w": 167,
+                  "key": "ui_panel_v15"
+                },
+                {
+                  "display_name": "Name Panel/Textbox",
+                  "key": "ui_panel_v16"
+                },
+                {
+                  "display_name": "Picture Backgrnd 77x75",
+                  "frame_h": 75,
+                  "frame_w": 77,
+                  "key": "ui_panel_v17"
+                },
+                {
+                  "display_name": "Picture Frame 83 x 81",
+                  "frame_h": 81,
+                  "frame_w": 83,
+                  "key": "ui_panel_v18"
+                },
+                {
+                  "display_name": "Stats 3 by 2",
+                  "frame_h": 60,
+                  "frame_w": 83,
+                  "key": "ui_panel_v19"
+                },
+                {
+                  "display_name": "Stats 3 by 3",
+                  "frame_h": 60,
+                  "frame_w": 113,
+                  "key": "ui_panel_v20"
+                },
+                {
+                  "frame_h": 148,
+                  "frame_w": 201,
+                  "key": "ui_panel_v21"
+                }
               ]
             },
             {
               "label": "Stone Panel",
               "slots": [
-                "ui_panel_stone"
+                "ui_panel_stone",
+                "ui_panel_stone_v2"
               ]
             }
           ],
@@ -806,7 +1049,8 @@
             {
               "label": "Love",
               "slots": [
-                "ui_icon_love"
+                "ui_icon_love",
+                "ui_icon_love_v2"
               ]
             },
             {
@@ -820,6 +1064,12 @@
               "slots": [
                 "ui_icon_lives"
               ]
+            },
+            {
+              "label": "Life",
+              "slots": [
+                "ui_icon_life"
+              ]
             }
           ],
           "label": "Icons"
@@ -827,12 +1077,39 @@
         {
           "children": [
             {
+              "label": "Boss Next",
+              "slots": [
+                "ui_icon_boss_next"
+              ]
+            },
+            {
+              "label": "No Boss Next",
+              "slots": [
+                "ui_icon_boss_next_off"
+              ]
+            }
+          ],
+          "label": "Boss Indicator"
+        },
+        {
+          "children": [
+            {
               "label": "Main Menu",
               "slots": [
                 {
-                  "frame_h": 270,
-                  "frame_w": 480,
+                  "frame_h": 360,
+                  "frame_w": 640,
                   "key": "ui_bg_main_menu"
+                }
+              ]
+            },
+            {
+              "label": "Loading Screen",
+              "slots": [
+                {
+                  "frame_h": 360,
+                  "frame_w": 640,
+                  "key": "ui_bg_loading"
                 }
               ]
             }
@@ -1085,7 +1362,8 @@
             {
               "label": "Projectile",
               "slots": [
-                "vfx_projectile"
+                "vfx_projectile",
+                "vfx_projectile_v2"
               ]
             },
             {
@@ -1104,6 +1382,12 @@
               "label": "Buff Arrow",
               "slots": [
                 "vfx_buff_arrow"
+              ]
+            },
+            {
+              "label": "Debuff Arrow",
+              "slots": [
+                "vfx_debuff_arrow"
               ]
             },
             {
@@ -1127,19 +1411,31 @@
             {
               "label": "Respawn",
               "slots": [
-                "vfx_respawn"
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "vfx_respawn"
+                }
               ]
             },
             {
               "label": "Selected tile",
               "slots": [
-                "vfx_tile_selected"
+                {
+                  "frame_h": 96,
+                  "frame_w": 128,
+                  "key": "vfx_tile_selected"
+                }
               ]
             },
             {
               "label": "2x2 section",
               "slots": [
-                "vfx_section_2x2"
+                {
+                  "frame_h": 96,
+                  "frame_w": 128,
+                  "key": "vfx_section_2x2"
+                }
               ]
             },
             {
@@ -1176,6 +1472,156 @@
               "label": "Test",
               "slots": [
                 "vfx_test"
+              ]
+            },
+            {
+              "label": "Boost Aura Speed",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v2"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v3"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v4"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v5"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v6"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v7"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v8"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_speed_aura_v9"
+                }
+              ]
+            },
+            {
+              "label": "Boost Aura Damage",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v2"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v3"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v4"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v5"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v6"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v7"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v8"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_damage_aura_v9"
+                }
+              ]
+            },
+            {
+              "label": "Boost Aura HP",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v2"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v3"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v4"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v5"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v6"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v7"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v8"
+                },
+                {
+                  "frame_h": 96,
+                  "frame_w": 192,
+                  "key": "vfx_boost_hp_aura_v9"
+                }
               ]
             }
           ],
@@ -1456,7 +1902,11 @@
         {
           "label": "Main Menu",
           "slots": [
-            "main_menu_bg"
+            {
+              "frame_h": 360,
+              "frame_w": 640,
+              "key": "main_menu_bg"
+            }
           ]
         }
       ],
