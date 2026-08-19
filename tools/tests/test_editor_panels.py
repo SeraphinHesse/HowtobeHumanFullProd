@@ -1203,22 +1203,30 @@ class TestMainWindowWiring(TempDataCase):
 
         window = self.make_window()
         window.selector.select_node("enemies", ("Walker",))
-        window.details.select_subcategory(1)    # Era 2: [enemy_stage_2]
-        self.assertEqual(len(window.levelbar._buttons), 1)
+        window.details.select_subcategory(1)    # Era 2
+        # Derive the starting slot count from live data rather than
+        # hardcoding it: designers keep importing variant art onto
+        # "Walker" > "Era 2" (a live count is what live data (root
+        # CLAUDE.md) means — never assert against a snapshot of it).
+        before = load_registry(self.data_dir).group_slots(
+            "enemies", ("Walker", "Era 2"))
+        self.assertEqual(len(window.levelbar._buttons), len(before))
 
         window.levelbar._add_btn.click()        # + Variant
 
-        # slots.json on disk grew, validated
+        # slots.json on disk grew by one, validated
         reg = load_registry(self.data_dir)
-        self.assertEqual(
-            reg.group_slots("enemies", ("Walker", "Era 2")),
-            ("enemy_stage_2", "enemy_stage_2_v2"))
-        # the level bar now offers both and lands on the NEW variant, ready to
-        # import art onto it (details + viewport follow)
-        self.assertEqual(len(window.levelbar._buttons), 2)
-        self.assertEqual(window.levelbar.level(), 1)
-        self.assertEqual(window.details.slot_key, "enemy_stage_2_v2")
-        self.assertEqual(window.viewport.preview_slot, "enemy_stage_2_v2")
+        after = reg.group_slots("enemies", ("Walker", "Era 2"))
+        self.assertEqual(len(after), len(before) + 1)
+        self.assertEqual(after[:-1], before)
+        new_slot = after[-1]
+        self.assertTrue(new_slot.startswith("enemy_stage_2"))
+        # the level bar now offers all of them and lands on the NEW variant,
+        # ready to import art onto it (details + viewport follow)
+        self.assertEqual(len(window.levelbar._buttons), len(after))
+        self.assertEqual(window.levelbar.level(), len(after) - 1)
+        self.assertEqual(window.details.slot_key, new_slot)
+        self.assertEqual(window.viewport.preview_slot, new_slot)
         # still on the same era (didn't jump back to Era 1)
         self.assertEqual(window._variant_target(), "Era 2")
 
