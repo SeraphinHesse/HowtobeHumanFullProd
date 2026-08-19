@@ -16018,16 +16018,36 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 2,
+          "frames": 12,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 12,
           "hidden": [
-            1
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/vfx_tile_selected.png"
+      "sheet": "imported/vfx_section_2x2.png"
     },
     "vfx_shell": {
       "column": 1,
@@ -16226,16 +16246,36 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 2,
+          "frames": 12,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 12,
           "hidden": [
-            1
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/vfx_tile_selected.png"
+      "sheet": "imported/vfx_section_2x2.png"
     },
     "wall_builder": {
       "anchors": {
