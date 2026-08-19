@@ -37,11 +37,17 @@ def make_cs(**camera):
 class FakeAssets:
     """Resolves every slot to a token 'surface' so tests stay pygame-free."""
 
-    def __init__(self, sizes=None, default=(64, 32), offsets=None, slices=None):
+    def __init__(self, sizes=None, default=(64, 32), offsets=None, slices=None,
+                 anchors=None):
         self.sizes = sizes or {}
         self.default = default
         self.offsets = offsets or {}
         self.slices = slices or {}
+        #: {slot_key: {anchor_name: (x, y)}} — the depth-sort half of the
+        #: store contract (Renderer._depth_pos). Empty by default, which is
+        #: "no sheet authors an anchor": every sprite sorts at its tile, the
+        #: pre-depth_pivot behaviour these tests pin.
+        self.anchors = anchors or {}
 
     def frame(self, slot_key, animation="idle", anim_time_ms=0, extra_hidden=None,
               column=None):
@@ -50,6 +56,15 @@ class FakeAssets:
         return Frame(surface=f"SURF:{slot_key}", frame_w=w, frame_h=h,
                      offset_x=offset_x, offset_y=offset_y,
                      slice=self.slices.get(slot_key))
+
+    def frame_size(self, slot_key):
+        return self.sizes.get(slot_key, self.default)
+
+    def offset(self, slot_key):
+        return self.offsets.get(slot_key, (0, 0))
+
+    def anchor(self, slot_key, name):
+        return self.anchors.get(slot_key, {}).get(name)
 
 
 def old_anchor_dest(px, py, frame_w, frame_h, zoom=1.0, tile_h=32):
