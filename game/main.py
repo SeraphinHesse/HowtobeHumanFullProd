@@ -440,6 +440,19 @@ class _CursorSpace:
     _CAL_MIN = 12       # near the origin every space agrees — wait for a real
     #                     cursor position rather than calibrating on noise
 
+    #: Which space ``pygame.mouse.get_pos()`` reports in, once an
+    #: UNAMBIGUOUS sample has shown it — True = window pixels, False =
+    #: logical, None = not yet known. Sticky, and a CLASS attribute so a
+    #: presenter built without running ``__init__`` still reads it.
+    #:
+    #: `get_pos()` is one API with one answer for the whole run, while
+    #: `event.pos` is NOT: MEASURED live (pygame-ce 2.5.7 / SDL 2.32.10 /
+    #: direct3d, 1920x1080 window at logical 640x360), the same run delivers
+    #: some mouse events already-logical and others in window pixels. So the
+    #: stable source is what disambiguates the unstable one — see the
+    #: agreeing branch in `_calibrate`.
+    _get_pos_window = None
+
     def _calibrate(self, event_pos):
         """Re-derive which cursor source needs the window->logical remap.
 
@@ -464,6 +477,7 @@ class _CursorSpace:
         if (win_w, win_h) == (self._view_w, self._view_h):
             if self._map_events or self._map_get_pos or self._map_events is None:
                 self._map_events = self._map_get_pos = False   # nothing scaled
+                self._get_pos_window = False
                 self._log_calibration(event_pos)
             return True
         ex, ey = event_pos
@@ -478,15 +492,46 @@ class _CursorSpace:
             return abs(a[0] - b[0]) <= tol and abs(a[1] - b[1]) <= tol
 
         if close((ex, ey), (gx, gy)):
-            # both already in the same space, and the shipped default puts
-            # clicks where they belong, so that space is the logical one
-            self._map_events = self._map_get_pos = False
+            # Both reads are in the SAME space — but WHICH one? Reading
+            # "they agree" as "so it is the logical space" is the third way
+            # this seam has been wrong, and the one that broke the construct
+            # card list. It was harmless while `_calibrate` ran ONCE per run
+            # (the first unambiguous sample latched the right answer and this
+            # branch was never reached again); the WIP commit that lifted the
+            # seam into this mixin also made it re-run on EVERY event, which
+            # put the wrong answer one mouse event away at all times.
+            #
+            # MEASURED live (pygame-ce 2.5.7 / SDL 2.32.10 / direct3d,
+            # 1920x1080 window at logical 640x360): a single run delivers some
+            # mouse events already-logical and others in window pixels. On a
+            # window-pixel event both sources read e.g. (1662, 583) and agree
+            # to the pixel, so this branch set "map nothing" and handed the
+            # game a cursor three times too far right and down. Every click
+            # in that state missed its widget, and `wants_scroll` was asked
+            # about a point far outside `panel_rect`, so the card list refused
+            # the wheel and the camera zoomed instead.
+            #
+            # `get_pos()` is the STABLE source — one API, one answer for the
+            # run — so once an unambiguous sample has pinned its space, that
+            # is what agreement means here, anywhere in the window.
+            if self._get_pos_window is not None:
+                self._map_events = self._map_get_pos = self._get_pos_window
+            else:
+                # Nothing pinned yet. A point still cannot be logical if it
+                # does not FIT in the logical view: (1662, 583) against
+                # 640x360 is window pixels however well the two agree. Inside
+                # the view the two spaces are genuinely indistinguishable, and
+                # the historical reading stands.
+                self._map_events = self._map_get_pos = bool(
+                    ex > self._view_w + tol or ey > self._view_h + tol)
         elif close((ex * sx, ey * sy), (gx, gy)):
             # the EVENT is window pixels; get_pos() is already logical
             self._map_events, self._map_get_pos = True, False
+            self._get_pos_window = False
         elif close((gx * sx, gy * sy), (ex, ey)):
             # the other arrangement: get_pos() is window pixels
             self._map_events, self._map_get_pos = False, True
+            self._get_pos_window = True
         else:
             # No relation holds — the cursor moved between the two reads. DO
             # NOT guess: an undecided presenter maps nothing, which is the
@@ -551,6 +596,7 @@ class _CursorSpace:
         1920x1080."""
         self._map_events = None
         self._map_get_pos = False
+        self._get_pos_window = None
 
 
 class _SurfacePresenter(_CursorSpace):
@@ -674,6 +720,7 @@ class _GpuPresenter(_CursorSpace):
         # event rather than hard-coded, because it has flipped between builds.
         self._map_events = None
         self._map_get_pos = False
+        self._get_pos_window = None
         self.set_display_mode(display_mode)
 
     def _new_streaming_texture(self):
