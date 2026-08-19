@@ -3138,26 +3138,28 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # ground_cache_gpu.blit's docstring), so both classes take the same
             # call and the host needs no branch here. Do not "fix" it away.
             ground_cache.blit(presenter.world_target)
-            # Base + deco stay dynamic (their own layers, above ground); windowed.
+            # Base + deco stay dynamic (above the cached ground); windowed.
             cmin, cmax, rmin, rmax = cs.visible_tile_window(view_w, view_h, margin=4)
             for item in tilemap.visible_render_items(
                     map_doc, cmin, cmax, rmin, rmax, terrain=False,
                     camera=show_camera_start, anim_time_ms=int(deco_clock_ms),
                     column=session.state.season):
                 renderer.submit(item)
-            # Spawn-band tree deco on the `deco` layer — draws ABOVE enemies
-            # (`entities`), so units emerging from the treeline are partly
-            # occluded by it; submission order within a layer doesn't matter,
-            # the renderer depth-sorts. Reuses the window above; vanishes on
-            # its own the frame a SPAWNING tile converts to COMBAT (the
-            # emitter reads `tile.state` live).
+            # Spawn-band tree deco (fix/y-sorted-deco) — on the SAME
+            # `entities` layer as enemies, so a tree occludes a unit exactly
+            # when it is in FRONT of it, by iso depth and the trees' authored
+            # `depth_pivot` feet. It used to ride the `deco` layer, which put
+            # EVERY tree over EVERY enemy unconditionally. Submission order
+            # doesn't matter, the renderer depth-sorts. Reuses the window
+            # above; vanishes on its own the frame a SPAWNING tile converts to
+            # COMBAT (the emitter reads `tile.state` live).
             for item in spawn_deco_render_items(
                     world.tile_map, cmin, cmax, rmin, rmax, tree_slots,
                     anim_time_ms=int(deco_clock_ms),
                     column=session.state.season):
                 renderer.submit(item)
             # Condition art on the `terrain` layer — above the ground tiles,
-            # below everything on `entities`/`deco`. Reuses the window above;
+            # below everything on `entities`. Reuses the window above;
             # emits nothing for conditions with no imported sheet.
             for item in condition_render_items(
                     world.tile_map, cmin, cmax, rmin, rmax, condition_art,

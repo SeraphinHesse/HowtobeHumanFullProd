@@ -3126,7 +3126,7 @@
               243,
               174
             ],
-            "text": "HP",
+            "text": "Health",
             "type": "text"
           },
           {
@@ -3794,7 +3794,7 @@
               520,
               22
             ],
-            "text": "click here to change",
+            "text": "R",
             "type": "text"
           },
           {
@@ -3972,7 +3972,7 @@
               517,
               58
             ],
-            "text": "HP",
+            "text": "Health",
             "type": "text"
           },
           {
@@ -4132,7 +4132,7 @@
               517,
               133
             ],
-            "text": "Damage dealt",
+            "text": "DMG dealt",
             "type": "text"
           },
           {
@@ -4164,7 +4164,7 @@
               517,
               145
             ],
-            "text": "Damage taken",
+            "text": "DMG taken",
             "type": "text"
           },
           {

@@ -21,6 +21,7 @@ from engine.render import (
     LAYERS, HudLines, HudRect, HudSprite, HudText, OverlayLines, OverlayPolys,
     RenderItem, Renderer,
 )
+from engine import tilemap
 from engine.vfx import BurstParams, SlashParams, VfxSystem
 
 _HUD_TYPES = (HudRect, HudText, HudSprite, HudLines)
@@ -399,6 +400,36 @@ class TestDepthPivot(unittest.TestCase):
         order = self._order(assets, [RenderItem("a", (2.0, 2.0), layer="deco"),
                                      RenderItem("b", (5.0, 5.0), layer="deco")])
         self.assertEqual(order, ["SURF:a", "SURF:b"])
+
+    def test_deco_y_sorts_against_an_enemy_instead_of_covering_it(self):
+        """fix/y-sorted-deco — THE reported bug, pinned end to end.
+
+        An enemy standing a full tile IN FRONT of a tree used to draw behind
+        it: the tree rode the `deco` layer, and layer beats iso depth, so the
+        occlusion was unconditional. Both now ride `entities`, so the near
+        one wins and the far one loses — the same queue, both ways round."""
+        assets = FakeAssets()
+        tree = RenderItem("tree", (4.0, 4.0),
+                          layer=tilemap.DECO_LAYER, rank=tilemap.DECO_RANK)
+        in_front = RenderItem("enemy", (5.0, 5.0))
+        behind = RenderItem("enemy", (3.0, 3.0))
+        self.assertEqual(self._order(assets, [in_front, tree]),
+                         ["SURF:tree", "SURF:enemy"])
+        self.assertEqual(self._order(assets, [behind, tree]),
+                         ["SURF:enemy", "SURF:tree"])
+
+    def test_deco_loses_an_exact_same_tile_tie_to_the_unit_on_it(self):
+        """`DECO_RANK` is the last word on an exact depth tie: a unit standing
+        ON a deco tile draws in FRONT of it, whichever order the two emitters
+        happened to submit in."""
+        assets = FakeAssets()
+        tree = RenderItem("tree", (4.0, 4.0),
+                          layer=tilemap.DECO_LAYER, rank=tilemap.DECO_RANK)
+        unit = RenderItem("enemy", (4.0, 4.0))
+        self.assertEqual(self._order(assets, [tree, unit]),
+                         ["SURF:tree", "SURF:enemy"])
+        self.assertEqual(self._order(assets, [unit, tree]),   # submission order
+                         ["SURF:tree", "SURF:enemy"])         # must not matter
 
     def test_the_order_does_not_depend_on_zoom(self):
         """`sprite_anchor_screen` multiplies zoom in and `screen_to_world`
