@@ -82,6 +82,7 @@ from game.buildings import painter as painter_art  # progress-art seam
 # destination-pick preview quotes --
 from game.buildings.movement import (
     MOVING_SIGN_SLOT, move_cost, move_distance, move_time,
+    wall_builder_move_targets,
 )
 # -- BossUpgradeTimelinePLAN BU-3 3.1: the building-sweep half of the ONE-TIME
 # `stone_thrower_sync` upgrade, installed into game/core's injected hook seam
@@ -2012,8 +2013,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
 
         A legal destination is an unbuilt BUILDABLE tile that is not already an
         endpoint of a move in progress — exactly the set
-        ``BuildingUI._build_move_select`` highlighted. Anything else is a silent
-        no-op (the player keeps picking). On a legal pick this only OPENS the
+        ``BuildingUI._build_move_select`` highlighted. A WallBuilder narrows
+        that further to its own wall-attached tiles (feature:
+        wallbuilder-restricted-move) — the same set the panel drew GREYED OUT
+        for everything outside it. Anything else is a silent no-op (the
+        player keeps picking). On a legal pick this only OPENS the
         confirmation modal; ``start_move`` (via ``BuildingUI._do_move``) stays
         the single legal seam that actually moves anything."""
         panel = gp["panel"]
@@ -2021,6 +2025,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         if (tile is None or building is None
                 or tile.state != TileState.BUILDABLE
                 or session.tilemap.is_moving(tile.col, tile.row)):
+            return
+        if (hasattr(building, "wall_hp")
+                and (tile.col, tile.row) not in wall_builder_move_targets(
+                    building, session.tilemap)):
             return
         movement = buildings_balance["BuildingsGlobal"]["Movement"]
         distance = move_distance(building.col, building.row,

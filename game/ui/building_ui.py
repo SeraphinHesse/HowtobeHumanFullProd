@@ -48,7 +48,8 @@ from game.buildings.components import (
     BoostReceiver, BuildingSprite, Nameplate, RoundStats, TierState,
     YieldEconomy,
 )
-from game.buildings.movement import MoveError, is_movable, start_move
+from game.buildings.movement import (
+    MoveError, is_movable, start_move, wall_builder_move_targets)
 from game.buildings.registry import (
     BUILDING_CLASSES, LIGHTNING_SOURCE_TAG, PlacementError, build_cost,
     count_tag, create, place_building,
@@ -2612,14 +2613,20 @@ class BuildingUI:
 
         Visible only in upgrade mode on a SINGLE selection — a move is not
         batchable (unlike UPGRADE/ADVANCE, which do batch — see
-        ``_build_upgrade``). A Wall Builder can never be moved, so its button
-        is shown DISABLED with a hint (the ``_upgrade_hint`` mechanism the
-        RESEARCH REQUIRED / NEXT TIER LOCKED states use) rather than
-        silently vanishing — the real enforcement is ``start_move``."""
+        ``_build_upgrade``). A WallBuilder IS movable (feature:
+        wallbuilder-restricted-move) but only within its own wall perimeter
+        — ``is_movable`` needs the tilemap to know whether it has ANY legal
+        destination right now; with none (an empty wall_snapshot, or every
+        one of its own walled tiles currently occupied/in-transit) the
+        button is shown DISABLED with a hint (the ``_upgrade_hint``
+        mechanism the RESEARCH REQUIRED / NEXT TIER LOCKED states use)
+        rather than silently vanishing — the real enforcement is
+        ``start_move``."""
         ax, ay, aw, ah = self.action_btn.rect
         self.move_btn.rect = (ax, ay + ah + 4, aw, 15)
         self.move_btn.visible = len(self.selected_tiles) == 1
-        movable = self._selected is not None and is_movable(self._selected)
+        movable = (self._selected is not None
+                   and is_movable(self._selected, self._session.tilemap))
         self.move_btn.enabled = movable
         if not movable and self.move_btn.visible:
             self.move_btn.label = T("building.btn.move_blocked")
@@ -2714,12 +2721,41 @@ class BuildingUI:
 
     def _build_move_select(self, session):
         """Highlight every legal move destination: an unbuilt BUILDABLE tile
-        that is not already an endpoint of a move in progress."""
+        that is not already an endpoint of a move in progress, in
+        ``move_target`` (cyan) — unchanged for every building type except a
+        WallBuilder.
+
+        **A WallBuilder is confined to its own wall perimeter** (feature:
+        wallbuilder-restricted-move, user decision — "cannot be moved
+        outside its own walls"). Every OTHER otherwise-legal tile still
+        highlights, but GREYED OUT (``move_blocked``) rather than silently
+        omitted — the whole point is to show the player the tile exists and
+        why it is off-limits, not just which ones are pickable. Its own
+        wall edges also draw (the same yellow line ``_set_wall_highlight``
+        uses elsewhere), so the fenced area reads as a fence, not just a
+        cyan/grey checkerboard."""
+        tilemap = session.tilemap
+        b = self._selected
+        buildable = [t for t in tilemap.buildable_tiles()
+                     if not tilemap.is_moving(t.col, t.row)]
         self._highlight_edges = []
-        self._highlight_tiles = [
-            (t.col, t.row, "move_target")
-            for t in session.tilemap.buildable_tiles()
-            if not session.tilemap.is_moving(t.col, t.row)]
+        if b is not None and hasattr(b, "wall_hp"):
+            allowed = wall_builder_move_targets(b, tilemap)
+            self._highlight_tiles = [
+                (t.col, t.row,
+                 "move_target" if (t.col, t.row) in allowed
+                 else "move_blocked")
+                for t in buildable]
+            for edge in getattr(tilemap, "wall_edges", {}).values():
+                if edge.owner is not b:
+                    continue
+                pts = edge_world_points(edge.col_a, edge.row_a,
+                                        edge.col_b, edge.row_b)
+                if pts is not None:
+                    self._highlight_edges.append(pts)
+        else:
+            self._highlight_tiles = [
+                (t.col, t.row, "move_target") for t in buildable]
 
     def _upgrade_state(self, b):
         """``(mode, cost, button_label, hint)`` — the five-mode research gate
