@@ -247,7 +247,7 @@ class BossCutscene:
         self.skinning.submit_background(renderer, self.screen_id, view_w,
                                         view_h, anim_ms=t)
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "under", self.skinning.state_of)
+                                    "under", self.skinning.state_of, t)
         widgets.submit_backdrop(renderer, self._backdrop, anim_ms=t)
         # Phase C / fix/bossfight-outro-cleanup: the TEXT is string-table
         # content (boss_cutscene.subtitle/subtitle_reward) — the plain-vs-
@@ -272,7 +272,7 @@ class BossCutscene:
                            else ("", ""))
             self._submit_box(renderer, box, label, desc, i == self.hovered, t)
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "over", self.skinning.state_of)
+                                    "over", self.skinning.state_of, t)
 
     @staticmethod
     def _submit_box(renderer, box, label, desc, hovered, anim_ms_):

@@ -265,8 +265,10 @@ class MapOverlays:
         the panel highlights (conditions draw under the selection). ``window``
         is the host's ``(cmin, cmax, rmin, rmax)`` visible-tile window — the
         tint never scans beyond it (large-map invariant)."""
+        # ``anim_t``, not ``t``: the tile loop below already owns that name.
+        anim_t = anim_ms(self._clock)
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "under", self.skinning.state_of)
+                                    "under", self.skinning.state_of, anim_t)
         cmin, cmax, rmin, rmax = window
         for r in range(max(0, rmin), min(tilemap.rows - 1, rmax) + 1):
             for c in range(max(0, cmin), min(tilemap.cols - 1, cmax) + 1):
@@ -313,7 +315,7 @@ class MapOverlays:
                     _level_color(ts.current_level_in_tier)
                     + (_TIER_OVERVIEW_ALPHA,))
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "over", self.skinning.state_of)
+                                    "over", self.skinning.state_of, anim_t)
 
     def submit_buttons(self, renderer):
         """The HUD-pass toggle pills; an active toggle gets a gold rim + gold

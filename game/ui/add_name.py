@@ -159,7 +159,7 @@ class AddNameScreen:
         self.skinning.submit_background(renderer, self.screen_id, view_w,
                                         view_h, anim_ms=t)
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "under", self.skinning.state_of)
+                                    "under", self.skinning.state_of, t)
         widgets.submit_backdrop(renderer, self._backdrop, anim_ms=t)
         if is_visible(self._panel):
             submit_panel(renderer, self.rect, fill=widgets.C_UI_PANEL,
@@ -195,4 +195,4 @@ class AddNameScreen:
         if is_visible(self.back_btn):
             self.back_btn.submit(renderer, anim_ms=t, **button_kwargs(self.back_btn))
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "over", self.skinning.state_of)
+                                    "over", self.skinning.state_of, t)

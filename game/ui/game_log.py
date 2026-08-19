@@ -20,7 +20,7 @@ reads the holder — only ``submit()`` (rendering) does.
 from types import SimpleNamespace
 
 from .skinning import ScreenSkinning
-from .widgets import submit_text
+from .widgets import anim_ms, submit_text
 
 LIFETIME = 4.0     # seconds a message lives
 FADE_START = 3.0   # age at which the fade begins (linear to LIFETIME)
@@ -43,6 +43,7 @@ class GameLog:
         self.screen_id = SCREEN_ID
         self.skinning = skinning or ScreenSkinning.empty()
         self._messages = []  # [text, age] — newest appended last
+        self._clock = 0.0  # 10L-A: one anim clock per screen
         self._style = SimpleNamespace(rect=(_X, 0, 0, 0), font_key="sm",
                                       text_color=_COLOR, visible=True)
         self.ids = {}
@@ -67,6 +68,7 @@ class GameLog:
         self._messages.clear()
 
     def update(self, dt):
+        self._clock += dt
         for m in self._messages:
             m[1] += dt
         self._messages = [m for m in self._messages if m[1] < LIFETIME]
@@ -77,8 +79,9 @@ class GameLog:
         self.skinning.apply(self.screen_id, self.ids)
         if not self._style.visible:
             return
+        t = anim_ms(self._clock)
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "under", self.skinning.state_of)
+                                    "under", self.skinning.state_of, t)
         x, y = self._style.rect[0], self._style.rect[1]
         base = tuple(self._style.text_color[:3])
         for text, age in reversed(self._messages):  # newest at the bottom
@@ -91,4 +94,4 @@ class GameLog:
                        base + (alpha,))
             y -= _LINE_STEP
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "over", self.skinning.state_of)
+                                    "over", self.skinning.state_of, t)

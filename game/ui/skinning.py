@@ -504,7 +504,7 @@ class ScreenSkinning:
         for _z, origin, name, payload in sorted(in_band, key=lambda r: r[0]):
             if origin == "custom":
                 self._submit_custom_widget(renderer, screen_id, name,
-                                           payload, band)
+                                           payload, band, anim_ms)
             else:
                 self._submit_banded_widget(renderer, screen_id, name, payload,
                                            band, anim_ms)
@@ -661,7 +661,7 @@ class ScreenSkinning:
         return sorted(rows, key=lambda pair: pair[1].get("z") or 0)
 
     def _submit_custom_widget(self, renderer, screen_id, name, entry,
-                              band) -> None:
+                              band, anim_ms: int = 0) -> None:
         """Draw ONE designer-authored custom widget, then its own layers.
 
         Deliberately NOT folded into ``_submit_one_layer``: that method's
@@ -692,7 +692,10 @@ class ScreenSkinning:
           ``_submit_one_layer`` does; an empty resolved string draws NOTHING.
 
         State is always ``"idle"``: a custom widget has no state machine, the
-        same answer ``state_of`` gives any non-``Button`` holder.
+        same answer ``state_of`` gives any non-``Button`` holder. It still
+        rides the owning screen's ``anim_ms`` clock, so a MULTI-FRAME idle
+        row plays instead of freezing on frame 0 (it used to omit the clock
+        entirely, which is why every skinned custom panel sat still).
         """
         spec = self._widgets_spec(screen_id).get(name) or {}
         if spec.get("visible") is False:
@@ -707,7 +710,9 @@ class ScreenSkinning:
                 skin = defaults.get("panel_skin")
             if skin:
                 renderer.submit_hud(HudSprite(
-                    skin, (x, y), (w, h), tint=_as_tuple(spec.get("tint"))))
+                    skin, (x, y), (w, h), animation="idle",
+                    anim_time_ms=anim_ms,
+                    tint=_as_tuple(spec.get("tint"))))
             else:
                 color = spec.get("color")
                 if color:
@@ -725,7 +730,7 @@ class ScreenSkinning:
             resolved = ui_layers.resolve(layer, rect, "idle")
             if resolved.get("visible") is False:
                 continue
-            self._submit_one_layer(renderer, resolved)
+            self._submit_one_layer(renderer, resolved, "idle", anim_ms)
 
     def _submit_custom_text(self, renderer, spec, defaults, rect,
                             *, center) -> None:

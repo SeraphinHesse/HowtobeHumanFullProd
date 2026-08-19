@@ -403,7 +403,7 @@ class SettingsScreen:
         self.skinning.submit_background(renderer, self.screen_id, view_w,
                                         view_h, anim_ms=t)
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "under", self.skinning.state_of)
+                                    "under", self.skinning.state_of, t)
         widgets.submit_backdrop(renderer, self._backdrop, anim_ms=t)
         if self._title.visible:
             submit_centered(renderer, self._title.label, self._title.rect[0],
@@ -444,4 +444,4 @@ class SettingsScreen:
             self.controls_btn.submit(renderer, anim_ms=t,
                                      **button_kwargs(self.controls_btn))
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "over", self.skinning.state_of)
+                                    "over", self.skinning.state_of, t)
