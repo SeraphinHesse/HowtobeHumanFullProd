@@ -56,6 +56,32 @@ itself is pure orchestration. See the engine router's pygame-import allow-list.
     and enemies share the `entities` layer and sort against each other by the
     same iso depth, so no single total order can put an effect in front of one
     and behind the other.
+  - **`wx`/`wy` are not always the item's `world_pos`** — see `_depth_pos`
+    below. The formula is untouched; what it is fed can be a pivot.
+
+### `depth_pivot` — feet-based Y-sorting (`Renderer._depth_pos`)
+A sprite normally sorts at the tile it is ADDRESSED by, which is wrong for art
+whose figure sits high or off-centre in its frame: two enemies whose feet are
+visibly one in front of the other could draw in the wrong order. The seventh
+manifest anchor, **`depth_pivot`** (`engine.assets.manifest.DEPTH_PIVOT`), is
+the fix — drag it to the sprite's feet in the editor's Anchors panel and
+`flush` sorts that sprite at the world point the handle sits on.
+
+- **SORT ONLY.** The blit is untouched, the mirror image of the
+  `block_center_offset` rule below (which shifts the blit and not the sort).
+  `offset_x`/`offset_y` remain the way to move a sprite.
+- **Opt-in per sheet.** Unauthored (every sheet until a designer acts) returns
+  `world_pos` and orders exactly as before — the E-37 "anchor wins outright,
+  else unchanged" rule.
+- **One shared queue**, so a pivoted enemy sorts against buildings, walls and
+  VFX too, not only against other pivoted sprites.
+- **`entities` layer only.** Every other layer leaves on the first test, which
+  is what keeps the per-frame cost off the ground/terrain bulk of the queue.
+- It resolves through `sprite_anchor_screen` (below) and back with
+  `screen_to_world`, so it cannot drift from where `flush` puts the sprite,
+  and the zoom it multiplies in is divided straight back out — the order is
+  zoom-independent. It is the ONLY anchor read at draw-order time rather than
+  by a draw site.
 
 ## `RenderItem.column` — the LIVE master-sheet column (MasterSheetColumnsPLAN C3)
 `RenderItem` carries `column: int | None = None`, appended last, and

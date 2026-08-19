@@ -77,10 +77,21 @@
           "properties": {
             "anchors": {
               "additionalProperties": false,
-              "description": "Optional named handle points on the sheet frame (ESV-1) — art metadata, not frame geometry, so it never changes how a frame is cut, scaled or blitted. All six declared names are optional; a missing name or a missing anchors block resolves to no offset.",
+              "description": "Optional named handle points on the sheet frame (ESV-1) — art metadata, not frame geometry, so it never changes how a frame is cut, scaled or blitted. All seven declared names are optional; a missing name or a missing anchors block resolves to no offset.",
               "properties": {
                 "beam_endpoint": {
                   "description": "Beam terminus on the shooter. Declared for a future read-site; inert today. Frame-px point relative to the sprite anchor, same convention as offset_x/offset_y and slice (+x = right, -y = up), measured on the sheet frame at frame resolution, never at draw resolution or a zoom. [x, y].",
+                  "items": {
+                    "maximum": 4096,
+                    "minimum": -4096,
+                    "type": "integer"
+                  },
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "type": "array"
+                },
+                "depth_pivot": {
+                  "description": "The point the sprite DEPTH-SORTS at — an enemy's feet. The only anchor read at draw-order time rather than by a draw site: when it is authored, engine/render/renderer.py sorts this entry's sprite at the world point this handle sits on instead of at the entity's tile position, so a lower pivot draws in front. It moves NOTHING visually — the blit is unchanged, and offset_x/offset_y remain the way to nudge one. Absent => sorts at the tile position exactly as before. Frame-px point relative to the sprite anchor, same convention as offset_x/offset_y and slice (+x = right, -y = up), measured on the sheet frame at frame resolution, never at draw resolution or a zoom. [x, y].",
                   "items": {
                     "maximum": 4096,
                     "minimum": -4096,

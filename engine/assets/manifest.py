@@ -22,13 +22,20 @@ log = logging.getLogger(__name__)
 
 IDLE = "idle"
 
-# ESV-1: the six declared anchor names (asset_manifest.schema.json), all
+# ESV-1: the declared anchor names (asset_manifest.schema.json), all
 # optional. Fixed order so a parsed entry's `anchors` tuple is deterministic
 # regardless of the raw dict's key order.
 ANCHOR_NAMES = (
     "muzzle", "impact", "hp_bar", "floater_origin", "status_icon",
-    "beam_endpoint",
+    "beam_endpoint", "depth_pivot",
 )
+
+# The one anchor read at DRAW-ORDER time rather than by a draw site: the
+# point on the sprite that decides where it sorts in the depth queue (an
+# enemy's feet). `engine.render.renderer.Renderer._depth_pos` is its sole
+# consumer; unlike its six siblings it moves NOTHING visually. Named here
+# because the renderer must not restate the string.
+DEPTH_PIVOT = "depth_pivot"
 
 # D12: the engine distinguishes "manual" from not-manual and nothing more.
 # What a season or a building colour MEANS lives in game/ and editor/.
