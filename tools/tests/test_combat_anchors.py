@@ -24,8 +24,8 @@ from game.buildings import AOEDefenceBuilding, RoundStats, place_building
 from game.core.balance import load_balance
 from game.enemies import Projectile, create_enemy, resolve_combat
 from game.enemies.combat import (
-    AOE_TRAVEL_TIME, ProjectileArc, ProjectileHoming, _fire_splash,
-    _predict_lead,
+    AOE_TRAVEL_TIME, ProjectileArc, ProjectileHoming, _acquire, _chebyshev,
+    _fire_splash, _predict_lead,
 )
 from game.map.tile_map import TileMap
 
@@ -210,6 +210,53 @@ class TestFireSplashUnaffectedByAnchor(unittest.TestCase):
         self.assertAlmostEqual(arc._gy, expected_gy, places=9)
         # only the SPAWN point moved
         self.assertNotAlmostEqual(shells[0].transform.wx, bx, places=6)
+
+
+class TestAcquireMatchesFullScan(unittest.TestCase):
+    """`_acquire` rides the scene's spatial grid; it must return exactly what
+    the full-list scan it replaced returned, in the same ORDER (the `min`/`max`
+    acquisition tiebreaks resolve ties by first-seen = spawn order)."""
+
+    def _scene(self):
+        scene = Scene()
+        offsets = {}
+        # A deterministic spread of enemies (mixed footprints -> mixed offsets)
+        # interleaved with non-enemy objects the grid also hands back. The count
+        # is deliberately over `_GRID_ACQUIRE_MIN_ENEMIES` so this exercises the
+        # GRID path; `test_empty_offsets_and_stub_scene_fallback` covers the
+        # scan path the small-wave/stub-scene branches share.
+        for i in range(90):
+            col, row = (i * 7) % 20, (i * 13) % 20
+            obj = GameObject(tags=("enemy",),
+                             transform=Transform(wx=float(col), wy=float(row)))
+            scene.spawn(obj)
+            offsets[obj] = ((i % 3) - 1) / 2.0 + 0.5   # 0.0, 0.5, 1.0
+            scene.spawn(GameObject(
+                tags=("other",),
+                transform=Transform(wx=float(col) + 0.25, wy=float(row))))
+        scene.update(0.0)
+        return scene, offsets, max(offsets.values()) * 2
+
+    def test_matches_scan_over_centers_and_ranges(self):
+        scene, offsets, span = self._scene()
+        for center in [(0, 0), (5, 7), (10, 10), (19, 19), (30, 4)]:
+            for rng in (0, 1, 2, 5, 9):
+                expected = [e for e, off in offsets.items()
+                            if _chebyshev(center, e, off) <= rng]
+                self.assertEqual(_acquire(scene, center, rng, offsets, span),
+                                 expected, msg=f"{center} r{rng}")
+
+    def test_empty_offsets_and_stub_scene_fallback(self):
+        scene, offsets, span = self._scene()
+        self.assertEqual(_acquire(scene, (5, 5), 3, {}, 0.0), [])
+
+        class StubScene:                      # no query_chebyshev
+            pass
+
+        expected = [e for e, off in offsets.items()
+                    if _chebyshev((5, 5), e, off) <= 3]
+        self.assertEqual(_acquire(StubScene(), (5, 5), 3, offsets, span),
+                         expected)
 
 
 if __name__ == "__main__":

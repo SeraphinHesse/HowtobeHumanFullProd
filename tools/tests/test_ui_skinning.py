@@ -305,6 +305,17 @@ def _screen_captures():
 #: unchanged — the formula was never headline-relative) and every box
 #: primitive is untouched. Every other screen's entry is byte-identical,
 #: which is what says the change was contained.
+#: Regenerated a SEVENTEENTH time (stale-fixture catch-up, feature: storm-
+#: acolyte-round-start-reset session): the fixture snapshot
+#: (``tools/tests/fixtures/data/``) had not been refreshed in a while and was
+#: refreshed for an unrelated ``core.json`` schema change (``LightningStrike
+#: .attack_hold_seconds``), which pulled forward two already-committed live
+#: balance retunes this baseline had never caught up to:
+#: ``General.starting_currency`` 25 -> 32 and (a village-level-1 XP
+#: threshold) 50 -> 40. Exactly TWO ``hud`` HudTexts change value (the love
+#: readout and the XP fraction); no rect/pos/colour/font moved and every
+#: other screen's entry is byte-identical — a data catch-up, not a UI
+#: change. Regenerated mechanically from ``_screen_captures()``.
 _BASELINE = {
     # Regenerated for SaveGamePLAN SG-6: the row count grew 7 -> 9 possible
     # rows (CONTINUE + SAVE FILES); the mock state has no saves, so CONTINUE
@@ -508,12 +519,12 @@ _BASELINE = {
         HudRect(rect=(6, 6, 95, 17), color=(40, 32, 58), border_radius=4, width=0),
         HudRect(rect=(6, 6, 95, 17), color=(150, 135, 185), border_radius=4, width=1),
         HudSprite(slot_key='ui_icon_love', dest=(9, 10), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
-        HudText(text='25', pos=(20, 9), font_key='xl', color=(255, 200, 50), align='left'),
+        HudText(text='32', pos=(20, 9), font_key='xl', color=(255, 200, 50), align='left'),
         HudText(text='LVL 1', pos=(107, 6), font_key='hud_lvl', color=(255, 200, 50), align='left'),
         HudSprite(slot_key='ui_icon_xp', dest=(107, 21), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
         HudRect(rect=(118, 23, 55, 4), color=(48, 34, 66), border_radius=0, width=0),
         HudRect(rect=(118, 23, 55, 4), color=(80, 65, 120), border_radius=0, width=1),
-        HudText(text='0/50', pos=(118, 28), font_key='sm', color=(150, 140, 120), align='left'),
+        HudText(text='0/40', pos=(118, 28), font_key='sm', color=(150, 140, 120), align='left'),
         HudRect(rect=(6, 23, 95, 49), color=(40, 32, 58), border_radius=4, width=0),
         HudRect(rect=(6, 23, 95, 49), color=(150, 135, 185), border_radius=4, width=1),
         HudText(text='+5/round', pos=(8, 25), font_key='sm', color=(214, 96, 136), align='left'),
@@ -810,11 +821,15 @@ class TestScreenBackground(ScreenSkinningCase):
         self.assertIsNone(skinning.screen_background("nonexistent_screen"))
 
     def test_submit_background_draws_nothing_with_no_override(self):
-        """Every shipped screen JSON has no ``background`` key today — the
-        call each screen's submit() makes must be a true no-op."""
+        """Most shipped screen JSONs still have no ``background`` key — the
+        call each screen's submit() makes must be a true no-op for one of
+        them. ``main_menu`` is deliberately NOT used here any more: it has
+        carried a real ``background`` override (``ui_bg_main_menu``) since
+        before this test's baseline was last refreshed — see ``pause``'s own
+        screen JSON, which still has none."""
         skinning = ScreenSkinning(self.data_dir)
         renderer = RecordingRenderer()
-        skinning.submit_background(renderer, "main_menu", VIEW_W, VIEW_H)
+        skinning.submit_background(renderer, "pause", VIEW_W, VIEW_H)
         self.assertEqual(renderer.items, [])
 
 

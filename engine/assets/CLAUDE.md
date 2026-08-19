@@ -72,8 +72,9 @@ crashes boot.** When you change asset conventions, update THIS doc.
   placeholder deliberately never carries one. See `engine/render/CLAUDE.md`.
 - **Optional `anchors` (ESV-1)**: the SECOND optional per-entry key, beside
   `slice`. A manifest entry may carry `anchors: {muzzle?, impact?, hp_bar?,
-  floater_origin?, status_icon?, beam_endpoint?}` — six declared names, all
-  optional, each a `[x, y]` frame-px point relative to the sprite anchor (same
+  floater_origin?, status_icon?, beam_endpoint?, depth_pivot?}` — seven
+  declared names (`ANCHOR_NAMES`), all optional, each a `[x, y]` frame-px
+  point relative to the sprite anchor (same
   convention as `offset_x`/`offset_y`: `+x` right, `-y` up), measured on the
   sheet frame at frame resolution, never at draw resolution or a zoom (D2).
   `entry_from_dict` parses it to a `ManifestEntry.anchors` tuple of
@@ -92,6 +93,12 @@ crashes boot.** When you change asset conventions, update THIS doc.
   `anchor_world_point` (below). `floater_origin`/`status_icon`/
   `beam_endpoint` remain declared and parse-ready but inert (no read-site) —
   shipped now so their future wiring needs no schema migration.
+  **`depth_pivot` is the odd one out**: it is read at DRAW-ORDER time, not by
+  a draw site — `engine/render/renderer.py`'s `_depth_pos` sorts an
+  `entities`-layer sprite at that handle instead of at its tile (an enemy's
+  feet), and it moves nothing visually. `DEPTH_PIVOT` in `manifest.py` names
+  it so the renderer never restates the string. See
+  `engine/render/CLAUDE.md`.
   - **`AssetStore.offset(slot_key)`** (the anchor/offset composition fix,
     `docs/briefs/fix-anchor-offset-and-bullet-sprites.md`) mirrors `anchor()`
     exactly: `(x, y)` ints from the manifest entry's `offset_x`/`offset_y`, or

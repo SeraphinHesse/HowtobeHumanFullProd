@@ -37,7 +37,7 @@ from game.buildings.components import (
 from .components import (
     EnemyCombat, Kidnap, PathAgent, apply_slow, on_non_grass_condition,
 )
-from .kidnap import begin_kidnap
+from .kidnap import begin_kidnap, release_kidnap
 from .sounds import DEATH, play_enemy_sound
 
 # AOE_TRAVEL_TIME / BEAM_MIN_TICK are SIMULATION TIMING, not balancing (NOT
@@ -59,6 +59,13 @@ CRATER_LIFE = 1.0        # seconds a spent-shell crater lingers before fading ou
 # swap the procedural Crater for a one-shot PlayOnceVfx at impact (the same
 # "shared slot, never per-building" rule vfx_projectile/vfx_shell follow).
 CRATER_SLOT = "vfx_crater"
+# fix-mortar-shell-arc: half a tile on BOTH world axes — in this iso
+# projection that is exactly +tile_h/2 in screen y (the x terms cancel), i.e.
+# the tile DIAMOND CENTRE a sprite is drawn on (engine/render/renderer.py
+# sprite_anchor_screen) versus the raw world point a HUD projectile dot is
+# drawn at. The mortar shell ends its flight there so it lands ON the crater
+# it spawns, instead of half a tile height above it. Geometry, not a tunable.
+_TILE_CENTRE = 0.5
 # BossUpgradeTimelinePLAN BU-3 3.3 (#3 mortar_slow): the opaque BuffState
 # source key every mortar's slow is written under. ONE key for the whole
 # UPGRADE, never one per firing building — see `apply_slow`'s docstring
@@ -214,6 +221,20 @@ class ProjectileHoming(Component):
                                        getattr(self, "_boss_upgrades_balance",
                                                None))
             health = target.get_component(Health)
+        else:
+            dmg = health = None
+        # A target that stopped being tagged "enemy" mid-flight is a KIDNAPPER
+        # (`kidnap.py`'s retag) — the one target this method can still see that
+        # every other combat site has already dropped. It is untouchable EXCEPT
+        # to a shot that would kill it outright: a partial hit is skipped (a
+        # carrier has no HP bar to show it, and the death sweep reads
+        # `by_tag("enemy")`, so a chipped carrier would silently walk home at
+        # 1 HP), a lethal one kills and is resolved by `_resolve_kidnapper_
+        # deaths` below, which hands the stolen building back.
+        if (health is not None and dmg < health.hp
+                and "enemy" not in getattr(target, "tags", ())):
+            dmg = health = None
+        if health is not None:
             health.damage(dmg)
             if shooter is not None:
                 rs = shooter.get_component(RoundStats)
@@ -267,6 +288,26 @@ class ProjectileArc(Component):
     ``radius`` of the landing point (Euclidean, full damage, no falloff, no
     target cap), spawns a cosmetic ``Crater``, then despawns itself.
 
+    fix-mortar-shell-arc: the shell now MOVES. It used to sit at its muzzle
+    spawn point for the whole flight (only the timer ticked) and then vanish
+    while a crater appeared a tile-range away — the shell was never seen to
+    travel. ``update`` now walks ``transform`` from the launch point to the
+    landing point on a parabola whose apex is ``arc_height`` TILE HEIGHTS in
+    SCREEN space (``data/balancing/vfx.json`` ``procedural.projectile.
+    arc_height_frac``, threaded down from ``resolve_combat``), using the same
+    "express a height as a screen lift, convert back through ``cs``" trick
+    ``game.anchors.projectile_point`` uses for ``lift_frac`` — this package
+    has no screen space of its own. Purely cosmetic (D4): the impact time is
+    still ``timer``, the damage still resolves at ``(_gx, _gy)``, and with no
+    ``cs`` (every headless test) the shell simply travels flat.
+
+    The flight ENDS at the tile-diamond CENTRE of ``(_gx, _gy)`` (``+
+    _TILE_CENTRE`` on both axes), not at the raw ground point: a projectile is
+    drawn as a HUD dot/sprite at ``world_to_screen(wx, wy)``, while the crater
+    — procedural ring and imported ``vfx_crater`` one-shot alike — is centred
+    on the tile diamond, half a ``tile_h`` below that. Landing on the raw
+    point would drop the shell visibly ABOVE the crater it spawns.
+
     ``crater_life`` (ESV-3b): the fade lifetime the spawned ``Crater`` is
     built with, carried from ``data/balancing/vfx.json`` (``procedural.
     crater.life``) all the way down from ``resolve_combat``'s required
@@ -278,6 +319,13 @@ class ProjectileArc(Component):
     radius: float = 0.0
     timer: float = 0.0
     crater_life: float = CRATER_LIFE
+    # fix-mortar-shell-arc: the flight's TOTAL duration (``timer`` counts down
+    # from it, so the two together give the 0..1 flight fraction the arc is
+    # drawn on) and the cosmetic apex, in tile heights. Both are set by
+    # ``launch``/``_fire_splash``; 0.0 means "no arc", i.e. exactly the
+    # stationary pre-fix shell.
+    duration: float = 0.0
+    arc_height: float = 0.0
 
     def on_added(self, owner):
         self._proj = owner
@@ -285,6 +333,14 @@ class ProjectileArc(Component):
         self._scene = None
         self._gx = 0.0
         self._gy = 0.0
+        # fix-mortar-shell-arc: the launch point the arc is interpolated FROM
+        # (recorded by ``launch`` off the shell's spawn transform), and the
+        # host CoordinateSystem the screen-space apex is resolved through —
+        # the same transient-ref pattern (E-11) ``_assets``/``_cs`` already
+        # use on ``ProjectileHoming``. ``None`` -> flat flight, never a raise.
+        self._ox = 0.0
+        self._oy = 0.0
+        self._cs = None
         # ESV-5: an optional (wx, wy) -> None callback fired at impact,
         # ALONGSIDE whichever impact cosmetic _impact spawns below (Crater or
         # a sprite one-shot) — never a replacement for it. Set (or left None)
@@ -319,6 +375,11 @@ class ProjectileArc(Component):
         self._shooter = shooter
         self._scene = scene
         self.timer = travel_time
+        # fix-mortar-shell-arc: the arc is interpolated from wherever the
+        # shell was SPAWNED (its possibly muzzle-anchored point), so the
+        # anchor keeps deciding the launch position exactly as before.
+        self.duration = travel_time
+        self._ox, self._oy = self._proj.transform.world_pos
 
     def update(self, dt):
         proj = getattr(self, "_proj", None)
@@ -326,8 +387,31 @@ class ProjectileArc(Component):
             return
         self.timer -= dt
         if self.timer > 0:
+            self._advance()
             return
         self._impact()
+
+    def _advance(self):
+        """Cosmetic only (D4): place the shell on its parabola for the flight
+        fraction ``timer`` says it has left. Never touches the timer, the
+        landing point or the damage."""
+        proj = self._proj
+        if self.duration <= 0:
+            return
+        t = 1.0 - self.timer / self.duration
+        ex = self._gx + _TILE_CENTRE
+        ey = self._gy + _TILE_CENTRE
+        wx = self._ox + (ex - self._ox) * t
+        wy = self._oy + (ey - self._oy) * t
+        cs = getattr(self, "_cs", None)
+        if cs is not None and self.arc_height:
+            # 4t(1-t): 0 at both ends, 1 at t=0.5 — the apex IS arc_height
+            # tile heights, so the balancing number reads as what you see.
+            sx, sy = cs.world_to_screen(wx, wy)
+            lift = (cs.geometry.tile_h * cs.camera.zoom * self.arc_height
+                    * 4.0 * t * (1.0 - t))
+            wx, wy = cs.screen_to_world(sx, sy - lift)
+        proj.transform.wx, proj.transform.wy = wx, wy
 
     def _impact(self):
         scene = getattr(self, "_scene", None)
@@ -530,6 +614,63 @@ def _chebyshev(center_tile, enemy, off=0.0):
     return max(abs(ec - center_tile[0]), abs(er - center_tile[1]))
 
 
+# Below this many live enemies the old full scan is still the cheaper of the
+# two — a grid query walks every CELL its range box touches whether or not
+# anything sits there, so its cost floor is set by `rng`, not by enemy count.
+# Measured crossover (rng 5, corridor spread, `cell_size` 2.0): between 50 and
+# 100 enemies. 64 sits under it, so no wave size pays MORE than it does today
+# and the tail — where a frame was spending milliseconds — gets the grid.
+_GRID_ACQUIRE_MIN_ENEMIES = 64
+
+
+def _acquire(scene, center, rng, offsets, span):
+    """The live enemies whose footprint block is within Chebyshev ``rng`` tiles
+    of the defender tile ``center`` — THE acquisition primitive, shared by the
+    projectile path (``_update_defender``) and the beam (``_update_beam``).
+
+    Rides the scene's spatial grid (E-31) instead of testing every live enemy:
+    this used to be a list comprehension over the whole per-frame target list in
+    BOTH call sites, i.e. O(defenders x enemies) ``_chebyshev`` calls plus one
+    fresh list per defender per frame, while the grid sat there queried by
+    nobody (`game/` held zero query call sites). Measured per frame, corridor
+    spread, 1x1 footprints, `rng` 5, best of 3 x 150 frames: 300 enemies / 50
+    defenders 7.7 ms -> 5.1 ms, 600/50 14.1 ms -> 8.7 ms, 200/40 3.36 -> 3.07;
+    at and below the threshold it is the same code and measures within noise
+    (20/10 0.086 -> 0.090 ms). See `game/PERF.md`, "Targeting rides the spatial
+    grid".
+
+    ``span`` widens the query so the grid's ANCHOR-to-tile measure cannot miss a
+    multi-tile enemy that ``_chebyshev``'s nearest-BLOCK-tile measure would
+    accept (see its computation in ``resolve_combat``); every extra candidate is
+    then re-filtered by ``_chebyshev`` itself, so the in-range SET and its ORDER
+    are byte-identical to the old scan — the grid returns insertion order, which
+    is scene spawn order, which is what ``by_tag("enemy")`` gave. That matters:
+    the ``min``/``max`` acquisition tiebreaks below resolve ties by first-seen.
+
+    Small waves keep the scan (`_GRID_ACQUIRE_MIN_ENEMIES`) — see there.
+
+    ``offsets`` doubles as the membership test — the grid hands back buildings,
+    projectiles and corpses too, and anything not keyed in it is not a live
+    targetable enemy. A scene without ``query_chebyshev`` (a bare test stub)
+    falls back to the old full scan.
+    """
+    if not offsets:
+        return []
+    query = (getattr(scene, "query_chebyshev", None)
+             if len(offsets) > _GRID_ACQUIRE_MIN_ENEMIES else None)
+    if query is None:
+        return [e for e, off in offsets.items()
+                if _chebyshev(center, e, off) <= rng]
+    in_range = []
+    for enemy in query(center, rng + span):
+        off = offsets.get(enemy)
+        if off is None:
+            continue
+        if _chebyshev(center, enemy, off) <= rng:
+            in_range.append(enemy)
+    return in_range
+
+
 def _euclid_sq_to_enemy(defender, enemy):
     """Squared world distance from the defender to the enemy's block centre —
     the acquisition tiebreak. N=1 -> today's world_pos-to-world_pos value."""
@@ -581,7 +722,8 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
                    assets=None, cs=None, on_splash_impact=None,
                    on_defender_fire=None, on_projectile_hit=None,
                    on_kidnap=None, on_damage=None,
-                   run_state=None, boss_upgrades_balance=None):
+                   run_state=None, boss_upgrades_balance=None,
+                   on_kidnapper_death=None):
     """``dmg_bonus`` (10G): a flat per-shot damage bonus every defender adds at
     fire time — the boss-bonus story damage (Boss1A/3A) crossing the package
     boundary as a plain int (the host computes it per frame from
@@ -626,9 +768,23 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
     ``ProjectileArc.update`` never moves the shell, so its spawn point is
     its drawn point for the whole flight.
 
+    fix-mortar-shell-arc: ``procedural.projectile.arc_height_frac`` is read
+    off the same block and threaded to ``_fire_splash`` only. It is the
+    mortar shell's cosmetic flight apex in tile heights — the shell now
+    actually travels to its landing point instead of sitting at the muzzle
+    for ``AOE_TRAVEL_TIME`` (which is unchanged, and still the only thing
+    that decides WHEN the splash lands — D4).
+
     ``on_kidnap(enemy, building)`` (Art/enemies): fed to every enemy whose
     ``Kidnap.pending`` was armed this frame by ``EnemyCombat`` — see
     ``_resolve_kidnaps`` below.
+
+    ``on_kidnapper_death(enemy, building)`` (optional, the same pattern): a
+    CARRIER shot down mid-walk-home by an in-flight lethal projectile — see
+    ``_resolve_kidnapper_deaths``. It is deliberately NOT ``on_enemy_death``:
+    the session already counted the kill and paid the XP at ``on_kidnap``, so
+    this seam exists only for the cosmetic half (the host spawns the ``Corpse``
+    off it), and paying twice for one enemy is the bug it avoids.
 
     ``on_damage`` (debug-mode-telemetry, optional, level-2 only — the
     ``on_splash_impact`` pattern): forwarded to the three damage sites this
@@ -666,6 +822,10 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
     # AOE_TRAVEL_TIME/BEAM_MIN_TICK below, which stay module constants — D4).
     crater_life = vfx_balance["procedural"]["crater"]["life"]
     lift_frac = vfx_balance["procedural"]["projectile"]["lift_frac"]
+    # fix-mortar-shell-arc: the mortar shell's cosmetic flight apex, read the
+    # same way (COSMETICS live in vfx.json; AOE_TRAVEL_TIME, the timing that
+    # decides when the splash lands, stays a module constant — D4).
+    arc_height_frac = vfx_balance["procedural"]["projectile"]["arc_height_frac"]
 
     # BR-3/D2: a boss in its delayed second phase is alive but UNTARGETABLE —
     # dropping it here removes it from every defender's `in_range` list at
@@ -677,14 +837,28 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
     # ER-2: the footprint offset is a per-enemy CONSTANT. Resolve it once per
     # enemy per frame here — never inside the (defender x enemy) pairwise loop
     # below, where it would cost a component scan per pair (game/PERF.md).
-    targets = [(e, _fp_offset(e)) for e in enemies]
+    # ER-2/perf: a DICT, not a list of pairs — `_acquire` looks each candidate
+    # the spatial grid hands back up by identity, and the dict IS the
+    # "alive and targetable" membership test (game/PERF.md, "Targeting rides
+    # the spatial grid").
+    offsets = {e: _fp_offset(e) for e in enemies}
+    # The widest footprint block on the board this frame, in tiles beyond the
+    # anchor (`span = N-1`). The grid measures ANCHOR-to-tile while `_chebyshev`
+    # measures nearest-BLOCK-tile-to-tile, and the block only ever extends AWAY
+    # from the anchor, so anchor distance <= block distance + span: querying at
+    # `rng + span` cannot miss an in-range enemy, and `_chebyshev` re-filters the
+    # extra candidates out. One max over enemies, not per defender.
+    span = max(offsets.values(), default=0.0) * 2
     for defender in scene.by_tag("combat"):
-        _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
+        _update_defender(defender, scene, offsets, span, dt, min_atk, proj_speed,
                          crater_life, dmg_bonus, assets, cs, on_splash_impact,
                          on_defender_fire, on_projectile_hit, lift_frac,
-                         on_damage, run_state, boss_upgrades_balance)
+                         on_damage, run_state, boss_upgrades_balance,
+                         arc_height_frac)
 
     _resolve_kidnaps(scene, tilemap, on_kidnap)
+
+    _resolve_kidnapper_deaths(scene, on_kidnapper_death)
 
     _resolve_base_arrivals(scene, tilemap, on_base_hit)
 
@@ -724,13 +898,36 @@ def _resolve_kidnaps(scene, tilemap, on_kidnap=None):
             on_kidnap(enemy, building)
 
 
-def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
+def _resolve_kidnapper_deaths(scene, on_kidnapper_death=None):
+    """The carrier's own death sweep — the ``by_tag("kidnapper")`` twin of the
+    enemy sweep in ``resolve_combat``, and the ONLY thing that can reach a
+    carrier: the retag hides it from every other combat site, and
+    ``ProjectileHoming._impact`` only ever lands a LETHAL shot on one (see the
+    kidnapper branch there), so a kidnapper found dead here was shot down.
+
+    ``release_kidnap`` hands the stolen building back (it flies home and
+    revives at 1 HP); the death SOUND fires here like any other death, while
+    the XP/kill credit deliberately does not — ``Session.on_kidnap`` already
+    paid it the frame this enemy became a carrier."""
+    for enemy in list(scene.by_tag("kidnapper")):
+        if getattr(enemy, "alive", False):
+            continue
+        building = release_kidnap(scene, enemy)
+        play_enemy_sound(enemy, DEATH)
+        if on_kidnapper_death is not None:
+            on_kidnapper_death(enemy, building)
+        scene.despawn(enemy)
+
+
+def _update_defender(defender, scene, offsets, span, dt, min_atk, proj_speed,
                      crater_life, dmg_bonus=0, assets=None, cs=None,
                      on_splash_impact=None, on_defender_fire=None,
                      on_projectile_hit=None, lift_frac=0.0, on_damage=None,
-                     run_state=None, boss_upgrades_balance=None):
-    """``targets`` is ``[(enemy, footprint_offset), ...]`` — the offsets are
-    resolved once per frame by ``resolve_combat`` (ER-2). ``assets``/``cs``
+                     run_state=None, boss_upgrades_balance=None,
+                     arc_height_frac=0.0):
+    """``offsets``/``span`` are the per-frame acquisition inputs built once by
+    ``resolve_combat`` (ER-2) and consumed only by ``_acquire`` — see there.
+    ``assets``/``cs``
     (ESV-1) pass straight through to ``_fire``/``_fire_splash``; the beam
     path (``_update_beam``) needs neither — it is instant hitscan with no
     travel and no spawn point (§1.5). ``crater_life`` (ESV-3b) and
@@ -740,7 +937,9 @@ def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
     hit`` (ESV-6) passes only to ``_fire`` — the homing path — since the
     mortar's splash already has its own impact event. ``lift_frac``
     (feat-projectile-anchored-flight) passes only to ``_fire`` too — see
-    that module-level function's docstring. ``on_damage`` (debug-mode-
+    that module-level function's docstring. ``arc_height_frac``
+    (fix-mortar-shell-arc) passes only to ``_fire_splash`` — the mortar is
+    the one shot that arcs. ``on_damage`` (debug-mode-
     telemetry) passes to BOTH firing paths and to ``_update_beam``.
     ``run_state``/``boss_upgrades_balance`` (BU-3 3.3 + 3.5) pass to ALL THREE
     firing paths: ``mortar_slow`` (#3) is scoped to the mortar, but
@@ -752,8 +951,8 @@ def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
     # Beam buildings have their OWN acquisition (highest-HP, death cooldown) and
     # tick model — handle them wholesale, then bail.
     if defender.get_component(BeamAttacker) is not None:
-        _update_beam(defender, targets, dt, dmg_bonus, on_damage, run_state,
-                     boss_upgrades_balance)
+        _update_beam(defender, scene, offsets, span, dt, dmg_bonus, on_damage,
+                     run_state, boss_upgrades_balance)
         return
 
     center = (defender.col, defender.row)
@@ -763,7 +962,7 @@ def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
     # feeding pathfinding coverage + the RANGE overlay. Guarded so bare-bones
     # defender stubs in tests keep working.
     rng = getattr(defender, "targeting_range_tiles", defender.range_tiles)()
-    in_range = [e for e, off in targets if _chebyshev(center, e, off) <= rng]
+    in_range = _acquire(scene, center, rng, offsets, span)
 
     target = getattr(attacker, "_target", None)
     if target is not None and target not in in_range:
@@ -786,7 +985,7 @@ def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
             _fire_splash(defender, target, scene, crater_life, dmg_bonus,
                         assets, cs, on_splash_impact, on_defender_fire,
                         lift_frac, on_damage, run_state,
-                        boss_upgrades_balance)
+                        boss_upgrades_balance, arc_height_frac)
         else:
             _fire(defender, target, scene, proj_speed, dmg_bonus, assets, cs,
                  on_defender_fire, on_projectile_hit, lift_frac, on_damage,
@@ -794,8 +993,8 @@ def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
         attacker.cooldown = attack_interval(defender, min_atk)
 
 
-def _update_beam(defender, targets, dt, dmg_bonus=0, on_damage=None,
-                 run_state=None, boss_upgrades_balance=None):
+def _update_beam(defender, scene, offsets, span, dt, dmg_bonus=0,
+                 on_damage=None, run_state=None, boss_upgrades_balance=None):
     """The Sun Scorcher beam (prototype ``SunScorcherBuilding.update``): lock the
     highest-HP enemy in range, ramp damage while focused, reset the ramp on any
     target change, and pause re-acquiring for ``target_death_cooldown`` after a
@@ -811,7 +1010,7 @@ def _update_beam(defender, targets, dt, dmg_bonus=0, on_damage=None,
     # 10I: targeting range (= effective, mountain-boosted, for the beam),
     # guarded for stubs.
     rng = getattr(defender, "targeting_range_tiles", defender.range_tiles)()
-    in_range = [e for e, off in targets if _chebyshev(center, e, off) <= rng]
+    in_range = _acquire(scene, center, rng, offsets, span)
 
     if beam.death_cooldown > 0:
         beam.death_cooldown -= dt
@@ -951,7 +1150,8 @@ def _mortar_slow_spec(defender, run_state, boss_upgrades_balance):
 def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
                  assets=None, cs=None, on_splash_impact=None,
                  on_defender_fire=None, lift_frac=0.0, on_damage=None,
-                 run_state=None, boss_upgrades_balance=None):
+                 run_state=None, boss_upgrades_balance=None,
+                 arc_height_frac=0.0):
     """Launch an arcing shell (prototype ``AOEDefenceBuilding._shoot``): aim a
     fixed ground point via predictive lead, load it with the current damage +
     splash radius, and let ``ProjectileArc`` resolve the splash on impact.
@@ -987,11 +1187,17 @@ def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
     the SAME ``projectile_point`` resolver ``_fire`` uses, so an un-anchored
     mortar keeps the screen-space lift that used to be added at DRAW time in
     ``submit_projectiles``. Without this the shell would render ~19px lower
-    than before this change — ``ProjectileArc.update`` never moves the shell
-    (only its timer ticks), so its spawn point IS its drawn point for the
-    whole flight, and the removed draw lift has to come back here or the
-    mortar visibly drops. Byte-identical to pre-change for an un-anchored
-    shooter; an authored ``muzzle`` anchor wins outright, as everywhere.
+    than before this change, and the removed draw lift has to come back here
+    or the mortar visibly drops. Byte-identical to pre-change for an
+    un-anchored shooter; an authored ``muzzle`` anchor wins outright, as
+    everywhere. (It used to also be the shell's ONLY height, because the
+    spawn point was its drawn point for the whole flight; since
+    fix-mortar-shell-arc it is just where the arc STARTS.)
+
+    ``arc_height_frac`` (fix-mortar-shell-arc, cosmetic): the shell's flight
+    apex in tile heights, carried onto ``ProjectileArc.arc_height`` along with
+    the ``cs`` the arc is resolved through. 0.0 (every headless/test caller)
+    is a flat flight — never a raise, never a timing change.
 
     ``run_state``/``boss_upgrades_balance`` (BU-3 3.3): the standard BU-3 hook
     pair, resolved ONCE here through ``_mortar_slow_spec`` into a
@@ -1019,6 +1225,11 @@ def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
     # be answered at impact.
     arc._run_state = run_state
     arc._boss_upgrades_balance = boss_upgrades_balance
+    # fix-mortar-shell-arc: the cosmetic flight shape — `cs` is the same
+    # transient host reference `_fire` stashes on a homing shot, read live
+    # each frame so the arc follows camera pan/zoom.
+    arc._cs = cs
+    arc.arc_height = arc_height_frac
     arc.launch(gx, gy, defender, scene, AOE_TRAVEL_TIME)
     scene.spawn(shell)
 

@@ -69,8 +69,9 @@ class SpatialGrid:
         self._cell_of[obj] = new
 
     def rebuild(self, objects):
-        """Drop all buckets and re-insert `objects` in iteration order. O(n);
-        Scene calls this once per frame, then many queries hit the grid."""
+        """Drop all buckets and re-insert `objects` in iteration order. O(n).
+        Scene calls this LAZILY — on the first query after the grid went stale,
+        never on frames nothing queries (`Scene._ensure_grid`)."""
         self._cells.clear()
         self._cell_of.clear()
         self._seq.clear()

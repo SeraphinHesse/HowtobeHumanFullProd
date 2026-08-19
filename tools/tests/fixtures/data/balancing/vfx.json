@@ -112,20 +112,20 @@
     },
     "gold_highlight": {
       "border_color": [
-        255,
-        240,
-        80
+        222,
+        158,
+        65
       ],
       "border_width": 2,
-      "fade_in": 0.15,
+      "fade_in": 1.0,
       "fill_alpha": 90,
       "fill_color": [
-        255,
-        215,
-        0
+        232,
+        193,
+        112
       ],
-      "hold": 0.35,
-      "life": 1.2
+      "hold": 0.15,
+      "life": 2.0
     },
     "highlights": {
       "attack_range": {
@@ -261,6 +261,7 @@
       "vy_min": -35.0
     },
     "projectile": {
+      "arc_height_frac": 3.0,
       "lift_frac": 0.6,
       "shell_color": [
         70,
@@ -371,7 +372,7 @@
   },
   "triggers": {
     "attack_range": {
-      "draw_in_front": true,
+      "draw_in_front": false,
       "procedural": "highlight",
       "sprite_slot": "",
       "variant_select": {
@@ -400,7 +401,7 @@
     "building_placed": {
       "draw_in_front": true,
       "procedural": "spark_place",
-      "sprite_slot": "",
+      "sprite_slot": "vfx_respawn",
       "variant_select": {
         "misc_key": "",
         "mode": "random"
@@ -409,7 +410,7 @@
     "building_respawn": {
       "draw_in_front": true,
       "procedural": "spark_respawn",
-      "sprite_slot": "",
+      "sprite_slot": "vfx_respawn",
       "variant_select": {
         "misc_key": "",
         "mode": "random"
@@ -453,7 +454,7 @@
     },
     "enemy_death": {
       "draw_in_front": true,
-      "procedural": "splatter",
+      "procedural": "",
       "sprite_slot": "",
       "variant_select": {
         "misc_key": "",
@@ -475,11 +476,11 @@
       "sprite_slot": "",
       "variant_select": {
         "misc_key": "",
-        "mode": "random"
+        "mode": "level"
       }
     },
     "projectile_hit": {
-      "draw_in_front": true,
+      "draw_in_front": false,
       "procedural": "",
       "sprite_slot": "",
       "variant_select": {
@@ -488,16 +489,16 @@
       }
     },
     "section_2x2": {
-      "draw_in_front": true,
+      "draw_in_front": false,
       "procedural": "highlight",
-      "sprite_slot": "",
+      "sprite_slot": "vfx_section_2x2",
       "variant_select": {
         "misc_key": "",
         "mode": "random"
       }
     },
     "splash_impact": {
-      "draw_in_front": true,
+      "draw_in_front": false,
       "procedural": "crater",
       "sprite_slot": "vfx_crater",
       "variant_select": {
@@ -506,16 +507,16 @@
       }
     },
     "tile_selected": {
-      "draw_in_front": true,
+      "draw_in_front": false,
       "procedural": "highlight",
-      "sprite_slot": "",
+      "sprite_slot": "vfx_tile_selected",
       "variant_select": {
         "misc_key": "",
         "mode": "random"
       }
     },
     "tutorial_highlight": {
-      "draw_in_front": true,
+      "draw_in_front": false,
       "procedural": "highlight",
       "sprite_slot": "",
       "variant_select": {
@@ -539,6 +540,41 @@
       "variant_select": {
         "misc_key": "",
         "mode": "random"
+      }
+    }
+  },
+  "triggers_by_type": {
+    "boost_damage": {
+      "boost_aura": {
+        "draw_in_front": false,
+        "procedural": "",
+        "sprite_slot": "vfx_boost_damage_aura",
+        "variant_select": {
+          "misc_key": "",
+          "mode": "level"
+        }
+      }
+    },
+    "boost_hp": {
+      "boost_aura": {
+        "draw_in_front": false,
+        "procedural": "",
+        "sprite_slot": "vfx_boost_hp_aura",
+        "variant_select": {
+          "misc_key": "",
+          "mode": "level"
+        }
+      }
+    },
+    "boost_speed": {
+      "boost_aura": {
+        "draw_in_front": false,
+        "procedural": "",
+        "sprite_slot": "vfx_boost_speed_aura",
+        "variant_select": {
+          "misc_key": "",
+          "mode": "level"
+        }
       }
     }
   }

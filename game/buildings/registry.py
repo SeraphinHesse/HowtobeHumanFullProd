@@ -104,6 +104,67 @@ def build_cost(building_type, buildings_balance, tier_idx=0, repeat_count=0,
     return cost
 
 
+#: The one predicate both placement seams ask. `place_building` (a fresh
+#: building arriving) and `movement.start_move` (a placed one relocating) are
+#: the TWO ways a building comes to occupy a tile, so every rule about WHICH
+#: TILE may host WHICH TYPE has to be asked by both — it used to live inline in
+#: `place_building` alone, which let a move drop a building on a pond, onto a
+#: spent painter tile, or cardinally beside another booster.
+#:
+#: Deliberately NOT here: the research gate (`buildable`) and affordability.
+#: Both are about acquiring a building, not about the tile; a placed building
+#: is already researched and already paid for, and a move charges its own
+#: separate price.
+def placement_blocker(tilemap, tile, building_type, state=None, ignore=None):
+    """Why ``building_type`` may not occupy ``tile``, as a message — or
+    ``None`` when it may.
+
+    ``state`` is the ``RunState`` (duck-typed: ``used_painter_tiles``); omit it
+    in logic tests that predate it, and the painter-tile bar goes inert.
+
+    ``ignore`` is a building to treat as ABSENT while scanning neighbours — the
+    building being moved, which is still standing on its origin tile when
+    ``start_move`` asks. Without it a booster shuffling one tile sideways would
+    read its own origin as an adjacent booster and refuse to move.
+    """
+    if tile.state != TileState.BUILDABLE:
+        return (f"tile ({tile.col},{tile.row}) is {tile.state.name}, "
+                f"not BUILDABLE")
+    # Tile Condition Rework: a pond may never host a building, regardless of
+    # zone state.
+    if getattr(tile, "condition", None) in CONDITION_BLOCKS_BUILD:
+        return f"tile ({tile.col},{tile.row}) is a pond and cannot be built on"
+    # 10C: a tile that completed a Painter payout is permanently barred from
+    # hosting another Painter (prototype ``used_painter_tiles``). The UI
+    # disabling is only a convenience; this is the enforcement.
+    if (building_type == "painter" and state is not None
+            and (tile.col, tile.row) in getattr(state, "used_painter_tiles", ())):
+        return f"tile ({tile.col},{tile.row}) already sold a painting"
+    # Building Movement: neither endpoint of a move in progress may host a
+    # building — the vacated origin and the reserved destination are both
+    # ordinary BUILDABLE tiles (deliberately, so enemies keep walking through
+    # them), so `is_moving` is the only thing that tells them apart. `getattr`
+    # keeps the pre-feature tilemap stubs some logic tests build working.
+    is_moving = getattr(tilemap, "is_moving", None)
+    if is_moving is not None and is_moving(tile.col, tile.row):
+        return f"tile ({tile.col},{tile.row}) is part of a move in progress"
+    # 10D: boosters may not sit cardinally adjacent to another booster
+    # (prototype ``Game.place_building`` 'boost_adjacent' — cardinal-4,
+    # diagonals allowed). Deliberately a FIXED cardinal-4 check, independent of
+    # `BoostBuildings.globals.range_tiles`/`.range_shape` (the configurable
+    # buff/curse range, `game/buildings/boost.py`) — a designer widening the
+    # buff range does not change this placement rule.
+    if building_type is not None and building_type.startswith("boost_"):
+        for dc, dr in ((0, -1), (0, 1), (-1, 0), (1, 0)):
+            adj = tilemap.get(tile.col + dc, tile.row + dr)
+            if (adj is not None and adj.occupant is not None
+                    and adj.occupant is not ignore
+                    and "boost" in adj.occupant.tags):
+                return (f"a boost building is already next to "
+                        f"({tile.col},{tile.row})")
+    return None
+
+
 def place_building(tilemap, tile, building_type, love, buildings_balance,
                    scene, occupancy, state=None, colour_columns=None,
                    rng=None, column=None, boss_upgrades_balance=None):
@@ -147,48 +208,11 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
     levelled by ``musician_auto_level``. Absent (every caller that predates
     BU-3, every logic test) both are inert.
     """
-    if tile.state != TileState.BUILDABLE:
-        raise PlacementError(
-            f"tile ({tile.col},{tile.row}) is {tile.state.name}, not BUILDABLE")
-    # Tile Condition Rework: a pond may never host a building, regardless of
-    # zone state. Enforced HERE, the single legal placement path, exactly
-    # like the painter-tile bar and move-in-progress bar below.
-    if tile.condition in CONDITION_BLOCKS_BUILD:
-        raise PlacementError(
-            f"tile ({tile.col},{tile.row}) is a pond and cannot be built on")
+    reason = placement_blocker(tilemap, tile, building_type, state)
+    if reason is not None:
+        raise PlacementError(reason)
     if state is not None and not buildable(state, building_type):
         raise PlacementError(f"{building_type} is not researched yet")
-    # 10C: a tile that completed a Painter payout is permanently barred from
-    # hosting another Painter (prototype ``used_painter_tiles`` — enforced HERE,
-    # the single legal placement path; the UI disabling is only a convenience).
-    if (building_type == "painter" and state is not None
-            and (tile.col, tile.row) in getattr(state, "used_painter_tiles", ())):
-        raise PlacementError(
-            f"tile ({tile.col},{tile.row}) already sold a painting")
-    # Building Movement: neither endpoint of a move in progress may host a new
-    # building — the vacated origin and the reserved destination are both
-    # ordinary BUILDABLE tiles (deliberately, so enemies keep walking through
-    # them), so `is_moving` is the only thing that tells them apart. Enforced
-    # HERE, the single legal placement path, exactly like the painter-tile bar
-    # above; the panel's tile-picking is only a convenience. `getattr` keeps
-    # the pre-feature tilemap stubs some logic tests build working.
-    is_moving = getattr(tilemap, "is_moving", None)
-    if is_moving is not None and is_moving(tile.col, tile.row):
-        raise PlacementError(
-            f"tile ({tile.col},{tile.row}) is part of a move in progress")
-    # 10D: boosters may not be placed cardinally adjacent to another booster
-    # (prototype ``Game.place_building`` 'boost_adjacent' — cardinal-4, diagonals
-    # allowed). Enforced HERE, the single legal placement path. Deliberately a
-    # FIXED cardinal-4 check, independent of `BoostBuildings.globals.range_tiles`/
-    # `.range_shape` (the configurable buff/curse range, `game/buildings/boost.py`)
-    # — a designer widening the buff range does not change this placement rule.
-    if building_type.startswith("boost_"):
-        for dc, dr in ((0, -1), (0, 1), (-1, 0), (1, 0)):
-            adj = tilemap.get(tile.col + dc, tile.row + dr)
-            if (adj is not None and adj.occupant is not None
-                    and "boost" in adj.occupant.tags):
-                raise PlacementError(
-                    f"a boost building is already next to ({tile.col},{tile.row})")
     # A fresh placement builds at the type's CURRENT research ceiling, not
     # always tier 0 (10A follow-up): once a higher tier is researched, the
     # lower tier is simply never placed again — no separate gate needed.

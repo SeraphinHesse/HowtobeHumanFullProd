@@ -115,9 +115,37 @@
             "",
             "vfx_attack_range",
             "vfx_beam",
+            "vfx_boost_damage_aura",
+            "vfx_boost_damage_aura_v2",
+            "vfx_boost_damage_aura_v3",
+            "vfx_boost_damage_aura_v4",
+            "vfx_boost_damage_aura_v5",
+            "vfx_boost_damage_aura_v6",
+            "vfx_boost_damage_aura_v7",
+            "vfx_boost_damage_aura_v8",
+            "vfx_boost_damage_aura_v9",
+            "vfx_boost_hp_aura",
+            "vfx_boost_hp_aura_v2",
+            "vfx_boost_hp_aura_v3",
+            "vfx_boost_hp_aura_v4",
+            "vfx_boost_hp_aura_v5",
+            "vfx_boost_hp_aura_v6",
+            "vfx_boost_hp_aura_v7",
+            "vfx_boost_hp_aura_v8",
+            "vfx_boost_hp_aura_v9",
+            "vfx_boost_speed_aura",
+            "vfx_boost_speed_aura_v2",
+            "vfx_boost_speed_aura_v3",
+            "vfx_boost_speed_aura_v4",
+            "vfx_boost_speed_aura_v5",
+            "vfx_boost_speed_aura_v6",
+            "vfx_boost_speed_aura_v7",
+            "vfx_boost_speed_aura_v8",
+            "vfx_boost_speed_aura_v9",
             "vfx_buff_arrow",
             "vfx_crater",
             "vfx_death",
+            "vfx_debuff_arrow",
             "vfx_digger_direction",
             "vfx_digger_marker",
             "vfx_dirt_pile",
@@ -126,6 +154,7 @@
             "vfx_move_target",
             "vfx_muzzle",
             "vfx_projectile",
+            "vfx_projectile_v2",
             "vfx_respawn",
             "vfx_section_2x2",
             "vfx_shell",
@@ -732,6 +761,12 @@
           "additionalProperties": false,
           "description": "Fallback dot appearance for an in-flight shot with no imported sprite on vfx_projectile/vfx_shell (submit_projectiles): a coloured HudRect, lifted off the ground plane by a fraction of tile_h. Shell (mortar) and stone (every other defender) get independent colours/sizes. The max(2, size*zoom) low-zoom floor is a degeneracy guard, not a tunable, and stays inline in game/ui/effects.py.",
           "properties": {
+            "arc_height_frac": {
+              "description": "Mortar shell's cosmetic flight-arc apex, as a fraction of tile_h * zoom above the straight muzzle->landing line (0 = flat, no arc). Purely visual — the shell's flight TIME is a simulation constant (AOE_TRAVEL_TIME), never this.",
+              "maximum": 12,
+              "minimum": 0,
+              "type": "number"
+            },
             "lift_frac": {
               "description": "Screen-space lift off the ground plane as a fraction of tile_h * zoom.",
               "maximum": 2,
@@ -758,6 +793,7 @@
             }
           },
           "required": [
+            "arc_height_frac",
             "lift_frac",
             "shell_color",
             "shell_size",
@@ -1116,11 +1152,22 @@
         "wall_edge"
       ],
       "type": "object"
+    },
+    "triggers_by_type": {
+      "additionalProperties": {
+        "additionalProperties": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "type": "object"
+      },
+      "description": "The OPEN, designer-growable per-TYPE trigger table, a sibling of the closed flat `triggers` object above (which stays the GLOBAL event table and is unaffected by anything here). Outer key = a building/enemy TYPE string (game/buildings/*.py's BUILDING_TYPE, game/enemies/*.py's ETYPE); inner key = a cosmetic EVENT; value = the same $defs/trigger_row every global event uses. Two levels of additionalProperties and no `properties`/`required` at all - that openness IS the point: the next per-type VFX is a data change, never another hand-typed key on the closed table. Nothing is dispatched automatically - each consumer in game/ names the (type, event) pair it reads, so a row nobody reads is inert rather than magic. TODAY'S ONE EVENT is `boost_aura`, authored for all three boost lines (boost_speed/boost_damage/boost_hp): the always-on aura drawn BEHIND a live boost building. It is CONTINUOUS - game/ui/effects.py's submit_boost_auras re-submits a RenderItem every frame and it never reaches _play/PlayOnceVfx, whose despawn clock would respawn it per frame (the same VA-5 / triggers.projectile shape). Its rows ship procedural \"\" on purpose: with no art imported the aura draws NOTHING (E-37), because a boost aura is art or it is absent - there is no particle shape that means \"+15% damage\". Their variant_select mode is \"level\", so variant N is the booster's GLOBAL level N (1..9 across three tiers) and a level whose variant has no art imported yet draws nothing rather than falling back to a lower one - deliberate, so a half-imported family is visibly half-imported. Their slots are cut 192x96, which encodes today's BoostBuildings.globals range_shape \"square\" + range_tiles 1 (a 3x3 iso block's bounding diamond is exactly 192x96 and shares the centre tile's diamond centre, so the frame lands centred with no offset). NOTHING AT RUNTIME READS THOSE TWO VALUES for the aura: retuning the boost range makes the art lie, and the fix is new art, not scaling the sprite off range_tiles - that would be a drawing decision masquerading as a tunable.",
+      "type": "object"
     }
   },
   "required": [
     "procedural",
-    "triggers"
+    "triggers",
+    "triggers_by_type"
   ],
   "type": "object"
 }

@@ -137,6 +137,15 @@
         ],
         "fill_alpha": 0
       },
+      "move_blocked": {
+        "border_width": 2,
+        "color": [
+          110,
+          110,
+          110
+        ],
+        "fill_alpha": 90
+      },
       "move_target": {
         "border_width": 2,
         "color": [
@@ -261,6 +270,7 @@
       "vy_min": -35.0
     },
     "projectile": {
+      "arc_height_frac": 3.0,
       "lift_frac": 0.6,
       "shell_color": [
         70,
@@ -454,6 +464,15 @@
     "enemy_death": {
       "draw_in_front": true,
       "procedural": "",
+      "sprite_slot": "",
+      "variant_select": {
+        "misc_key": "",
+        "mode": "random"
+      }
+    },
+    "move_blocked": {
+      "draw_in_front": true,
+      "procedural": "highlight",
       "sprite_slot": "",
       "variant_select": {
         "misc_key": "",

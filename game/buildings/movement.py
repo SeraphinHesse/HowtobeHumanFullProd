@@ -2,10 +2,14 @@
 
 The pure-logic sibling of ``registry.place_building``: ``start_move`` is the
 ONE legal way a placed building leaves its tile for another, exactly as
-``place_building`` is the one legal way a fresh one arrives (the same reason
-the painter-tile bar and the boost-adjacency block live in that function and
-not in the UI — the panel's disabled button is a convenience, this is the
-enforcement).
+``place_building`` is the one legal way a fresh one arrives — so the two are
+the TWO ways a building comes to occupy a tile, and both ask the SAME
+tile-legality predicate, ``registry.placement_blocker``. That is why the pond
+bar, the spent-painter-tile bar and the boost cardinal-adjacency block live in
+that one function rather than inline in either seam (and not in the UI at all —
+the panel's greyed tiles are a convenience, these are the enforcement). They
+used to live inline in ``place_building`` only, which let a move drop a
+building on a pond, onto a spent painter tile, or beside another booster.
 
 Cost and duration both scale with the **Manhattan** (straight-line-only) tile
 distance ``|dcol| + |drow|`` between origin and destination, floor-divided
@@ -38,11 +42,22 @@ bars them from hosting a new building meanwhile.
 
 Arrival re-runs ``Building.on_placed(tilemap)``, the same post-placement family
 hook ``place_building`` calls, so a moved booster re-applies its flat-mode buff
-to its NEW cardinal neighbours and a moved WallBuilder re-raises its perimeter.
-A moved booster's OLD neighbours keep whatever ``BoostReceiver`` state they had
-(never touched), and the moved building's own ``BoostReceiver`` travels with
-the Python object untouched — the building is the SAME object throughout, only
-its tile changes.
+to its NEW cardinal neighbours. A moved booster's OLD neighbours keep whatever
+``BoostReceiver`` state they had (never touched), and the moved building's own
+``BoostReceiver`` travels with the Python object untouched — the building is
+the SAME object throughout, only its tile changes.
+
+**A WallBuilder is the ONE exception to that re-run** (feature:
+wallbuilder-restricted-move, user decision). It IS movable, but only to a
+tile its OWN claimed wall edges are attached to — see
+``wall_builder_move_targets`` — and arrival does NOT call ``on_placed``: its
+walls stay exactly the frozen perimeter they always were, and a move must
+never let it re-scan the map and pick up newly-unclaimed segments elsewhere
+as a side effect of relocating. Skipping the hook is safe because
+``on_placed`` does nothing else for this type (`WallBuilder.on_placed` only
+caches the tilemap reference and raises the perimeter — the reference is
+already cached from its original placement and the tilemap object never
+changes mid-run).
 """
 import types
 
@@ -126,14 +141,51 @@ def move_time(distance, movement_balance, run_state=None,
     return min(rounds, params.get("move_time_cap", 1))
 
 
-def is_movable(building):
-    """False for a Wall Builder, which can NEVER be moved: its walls are a
-    frozen perimeter snapshot tied to the tile it was raised from.
+def is_movable(building, tilemap=None):
+    """Whether ``building`` can be moved AT ALL right now.
+
+    Every non-WallBuilder type is always movable (the destination is still
+    validated by ``start_move``). A WallBuilder is movable only when it has
+    at least one legal destination within its OWN wall perimeter — see
+    ``wall_builder_move_targets``, which needs the tilemap; a WallBuilder
+    checked with no ``tilemap`` (a caller that cannot supply one) reports
+    not-movable, the historical safe answer.
 
     Duck-typed on ``wall_hp`` — the same check ``game/ui/building_ui.py``'s
     ``_building_stats`` already uses to spot a wall builder, and the same
     never-import-the-leaf-class discipline the map layer follows."""
-    return not hasattr(building, "wall_hp")
+    if not hasattr(building, "wall_hp"):
+        return True
+    if tilemap is None:
+        return False
+    return bool(wall_builder_move_targets(building, tilemap))
+
+
+def wall_builder_move_targets(building, tilemap):
+    """Every tile ``building`` (a WallBuilder) may legally move to: a
+    BUILDABLE, not-already-in-transit tile that ``building``'s OWN claimed
+    wall edges are attached to on the interior side (feature:
+    wallbuilder-restricted-move, user decision — "cannot be moved outside
+    its own walls"). A WallBuilder's ``wall_snapshot()`` is an arbitrary set
+    of perimeter EDGES, not a rectangle (it may own only whichever segments
+    of the whole player-territory boundary were unclaimed when it was
+    placed), so there is no enclosed area to compute — the destination set
+    is simply the tiles those edges are anchored to.
+
+    Returns a ``set`` of ``(col, row)`` pairs — used both to validate a
+    chosen destination (``start_move``) and to build the move-picker's
+    valid/greyed-out tile highlighting (``game/ui/building_ui.py``'s
+    ``_build_move_select``)."""
+    interior = {(c1, r1) for c1, r1, _c2, _r2 in building.wall_snapshot()}
+    targets = set()
+    for col, row in interior:
+        tile = tilemap.get(col, row)
+        if tile is None or tile.state != TileState.BUILDABLE:
+            continue
+        if tilemap.is_moving(col, row):
+            continue
+        targets.add((col, row))
+    return targets
 
 
 def _complete(tilemap, building, dest_tile, occupancy, scene):
@@ -159,20 +211,26 @@ def _complete(tilemap, building, dest_tile, occupancy, scene):
     building.transform.wx = float(dest_tile.col)
     building.transform.wy = float(dest_tile.row)
     # The same post-placement family hook a fresh placement fires (a booster
-    # re-applies its flat-mode buff to its NEW neighbours; a WallBuilder
-    # re-raises its perimeter — though one can never get here, see is_movable).
-    building.on_placed(tilemap)
+    # re-applies its flat-mode buff to its NEW neighbours). A WallBuilder is
+    # the one exception (module docstring): its walls stay the frozen
+    # perimeter they always were, so a move must never re-run the hook that
+    # would otherwise re-scan the map and claim newly-unclaimed segments.
+    if not hasattr(building, "wall_hp"):
+        building.on_placed(tilemap)
 
 
 def start_move(tilemap, building, dest_tile, movement_balance, love,
                occupancy, scene, run_state=None, boss_upgrades_balance=None):
     """Begin moving ``building`` to ``dest_tile``. Returns ``(cost, rounds)``.
 
-    Raises ``MoveError`` if the destination is not BUILDABLE, is already an
-    endpoint of another live move, if the building is a Wall Builder, or if
-    ``love`` is below the computed cost. The caller spends the returned
-    ``cost`` — this module never touches the run state, exactly like
-    ``place_building``.
+    Raises ``MoveError`` if the destination fails the shared tile-legality
+    predicate ``registry.placement_blocker`` (not BUILDABLE, a pond, a spent
+    Painter tile, an endpoint of another live move, or -- for a booster --
+    cardinally adjacent to another booster), if the building is a WallBuilder
+    moving to a tile outside its own wall perimeter (or one with no legal
+    destination at all), or if ``love`` is below the computed cost. The
+    caller spends the returned ``cost`` -- this module never touches the run
+    state, exactly like ``place_building``.
 
     ``rounds == 0`` (the time cost switched off, or tuned to zero) relocates
     the building synchronously and records NO order: there is nothing to tick
@@ -182,16 +240,32 @@ def start_move(tilemap, building, dest_tile, movement_balance, love,
     trailing pair, forwarded verbatim to ``move_time`` so the rounds actually
     charged here match the capped figure the confirm modal quoted.
     """
-    if dest_tile.state != TileState.BUILDABLE:
-        raise MoveError(
-            f"tile ({dest_tile.col},{dest_tile.row}) is "
-            f"{dest_tile.state.name}, not BUILDABLE")
-    if tilemap.is_moving(dest_tile.col, dest_tile.row):
-        raise MoveError(
-            f"tile ({dest_tile.col},{dest_tile.row}) is already part of a "
-            f"move in progress")
-    if not is_movable(building):
-        raise MoveError("a wall builder cannot be moved")
+    # A move is the SECOND way a building comes to occupy a tile, so it asks
+    # the same tile-legality predicate a fresh placement does
+    # (`registry.placement_blocker`) -- a pond, a spent painter tile and a
+    # booster's cardinal neighbours bar a move exactly as they bar a build.
+    # `ignore=building` is what keeps a booster from reading its own origin
+    # tile as an adjacent booster while it shuffles one tile sideways.
+    #
+    # Lazy import: `registry` reaches `game.map`, which reaches `game.core`,
+    # whose package init imports payday -- which imports THIS module. A
+    # module-level import here closes that cycle (the same rule
+    # `registry.build_cost` follows for `game.core.boss_upgrades`).
+    from .registry import placement_blocker
+    reason = placement_blocker(tilemap, dest_tile, building.building_type,
+                               run_state, ignore=building)
+    if reason is not None:
+        raise MoveError(reason)
+    # feature:wallbuilder-restricted-move rides ON TOP of that predicate, not
+    # instead of it: the shared rules say WHICH TILES may host a building at
+    # all, this says which of them THIS WallBuilder may reach.
+    if hasattr(building, "wall_hp"):
+        if (dest_tile.col, dest_tile.row) not in wall_builder_move_targets(
+                building, tilemap):
+            raise MoveError(
+                "a wall builder may only move within its own walls")
+    elif not is_movable(building):
+        raise MoveError("this building cannot be moved")
 
     distance = move_distance(building.col, building.row,
                              dest_tile.col, dest_tile.row)

@@ -1,5 +1,5 @@
 ---
-description: Sweep the codebase with 10 parallel read-only reviewers for bugs, performance and cleanup, then publish one ranked triage Artifact with per-issue checkboxes and copy buttons.
+description: Sweep the codebase with 10 parallel read-only reviewers for bugs, performance and cleanup, then publish one ranked triage Artifact with a per-issue progress track and copy buttons.
 argument-hint: "[scope — default: the game runtime (engine/ + game/)]"
 allowed-tools: Agent, Artifact, Skill, Read, Write, Glob, Grep, Bash(find*), Bash(wc*), Bash(ls*)
 ---
@@ -39,13 +39,21 @@ pre-read architecture you are about to delegate.
    list the issue once and say what they actually differed on.
 4. **Publish the Artifact** (load `artifact-design` first). Findings live in a JS
    array rendered to DOM, filterable by kind / severity / area, and each issue card carries:
-   - a **checkbox** that greys the card out (reduced opacity, strike-through
-     title) and marks it handled — persist through `localStorage` in a
-     `try`/`catch`, since the sandbox may refuse it;
+   - a **progress track** — three round clickable milestones (**Open**, **In
+     progress**, **Done**) sitting above a bar that fills 0 / 50 / 100%. Clicking
+     a stop moves the issue there; clicking the stop it already sits on steps
+     back one. In progress marks the card (dashed severity stripe), Done greys
+     the card's *content* — never the card itself, or the track greys out with
+     it and stops being clickable. **Done reads green**; the track carries the
+     page accent until then. Keep a running tally in the header count.
    - a **copy button** writing the issue's full text (title, `file:line`,
      description, fix, provenance) to the clipboard via `navigator.clipboard`
      with a `document.execCommand` fallback, confirming with a transient
      "Copied" state on the button itself.
+
+   Persist progress through `localStorage` in a `try`/`catch` — the sandbox may
+   refuse it, and the page must still work when it does. Say in the footer that
+   progress is per-browser.
 5. **Report** per `/report`: the convergent finding first, then the top fixes
    ranked by harm × likelihood ÷ cost, then the Artifact URL and what was
    out of scope.
@@ -66,8 +74,8 @@ pre-read architecture you are about to delegate.
 No tests. §"Test Suite Policy" in the root `CLAUDE.md` is the only authority on
 when tests run, and a read-only audit that changed nothing has nothing to gate.
 Confirm instead: all 10 slices reported, slices were disjoint and covered the
-scope, every finding carries `file:line` + a provenance tag, and the published
-page's checkbox and copy button both work.
+scope, every finding carries `file:line` + a provenance tag, and on the published
+page the three milestones, the fill bar and the copy button all work.
 
 ## Final report
 

@@ -879,6 +879,16 @@ class EnemyCombat(Component):
         owner = getattr(self, "_owner", None)
         if owner is None:
             return
+        # A corpse swings no more. `Scene.despawn` only QUEUES, and the queue
+        # is drained AFTER the per-object update loop — while `resolve_combat`
+        # (which does the despawning) runs after `scene.update`. So an enemy
+        # killed in frame N is still updated once at the top of frame N+1; a
+        # cooldown expiring on that tick used to land a full extra hit, reflect
+        # thorns and play the attack sound. `getattr` default True: the combat
+        # tests' stub enemies carry no such property (same reasoning as the
+        # `targetable` read in combat.py).
+        if not getattr(owner, "alive", True):
+            return
         pa = owner.get_component(PathAgent)
         # BR-3: `frozen` (the delayed second phase) disables this component
         # wholesale — the boss keeps whatever `blocked` state it stopped in,

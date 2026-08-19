@@ -889,6 +889,17 @@
                   "frame_h": 57,
                   "frame_w": 41,
                   "key": "ui_button_panel_v9"
+                },
+                {
+                  "frame_h": 14,
+                  "frame_w": 17,
+                  "key": "ui_button_panel_v10"
+                },
+                {
+                  "display_name": "Colour Pick",
+                  "frame_h": 23,
+                  "frame_w": 95,
+                  "key": "ui_button_panel_v11"
                 }
               ]
             },
@@ -1031,6 +1042,12 @@
                   "frame_h": 148,
                   "frame_w": 201,
                   "key": "ui_panel_v21"
+                },
+                {
+                  "display_name": "Text Box",
+                  "frame_h": 32,
+                  "frame_w": 80,
+                  "key": "ui_panel_v22"
                 }
               ]
             },
@@ -1062,13 +1079,21 @@
             {
               "label": "Lives",
               "slots": [
-                "ui_icon_lives"
+                {
+                  "frame_h": 32,
+                  "frame_w": 32,
+                  "key": "ui_icon_lives"
+                }
               ]
             },
             {
               "label": "Life",
               "slots": [
-                "ui_icon_life"
+                {
+                  "frame_h": 32,
+                  "frame_w": 32,
+                  "key": "ui_icon_life"
+                }
               ]
             }
           ],
@@ -1448,6 +1473,12 @@
               "label": "Move destination",
               "slots": [
                 "vfx_move_target"
+              ]
+            },
+            {
+              "label": "Move blocked",
+              "slots": [
+                "vfx_move_blocked"
               ]
             },
             {

@@ -355,11 +355,21 @@ class Session:
 
     # -- BUILDING -> ENEMY (prototype _begin_enemy_phase) -----------------
 
-    def end_turn(self):
+    def end_turn(self, scene=None):
         """Start the current round's wave. No-op unless in BUILDING/GAMEPLAY.
 
         An empty wave (no spawn tiles / zero count) is fine: ``post_sim`` sees a
         drained spawner with no live enemies next and ends the round at once.
+
+        ``scene`` (feature: storm-acolyte-round-start-reset, optional — the
+        host-set-optional shape every other host-only argument here uses,
+        ``None`` keeping every pre-existing caller/test byte-identical): when
+        given, every placed Storm Priest's own ``LightningCaster.cooldown`` is
+        reset to 0 right at this BUILDING -> ENEMY edge, so the whole squad is
+        ready to fire again the moment this round's enemies start attacking —
+        each caster still keeps its own independent per-tier cooldown for the
+        rest of the round (feature-storm-acolyte-multi-build); this is a
+        synchronized reset, not a shared clock.
         """
         st = self.state
         if st.state != GameState.GAMEPLAY or st.phase != GamePhase.BUILDING:
@@ -367,6 +377,8 @@ class Session:
         if self.tutorial_gate is not None and not self.tutorial_gate():
             return  # TU-6: the guided chain still owns End Turn
         self.tilemap.set_round(st.round_num)  # 10I: damage-weight round gate
+        if scene is not None:
+            lt.reset_all_cooldowns(scene)
         # TU-9: fires once on the first End Turn of the run — round 0 (the
         # tutorial) or round 1 (a skipped run) alike — never keyed on
         # round_num == 1 directly any more (see game_state.py).

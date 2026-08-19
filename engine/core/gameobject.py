@@ -18,12 +18,27 @@ from .transform import Transform
 
 _ENGINE_ATTRS = frozenset({"id", "name", "tags", "transform", "components"})
 
+# Monotonic counter bumped on EVERY `tags` assignment, anywhere. Scene's tag
+# index is a cache over `obj.tags`, and tags are re-assignable at runtime
+# (game/enemies/kidnap.py retags a carrier to ("kidnapper",) mid-wave, which is
+# how it drops off every `by_tag("enemy")` query at once). Rather than give
+# GameObject a back-reference to its Scene — a layering inversion — the setter
+# bumps this and Scene rebuilds when the number it cached no longer matches.
+# Retags are rare; a rebuild costs one pass, i.e. exactly what a single
+# unindexed by_tag() used to cost.
+_TAGS_EPOCH = 0
+
+
+def tags_epoch():
+    """Current value of the global tags-mutation counter (see `_TAGS_EPOCH`)."""
+    return _TAGS_EPOCH
+
 
 class GameObject:
     def __init__(self, id=None, name="", tags=(), transform=None, components=()):
         self.id = id if id is not None else uuid.uuid4().hex
         self.name = name
-        self.tags = tuple(tags)
+        self.tags = tags
         self.transform = transform if transform is not None else Transform()
         self.components = []
         self._sealed = True  # setattr guard active from here on
@@ -42,6 +57,18 @@ class GameObject:
                 "underscore-prefixed transient caches are allowed"
             )
         super().__setattr__(name, value)
+
+    # -- tags (E-10) -------------------------------------------------------
+
+    @property
+    def tags(self):
+        return self._tags
+
+    @tags.setter
+    def tags(self, value):
+        global _TAGS_EPOCH
+        self._tags = tuple(value)
+        _TAGS_EPOCH += 1
 
     # -- components -------------------------------------------------------
 

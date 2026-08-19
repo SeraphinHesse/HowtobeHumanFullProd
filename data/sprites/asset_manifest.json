@@ -110,6 +110,10 @@
     },
     "blocker": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          -2
+        ],
         "hp_bar": [
           -2,
           -31
@@ -144,6 +148,10 @@
     },
     "boost_damage_t1_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          47
+        ],
         "hp_bar": [
           -1,
           -10
@@ -188,6 +196,10 @@
     },
     "boost_damage_t1_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           0,
           -10
@@ -212,6 +224,10 @@
     },
     "boost_damage_t1_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           0,
           -10
@@ -236,6 +252,10 @@
     },
     "boost_damage_t2_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           -1,
           -13
@@ -260,6 +280,10 @@
     },
     "boost_damage_t2_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           -1,
           -13
@@ -284,6 +308,10 @@
     },
     "boost_damage_t2_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           0,
           -14
@@ -308,6 +336,10 @@
     },
     "boost_damage_t3_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           -1,
           -12
@@ -332,6 +364,10 @@
     },
     "boost_damage_t3_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           0,
           -11
@@ -356,6 +392,10 @@
     },
     "boost_damage_t3_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           -1,
           -13
@@ -380,6 +420,10 @@
     },
     "boost_hp_t1_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          47
+        ],
         "hp_bar": [
           -1,
           -11
@@ -422,6 +466,10 @@
     },
     "boost_hp_t1_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           -1,
           -10
@@ -446,6 +494,10 @@
     },
     "boost_hp_t1_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           -1,
           -11
@@ -470,6 +522,10 @@
     },
     "boost_hp_t2_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           -1,
           -14
@@ -494,6 +550,10 @@
     },
     "boost_hp_t2_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           0,
           -16
@@ -518,6 +578,10 @@
     },
     "boost_hp_t2_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           -1,
           -14
@@ -542,6 +606,10 @@
     },
     "boost_hp_t3_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           -1,
           -12
@@ -566,6 +634,10 @@
     },
     "boost_hp_t3_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           -1,
           -14
@@ -590,6 +662,10 @@
     },
     "boost_hp_t3_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           -1,
           -12
@@ -614,6 +690,10 @@
     },
     "boost_speed_t1_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          47
+        ],
         "hp_bar": [
           -2,
           -8
@@ -656,6 +736,10 @@
     },
     "boost_speed_t1_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           -2,
           -9
@@ -680,6 +764,10 @@
     },
     "boost_speed_t1_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           -1,
           -8
@@ -704,6 +792,10 @@
     },
     "boost_speed_t2_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           -2,
           -12
@@ -728,6 +820,10 @@
     },
     "boost_speed_t2_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           -1,
           -12
@@ -752,6 +848,10 @@
     },
     "boost_speed_t2_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           -1,
           -12
@@ -776,6 +876,10 @@
     },
     "boost_speed_t3_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           -1,
           -12
@@ -800,6 +904,10 @@
     },
     "boost_speed_t3_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           -1,
           -12
@@ -824,6 +932,10 @@
     },
     "boost_speed_t3_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
         "hp_bar": [
           -1,
           -12
@@ -852,6 +964,10 @@
           4,
           8
         ],
+        "depth_pivot": [
+          0,
+          23
+        ],
         "hp_bar": [
           18,
           -18
@@ -861,18 +977,23 @@
           8
         ]
       },
+      "column_width": 7,
       "frame_h": 96,
-      "frame_w": 64,
+      "frame_w": 96,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 6,
+          "frames": 7,
           "hidden": [
+            1,
+            2,
+            3,
             4,
-            5
+            5,
+            6
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -881,10 +1002,11 @@
         {
           "animation": "walk",
           "fps": 6,
-          "frames": 6,
+          "frames": 7,
           "hidden": [
             4,
-            5
+            5,
+            6
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -893,20 +1015,82 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 6,
+          "frames": 7,
+          "hidden": [
+            6
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [
+            0
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "dig",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "emerge",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "emerge",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "emerge",
+          "fps": 6,
+          "frames": 7,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/boss_era_0.png"
+      "sheet": "master/ss_allboss.png"
     },
     "boss_era_1": {
       "anchors": {
         "beam_endpoint": [
           -2,
           7
+        ],
+        "depth_pivot": [
+          2,
+          44
         ],
         "floater_origin": [
           -2,
@@ -917,28 +1101,96 @@
           6
         ]
       },
-      "frame_h": 84,
-      "frame_w": 108,
+      "column_width": 7,
+      "frame_h": 96,
+      "frame_w": 96,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
+      "row_start": 3,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 7,
+          "hidden": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "walk",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [
+            6
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "dig",
+          "fps": 6,
+          "frames": 7,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/boss_era_1.png"
+      "sheet": "master/ss_allboss.png"
     },
     "boss_era_2": {
       "anchors": {
         "beam_endpoint": [
           -2,
           5
+        ],
+        "depth_pivot": [
+          0,
+          24
         ],
         "floater_origin": [
           0,
@@ -949,28 +1201,61 @@
           8
         ]
       },
-      "frame_h": 84,
-      "frame_w": 108,
+      "column_width": 7,
+      "frame_h": 96,
+      "frame_w": 96,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
+      "row_start": 6,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 7,
+          "hidden": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "walk",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [
+            6
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 7,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/boss_era_2.png"
+      "sheet": "master/ss_allboss.png"
     },
     "boss_era_3": {
       "anchors": {
         "beam_endpoint": [
           1,
           2
+        ],
+        "depth_pivot": [
+          0,
+          41
         ],
         "floater_origin": [
           0,
@@ -984,7 +1269,7 @@
       "frame_h": 88,
       "frame_w": 116,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -1004,6 +1289,10 @@
           -1,
           7
         ],
+        "depth_pivot": [
+          0,
+          45
+        ],
         "floater_origin": [
           0,
           0
@@ -1016,7 +1305,7 @@
       "frame_h": 128,
       "frame_w": 128,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -1039,19 +1328,57 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 8,
+          "frames": 20,
           "hidden": [
-            4,
-            5,
-            6,
-            7
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
           ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/enemy_stage_2.png"
+      "sheet": "imported/commander_stage_1.png"
     },
     "commander_stage_2": {
       "frame_h": 96,
@@ -1784,12 +2111,18 @@
       "sheet": "imported/cond_grass_buildable.png"
     },
     "deco_bush": {
+      "anchors": {
+        "depth_pivot": [
+          -1,
+          20
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -1838,12 +2171,18 @@
       "sheet": "master/alldeco.png"
     },
     "deco_bush_v2": {
+      "anchors": {
+        "depth_pivot": [
+          -2,
+          19
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -1892,12 +2231,18 @@
       "sheet": "master/alldeco.png"
     },
     "deco_bush_v3": {
+      "anchors": {
+        "depth_pivot": [
+          -4,
+          16
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -1946,13 +2291,19 @@
       "sheet": "master/alldeco.png"
     },
     "deco_bush_v4": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          17
+        ]
+      },
       "column": 1,
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2001,12 +2352,18 @@
       "sheet": "master/alldeco.png"
     },
     "deco_bush_v5": {
+      "anchors": {
+        "depth_pivot": [
+          2,
+          17
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2055,12 +2412,18 @@
       "sheet": "master/alldeco.png"
     },
     "deco_bush_v6": {
+      "anchors": {
+        "depth_pivot": [
+          -1,
+          10
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2109,10 +2472,16 @@
       "sheet": "master/alldeco.png"
     },
     "deco_prop_1": {
+      "anchors": {
+        "depth_pivot": [
+          -1,
+          9
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2127,10 +2496,16 @@
       "sheet": "imported/deco_prop_1.png"
     },
     "deco_prop_1_v2": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          8
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2145,10 +2520,16 @@
       "sheet": "imported/deco_prop_1_v2.png"
     },
     "deco_prop_1_v3": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          6
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2163,10 +2544,16 @@
       "sheet": "imported/deco_prop_1_v3.png"
     },
     "deco_prop_1_v4": {
+      "anchors": {
+        "depth_pivot": [
+          -4,
+          13
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2181,10 +2568,16 @@
       "sheet": "imported/deco_prop_1_v4.png"
     },
     "deco_prop_1_v5": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          11
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2199,10 +2592,16 @@
       "sheet": "imported/deco_prop_1_v5.png"
     },
     "deco_prop_1_v6": {
+      "anchors": {
+        "depth_pivot": [
+          -4,
+          13
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2217,10 +2616,16 @@
       "sheet": "imported/deco_prop_1_v6.png"
     },
     "deco_prop_1_v7": {
+      "anchors": {
+        "depth_pivot": [
+          5,
+          21
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2235,10 +2640,16 @@
       "sheet": "imported/deco_prop_1_v7.png"
     },
     "deco_prop_1_v8": {
+      "anchors": {
+        "depth_pivot": [
+          -13,
+          35
+        ]
+      },
       "frame_h": 96,
       "frame_w": 96,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2253,10 +2664,16 @@
       "sheet": "imported/deco_prop_1_v8.png"
     },
     "deco_prop_1_v9": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          33
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2271,12 +2688,18 @@
       "sheet": "imported/deco_prop_1_v9.png"
     },
     "deco_prop_2": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          8
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2325,12 +2748,18 @@
       "sheet": "master/alldeco.png"
     },
     "deco_prop_2_v10": {
+      "anchors": {
+        "depth_pivot": [
+          -2,
+          15
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2379,12 +2808,18 @@
       "sheet": "master/alldeco.png"
     },
     "deco_prop_2_v2": {
+      "anchors": {
+        "depth_pivot": [
+          -1,
+          11
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2433,12 +2868,18 @@
       "sheet": "master/alldeco.png"
     },
     "deco_prop_2_v3": {
+      "anchors": {
+        "depth_pivot": [
+          1,
+          13
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2487,12 +2928,18 @@
       "sheet": "master/alldeco.png"
     },
     "deco_prop_2_v4": {
+      "anchors": {
+        "depth_pivot": [
+          1,
+          14
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2541,12 +2988,18 @@
       "sheet": "master/alldeco.png"
     },
     "deco_prop_2_v5": {
+      "anchors": {
+        "depth_pivot": [
+          -1,
+          16
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2595,12 +3048,18 @@
       "sheet": "master/alldeco.png"
     },
     "deco_prop_2_v6": {
+      "anchors": {
+        "depth_pivot": [
+          2,
+          13
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2649,12 +3108,18 @@
       "sheet": "master/alldeco.png"
     },
     "deco_prop_2_v7": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          13
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2703,12 +3168,18 @@
       "sheet": "master/alldeco.png"
     },
     "deco_prop_2_v8": {
+      "anchors": {
+        "depth_pivot": [
+          -1,
+          19
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2757,12 +3228,18 @@
       "sheet": "master/alldeco.png"
     },
     "deco_prop_2_v9": {
+      "anchors": {
+        "depth_pivot": [
+          -2,
+          15
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2919,10 +3396,16 @@
       "sheet": "master/alldeco.png"
     },
     "deco_prop_4": {
+      "anchors": {
+        "depth_pivot": [
+          -1,
+          33
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2937,12 +3420,18 @@
       "sheet": "imported/deco_prop_4.png"
     },
     "deco_prop_4_v2": {
+      "anchors": {
+        "depth_pivot": [
+          8,
+          43
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -2991,12 +3480,18 @@
       "sheet": "master/alldeco.png"
     },
     "deco_prop_4_v3": {
+      "anchors": {
+        "depth_pivot": [
+          -4,
+          32
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -3045,12 +3540,18 @@
       "sheet": "master/alldeco.png"
     },
     "deco_prop_4_v4": {
+      "anchors": {
+        "depth_pivot": [
+          -2,
+          13
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -3099,12 +3600,18 @@
       "sheet": "master/alldeco.png"
     },
     "deco_prop_4_v5": {
+      "anchors": {
+        "depth_pivot": [
+          -4,
+          8
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -3153,12 +3660,18 @@
       "sheet": "master/alldeco.png"
     },
     "deco_prop_4_v6": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          25
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -3207,12 +3720,18 @@
       "sheet": "master/alldeco.png"
     },
     "deco_rock": {
+      "anchors": {
+        "depth_pivot": [
+          2,
+          15
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -3262,12 +3781,18 @@
       "sheet": "master/alldeco.png"
     },
     "deco_rock_v2": {
+      "anchors": {
+        "depth_pivot": [
+          -2,
+          11
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -3317,12 +3842,18 @@
       "sheet": "master/alldeco.png"
     },
     "deco_rock_v3": {
+      "anchors": {
+        "depth_pivot": [
+          -1,
+          24
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -3372,17 +3903,23 @@
       "sheet": "master/alldeco.png"
     },
     "deco_tree": {
+      "anchors": {
+        "depth_pivot": [
+          -1,
+          32
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 34,
+          "frames": 35,
           "hidden": [
             0,
             1,
@@ -3416,7 +3953,8 @@
             30,
             31,
             32,
-            33
+            33,
+            34
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -3426,17 +3964,23 @@
       "sheet": "master/alldeco.png"
     },
     "deco_tree_v2": {
+      "anchors": {
+        "depth_pivot": [
+          2,
+          33
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 34,
+          "frames": 35,
           "hidden": [
             0,
             1,
@@ -3470,7 +4014,8 @@
             30,
             31,
             32,
-            33
+            33,
+            34
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -3480,17 +4025,23 @@
       "sheet": "master/alldeco.png"
     },
     "deco_tree_v3": {
+      "anchors": {
+        "depth_pivot": [
+          1,
+          29
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 34,
+          "frames": 35,
           "hidden": [
             0,
             1,
@@ -3524,7 +4075,8 @@
             30,
             31,
             32,
-            33
+            33,
+            34
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -3534,17 +4086,23 @@
       "sheet": "master/alldeco.png"
     },
     "deco_tree_v4": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          28
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 34,
+          "frames": 35,
           "hidden": [
             0,
             1,
@@ -3578,7 +4136,8 @@
             30,
             31,
             32,
-            33
+            33,
+            34
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -3588,17 +4147,23 @@
       "sheet": "master/alldeco.png"
     },
     "deco_tree_v5": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          30
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 34,
+          "frames": 35,
           "hidden": [
             0,
             1,
@@ -3632,7 +4197,8 @@
             30,
             31,
             32,
-            33
+            33,
+            34
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -3642,17 +4208,23 @@
       "sheet": "master/alldeco.png"
     },
     "deco_tree_v6": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          26
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 34,
+          "frames": 35,
           "hidden": [
             0,
             1,
@@ -3686,7 +4258,8 @@
             30,
             31,
             32,
-            33
+            33,
+            34
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -3696,17 +4269,23 @@
       "sheet": "master/alldeco.png"
     },
     "deco_tree_v7": {
+      "anchors": {
+        "depth_pivot": [
+          -1,
+          26
+        ]
+      },
       "column_mode": "season",
       "column_width": 35,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 34,
+          "frames": 35,
           "hidden": [
             0,
             1,
@@ -3740,7 +4319,8 @@
             30,
             31,
             32,
-            33
+            33,
+            34
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -3750,11 +4330,17 @@
       "sheet": "master/alldeco.png"
     },
     "digger_stage_1": {
+      "anchors": {
+        "depth_pivot": [
+          6,
+          16
+        ]
+      },
       "column_width": 21,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 16,
       "rows": [
         {
@@ -3842,11 +4428,17 @@
       "sheet": "master/htbh_enemie_sheet.png"
     },
     "digger_stage_2": {
+      "anchors": {
+        "depth_pivot": [
+          6,
+          16
+        ]
+      },
       "column_width": 21,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 16,
       "rows": [
         {
@@ -3934,11 +4526,17 @@
       "sheet": "master/htbh_enemie_sheet.png"
     },
     "digger_stage_3": {
+      "anchors": {
+        "depth_pivot": [
+          6,
+          16
+        ]
+      },
       "column_width": 21,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 16,
       "rows": [
         {
@@ -4026,11 +4624,17 @@
       "sheet": "master/htbh_enemie_sheet.png"
     },
     "digger_stage_4": {
+      "anchors": {
+        "depth_pivot": [
+          6,
+          16
+        ]
+      },
       "column_width": 21,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 16,
       "rows": [
         {
@@ -4195,6 +4799,10 @@
           3,
           -9
         ],
+        "depth_pivot": [
+          0,
+          15
+        ],
         "floater_origin": [
           3,
           -7
@@ -4216,7 +4824,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -4308,6 +4916,10 @@
           3,
           -7
         ],
+        "depth_pivot": [
+          0,
+          15
+        ],
         "floater_origin": [
           4,
           -8
@@ -4330,7 +4942,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -4422,6 +5034,10 @@
           3,
           -11
         ],
+        "depth_pivot": [
+          0,
+          15
+        ],
         "floater_origin": [
           4,
           -7
@@ -4444,7 +5060,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -4536,6 +5152,10 @@
           3,
           -9
         ],
+        "depth_pivot": [
+          0,
+          15
+        ],
         "floater_origin": [
           3,
           -6
@@ -4558,7 +5178,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -4650,6 +5270,10 @@
           4,
           -6
         ],
+        "depth_pivot": [
+          0,
+          15
+        ],
         "floater_origin": [
           4,
           -5
@@ -4672,7 +5296,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -4764,6 +5388,10 @@
           2,
           -10
         ],
+        "depth_pivot": [
+          3,
+          15
+        ],
         "floater_origin": [
           2,
           -8
@@ -4785,7 +5413,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 4,
       "rows": [
         {
@@ -4876,6 +5504,10 @@
     },
     "enemy_stage_2_v2": {
       "anchors": {
+        "depth_pivot": [
+          3,
+          15
+        ],
         "floater_origin": [
           1,
           -6
@@ -4902,7 +5534,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 4,
       "rows": [
         {
@@ -4997,6 +5629,10 @@
           5,
           -7
         ],
+        "depth_pivot": [
+          3,
+          15
+        ],
         "floater_origin": [
           2,
           -7
@@ -5019,7 +5655,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 4,
       "rows": [
         {
@@ -5114,6 +5750,10 @@
           4,
           -9
         ],
+        "depth_pivot": [
+          3,
+          15
+        ],
         "floater_origin": [
           2,
           -6
@@ -5136,7 +5776,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 4,
       "rows": [
         {
@@ -5231,6 +5871,10 @@
           4,
           -2
         ],
+        "depth_pivot": [
+          3,
+          15
+        ],
         "floater_origin": [
           2,
           -10
@@ -5253,7 +5897,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 4,
       "rows": [
         {
@@ -5348,6 +5992,10 @@
           2,
           -8
         ],
+        "depth_pivot": [
+          3,
+          15
+        ],
         "floater_origin": [
           2,
           -10
@@ -5369,7 +6017,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 4,
       "rows": [
         {
@@ -5464,6 +6112,10 @@
           2,
           -10
         ],
+        "depth_pivot": [
+          3,
+          15
+        ],
         "floater_origin": [
           3,
           -12
@@ -5486,7 +6138,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 4,
       "rows": [
         {
@@ -5581,6 +6233,10 @@
           3,
           -11
         ],
+        "depth_pivot": [
+          3,
+          15
+        ],
         "floater_origin": [
           2,
           -14
@@ -5603,7 +6259,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 4,
       "rows": [
         {
@@ -5698,6 +6354,10 @@
           4,
           -12
         ],
+        "depth_pivot": [
+          3,
+          15
+        ],
         "floater_origin": [
           3,
           -12
@@ -5720,7 +6380,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 4,
       "rows": [
         {
@@ -5815,6 +6475,10 @@
           2,
           -7
         ],
+        "depth_pivot": [
+          3,
+          15
+        ],
         "floater_origin": [
           2,
           -10
@@ -5837,7 +6501,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 4,
       "rows": [
         {
@@ -5932,6 +6596,10 @@
           3,
           -2
         ],
+        "depth_pivot": [
+          3,
+          15
+        ],
         "floater_origin": [
           2,
           -16
@@ -5952,7 +6620,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -6016,6 +6684,10 @@
           3,
           -1
         ],
+        "depth_pivot": [
+          3,
+          15
+        ],
         "floater_origin": [
           3,
           -14
@@ -6036,7 +6708,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -6185,6 +6857,12 @@
       "sheet": "imported/enemy_t4.png"
     },
     "flute_player_t1_lvl1": {
+      "anchors": {
+        "depth_pivot": [
+          2,
+          2
+        ]
+      },
       "column_mode": "building_color",
       "column_width": 17,
       "frame_h": 96,
@@ -6206,6 +6884,10 @@
     },
     "flute_player_t1_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          5
+        ],
         "floater_origin": [
           -1,
           -14
@@ -6237,6 +6919,10 @@
     },
     "flute_player_t1_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          3
+        ],
         "floater_origin": [
           -1,
           -14
@@ -6588,6 +7274,10 @@
     },
     "harp_player_t2_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          2
+        ],
         "floater_origin": [
           -1,
           -15
@@ -6629,6 +7319,10 @@
     },
     "harp_player_t2_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          2
+        ],
         "floater_origin": [
           -1,
           -21
@@ -6670,6 +7364,10 @@
     },
     "harp_player_t2_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          -1,
+          2
+        ],
         "floater_origin": [
           -1,
           -22
@@ -6711,6 +7409,10 @@
     },
     "laser_beam_t3_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          2
+        ],
         "hp_bar": [
           -3,
           -38
@@ -6773,6 +7475,10 @@
     },
     "laser_beam_t3_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          -1,
+          -2
+        ],
         "hp_bar": [
           -7,
           -36
@@ -6801,6 +7507,10 @@
     },
     "laser_beam_t3_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          -1,
+          -2
+        ],
         "hp_bar": [
           -7,
           -37
@@ -6847,6 +7557,10 @@
     },
     "maw_mortar_t1_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          2,
+          -1
+        ],
         "hp_bar": [
           -1,
           -35
@@ -6915,6 +7629,10 @@
     },
     "maw_mortar_t1_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          -3
+        ],
         "hp_bar": [
           -2,
           -35
@@ -6985,6 +7703,10 @@
     },
     "maw_mortar_t1_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          -6
+        ],
         "hp_bar": [
           -2,
           -33
@@ -7061,6 +7783,10 @@
     },
     "maw_mortar_t2_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          3
+        ],
         "hp_bar": [
           -5,
           -24
@@ -7114,6 +7840,12 @@
       "sheet": "master/ss_mortar.png"
     },
     "maw_mortar_t2_lvl2": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          4
+        ]
+      },
       "column_mode": "building_color",
       "column_width": 25,
       "frame_h": 96,
@@ -7172,6 +7904,12 @@
       "sheet": "master/ss_mortar.png"
     },
     "maw_mortar_t2_lvl3": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          6
+        ]
+      },
       "column_mode": "building_color",
       "column_width": 25,
       "frame_h": 96,
@@ -7231,6 +7969,10 @@
     },
     "maw_mortar_t3_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          4
+        ],
         "hp_bar": [
           1,
           -31
@@ -7302,6 +8044,10 @@
     },
     "maw_mortar_t3_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          -1,
+          5
+        ],
         "hp_bar": [
           1,
           -34
@@ -7372,6 +8118,10 @@
     },
     "maw_mortar_t3_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          1
+        ],
         "hp_bar": [
           3,
           -34
@@ -7443,6 +8193,10 @@
     },
     "meditator_t1_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          4
+        ],
         "floater_origin": [
           -1,
           -9
@@ -7565,6 +8319,10 @@
     },
     "meditator_t1_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          4
+        ],
         "floater_origin": [
           0,
           -10
@@ -7687,6 +8445,10 @@
     },
     "meditator_t1_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          4
+        ],
         "floater_origin": [
           0,
           -14
@@ -7827,6 +8589,10 @@
     },
     "painter_t1_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          10,
+          2
+        ],
         "floater_origin": [
           4,
           -14
@@ -7905,6 +8671,10 @@
     },
     "painter_t1_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          10,
+          2
+        ],
         "floater_origin": [
           5,
           -14
@@ -8028,6 +8798,10 @@
     },
     "painter_t1_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          10,
+          5
+        ],
         "floater_origin": [
           5,
           -15
@@ -8143,6 +8917,10 @@
     },
     "painter_t2_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          8,
+          5
+        ],
         "floater_origin": [
           0,
           -18
@@ -8219,6 +8997,10 @@
     },
     "painter_t2_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          8,
+          5
+        ],
         "floater_origin": [
           0,
           -20
@@ -8286,6 +9068,10 @@
     },
     "painter_t2_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          8,
+          5
+        ],
         "floater_origin": [
           1,
           -21
@@ -8344,6 +9130,10 @@
     },
     "painter_t3_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          8,
+          11
+        ],
         "floater_origin": [
           0,
           -20
@@ -8407,6 +9197,10 @@
     },
     "painter_t3_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          8,
+          11
+        ],
         "floater_origin": [
           3,
           -26
@@ -8461,6 +9255,10 @@
     },
     "painter_t3_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          8,
+          11
+        ],
         "floater_origin": [
           3,
           -28
@@ -8506,6 +9304,10 @@
     },
     "pistoleer_t3_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          2,
+          2
+        ],
         "hp_bar": [
           0,
           -22
@@ -8566,6 +9368,10 @@
     },
     "pistoleer_t3_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          6
+        ],
         "hp_bar": [
           0,
           -23
@@ -8626,6 +9432,10 @@
     },
     "pistoleer_t3_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          -1,
+          6
+        ],
         "hp_bar": [
           0,
           -23
@@ -8679,6 +9489,10 @@
     },
     "radiant_beam_t2_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          2
+        ],
         "hp_bar": [
           -3,
           -40
@@ -8781,6 +9595,10 @@
     },
     "radiant_beam_t2_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          -1
+        ],
         "hp_bar": [
           -3,
           -43
@@ -8809,6 +9627,10 @@
     },
     "radiant_beam_t2_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          -1
+        ],
         "hp_bar": [
           -4,
           -44
@@ -8859,6 +9681,10 @@
           0,
           0
         ],
+        "depth_pivot": [
+          0,
+          15
+        ],
         "floater_origin": [
           -2,
           -5
@@ -8880,7 +9706,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 8,
       "rows": [
         {
@@ -8982,6 +9808,10 @@
           0,
           0
         ],
+        "depth_pivot": [
+          0,
+          15
+        ],
         "floater_origin": [
           0,
           0
@@ -9004,7 +9834,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 8,
       "rows": [
         {
@@ -9106,6 +9936,10 @@
           0,
           0
         ],
+        "depth_pivot": [
+          0,
+          15
+        ],
         "floater_origin": [
           0,
           0
@@ -9128,7 +9962,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 8,
       "rows": [
         {
@@ -9230,6 +10064,10 @@
           0,
           0
         ],
+        "depth_pivot": [
+          0,
+          15
+        ],
         "floater_origin": [
           0,
           0
@@ -9252,7 +10090,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 8,
       "rows": [
         {
@@ -9354,6 +10192,10 @@
           0,
           0
         ],
+        "depth_pivot": [
+          0,
+          15
+        ],
         "floater_origin": [
           3,
           -6
@@ -9375,7 +10217,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 12,
       "rows": [
         {
@@ -9477,6 +10319,10 @@
           0,
           0
         ],
+        "depth_pivot": [
+          0,
+          15
+        ],
         "floater_origin": [
           0,
           0
@@ -9499,7 +10345,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 12,
       "rows": [
         {
@@ -9601,6 +10447,10 @@
           0,
           0
         ],
+        "depth_pivot": [
+          0,
+          15
+        ],
         "floater_origin": [
           0,
           0
@@ -9623,7 +10473,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 12,
       "rows": [
         {
@@ -9725,6 +10575,10 @@
           0,
           0
         ],
+        "depth_pivot": [
+          0,
+          15
+        ],
         "floater_origin": [
           0,
           0
@@ -9747,7 +10601,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 12,
       "rows": [
         {
@@ -9849,6 +10703,10 @@
           0,
           0
         ],
+        "depth_pivot": [
+          0,
+          15
+        ],
         "floater_origin": [
           0,
           0
@@ -9871,7 +10729,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 12,
       "rows": [
         {
@@ -9973,6 +10831,10 @@
           1,
           -2
         ],
+        "depth_pivot": [
+          0,
+          15
+        ],
         "floater_origin": [
           2,
           -4
@@ -9994,7 +10856,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 12,
       "rows": [
         {
@@ -10096,6 +10958,10 @@
           3,
           -4
         ],
+        "depth_pivot": [
+          0,
+          15
+        ],
         "floater_origin": [
           2,
           -4
@@ -10118,7 +10984,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 12,
       "rows": [
         {
@@ -10220,6 +11086,10 @@
           2,
           -2
         ],
+        "depth_pivot": [
+          0,
+          15
+        ],
         "floater_origin": [
           3,
           -6
@@ -10242,7 +11112,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 12,
       "rows": [
         {
@@ -10344,6 +11214,10 @@
           2,
           -4
         ],
+        "depth_pivot": [
+          0,
+          15
+        ],
         "floater_origin": [
           2,
           -4
@@ -10366,7 +11240,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 12,
       "rows": [
         {
@@ -10468,6 +11342,10 @@
           2,
           -4
         ],
+        "depth_pivot": [
+          0,
+          15
+        ],
         "floater_origin": [
           2,
           -5
@@ -10490,7 +11368,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -16,
       "row_start": 12,
       "rows": [
         {
@@ -10592,6 +11470,10 @@
           0,
           0
         ],
+        "depth_pivot": [
+          2,
+          14
+        ],
         "floater_origin": [
           0,
           0
@@ -10612,7 +11494,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -10646,6 +11528,10 @@
     },
     "shaman_t2_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          6
+        ],
         "floater_origin": [
           0,
           -18
@@ -10752,6 +11638,10 @@
     },
     "shaman_t2_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          6
+        ],
         "floater_origin": [
           -1,
           -21
@@ -10843,6 +11733,10 @@
     },
     "shaman_t2_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          6
+        ],
         "floater_origin": [
           -1,
           -18
@@ -11060,6 +11954,10 @@
     },
     "slinger_t2_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          2
+        ],
         "hp_bar": [
           1,
           -22
@@ -11146,6 +12044,10 @@
     },
     "slinger_t2_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          2
+        ],
         "hp_bar": [
           0,
           -22
@@ -11214,6 +12116,10 @@
     },
     "slinger_t2_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          2
+        ],
         "hp_bar": [
           0,
           -24
@@ -11524,6 +12430,10 @@
     },
     "stone_thrower_t1_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          1
+        ],
         "hp_bar": [
           1,
           -25
@@ -11694,6 +12604,10 @@
     },
     "stone_thrower_t1_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          1
+        ],
         "hp_bar": [
           0,
           -22
@@ -11778,6 +12692,10 @@
     },
     "stone_thrower_t1_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          -4,
+          2
+        ],
         "hp_bar": [
           0,
           -24
@@ -11850,6 +12768,10 @@
     },
     "storm_priest_i_t1_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          -1,
+          2
+        ],
         "hp_bar": [
           -1,
           -25
@@ -11943,6 +12865,10 @@
     },
     "storm_priest_i_t1_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          4
+        ],
         "hp_bar": [
           0,
           -27
@@ -11969,6 +12895,10 @@
     },
     "storm_priest_i_t1_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          4
+        ],
         "hp_bar": [
           -1,
           -27
@@ -11995,6 +12925,10 @@
     },
     "storm_priest_ii_t2_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          2
+        ],
         "hp_bar": [
           -1,
           -26
@@ -12071,6 +13005,10 @@
     },
     "storm_priest_ii_t2_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          4
+        ],
         "hp_bar": [
           -1,
           -25
@@ -12097,6 +13035,10 @@
     },
     "storm_priest_ii_t2_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          4
+        ],
         "hp_bar": [
           -1,
           -26
@@ -12123,6 +13065,10 @@
     },
     "storm_priest_iii_t3_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          2
+        ],
         "hp_bar": [
           -2,
           -25
@@ -12182,6 +13128,10 @@
     },
     "storm_priest_iii_t3_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          4
+        ],
         "hp_bar": [
           -2,
           -26
@@ -12208,6 +13158,10 @@
     },
     "storm_priest_iii_t3_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          4
+        ],
         "hp_bar": [
           0,
           -26
@@ -12234,6 +13188,10 @@
     },
     "sun_priest_t3_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          6
+        ],
         "floater_origin": [
           0,
           -20
@@ -12322,6 +13280,10 @@
     },
     "sun_priest_t3_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          1,
+          7
+        ],
         "floater_origin": [
           -1,
           -20
@@ -12368,6 +13330,10 @@
     },
     "sun_priest_t3_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          -1,
+          9
+        ],
         "floater_origin": [
           0,
           -20
@@ -12399,6 +13365,10 @@
     },
     "sun_scorcher_t1_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          -1,
+          2
+        ],
         "hp_bar": [
           -1,
           -37
@@ -12496,6 +13466,10 @@
     },
     "sun_scorcher_t1_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          -2,
+          -2
+        ],
         "hp_bar": [
           -2,
           -40
@@ -12534,6 +13508,10 @@
     },
     "sun_scorcher_t1_lvl3": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          -2
+        ],
         "hp_bar": [
           -2,
           -44
@@ -13055,6 +14033,10 @@
     },
     "trio_t3_lvl1": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          2
+        ],
         "floater_origin": [
           -1,
           -19
@@ -13086,6 +14068,10 @@
     },
     "trio_t3_lvl2": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          3
+        ],
         "floater_origin": [
           -2,
           -24
@@ -13116,6 +14102,12 @@
       "sheet": "master/ss_fluteplayer.png"
     },
     "trio_t3_lvl3": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          0
+        ]
+      },
       "column_mode": "building_color",
       "column_width": 17,
       "frame_h": 96,
@@ -13454,6 +14446,90 @@
         4,
         4
       ]
+    },
+    "ui_button_panel_v10": {
+      "frame_h": 14,
+      "frame_w": 17,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hover",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "pressed",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/ui_button_panel_v10.png"
+    },
+    "ui_button_panel_v11": {
+      "frame_h": 23,
+      "frame_w": 95,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 4,
+          "hidden": [
+            1,
+            2,
+            3
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hover",
+          "fps": 6,
+          "frames": 4,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "pressed",
+          "fps": 6,
+          "frames": 4,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/ui_button_panel_v11.png"
     },
     "ui_button_panel_v2": {
       "frame_h": 55,
@@ -14012,15 +15088,33 @@
       ]
     },
     "ui_icon_life": {
-      "frame_h": 64,
-      "frame_w": 64,
+      "frame_h": 32,
+      "frame_w": 32,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 19,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "pressed",
+          "fps": 12,
+          "frames": 19,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "disabled",
+          "fps": 6,
+          "frames": 19,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -14030,16 +15124,50 @@
       "sheet": "imported/ui_icon_lives.png"
     },
     "ui_icon_lives": {
-      "frame_h": 64,
-      "frame_w": 64,
+      "frame_h": 32,
+      "frame_w": 32,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 19,
           "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "pressed",
+          "fps": 6,
+          "frames": 19,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "disabled",
+          "fps": 6,
+          "frames": 19,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -14374,6 +15502,50 @@
       ],
       "sheet": "imported/ui_panel_v21.png"
     },
+    "ui_panel_v22": {
+      "frame_h": 32,
+      "frame_w": 80,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 4,
+          "hidden": [
+            1,
+            2,
+            3
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hover",
+          "fps": 6,
+          "frames": 4,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "pressed",
+          "fps": 6,
+          "frames": 4,
+          "hidden": [
+            1,
+            2,
+            3
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/ui_panel_v22.png"
+    },
     "ui_panel_v3": {
       "frame_h": 50,
       "frame_w": 111,
@@ -14670,6 +15842,10 @@
     },
     "wall_builder": {
       "anchors": {
+        "depth_pivot": [
+          0,
+          2
+        ],
         "hp_bar": [
           -1,
           -24
@@ -14767,6 +15943,12 @@
       "sheet": "master/ss_wallbuilder.png"
     },
     "wall_builder_t1_lvl1": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          2
+        ]
+      },
       "column_mode": "building_color",
       "column_width": 1,
       "frame_h": 96,
@@ -14859,6 +16041,12 @@
       "sheet": "master/ss_wallbuilder.png"
     },
     "wall_builder_t1_lvl2": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          2
+        ]
+      },
       "column_mode": "building_color",
       "column_width": 1,
       "frame_h": 96,
@@ -14943,6 +16131,12 @@
       "sheet": "master/ss_wallbuilder.png"
     },
     "wall_builder_t1_lvl3": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          2
+        ]
+      },
       "column_mode": "building_color",
       "column_width": 1,
       "frame_h": 96,
@@ -15018,6 +16212,12 @@
       "sheet": "master/ss_wallbuilder.png"
     },
     "wall_builder_t2_lvl1": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          -2
+        ]
+      },
       "column_mode": "building_color",
       "column_width": 1,
       "frame_h": 96,
@@ -15084,6 +16284,12 @@
       "sheet": "master/ss_wallbuilder.png"
     },
     "wall_builder_t2_lvl2": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          -2
+        ]
+      },
       "column_mode": "building_color",
       "column_width": 1,
       "frame_h": 96,
@@ -15141,6 +16347,12 @@
       "sheet": "master/ss_wallbuilder.png"
     },
     "wall_builder_t2_lvl3": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          0
+        ]
+      },
       "column_mode": "building_color",
       "column_width": 1,
       "frame_h": 96,
@@ -15189,6 +16401,12 @@
       "sheet": "master/ss_wallbuilder.png"
     },
     "wall_builder_t3_lvl1": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          0
+        ]
+      },
       "column_mode": "building_color",
       "column_width": 1,
       "frame_h": 96,
@@ -15228,6 +16446,12 @@
       "sheet": "master/ss_wallbuilder.png"
     },
     "wall_builder_t3_lvl2": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          0
+        ]
+      },
       "column_mode": "building_color",
       "column_width": 1,
       "frame_h": 96,
@@ -15258,6 +16482,12 @@
       "sheet": "master/ss_wallbuilder.png"
     },
     "wall_builder_t3_lvl3": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          0
+        ]
+      },
       "column_mode": "building_color",
       "column_width": 1,
       "frame_h": 96,

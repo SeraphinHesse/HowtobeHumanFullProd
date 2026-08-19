@@ -40,6 +40,13 @@
         "dest": {
           "$ref": "#/$defs/point"
         },
+        "family": {
+          "description": "UH-Font-B: the recorded HudText's font FAMILY (a data/fonts/font_manifest.json entry id), or null for the inherited/active family. Emitted on every text item because hud_item_to_json writes every dataclass field, defaults included.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "flip": {
           "type": "boolean"
         },

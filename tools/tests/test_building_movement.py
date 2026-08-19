@@ -11,6 +11,7 @@ Covers the three things the feature's correctness rests on:
    ``col``/``row`` caches AND its Transform following it.
 """
 import inspect
+import types
 import unittest
 from pathlib import Path
 
@@ -23,11 +24,11 @@ from engine.physics import TileOccupancy
 from game.buildings import PlacementError, place_building
 from game.buildings.movement import (
     MoveError, is_movable, move_cost, move_distance, move_time, process_moves,
-    start_move,
+    start_move, wall_builder_move_targets,
 )
 from game.core.balance import load_balance
-from game.map.tile_map import TileMap
-from game.map.tiles import TileState
+from game.map.tile_map import TileMap, _wall_key
+from game.map.tiles import TileCondition, TileState
 
 MAPBAL = load_balance(FIXTURE_DATA, "map")
 BAL = load_balance(FIXTURE_DATA, "buildings")
@@ -51,6 +52,32 @@ def board():
         tm, tm.get(1, 1), "defence", 9999, BAL, scene, occ)
     scene.update(0.0)
     return tm, scene, occ, building
+
+
+#: Col 2's east edge faces col 3, which is COMBAT/SPAWNING and therefore
+#: `_exterior_combat_tiles()` — so `place_walls_for_builder` claims exactly
+#: the six (col=2, row) / (col=3, row) edges, one per row, and nothing else
+#: (cols 0-1 never touch exterior). Used by every wallbuilder-restricted-move
+#: test below.
+WALLED_ROWS = [
+    "bbbccc",
+    "bbbccc",
+    "bbbccc",
+    "bbbccc",
+    "bbbccc",
+    "bbbsss",
+]
+
+
+def walled_board():
+    """A WallBuilder at (1, 1), owning the six col-2/col-3 perimeter edges —
+    its own wall-interior tiles are (2, 0)..(2, 5), all free BUILDABLE."""
+    tm = synth(WALLED_ROWS)
+    scene, occ = Scene(), TileOccupancy()
+    wb, _ = place_building(
+        tm, tm.get(1, 1), "wall_builder", 9999, BAL, scene, occ)
+    scene.update(0.0)
+    return tm, scene, occ, wb
 
 
 class TestFormula(unittest.TestCase):
@@ -81,6 +108,62 @@ class TestFormula(unittest.TestCase):
         instant = dict(MOVE, time_cost_enabled=False)
         self.assertEqual(move_time(5, instant), 0)
         self.assertEqual(move_cost(5, instant), move_cost(5, MOVE))
+
+
+class TestMoveAsksThePlacementRules(unittest.TestCase):
+    """A move is the SECOND way a building comes to occupy a tile, so it must
+    ask the same tile-legality predicate a fresh placement does
+    (``registry.placement_blocker``). These three rules used to live inline in
+    ``place_building`` only, so a move walked straight past them."""
+
+    def test_pond_destination_is_refused(self):
+        tm, scene, occ, b = board()
+        tm.get(3, 1).condition = TileCondition.POND
+        with self.assertRaises(MoveError):
+            start_move(tm, b, tm.get(3, 1), MOVE, 9999, occ, scene)
+        # still on its origin, still in the scene
+        self.assertIs(tm.get(1, 1).occupant, b)
+
+    def test_booster_may_not_move_cardinally_beside_another_booster(self):
+        tm = synth(["bbbbbb"] * 6)
+        scene, occ = Scene(), TileOccupancy()
+        place_building(tm, tm.get(4, 4), "boost_damage", 9999, BAL, scene, occ)
+        mover, _ = place_building(tm, tm.get(1, 1), "boost_speed", 9999, BAL,
+                                  scene, occ)
+        scene.update(0.0)
+        with self.assertRaises(MoveError):
+            start_move(tm, mover, tm.get(4, 3), MOVE, 9999, occ, scene)
+        self.assertIs(tm.get(1, 1).occupant, mover)
+        # a diagonal neighbour is legal, exactly as it is for a placement
+        start_move(tm, mover, tm.get(3, 3), MOVE, 9999, occ, scene)
+
+    def test_booster_may_shuffle_one_tile_without_blocking_itself(self):
+        """The mover is still standing on its origin when the predicate runs,
+        so it must be excluded from the neighbour scan (``ignore``) — else a
+        booster could never step to an adjacent tile."""
+        tm = synth(["bbbbbb"] * 6)
+        scene, occ = Scene(), TileOccupancy()
+        mover, _ = place_building(tm, tm.get(1, 1), "boost_hp", 9999, BAL,
+                                  scene, occ)
+        scene.update(0.0)
+        start_move(tm, mover, tm.get(2, 1), MOVE, 9999, occ, scene)
+
+    def test_painter_may_not_move_onto_a_spent_painter_tile(self):
+        tm = synth(["bbbbbb"] * 6)
+        scene, occ = Scene(), TileOccupancy()
+        painter, _ = place_building(tm, tm.get(1, 1), "painter", 9999, BAL,
+                                    scene, occ)
+        scene.update(0.0)
+        state = types.SimpleNamespace(used_painter_tiles={(4, 4)})
+        with self.assertRaises(MoveError):
+            start_move(tm, painter, tm.get(4, 4), MOVE, 9999, occ, scene,
+                       run_state=state)
+        # a non-painter is unaffected by the painter bar
+        other, _ = place_building(tm, tm.get(0, 5), "defence", 9999, BAL,
+                                  scene, occ)
+        scene.update(0.0)
+        start_move(tm, other, tm.get(4, 4), MOVE, 9999, occ, scene,
+                   run_state=state)
 
 
 class TestStartMove(unittest.TestCase):
@@ -203,16 +286,71 @@ class TestStartMove(unittest.TestCase):
         self.assertIs(tm.get(1, 1).occupant, b)
         self.assertEqual(tm.moving_orders, [])
 
-    def test_a_wall_builder_can_never_be_moved(self):
+    def test_a_wall_builder_with_no_free_wall_tile_is_not_movable(self):
+        """An all-BUILDABLE board raises no walls at all (no exterior combat
+        tile exists to face) — an empty wall_snapshot means an empty
+        destination set, so the WallBuilder has nowhere legal to go."""
         tm = synth(["bbbbbb"] * 6)
         scene, occ = Scene(), TileOccupancy()
         wb, _ = place_building(tm, tm.get(1, 1), "wall_builder", 9999, BAL,
                                scene, occ)
         scene.update(0.0)
+        self.assertEqual(wb.wall_snapshot(), [])
+        self.assertFalse(is_movable(wb, tm))
+        # is_movable with no tilemap at all reports the same safe answer.
         self.assertFalse(is_movable(wb))
         with self.assertRaises(MoveError):
             start_move(tm, wb, tm.get(4, 1), MOVE, 9999, occ, scene)
         self.assertIs(tm.get(1, 1).occupant, wb)
+
+    def test_a_wall_builder_is_movable_within_its_own_walls(self):
+        """feature: wallbuilder-restricted-move (user decision) — a
+        WallBuilder CAN move, but only to one of its own wall-attached
+        tiles; landing there does not disturb the walls at all."""
+        tm, scene, occ, wb = walled_board()
+        self.assertEqual(wall_builder_move_targets(wb, tm),
+                         {(2, r) for r in range(6)})
+        self.assertTrue(is_movable(wb, tm))
+
+        cost, rounds = start_move(tm, wb, tm.get(2, 3), MOVE, 9999, occ, scene)
+        for _ in range(rounds):
+            process_moves(tm, occ, scene)
+        scene.update(0.0)
+
+        self.assertEqual((wb.col, wb.row), (2, 3))
+        self.assertIs(tm.get(2, 3).occupant, wb)
+        self.assertIsNone(tm.get(1, 1).occupant)
+        # the walls are exactly what they always were
+        self.assertEqual({tuple(e) for e in wb.wall_snapshot()},
+                         {(2, r, 3, r) for r in range(6)})
+        for r in range(6):
+            self.assertIn(_wall_key(2, r, 3, r), tm.wall_edges)
+            self.assertIs(tm.wall_edges[_wall_key(2, r, 3, r)].owner, wb)
+
+    def test_a_wall_builder_cannot_move_outside_its_own_walls(self):
+        tm, scene, occ, wb = walled_board()
+        # (0, 4) is an ordinary free BUILDABLE tile, just not one of THIS
+        # builder's own wall-attached tiles.
+        with self.assertRaises(MoveError):
+            start_move(tm, wb, tm.get(0, 4), MOVE, 9999, occ, scene)
+        self.assertIs(tm.get(1, 1).occupant, wb)
+
+    def test_a_wall_builder_move_never_reclaims_a_destroyed_segment(self):
+        """A move must skip `on_placed` entirely for a WallBuilder (user
+        decision) — otherwise arrival would re-scan the whole perimeter and
+        silently resurrect an edge an enemy actually broke."""
+        tm, scene, occ, wb = walled_board()
+        self.assertTrue(tm.damage_wall(2, 0, 3, 0, 10 ** 9))   # breaks it
+        self.assertNotIn(_wall_key(2, 0, 3, 0), tm.wall_edges)
+
+        cost, rounds = start_move(tm, wb, tm.get(2, 4), MOVE, 9999, occ, scene)
+        for _ in range(rounds):
+            process_moves(tm, occ, scene)
+        scene.update(0.0)
+
+        self.assertEqual((wb.col, wb.row), (2, 4))
+        self.assertNotIn(_wall_key(2, 0, 3, 0), tm.wall_edges,
+                         "arrival must not re-claim a destroyed edge")
 
 
 class TestProcessMoves(unittest.TestCase):

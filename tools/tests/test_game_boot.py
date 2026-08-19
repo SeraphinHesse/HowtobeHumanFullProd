@@ -422,6 +422,32 @@ class TestRenderBackendSelection(TempDataBoot):
         p._map_get_pos = False
         return p
 
+    def _surface_presenter(self, window_size=(2560, 1440)):
+        """The SAME seam on the other presenter. `_CursorSpace` is a mixin
+        precisely because this is not a GPU quirk: MEASURED live at scale 4,
+        the Surface path reported `event.pos == (2222, 959)` for the cursor
+        `get_pos()` gave as (555, 239), while its `map_event` was a comment
+        saying SCALED remaps mouse coords for free."""
+        p = game_main_module._SurfacePresenter.__new__(
+            game_main_module._SurfacePresenter)
+        p._view_w, p._view_h = 640, 360
+        p._map_events = None
+        p._map_get_pos = False
+        self._win_size = window_size
+        return p
+
+    def test_the_surface_presenter_maps_the_same_way(self):
+        p = self._surface_presenter()
+        down = pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            {"pos": (2222, 959), "button": 1, "clicks": 1, "touch": False})
+        with unittest.mock.patch.object(pygame.display, "get_window_size",
+                                        lambda: (2560, 1440)),                 unittest.mock.patch.object(pygame.mouse, "get_pos",
+                                           lambda: (555, 239)):
+            self.assertEqual(p.map_event(down).pos, (555, 239))
+            self.assertEqual(p.mouse_pos(), (555, 239))
+        self.assertTrue(p._map_events)
+
     def test_events_in_window_pixels_are_mapped_and_get_pos_is_not(self):
         """The live case: `event.pos` is window pixels, `get_pos()` logical."""
         p = self._presenter()
