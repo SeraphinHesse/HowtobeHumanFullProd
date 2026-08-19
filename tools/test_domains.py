@@ -209,6 +209,7 @@ DOMAINS = {
         "test_details_panel.py",
         "test_editor_anchors.py",
         "test_editor_asset_import.py",
+        "test_editor_house_colors.py",
         "test_editor_map_mode.py",
         "test_editor_panels.py",
         "test_editor_preview_footprint.py",
