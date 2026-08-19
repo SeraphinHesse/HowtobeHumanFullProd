@@ -26,6 +26,12 @@ class SpriteAnimator(Component):
     # negative int rather than None. It cannot be 0: season 0 and colour index
     # 0 are legitimate live values.
     column: int = -1
+    # Mirror the sprite horizontally. The sheet holds ONE facing; a walker
+    # whose heading points to the screen-right half of the iso diamond (NE or
+    # SE — see `Facing` in game/enemies/components.py) sets this so it faces
+    # where it walks. Nothing in the engine decides WHEN to flip: the field is
+    # written by whoever owns the facing rule, exactly like `animation`.
+    flip: bool = False
 
     def update(self, dt):
         self.anim_time_ms += dt * 1000.0
@@ -47,6 +53,7 @@ class SpriteAnimator(Component):
             fit_tiles=self.fit_tiles,
             scale=self.scale,
             column=self.column if self.column >= 0 else None,
+            flip=self.flip,
             # VA-3: read off the transform beside `layer`, for the same reason
             # — both are the OBJECT's draw-order metadata, not this
             # component's. 0 everywhere but a cosmetic one-shot that opted in.

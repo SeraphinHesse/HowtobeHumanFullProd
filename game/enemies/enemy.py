@@ -45,7 +45,7 @@ from game.map.pathfinder import (
 )
 from .components import (
     _HUNT_QUERIES, BURROW_SUBMERGED, BuffState, BurrowAgent, DeathSpawn,
-    DrummerAura, EnemyCombat, Kidnap, PathAgent,
+    DrummerAura, EnemyCombat, Facing, Kidnap, PathAgent,
 )
 from .crowd_spacing import CrowdSpacing
 
@@ -179,6 +179,9 @@ class Enemy(GameObject):
             # type but the Digger.
             *self.nav_components(block),
             Movement(speed=speed),
+            # Face the way we walk: AFTER Movement (reads the position it just
+            # stepped) and before SpriteAnimator (the flip lands this frame).
+            Facing(),
             EnemyCombat(dmg=dmg, attack_speed=attack_speed),
             RangeSensor(range_tiles=attack_range),
             SpriteAnimator(slot_key=slot, animation="walk",

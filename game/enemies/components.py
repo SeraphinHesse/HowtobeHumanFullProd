@@ -1839,3 +1839,61 @@ class DrummerAura(Component):
                 continue
             buffs.apply(source, self.hp_increase, self.dmg_increase,
                         self.move_speed_increase, self.attack_speed_increase)
+
+
+class Facing(Component):
+    """Mirror the enemy sprite so it faces the way it walks.
+
+    Every enemy sheet is drawn facing ONE way. On the iso grid the four
+    neighbour directions split cleanly into a screen-left and a screen-right
+    pair, because ``ix = (wx - wy) * tile_w/2`` (the coord authority,
+    ``engine/coords/system.py`` — the same derivation ``game/map/wall_render.py``
+    records for its edge table):
+
+        (+1,  0) col+ -> down-RIGHT = SE     screen dx > 0
+        ( 0, -1) row- -> up-RIGHT   = NE     screen dx > 0
+        ( 0, +1) row+ -> down-LEFT  = SW     screen dx < 0
+        (-1,  0) col- -> up-LEFT    = NW     screen dx < 0
+
+    So "flip when walking NE or SE" is exactly "flip when the heading moves
+    screen-right", i.e. ``dwx - dwy > 0`` — one expression instead of a
+    four-way compass table that could disagree with the coord authority.
+    (Note the prototype called ``(0, +1)`` "NE"; that naming is WRONG here and
+    ``wall_render.py`` says so at length. Do not re-derive this from it.)
+
+    The heading is read off the CURRENT WAYPOINT, not the per-frame position
+    delta: a unit that stops to attack (``PathAgent`` zeroes ``Movement.speed``)
+    then has no delta at all, and a facing derived from one would jitter or
+    snap back on the frame it halts. With no waypoint left (arrived, or
+    ``_repath`` found nothing) the last flip STICKS — there is no heading to
+    face, and flipping back to the sheet default would be a visible twitch.
+
+    Ordering: it sits AFTER ``Movement`` in the component list so it reads the
+    position that was just stepped, and before ``SpriteAnimator`` so the flip
+    lands in the same frame's ``render_items``.
+    """
+
+    #: Ignore a heading shorter than this (tiles). Right on top of a waypoint
+    #: the delta is numerically noise, and its sign would flap frame to frame.
+    epsilon: float = 1e-6
+
+    def on_added(self, owner):
+        self._owner = owner
+
+    def update(self, dt):
+        owner = getattr(self, "_owner", None)
+        if owner is None:
+            return
+        anim = owner.get_component(SpriteAnimator)
+        mv = owner.get_component(Movement)
+        if anim is None or mv is None:
+            return
+        wps = mv.waypoints
+        if not wps or mv.index >= len(wps):
+            return                      # nothing to face — hold the last flip
+        wp = wps[mv.index]
+        screen_dx = ((wp[0] - owner.transform.wx)
+                     - (wp[1] - owner.transform.wy))
+        if abs(screen_dx) <= self.epsilon:
+            return                      # on the waypoint — hold the last flip
+        anim.flip = screen_dx > 0

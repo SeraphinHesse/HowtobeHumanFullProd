@@ -46,14 +46,14 @@ class Corpse(GameObject):
     """A dead enemy's lingering sprite, playing its ``death`` animation once."""
 
     def __init__(self, wx, wy, slot_key, life_ms, layer="entities",
-                 fit_tiles=0.0, scale=1.0):
+                 fit_tiles=0.0, scale=1.0, flip=False):
         super().__init__(
             name="corpse",
             tags=("corpse",),
             transform=Transform(wx=wx, wy=wy, layer=layer),
             components=[
                 SpriteAnimator(slot_key=slot_key, animation=DEATH_ANIM,
-                               fit_tiles=fit_tiles, scale=scale),
+                               fit_tiles=fit_tiles, scale=scale, flip=flip),
                 CorpseFade(life_ms=int(life_ms)),
             ],
         )
@@ -71,6 +71,9 @@ def spawn_corpse(scene, enemy, life_ms):
     corpse = Corpse(
         wx=tf.wx, wy=tf.wy, slot_key=anim.slot_key, life_ms=life_ms,
         layer=tf.layer, fit_tiles=anim.fit_tiles, scale=anim.scale,
+        # Keep the facing it died with (`Facing`): the corpse is the same
+        # sheet, so an unflipped copy would spin the body round on death.
+        flip=anim.flip,
     )
     corpse.get_component(CorpseFade)._scene = scene
     scene.spawn(corpse)
