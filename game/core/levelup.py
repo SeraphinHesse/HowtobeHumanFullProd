@@ -211,6 +211,33 @@ def _tier_option(btype, idx, buildings_balance, spec=None):
     }
 
 
+def _unlock_explanation(spec, tiers, buildings_balance):
+    """The unlock card's blurb, DESIGNER-owned wherever the designer has one.
+
+    Order (first non-empty wins):
+
+    1. For a GROUPED unlock (the boost trio's one card grants three lines) the
+       group copy at ``tier_copy_path``'s ``tier_card_explanations[0]`` — no
+       single member's tier-1 blurb can describe a card that grants all three,
+       so this is the only balancing slot that fits.
+    2. Otherwise the tier-1 ``explanation`` straight out of
+       ``data/balancing/buildings.json`` — the SAME text the build/upgrade
+       panel shows for the thing this card unlocks, so editing it in the
+       editor's balancing panel now moves the level-up card too. This used to
+       come LAST and therefore never won: every unlock card in the game has a
+       hardcoded ``unlock_explanation``, so balancing edits were invisible here.
+    3. The spec's hardcoded ``unlock_explanation``, now a FALLBACK for when the
+       data carries no copy (the boost trio's group slot ships empty).
+    """
+    if spec.unlock_group and spec.tier_copy_path:
+        node = reduce(lambda d, k: d[k], spec.tier_copy_path, buildings_balance)
+        group_copy = (node.get("tier_card_explanations") or [""])[0]
+        return group_copy or spec.unlock_explanation
+    if spec.unlock_group:
+        return spec.unlock_explanation
+    return tiers[0].get("explanation", "") or spec.unlock_explanation
+
+
 def _unlock_option(btype, spec, buildings_balance):
     """A one-time reward that earns a whole building type. The unlock itself is
     FREE; ``display_cost`` previews the tier-1 build price (prototype)."""
@@ -234,7 +261,7 @@ def _unlock_option(btype, spec, buildings_balance):
         # boost trio's one card grants three lines).
         "title": spec.unlock_title or tiers[0]["name"],
         "prev_name": None,
-        "explanation": spec.unlock_explanation or tiers[0].get("explanation", ""),
+        "explanation": _unlock_explanation(spec, tiers, buildings_balance),
         "cost": 0,
         "display_cost": tiers[0].get("build_cost", 0),
         "cost_label": "Build Cost",

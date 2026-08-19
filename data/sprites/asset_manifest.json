@@ -18954,6 +18954,24 @@
         4
       ]
     },
+    "ui_icon_boss_next": {
+      "frame_h": 64,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/ui_panel_v7.png"
+    },
     "ui_icon_life": {
       "frame_h": 32,
       "frame_w": 32,

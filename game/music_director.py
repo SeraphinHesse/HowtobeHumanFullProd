@@ -123,6 +123,7 @@ class MusicDirector:
         self._music = _music if music is None else music
         self._sfx = _sfx if sfx is None else sfx
         self._in_cutscene = False
+        self._cutscene_owns_bus = False
         self._ambient_started = False
 
     # -- slot lookup -----------------------------------------------------
@@ -153,26 +154,41 @@ class MusicDirector:
         self._music.play_slot(slot, loop=True)
 
     def enter_cutscene(self, entry=None):
-        """Stack the phase track under the cutscene's. Idempotent: the host
-        calls this on a per-frame branch, and an unmatched second push would
-        strand the stack."""
+        """Stack the phase track under the cutscene's — but ONLY when the
+        cutscene actually HAS music of its own. Idempotent: the host calls
+        this on a per-frame branch, and an unmatched second push would strand
+        the stack.
+
+        A cutscene's own music is its companion audio (`entry["audio"]`) or an
+        explicitly-filled `Music.cutscene` slot. The `Music.default` fallback
+        is deliberately NOT applied here: going through `_music_slot()` meant
+        every music-less cutscene pushed the DEFAULT track with `force=True`,
+        which restarted whatever was already playing from zero — and popped it
+        back with `force=True` on the way out, restarting it a second time.
+        A cutscene with no music of its own now leaves the bus completely
+        alone and the previous track just keeps playing (`tick()` already
+        holds off while `_in_cutscene`, so nothing else touches it either)."""
         if not self.enabled or self._in_cutscene:
             return
-        self._in_cutscene = True
         clip = _cutscene_companion_clip(entry)
         if clip is None:
-            clip = bank.pick_clip(self._music_slot("cutscene"))
-        # push() saves the current track even when `clip` is None (silence),
-        # so pop() restores symmetrically in every case.
+            clip = bank.pick_clip((self._sounds.get("Music") or {}).get("cutscene"))
+        self._in_cutscene = True
+        self._cutscene_owns_bus = clip is not None
+        if clip is None:
+            return
         self._music.push(clip, loop=False)
 
     def leave_cutscene(self):
-        """Resume the stacked track. Sits on the SAME host edge as the
-        player's `release()` — including the skip path, which goes through
-        that same branch."""
+        """Resume the stacked track — only if `enter_cutscene()` pushed one.
+        Sits on the SAME host edge as the player's `release()` — including the
+        skip path, which goes through that same branch."""
         if not self.enabled or not self._in_cutscene:
             return
         self._in_cutscene = False
+        if not self._cutscene_owns_bus:
+            return
+        self._cutscene_owns_bus = False
         self._music.pop()
 
     # -- sfx bus ---------------------------------------------------------
