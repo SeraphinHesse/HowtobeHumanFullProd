@@ -15,6 +15,7 @@ string** (the established ``hit() -> "end_turn"`` convention):
   ``"quit_to_menu"``      tear the run down          (host drops the world)
   ``"quit_app"``          leave the game
   ``"set_display_mode"``  re-create the window       (host applies the mode)
+  ``"set_renderer"``      persist the GPU/CPU pick   (host writes it; BOOT-only)
   ``"add_name_commit"``   persist the typed name     (host writes + reports back)
   ``"open_highscores"``   the table just opened      (host RE-READS the scores
                                                      file so a just-finished run
@@ -318,6 +319,12 @@ class Shell:
         # pass-through shape `set_display_mode` has above).
         if action == "set_volume":
             return "set_volume"
+        # settings-cut: the GPU/CPU switch. The screen already wrote the new
+        # position onto `settings`; the host persists it to `settings/render.json`
+        # and it takes effect at the NEXT boot — nothing about this frame's
+        # render stack changes (the same pass-through shape as above).
+        if action == "set_renderer":
+            return "set_renderer"
         if action == "open_controls":
             self.controls_open = True
             return None
@@ -421,9 +428,17 @@ class Shell:
                               GameState.HIGHSCORES, GameState.SAVE_FILES)
 
     def update(self, dt, mx, my, mouse_down=False):
+        """Advance the active screen and forward any host intent it raises.
+
+        settings-cut: a screen's ``update()`` may now return an intent string
+        — the settings screen's volume DRAG is the only one, since a drag is a
+        held-button gesture with no click event of its own to hang off. Every
+        other screen returns ``None``, so the host's ``execute(...)`` around
+        this call is a no-op for them."""
         screen = self._active_screen()
-        if screen is not None:
-            screen.update(dt, mx, my, mouse_down)
+        if screen is None:
+            return None
+        return screen.update(dt, mx, my, mouse_down)
 
     def submit(self, renderer, view_w, view_h):
         screen = self._active_screen()

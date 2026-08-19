@@ -132,5 +132,41 @@ class TestRendererPolysSubmission(unittest.TestCase):
         self.assertEqual(kinds, ["OverlayLines", "OverlayPolys", "OverlayLines"])
 
 
+class TestTextAntialiasOff(unittest.TestCase):
+    """HUD text is rendered with antialiasing OFF, and translucent text keeps
+    its colour anyway — see `backend._TEXT_ANTIALIAS` / `_to_alpha_surface`."""
+
+    def setUp(self):
+        pygame.init()
+
+    def test_antialias_is_off(self):
+        self.assertFalse(backend._TEXT_ANTIALIAS)
+
+    def test_faded_text_keeps_its_colour(self):
+        """The regression `_to_alpha_surface` exists for: a NON-antialiased
+        render is an 8-bit colorkeyed surface, on which `set_alpha`
+        premultiplies alpha into RGB at blit — red faded to half landed as
+        (128, 0, 0) instead of (255, 0, 0) at alpha 128."""
+        target = pygame.Surface((120, 40), pygame.SRCALPHA)
+        target.fill((0, 0, 0, 0))
+        backend.draw(target, [HudText(text="Ag", pos=(0, 0),
+                                      color=(255, 0, 0, 128), font_key="md")])
+        inked = [target.get_at((x, y))
+                 for x in range(120) for y in range(40)
+                 if target.get_at((x, y))[3] > 0]
+        self.assertTrue(inked, "nothing was drawn")
+        for px in inked:
+            self.assertEqual(tuple(px), (255, 0, 0, 128))
+
+    def test_to_alpha_surface_needs_no_display(self):
+        """`convert_alpha()` raises "No convert format has been set" without a
+        display surface, and the headless render tests have none — hence the
+        hand-rolled promotion."""
+        src = pygame.Surface((4, 4), depth=8)
+        out = backend._to_alpha_surface(src)
+        self.assertEqual(out.get_bitsize(), 32)
+        self.assertEqual(out.get_size(), (4, 4))
+
+
 if __name__ == "__main__":
     unittest.main()

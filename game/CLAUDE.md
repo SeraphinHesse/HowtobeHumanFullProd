@@ -248,6 +248,56 @@ the only place the words `"placement"`/`"upgrade"`/`"buy_plot"` and the
   skips the shell straight into GAMEPLAY (the headless seam).
 - Frame order is fixed per E-14: input → `Scene.update(dt)` → render submit (grid
   tiles + `scene.render_items()`) → `flush` → `flip`.
+- **ONE cursor source: `event_mouse_pos`, never `pygame.mouse.get_pos()`.**
+  The loop records `event.pos` off every `MOUSEMOTION`/`MOUSEBUTTONDOWN`/
+  `MOUSEBUTTONUP` and that value — not `presenter.mouse_pos()` — is the
+  `mx, my` handed to every `update(dt, mx, my, …)`. The two sources are NOT
+  interchangeable, and **which of them is the scaled one is not a constant** —
+  see the calibration bullet below. The presenter's `map_event` /`mouse_pos`
+  pair is what makes them agree; downstream code reads `event_mouse_pos` and
+  never asks. Clicks have always read `event.pos`, so whenever the two drift
+  the symptoms are
+  hover-only and look like anything but a coordinate bug: the button under
+  the cursor never plays its `hover`/`pressed` skin row, widgets near the
+  top-left play theirs with the cursor nowhere near them, and the
+  cursor-anchored draws (`Hud`'s lightning cooldown bar, its income and
+  boss-round tooltips) land somewhere else — all on buttons that still CLICK
+  correctly. This is the mirror of the earlier `map_event` bug, where the
+  scaled half was the click half and hover was the one that kept working
+  (`tools/tests/test_game_boot.py` pins both directions).
+  `presenter.mouse_pos()` remains the fallback for the frames before the
+  first mouse event, and stays the right call in a presenter's own internals.
+- **Which cursor source is in window pixels is MEASURED at runtime, never
+  hard-coded** (`_GpuPresenter._calibrate`). On the GPU path exactly one of
+  `event.pos` / `pygame.mouse.get_pos()` arrives in renderer-logical space and
+  the other in window pixels — and **which one has flipped between pygame/SDL
+  builds**. This file carried a confident constant for each direction in turn
+  and was wrong both times: first `map_event` mapped already-logical events
+  (every click at a third of its position, no menu button firing, hover fine);
+  then the "fix" made `map_event` identity and remapped `mouse_pos()`, which
+  on a 1920x1080 window at logical 640x360 / direct3d is backwards —
+  MEASURED live, `event.pos == (1652, 536)` for the cursor `get_pos()` reports
+  as `(549, 177)`, so hover was handed `(183, 59)`. That one wrong divide is
+  the whole symptom set: hover lighting widgets near the top-left, the
+  lightning cooldown bar drawn in the wrong place, and the construct card list
+  refusing the wheel because `wants_scroll` was asked about a point three
+  times too far up and left to be on the panel. Both readings describe the
+  SAME cursor, so comparing them identifies which space each is in — the
+  presenter does that once, on the first mouse event far enough from the
+  origin to be unambiguous, and `tools/tests/test_game_boot.py` pins both
+  directions plus the unscaled and undecidable cases. **Do not replace it with
+  a constant, in either direction.**
+- **Wheel input goes through `_WheelTicks`, never `event.y`.** `MOUSEWHEEL.y`
+  is an INTEGER and it is not the whole signal: a precision touchpad, a
+  free-spin wheel and macOS inertial scrolling report the gesture in
+  `precise_y` and leave `y` at **0**. Both wheel arms used to be guarded on
+  `and event.y`, which discarded those events before any handler saw them — so
+  on that hardware nothing scrolled and nothing zoomed, ever, while a notched
+  mouse worked perfectly. That asymmetry is why the construct card list
+  measured green at every layer (model, host routing, draw) and was still
+  unusable for the person reporting it. One `_WheelTicks` instance per run
+  serves both arms; it accumulates fractions into whole ticks and drops the
+  residue on a reversal. `tools/tests/test_game_boot.py` pins it.
 - **Two loading screens (feature: loading screen), two different mechanisms,
   one shared look.** Both draw the editor-adjustable `ui_bg_loading`
   background slot + a white progress ring (`game/ui/loading_screen.py` is the
@@ -396,6 +446,24 @@ the only place the words `"placement"`/`"upgrade"`/`"buy_plot"` and the
   verbatim.
 - Window size / fps / caption come from `data/display.json` (schema-validated,
   G-7) — never hardcode them.
+- **`_enable_dpi_awareness()` runs BEFORE `pygame.init()`, and the order is the
+  whole point.** It sets `SDL_WINDOWS_DPI_AWARENESS=permonitorv2`; SDL reads
+  the hint at video init, so setting it afterwards does nothing. Without it the
+  process is DPI-**unaware** (measured: `GetProcessDpiAwareness()` → 0) and
+  Windows lies to SDL about every monitor whose display scale is not 100% — a
+  2560×1440 panel at 150% reports itself as **1707×960**. The game then renders
+  a 1707×960 frame and the desktop compositor **bilinear-stretches** it 1.5× to
+  the real panel. That blur is applied *after* SDL is done, so it is invisible
+  to every nearest-neighbour choice the host already makes
+  (`SCALEQUALITY_NEAREST` on the HUD texture, SDL's `nearest` render-scale
+  hint) and nothing inside the frame can undo it.
+  It also deforms glyphs via the SCALE FACTOR: 1707/640 = 2.667, so a nearest
+  upscale duplicates some pixel columns twice and others three times — one stem
+  7px wide, the next 8px, inside one word. Measured on this repo's two
+  monitors, the hint turns the reported desktop sizes from
+  `[(1920,1080), (1707,960)]` into `[(1920,1080), (2560,1440)]` — exactly 3.0×
+  and 4.0×. Keep it unconditional: the hint is inert on Linux/macOS, so CI and
+  a dev machine read the same code path.
 - **Active map (Phase 6, D-20/D-21)**: boot loads
   `engine.tilemap.load_active_map(data_dir)` (follows `data/maps/active_map.json`)
   and builds coords with THE MAP's dims (`load_coordinate_system(data_dir,
@@ -837,8 +905,12 @@ DIFFERENT tile is automatic (the ordinary iso sort). `main.py` owns the ONE
 thing position can't resolve — a same-tile TIE, broken by submission order:
 - **Highlights submit BEFORE `world.scene.render_items()`** (`gp["overlays"]
   .submit(...)`, the tutorial highlight, the drag-select live rectangle,
-  `gp["panel"].submit(...)`) — so a same-tile building draws ON TOP of its
-  own highlight.
+  `gp["panel"].submit_world(...)`) — so a same-tile building draws ON TOP of
+  its own highlight. Note the **`submit_world`**: `BuildingUI.submit()` is
+  split, and only its world half belongs at this slot. Its HUD half (the
+  sidebar) is submitted AFTER `gp["hud"].submit(...)`, so the building panel
+  always paints over the HUD — see `game/ui/CLAUDE.md`'s "The building panel
+  draws AFTER the HUD".
 - **Wall edges split around it**: the two far sides (`edge_nw`/`edge_ne`)
   submit BEFORE (same-tile building draws over its own back wall); the two
   near sides (`edge_se`/`edge_sw`, `game.map.wall_render.FRONT_SIDES`) submit
