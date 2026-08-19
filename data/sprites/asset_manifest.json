@@ -12885,7 +12885,12 @@
           "animation": "attack",
           "fps": 6,
           "frames": 31,
-          "hidden": [],
+          "hidden": [
+            22,
+            23,
+            24,
+            25
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -13043,7 +13048,13 @@
           "animation": "attack",
           "fps": 6,
           "frames": 31,
-          "hidden": [],
+          "hidden": [
+            22,
+            23,
+            24,
+            25,
+            26
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -13184,7 +13195,14 @@
           "animation": "attack",
           "fps": 6,
           "frames": 31,
-          "hidden": [],
+          "hidden": [
+            20,
+            21,
+            22,
+            23,
+            24,
+            25
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
