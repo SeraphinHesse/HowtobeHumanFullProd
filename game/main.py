@@ -77,6 +77,7 @@ from game.buildings.coverage import wire_defence_coverage
 # -- /10I --
 # -- B1: the slots.json category whose slots may carry a colour column --
 from game.buildings.registry import BUILDINGS_CATEGORY
+from game.buildings.registry import save_building  # SaveGamePLAN SG-5
 from game.buildings import painter as painter_art  # progress-art seam
 # -- Building Movement: the in-transit sign slot + the cost/time formulas the
 # destination-pick preview quotes --
@@ -92,6 +93,7 @@ from game.core import Session, append_random_name, load_balance
 from game.core import boss_upgrades  # BU-3: the one-time-hook seam
 from game.core import highscores  # player-identity: the run-history document
 from game.core import lightning  # BU-3 3.3: the stormpriest_slow hook seam
+from game.core import savegame  # SaveGamePLAN SG-5: the autosave writer
 from game.core.phases import GamePhase, GameState
 from game.debug import (  # debug-mode-telemetry
     DebugRecorder, LEVELS, LEVEL_BASIC, LEVEL_OFF, LEVEL_VERBOSE,
@@ -1438,6 +1440,52 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         if tune_gc:
             gc.collect()
 
+    def _autosave(world, session, map_id):
+        """SaveGamePLAN SG-5: build one save document from the live world and
+        write it via ``game.core.savegame``'s write-with-eviction path.
+        Called ONLY from the round-edge watcher below, which already
+        guarantees ``session.state.phase == BUILDING`` (the round boundary,
+        D1) — the one moment ``RunState.to_dict()`` accepts a save.
+
+        Every building currently mid-move is despawned and held alive ONLY
+        by ``tile_map.moving_orders`` (game/map/CLAUDE.md) — included
+        explicitly here alongside the tile-occupant sweep, or a save taken
+        while a building is in transit would silently lose it. The base
+        building is excluded: it is re-attached fresh via ``attach_base``
+        on load, exactly like a new game, and carries no runtime state
+        worth preserving (``base_lives`` lives on ``RunState``, not on it).
+
+        Wrapped in a broad except + one logged warning — the
+        ``highscores``-append precedent (game/CLAUDE.md's "One high-score
+        row..." section): a disk failure must never crash a mid-game
+        autosave.
+        """
+        try:
+            buildings = [t.occupant for t in world.tile_map.built_tiles()
+                        if t.occupant is not None
+                        and t.occupant.building_type != "base"]
+            buildings += [order.building for order in world.tile_map.moving_orders]
+
+            unlocked_tiles = (
+                [[t.col, t.row] for t in world.tile_map.buildable_tiles()]
+                + [[t.col, t.row] for t in world.tile_map.built_tiles()])
+
+            slot_doc = savegame.make_slot_doc(
+                slot_id=savegame.new_slot_id(),
+                map_id=map_id,
+                round_num=session.state.round_num,
+                unlocked_tiles=unlocked_tiles,
+                run_state=session.state.to_dict(buildings=buildings),
+                session=session.to_dict(),
+                tile_map=world.tile_map.save_state(),
+                buildings=[save_building(b) for b in buildings],
+            )
+            savegame.add_slot(REPO, slot_doc, data_dir)
+        except Exception:                                    # noqa: BLE001
+            logging.getLogger(__name__).warning(
+                "autosave failed at round %s", session.state.round_num,
+                exc_info=True)
+
     def _new_recorder():
         """A fresh recorder from the shell's debug-log settings (level +
         which artifacts) — the ONE construction site the PLAY DEBUG button and
@@ -2612,6 +2660,17 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                     director.play_game_event("level_up")
                 run_audio["prev_village_level"] = session.state.village_level
                 # -- /SD-7 --
+                # -- SaveGamePLAN SG-5: autosave on the round-boundary
+                # BUILDING edge, every AUTOSAVE_EVERY_N_ROUNDS rounds. Fires
+                # once per qualifying edge (the same prev_phase-edge pattern
+                # every watcher above uses), never per frame — and never
+                # mid-combat, since this edge only exists at the clean
+                # INCOME->BUILDING transition (D1). --
+                if (session.state.phase == GamePhase.BUILDING
+                        and gp["prev_phase"] != GamePhase.BUILDING
+                        and session.state.round_num
+                        % savegame.AUTOSAVE_EVERY_N_ROUNDS == 0):
+                    _autosave(world, session, map_doc.map_id)
                 gp["prev_phase"] = session.state.phase
                 gp["floaters"].spawn_xp_events(session.state)
                 gp["floaters"].spawn_boss_events(session.state)  # 10G announcement

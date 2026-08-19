@@ -156,6 +156,8 @@ DOMAINS = {
         # test_player_identity.py/test_names.py precedent for persistence
         # modules that exist for a menu feature.
         "test_savegame.py",
+        # SaveGamePLAN SG-5: the autosave assembly chain end to end
+        "test_savegame_integration.py",
         "test_shell.py",
         "test_sound_triggers_ui.py",
         "test_sound_music.py",  # SD-7: music arbitration + game stings

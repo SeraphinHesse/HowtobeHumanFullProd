@@ -289,6 +289,25 @@ the only place the words `"placement"`/`"upgrade"`/`"buy_plot"` and the
     this feature. Detail (why `GameState.LOADING` is host-driven rather than
     `Shell`-driven, unlike every other full-screen state since 9H) →
     `game/ui/CLAUDE.md`'s Shell + menus section.
+- **Autosave (SaveGamePLAN SG-5)** rides the SAME round-edge watcher chain as
+  N1's season clock, immediately after it: `if session.state.phase ==
+  GamePhase.BUILDING and gp["prev_phase"] != GamePhase.BUILDING and
+  session.state.round_num % savegame.AUTOSAVE_EVERY_N_ROUNDS == 0:
+  _autosave(world, session, map_doc.map_id)` — the round-boundary edge
+  (D1: the one point no enemy/projectile is alive, so `RunState.to_dict()`'s
+  round-boundary assertion never trips). `_autosave` (a nested `main()`
+  helper, beside `build_gameplay`/`teardown_gameplay`) assembles one save
+  document — `RunState.to_dict`/`Session.to_dict`/`TileMap.save_state` plus
+  `save_building` per live building (`game/buildings/registry.py`, SG-3) —
+  and writes it via `game/core/savegame.py`'s write-with-eviction path.
+  **Buildings currently mid-move are included explicitly**
+  (`tile_map.moving_orders`), not just tile occupants — a moving building is
+  despawned and held alive ONLY by that list (`game/map/CLAUDE.md`'s
+  Building Movement section), so a save that only swept `built_tiles()` would
+  silently drop it. The base building is excluded (re-attached fresh via
+  `attach_base` on load). The whole assembly is wrapped in a broad `except
+  Exception` + one logged warning — the highscores-append precedent — since
+  a disk failure must never crash a mid-game autosave.
 - **Camera input mapping (E-5) lives here**, on pure engine camera state: **both
   left- and right-click-drag pan** (`cs.pan` + `cs.clamp`, which bounds the view
   to **map bounds ∩ the camera leash**). The leash is `core` balancing's

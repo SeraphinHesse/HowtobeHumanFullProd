@@ -30,6 +30,13 @@ from engine import data_io
 #: FIFO cap enforced by evict_for_new_slot's default — the "10 save slots" rule.
 MAX_SLOTS = 10
 
+#: Autosave cadence (SG-5). A fixed system parameter, not a designer-facing
+#: balancing tunable — the COMBAT_SPEEDS precedent (game/core/session.py):
+#: "a code constant, not balancing". The host checks it against the
+#: POST-payday round_num at the INCOME->BUILDING edge (game/main.py), so it
+#: fires once entering round 5, 10, 15, ...
+AUTOSAVE_EVERY_N_ROUNDS = 5
+
 _log = logging.getLogger(__name__)
 
 
