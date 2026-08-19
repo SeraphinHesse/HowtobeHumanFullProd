@@ -231,6 +231,26 @@ boost-specific — any floater kind sharing a point stacks the same way, at no
 extra cost (the grouping already has to walk every active floater to draw
 it).
 
+## The building panel draws AFTER the HUD
+`BuildingUI.submit()` is split in two, and `game/main.py` calls the halves at
+different points in the frame:
+- **`submit_world(renderer)`** — tile highlights, the painter-used grey, wall
+  edges, a live move's path line. Stays at the EARLY slot, before
+  `world.scene.render_items()`, because that submission order is what makes a
+  same-tile building draw on top of its own highlight (`game/CLAUDE.md`'s
+  wall/highlight render-order section). Everything here sits outside the
+  `visible` guard, exactly as it did inline.
+- **`submit(renderer, session)`** — the sidebar itself. Submitted AFTER
+  `Hud.submit`, so **the panel always wins over the HUD**. It used to go out
+  first, which meant every HUD element overlapping the right sidebar — a
+  decorative `custom_panel_*` a designer adds to `hud.json` over there very
+  much included — painted on top of an open construction screen.
+
+`hud.py`'s `_panel_open` gates (the right-edge phase/round cluster) STAY: they
+skip drawing what the panel covers rather than relying on being painted over,
+which is still cheaper and still correct. The two mechanisms agree; neither
+replaces the other.
+
 ## HUD submission order: panel -> button -> text
 `engine/render/CLAUDE.md` "HUD pass": the HUD layer has **no depth sort** —
 `submit_hud`/`submit_panel`/`submit_text` draw in the order they're called,
@@ -1730,17 +1750,41 @@ the fallback for a button nothing ticks (a bare test/tool one), so no call
 site changed. **A button must therefore be `update(dt)`-ed to animate**;
 `enemy_intro`'s close X was the one that never was, and now is.
 
-**A refused click plays its press first.** `start_flash` (NOT ENOUGH LOVE /
-CANNOT MOVE THERE) used to cut straight to red mid-`pressed`-row, so the
-button read as flashing out of `idle`. It now holds the flash for whatever is
-LEFT of that row — `_state()` still resolves to `pressed` during the hold,
+**A press is LATCHED for its whole row, and a flash never selects that
+row.** Two measured defects, one mechanism. (1) A real click holds the button
+down for 2-6 frames (~100 ms) while every shipped `ui_button*` `pressed` row
+runs 750-1336 ms, so the row was released back to `hover` on frame 0 or 1 and
+the press animation was never actually seen. `Button.update` now arms
+`_press_hold` on the RISING EDGE of `pressed` with the full row length, and
+`_state()` answers `pressed` until it drains whether or not the button is
+still held. (2) `_state()` used to open with `if self.flash > 0: return
+"pressed"`, which made the NOT ENOUGH LOVE refusal the one and only place a
+`pressed` row was ever seen playing — the exact opposite of what it should
+signal. That branch is DELETED: the refusal is the red fill plus the flash
+label, and the press that earned it plays through the latch like any other.
+
+`start_flash` still holds the red back until the press finishes, but it now
+reads the LATCH's own remainder (`self._press_hold`) rather than computing a
+second, independent countdown — the latch is what holds `_state()` on the
+row, so anything else could let the red start before or after it.
 `flash_showing` (not `flash > 0`) is what turns the fill red and swaps in the
-flash label, and the flash's own duration starts only afterward. The row's
-LENGTH comes from `widgets.set_skin_anim_length(fn)`, the `set_skin_hit_test`
-seam's sibling wired in `game/main.py` to `AssetStore.animation_total_ms`
-(`game/ui` may not reach the asset layer itself). Unskinned buttons, skins
-with no `pressed` row and an un-wired seam all answer 0 and flash
-immediately, exactly as before. `levelup.py`/`boss_cutscene.py` own no `widgets.Button`
+flash label. **A flash with no press behind it therefore shows immediately**
+(the keybinds screen's REBIND-row flash). The row LENGTH comes from
+`widgets.set_skin_anim_length(fn)`, the `set_skin_hit_test` seam's sibling
+wired in `game/main.py` to `AssetStore.animation_total_ms` (`game/ui` may not
+reach the asset layer itself); `Button._row_seconds` is its ONE reader.
+Unskinned buttons, skins with no `pressed` row and an un-wired seam all answer
+0 — no latch, no hold, flash immediately, exactly as before.
+
+**A play-once row is CLAMPED, not looped.** `Manifest.current_frame` resolves
+a time with `% total_ms` and knows nothing about `loop_count`, so the
+per-button clock — which does not reset while the state holds — cycled every
+hover row forever (measured: a hovered End Turn ran frames 0,1,2,0,1,2…),
+motion that reads as jitter rather than as a hover-in. `_anim_time` clamps to
+one ms inside the last frame of the row `_state()` is drawing, so a
+`loop_count: 1` row plays once and HOLDS its last frame. No skin, no seam or
+no such row answers 0 and is left unclamped — which is what keeps every bare
+test/tool button and the golden pins unchanged. `levelup.py`/`boss_cutscene.py` own no `widgets.Button`
 (plain option-box rects), so they accept `mouse_down` on `update()` only for
 main.py's uniform threading call. `levelup.py` still carries no clock/anim_ms
 (its boxes stay unconditionally raw); `boss_cutscene.py` gained one in B2 —
@@ -2519,6 +2563,18 @@ plate's top band share exactly one column of x. Spelling it as a negative
   is why the authored rect is read directly. **No override falls back to the
   code defaults**, so `screen_defaults.json` (recorded with the disk-free
   `ScreenSkinning.empty()`) is byte-unchanged by any of this.
+  - **A `rect` override on a `card_*` id is now IGNORED at runtime.**
+    `BuildingUI.submit` calls `_restore_card_rects()` immediately after
+    `skinning.apply`, re-asserting the scroll-adjusted layout
+    `_build_construct` computed (captured into `self._card_rects` at the end
+    of that build). The rule below has always been the rule; the editor still
+    lets a designer drag a card, so it is ENFORCED rather than only
+    documented — a single stray `card_boost_speed_plate` rect, left in
+    `data/ui/screens/building_panel.json` by a drag, is what broke construct
+    scrolling the second time. Every OTHER override key on a card — `skin`,
+    `tint`, `label`, `text_color`, `visible` — is untouched and still applies.
+    Cards are the only widgets on this screen laid out from live scroll state,
+    so nothing else is restored.
   - **Hand-pinning the 12 `card_<btype>` rects is NOT the way to move the
     column, and actively breaks it** — three ways, all of which have shipped:
     (1) an authored rect reaches only the card BODY while that card's
@@ -2554,7 +2610,11 @@ plate's top band share exactly one column of x. Spelling it as a negative
     made the one part of the card that looks like a button do nothing.
     Nothing downstream of the hit changes. The NOT-ENOUGH-LOVE flash lands on
     the PILL either way: it is a sentence, and since the body shrank the 74px
-    pill is the widest `Button` in the tree.
+    pill is the widest `Button` in the tree. **While that flash is SHOWING,
+    the pill's love icon and price number are not drawn** — the message needs
+    all 74px, and overprinting the price with the sentence it was refused for
+    reads as a rendering bug. Gated on `flash_showing`, not `flash > 0`, so
+    the price stays readable through the press the flash is still waiting on.
   - `use_card_portrait_slot` — on, the portrait draws
     `card_portrait_<btype>` (`data/slots.json`'s `ui` → "Card Portraits"),
     falling back to the building's own tier sprite whenever that slot has no

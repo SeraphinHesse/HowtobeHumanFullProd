@@ -157,14 +157,17 @@ class TestSkinnedButton(unittest.TestCase):
         disabled.hover(*_center(RECT), mouse_down=True)
         self.assertEqual(disabled._state(), "disabled")
 
-        # flash beats disabled -> "pressed", flash_label overlay unchanged
+        # A flash does NOT select the `pressed` row any more (it used to beat
+        # even `disabled`): the refusal is the RED fill + the flash label, and
+        # the press that earned it plays through the press latch like any
+        # other press. The label overlay is unchanged.
         flashing = Button(RECT, "GO", skin="ui_button", enabled=False)
         flashing.start_flash(0.5, label="NOT ENOUGH LOVE")
-        self.assertEqual(flashing._state(), "pressed")
+        self.assertEqual(flashing._state(), "disabled")
         rec = _Rec()
         flashing.submit(rec)
         sprite, label = rec.calls
-        self.assertEqual(sprite.animation, "pressed")
+        self.assertEqual(sprite.animation, "disabled")
         self.assertEqual(label.text, "NOT ENOUGH LOVE")
 
     def test_skinned_panel(self):
@@ -265,16 +268,27 @@ class TestFlashWaitsForThePressAnim(unittest.TestCase):
 
     def test_the_press_row_plays_before_the_red_flash(self):
         btn = Button(RECT, "UPGRADE", skin="ui_button")
+        btn.hover(*_center(RECT), mouse_down=True)
+        btn.update(0.0)                           # arms the 400ms press latch
         btn.start_flash(1.0, "NOT ENOUGH LOVE")
         self.assertFalse(btn.flash_showing)
         self.assertEqual(self._label(btn), "UPGRADE")
         self.assertEqual(btn._state(), "pressed")
 
+        btn.hover(*_center(RECT))                 # released; the latch holds
         for _ in range(4):                        # the 400ms pressed row
+            self.assertEqual(btn._state(), "pressed")
             btn.update(0.1)
         self.assertTrue(btn.flash_showing)
         self.assertEqual(self._label(btn), "NOT ENOUGH LOVE")
         self.assertEqual(btn.flash, 1.0)          # the hold spends no flash
+
+    def test_a_flash_with_no_press_behind_it_shows_at_once(self):
+        """`start_flash` waits on the PRESS LATCH, so nothing to wait for
+        means no wait — the keybinds screen flashes a REBIND row this way."""
+        btn = Button(RECT, "REBIND", skin="ui_button")
+        btn.start_flash(1.0, "ALREADY BOUND")
+        self.assertTrue(btn.flash_showing)
 
     def test_time_already_spent_pressed_is_credited(self):
         btn = Button(RECT, "UPGRADE", skin="ui_button")
@@ -282,8 +296,8 @@ class TestFlashWaitsForThePressAnim(unittest.TestCase):
         btn.hover(cx, cy, mouse_down=True)
         for _ in range(3):                        # 200ms held (1 seeds)
             btn.update(0.1)
-        btn.start_flash(1.0, "NOT ENOUGH LOVE")   # 400 - 200 left to play
-        btn.update(0.2)
+        btn.start_flash(1.0, "NOT ENOUGH LOVE")   # 400 - 300 left to play
+        btn.update(0.1)
         self.assertTrue(btn.flash_showing)
 
     def test_no_seam_flashes_immediately(self):
