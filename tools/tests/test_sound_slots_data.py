@@ -41,7 +41,8 @@ ENEMY_TYPES = ("Boss", "Commander", "Digger", "Drummer", "Formation",
 #: Every slot path this phase creates, as literal dotted strings.
 SLOT_PATHS = (
     [f"core.Sounds.Music.{k}" for k in
-     ("building_phase", "combat_phase", "cutscene", "default", "menu")]
+     ("boss_phase", "building_phase", "combat_phase", "cutscene", "default",
+      "menu")]
     + ["core.Sounds.Ambient.default"]
     + [f"core.Sounds.Game.{k}" for k in
        ("game_over", "game_start", "level_up", "round_loss", "round_start",

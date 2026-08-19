@@ -18,7 +18,7 @@ def _slot(*files, loop=False):
 
 def _balance(*, default=("default.wav",), menu=("menu.wav",),
              cutscene=("cutscene.wav",), building=("building.wav",),
-             combat=("combat.wav",)):
+             combat=("combat.wav",), boss=("boss.wav",)):
     """A pinned `core.json`-shaped balancing dict (`Sounds` subtree only)."""
     return {"Sounds": {
         "Ambient": {"default": _slot("ambient.wav", loop=True)},
@@ -29,7 +29,8 @@ def _balance(*, default=("default.wav",), menu=("menu.wav",),
                   "menu": _slot(*menu, loop=True),
                   "cutscene": _slot(*cutscene, loop=True),
                   "building_phase": _slot(*building, loop=True),
-                  "combat_phase": _slot(*combat, loop=True)},
+                  "combat_phase": _slot(*combat, loop=True),
+                  "boss_phase": _slot(*boss, loop=True)},
     }}
 
 
@@ -99,6 +100,25 @@ class TestResolveMusicKey(unittest.TestCase):
             resolve_music_key(GameState.GAMEPLAY, GamePhase.ENEMY),
             "combat_phase")
 
+    def test_boss_round_upgrades_only_the_combat_key(self):
+        self.assertEqual(
+            resolve_music_key(GameState.GAMEPLAY, GamePhase.ENEMY,
+                              boss_round=True), "boss_phase")
+        self.assertEqual(
+            resolve_music_key(GameState.GAMEPLAY, GamePhase.ENEMY_INTRO,
+                              boss_round=True), "boss_phase")
+        # round_num is still pre-increment at ROUND_END, so the host's flag is
+        # still True there — the building track must survive it.
+        self.assertEqual(
+            resolve_music_key(GameState.GAMEPLAY, GamePhase.ROUND_END,
+                              boss_round=True), "building_phase")
+        self.assertEqual(
+            resolve_music_key(GameState.GAMEPLAY, GamePhase.BOSS_CUTSCENE,
+                              boss_round=True), "building_phase")
+        self.assertEqual(
+            resolve_music_key(GameState.MAIN_MENU, None, boss_round=True),
+            "menu")
+
     def test_cutscene_outranks_everything(self):
         self.assertEqual(resolve_music_key(GameState.CUTSCENE, None),
                          "cutscene")
@@ -123,6 +143,24 @@ class TestMusicTick(unittest.TestCase):
     def test_empty_default_too_is_silence(self):
         d, music, _sfx = _director(_balance(combat=(), default=()))
         d.tick(GameState.GAMEPLAY, GamePhase.ENEMY)
+        self.assertEqual(music.calls, [("stop", None)])
+
+    def test_boss_round_plays_the_boss_track(self):
+        d, music, _sfx = _director()
+        d.tick(GameState.GAMEPLAY, GamePhase.ENEMY, boss_round=True)
+        self.assertEqual(music.calls, [("play_slot", "boss.wav")])
+
+    def test_empty_boss_slot_falls_back_to_combat_then_default(self):
+        d, music, _sfx = _director(_balance(boss=()))
+        d.tick(GameState.GAMEPLAY, GamePhase.ENEMY, boss_round=True)
+        self.assertEqual(music.calls, [("play_slot", "combat.wav")])
+
+        d, music, _sfx = _director(_balance(boss=(), combat=()))
+        d.tick(GameState.GAMEPLAY, GamePhase.ENEMY, boss_round=True)
+        self.assertEqual(music.calls, [("play_slot", "default.wav")])
+
+        d, music, _sfx = _director(_balance(boss=(), combat=(), default=()))
+        d.tick(GameState.GAMEPLAY, GamePhase.ENEMY, boss_round=True)
         self.assertEqual(music.calls, [("stop", None)])
 
     def test_hold_states_touch_nothing(self):

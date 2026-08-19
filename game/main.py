@@ -2584,7 +2584,9 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         director.tick(st,
                       (gp["world"].session.state.phase
                        if gp["world"] is not None else None),
-                      gp["cutscene"] is not None)
+                      gp["cutscene"] is not None,
+                      (gp["world"].session.is_boss_round()
+                       if gp["world"] is not None else False))
         if st == GameState.CUTSCENE:
             # SD-7: stack the (silent, at boot) previous track under the intro
             # — idempotent, so this per-frame branch pushes exactly once.
