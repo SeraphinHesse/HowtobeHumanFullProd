@@ -137,6 +137,15 @@
         ],
         "fill_alpha": 0
       },
+      "move_blocked": {
+        "border_width": 2,
+        "color": [
+          110,
+          110,
+          110
+        ],
+        "fill_alpha": 90
+      },
       "move_target": {
         "border_width": 2,
         "color": [
@@ -454,6 +463,15 @@
     "enemy_death": {
       "draw_in_front": true,
       "procedural": "",
+      "sprite_slot": "",
+      "variant_select": {
+        "misc_key": "",
+        "mode": "random"
+      }
+    },
+    "move_blocked": {
+      "draw_in_front": true,
+      "procedural": "highlight",
       "sprite_slot": "",
       "variant_select": {
         "misc_key": "",

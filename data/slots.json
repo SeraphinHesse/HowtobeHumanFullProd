@@ -1441,6 +1441,12 @@
               ]
             },
             {
+              "label": "Move blocked",
+              "slots": [
+                "vfx_move_blocked"
+              ]
+            },
+            {
               "label": "Wall edge",
               "slots": [
                 "vfx_wall_edge"
