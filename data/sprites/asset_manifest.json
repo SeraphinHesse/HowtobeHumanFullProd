@@ -15151,22 +15151,71 @@
           3
         ]
       },
-      "frame_h": 28,
-      "frame_w": 36,
+      "column_width": 11,
+      "frame_h": 96,
+      "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 11,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "walk",
+          "fps": 6,
+          "frames": 11,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 11,
           "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 11,
+          "hidden": [
+            0,
+            1,
+            2,
+            3
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/siege_cannon.png"
+      "sheet": "master/ss_cannon.png"
     },
     "siege_cannon_t2": {
       "anchors": {
@@ -15187,22 +15236,58 @@
           3
         ]
       },
-      "frame_h": 28,
-      "frame_w": 36,
+      "column_width": 11,
+      "frame_h": 96,
+      "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 2,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 11,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "walk",
+          "fps": 6,
+          "frames": 11,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 11,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/siege_cannon_t2.png"
+      "sheet": "master/ss_cannon.png"
     },
     "siege_cannon_t3": {
       "anchors": {

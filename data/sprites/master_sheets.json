@@ -56,6 +56,13 @@
       "frame_h": 96,
       "frame_w": 192
     },
+    "ss_cannon": {
+      "column_width": 11,
+      "display_name": "SS_Cannon",
+      "file": "master/ss_cannon.png",
+      "frame_h": 96,
+      "frame_w": 64
+    },
     "ss_fluteplayer": {
       "column_width": 17,
       "columns": [
