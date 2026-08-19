@@ -81,3 +81,37 @@ def projectile_point(assets, cs, obj, name, lift_frac):
     sx, sy = cs.world_to_screen(wx, wy)
     lift = cs.geometry.tile_h * cs.camera.zoom * lift_frac
     return cs.screen_to_world(sx, sy - lift)
+
+
+def sprite_center_world(assets, cs, obj):
+    """The world point at the CENTRE of ``obj``'s drawn sprite frame — the
+    "central point of the sheet", not a manifest-authored anchor.
+
+    ``sprite_anchor_screen``'s ``anchor_xy`` of ``(0, 0)`` IS that centre by
+    the renderer's own anchor convention (a frame is blitted centred on its
+    world position horizontally and on the tile diamond's centre vertically),
+    so this is that call with a zero anchor — it composes the SAME geometry
+    ``flush`` uses and cannot drift from where the sprite actually lands.
+
+    Used as the IMPACT endpoint of the Sniper's cosmetic tracer
+    (``game/ui/effects.py``): a building's ``impact`` anchor is optional art
+    metadata, while its sheet centre always exists, and the tracer must land
+    on the victim's body whether or not anyone has dragged a handle.
+
+    ``None`` when the store/cs/object/animator/slot is absent, or when the
+    store cannot size the slot — the caller's cue to fall back to the
+    object's plain world position (E-37)."""
+    if assets is None or cs is None or obj is None:
+        return None
+    anim = obj.get_component(SpriteAnimator)
+    if anim is None or not anim.slot_key:
+        return None
+    try:
+        frame_w, _frame_h = assets.frame_size(anim.slot_key)
+        offset_xy = assets.offset(anim.slot_key)
+    except (KeyError, TypeError):
+        return None
+    wx, wy = obj.transform.world_pos
+    sx, sy = sprite_anchor_screen(
+        cs, wx, wy, frame_w, anim.fit_tiles, anim.scale, offset_xy, (0, 0))
+    return cs.screen_to_world(sx, sy)

@@ -5,9 +5,10 @@ Pure Python (no pygame); combat runs headless for the HP-ledger tests. See
 """
 from .combat import Projectile, ProjectileHoming, attack_interval, resolve_combat
 from .components import (
-    BUFF_DECAY_SECONDS, BURROW_EMERGE, BURROW_SUBMERGED, BURROW_WALKING,
-    CARRY_OFFSET_TILES, BuffState, BurrowAgent, DeathSpawn, DrummerAura,
-    EnemyCombat, Kidnap, PathAgent, buff_total,
+    BUFF_DECAY_SECONDS, BURROW_DIGGING, BURROW_EMERGE, BURROW_SUBMERGED,
+    BURROW_WALKING, CARRY_OFFSET_TILES, BuffState, BurrowAgent, DeathSpawn,
+    DrummerAura, EnemyCombat, Kidnap, PathAgent, buff_total,
+    set_anim_length_hook,
 )
 from .corpse import DEATH_ANIM, Corpse, spawn_corpse
 from .crowd_spacing import CrowdSpacing, apply_crowd_spacing, restore_crowd_positions
@@ -26,6 +27,7 @@ from .spawner import Spawner
 __all__ = [
     "ATTACK",
     "BUFF_DECAY_SECONDS",
+    "BURROW_DIGGING",
     "BURROW_EMERGE",
     "BURROW_SUBMERGED",
     "BURROW_WALKING",
@@ -70,6 +72,7 @@ __all__ = [
     "revive_rescued_building",
     "resolve_combat",
     "restore_crowd_positions",
+    "set_anim_length_hook",
     "set_kidnap_pose",
     "slot_for",
     "spawn_corpse",

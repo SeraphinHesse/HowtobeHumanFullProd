@@ -116,3 +116,18 @@ def resolve(registry, slot_key, mode, misc_key="", *, rng=None, source=None,
     index = variant_index(mode, rng=rng, level=level, misc_key=misc_key,
                           count=len(variants))
     return _variants.slot_at(variants, index)
+
+
+def max_variant(registry, slot_key):
+    """``slot_key``'s HIGHEST variant — the "max level" art, without a level.
+
+    ``LEVEL`` mode clamps its index to the last variant (``slot_at``), so this
+    is what a max-level source would resolve to; it is a separate entry point
+    because the Sniper's cosmetic tracer (``game/ui/effects.py``) wants that
+    top variant unconditionally rather than one selected off a source object.
+    Degrades to ``slot_key`` when the registry is absent or cannot place it,
+    exactly like ``resolve`` (E-37)."""
+    if registry is None:
+        return slot_key
+    variants = _variants.variant_slots(registry, slot_key)
+    return variants[-1] if variants else slot_key
