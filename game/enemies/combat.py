@@ -59,6 +59,13 @@ CRATER_LIFE = 1.0        # seconds a spent-shell crater lingers before fading ou
 # swap the procedural Crater for a one-shot PlayOnceVfx at impact (the same
 # "shared slot, never per-building" rule vfx_projectile/vfx_shell follow).
 CRATER_SLOT = "vfx_crater"
+# fix-mortar-shell-arc: half a tile on BOTH world axes — in this iso
+# projection that is exactly +tile_h/2 in screen y (the x terms cancel), i.e.
+# the tile DIAMOND CENTRE a sprite is drawn on (engine/render/renderer.py
+# sprite_anchor_screen) versus the raw world point a HUD projectile dot is
+# drawn at. The mortar shell ends its flight there so it lands ON the crater
+# it spawns, instead of half a tile height above it. Geometry, not a tunable.
+_TILE_CENTRE = 0.5
 # BossUpgradeTimelinePLAN BU-3 3.3 (#3 mortar_slow): the opaque BuffState
 # source key every mortar's slow is written under. ONE key for the whole
 # UPGRADE, never one per firing building — see `apply_slow`'s docstring
@@ -281,6 +288,26 @@ class ProjectileArc(Component):
     ``radius`` of the landing point (Euclidean, full damage, no falloff, no
     target cap), spawns a cosmetic ``Crater``, then despawns itself.
 
+    fix-mortar-shell-arc: the shell now MOVES. It used to sit at its muzzle
+    spawn point for the whole flight (only the timer ticked) and then vanish
+    while a crater appeared a tile-range away — the shell was never seen to
+    travel. ``update`` now walks ``transform`` from the launch point to the
+    landing point on a parabola whose apex is ``arc_height`` TILE HEIGHTS in
+    SCREEN space (``data/balancing/vfx.json`` ``procedural.projectile.
+    arc_height_frac``, threaded down from ``resolve_combat``), using the same
+    "express a height as a screen lift, convert back through ``cs``" trick
+    ``game.anchors.projectile_point`` uses for ``lift_frac`` — this package
+    has no screen space of its own. Purely cosmetic (D4): the impact time is
+    still ``timer``, the damage still resolves at ``(_gx, _gy)``, and with no
+    ``cs`` (every headless test) the shell simply travels flat.
+
+    The flight ENDS at the tile-diamond CENTRE of ``(_gx, _gy)`` (``+
+    _TILE_CENTRE`` on both axes), not at the raw ground point: a projectile is
+    drawn as a HUD dot/sprite at ``world_to_screen(wx, wy)``, while the crater
+    — procedural ring and imported ``vfx_crater`` one-shot alike — is centred
+    on the tile diamond, half a ``tile_h`` below that. Landing on the raw
+    point would drop the shell visibly ABOVE the crater it spawns.
+
     ``crater_life`` (ESV-3b): the fade lifetime the spawned ``Crater`` is
     built with, carried from ``data/balancing/vfx.json`` (``procedural.
     crater.life``) all the way down from ``resolve_combat``'s required
@@ -292,6 +319,13 @@ class ProjectileArc(Component):
     radius: float = 0.0
     timer: float = 0.0
     crater_life: float = CRATER_LIFE
+    # fix-mortar-shell-arc: the flight's TOTAL duration (``timer`` counts down
+    # from it, so the two together give the 0..1 flight fraction the arc is
+    # drawn on) and the cosmetic apex, in tile heights. Both are set by
+    # ``launch``/``_fire_splash``; 0.0 means "no arc", i.e. exactly the
+    # stationary pre-fix shell.
+    duration: float = 0.0
+    arc_height: float = 0.0
 
     def on_added(self, owner):
         self._proj = owner
@@ -299,6 +333,14 @@ class ProjectileArc(Component):
         self._scene = None
         self._gx = 0.0
         self._gy = 0.0
+        # fix-mortar-shell-arc: the launch point the arc is interpolated FROM
+        # (recorded by ``launch`` off the shell's spawn transform), and the
+        # host CoordinateSystem the screen-space apex is resolved through —
+        # the same transient-ref pattern (E-11) ``_assets``/``_cs`` already
+        # use on ``ProjectileHoming``. ``None`` -> flat flight, never a raise.
+        self._ox = 0.0
+        self._oy = 0.0
+        self._cs = None
         # ESV-5: an optional (wx, wy) -> None callback fired at impact,
         # ALONGSIDE whichever impact cosmetic _impact spawns below (Crater or
         # a sprite one-shot) — never a replacement for it. Set (or left None)
@@ -333,6 +375,11 @@ class ProjectileArc(Component):
         self._shooter = shooter
         self._scene = scene
         self.timer = travel_time
+        # fix-mortar-shell-arc: the arc is interpolated from wherever the
+        # shell was SPAWNED (its possibly muzzle-anchored point), so the
+        # anchor keeps deciding the launch position exactly as before.
+        self.duration = travel_time
+        self._ox, self._oy = self._proj.transform.world_pos
 
     def update(self, dt):
         proj = getattr(self, "_proj", None)
@@ -340,8 +387,31 @@ class ProjectileArc(Component):
             return
         self.timer -= dt
         if self.timer > 0:
+            self._advance()
             return
         self._impact()
+
+    def _advance(self):
+        """Cosmetic only (D4): place the shell on its parabola for the flight
+        fraction ``timer`` says it has left. Never touches the timer, the
+        landing point or the damage."""
+        proj = self._proj
+        if self.duration <= 0:
+            return
+        t = 1.0 - self.timer / self.duration
+        ex = self._gx + _TILE_CENTRE
+        ey = self._gy + _TILE_CENTRE
+        wx = self._ox + (ex - self._ox) * t
+        wy = self._oy + (ey - self._oy) * t
+        cs = getattr(self, "_cs", None)
+        if cs is not None and self.arc_height:
+            # 4t(1-t): 0 at both ends, 1 at t=0.5 — the apex IS arc_height
+            # tile heights, so the balancing number reads as what you see.
+            sx, sy = cs.world_to_screen(wx, wy)
+            lift = (cs.geometry.tile_h * cs.camera.zoom * self.arc_height
+                    * 4.0 * t * (1.0 - t))
+            wx, wy = cs.screen_to_world(sx, sy - lift)
+        proj.transform.wx, proj.transform.wy = wx, wy
 
     def _impact(self):
         scene = getattr(self, "_scene", None)
@@ -698,6 +768,13 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
     ``ProjectileArc.update`` never moves the shell, so its spawn point is
     its drawn point for the whole flight.
 
+    fix-mortar-shell-arc: ``procedural.projectile.arc_height_frac`` is read
+    off the same block and threaded to ``_fire_splash`` only. It is the
+    mortar shell's cosmetic flight apex in tile heights — the shell now
+    actually travels to its landing point instead of sitting at the muzzle
+    for ``AOE_TRAVEL_TIME`` (which is unchanged, and still the only thing
+    that decides WHEN the splash lands — D4).
+
     ``on_kidnap(enemy, building)`` (Art/enemies): fed to every enemy whose
     ``Kidnap.pending`` was armed this frame by ``EnemyCombat`` — see
     ``_resolve_kidnaps`` below.
@@ -745,6 +822,10 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
     # AOE_TRAVEL_TIME/BEAM_MIN_TICK below, which stay module constants — D4).
     crater_life = vfx_balance["procedural"]["crater"]["life"]
     lift_frac = vfx_balance["procedural"]["projectile"]["lift_frac"]
+    # fix-mortar-shell-arc: the mortar shell's cosmetic flight apex, read the
+    # same way (COSMETICS live in vfx.json; AOE_TRAVEL_TIME, the timing that
+    # decides when the splash lands, stays a module constant — D4).
+    arc_height_frac = vfx_balance["procedural"]["projectile"]["arc_height_frac"]
 
     # BR-3/D2: a boss in its delayed second phase is alive but UNTARGETABLE —
     # dropping it here removes it from every defender's `in_range` list at
@@ -772,7 +853,8 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
         _update_defender(defender, scene, offsets, span, dt, min_atk, proj_speed,
                          crater_life, dmg_bonus, assets, cs, on_splash_impact,
                          on_defender_fire, on_projectile_hit, lift_frac,
-                         on_damage, run_state, boss_upgrades_balance)
+                         on_damage, run_state, boss_upgrades_balance,
+                         arc_height_frac)
 
     _resolve_kidnaps(scene, tilemap, on_kidnap)
 
@@ -841,7 +923,8 @@ def _update_defender(defender, scene, offsets, span, dt, min_atk, proj_speed,
                      crater_life, dmg_bonus=0, assets=None, cs=None,
                      on_splash_impact=None, on_defender_fire=None,
                      on_projectile_hit=None, lift_frac=0.0, on_damage=None,
-                     run_state=None, boss_upgrades_balance=None):
+                     run_state=None, boss_upgrades_balance=None,
+                     arc_height_frac=0.0):
     """``offsets``/``span`` are the per-frame acquisition inputs built once by
     ``resolve_combat`` (ER-2) and consumed only by ``_acquire`` — see there.
     ``assets``/``cs``
@@ -854,7 +937,9 @@ def _update_defender(defender, scene, offsets, span, dt, min_atk, proj_speed,
     hit`` (ESV-6) passes only to ``_fire`` — the homing path — since the
     mortar's splash already has its own impact event. ``lift_frac``
     (feat-projectile-anchored-flight) passes only to ``_fire`` too — see
-    that module-level function's docstring. ``on_damage`` (debug-mode-
+    that module-level function's docstring. ``arc_height_frac``
+    (fix-mortar-shell-arc) passes only to ``_fire_splash`` — the mortar is
+    the one shot that arcs. ``on_damage`` (debug-mode-
     telemetry) passes to BOTH firing paths and to ``_update_beam``.
     ``run_state``/``boss_upgrades_balance`` (BU-3 3.3 + 3.5) pass to ALL THREE
     firing paths: ``mortar_slow`` (#3) is scoped to the mortar, but
@@ -900,7 +985,7 @@ def _update_defender(defender, scene, offsets, span, dt, min_atk, proj_speed,
             _fire_splash(defender, target, scene, crater_life, dmg_bonus,
                         assets, cs, on_splash_impact, on_defender_fire,
                         lift_frac, on_damage, run_state,
-                        boss_upgrades_balance)
+                        boss_upgrades_balance, arc_height_frac)
         else:
             _fire(defender, target, scene, proj_speed, dmg_bonus, assets, cs,
                  on_defender_fire, on_projectile_hit, lift_frac, on_damage,
@@ -1065,7 +1150,8 @@ def _mortar_slow_spec(defender, run_state, boss_upgrades_balance):
 def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
                  assets=None, cs=None, on_splash_impact=None,
                  on_defender_fire=None, lift_frac=0.0, on_damage=None,
-                 run_state=None, boss_upgrades_balance=None):
+                 run_state=None, boss_upgrades_balance=None,
+                 arc_height_frac=0.0):
     """Launch an arcing shell (prototype ``AOEDefenceBuilding._shoot``): aim a
     fixed ground point via predictive lead, load it with the current damage +
     splash radius, and let ``ProjectileArc`` resolve the splash on impact.
@@ -1101,11 +1187,17 @@ def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
     the SAME ``projectile_point`` resolver ``_fire`` uses, so an un-anchored
     mortar keeps the screen-space lift that used to be added at DRAW time in
     ``submit_projectiles``. Without this the shell would render ~19px lower
-    than before this change — ``ProjectileArc.update`` never moves the shell
-    (only its timer ticks), so its spawn point IS its drawn point for the
-    whole flight, and the removed draw lift has to come back here or the
-    mortar visibly drops. Byte-identical to pre-change for an un-anchored
-    shooter; an authored ``muzzle`` anchor wins outright, as everywhere.
+    than before this change, and the removed draw lift has to come back here
+    or the mortar visibly drops. Byte-identical to pre-change for an
+    un-anchored shooter; an authored ``muzzle`` anchor wins outright, as
+    everywhere. (It used to also be the shell's ONLY height, because the
+    spawn point was its drawn point for the whole flight; since
+    fix-mortar-shell-arc it is just where the arc STARTS.)
+
+    ``arc_height_frac`` (fix-mortar-shell-arc, cosmetic): the shell's flight
+    apex in tile heights, carried onto ``ProjectileArc.arc_height`` along with
+    the ``cs`` the arc is resolved through. 0.0 (every headless/test caller)
+    is a flat flight — never a raise, never a timing change.
 
     ``run_state``/``boss_upgrades_balance`` (BU-3 3.3): the standard BU-3 hook
     pair, resolved ONCE here through ``_mortar_slow_spec`` into a
@@ -1133,6 +1225,11 @@ def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
     # be answered at impact.
     arc._run_state = run_state
     arc._boss_upgrades_balance = boss_upgrades_balance
+    # fix-mortar-shell-arc: the cosmetic flight shape — `cs` is the same
+    # transient host reference `_fire` stashes on a homing shot, read live
+    # each frame so the arc follows camera pan/zoom.
+    arc._cs = cs
+    arc.arc_height = arc_height_frac
     arc.launch(gx, gy, defender, scene, AOE_TRAVEL_TIME)
     scene.spawn(shell)
 
