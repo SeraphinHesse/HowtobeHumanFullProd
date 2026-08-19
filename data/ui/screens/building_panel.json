@@ -541,6 +541,188 @@
         70
       ]
     },
+    "card_aoe_defence_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_aoe_defence_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "card_blocker_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_blocker_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "card_boost_damage_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_boost_damage_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "card_boost_hp_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_boost_hp_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "card_boost_speed_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_boost_speed_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "card_defence_frame": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_defence_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_defence_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "card_economic_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_economic_name2": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_economic_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "card_meditator_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_meditator_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "card_painter_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_painter_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "card_storm_priest_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_storm_priest_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "card_sun_scorcher_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_sun_scorcher_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "card_wall_builder_name": {
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "card_wall_builder_price_text": {
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
     "close_btn": {
       "label": "",
       "rect": [

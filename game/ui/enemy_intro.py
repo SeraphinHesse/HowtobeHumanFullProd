@@ -155,6 +155,9 @@ class EnemyIntroWindow:
             self._close_btn.hover(mx, my, mouse_down)
             self._close_btn.hovered = (self._close_btn.hovered
                                        and is_visible(self._close_btn))
+            # Its own hover/pressed animation clock — the one button in
+            # `game/ui` that was never ticked, so its skin rows never played.
+            self._close_btn.update(dt)
 
     def hit(self, mx, my):
         """``True`` on a close-X hit — the only interactive element in this

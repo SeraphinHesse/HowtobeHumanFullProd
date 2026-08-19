@@ -899,6 +899,9 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         s for s in registry.group_slots(BUILDINGS_CATEGORY)
         if s.startswith("painter_") and manifest.entry(s) is not None))
     widgets.set_skin_hit_test(assets.hit_opaque)  # R2: pixel-perfect click targets
+    # Its sibling: how long a skin row plays, so a button can hold its
+    # not-enough-love flash until the `pressed` row has finished.
+    widgets.set_skin_anim_length(assets.animation_total_ms)
 
     # -- SD-6: the UI sound seam. `game/ui` is pygame-free, so it never
     # imports engine.audio: it hands a SLOT to this host-injected sink and the

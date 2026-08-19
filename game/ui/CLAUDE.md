@@ -1717,7 +1717,30 @@ hover→`"hover"`, else `"idle"`, missing rows fall back to idle via the manifes
 
 **One anim clock per screen** (`self._clock` seconds → `widgets.anim_ms()`), no
 per-widget phase; skins are assigned by 10L-B's screen JSON (see "UI screen
-customization" below). `levelup.py`/`boss_cutscene.py` own no `widgets.Button`
+customization" below).
+
+**…except a `Button`, which runs its OWN state clock** (fix: hover/pressed
+rows never played). Every shipped `ui_button*` sheet's `hover`/`pressed` rows
+are `loop_count: 1`, i.e. play-once, and a free-running screen clock hands
+them a time long past their end — so the row was only ever seen on its LAST
+frame and the animation looked like it never fired. `Button.update(dt)` now
+keeps `_anim_t`, RESTARTED whenever `_state()` changes, and `submit` feeds
+that to the `HudSprite` instead of the caller's `anim_ms=` — which is still
+the fallback for a button nothing ticks (a bare test/tool one), so no call
+site changed. **A button must therefore be `update(dt)`-ed to animate**;
+`enemy_intro`'s close X was the one that never was, and now is.
+
+**A refused click plays its press first.** `start_flash` (NOT ENOUGH LOVE /
+CANNOT MOVE THERE) used to cut straight to red mid-`pressed`-row, so the
+button read as flashing out of `idle`. It now holds the flash for whatever is
+LEFT of that row — `_state()` still resolves to `pressed` during the hold,
+`flash_showing` (not `flash > 0`) is what turns the fill red and swaps in the
+flash label, and the flash's own duration starts only afterward. The row's
+LENGTH comes from `widgets.set_skin_anim_length(fn)`, the `set_skin_hit_test`
+seam's sibling wired in `game/main.py` to `AssetStore.animation_total_ms`
+(`game/ui` may not reach the asset layer itself). Unskinned buttons, skins
+with no `pressed` row and an un-wired seam all answer 0 and flash
+immediately, exactly as before. `levelup.py`/`boss_cutscene.py` own no `widgets.Button`
 (plain option-box rects), so they accept `mouse_down` on `update()` only for
 main.py's uniform threading call. `levelup.py` still carries no clock/anim_ms
 (its boxes stay unconditionally raw); `boss_cutscene.py` gained one in B2 —
