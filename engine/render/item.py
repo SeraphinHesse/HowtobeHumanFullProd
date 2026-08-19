@@ -53,9 +53,11 @@ class RenderItem:
     # live value (D7 clamps TO it), so 0 cannot double as "unset" without
     # making the first season/first colour unaddressable.
     column: int | None = None
-    # VA-3: depth-key tie-break within this item's layer — +1 draws in front
-    # of a same-tile entity, -1 behind it. 0 (every shipping caller) keeps the
-    # historical ordering exactly. See CoordinateSystem.depth_key.
+    # VA-3: draw-order rank within this item's layer. -1/0/+1 are a TIE-BREAK
+    # only (+1 in front of a same-tile entity, -1 behind it, 0 the historical
+    # ordering); `coords.FRONT_RANK` and above is ABSOLUTE — it beats iso depth
+    # so a "show in front" effect always draws on top of its layer
+    # (fix/showinfront-always-wins). See CoordinateSystem.depth_key.
     rank: int = 0
 
 

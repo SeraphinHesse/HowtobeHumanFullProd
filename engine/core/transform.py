@@ -15,7 +15,8 @@ class Transform:
         self.wx = wx
         self.wy = wy
         self.layer = layer
-        # VA-3: the depth-key tie-break (CoordinateSystem.depth_key). It lives
+        # VA-3: the depth-key rank (CoordinateSystem.depth_key — a tie-break
+        # below FRONT_RANK, absolute at or above it). It lives
         # here beside `layer` because it is the same kind of thing — draw-order
         # metadata about this object's position, with the same lifetime and the
         # same one consumer — and because SpriteAnimator already reads `layer`

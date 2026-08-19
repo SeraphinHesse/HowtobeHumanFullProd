@@ -144,6 +144,7 @@ import math    # feature-storm-acolyte-multi-build: the polygon-ring helper
 import random  # 10H bolt jitter / 10J particle spread (stdlib — pure)
 from dataclasses import dataclass   # VA-2: the resolved TriggerRow
 
+from engine.coords import FRONT_RANK
 from engine.core import Health, SpriteAnimator
 from engine.render import (
     HudLines, HudRect, HudSprite, RenderItem, block_center_offset, fit_factor,
@@ -1447,7 +1448,9 @@ class FloaterManager:
            half-imported, not silently reuse level 1 art at level 9.
         4. **``draw_in_front``** — false on every shipped row, so
            ``rank = -1`` puts the aura BEHIND the booster sharing its tile
-           (the same mapping ``submit_highlight`` makes).
+           (the same mapping ``submit_highlight`` makes). True maps to
+           ``FRONT_RANK``, which draws over every same-layer item rather than
+           only winning an exact depth tie (fix/showinfront-always-wins).
 
         ``fit_tiles`` is deliberately left at its 0 default even though the
         art is cut 192x96 to cover a 3x3 block: with ``fit_tiles == 0`` the
@@ -1483,7 +1486,7 @@ class FloaterManager:
             renderer.submit(RenderItem(
                 slot, (b.col, b.row), animation="idle",
                 anim_time_ms=int(self._aura_clock_ms + phase),
-                rank=1 if row.draw_in_front else -1))
+                rank=FRONT_RANK if row.draw_in_front else -1))
 
     # -- 10H: lightning + cheat menu ---------------------------------------
 

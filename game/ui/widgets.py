@@ -18,6 +18,7 @@ later ``configure_palette`` rebind cannot reach) — see ``game/ui/CLAUDE.md``.
 import math
 from types import SimpleNamespace
 
+from engine.coords import FRONT_RANK
 from engine.render import HudLines, HudRect, HudSprite, HudText, RenderItem
 from engine.render.fonts import TextMetrics, layout_h
 
@@ -556,8 +557,11 @@ def submit_highlight(renderer, event, col, row, assets=None, anim_time_ms=0,
     "imported". ``assets=None`` (a bare panel a test builds) simply takes the
     procedural path.
 
-    ``draw_in_front`` becomes the depth rank (VA-3): +1 draws over a
-    same-tile building, -1 behind it.
+    ``draw_in_front`` becomes the depth rank (VA-3): ``FRONT_RANK`` draws
+    over EVERY same-layer item — not merely over a same-tile building, which
+    is all the old +1 did and which stopped happening once feet-based
+    Y-sorting removed the exact ties it needed (fix/showinfront-always-wins);
+    -1 keeps its tie-break meaning, behind the entity sharing the tile.
 
     ``pulse_color``/``pulse_width`` (the tile-buying tutorial topic's pulse,
     ``tutorial_pulse_style`` below) override the static border colour/width
@@ -565,7 +569,7 @@ def submit_highlight(renderer, event, col, row, assets=None, anim_time_ms=0,
     exactly as it does for every other event, unaffected by either.
     """
     slot, in_front = _HIGHLIGHT_TRIGGERS.get(event, ("", True))
-    rank = 1 if in_front else -1
+    rank = FRONT_RANK if in_front else -1
     if slot and assets is not None:
         if assets.animation_total_ms(slot, "idle") is not None:
             renderer.submit(RenderItem(

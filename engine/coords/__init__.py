@@ -3,10 +3,10 @@ from pathlib import Path
 
 from .camera import Camera, CameraLimit
 from .geometry import Geometry
-from .system import CoordinateSystem
+from .system import FRONT_RANK, CoordinateSystem
 
-__all__ = ["Camera", "CameraLimit", "CoordinateSystem", "Geometry",
-           "load_coordinate_system"]
+__all__ = ["Camera", "CameraLimit", "CoordinateSystem", "FRONT_RANK",
+           "Geometry", "load_coordinate_system"]
 
 
 def load_coordinate_system(data_dir, map_cols=None, map_rows=None,

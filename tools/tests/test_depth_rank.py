@@ -15,7 +15,7 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
 import random
 
-from engine.coords import Camera, CoordinateSystem, Geometry
+from engine.coords import FRONT_RANK, Camera, CoordinateSystem, Geometry
 from engine.core import Transform
 from engine.render import (
     LAYERS, HudLines, HudRect, HudSprite, HudText, OverlayLines, OverlayPolys,
@@ -112,6 +112,70 @@ class TestRankBreaksAnExactTie(unittest.TestCase):
         cs = make_cs()
         self.assertLess(cs.depth_key(19, 19, 0, +999),
                         cs.depth_key(0, 0, 1, -999))
+
+
+class TestFrontRankAlwaysWins(unittest.TestCase):
+    """fix/showinfront-always-wins: a VFX row's `draw_in_front` maps to
+    FRONT_RANK, which beats iso depth instead of only breaking an exact tie
+    (feet-based Y-sorting made exact ties vanish, which is what broke it)."""
+
+    def test_a_front_ranked_effect_beats_a_nearer_item(self):
+        cs = make_cs()
+        far_in_front = cs.depth_key(1, 1, 2, FRONT_RANK)
+        near_plain = cs.depth_key(19, 19, 2, 0)
+        self.assertGreater(far_in_front, near_plain)
+
+    def test_it_still_cannot_escape_its_layer(self):
+        cs = make_cs()
+        self.assertLess(cs.depth_key(19, 19, 0, FRONT_RANK),
+                        cs.depth_key(0, 0, 1, -1))
+
+    def test_the_tie_break_ranks_are_untouched(self):
+        """-1/0/+1 keep their VA-3 meaning: position first, rank last. The
+        deco rank is one of them, so a tree still y-sorts against an enemy."""
+        cs = make_cs()
+        self.assertLess(cs.depth_key(1, 1, 2, +1), cs.depth_key(9, 9, 2, -1))
+        self.assertLess(cs.depth_key(3, 4, 2, -1), cs.depth_key(3, 4, 2, +1))
+
+    def test_a_front_ranked_sprite_draws_over_a_nearer_sprite(self):
+        """End to end through the renderer, not only the key."""
+        backend = RecordingBackend()
+        r = Renderer(make_cs(), FakeAssets(), backend=backend)
+        r.submit(RenderItem("effect", (1.0, 1.0), rank=FRONT_RANK))
+        r.submit(RenderItem("near", (9.0, 9.0)))
+        r.flush(target=None)
+        self.assertEqual([c.surface for c in backend.calls],
+                         ["SURF:near", "SURF:effect"])
+
+    def test_submit_highlight_uses_the_front_rank(self):
+        """The live mapping: `draw_in_front` true -> FRONT_RANK, false -> -1.
+        Asserted on the tile-diamond fallback so no imported art is needed."""
+        from game.ui import widgets
+
+        class _Cap:
+            def __init__(self):
+                self.ranks = []
+
+            def submit_world_fill(self, points, world_pos, layer="entities",
+                                  color=None, border=None, border_width=2,
+                                  rank=0):
+                self.ranks.append(rank)
+
+            def submit_world_lines(self, world_pos, points, color, width=1,
+                                   closed=False, layer="entities", rank=0):
+                self.ranks.append(rank)
+
+        saved = dict(widgets._HIGHLIGHT_TRIGGERS)
+        try:
+            for in_front, expected in ((True, FRONT_RANK), (False, -1)):
+                widgets._HIGHLIGHT_TRIGGERS["tile_selected"] = ("", in_front)
+                cap = _Cap()
+                widgets.submit_highlight(cap, "tile_selected", 3, 4)
+                self.assertTrue(cap.ranks)
+                self.assertEqual(set(cap.ranks), {expected})
+        finally:
+            widgets._HIGHLIGHT_TRIGGERS.clear()
+            widgets._HIGHLIGHT_TRIGGERS.update(saved)
 
 
 # ===========================================================================
