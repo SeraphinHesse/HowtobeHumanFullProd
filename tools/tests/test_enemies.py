@@ -32,12 +32,14 @@ from game.core.balance import load_balance
 from game.core.phases import GamePhase, GameState
 import game.enemies.spawner as spawner_mod
 from game.enemies import (
-    BURROW_EMERGE, BURROW_SUBMERGED, BURROW_WALKING, Boss, Commander, Digger,
+    BURROW_DIGGING, BURROW_EMERGE, BURROW_SUBMERGED, BURROW_WALKING, Boss,
+    Commander, Digger,
     DirtPile, DIRT_PILE_SLOT, Drummer, Enemy, Formation, Projectile, Raider,
     SiegeCannon, Sniper, Spawner, attack_interval, create_enemy,
     resolve_combat,
 )
 from game.enemies.combat import ProjectileHoming
+import game.enemies.components as components
 from game.enemies.components import (
     BUFF_DECAY_SECONDS, BuffState, BurrowAgent, DrummerAura, EnemyCombat,
     Kidnap, PathAgent,
@@ -1901,6 +1903,62 @@ class TestDigger(unittest.TestCase):
         etypes = [e for _, e in sp.pending()]
         self.assertIn("digger", etypes)
         self.assertNotEqual(etypes[0], "digger")
+
+
+class TestDiggerAnimationHolds(unittest.TestCase):
+    """The two animation holds `set_anim_length_hook` buys (user decision):
+    the `dig` row plays TO COMPLETION above ground before the body goes under,
+    and the `emerge` row plays exactly ONCE instead of re-looping for the whole
+    `emerge_cooldown`. Both collapse to the pre-hold behaviour when no hook is
+    installed, which is why every other Digger fixture is unaffected."""
+
+    DIG_MS = 1000.0
+    EMERGE_MS = 800.0
+
+    def setUp(self):
+        components.set_anim_length_hook(
+            lambda _slot, name: {"dig": self.DIG_MS,
+                                 "emerge": self.EMERGE_MS}.get(name))
+        self.addCleanup(components.set_anim_length_hook, None)
+
+    def _digger_in_range(self):
+        """A Digger that submerges on its very first decision (in range at
+        spawn), reusing TestDigger's own 2D board."""
+        case = TestDigger()
+        tm, scene, occ = case._board2d()
+        place_building(tm, tm.get(18, 3), "blocker", 9999, BUILD, scene, occ)
+        dig = case._digger(scene, tm, 20, 3)
+        return scene, dig, dig.get_component(BurrowAgent)
+
+    def test_dig_row_plays_out_above_ground_before_the_body_goes_under(self):
+        scene, dig, burrow = self._digger_in_range()
+        scene.update(0.0)                       # on_spawn: commits and digs in
+        anim = dig.get_component(SpriteAnimator)
+        self.assertEqual(burrow.state, BURROW_DIGGING)
+        self.assertEqual(anim.animation, "dig")
+        self.assertTrue(anim.visible)           # still above ground...
+        self.assertTrue(dig.targetable)         # ...so still shootable
+        for _ in range(19):                     # 0.95 s: the row is not done
+            scene.update(0.05)
+            self.assertEqual(burrow.state, BURROW_DIGGING)
+        scene.update(0.05)                      # 1.0 s: it is
+        self.assertEqual(burrow.state, BURROW_SUBMERGED)
+        self.assertFalse(anim.visible)
+
+    def test_emerge_row_plays_once_then_holds_idle_for_the_rest_of_the_stand(self):
+        scene, dig, burrow = self._digger_in_range()
+        anim = dig.get_component(SpriteAnimator)
+        for _ in range(4000):
+            scene.update(0.05)
+            if burrow.state == BURROW_EMERGE:
+                break
+        self.assertEqual(burrow.state, BURROW_EMERGE)
+        self.assertEqual(anim.animation, "emerge")
+        for _ in range(16):                     # 0.8 s of `emerge`
+            scene.update(0.05)
+        self.assertEqual(anim.animation, "idle")
+        self.assertEqual(burrow.state, BURROW_EMERGE)   # still standing
+        self.assertGreater(burrow.cooldown_remaining, 0.0)
 
 
 SNIPER = ENEM["EnemyTypes"]["Sniper"]
