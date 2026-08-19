@@ -7,10 +7,24 @@
       "frame_h": 96,
       "frame_w": 64
     },
+    "htbh_enemie": {
+      "column_width": 21,
+      "display_name": "HtbH_Enemie",
+      "file": "master/htbh_enemie.png",
+      "frame_h": 96,
+      "frame_w": 64
+    },
     "htbh_enemie_sheet": {
       "column_width": 21,
       "display_name": "HtbH_Enemie_Sheet",
       "file": "master/htbh_enemie_sheet.png",
+      "frame_h": 96,
+      "frame_w": 64
+    },
+    "htbh_enemie_sheet_for_engine": {
+      "column_width": 21,
+      "display_name": "HtbH_Enemie_Sheet_for_engine",
+      "file": "master/htbh_enemie_sheet_for_engine.png",
       "frame_h": 96,
       "frame_w": 64
     },

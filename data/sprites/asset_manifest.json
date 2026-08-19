@@ -4958,7 +4958,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -16,
+      "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
@@ -6151,8 +6151,8 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -16,
-      "row_start": 4,
+      "offset_y": 0,
+      "row_start": 22,
       "rows": [
         {
           "animation": "idle",
@@ -6238,7 +6238,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "master/htbh_enemie_sheet.png"
+      "sheet": "master/htbh_enemie.png"
     },
     "enemy_stage_3_v2": {
       "anchors": {
@@ -6272,8 +6272,8 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -16,
-      "row_start": 4,
+      "offset_y": 0,
+      "row_start": 22,
       "rows": [
         {
           "animation": "idle",
@@ -6359,7 +6359,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "master/htbh_enemie_sheet.png"
+      "sheet": "master/htbh_enemie.png"
     },
     "enemy_stage_3_v3": {
       "anchors": {
@@ -6393,8 +6393,8 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -16,
-      "row_start": 4,
+      "offset_y": 0,
+      "row_start": 22,
       "rows": [
         {
           "animation": "idle",
@@ -6480,7 +6480,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "master/htbh_enemie_sheet.png"
+      "sheet": "master/htbh_enemie.png"
     },
     "enemy_stage_3_v4": {
       "anchors": {
@@ -6514,8 +6514,8 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -16,
-      "row_start": 4,
+      "offset_y": 0,
+      "row_start": 22,
       "rows": [
         {
           "animation": "idle",
@@ -6601,7 +6601,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "master/htbh_enemie_sheet.png"
+      "sheet": "master/htbh_enemie.png"
     },
     "enemy_stage_3_v5": {
       "anchors": {
@@ -6635,8 +6635,8 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -16,
-      "row_start": 4,
+      "offset_y": 0,
+      "row_start": 22,
       "rows": [
         {
           "animation": "idle",
@@ -6722,7 +6722,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "master/htbh_enemie_sheet.png"
+      "sheet": "master/htbh_enemie.png"
     },
     "enemy_stage_4_v1": {
       "anchors": {
