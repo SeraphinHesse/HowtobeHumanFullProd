@@ -79,9 +79,24 @@ def dumps_deterministic(data):
 
 
 def write_validated(data, data_path, schema_path):
-    """Validate against the schema, then write in canonical form.
+    """Validate against the schema, then write in canonical form, atomically.
 
     Validation errors raise before anything touches disk.
+
+    The write goes to a sibling `.tmp` and is then os.replace()d into place.
+    Path.write_text() truncates the target before it streams, so an interrupt,
+    a full disk, or a OneDrive sync lock mid-write would leave a zero-length or
+    half-written file where good content used to be — irreversible, and this is
+    the single writer behind every editor save, every agent write, keybindings
+    and highscores. os.replace() is atomic on POSIX and on Windows, so a reader
+    sees either the old file or the new one, never a partial one.
     """
     validate(data, schema_path)
-    Path(data_path).write_text(dumps_deterministic(data), encoding="utf-8")
+    data_path = Path(data_path)
+    tmp_path = data_path.with_name(data_path.name + ".tmp")
+    try:
+        tmp_path.write_text(dumps_deterministic(data), encoding="utf-8")
+        os.replace(tmp_path, data_path)
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise

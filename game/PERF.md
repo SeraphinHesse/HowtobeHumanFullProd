@@ -76,6 +76,23 @@ O(path-length) walk down the resulting next-step tree.
   (`refresh_damage_weight_reductions` / `refresh_defence_range_coverage`) which
   now change-detect their flag sets and bump only on an actual difference — so
   `set_round` and coverage churn invalidate exactly when they change weights.
+- **Producing the coverage set is cached too, not just mirroring it.**
+  Change-detecting the flag set stops the *invalidation* churn, but the
+  producer (`game/buildings/coverage.py`) still ran before every query — one
+  per enemy spawn, hundreds in a boss round — re-expanding each defender's r²
+  Chebyshev square and re-allocating the whole set, only for the mirror to
+  compare it away. The wired callable now computes a cheap **signature** first
+  (O(built defenders): the toggle plus each contributor's tile + raw range, no
+  r² expansion, no set arithmetic) and re-expands only when that moves,
+  otherwise returning the SAME set object — which
+  `refresh_defence_range_coverage` short-circuits on identity, skipping its
+  copy and compare as well. Measured on a 40×20 board with 60 defenders / 540
+  covered tiles: 300 queries 77 ms → 25 ms. The signature deliberately does
+  NOT ride `_path_version` — a building *death* does not reliably bump it
+  (`refresh_building_overwrite_flags` short-circuits when the
+  buildings-overwrite feature is off), and a dead defender must stop covering.
+  The residual cost is the O(built tiles) scan the other two pre-query
+  producers already pay, so coverage is no longer the outlier among them.
 - **Both base variants ride the field** (walls-respecting + walls-ignoring,
   cached side by side): when the player walls in the base, EVERY spawn takes
   the ignoring-walls fallback, so it must not stay a per-enemy Dijkstra. With
@@ -122,6 +139,45 @@ so:
   field is itself the SAME field the walkers/siege/boss already share). A
   future retune that diverges one type's weights from another's adds at most
   one more field, still O(distinct profiles), not O(enemies).
+
+## Targeting rides the spatial grid
+Defender target acquisition used to be a full scan of every live enemy, run once
+per defender per frame in BOTH acquisition sites (`_update_defender` and
+`_update_beam`, `game/enemies/combat.py`) — O(defenders × enemies) `_chebyshev`
+calls plus a fresh list per defender — while `Scene`'s `SpatialGrid` sat there
+with **zero query call sites in `game/`**. Both sites now share one primitive,
+`_acquire`, which asks the grid.
+
+- **The query widens, then re-filters.** The grid measures ANCHOR-tile to
+  centre-tile; `_chebyshev` measures NEAREST-BLOCK-TILE to centre-tile (ER-2), and
+  a footprint block only ever extends *away* from its anchor. So anchor distance ≤
+  block distance + `span` (`span = N−1` for the widest footprint on the board,
+  maxed once per frame, not per defender): query at `rng + span`, then let
+  `_chebyshev` drop the extra candidates. **The resulting set and its ORDER are
+  identical to the old scan** — the grid returns insertion order, which is scene
+  spawn order, which is what `by_tag("enemy")` gave — and that is load-bearing,
+  because the `min`(nearest)/`max`(highest-HP) acquisition tiebreaks resolve ties
+  by first-seen. Pinned against a brute-force oracle over a sweep of centres and
+  ranges by `test_combat_anchors.TestAcquireMatchesFullScan`.
+- **The per-frame `offsets` map doubles as the membership test.** The grid hands
+  back buildings, projectiles and corpses too; anything not keyed in `offsets` is
+  not a live targetable enemy, so the dead/untargetable filter costs a dict hit
+  rather than a second pass.
+- **`_GRID_ACQUIRE_MIN_ENEMIES = 64` — below it, the scan still wins.** A query
+  walks every CELL its range box touches whether or not anything sits there, so
+  its floor is set by `rng`, not by enemy count. Measured crossover is between 50
+  and 100 enemies, so small waves keep the code path they had.
+- **`Scene`'s grid is `SpatialGrid(cell_size=2.0)`, not the class default 1.0.**
+  One cell per tile made a range-5 query ~144 dict lookups — worse than the scan
+  at every realistic count. Two tiles per cell (~36) measured fastest-or-tied
+  from 20 to 600 objects. Pure perf knob: same results, same order.
+- **Measured** (corridor spread, 1×1 footprints, `rng` 5, best of 3 × 150 frames,
+  per frame, scan → grid): 20 enemies/10 defenders 0.086 → 0.090 ms (same code
+  path, noise); 100/30 1.29 → 1.23; 200/40 3.36 → 3.07; 300/50 **7.7 → 5.1**;
+  600/50 **14.1 → 8.7**.
+- The grid is rebuilt lazily (`Scene._ensure_grid`), so this costs ONE O(objects)
+  rebuild per in-round frame no matter how many defenders query it, and nothing at
+  all on frames with no combat.
 
 ## Large-map GC
 A big map builds one `Tile` per cell (a 1024² map = ~1M long-lived objects). Left

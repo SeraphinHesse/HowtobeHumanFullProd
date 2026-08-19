@@ -2,10 +2,14 @@
 
 The pure-logic sibling of ``registry.place_building``: ``start_move`` is the
 ONE legal way a placed building leaves its tile for another, exactly as
-``place_building`` is the one legal way a fresh one arrives (the same reason
-the painter-tile bar and the boost-adjacency block live in that function and
-not in the UI — the panel's disabled button is a convenience, this is the
-enforcement).
+``place_building`` is the one legal way a fresh one arrives — so the two are
+the TWO ways a building comes to occupy a tile, and both ask the SAME
+tile-legality predicate, ``registry.placement_blocker``. That is why the pond
+bar, the spent-painter-tile bar and the boost cardinal-adjacency block live in
+that one function rather than inline in either seam (and not in the UI at all —
+the panel's greyed tiles are a convenience, these are the enforcement). They
+used to live inline in ``place_building`` only, which let a move drop a
+building on a pond, onto a spent painter tile, or beside another booster.
 
 Cost and duration both scale with the **Manhattan** (straight-line-only) tile
 distance ``|dcol| + |drow|`` between origin and destination, floor-divided
@@ -219,11 +223,13 @@ def start_move(tilemap, building, dest_tile, movement_balance, love,
                occupancy, scene, run_state=None, boss_upgrades_balance=None):
     """Begin moving ``building`` to ``dest_tile``. Returns ``(cost, rounds)``.
 
-    Raises ``MoveError`` if the destination is not BUILDABLE, is already an
-    endpoint of another live move, if the building is a WallBuilder moving
-    to a tile outside its own wall perimeter (or one with no legal
+    Raises ``MoveError`` if the destination fails the shared tile-legality
+    predicate ``registry.placement_blocker`` (not BUILDABLE, a pond, a spent
+    Painter tile, an endpoint of another live move, or -- for a booster --
+    cardinally adjacent to another booster), if the building is a WallBuilder
+    moving to a tile outside its own wall perimeter (or one with no legal
     destination at all), or if ``love`` is below the computed cost. The
-    caller spends the returned ``cost`` — this module never touches the run
+    caller spends the returned ``cost`` -- this module never touches the run
     state, exactly like ``place_building``.
 
     ``rounds == 0`` (the time cost switched off, or tuned to zero) relocates
@@ -234,14 +240,25 @@ def start_move(tilemap, building, dest_tile, movement_balance, love,
     trailing pair, forwarded verbatim to ``move_time`` so the rounds actually
     charged here match the capped figure the confirm modal quoted.
     """
-    if dest_tile.state != TileState.BUILDABLE:
-        raise MoveError(
-            f"tile ({dest_tile.col},{dest_tile.row}) is "
-            f"{dest_tile.state.name}, not BUILDABLE")
-    if tilemap.is_moving(dest_tile.col, dest_tile.row):
-        raise MoveError(
-            f"tile ({dest_tile.col},{dest_tile.row}) is already part of a "
-            f"move in progress")
+    # A move is the SECOND way a building comes to occupy a tile, so it asks
+    # the same tile-legality predicate a fresh placement does
+    # (`registry.placement_blocker`) -- a pond, a spent painter tile and a
+    # booster's cardinal neighbours bar a move exactly as they bar a build.
+    # `ignore=building` is what keeps a booster from reading its own origin
+    # tile as an adjacent booster while it shuffles one tile sideways.
+    #
+    # Lazy import: `registry` reaches `game.map`, which reaches `game.core`,
+    # whose package init imports payday -- which imports THIS module. A
+    # module-level import here closes that cycle (the same rule
+    # `registry.build_cost` follows for `game.core.boss_upgrades`).
+    from .registry import placement_blocker
+    reason = placement_blocker(tilemap, dest_tile, building.building_type,
+                               run_state, ignore=building)
+    if reason is not None:
+        raise MoveError(reason)
+    # feature:wallbuilder-restricted-move rides ON TOP of that predicate, not
+    # instead of it: the shared rules say WHICH TILES may host a building at
+    # all, this says which of them THIS WallBuilder may reach.
     if hasattr(building, "wall_hp"):
         if (dest_tile.col, dest_tile.row) not in wall_builder_move_targets(
                 building, tilemap):

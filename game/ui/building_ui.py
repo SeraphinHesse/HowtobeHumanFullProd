@@ -52,7 +52,7 @@ from game.buildings.movement import (
     MoveError, is_movable, start_move, wall_builder_move_targets)
 from game.buildings.registry import (
     BUILDING_CLASSES, LIGHTNING_SOURCE_TAG, PlacementError, build_cost,
-    count_tag, create, place_building,
+    count_tag, create, place_building, placement_blocker,
 )
 from game.buildings.research import buildable, tiers_unlocked_for
 from game.core import lightning  # 10H (sanctioned ui -> core direction)
@@ -2720,24 +2720,29 @@ class BuildingUI:
         return anim.column
 
     def _build_move_select(self, session):
-        """Highlight every legal move destination: an unbuilt BUILDABLE tile
-        that is not already an endpoint of a move in progress, in
-        ``move_target`` (cyan) — unchanged for every building type except a
-        WallBuilder.
+        """Highlight every legal move destination: the tiles
+        ``registry.placement_blocker`` clears for THIS building, which is the
+        same predicate ``start_move`` enforces with -- so the highlight can
+        never offer a tile the confirm would refuse (a pond, a spent Painter
+        tile, a move endpoint, or a booster's cardinal neighbour). Drawn in
+        ``move_target`` (cyan) for every building type except a WallBuilder.
 
         **A WallBuilder is confined to its own wall perimeter** (feature:
-        wallbuilder-restricted-move, user decision — "cannot be moved
+        wallbuilder-restricted-move, user decision -- "cannot be moved
         outside its own walls"). Every OTHER otherwise-legal tile still
         highlights, but GREYED OUT (``move_blocked``) rather than silently
-        omitted — the whole point is to show the player the tile exists and
+        omitted -- the whole point is to show the player the tile exists and
         why it is off-limits, not just which ones are pickable. Its own
         wall edges also draw (the same yellow line ``_set_wall_highlight``
         uses elsewhere), so the fenced area reads as a fence, not just a
         cyan/grey checkerboard."""
         tilemap = session.tilemap
         b = self._selected
-        buildable = [t for t in tilemap.buildable_tiles()
-                     if not tilemap.is_moving(t.col, t.row)]
+        btype = b.building_type if b is not None else None
+        buildable = [
+            t for t in tilemap.buildable_tiles()
+            if placement_blocker(tilemap, t, btype, session.state,
+                                 ignore=b) is None]
         self._highlight_edges = []
         if b is not None and hasattr(b, "wall_hp"):
             allowed = wall_builder_move_targets(b, tilemap)
