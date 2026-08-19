@@ -40,6 +40,7 @@ if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
 from engine import data_io  # noqa: E402
+from game.ui import credits as credits_mod  # noqa: E402
 from game.ui import strings  # noqa: E402
 from game.ui.building_ui import (  # noqa: E402
     _BUILD_COND_CARD_ID_PREFIX, _CARD_ID_PREFIX, _COND_CARD_ID_PREFIX,
@@ -933,6 +934,29 @@ def _configure_strings(data_root):
     strings.configure_strings(doc)
 
 
+def _configure_credits(data_root):
+    """Bind the credits roll to THIS data root's `credits.json`, exactly as
+    `game/main.py` does at boot — the `_configure_strings` argument one file
+    over. The recorded PREVIEW is how a designer checks a credits edit, so
+    without this the editor would replay the module fallback and show the
+    old roll back at them."""
+    data_root = Path(data_root)
+    doc = data_io.load_validated(data_root / "ui" / "credits.json",
+                                 data_root / "schemas" / "credits.schema.json")
+    credits_mod.configure_credits(doc)
+
+
+@contextlib.contextmanager
+def _credits_restored():
+    """`_string_table_restored`'s twin for `credits._CREDITS` — same
+    in-process-poisoning argument, same host-cleans-up-after-itself rule."""
+    snapshot = list(credits_mod._CREDITS)
+    try:
+        yield
+    finally:
+        credits_mod._CREDITS[:] = snapshot
+
+
 @contextlib.contextmanager
 def _string_table_restored():
     """Put `strings._STRINGS` back the way we found it.
@@ -1016,8 +1040,9 @@ def main(data_root=None, output_dir=None, *, overrides=None,
     # live table bound, exactly as the game boots, and leaves the module the
     # way it found it — so importing and calling this from a test cannot
     # poison whatever runs next in the same process.
-    with _string_table_restored():
+    with _string_table_restored(), _credits_restored():
         _configure_strings(data_root)
+        _configure_credits(data_root)
 
         if not previews_only:
             output = {

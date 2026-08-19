@@ -1996,6 +1996,44 @@ calls):
   `GameThemePanel.saved`, kept for a future consumer) but `MainWindow`
   connects nothing to it today.
 
+## Credits panel (`panels/credits_panel.py`, `credits_ops.py`; UT-Credits)
+- **Selection**: a single "Credits" LEAF right after "Strings" (one document,
+  nothing to enumerate) — `panels/selector.py`'s `_CREDITS_ROLE` marker +
+  `credits_selected()` signal, the exact `_STRINGS_ROLE` pattern one leaf
+  over (never `node_selected`). `MainWindow._on_credits_selected` →
+  `right_stack` (index 7) → `CreditsPanel`.
+- **`CreditsPanel`** edits `data/ui/credits.json` (`game/ui/CLAUDE.md`
+  "Credits roll") — an ORDERED `{"rows": [{"role", "name"}, …]}` list, one
+  editor row per credit row: `role` + `name` `QLineEdit`s (commit on
+  `editingFinished`), ▲/▼ reorder, ✕ delete, and "Add Person" / "Add Spacer"
+  in the toolbar. A row with BOTH columns empty is a SPACER (the game's own
+  rule) and renders here as a captioned `QFrame.HLine`, not two empty boxes —
+  emptying or filling a row flips it between the two shapes, which is why
+  `_on_text` rebuilds the list on that transition and only on that
+  transition. A structural edit rebuilds every row widget (a couple of dozen
+  rows; cheaper than tracking widget identity across a reorder), a keystroke
+  never does.
+- **Dirtiness is WHOLE-DOCUMENT here, not per-row** — the one deliberate
+  divergence from the Strings panel. Rows move and disappear, so a per-row
+  dot has no stable key to compare against; the panel diffs `doc` against a
+  deep-copied baseline and shows one "● unsaved changes" note beside a live
+  count. ONE "Save Credits" button is the sole `write_validated` call site.
+  `data_dir=None` injection; missing/invalid data degrades to a placeholder
+  (E-37) while the GAME's boot load fails loud (D-2).
+- **`editor/credits_ops.py`** (Qt-free, pygame-free, in `TestPurity`) —
+  `load_credits`/`write_credits` plus the pure row vocabulary the panel is
+  built out of (`is_spacer`, `new_person`, `new_spacer`, `insert_row`,
+  `remove_row`, `move_row`), so the edit semantics are testable without Qt.
+  Its own module rather than a corner of `strings_ops.py`: an ordered list
+  with insert/remove/move is a different document shape from a flat key map.
+- **Save reconfigures nothing in-process and has no `saved` consumer** — the
+  `strings.json` case verbatim (`game/ui/credits.py` is game-only). The
+  editor's screen-mode PREVIEW of the credits screen does pick a saved edit
+  up, because `tools/export_ui_layouts.py` binds `credits.json` the way
+  `game/main.py` does before recording (`_configure_credits`, guarded by
+  `_credits_restored`) — so "Refresh Layouts" is how a designer checks the
+  new roll, and the row overflow the game shrinks to fit is visible there.
+
 ## Cutscenes panel (`panels/cutscenes.py`, `cutscene_import.py`; TU-3)
 - **Selection**: a single "Cutscenes" LEAF (not a branch — the registry's own
   row list lives inside the panel, nothing to enumerate in the tree) is the
