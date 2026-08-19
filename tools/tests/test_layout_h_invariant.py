@@ -32,11 +32,15 @@ REPO = Path(__file__).resolve().parents[2]
 _ORIGINAL_SIZE = TextMetrics.size
 
 
-def _patched_size(self, text, font_key):
+def _patched_size(self, text, font_key, family=None):
     """Stands in for a platform whose font backend measures 1px taller —
     only the height (index 1) moves, so word-wrap line counts (which read
-    only the width) stay unaffected and this isolates the height invariant."""
-    w, h = _ORIGINAL_SIZE(self, text, font_key)
+    only the width) stay unaffected and this isolates the height invariant.
+
+    Takes `family` (UH-Font-B) because the real `TextMetrics.size` does: a
+    stand-in that drops the second font axis stops being a drop-in the
+    moment any draw path passes one."""
+    w, h = _ORIGINAL_SIZE(self, text, font_key, family)
     return (w, h + 1)
 
 

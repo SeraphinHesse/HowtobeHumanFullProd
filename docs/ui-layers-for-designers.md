@@ -31,7 +31,10 @@ own widgets can't be deleted. One undo brings it back whole, layers and all.
 Two extra controls appear when one of your pieces is selected:
 
 - **Band** — Under or Over, and it means the same thing here as it does for a
-  layer, warning and all. Read *Under vs Over* below before you touch it.
+  layer, warning and all. Read *Under vs Over* below before you touch it. One
+  difference: your own pieces start on **Under**, where a layer starts on Over.
+  A piece you added is decoration, so it stays behind the screen's own numbers
+  and buttons unless you deliberately move it to Over.
 - **Z** — the order your own pieces draw in against *each other*, low to high.
   It has no say over the game's own widgets; the band decides that.
 

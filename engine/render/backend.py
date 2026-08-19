@@ -130,7 +130,7 @@ def _has_alpha(color):
 
 
 def _draw_hud_text(target, call):
-    font = fonts.get_font(call.font_key)
+    font = fonts.get_font(call.font_key, call.family)
     surface = font.render(call.text, True, call.color[:3])
     if _has_alpha(call.color):
         surface.set_alpha(call.color[3])

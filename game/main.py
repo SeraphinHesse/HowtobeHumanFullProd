@@ -972,7 +972,20 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             raise ValueError(
                 f"active_font.json's font {active_font_id!r} points at "
                 f"{font_path} which does not exist on disk")
-    configure_fonts(fonts_doc, font_path=font_path)
+    # UH-Font-B: EVERY manifest entry, so a screen doc can name a family
+    # other than the active one per text run. Same D-2 loudness as the active
+    # font above — a manifest entry whose file is missing is a broken tree,
+    # not something to silently skip, and finding out at boot beats finding
+    # out when the one screen that uses it is opened.
+    family_paths = {}
+    for family_id, entry in font_manifest_doc["entries"].items():
+        family_path = (data_dir / "fonts" / entry["file"]).resolve()
+        if not family_path.is_file():
+            raise ValueError(
+                f"font_manifest.json entry {family_id!r} points at "
+                f"{family_path} which does not exist on disk")
+        family_paths[family_id] = family_path
+    configure_fonts(fonts_doc, font_path=font_path, family_paths=family_paths)
     widgets.configure_palette(palette_doc)
     configure_strings(strings_doc)
     # G4: the Renderer and the ground cache are built AFTER the presenter (the
@@ -1211,7 +1224,6 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         session, tutorial, recorder, the seven gameplay UI screens, the 10J/
         ESV wiring, the closing camera/GC/audio/enter_gameplay group)."""
         nonlocal score_recorded
-
         def _step_world():
             nonlocal score_recorded
             score_recorded = False
@@ -1227,7 +1239,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             ground_cache.invalidate()
             # 10L-B: every gameplay screen shares the shell's ScreenSkinning
             # (the shell owns no world, so it cannot construct these itself).
-            gp["hud"] = Hud(view_w, view_h, skinning=shell.skinning)
+            gp["hud"] = Hud(view_w, view_h, skinning=shell.skinning,
+                            ui_balance=ui_balance)
             gp["panel"] = BuildingUI(view_w, view_h, ui_balance,
                                      skinning=shell.skinning)
 
@@ -1313,6 +1326,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # `floaters.assets` precedent below; None-safe, so a bare
             # BuildingUI in a test needs no store).
             gp["panel"].assets = assets
+            # The HUD asks the store the same kind of question: whether
+            # the life icon slot really carries a `disabled` (dead) row,
+            # and how long its `pressed` (dying) row runs for. Pure
+            # manifest metadata, None-safe.
+            gp["hud"].assets = assets
             # B1: the colour-capability map, published to the construct flow
             # the same host-sets-an-attribute way `assets` above and
             # `overlays.condition_art` are. B2 is what READS it (swatches in

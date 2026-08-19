@@ -35,6 +35,7 @@ class HudText:
     font_key: str
     color: tuple
     align: str = "left"
+    family: str = None  # UH-Font-B: the stand-in tracks the real dataclass
 
 
 @dataclass(frozen=True)

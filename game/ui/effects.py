@@ -1975,8 +1975,10 @@ class FloaterManager:
         (on top) because it is the more urgent of the two."""
         ap = self._vfx_params.announce
         cx = view_w // 2
-        # layout_h: a screen-centred layout position (engine/render/fonts.py).
-        cy = view_h // 2 - layout_h("xl") - 6
+        # widgets.announce_top_y is the ONE home for this banner's vertical
+        # layout — hud.py hangs the lost-life icon off its companion
+        # announce_bottom_y, and the two must not drift apart.
+        cy = widgets.announce_top_y(view_h)
         if self._announce_age is not None:
             color = ap.color + (int(ap.max_alpha * self._announce_k(
                 self._announce_age)),)

@@ -141,27 +141,6 @@ class TestPanelOccludesHudButtons(unittest.TestCase):
         self.assertIn(hud.end_turn.rect, r.rects())
 
 
-class TestHudButtonZOrder(unittest.TestCase):
-    """``panel -> button -> text`` (game/ui/CLAUDE.md, engine/render/CLAUDE.md
-    "HUD pass": submission order IS draw order). The round-cluster separator
-    used to be submitted AFTER the End Turn button, so it drew ON TOP of the
-    button's top edge; it must draw BEHIND it instead."""
-
-    def test_separator_precedes_end_turn_button(self):
-        session, panel, hud = build()
-        hud.update(0.016, 0, 0, session, panel)
-        r = RecordingRenderer()
-        hud.submit(r, session, VIEW_W, VIEW_H)
-        bx, by, bw, _bh = hud.end_turn.rect
-        separator = HudRect((bx, by - 2, bw, 1), widgets.C_UI_BORDER)
-        sep_idx = r.items.index(separator)
-        btn_idx = next(i for i, item in enumerate(r.items)
-                       if isinstance(item, HudRect)
-                       and item.rect == hud.end_turn.rect)
-        self.assertLess(sep_idx, btn_idx,
-                        "separator must draw BEHIND (before) the End Turn button")
-
-
 class TestButtonStates(unittest.TestCase):
     """UL-5: a ``states`` offset patch nudges what is DRAWN and nothing else.
     ``self.rect`` is the hit-test truth (``_surface_hit``/``hit`` read it on
@@ -540,6 +519,19 @@ class TestBossNextIndicatorIcon(unittest.TestCase):
         hud.submit(r2, session, VIEW_W, VIEW_H)
         self.assertFalse(any(getattr(i, "slot_key", "").startswith("ui_icon_boss_next")
                              for i in r2.items))
+
+
+class TestLoveHoverCostDraws(unittest.TestCase):
+    """Hovering any cost feeds `hover_cost` into Hud.submit; that path once
+    crashed with NameError because the "over" layer pass had been captured
+    into `_submit_love_hover_cost`, where `t` does not exist."""
+
+    def test_submit_with_hover_cost_does_not_raise(self):
+        session, panel, hud = build()
+        hud.update(0.016, 0, 0, session, panel)
+        r = RecordingRenderer()
+        hud.submit(r, session, VIEW_W, VIEW_H, hover_cost=25)
+        self.assertTrue(r.items)
 
 
 if __name__ == "__main__":

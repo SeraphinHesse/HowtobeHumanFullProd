@@ -41,6 +41,12 @@
     },
     "gore_enabled": true,
     "income_floaters_enabled": true,
+    "life_lost_anim": {
+      "center_offset_y": 0,
+      "center_scale": 2.0,
+      "fly_back": 0.35,
+      "fly_out": 0.35
+    },
     "love_counter_anim_duration": 1.2
   },
   "Keybindings": {

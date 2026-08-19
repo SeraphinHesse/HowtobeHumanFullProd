@@ -58,13 +58,14 @@ from editor.panels.balancing import (
     _NoWheelComboBox,
     _NoWheelSpinBox,
 )
-from editor.ui_screen_session import NO_PARENT, parent_override
+from editor.ui_screen_session import NO_PARENT, ordered_views, parent_override
 from editor.panels._screen_rules import (
     TOOLTIP_COLOR_CODE_OWNED,
     TOOLTIP_LABEL_CODE_OWNED,
     color_is_code_owned,
     custom_color_is_code_owned,
     custom_label_is_code_owned,
+    custom_widgets_for_view,
     custom_tint_applies,
     is_custom,
     label_is_code_owned,
@@ -115,20 +116,53 @@ TOOLTIP_LAYER_BAND = (
     "Under layers sit behind EVERYTHING on this screen, not just behind "
     "their owner widget. Use Over for backgrounds between stacked panels.")
 
-# UL-13: the SAME warning, on a custom widget's own Band control. A custom
-# widget rides the screen's two layer passes, so `under` means behind
-# everything the screen draws — the identical surprise the layer band carries,
-# met in the editor rather than in a bug report.
-TOOLTIP_CUSTOM_BAND = TOOLTIP_LAYER_BAND
+# UL-13: the same geometry on a custom widget's own Band control, but the
+# DEFAULT is the other way round — a custom widget is decoration, so it is
+# created Under and never hides the screen's own readouts until a designer
+# deliberately says Over. Spelled out here because the two-word combo cannot.
+TOOLTIP_CUSTOM_BAND = (
+    "Under (the default) draws this widget behind EVERYTHING on the screen, "
+    "so it can never cover the screen's own text or buttons. Over draws it "
+    "in front of everything — use it only for decoration meant to sit on top.")
+
+# UL-14: the same control on a CODE-OWNED widget, where the stakes are
+# different in both directions — the default is "leave it where the game
+# draws it", and banding it costs the widget its clicks.
+TOOLTIP_CODE_OWNED_BAND = (
+    "Not banded (the default) leaves this widget exactly where the game "
+    "draws it. Under moves it behind EVERYTHING on the screen and Over in "
+    "front of everything — in either band it sits among the custom widgets "
+    "and Z decides which of them is in front. A banded widget stops being "
+    "clickable, so only panels, images and text can be banded.")
+
+#: The widget kinds a `band` may relocate — a hand-kept mirror of
+#: `game/ui/skinning.py::_BANDABLE_KINDS` (editor/ may never import game/,
+#: the same accepted drift `_screen_primitives`/`custom_widgets_in_band`
+#: already record).
+_BANDABLE_KINDS = ("panel", "backdrop", "label")
 
 # UL-13: widget ids are GLOBAL to a screen (D2) and the runtime has no notion
 # of building_panel's editor-only views, so a custom widget authored while one
 # view is showing is drawn in every one of them. Stated inline on that screen,
 # where it is the only place the surprise can bite.
 CUSTOM_EVERY_VIEW_NOTE = (
-    "A custom widget you add here appears in EVERY view of this panel "
-    "(unlock, construct, upgrade, base info, preview) — the game has no "
-    "view concept, and widget ids are shared across them.")
+    "A custom widget you add here belongs to the view that was open when "
+    "you added it, and the game draws it only in that view. Set View to "
+    "\"Every view\" if you want it on all of them — but note that widget "
+    "ids are still shared across views, so two views cannot both own an id.")
+
+#: Item text for the unscoped choice in the View combo — the `view` key
+#: ABSENT, which is what a single-view screen means and what every widget
+#: authored before the key existed still means.
+CUSTOM_EVERY_VIEW_ITEM = "Every view"
+
+TOOLTIP_CUSTOM_VIEW = (
+    "Which view of this screen draws this widget. A screen id is shared by "
+    "every mode of its panel and by the modals that declare it, so an "
+    "unscoped custom widget appears in all of them at once — including on "
+    "top of an open preview. Naming a view is how you say which one it "
+    "belongs to. Changing this moves the widget out of the view you are "
+    "looking at.")
 
 # UL-8 ruling 1: `ScreenSkinning.state_of` (game/ui/skinning.py) answers
 # "idle" for anything that is not a `Button` — a panel/label/backdrop holder
@@ -161,6 +195,8 @@ TOOLTIP_LAYER_TEXT_WINS = (
     "drawn by a layer with no slot and no text.")
 TOOLTIP_LAYER_TEXT_COLOR_NEEDS_TEXT = (
     "Nothing to colour: give this layer some Text first.")
+TOOLTIP_LAYER_FONT_NEEDS_TEXT = (
+    "Nothing to set a font on: give this layer some Text first.")
 TOOLTIP_LAYER_TINT_NEEDS_SLOT = (
     "Tint multiplies a sprite sheet, so it only applies to a layer with a "
     "Slot.")
@@ -333,6 +369,7 @@ class ScreenDetailsPanel(QWidget):
         self._live_commit_timer.timeout.connect(self._on_rect_edited)
         self._skin_baseline = None
         self._font_baseline = None
+        self._font_family_baseline = None   # UH-Font-B
         self._align_baseline = None     # UL-1
         self._color_baseline = None
         self._tint_baseline = None      # UH-6/D6: the Color row's OTHER key
@@ -425,6 +462,18 @@ class ScreenDetailsPanel(QWidget):
         font_row, self.font_reset_button = self._field_row(
             (self.font_combo,), "font", lambda: self._on_reset_field("font"))
         form.addRow("Font", font_row)
+
+        # UH-Font-B: the SECOND font axis. `Font` above picks a size/bold
+        # preset; this picks the family those glyphs are drawn from. Empty =
+        # inherit (the screen's `defaults.font_family`, then the game-wide
+        # `active_font.json`), which is what every widget did before the
+        # axis existed.
+        self.font_family_combo = _NoWheelComboBox(self)
+        self.font_family_combo.activated.connect(self._on_font_family_changed)
+        font_family_row, self.font_family_reset_button = self._field_row(
+            (self.font_family_combo,), "font_family",
+            lambda: self._on_reset_field("font_family"))
+        form.addRow("Font family", font_family_row)
 
         # UL-1: which way the widget's text spreads from its stored anchor.
         # Unlike Skin/Font (open-ended, registry-driven, hence their
@@ -540,6 +589,15 @@ class ScreenDetailsPanel(QWidget):
             (self.default_font_combo,), "font",
             lambda: self._on_reset_default_field("font"))
         defaults_form.addRow("Font", default_font_row)
+        self.default_font_family_combo = _NoWheelComboBox(self)
+        self.default_font_family_combo.activated.connect(
+            lambda i: self._on_default_combo_changed(
+                "font_family", self.default_font_family_combo))
+        default_font_family_row, self.default_font_family_reset_button = (
+            self._field_row(
+                (self.default_font_family_combo,), "font_family",
+                lambda: self._on_reset_default_field("font_family")))
+        defaults_form.addRow("Font family", default_font_family_row)
         self.default_text_color_button = QPushButton("Text Color…", self)
         self.default_text_color_button.clicked.connect(
             self._on_default_text_color_clicked)
@@ -566,6 +624,10 @@ class ScreenDetailsPanel(QWidget):
         self._populate_skin_combo(self.layer_field_slot_combo)   # UL-8
         self._populate_font_combo(self.font_combo)
         self._populate_font_combo(self.default_font_combo)
+        self._populate_font_family_combo(self.font_family_combo)
+        self._populate_font_family_combo(self.default_font_family_combo)
+        self._populate_font_combo(self.layer_font_combo)
+        self._populate_font_family_combo(self.layer_font_family_combo)
         self._populate_background_combo()
         self._set_widget_form_enabled(False)
         self._refresh_background()
@@ -600,12 +662,20 @@ class ScreenDetailsPanel(QWidget):
 
     # -- combo population (registry-driven, never hardcoded slot lists) -----
 
+    def _slot_label(self, slot):
+        """What a skin picker shows for a ui slot: its designer-given name with
+        the key after it, or the bare key when it has no name (slot editor →
+        Name). The item DATA stays the bare key — a rename in slots.json is a
+        relabel here and never rewrites a screen override."""
+        name = self._registry.display_name(slot)
+        return f"{name}  ({slot})" if name else slot
+
     def _populate_skin_combo(self, combo):
         combo.blockSignals(True)
         combo.clear()
         combo.addItem("", None)
         for slot in self._registry.group_slots("ui"):
-            combo.addItem(slot, slot)
+            combo.addItem(self._slot_label(slot), slot)
         combo.blockSignals(False)
 
     def _populate_font_combo(self, combo):
@@ -614,6 +684,28 @@ class ScreenDetailsPanel(QWidget):
         combo.addItem("", None)
         for key in theme_ops.font_keys(self._data_dir):
             combo.addItem(key, key)
+        combo.blockSignals(False)
+
+    def _populate_font_family_combo(self, combo):
+        """The Font family picker (UH-Font-B), sourced from
+        `data/fonts/font_manifest.json` exactly as the Theme panel's own
+        family combo is — the manifest is the registry, and a font imported
+        there shows up here with no second list to keep in step.
+
+        Item DATA is the font id, the LABEL its `display_name`: renaming a
+        font in the Theme panel relabels this combo and never rewrites a
+        screen override, the same contract `_slot_label` gives skins. The
+        leading blank item is "inherit" (no override), not a font.
+
+        Degrades to just that blank item when the manifest is missing or
+        unreadable (E-37) — `imported_fonts` already returns {} there."""
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem("", None)
+        entries = theme_ops.imported_fonts(self._data_dir)
+        for font_id in sorted(entries):
+            display = entries[font_id].get("display_name") or font_id
+            combo.addItem(display, font_id)
         combo.blockSignals(False)
 
     def _populate_background_combo(self):
@@ -626,7 +718,7 @@ class ScreenDetailsPanel(QWidget):
         except KeyError:
             slots = ()
         for slot in slots:
-            combo.addItem(slot, slot)
+            combo.addItem(self._slot_label(slot), slot)
         combo.blockSignals(False)
 
     def reload_registry(self):
@@ -723,10 +815,18 @@ class ScreenDetailsPanel(QWidget):
 
     def _custom_widgets(self):
         """The open doc's `custom_widgets` table (a copy — the session hands
-        one out), `{}` when the screen authors none."""
+        one out), filtered to the ACTIVE VIEW; `{}` when the screen authors
+        none.
+
+        The same filter the viewport applies, at the same one read, so the
+        outliner and the canvas can never disagree about which custom widgets
+        this view has. A widget scoped to another view is not hidden-but-
+        selectable — it is simply not part of this view, exactly as a
+        code-owned widget of another view is not."""
         if self._session is None or self._session.doc is None:
             return {}
-        return self._session.custom_widgets()
+        return custom_widgets_for_view(self._session.custom_widgets(),
+                                       self._session.view)
 
     def _is_custom(self, widget_id):
         return is_custom(widget_id, self._custom_widgets())
@@ -1009,9 +1109,20 @@ class ScreenDetailsPanel(QWidget):
         box_layout.addWidget(self.custom_view_note)
 
         form = QFormLayout()
+        # View sits above Band/Z: all three are authoring metadata living in
+        # `custom_widgets/<id>`, and this one decides whether the widget is
+        # on this screen at all before the other two decide where in it.
+        self.custom_view_combo = _NoWheelComboBox(self)
+        self.custom_view_combo.setToolTip(TOOLTIP_CUSTOM_VIEW)
+        self.custom_view_combo.activated.connect(self._on_custom_view_changed)
+        self.custom_view_row_label = QLabel("View", self)
+        form.addRow(self.custom_view_row_label, self.custom_view_combo)
         self.custom_band_combo = _NoWheelComboBox(self)
-        self.custom_band_combo.addItem("Over", "over")
+        # "Under" FIRST — it is the default a new custom widget is created
+        # with, and index 0 is also the fallback `_refresh_custom_controls`
+        # lands on when `findData` misses.
         self.custom_band_combo.addItem("Under", "under")
+        self.custom_band_combo.addItem("Over", "over")
         self.custom_band_combo.setToolTip(TOOLTIP_CUSTOM_BAND)
         self.custom_band_combo.activated.connect(self._on_custom_band_changed)
         self.custom_band_row_label = QLabel("Band", self)
@@ -1019,9 +1130,10 @@ class ScreenDetailsPanel(QWidget):
         self.custom_z_spin = _NoWheelSpinBox(self)
         self.custom_z_spin.setRange(-999, 999)
         self.custom_z_spin.setToolTip(
-            "Paint order among the CUSTOM widgets of the same band, "
-            "ascending. It never orders them against the screen's own "
-            "widgets — the band alone decides that.")
+            "Paint order within this widget's band, ascending — against the "
+            "custom widgets AND any of the screen's own widgets you have "
+            "banded. A widget that is not in a band ignores Z; the band "
+            "alone decides where it sits against everything else.")
         self.custom_z_spin.editingFinished.connect(self._on_custom_z_changed)
         self.custom_z_row_label = QLabel("Z", self)
         form.addRow(self.custom_z_row_label, self.custom_z_spin)
@@ -1034,8 +1146,12 @@ class ScreenDetailsPanel(QWidget):
         makes it visible in the game as well as here."""
         if self._session is None or self._session.doc is None:
             return
+        # Stamped with the view that is OPEN, so a decoration a designer
+        # draws on the build list belongs to the build list — not to every
+        # mode of the panel and every modal that shares its screen id.
         widget_id = self._session.add_custom_widget(
-            kind, code_owned_ids=self._code_owned_ids())
+            kind, code_owned_ids=self._code_owned_ids(),
+            view=self._session.view if self._screen_view_ids() else None)
         if widget_id is None:
             return
         self._refresh_widget_list()
@@ -1051,21 +1167,116 @@ class ScreenDetailsPanel(QWidget):
         self._refresh_widget_list()
         self.select_widget(None)
 
-    def _on_custom_band_changed(self, index):
-        if self._populating or not self._is_custom(self._current_widget):
+    def _rebuild_band_items(self, custom_widget):
+        """Repopulate the Band combo for whichever kind of widget is selected.
+
+        Called with signals already blocked by `_refresh_custom_controls`;
+        it rebuilds only when the item set actually differs, so merely moving
+        the selection between two custom widgets touches nothing."""
+        wanted = [("Under", "under"), ("Over", "over")] if custom_widget \
+            else [("Not banded", None), ("Under", "under"), ("Over", "over")]
+        current = [(self.custom_band_combo.itemText(i),
+                    self.custom_band_combo.itemData(i))
+                   for i in range(self.custom_band_combo.count())]
+        if current == wanted:
             return
-        entry = self._custom_widgets().get(self._current_widget, {})
-        self._session.set_custom_field(
+        self.custom_band_combo.clear()
+        for text, data in wanted:
+            self.custom_band_combo.addItem(text, data)
+
+    def _band_entry(self):
+        """Where the selected widget's `band`/`z` live: its `custom_widgets`
+        geometry entry when it is custom, its `widgets/<id>` override when it
+        is code-owned (UL-14). `{}` when nothing bandable is selected."""
+        widget_id = self._current_widget
+        if widget_id is None:
+            return {}
+        if self._is_custom(widget_id):
+            return self._custom_widgets().get(widget_id, {})
+        return self._doc_widgets().get(widget_id, {})
+
+    def _band_target_kind(self):
+        """The kind of the selected widget IF it may carry a band, else None.
+
+        A custom widget always may — its three kinds are the bandable three.
+        A CODE-OWNED widget may only when its kind has a generic draw
+        (`game/ui/skinning.py::_BANDABLE_KINDS`): banding relocates it into a
+        layer pass and makes it INERT, which would silently kill a `button`'s
+        clicks and has nothing to draw for a `bar`/`field`."""
+        if self._session is None or self._session.doc is None:
+            return None
+        if self._current_widget is None:
+            return None
+        kind = self._current_spec().get("kind")
+        if self._is_custom(self._current_widget):
+            return kind
+        return kind if kind in _BANDABLE_KINDS else None
+
+    def _screen_view_ids(self):
+        """This screen's view ids in game-mode order, `()` when it has none.
+
+        Read off `screen_defaults.json` rather than off the doc: the views
+        are what the EXPORTER recorded, so a designer can only scope a widget
+        to a view the game actually has."""
+        if self._session is None:
+            return ()
+        entry = self._all_defaults.get(self._session.screen_id, {}) or {}
+        return ordered_views(entry.get("views") or {})
+
+    def _rebuild_view_items(self):
+        """Repopulate the View combo for the open screen. Rebuilds only when
+        the item set actually differs, so moving the selection between two
+        custom widgets of the same screen touches nothing."""
+        wanted = [(CUSTOM_EVERY_VIEW_ITEM, None)]
+        wanted += [(view.replace("_", " ").capitalize(), view)
+                   for view in self._screen_view_ids()]
+        current = [(self.custom_view_combo.itemText(i),
+                    self.custom_view_combo.itemData(i))
+                   for i in range(self.custom_view_combo.count())]
+        if current == wanted:
+            return
+        self.custom_view_combo.clear()
+        for text, data in wanted:
+            self.custom_view_combo.addItem(text, data)
+
+    def _on_custom_view_changed(self, index):
+        """Move the selected custom widget to another view (or to none).
+
+        Deselects afterwards when the widget left the view being looked at —
+        it is no longer part of this screen's content, so leaving it selected
+        would leave the form editing something the canvas does not draw."""
+        if self._populating or self._session is None:
+            return
+        widget_id = self._current_widget
+        if widget_id is None or not self._is_custom(widget_id):
+            return
+        entry = self._custom_widgets().get(widget_id, {})
+        new_view = self.custom_view_combo.itemData(index)
+        self._session.set_custom_field(widget_id, "view",
+                                       entry.get("view"), new_view)
+        self._refresh_widget_list()
+        still_here = widget_id in self._custom_widgets()
+        self.select_widget(widget_id if still_here else None)
+        if not still_here:
+            self._current_widget = None
+            self.widget_selected.emit(None)
+        self._refresh_custom_controls()
+
+    def _on_custom_band_changed(self, index):
+        if self._populating or self._band_target_kind() is None:
+            return
+        entry = self._band_entry()
+        self._session.set_band_field(
             self._current_widget, "band", entry.get("band"),
             self.custom_band_combo.itemData(index))
         self._refresh_custom_controls()
 
     def _on_custom_z_changed(self):
-        if self._populating or not self._is_custom(self._current_widget):
+        if self._populating or self._band_target_kind() is None:
             return
-        entry = self._custom_widgets().get(self._current_widget, {})
+        entry = self._band_entry()
         value = self.custom_z_spin.value()
-        self._session.set_custom_field(
+        self._session.set_band_field(
             self._current_widget, "z", entry.get("z"),
             value if value else None)
         self._refresh_custom_controls()
@@ -1085,14 +1296,40 @@ class ScreenDetailsPanel(QWidget):
                 self._session.screen_id, {}) or {}).get("views")))
         custom = open_screen and self._is_custom(self._current_widget)
         self.custom_remove_button.setEnabled(bool(custom))
-        self.custom_band_combo.setEnabled(bool(custom))
-        self.custom_z_spin.setEnabled(bool(custom))
-        entry = (self._custom_widgets().get(self._current_widget, {})
-                 if custom else {})
+        # View is CUSTOM-only and only meaningful on a screen that HAS views:
+        # a code-owned widget is already view-scoped by construction (its
+        # mode is what put it in `ids`), and a single-view screen has nothing
+        # to choose between.
+        has_views = bool(self._screen_view_ids())
+        self.custom_view_row_label.setVisible(has_views)
+        self.custom_view_combo.setVisible(has_views)
+        self.custom_view_combo.setEnabled(bool(custom) and has_views)
+        self.custom_view_combo.blockSignals(True)
+        self._rebuild_view_items()
+        self.custom_view_combo.setCurrentIndex(
+            max(0, self.custom_view_combo.findData(
+                (self._custom_widgets().get(self._current_widget) or {})
+                .get("view") if custom else None)))
+        self.custom_view_combo.blockSignals(False)
+        # UL-14: Band/Z follow anything BANDABLE now, not just a custom
+        # widget — a code-owned panel/backdrop/label may be relocated into a
+        # band so a custom widget can sort in front of it by z. Remove stays
+        # custom-only: a code-owned widget belongs to the exporter.
+        bandable = open_screen and self._band_target_kind() is not None
+        self.custom_band_combo.setEnabled(bool(bandable))
+        self.custom_z_spin.setEnabled(bool(bandable))
+        entry = self._band_entry() if bandable else {}
         self.custom_band_combo.blockSignals(True)
+        # A CUSTOM widget is always in one band or the other (absent means
+        # Under). A CODE-OWNED one is normally in NEITHER — it is drawn by
+        # its own screen — so it gets the extra "Not banded" choice, which is
+        # both its default and the way back out.
+        self._rebuild_band_items(custom_widget=bool(custom))
+        self.custom_band_combo.setToolTip(
+            TOOLTIP_CUSTOM_BAND if custom else TOOLTIP_CODE_OWNED_BAND)
         self.custom_band_combo.setCurrentIndex(
             max(0, self.custom_band_combo.findData(
-                entry.get("band") or "over")))
+                entry.get("band") or ("under" if custom else None))))
         self.custom_band_combo.blockSignals(False)
         self.custom_z_spin.blockSignals(True)
         self.custom_z_spin.setValue(entry.get("z") or 0)
@@ -1376,6 +1613,32 @@ class ScreenDetailsPanel(QWidget):
             (self.layer_label_edit,), "label",
             lambda: self._on_reset_layer_field("label"))
         form.addRow("Text", label_row)
+
+        # `layers[].font` has been schema-legal and honoured by
+        # `_submit_one_layer` since UL-3, but had no control here — a layer's
+        # size preset could only be hand-authored in the JSON. Adding the
+        # family axis (UH-Font-B) beside a row that does not exist would be
+        # the odder half of that gap, so both are added together. Both go
+        # through `_push_layer_field`, which is already state-aware: with
+        # Hover selected they write `layers[i].states.hover.<key>`.
+        self.layer_font_combo = _NoWheelComboBox(self)
+        self.layer_font_combo.activated.connect(
+            lambda _i: self._push_layer_field(
+                "font", self.layer_font_combo.currentData()))
+        layer_font_row, self.layer_font_reset_button = self._field_row(
+            (self.layer_font_combo,), "font",
+            lambda: self._on_reset_layer_field("font"))
+        form.addRow("Font", layer_font_row)
+
+        self.layer_font_family_combo = _NoWheelComboBox(self)
+        self.layer_font_family_combo.activated.connect(
+            lambda _i: self._push_layer_field(
+                "font_family", self.layer_font_family_combo.currentData()))
+        layer_font_family_row, self.layer_font_family_reset_button = (
+            self._field_row(
+                (self.layer_font_family_combo,), "font_family",
+                lambda: self._on_reset_layer_field("font_family")))
+        form.addRow("Font family", layer_font_family_row)
 
         self.layer_color_button = QPushButton("Color…", self)
         self.layer_color_button.clicked.connect(
@@ -1704,7 +1967,8 @@ class ScreenDetailsPanel(QWidget):
     def _layer_inspector_controls(self):
         return (self.layer_off_x, self.layer_off_y, self.layer_off_w,
                 self.layer_off_h, self.layer_field_slot_combo,
-                self.layer_label_edit, self.layer_color_button,
+                self.layer_label_edit, self.layer_font_combo,
+                self.layer_font_family_combo, self.layer_color_button,
                 self.layer_tint_button, self.layer_text_color_button,
                 self.layer_visible_check, self.layer_z_spin,
                 self.layer_field_band_combo,
@@ -1714,6 +1978,8 @@ class ScreenDetailsPanel(QWidget):
         return {"offset": self.layer_offset_reset_button,
                 "slot": self.layer_slot_reset_button,
                 "label": self.layer_label_reset_button,
+                "font": self.layer_font_reset_button,
+                "font_family": self.layer_font_family_reset_button,
                 "color": self.layer_color_reset_button,
                 "tint": self.layer_tint_reset_button,
                 "text_color": self.layer_text_color_reset_button,
@@ -1789,6 +2055,15 @@ class ScreenDetailsPanel(QWidget):
             max(0, self.layer_field_slot_combo.findData(slot)))
         self.layer_label_edit.setText(
             self._layer_effective_value(entry, state, "label", ""))
+        self.layer_font_combo.setCurrentIndex(
+            max(0, self.layer_font_combo.findData(
+                self._layer_effective_value(entry, state, "font"))))
+        # An id the manifest no longer carries lands on index 0 ("inherit"),
+        # which is what the game draws for it too — see the widget form's
+        # own note.
+        self.layer_font_family_combo.setCurrentIndex(
+            max(0, self.layer_font_family_combo.findData(
+                self._layer_effective_value(entry, state, "font_family"))))
         self.layer_visible_check.setChecked(
             bool(self._layer_effective_value(entry, state, "visible", True)))
         self.layer_z_spin.setValue(int(entry.get("z", 0) or 0))
@@ -1827,14 +2102,21 @@ class ScreenDetailsPanel(QWidget):
             self.layer_text_color_button, not has_slot and has_text,
             TOOLTIP_LAYER_SLOT_WINS if has_slot
             else TOOLTIP_LAYER_TEXT_COLOR_NEEDS_TEXT)
+        # Font/family style the text run and nothing else, so they follow
+        # Text colour's gate exactly: dead behind a slot, dead with no text.
+        for control in (self.layer_font_combo, self.layer_font_family_combo):
+            self._set_honest(
+                control, not has_slot and has_text,
+                TOOLTIP_LAYER_SLOT_WINS if has_slot
+                else TOOLTIP_LAYER_FONT_NEEDS_TEXT)
         # Colour is the LAST branch: it loses to a slot and to text alike.
         self._set_honest(
             self.layer_color_button, not has_slot and not has_text,
             TOOLTIP_LAYER_COLOR_INERT if has_slot else TOOLTIP_LAYER_TEXT_WINS)
 
         buttons = self._layer_reset_buttons()
-        for key in ("offset", "slot", "label", "color", "tint", "text_color",
-                    "visible"):
+        for key in ("offset", "slot", "label", "font", "font_family",
+                    "color", "tint", "text_color", "visible"):
             buttons[key].setEnabled(
                 self._layer_raw_value(entry, state, key) is not None)
         buttons["z"].setEnabled("z" in entry)
@@ -1872,7 +2154,9 @@ class ScreenDetailsPanel(QWidget):
             # widget selected there is nothing to reset, full stop.
             for btn in (self.rect_reset_button, self.parent_reset_button,
                        self.skin_reset_button,
-                       self.font_reset_button, self.align_reset_button,
+                       self.font_reset_button,
+                       self.font_family_reset_button,
+                       self.align_reset_button,
                        self.color_reset_button,
                        self.text_color_reset_button, self.label_reset_button,
                        self.text_id_reset_button, self.visible_reset_button):
@@ -1898,6 +2182,7 @@ class ScreenDetailsPanel(QWidget):
         self.parent_reset_button.setEnabled(widget_tree.PARENT_KEY in override)
         self.skin_reset_button.setEnabled("skin" in override)
         self.font_reset_button.setEnabled("font" in override)
+        self.font_family_reset_button.setEnabled("font_family" in override)
         self.align_reset_button.setEnabled("align" in override)
         self.color_reset_button.setEnabled(self._active_color_key() in override)
         self.text_color_reset_button.setEnabled("text_color" in override)
@@ -2062,6 +2347,17 @@ class ScreenDetailsPanel(QWidget):
         self._font_baseline = font
         self.font_combo.setCurrentIndex(max(0, self.font_combo.findData(font)))
 
+        # UH-Font-B. `findData` returning -1 for a family the manifest no
+        # longer carries lands on index 0 ("inherit"), which is exactly what
+        # the game draws for a stale id — the combo cannot show a font that
+        # is gone, and must not silently invent one either. The BASELINE
+        # keeps the raw override, so the reset button still offers to clear
+        # it.
+        font_family = override.get("font_family")
+        self._font_family_baseline = font_family
+        self.font_family_combo.setCurrentIndex(
+            max(0, self.font_family_combo.findData(font_family)))
+
         # UL-1: baseline is the RAW override (None = absent), but the combo
         # shows the EFFECTIVE value — an unoverridden widget reads "Left",
         # which is what `submit_label` actually draws.
@@ -2209,6 +2505,17 @@ class ScreenDetailsPanel(QWidget):
             return
         self._session.push_field(self._current_widget, "font", old_font, new_font)
         self._font_baseline = new_font
+
+    def _on_font_family_changed(self, index):
+        if self._current_widget is None:
+            return
+        new_family = self.font_family_combo.itemData(index)
+        old_family = self._font_family_baseline
+        if new_family == old_family:
+            return
+        self._session.push_field(self._current_widget, "font_family",
+                                 old_family, new_family)
+        self._font_family_baseline = new_family
 
     def _on_align_changed(self, index):
         """UL-1. Mirrors `_on_font_changed`: one key, no dependent UI, so no
@@ -2457,11 +2764,13 @@ class ScreenDetailsPanel(QWidget):
     def _refresh_defaults_section(self):
         if self._session is None or self._session.doc is None:
             for combo in (self.button_skin_combo, self.panel_skin_combo,
-                         self.default_font_combo):
+                         self.default_font_combo,
+                         self.default_font_family_combo):
                 combo.setCurrentIndex(0)
             for btn in (self.button_skin_reset_button,
                        self.panel_skin_reset_button,
                        self.default_font_reset_button,
+                       self.default_font_family_reset_button,
                        self.default_text_color_reset_button):
                 btn.setEnabled(False)
             return
@@ -2478,9 +2787,16 @@ class ScreenDetailsPanel(QWidget):
         self.default_font_combo.setCurrentIndex(
             max(0, self.default_font_combo.findData(style.get("font"))))
         self.default_font_combo.blockSignals(False)
+        self.default_font_family_combo.blockSignals(True)
+        self.default_font_family_combo.setCurrentIndex(
+            max(0, self.default_font_family_combo.findData(
+                style.get("font_family"))))
+        self.default_font_family_combo.blockSignals(False)
         self.button_skin_reset_button.setEnabled("button_skin" in style)
         self.panel_skin_reset_button.setEnabled("panel_skin" in style)
         self.default_font_reset_button.setEnabled("font" in style)
+        self.default_font_family_reset_button.setEnabled(
+            "font_family" in style)
         self.default_text_color_reset_button.setEnabled("text_color" in style)
 
     def _on_default_combo_changed(self, field_key, combo):

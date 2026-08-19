@@ -662,7 +662,13 @@ class TestPainterUsedTileFeedback(unittest.TestCase):
         feature only replaces the misleading fallback for the painter-tile-bar
         case, not every failure path. (Insufficient love is gated at the CARD
         click, `_construct_click`, `building_ui.py:1678-1683` — it never
-        reaches `_do_place`/a preview at all.)"""
+        reaches `_do_place`/a preview at all.)
+
+        The flash now lands on the card's PRICE PILL rather than its
+        body: the body shrank to a 44px portrait backing, so the 74px
+        pill is the widest `Button` in the tree and the only part able
+        to show a sentence. The MESSAGE is what this test pins, and it
+        is unchanged."""
         tm, scene, occupancy, session = make_world()
         st = session.state
         st.unlocked_buildings["painter"] = True
@@ -674,7 +680,8 @@ class TestPainterUsedTileFeedback(unittest.TestCase):
         panel.handle_click(*click(btn), session, BUILDINGS_BAL,
                            scene, occupancy)
         self.assertIsNone(panel.preview)
-        self.assertEqual(btn.flash_label, "NOT ENOUGH LOVE")
+        pill = panel._card_parts["painter"].price
+        self.assertEqual(pill.flash_label, "NOT ENOUGH LOVE")
 
 
 class TestPainterUpgradePanelPaysIn(unittest.TestCase):
@@ -794,23 +801,23 @@ class TestLifeLostBanner(unittest.TestCase):
 
 class TestTerrainConditionTooltip(unittest.TestCase):
     """Tile Condition Rework: the terrain badge's hover tooltip
-    (``_tile_cond_effect_lines``) must say "Unbuildable tile" for Pond,
-    never fall through to the generic "No terrain effect" a condition with
-    no modifiers otherwise gets."""
+    (``_tile_cond_effect_lines``) must say "Unbuildable" for Pond, never
+    fall through to the generic "No effect" a condition with no modifiers
+    otherwise gets. It answers a ``[name, value]`` pair now."""
 
     def test_pond_says_unbuildable(self):
         _tm, _scene, _occupancy, session = make_world()
         panel = make_panel()
         panel._session = session
         self.assertEqual(panel._tile_cond_effect_lines(TileCondition.POND),
-                         ["Unbuildable tile"])
+                         ["Unbuildable", ""])
 
     def test_grass_is_still_no_terrain_effect(self):
         _tm, _scene, _occupancy, session = make_world()
         panel = make_panel()
         panel._session = session
         self.assertEqual(panel._tile_cond_effect_lines(TileCondition.GRASS),
-                         ["No terrain effect"])
+                         ["No effect", ""])
 
 
 # ---------------------------------------------------------------------------
