@@ -958,7 +958,7 @@ class ConstructPreview:
 
     def submit(self, renderer, anim_ms=0):
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "under", self.skinning.state_of,
+                                    "under", self.skinning.state_of, anim_ms,
                                     view=_PREVIEW_VIEW)
         x, y, w, _h = self.rect
         # Submission order (game/ui/CLAUDE.md "panel -> button -> text"):
@@ -1034,7 +1034,7 @@ class ConstructPreview:
                         align="right")
             sy += step
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "over", self.skinning.state_of,
+                                    "over", self.skinning.state_of, anim_ms,
                                     view=_PREVIEW_VIEW)
 
 
@@ -1187,7 +1187,7 @@ class MovePreview:
 
     def submit(self, renderer, anim_ms=0):
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "under", self.skinning.state_of,
+                                    "under", self.skinning.state_of, anim_ms,
                                     view=_PREVIEW_VIEW)
         x, y, w, h = self.rect
         # Submission order (game/ui/CLAUDE.md "panel -> button -> text").
@@ -1230,7 +1230,7 @@ class MovePreview:
                         align="center")
             wy += step
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "over", self.skinning.state_of,
+                                    "over", self.skinning.state_of, anim_ms,
                                     view=_PREVIEW_VIEW)
 
 
@@ -3529,7 +3529,7 @@ class BuildingUI:
                                         self.view_w, self.view_h, anim_ms=t)
         hidden_customs = self._hidden_stat_backdrops()
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "under", self.skinning.state_of,
+                                    "under", self.skinning.state_of, t,
                                     view=self.mode,
                                     hidden_customs=hidden_customs)
         if is_visible(self._panel):
@@ -3550,7 +3550,7 @@ class BuildingUI:
         if self.preview is not None:
             self.preview.submit(renderer, anim_ms=t)
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "over", self.skinning.state_of,
+                                    "over", self.skinning.state_of, t,
                                     view=self.mode,
                                     hidden_customs=hidden_customs)
 

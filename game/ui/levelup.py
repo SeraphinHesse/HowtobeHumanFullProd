@@ -306,7 +306,7 @@ class LevelupWindow:
         self.skinning.submit_background(renderer, self.screen_id, view_w,
                                         view_h, anim_ms=t)
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "under", self.skinning.state_of)
+                                    "under", self.skinning.state_of, t)
         widgets.submit_backdrop(renderer, self._backdrop, anim_ms=t)
         submit_label(renderer, self._heading, color=widgets.C_GOLD)
         default_skin = self.skinning.defaults(self.screen_id).get("panel_skin")
@@ -323,7 +323,7 @@ class LevelupWindow:
                              fill=getattr(box, "color", None),
                              tint=getattr(box, "tint", None))
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
-                                    "over", self.skinning.state_of)
+                                    "over", self.skinning.state_of, t)
 
     def _submit_box(self, renderer, rect, parts, option, hovered,
                     panel_skin=None, anim_ms_=0, fill=None, tint=None):

@@ -229,6 +229,34 @@ class CustomWidgetOverrideTests(unittest.TestCase):
         self.assertEqual(_emit(doc), [])
 
 
+class CustomWidgetAnimationTests(unittest.TestCase):
+    """A custom widget rides the owning screen's clock (bugfix): it used to
+    emit ``anim_time_ms=0`` unconditionally, so a multi-frame idle sheet
+    froze on frame 0 while every code-owned panel on the same screen played."""
+
+    def test_panel_skin_and_layer_carry_the_screens_anim_clock(self):
+        doc = {
+            "custom_widgets": {
+                "deco_box": {"kind": "panel", "rect": [0, 0, 4, 4]},
+            },
+            "widgets": {
+                "deco_box": {
+                    "skin": "ui_panel",
+                    "layers": [{"slot": "ui_panel_v2", "band": "under"}],
+                },
+            },
+        }
+        renderer = RecordingRenderer()
+        skinning = ScreenSkinning.from_overrides({SCREEN: doc})
+        skinning.submit_layers(renderer, SCREEN, {}, "under",
+                               skinning.state_of, 1234)
+        sprites = [i for i in renderer.items if isinstance(i, HudSprite)]
+        self.assertEqual([s.slot_key for s in sprites],
+                         ["ui_panel", "ui_panel_v2"])
+        self.assertEqual([s.anim_time_ms for s in sprites], [1234, 1234])
+        self.assertEqual([s.animation for s in sprites], ["idle", "idle"])
+
+
 class CustomWidgetValidationTests(unittest.TestCase):
 
     def test_validate_ids_accepts_a_custom_widget_id(self):
