@@ -206,6 +206,44 @@ class TestConstructPreviewZOrder(unittest.TestCase):
                         "button submission")
 
 
+class TestNameBoxIsAWidget(unittest.TestCase):
+    """The name field and its caption are id'd widgets on both screens
+    (`upgrade_name_box` / `preview_name_box` + the modal's four labels), and
+    a rect override moves the CLICK ZONE with the drawn box."""
+
+    def _skinning(self, screen_widgets):
+        from game.ui.skinning import ScreenSkinning
+
+        return ScreenSkinning.from_overrides(
+            {"building_panel": {"widgets": screen_widgets}})
+
+    def test_the_modal_ids_cover_its_texts_and_its_box(self):
+        cost = build_cost("defence", BUILD, 0)
+        preview = ConstructPreview("defence", cost, BUILD, UI, VIEW_W, VIEW_H)
+        for name in ("preview_name_box", "preview_title", "preview_cost",
+                     "preview_name_label", "preview_name"):
+            self.assertIn(name, preview.ids)
+
+    def test_an_override_moves_the_modal_field_and_its_hit_zone(self):
+        cost = build_cost("defence", BUILD, 0)
+        moved = [40, 300, 60, 15]
+        preview = ConstructPreview(
+            "defence", cost, BUILD, UI, VIEW_W, VIEW_H,
+            skinning=self._skinning({"preview_name_box": {"rect": moved}}))
+        self.assertEqual(tuple(preview.name_rect), tuple(moved))
+        preview.handle_click(moved[0] + 2, moved[1] + 2)
+        self.assertTrue(preview.editing)
+
+    def test_an_override_moves_the_upgrade_box_and_its_hit_zone(self):
+        moved = [30, 200, 70, 15]
+        panel = BuildingUI(VIEW_W, VIEW_H, UI,
+                           skinning=self._skinning(
+                               {"upgrade_name_box": {"rect": moved}}))
+        self.assertIn("upgrade_name_box", panel.ids)
+        panel.skinning.apply(panel.screen_id, panel.ids)
+        self.assertEqual(tuple(panel._name_box_rect), tuple(moved))
+
+
 class TestLoveHoverCostDisplay(unittest.TestCase):
     """The love pill: plain amount outside a hover, "current - price" while
     hovering a buyable option — both affordable and not — replacing the old

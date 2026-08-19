@@ -1475,6 +1475,25 @@ imports:
   upgrades/advances one step at a time via the original primary-only
   branches in `_build_upgrade`/`_upgrade_click`, byte-identical to before
   this rework.
+- **The name field is a WIDGET on both screens** (rename-box-widgets). The
+  upgrade panel's rename box is `upgrade_name_box` and the construct modal's
+  is `preview_name_box` — `panel`-kind holders drawn through `submit_panel`,
+  so a designer can move, resize, skin, tint or hide either. Skinless they
+  emit the same fill + 1px border pair they always did (golden parity), and
+  the border COLOUR stays code-owned: it is the focus ring
+  (`highlight_color("tile_selected")` while typing), not decoration.
+  **The rect drives the hit test, not just the draw**: `BuildingUI
+  ._name_box_rect` is a property reading the holder, and `ConstructPreview`
+  reads `self.name_rect` back off it after `apply()` (beside the existing
+  `self.rect = self._panel.rect`), so a moved box is typed into where it is
+  drawn. A hidden box refuses focus (`is_visible` gates the click too).
+  The modal's four texts became id'd labels in the same pass —
+  `preview_title` (the master name, `text=`: a live tier/batch name),
+  `preview_cost`, `preview_name_label` and `preview_name` (placeholder
+  `text_id`, typed buffer via `text=`) — the last un-id'd copy on that
+  screen. `screen_defaults.json` gained six records and NOTHING moved;
+  `screen_previews.json` is byte-identical, which is what says the
+  conversion was a rendering no-op.
 - **Name dice + rename row** — "⚄" beside the ConstructPreview name box and in
   the upgrade panel's new rename row (both fill the edit buffer from
   `BuildingsGlobal.random_names`); the upgrade title is now the DISPLAY name
@@ -1485,8 +1504,11 @@ imports:
   (`_next_level_rows`, a throwaway `create()` clone copying tier cursor +
   boost/condition/streak context) + the `_next_tier_card` (divider, "Next:
   <name>", sprite thumb, first 3 stats) in `tier_upgrade`/`tier_locked` modes;
-  plus the red **DIED LAST ROUND** tag when `RoundStats.dmg_taken_last_round >=
-  max_hp()`.
+  plus the last-round outcome tag on the `died_last_round` widget: red **DIED
+  LAST ROUND** when `RoundStats.dmg_taken_last_round >= max_hp()`, green
+  **SURVIVED LAST ROUND** otherwise (one holder, two string ids, chosen with
+  `submit_label(text=…)`; the row is always drawn, so the layout never gates
+  its height on the outcome).
 - **Income tooltip** — `hud.income_sources(session)` is the ordered per-source
   list (Base/Musicians/Meditators/Story/−Upkeep); `income_breakdown` sums it so
   pill and tooltip can't drift; hovering the income line shows the prototype's
@@ -1869,6 +1891,22 @@ sets one).
     never draws there. Only CUSTOM widgets need this — a code-owned widget is
     already view-scoped by construction, because a mode only puts the widgets
     it built into `ids`.
+  - **`hidden_customs=` is the LIVE-STATE gate**, the caller's counterpart to
+    the doc-authored `view`: a set of custom ids `submit_layers` drops for
+    this frame only. `view` answers "does this decoration belong to this
+    mode"; this answers "does it have anything to decorate right now", which
+    the doc cannot express. Today's only user is `BuildingUI`, whose
+    `_hidden_stat_backdrops()` drops the plates in
+    `_STAT_BACKDROP_MIN_ROWS` — the nested stack behind the stat block
+    (`custom_panel_17` parents `16` parents `19`) peeling off as the block
+    shrinks: 5+ stat rows shows all three, 4 drops `19`, 3 drops `16` too, 2
+    or fewer leaves none. The block is as tall as the selected building has
+    stats, so on a Blocker or an economy building a plate cut for five rows
+    would hang below the text it backs. The ids are the
+    designer's (whatever the editor generated), the THRESHOLD is code. The
+    default is empty, so every other screen is unchanged, and hiding a plate
+    never moves its `parent`-anchored children — `apply()` resolves parents
+    and is untouched by this gate.
   - **Order**: band first — **absent = `under`**, so by default a custom
     widget goes behind EVERYTHING on the screen (the same no-depth-sort
     trade-off as a layer). Note this is the OPPOSITE of an undecorated LAYER

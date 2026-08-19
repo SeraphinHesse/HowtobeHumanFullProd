@@ -392,6 +392,10 @@
       "description": "One stat row inside the next-tier preview card. `label` is the resolved stat label, `value` the stat's value at that tier.",
       "type": "string"
     },
+    "building.upgrade.survived_last_round": {
+      "description": "Upgrade panel tag shown when last round's damage did NOT cover the building's full HP — the counterpart of `building.upgrade.died_last_round`, drawn in the same slot. No placeholders.",
+      "type": "string"
+    },
     "building.upgrade.tier_level": {
       "description": "Building panel upgrade-mode subtitle. `tier` is the tier's display name, `level` the in-tier level number.",
       "type": "string"
@@ -731,6 +735,7 @@
     "building.upgrade.name_placeholder",
     "building.upgrade.next_tier",
     "building.upgrade.next_tier_row",
+    "building.upgrade.survived_last_round",
     "building.upgrade.tier_level",
     "cheat_menu.round_placeholder",
     "credits.name",

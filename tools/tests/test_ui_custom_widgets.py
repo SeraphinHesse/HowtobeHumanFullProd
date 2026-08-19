@@ -135,6 +135,84 @@ class CustomWidgetViewTests(unittest.TestCase):
                          {(255, 0, 0), (0, 255, 0)})
 
 
+class CustomWidgetHiddenTests(unittest.TestCase):
+    """`hidden_customs`: the CALLER drops a custom widget for this frame
+    only — the live-state gate the doc cannot express (a plate sized to back
+    N stat rows, on a building with fewer)."""
+
+    DOC = {
+        "custom_widgets": {
+            "plate": {"kind": "panel", "rect": [0, 0, 4, 4]},
+            "other": {"kind": "panel", "rect": [8, 0, 4, 4]},
+        },
+        "widgets": {"plate": {"color": [255, 0, 0]},
+                    "other": {"color": [0, 255, 0]}},
+    }
+
+    def _emit_hidden(self, hidden):
+        renderer = RecordingRenderer()
+        skinning = ScreenSkinning.from_overrides({SCREEN: self.DOC})
+        skinning.submit_layers(renderer, SCREEN, {}, "under",
+                               skinning.state_of, hidden_customs=hidden)
+        return {tuple(i.color) for i in renderer.items
+                if isinstance(i, HudRect)}
+
+    def test_a_hidden_name_drops_only_that_widget(self):
+        self.assertEqual(self._emit_hidden({"plate"}), {(0, 255, 0)})
+
+    def test_the_default_hides_nothing(self):
+        self.assertEqual(self._emit_hidden(()), {(255, 0, 0), (0, 255, 0)})
+
+    def test_hiding_a_parent_keeps_its_children(self):
+        """`parent` is an EDIT-time relationship (`editor/widget_tree.py`:
+        nothing in `game/` reads it), so dropping a plate must never take the
+        widgets authored inside it with it — only the plate goes."""
+        doc = {
+            "custom_widgets": {
+                "plate": {"kind": "panel", "rect": [0, 0, 40, 40]},
+                "inner": {"kind": "panel", "rect": [4, 4, 8, 8]},
+            },
+            "widgets": {"plate": {"color": [255, 0, 0]},
+                        "inner": {"color": [0, 0, 255], "parent": "plate"}},
+        }
+        renderer = RecordingRenderer()
+        skinning = ScreenSkinning.from_overrides({SCREEN: doc})
+        skinning.submit_layers(renderer, SCREEN, {}, "under",
+                               skinning.state_of, hidden_customs={"plate"})
+        self.assertEqual([i for i in renderer.items if isinstance(i, HudRect)],
+                         [HudRect((4, 4, 8, 8), (0, 0, 255))])
+
+
+class BuildingPanelStatBackdropTests(unittest.TestCase):
+    """`BuildingUI._hidden_stat_backdrops` — the rule that feeds it: a plate
+    cut for N stat rows is dropped on a building with fewer."""
+
+    def test_threshold_per_plate(self):
+        from game.ui import building_ui
+
+        def hidden(rows):
+            panel = building_ui.BuildingUI.__new__(building_ui.BuildingUI)
+            panel.mode, panel._selected = "upgrade", object()
+            with mock.patch.object(building_ui, "_building_stats",
+                                   return_value=[("k", 0)] * rows):
+                return panel._hidden_stat_backdrops()
+
+        self.assertEqual(hidden(5), frozenset())
+        self.assertEqual(hidden(4), frozenset({"custom_panel_19"}))
+        self.assertEqual(hidden(3),
+                         frozenset({"custom_panel_19", "custom_panel_16"}))
+        self.assertEqual(hidden(2),
+                         frozenset({"custom_panel_19", "custom_panel_16",
+                                    "custom_panel_17"}))
+
+    def test_no_selection_hides_nothing(self):
+        from game.ui import building_ui
+
+        panel = building_ui.BuildingUI.__new__(building_ui.BuildingUI)
+        panel.mode, panel._selected = "construct", None
+        self.assertEqual(panel._hidden_stat_backdrops(), frozenset())
+
+
 class CustomWidgetOverrideTests(unittest.TestCase):
 
     def test_override_rect_wins_and_visible_false_suppresses(self):

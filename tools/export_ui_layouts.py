@@ -116,6 +116,11 @@ _DISPLAY_NAMES = {
         "preview_cancel_btn": "Construct cancel button",
         "preview_close_btn": "Construct preview close button",
         "preview_dice_btn": "Construct preview dice button",
+        "preview_name_box": "Construct preview name field",
+        "preview_title": "Construct preview building name",
+        "preview_cost": "Construct preview price line",
+        "preview_name_label": "Construct preview name caption",
+        "preview_name": "Construct preview name field text",
         # UT-3 text. The ~40 stat/base-info row ids are NOT listed: their
         # names are derived from their own resolved text (see
         # `_derived_display_name`), so renaming a stat renames its two
@@ -126,8 +131,9 @@ _DISPLAY_NAMES = {
         "construct_title": "Build header",
         "upgrade_title": "Building name header",
         "upgrade_name": "Rename box text",
+        "upgrade_name_box": "Rename box",
         "upgrade_tier_level": "Tier / level line",
-        "died_last_round": "Died-last-round tag",
+        "died_last_round": "Died/survived-last-round tag",
         "next_tier_header": "Next-tier card header",
         "upgrade_hint": "Action button hint",
         "base_info_title": "The Hole header",

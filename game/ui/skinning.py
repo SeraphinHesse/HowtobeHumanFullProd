@@ -370,7 +370,8 @@ class ScreenSkinning:
 
     def submit_layers(self, renderer, screen_id: str, ids: Dict[str, Any],
                       band: str, state_of, anim_ms: int = 0,
-                      view: Optional[str] = None) -> None:
+                      view: Optional[str] = None,
+                      hidden_customs=()) -> None:
         """Draw every widget's ``band``-side layer stack — ONE call per screen
         per band (UL-4 D4), at the top (``"under"``) or the end (``"over"``)
         of a screen's ``submit()``. The HUD pass has no depth sort, so draw
@@ -400,11 +401,19 @@ class ScreenSkinning:
         the unlock and upgrade panels, and on top of an open preview. Naming
         a view in the entry is how a designer says which one it belongs to.
 
+        ``hidden_customs``: custom-widget names the CALLER wants dropped this
+        frame. The ``view`` gate above is static (a widget belongs to a mode
+        or it does not); this one is for decoration whose reason to exist is
+        live state the designer cannot express in the doc — a plate sized to
+        back N stat rows has nothing to back on a building with fewer
+        (``BuildingUI._hidden_stat_backdrops``). Empty by default, so every
+        other screen is unchanged.
+
         A widget with no ``layers`` entry in this screen's override produces
         ZERO calls — the golden parity case (D5), and the overwhelmingly
         common path today (no shipped screen authors any layer)."""
         widgets_spec = self._widgets_spec(screen_id)
-        customs = self._custom_in_band(screen_id, band, view)
+        customs = self._custom_in_band(screen_id, band, view, hidden_customs)
         # The "no override at all" fast path — the golden parity case (D5).
         # It has to test BOTH tables: a screen may author custom widgets and
         # no per-widget overrides, and an early return on ``widgets_spec``
@@ -563,7 +572,7 @@ class ScreenSkinning:
                 continue
             self._submit_one_layer(renderer, resolved, state, anim_ms)
 
-    def _custom_in_band(self, screen_id, band, view=None):
+    def _custom_in_band(self, screen_id, band, view=None, hidden=()):
         """``[(name, entry), ...]`` for this screen's custom widgets whose
         band matches, ascending ``z`` (absent band == ``"under"``, absent
         ``z`` == 0). Ties keep authoring (dict/JSON) order — ``sorted`` is
@@ -581,14 +590,18 @@ class ScreenSkinning:
         ``submit_layers``). An entry with no ``view`` is unscoped and always
         kept — both the single-view case and every widget authored before the
         key existed — and a caller that passes no view keeps everything, so
-        nothing filters on a screen that has no views."""
+        nothing filters on a screen that has no views.
+
+        ``hidden`` drops entries by NAME — the caller's live-state gate (see
+        ``submit_layers``), applied on top of both filters above."""
         table = self.custom_widgets(screen_id)
         if not table:
             return []
         rows = [(n, e) for n, e in table.items()
                 if (e.get("band") or "under") == band
                 and (view is None or not e.get("view")
-                     or e.get("view") == view)]
+                     or e.get("view") == view)
+                and n not in hidden]
         return sorted(rows, key=lambda pair: pair[1].get("z") or 0)
 
     def _submit_custom_widget(self, renderer, screen_id, name, entry,

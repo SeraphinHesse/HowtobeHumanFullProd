@@ -33,11 +33,10 @@ import copy
 from pathlib import Path
 
 from PySide6.QtCore import QMimeData, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QDrag
+from PySide6.QtGui import QDrag
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
-    QColorDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -51,7 +50,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from editor import theme_ops, widget_tree
+from editor import house_colors, theme_ops, widget_tree
 from editor.panels._screen_primitives import widget_display_name
 from editor.panels.balancing import (
     CollapsibleSection,
@@ -2533,11 +2532,9 @@ class ScreenDetailsPanel(QWidget):
         self._align_baseline = new_align
 
     def _pick_color(self, current):
-        base = QColor(*current[:3]) if current else QColor(255, 255, 255)
-        chosen = QColorDialog.getColor(base, self, "Pick a color")
-        if not chosen.isValid():
-            return None
-        return [chosen.red(), chosen.green(), chosen.blue()]
+        # `house_colors.pick_color` IS this method's old body, plus the three
+        # house colours seeded into the dialog's custom row first.
+        return house_colors.pick_color(self, current)
 
     def _on_color_clicked(self):
         """UH-6/D6: writes `tint` on a skinned widget, `color` on an
