@@ -117,8 +117,8 @@
       "round_counts": [
         {
           "commander": 0,
-          "raiders": 6,
-          "regular": 19,
+          "raiders": 4,
+          "regular": 8,
           "siege": 0
         },
         {
@@ -263,7 +263,7 @@
           "attack_speed": 1.8,
           "dmg": 150,
           "footprint": 2,
-          "hp": 1200,
+          "hp": 1100,
           "move_speed": 0.65,
           "name": "Throbbin Hood",
           "shake": {
@@ -773,7 +773,7 @@
       "death_spawn": {
         "at_hp_fraction": 0.5,
         "enabled": true,
-        "spawn_hp_fraction": 0.67,
+        "spawn_hp_fraction": 0.6,
         "spawns": [
           {
             "commander": 0,
@@ -846,8 +846,8 @@
             "attack_range_tiles": 1,
             "attack_speed": 1.2,
             "dmg": 32,
-            "hp": 420,
-            "move_speed": 0.96
+            "hp": 400,
+            "move_speed": 0.92
           }
         },
         {
@@ -863,9 +863,9 @@
           "stats": {
             "attack_range_tiles": 1,
             "attack_speed": 1.4,
-            "dmg": 50,
-            "hp": 500,
-            "move_speed": 1.045
+            "dmg": 42,
+            "hp": 450,
+            "move_speed": 0.945
           }
         },
         {
