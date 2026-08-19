@@ -14878,14 +14878,15 @@
       "sheet": "imported/vfx_dirt_pile.png"
     },
     "vfx_projectile": {
-      "frame_h": 64,
-      "frame_w": 64,
+      "column_width": 1,
+      "frame_h": 32,
+      "frame_w": 32,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
+          "fps": 6,
           "frames": 1,
           "hidden": [],
           "loop_count": 1,
@@ -14893,13 +14894,15 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/vfx_projectile.png"
+      "sheet": "master/vfx_projectiles.png"
     },
     "vfx_projectile_v2": {
-      "frame_h": 64,
-      "frame_w": 64,
+      "column_width": 1,
+      "frame_h": 32,
+      "frame_w": 32,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 1,
       "rows": [
         {
           "animation": "idle",
@@ -14911,7 +14914,147 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/vfx_shell.png"
+      "sheet": "master/vfx_projectiles.png"
+    },
+    "vfx_projectile_v3": {
+      "column_width": 1,
+      "frame_h": 32,
+      "frame_w": 32,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 2,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/vfx_projectiles.png"
+    },
+    "vfx_projectile_v4": {
+      "column_width": 1,
+      "frame_h": 32,
+      "frame_w": 32,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 3,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/vfx_projectiles.png"
+    },
+    "vfx_projectile_v5": {
+      "column_width": 1,
+      "frame_h": 32,
+      "frame_w": 32,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 4,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/vfx_projectiles.png"
+    },
+    "vfx_projectile_v6": {
+      "column_width": 1,
+      "frame_h": 32,
+      "frame_w": 32,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 5,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/vfx_projectiles.png"
+    },
+    "vfx_projectile_v7": {
+      "column_width": 1,
+      "frame_h": 32,
+      "frame_w": 32,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 6,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/vfx_projectiles.png"
+    },
+    "vfx_projectile_v8": {
+      "column_width": 1,
+      "frame_h": 32,
+      "frame_w": 32,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 7,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/vfx_projectiles.png"
+    },
+    "vfx_projectile_v9": {
+      "column_width": 1,
+      "frame_h": 32,
+      "frame_w": 32,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 8,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/vfx_projectiles.png"
     },
     "vfx_respawn": {
       "column_mode": "building_color",
@@ -14954,14 +15097,16 @@
       "sheet": "imported/vfx_tile_selected.png"
     },
     "vfx_shell": {
-      "frame_h": 64,
-      "frame_w": 64,
+      "column": 1,
+      "column_width": 1,
+      "frame_h": 32,
+      "frame_w": 32,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
+          "fps": 6,
           "frames": 1,
           "hidden": [],
           "loop_count": 1,
@@ -14969,7 +15114,175 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/vfx_shell.png"
+      "sheet": "master/vfx_projectiles.png"
+    },
+    "vfx_shell_v2": {
+      "column": 1,
+      "column_width": 1,
+      "frame_h": 32,
+      "frame_w": 32,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 1,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/vfx_projectiles.png"
+    },
+    "vfx_shell_v3": {
+      "column": 1,
+      "column_width": 1,
+      "frame_h": 32,
+      "frame_w": 32,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 2,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/vfx_projectiles.png"
+    },
+    "vfx_shell_v4": {
+      "column": 1,
+      "column_width": 1,
+      "frame_h": 32,
+      "frame_w": 32,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 3,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/vfx_projectiles.png"
+    },
+    "vfx_shell_v5": {
+      "column": 1,
+      "column_width": 1,
+      "frame_h": 32,
+      "frame_w": 32,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 4,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/vfx_projectiles.png"
+    },
+    "vfx_shell_v6": {
+      "column": 1,
+      "column_width": 1,
+      "frame_h": 32,
+      "frame_w": 32,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 5,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/vfx_projectiles.png"
+    },
+    "vfx_shell_v7": {
+      "column": 1,
+      "column_width": 1,
+      "frame_h": 32,
+      "frame_w": 32,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 6,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/vfx_projectiles.png"
+    },
+    "vfx_shell_v8": {
+      "column": 1,
+      "column_width": 1,
+      "frame_h": 32,
+      "frame_w": 32,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 7,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/vfx_projectiles.png"
+    },
+    "vfx_shell_v9": {
+      "column": 1,
+      "column_width": 1,
+      "frame_h": 32,
+      "frame_w": 32,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 8,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/vfx_projectiles.png"
     },
     "vfx_tile_selected": {
       "frame_h": 96,

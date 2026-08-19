@@ -1380,13 +1380,28 @@
               "label": "Projectile",
               "slots": [
                 "vfx_projectile",
-                "vfx_projectile_v2"
+                "vfx_projectile_v2",
+                "vfx_projectile_v3",
+                "vfx_projectile_v4",
+                "vfx_projectile_v5",
+                "vfx_projectile_v6",
+                "vfx_projectile_v7",
+                "vfx_projectile_v8",
+                "vfx_projectile_v9"
               ]
             },
             {
               "label": "Shell",
               "slots": [
-                "vfx_shell"
+                "vfx_shell",
+                "vfx_shell_v2",
+                "vfx_shell_v3",
+                "vfx_shell_v4",
+                "vfx_shell_v5",
+                "vfx_shell_v6",
+                "vfx_shell_v7",
+                "vfx_shell_v8",
+                "vfx_shell_v9"
               ]
             },
             {

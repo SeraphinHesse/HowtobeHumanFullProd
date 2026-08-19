@@ -145,6 +145,13 @@
       "frame_h": 32,
       "frame_w": 64
     },
+    "vfx_projectiles": {
+      "column_width": 1,
+      "display_name": "VFX_Projectiles",
+      "file": "master/vfx_projectiles.png",
+      "frame_h": 32,
+      "frame_w": 32
+    },
     "vfx_spawn": {
       "column_width": 20,
       "columns": [
