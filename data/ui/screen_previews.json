@@ -265,22 +265,6 @@
       {
         "align": "center",
         "color": [
-          100,
-          220,
-          100
-        ],
-        "family": null,
-        "font_key": "xxl",
-        "pos": [
-          320,
-          81
-        ],
-        "text": "Cutscene: Round Won :)",
-        "type": "text"
-      },
-      {
-        "align": "center",
-        "color": [
           150,
           140,
           120
@@ -291,7 +275,7 @@
           320,
           119
         ],
-        "text": "How will we react?",
+        "text": "Choose an upgrade",
         "type": "text"
       },
       {
@@ -3810,7 +3794,7 @@
               520,
               22
             ],
-            "text": "click here to change name",
+            "text": "click here to change",
             "type": "text"
           },
           {

@@ -159,26 +159,12 @@
           104
         ]
       },
-      "headline": {
-        "align": "center",
-        "display_name": "Headline label",
-        "font_key": "xxl",
-        "kind": "label",
-        "label": "",
-        "parent": "backdrop",
-        "rect": [
-          320,
-          81,
-          0,
-          0
-        ]
-      },
       "subtitle": {
         "align": "center",
         "display_name": "Subtitle label",
         "font_key": "md",
         "kind": "label",
-        "label": "How will we react?",
+        "label": "",
         "parent": "backdrop",
         "rect": [
           320,
@@ -3808,7 +3794,7 @@
               0,
               0
             ],
-            "sample": "click here to change name",
+            "sample": "click here to change",
             "text_id": "building.upgrade.name_placeholder"
           },
           "upgrade_name_box": {
@@ -7426,7 +7412,7 @@
           0,
           0
         ],
-        "sample": "click here to change name",
+        "sample": "click here to change",
         "text_id": "building.upgrade.name_placeholder"
       },
       "upgrade_name_box": {
