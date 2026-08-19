@@ -2199,10 +2199,14 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         # (BU-4; `hit` returns the picked catalog id) or nothing (clicks
         # elsewhere swallowed; keys are already swallowed by the frozen gate).
         if session.state.phase == GamePhase.BOSS_CUTSCENE:
-            choice = gp["boss_cutscene"].hit(mx, my)
-            if choice is not None:
-                gp["boss_cutscene"].close()
-                session.resolve_boss_cutscene(choice, world.scene)
+            # `.visible` because the phase can be up while the window is still
+            # held back behind the life-lost banner — clicks are swallowed
+            # then, never resolved against last boss's stale `slots`.
+            if gp["boss_cutscene"].visible:
+                choice = gp["boss_cutscene"].hit(mx, my)
+                if choice is not None:
+                    gp["boss_cutscene"].close()
+                    session.resolve_boss_cutscene(choice, world.scene)
             return
         # -- /10G --
         # -- feature-enemy-intro-dialogue: a close-X hit closes early (its own
@@ -3189,8 +3193,16 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                     gp["panel"].close()  # the modal owns the screen
                     gp["levelup"].open(session.state.levelup_options)
                 # -- 10G boss: open the cutscene on ITS phase edge (same pattern) --
+                # Not a phase EDGE like the others: a LOST boss round also
+                # fires the "YOU / LOST 1 LIFE" banner, and the modal used to
+                # cover it (round_end_delay 1.4s vs the banner's 3.3s). So the
+                # open is held until that banner's clock is done — hence the
+                # "not visible yet" test instead of the prev_phase edge (the
+                # phase leaves BOSS_CUTSCENE the moment a card is picked, so
+                # this can never re-open the same cutscene).
                 if (session.state.phase == GamePhase.BOSS_CUTSCENE
-                        and gp["prev_phase"] != GamePhase.BOSS_CUTSCENE):
+                        and not gp["boss_cutscene"].visible
+                        and not gp["floaters"].life_lost_active()):
                     pending = session.state.pending_boss_cutscene or {}
                     gp["panel"].close()  # the modal owns the screen
                     gp["boss_cutscene"].open(pending.get("boss_num", 1),
@@ -3618,8 +3630,9 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             if gp["levelup"].visible:
                 gp["levelup"].submit(renderer, view_w, view_h)
             # -- 10G boss: the cutscene modal draws over everything below --
-            if session.state.phase == GamePhase.BOSS_CUTSCENE:
-                gp["boss_cutscene"].submit(renderer, view_w, view_h)
+            if (session.state.phase == GamePhase.BOSS_CUTSCENE
+                    and gp["boss_cutscene"].visible):  # held back behind the
+                gp["boss_cutscene"].submit(renderer, view_w, view_h)  # life-lost banner
             # -- /10G --
             if gp["enemy_intro"].visible:  # feature-enemy-intro-dialogue
                 gp["enemy_intro"].submit(renderer, view_w, view_h)

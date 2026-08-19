@@ -1946,6 +1946,18 @@ class FloaterManager:
         state.life_lost_events.clear()
         self._life_lost_age = 0.0
 
+    def life_lost_active(self):
+        """True while the "YOU / LOST 1 LIFE" banner is still on screen (its
+        fade-in -> hold -> fade-out clock is running).
+
+        The host uses this to hold the boss-upgrade cutscene back until the
+        life-loss announcement has finished: losing a boss round queues both,
+        and the modal used to open on top of the banner ~1.9s early
+        (round_end_delay 1.4s vs the banner's 3.3s). The clock lives here, so
+        the question is answered here rather than by main.py reaching into a
+        private field."""
+        return self._life_lost_age is not None
+
     def _announce_k(self, age):
         """The shared fade-in -> hold -> fade-out ramp (0..1) for an
         announcement clock, on the ``ui.FX.boss_announce`` timings."""
