@@ -176,9 +176,12 @@ class CutscenePlayer:
         if self._phase == "playing":
             self._video.update(dt)
             if self._fade_out > 0:
-                # Cache the latest frame BEFORE the video can wipe it: EOF
-                # clears VideoSource._bgr (_mark_source_ended), so without
-                # this the fade-out would have no frame to hold on.
+                # Cache the latest decoded frame each tick so the fade-out
+                # always has one to hold. `VideoSource.update` re-holds the
+                # true final frame at natural EOF (engine/video.py), so the
+                # read AFTER update() is the real last frame even when the
+                # clip ends inside a multi-frame catch-up burst; this cache
+                # then also survives a `release()` on the way out.
                 surf = self._video.frame_surface()
                 if surf is not None:
                     self._last_frame = surf
@@ -212,8 +215,8 @@ class CutscenePlayer:
 
     def frame_surface(self):
         """During ``fade_out`` the underlying ``VideoSource`` has already
-        hit EOF and dropped its own last frame (see ``update()``), so this
-        returns the cached ``_last_frame`` instead; every other phase
+        hit EOF and been released (see ``update()``), so this returns the
+        cached ``_last_frame`` instead; every other phase
         delegates straight to ``VideoSource.frame_surface()`` — with
         ``fade_out`` disabled ``_phase`` never becomes ``"fade_out"``, so
         this is byte-identical to before this feature."""

@@ -178,7 +178,16 @@ class VideoSource:
         for _ in range(self._frames_due(dt)):
             ret, bgr = self._cap.read()
             if not ret:
+                # EOF. `_frames_due` can ask for several frames in ONE call
+                # (catch-up after a stutter), so frames read EARLIER in this
+                # very loop would be thrown away by `_mark_source_ended`'s
+                # `_bgr = None` -- leaving a fade-out with a stale frame, or
+                # none at all for a clip shorter than one catch-up burst.
+                # Re-hold the last frame we actually decoded so the natural
+                # end-of-stream keeps showing the true final frame.
+                held = self._bgr
                 self._mark_source_ended()
+                self._bgr = held
                 return
             self._bgr = bgr
 
