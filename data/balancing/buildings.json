@@ -741,16 +741,16 @@
           "base_dmg": 0,
           "base_hp": 150,
           "base_upkeep": 1,
-          "build_cost": 20,
+          "build_cost": 22,
           "dmg_per_level": 0,
-          "explanation": "Calls down the occasional bolt. LEFT CLICK ATTACK. ",
+          "explanation": "Calls down the thunder bolt. Build more to increase the amount of bolts. LEFT CLICK ATTACK. ",
           "hp_per_level": 45,
           "levels": 3,
           "name": "Lightning Charger",
           "range_tiles": 0,
           "upgrade_cost_base": 20,
           "upgrade_cost_increment": 10,
-          "upkeep_per_level": 2
+          "upkeep_per_level": 1
         },
         {
           "attack_speed": 19.9999,
