@@ -889,6 +889,11 @@
                   "frame_h": 57,
                   "frame_w": 41,
                   "key": "ui_button_panel_v9"
+                },
+                {
+                  "frame_h": 14,
+                  "frame_w": 17,
+                  "key": "ui_button_panel_v10"
                 }
               ]
             },
