@@ -80,11 +80,46 @@ Everything below is pure Python — no pygame — and headless-testable.
     other_tile)` (pure Chebyshev) and `query(grid, center_tile)` (delegates to
     `grid.query_chebyshev`). Sticky-target / nearest-enemy tiebreak is GAME logic
     (9D/9E), NOT here — the engine only supplies candidates.
-- **`Scene` spatial queries** — Scene owns a `SpatialGrid`, `rebuild`t once at the
-  start of each `update(dt)` (after the spawn queue). `query_area(world_pos,
-  radius)` → `grid.query_radius`; `query_chebyshev(center_tile, range_tiles)` →
-  `grid.query_chebyshev`. `by_type`/`by_tag`/`render_items` unchanged. (The
-  primitives themselves live in `engine/physics/` — see that doc.)
+- **`Scene` spatial queries are LAZY, not per-frame.** Scene owns a
+  `SpatialGrid`. `update(dt)` only *dirties* it (`_grid_stamp = None`, one
+  attribute store); `_ensure_grid()` rebuilds it on the next
+  `query_area(world_pos, radius)` → `grid.query_radius` or
+  `query_chebyshev(center_tile, range_tiles)` → `grid.query_chebyshev`, and a
+  frame with no query never rebuilds. Staleness is `_grid_stamp !=
+  _structure_epoch`, so a mid-update spawn/despawn also invalidates it — a dead
+  object can't survive in a bucket a later query reads. Why: the rebuild used to
+  run unconditionally at the top of `update`, costing three dict clears plus two
+  dict writes, a tuple key and two `math.floor` calls **per object per frame** —
+  paid on every frame whether or not anything asked.
+  **THE hot caller is defender target acquisition** (`game/enemies/combat.py`
+  `_acquire`, via `query_chebyshev`), which asks once per defender, so an
+  in-round frame rebuilds exactly once no matter how many defenders there are;
+  a frame with no combat (menus, build phase, the editor) still rebuilds never.
+  `RangeSensor.query()` remains callerless.
+  **Scene's own grid is `SpatialGrid(cell_size=2.0)`, not the class default
+  1.0** — a query walks every cell its range box touches, so one cell per tile
+  made a range-5 tile query ~144 dict lookups, i.e. *slower* than the full scan
+  it replaces at small object counts; two tiles per cell measured
+  fastest-or-tied from 20 to 600 objects (`game/PERF.md`). It is a bucket-size
+  knob only: results and their order are identical at any cell size.
+  `by_type`/`by_tag`/`render_items` unchanged. (The primitives themselves live in
+  `engine/physics/` — see that doc.)
+- **`by_tag` is INDEXED, not a scan.** Scene keeps `tag -> [live objects]`
+  (`_tag_index`), rebuilt lazily when its stamp — `(_structure_epoch,
+  gameobject.tags_epoch())` — changes. `_structure_epoch` ticks on **every**
+  individual append/remove inside `update` (not once per batch: `on_spawn` can
+  itself call `by_tag`, and a batch-level stamp let such a call cache a
+  half-merged index for the rest of the frame). `tags_epoch()` is a module-level
+  counter in `engine/core/gameobject.py` bumped by the `GameObject.tags` setter,
+  so a runtime retag (`game/enemies/kidnap.py` flips a carrier to
+  `("kidnapper",)`) invalidates the index without GameObject needing a
+  back-reference to its Scene. `by_tag` still returns a fresh list in spawn
+  order — same contract, so callers may mutate it or despawn while iterating.
+  Why: the game calls `by_tag` ~25x/frame from the effects/session/combat
+  passes; at ~700 objects that was ~25 full sweeps per frame (measured 1.28
+  ms/frame → 0.013 ms/frame, ~100x). The tradeoff is that a query following a
+  mutation pays a rebuild; invalidating before *every* one of the 25 queries
+  measures ~3x SLOWER than the old scan, so do not introduce a per-query retag.
 
 ## Verify
 Unit tests (component field collection, serialization round-trip, frame order,
