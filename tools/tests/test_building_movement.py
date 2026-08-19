@@ -11,6 +11,7 @@ Covers the three things the feature's correctness rests on:
    ``col``/``row`` caches AND its Transform following it.
 """
 import inspect
+import types
 import unittest
 from pathlib import Path
 
@@ -27,7 +28,7 @@ from game.buildings.movement import (
 )
 from game.core.balance import load_balance
 from game.map.tile_map import TileMap
-from game.map.tiles import TileState
+from game.map.tiles import TileCondition, TileState
 
 MAPBAL = load_balance(FIXTURE_DATA, "map")
 BAL = load_balance(FIXTURE_DATA, "buildings")
@@ -81,6 +82,62 @@ class TestFormula(unittest.TestCase):
         instant = dict(MOVE, time_cost_enabled=False)
         self.assertEqual(move_time(5, instant), 0)
         self.assertEqual(move_cost(5, instant), move_cost(5, MOVE))
+
+
+class TestMoveAsksThePlacementRules(unittest.TestCase):
+    """A move is the SECOND way a building comes to occupy a tile, so it must
+    ask the same tile-legality predicate a fresh placement does
+    (``registry.placement_blocker``). These three rules used to live inline in
+    ``place_building`` only, so a move walked straight past them."""
+
+    def test_pond_destination_is_refused(self):
+        tm, scene, occ, b = board()
+        tm.get(3, 1).condition = TileCondition.POND
+        with self.assertRaises(MoveError):
+            start_move(tm, b, tm.get(3, 1), MOVE, 9999, occ, scene)
+        # still on its origin, still in the scene
+        self.assertIs(tm.get(1, 1).occupant, b)
+
+    def test_booster_may_not_move_cardinally_beside_another_booster(self):
+        tm = synth(["bbbbbb"] * 6)
+        scene, occ = Scene(), TileOccupancy()
+        place_building(tm, tm.get(4, 4), "boost_damage", 9999, BAL, scene, occ)
+        mover, _ = place_building(tm, tm.get(1, 1), "boost_speed", 9999, BAL,
+                                  scene, occ)
+        scene.update(0.0)
+        with self.assertRaises(MoveError):
+            start_move(tm, mover, tm.get(4, 3), MOVE, 9999, occ, scene)
+        self.assertIs(tm.get(1, 1).occupant, mover)
+        # a diagonal neighbour is legal, exactly as it is for a placement
+        start_move(tm, mover, tm.get(3, 3), MOVE, 9999, occ, scene)
+
+    def test_booster_may_shuffle_one_tile_without_blocking_itself(self):
+        """The mover is still standing on its origin when the predicate runs,
+        so it must be excluded from the neighbour scan (``ignore``) — else a
+        booster could never step to an adjacent tile."""
+        tm = synth(["bbbbbb"] * 6)
+        scene, occ = Scene(), TileOccupancy()
+        mover, _ = place_building(tm, tm.get(1, 1), "boost_hp", 9999, BAL,
+                                  scene, occ)
+        scene.update(0.0)
+        start_move(tm, mover, tm.get(2, 1), MOVE, 9999, occ, scene)
+
+    def test_painter_may_not_move_onto_a_spent_painter_tile(self):
+        tm = synth(["bbbbbb"] * 6)
+        scene, occ = Scene(), TileOccupancy()
+        painter, _ = place_building(tm, tm.get(1, 1), "painter", 9999, BAL,
+                                    scene, occ)
+        scene.update(0.0)
+        state = types.SimpleNamespace(used_painter_tiles={(4, 4)})
+        with self.assertRaises(MoveError):
+            start_move(tm, painter, tm.get(4, 4), MOVE, 9999, occ, scene,
+                       run_state=state)
+        # a non-painter is unaffected by the painter bar
+        other, _ = place_building(tm, tm.get(0, 5), "defence", 9999, BAL,
+                                  scene, occ)
+        scene.update(0.0)
+        start_move(tm, other, tm.get(4, 4), MOVE, 9999, occ, scene,
+                   run_state=state)
 
 
 class TestStartMove(unittest.TestCase):

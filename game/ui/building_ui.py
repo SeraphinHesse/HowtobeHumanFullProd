@@ -51,7 +51,7 @@ from game.buildings.components import (
 from game.buildings.movement import MoveError, is_movable, start_move
 from game.buildings.registry import (
     BUILDING_CLASSES, LIGHTNING_SOURCE_TAG, PlacementError, build_cost,
-    count_tag, create, place_building,
+    count_tag, create, place_building, placement_blocker,
 )
 from game.buildings.research import buildable, tiers_unlocked_for
 from game.core import lightning  # 10H (sanctioned ui -> core direction)
@@ -2634,13 +2634,19 @@ class BuildingUI:
         return anim.column
 
     def _build_move_select(self, session):
-        """Highlight every legal move destination: an unbuilt BUILDABLE tile
-        that is not already an endpoint of a move in progress."""
+        """Highlight every legal move destination — the tiles
+        ``registry.placement_blocker`` clears for THIS building, which is the
+        same predicate ``start_move`` enforces with, so the highlight can never
+        offer a tile the confirm would refuse (a pond, a spent Painter tile, a
+        move endpoint, or a booster's cardinal neighbour)."""
+        b = self._selected
+        btype = b.building_type if b is not None else None
         self._highlight_edges = []
         self._highlight_tiles = [
             (t.col, t.row, "move_target")
             for t in session.tilemap.buildable_tiles()
-            if not session.tilemap.is_moving(t.col, t.row)]
+            if placement_blocker(session.tilemap, t, btype, session.state,
+                                 ignore=b) is None]
 
     def _upgrade_state(self, b):
         """``(mode, cost, button_label, hint)`` — the five-mode research gate
