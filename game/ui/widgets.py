@@ -440,6 +440,7 @@ _HIGHLIGHTS = {
     "section_2x2": {"color": (255, 180, 60), "border_width": 2, "fill_alpha": 0},
     "attack_range": {"color": (180, 40, 40), "border_width": 2, "fill_alpha": 0},
     "move_target": {"color": (80, 200, 255), "border_width": 2, "fill_alpha": 0},
+    "move_blocked": {"color": (110, 110, 110), "border_width": 2, "fill_alpha": 90},
     "wall_edge": {"color": (255, 230, 60), "border_width": 4, "fill_alpha": 0},
     "upgrade_batch": {"color": (255, 230, 60), "border_width": 2, "fill_alpha": 0},
     "tutorial_highlight": {"color": (255, 255, 255), "border_width": 2,
@@ -739,6 +740,12 @@ class Button:
         #: Seconds of `pressed` still owed before a pending flash may paint
         #: (`start_flash`). Counted down by `update`.
         self._flash_delay = 0.0
+        #: Seconds of the `pressed` ROW still owed after the press itself
+        #: ended — the press LATCH (see `update`). A click is 2-6 frames and
+        #: every shipped `pressed` row is 750-1336ms, so without this the row
+        #: never got past frame 0 and the press animation was invisible.
+        self._press_hold = 0.0
+        self._was_pressed = False
 
     def _surface_hit(self, mx, my):
         """Rect hit-test; if skin + seam exists, delegate to the injected
@@ -775,20 +782,24 @@ class Button:
         `pressed` — the animation plays out, THEN the button goes red for its
         full `duration`. An unskinned button, a skin with no `pressed` row and
         an un-wired host seam all answer 0 and flash immediately, exactly as
-        before."""
-        self._flash_delay = self._press_remaining()
+        before.
+
+        The wait is the PRESS LATCH's own remainder (`update`), not a second
+        independent countdown: the latch is what holds `_state()` on the
+        `pressed` row, so reading anything else here could let the red start
+        before or after the row it is waiting for. A flash with no press
+        behind it (nothing armed the latch) therefore shows immediately."""
+        self._flash_delay = self._press_hold
         self.flash = duration
         self.flash_label = label
 
-    def _press_remaining(self):
-        """Seconds of this skin's `pressed` row still unplayed, or 0.0."""
+    def _row_seconds(self, animation):
+        """How long one play of this skin's ``animation`` row lasts, in
+        seconds — ``0.0`` when there is no skin, no host seam, or no such
+        row. The ONE reader of the ``_skin_anim_ms`` seam."""
         if not self.skin or _skin_anim_ms is None:
             return 0.0
-        total = _skin_anim_ms(self.skin, "pressed")
-        if not total:
-            return 0.0
-        played = self._anim_t if self._anim_state == "pressed" else 0.0
-        return max(0.0, total / 1000.0 - (played or 0.0))
+        return (_skin_anim_ms(self.skin, animation) or 0) / 1000.0
 
     @property
     def flash_showing(self):
@@ -808,6 +819,22 @@ class Button:
             self.flash = max(0.0, self.flash - dt)
             if self.flash == 0:
                 self.flash_label = None
+        # -- the press LATCH ------------------------------------------------
+        # A real click holds the button down for 2-6 frames (~100ms); every
+        # shipped `ui_button*` sheet's `pressed` row runs 750-1336ms. Without
+        # a latch the row was released back to `hover` on frame 0 or 1 and the
+        # press animation was never actually seen — the ONLY time it played
+        # through was the not-enough-love flash, which used to force `pressed`
+        # for the whole flash (it no longer does — see `_state`). So the
+        # RISING EDGE of `pressed` arms the full row length and `_state` keeps
+        # answering "pressed" until it drains, whether or not the button is
+        # still held.
+        now_pressed = self.pressed
+        if now_pressed and not self._was_pressed:
+            self._press_hold = self._row_seconds("pressed")
+        self._was_pressed = now_pressed
+        if self._press_hold > 0:
+            self._press_hold = max(0.0, self._press_hold - dt)
         # The per-state animation clock (10L-A's skin rows are play-once, so
         # a shared free-running screen clock left every hover/pressed row
         # sitting on its LAST frame — the animation never appeared to fire).
@@ -821,21 +848,39 @@ class Button:
     def _state(self):
         """Skin animation row. Same priority as the flat fill selection below,
         so skinned and unskinned never disagree about the button's state
-        (plan lines 58-61: flash -> pressed art, disabled -> disabled row)."""
-        if self.flash > 0:
-            return "pressed"
+        (plan lines 58-61: disabled -> disabled row).
+
+        **A flash does NOT select the pressed row.** It used to (`if
+        self.flash > 0: return "pressed"` sat at the top), which made the
+        not-enough-love refusal the one and only place a `pressed` row was
+        ever seen playing — the exact opposite of what it should signal. The
+        red flash is its own feedback; the press that earned it plays through
+        the LATCH below like any other press, then the button goes red."""
         if not self.enabled:
             return "disabled"
-        if self.pressed:
+        if self.pressed or self._press_hold > 0:
             return "pressed"
         return "hover" if self.hovered else "idle"
 
     def _anim_time(self, fallback_ms):
         """This button's own state clock in ms, or the caller's screen clock
-        when nothing ticks it (a bare test/tool button)."""
+        when nothing ticks it (a bare test/tool button).
+
+        CLAMPED to one play of the row being drawn, so a `loop_count: 1` row
+        plays once and HOLDS its last frame. `Manifest.current_frame` resolves
+        a time with `% total_ms` and knows nothing about `loop_count`, so an
+        un-clamped clock looped every hover row forever (measured: a hovered
+        End Turn cycled frames 0,1,2,0,1,2... indefinitely) — motion that
+        reads as jitter rather than as a hover-in. The clamp lands one ms
+        inside the last frame's bucket. No skin, no host `_skin_anim_ms` seam
+        or no such row answers 0 and is left unclamped, i.e. exactly the
+        pre-clamp behaviour (which is what keeps every bare test/tool button
+        and the golden pins unchanged)."""
         if self._anim_t is None:
             return fallback_ms
-        return anim_ms(self._anim_t)
+        t = anim_ms(self._anim_t)
+        total_ms = int(self._row_seconds(self._state()) * 1000)
+        return min(t, total_ms - 1) if total_ms > 0 else t
 
     def submit(self, renderer, *, color=None, text_color=None, anim_ms=0):
         x, y, w, h = self.rect

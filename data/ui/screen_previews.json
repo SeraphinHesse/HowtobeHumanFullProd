@@ -265,22 +265,6 @@
       {
         "align": "center",
         "color": [
-          100,
-          220,
-          100
-        ],
-        "family": null,
-        "font_key": "xxl",
-        "pos": [
-          320,
-          81
-        ],
-        "text": "Cutscene: Round Won :)",
-        "type": "text"
-      },
-      {
-        "align": "center",
-        "color": [
           150,
           140,
           120
@@ -291,7 +275,7 @@
           320,
           119
         ],
-        "text": "How will we react?",
+        "text": "Choose an upgrade",
         "type": "text"
       },
       {
@@ -3810,7 +3794,7 @@
               520,
               22
             ],
-            "text": "click here to change name",
+            "text": "click here to change",
             "type": "text"
           },
           {
@@ -5635,9 +5619,9 @@
           115
         ],
         "rect": [
-          260,
+          250,
           235,
-          120,
+          140,
           23
         ],
         "type": "rect",
@@ -5651,9 +5635,9 @@
           120
         ],
         "rect": [
-          260,
+          250,
           235,
-          120,
+          140,
           23
         ],
         "type": "rect",
@@ -5671,6 +5655,54 @@
         "pos": [
           320,
           239
+        ],
+        "text": "PLAY AGAIN",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          260,
+          264,
+          120,
+          23
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          260,
+          264,
+          120,
+          23
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "family": null,
+        "font_key": "lg",
+        "pos": [
+          320,
+          268
         ],
         "text": "MAIN MENU",
         "type": "text"
@@ -7532,10 +7564,26 @@
         "family": null,
         "font_key": "md",
         "pos": [
-          245,
+          155,
           160
         ],
-        "text": "Income Floaters",
+        "text": "Renderer",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "family": null,
+        "font_key": "sm",
+        "pos": [
+          330,
+          160
+        ],
+        "text": "Applies on restart",
         "type": "text"
       },
       {
@@ -7546,9 +7594,9 @@
           115
         ],
         "rect": [
-          350,
+          260,
           156,
-          45,
+          60,
           20
         ],
         "type": "rect",
@@ -7562,73 +7610,9 @@
           120
         ],
         "rect": [
-          350,
+          260,
           156,
-          45,
-          20
-        ],
-        "type": "rect",
-        "width": 1
-      },
-      {
-        "align": "center",
-        "color": [
-          235,
-          225,
-          195
-        ],
-        "family": null,
-        "font_key": "lg",
-        "pos": [
-          372,
-          158
-        ],
-        "text": "ON",
-        "type": "text"
-      },
-      {
-        "align": "left",
-        "color": [
-          235,
-          225,
-          195
-        ],
-        "family": null,
-        "font_key": "md",
-        "pos": [
-          245,
-          188
-        ],
-        "text": "Background Art",
-        "type": "text"
-      },
-      {
-        "border_radius": 3,
-        "color": [
-          75,
           60,
-          115
-        ],
-        "rect": [
-          350,
-          184,
-          45,
-          20
-        ],
-        "type": "rect",
-        "width": 0
-      },
-      {
-        "border_radius": 3,
-        "color": [
-          80,
-          65,
-          120
-        ],
-        "rect": [
-          350,
-          184,
-          45,
           20
         ],
         "type": "rect",
@@ -7642,12 +7626,12 @@
           195
         ],
         "family": null,
-        "font_key": "lg",
+        "font_key": "md",
         "pos": [
-          372,
-          186
+          290,
+          159
         ],
-        "text": "ON",
+        "text": "GPU",
         "type": "text"
       },
       {
@@ -7660,88 +7644,136 @@
         "family": null,
         "font_key": "md",
         "pos": [
-          245,
-          216
-        ],
-        "text": "Gore",
-        "type": "text"
-      },
-      {
-        "border_radius": 3,
-        "color": [
-          75,
-          60,
-          115
-        ],
-        "rect": [
-          350,
-          212,
-          45,
-          20
-        ],
-        "type": "rect",
-        "width": 0
-      },
-      {
-        "border_radius": 3,
-        "color": [
-          80,
-          65,
-          120
-        ],
-        "rect": [
-          350,
-          212,
-          45,
-          20
-        ],
-        "type": "rect",
-        "width": 1
-      },
-      {
-        "align": "center",
-        "color": [
-          235,
-          225,
-          195
-        ],
-        "family": null,
-        "font_key": "lg",
-        "pos": [
-          372,
-          214
-        ],
-        "text": "ON",
-        "type": "text"
-      },
-      {
-        "align": "left",
-        "color": [
-          235,
-          225,
-          195
-        ],
-        "family": null,
-        "font_key": "md",
-        "pos": [
-          190,
-          245
+          155,
+          193
         ],
         "text": "Master Audio",
         "type": "text"
       },
       {
-        "border_radius": 0,
+        "align": "left",
+        "color": [
+          255,
+          200,
+          50
+        ],
+        "family": null,
+        "font_key": "sm",
+        "pos": [
+          404,
+          194
+        ],
+        "text": "80%",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          260,
+          191,
+          16,
+          16
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
         "color": [
           80,
           65,
           120
         ],
         "rect": [
-          275,
-          248,
-          90,
-          6
+          260,
+          191,
+          16,
+          16
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "family": null,
+        "font_key": "md",
+        "pos": [
+          268,
+          192
+        ],
+        "text": "-",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          382,
+          191,
+          16,
+          16
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          382,
+          191,
+          16,
+          16
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "family": null,
+        "font_key": "md",
+        "pos": [
+          390,
+          192
+        ],
+        "text": "+",
+        "type": "text"
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          40,
+          32,
+          58
+        ],
+        "rect": [
+          282,
+          194,
+          96,
+          10
         ],
         "type": "rect",
         "width": 0
@@ -7749,15 +7781,47 @@
       {
         "border_radius": 0,
         "color": [
-          75,
-          60,
-          115
+          168,
+          105,
+          222
         ],
         "rect": [
-          275,
-          248,
-          72,
-          6
+          282,
+          194,
+          76,
+          10
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          282,
+          194,
+          96,
+          10
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          255,
+          200,
+          50
+        ],
+        "rect": [
+          354,
+          190,
+          6,
+          18
         ],
         "type": "rect",
         "width": 0
@@ -7772,24 +7836,136 @@
         "family": null,
         "font_key": "md",
         "pos": [
-          190,
-          257
+          155,
+          215
         ],
         "text": "Music",
         "type": "text"
       },
       {
-        "border_radius": 0,
+        "align": "left",
+        "color": [
+          255,
+          200,
+          50
+        ],
+        "family": null,
+        "font_key": "sm",
+        "pos": [
+          404,
+          216
+        ],
+        "text": "80%",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          260,
+          213,
+          16,
+          16
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
         "color": [
           80,
           65,
           120
         ],
         "rect": [
-          275,
           260,
-          90,
-          6
+          213,
+          16,
+          16
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "family": null,
+        "font_key": "md",
+        "pos": [
+          268,
+          214
+        ],
+        "text": "-",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          382,
+          213,
+          16,
+          16
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          382,
+          213,
+          16,
+          16
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "family": null,
+        "font_key": "md",
+        "pos": [
+          390,
+          214
+        ],
+        "text": "+",
+        "type": "text"
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          40,
+          32,
+          58
+        ],
+        "rect": [
+          282,
+          216,
+          96,
+          10
         ],
         "type": "rect",
         "width": 0
@@ -7797,15 +7973,47 @@
       {
         "border_radius": 0,
         "color": [
-          75,
-          60,
-          115
+          168,
+          105,
+          222
         ],
         "rect": [
-          275,
-          260,
-          72,
-          6
+          282,
+          216,
+          76,
+          10
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          282,
+          216,
+          96,
+          10
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          255,
+          200,
+          50
+        ],
+        "rect": [
+          354,
+          212,
+          6,
+          18
         ],
         "type": "rect",
         "width": 0
@@ -7820,11 +8028,155 @@
         "family": null,
         "font_key": "md",
         "pos": [
-          190,
-          269
+          155,
+          237
         ],
         "text": "SFX",
         "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          255,
+          200,
+          50
+        ],
+        "family": null,
+        "font_key": "sm",
+        "pos": [
+          404,
+          238
+        ],
+        "text": "80%",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          260,
+          235,
+          16,
+          16
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          260,
+          235,
+          16,
+          16
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "family": null,
+        "font_key": "md",
+        "pos": [
+          268,
+          236
+        ],
+        "text": "-",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          382,
+          235,
+          16,
+          16
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          382,
+          235,
+          16,
+          16
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "family": null,
+        "font_key": "md",
+        "pos": [
+          390,
+          236
+        ],
+        "text": "+",
+        "type": "text"
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          40,
+          32,
+          58
+        ],
+        "rect": [
+          282,
+          238,
+          96,
+          10
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          168,
+          105,
+          222
+        ],
+        "rect": [
+          282,
+          238,
+          76,
+          10
+        ],
+        "type": "rect",
+        "width": 0
       },
       {
         "border_radius": 0,
@@ -7834,26 +8186,26 @@
           120
         ],
         "rect": [
-          275,
-          272,
-          90,
-          6
+          282,
+          238,
+          96,
+          10
         ],
         "type": "rect",
-        "width": 0
+        "width": 1
       },
       {
         "border_radius": 0,
         "color": [
-          75,
-          60,
-          115
+          255,
+          200,
+          50
         ],
         "rect": [
-          275,
-          272,
-          72,
-          6
+          354,
+          234,
+          6,
+          18
         ],
         "type": "rect",
         "width": 0
@@ -7867,7 +8219,7 @@
         ],
         "rect": [
           270,
-          296,
+          278,
           100,
           23
         ],
@@ -7883,7 +8235,7 @@
         ],
         "rect": [
           270,
-          296,
+          278,
           100,
           23
         ],
@@ -7901,7 +8253,7 @@
         "font_key": "lg",
         "pos": [
           320,
-          300
+          282
         ],
         "text": "BACK",
         "type": "text"
@@ -7915,7 +8267,7 @@
         ],
         "rect": [
           380,
-          296,
+          278,
           90,
           23
         ],
@@ -7931,7 +8283,7 @@
         ],
         "rect": [
           380,
-          296,
+          278,
           90,
           23
         ],
@@ -7949,7 +8301,7 @@
         "font_key": "sm",
         "pos": [
           425,
-          302
+          284
         ],
         "text": "CONTROLS",
         "type": "text"

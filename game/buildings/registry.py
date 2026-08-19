@@ -290,9 +290,8 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
     # full-map ``sync_occupancy`` scan (an O(map) hitch on large maps, D-20).
     occupancy.set((tile.col, tile.row), building)
     # Post-placement family hook (Building.on_placed, default no-op): a booster
-    # clears the tile's previous occupant's explosion debuffs + (flat mode)
-    # applies its one-time boost (10D); a WallBuilder raises its perimeter walls
-    # (10E).
+    # in flat mode applies its one-time boost (10D); a WallBuilder raises its
+    # perimeter walls (10E).
     building.on_placed(tilemap)
     # BU-3 #5 musician_auto_level: AFTER create() + on_placed(), so the bonus
     # levels land on a fully wired building (the levels themselves go through

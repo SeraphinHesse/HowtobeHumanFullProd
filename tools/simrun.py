@@ -331,7 +331,7 @@ def run_sim(rounds, strategy, seed, level=LEVEL_BASIC, data_dir=None,
                     built_for_round = state.round_num
                     _expand_territory(world)
                     apply_policy(world, policy, recorder)
-                session.end_turn()
+                session.end_turn(scene)
             sim_dt = (DT * session.combat_speed
                       if state.phase == GamePhase.ENEMY else DT)
             session.pre_sim(sim_dt, scene)

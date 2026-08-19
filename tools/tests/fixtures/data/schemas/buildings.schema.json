@@ -859,6 +859,74 @@
       ],
       "type": "object"
     },
+    "sound_clip": {
+      "additionalProperties": false,
+      "description": "One audio clip in a sound slot's playlist: a file plus its volume and trim window.",
+      "properties": {
+        "end": {
+          "description": "Trim out-point in seconds. 0.0 is the SENTINEL for 'play to the end of the file' (never null -- a nullable/union node breaks the balancing panel). Bounded at 3600 s for the same reason as start.",
+          "maximum": 3600.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "file": {
+          "description": "Path relative to data/audio/ (e.g. 'imported/building_death_a.ogg'). Empty string = no clip.",
+          "type": "string"
+        },
+        "start": {
+          "description": "Trim in-point in seconds; 0.0 plays from the beginning. Bounded at 3600 s (one hour), a deliberate approved deviation from the 0-60 s convention, which was written for VFX timings -- music tracks run minutes.",
+          "maximum": 3600.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "volume": {
+          "description": "Clip gain as a fraction 0..1, multiplied by the bus volume and the master volume.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "end",
+        "file",
+        "start",
+        "volume"
+      ],
+      "type": "object"
+    },
+    "sound_slot": {
+      "additionalProperties": false,
+      "description": "A sound event: zero or more clips plus how to play them. Empty clips on a global default means silence; empty clips on a per-element override means inherit the global default.",
+      "properties": {
+        "clips": {
+          "description": "The clips this event may play. Empty on a global default = silence; empty on a per-element override = inherit the global default.",
+          "items": {
+            "$ref": "#/$defs/sound_clip"
+          },
+          "minItems": 0,
+          "type": "array"
+        },
+        "loop": {
+          "description": "Repeat the chosen clip until stopped (music and ambience) rather than playing it once.",
+          "type": "boolean"
+        },
+        "pick": {
+          "description": "How the next clip is chosen when the slot holds more than one: 'random' picks any, 'sequential' cycles in order.",
+          "enum": [
+            "random",
+            "sequential"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "clips",
+        "loop",
+        "pick"
+      ],
+      "type": "object",
+      "x-widget": "sound_slot"
+    },
     "storm_priest_tier": {
       "additionalProperties": false,
       "description": "One StormPriest tier (Storm Acolyte -> Storm Priest -> Storm High Priest); single-target defender whose placement unlocks lightning strikes.",
@@ -1085,6 +1153,45 @@
               "minItems": 3,
               "type": "array"
             },
+            "sounds": {
+              "additionalProperties": false,
+              "description": "Per-family sound overrides. An empty slot inherits BuildingsGlobal.Sounds.",
+              "properties": {
+                "attack": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building fires. Economy buildings never attack; their slot ships empty and is therefore silent."
+                },
+                "death": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is destroyed."
+                },
+                "placement": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is placed on the map."
+                },
+                "selection": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the player selects the building."
+                },
+                "upgrade": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is upgraded a tier."
+                },
+                "upkeep_boost": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building's upkeep boost triggers."
+                }
+              },
+              "required": [
+                "attack",
+                "death",
+                "placement",
+                "selection",
+                "upgrade",
+                "upkeep_boost"
+              ],
+              "type": "object"
+            },
             "tiers": {
               "description": "Damage boost tiers in advance order.",
               "items": {
@@ -1098,6 +1205,7 @@
           "required": [
             "building_type",
             "card_slots",
+            "sounds",
             "tiers"
           ],
           "type": "object"
@@ -1122,6 +1230,45 @@
               "minItems": 3,
               "type": "array"
             },
+            "sounds": {
+              "additionalProperties": false,
+              "description": "Per-family sound overrides. An empty slot inherits BuildingsGlobal.Sounds.",
+              "properties": {
+                "attack": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building fires. Economy buildings never attack; their slot ships empty and is therefore silent."
+                },
+                "death": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is destroyed."
+                },
+                "placement": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is placed on the map."
+                },
+                "selection": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the player selects the building."
+                },
+                "upgrade": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is upgraded a tier."
+                },
+                "upkeep_boost": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building's upkeep boost triggers."
+                }
+              },
+              "required": [
+                "attack",
+                "death",
+                "placement",
+                "selection",
+                "upgrade",
+                "upkeep_boost"
+              ],
+              "type": "object"
+            },
             "tiers": {
               "description": "HP boost tiers in advance order.",
               "items": {
@@ -1135,6 +1282,7 @@
           "required": [
             "building_type",
             "card_slots",
+            "sounds",
             "tiers"
           ],
           "type": "object"
@@ -1159,6 +1307,45 @@
               "minItems": 3,
               "type": "array"
             },
+            "sounds": {
+              "additionalProperties": false,
+              "description": "Per-family sound overrides. An empty slot inherits BuildingsGlobal.Sounds.",
+              "properties": {
+                "attack": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building fires. Economy buildings never attack; their slot ships empty and is therefore silent."
+                },
+                "death": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is destroyed."
+                },
+                "placement": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is placed on the map."
+                },
+                "selection": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the player selects the building."
+                },
+                "upgrade": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is upgraded a tier."
+                },
+                "upkeep_boost": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building's upkeep boost triggers."
+                }
+              },
+              "required": [
+                "attack",
+                "death",
+                "placement",
+                "selection",
+                "upgrade",
+                "upkeep_boost"
+              ],
+              "type": "object"
+            },
             "tiers": {
               "description": "Speed boost tiers in advance order.",
               "items": {
@@ -1172,6 +1359,7 @@
           "required": [
             "building_type",
             "card_slots",
+            "sounds",
             "tiers"
           ],
           "type": "object"
@@ -1294,6 +1482,10 @@
             "time_cost_enabled": {
               "description": "If false, moving a building is instant (0 rounds - the building relocates the moment the move is confirmed) and the base/increase time keys are ignored.",
               "type": "boolean"
+            },
+            "warning_text": {
+              "description": "Shown in the move confirmation modal whenever the move takes 1+ rounds (a move despawns the building for the whole transit, so it misses any combat phase inside that window - skipped entirely for an instant, 0-round move). Empty string suppresses the warning.",
+              "type": "string"
             }
           },
           "required": [
@@ -1304,7 +1496,47 @@
             "money_cost_enabled",
             "moving_time_increase",
             "moving_time_increase_increment",
-            "time_cost_enabled"
+            "time_cost_enabled",
+            "warning_text"
+          ],
+          "type": "object"
+        },
+        "Sounds": {
+          "additionalProperties": false,
+          "description": "Global building sound defaults, used by any family whose matching override slot is empty.",
+          "properties": {
+            "attack": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Played when the building fires. Economy buildings never attack; their slot ships empty and is therefore silent."
+            },
+            "death": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Played when the building is destroyed."
+            },
+            "placement": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Played when the building is placed on the map."
+            },
+            "selection": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Played when the player selects the building."
+            },
+            "upgrade": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Played when the building is upgraded a tier."
+            },
+            "upkeep_boost": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Played when the building's upkeep boost triggers."
+            }
+          },
+          "required": [
+            "attack",
+            "death",
+            "placement",
+            "selection",
+            "upgrade",
+            "upkeep_boost"
           ],
           "type": "object"
         },
@@ -1448,6 +1680,7 @@
       },
       "required": [
         "Movement",
+        "Sounds",
         "defence_range_pathfinding",
         "placement_reveal_delay_seconds",
         "random_names",
@@ -1479,6 +1712,45 @@
               "minItems": 3,
               "type": "array"
             },
+            "sounds": {
+              "additionalProperties": false,
+              "description": "Per-family sound overrides. An empty slot inherits BuildingsGlobal.Sounds.",
+              "properties": {
+                "attack": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building fires. Economy buildings never attack; their slot ships empty and is therefore silent."
+                },
+                "death": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is destroyed."
+                },
+                "placement": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is placed on the map."
+                },
+                "selection": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the player selects the building."
+                },
+                "upgrade": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is upgraded a tier."
+                },
+                "upkeep_boost": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building's upkeep boost triggers."
+                }
+              },
+              "required": [
+                "attack",
+                "death",
+                "placement",
+                "selection",
+                "upgrade",
+                "upkeep_boost"
+              ],
+              "type": "object"
+            },
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
@@ -1502,6 +1774,7 @@
           "required": [
             "building_type",
             "card_slots",
+            "sounds",
             "starts_unlocked",
             "tiers",
             "unlock_min_village_level"
@@ -1528,6 +1801,45 @@
               "minItems": 3,
               "type": "array"
             },
+            "sounds": {
+              "additionalProperties": false,
+              "description": "Per-family sound overrides. An empty slot inherits BuildingsGlobal.Sounds.",
+              "properties": {
+                "attack": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building fires. Economy buildings never attack; their slot ships empty and is therefore silent."
+                },
+                "death": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is destroyed."
+                },
+                "placement": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is placed on the map."
+                },
+                "selection": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the player selects the building."
+                },
+                "upgrade": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is upgraded a tier."
+                },
+                "upkeep_boost": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building's upkeep boost triggers."
+                }
+              },
+              "required": [
+                "attack",
+                "death",
+                "placement",
+                "selection",
+                "upgrade",
+                "upkeep_boost"
+              ],
+              "type": "object"
+            },
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
@@ -1545,6 +1857,7 @@
           "required": [
             "building_type",
             "card_slots",
+            "sounds",
             "starts_unlocked",
             "tiers"
           ],
@@ -1570,6 +1883,45 @@
               "minItems": 3,
               "type": "array"
             },
+            "sounds": {
+              "additionalProperties": false,
+              "description": "Per-family sound overrides. An empty slot inherits BuildingsGlobal.Sounds.",
+              "properties": {
+                "attack": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building fires. Economy buildings never attack; their slot ships empty and is therefore silent."
+                },
+                "death": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is destroyed."
+                },
+                "placement": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is placed on the map."
+                },
+                "selection": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the player selects the building."
+                },
+                "upgrade": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is upgraded a tier."
+                },
+                "upkeep_boost": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building's upkeep boost triggers."
+                }
+              },
+              "required": [
+                "attack",
+                "death",
+                "placement",
+                "selection",
+                "upgrade",
+                "upkeep_boost"
+              ],
+              "type": "object"
+            },
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
@@ -1593,6 +1945,7 @@
           "required": [
             "building_type",
             "card_slots",
+            "sounds",
             "starts_unlocked",
             "target_death_cooldown",
             "tiers"
@@ -1625,6 +1978,45 @@
               "minimum": 1.0,
               "type": "number"
             },
+            "sounds": {
+              "additionalProperties": false,
+              "description": "Per-family sound overrides. An empty slot inherits BuildingsGlobal.Sounds.",
+              "properties": {
+                "attack": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building fires. Economy buildings never attack; their slot ships empty and is therefore silent."
+                },
+                "death": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is destroyed."
+                },
+                "placement": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is placed on the map."
+                },
+                "selection": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the player selects the building."
+                },
+                "upgrade": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is upgraded a tier."
+                },
+                "upkeep_boost": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building's upkeep boost triggers."
+                }
+              },
+              "required": [
+                "attack",
+                "death",
+                "placement",
+                "selection",
+                "upgrade",
+                "upkeep_boost"
+              ],
+              "type": "object"
+            },
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
@@ -1643,6 +2035,7 @@
             "building_type",
             "card_slots",
             "repeat_cost_multiplier",
+            "sounds",
             "starts_unlocked",
             "tiers"
           ],
@@ -1705,6 +2098,45 @@
               "minItems": 3,
               "type": "array"
             },
+            "sounds": {
+              "additionalProperties": false,
+              "description": "Per-family sound overrides. An empty slot inherits BuildingsGlobal.Sounds.",
+              "properties": {
+                "attack": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building fires. Economy buildings never attack; their slot ships empty and is therefore silent."
+                },
+                "death": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is destroyed."
+                },
+                "placement": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is placed on the map."
+                },
+                "selection": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the player selects the building."
+                },
+                "upgrade": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is upgraded a tier."
+                },
+                "upkeep_boost": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building's upkeep boost triggers."
+                }
+              },
+              "required": [
+                "attack",
+                "death",
+                "placement",
+                "selection",
+                "upgrade",
+                "upkeep_boost"
+              ],
+              "type": "object"
+            },
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
@@ -1722,6 +2154,7 @@
           "required": [
             "building_type",
             "card_slots",
+            "sounds",
             "starts_unlocked",
             "tiers"
           ],
@@ -1747,6 +2180,45 @@
               "minItems": 3,
               "type": "array"
             },
+            "sounds": {
+              "additionalProperties": false,
+              "description": "Per-family sound overrides. An empty slot inherits BuildingsGlobal.Sounds.",
+              "properties": {
+                "attack": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building fires. Economy buildings never attack; their slot ships empty and is therefore silent."
+                },
+                "death": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is destroyed."
+                },
+                "placement": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is placed on the map."
+                },
+                "selection": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the player selects the building."
+                },
+                "upgrade": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is upgraded a tier."
+                },
+                "upkeep_boost": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building's upkeep boost triggers."
+                }
+              },
+              "required": [
+                "attack",
+                "death",
+                "placement",
+                "selection",
+                "upgrade",
+                "upkeep_boost"
+              ],
+              "type": "object"
+            },
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
@@ -1764,6 +2236,7 @@
           "required": [
             "building_type",
             "card_slots",
+            "sounds",
             "starts_unlocked",
             "tiers"
           ],
@@ -1789,6 +2262,45 @@
               "minItems": 3,
               "type": "array"
             },
+            "sounds": {
+              "additionalProperties": false,
+              "description": "Per-family sound overrides. An empty slot inherits BuildingsGlobal.Sounds.",
+              "properties": {
+                "attack": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building fires. Economy buildings never attack; their slot ships empty and is therefore silent."
+                },
+                "death": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is destroyed."
+                },
+                "placement": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is placed on the map."
+                },
+                "selection": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the player selects the building."
+                },
+                "upgrade": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is upgraded a tier."
+                },
+                "upkeep_boost": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building's upkeep boost triggers."
+                }
+              },
+              "required": [
+                "attack",
+                "death",
+                "placement",
+                "selection",
+                "upgrade",
+                "upkeep_boost"
+              ],
+              "type": "object"
+            },
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
@@ -1812,6 +2324,7 @@
           "required": [
             "building_type",
             "card_slots",
+            "sounds",
             "starts_unlocked",
             "tiers",
             "unlock_min_village_level"
@@ -1850,6 +2363,45 @@
               "minItems": 3,
               "type": "array"
             },
+            "sounds": {
+              "additionalProperties": false,
+              "description": "Per-family sound overrides. An empty slot inherits BuildingsGlobal.Sounds.",
+              "properties": {
+                "attack": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building fires. Economy buildings never attack; their slot ships empty and is therefore silent."
+                },
+                "death": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is destroyed."
+                },
+                "placement": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is placed on the map."
+                },
+                "selection": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the player selects the building."
+                },
+                "upgrade": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is upgraded a tier."
+                },
+                "upkeep_boost": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building's upkeep boost triggers."
+                }
+              },
+              "required": [
+                "attack",
+                "death",
+                "placement",
+                "selection",
+                "upgrade",
+                "upkeep_boost"
+              ],
+              "type": "object"
+            },
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
@@ -1867,6 +2419,7 @@
           "required": [
             "building_type",
             "card_slots",
+            "sounds",
             "starts_unlocked",
             "tiers"
           ],
@@ -1892,6 +2445,45 @@
               "minItems": 3,
               "type": "array"
             },
+            "sounds": {
+              "additionalProperties": false,
+              "description": "Per-family sound overrides. An empty slot inherits BuildingsGlobal.Sounds.",
+              "properties": {
+                "attack": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building fires. Economy buildings never attack; their slot ships empty and is therefore silent."
+                },
+                "death": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is destroyed."
+                },
+                "placement": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is placed on the map."
+                },
+                "selection": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the player selects the building."
+                },
+                "upgrade": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building is upgraded a tier."
+                },
+                "upkeep_boost": {
+                  "$ref": "#/$defs/sound_slot",
+                  "description": "Played when the building's upkeep boost triggers."
+                }
+              },
+              "required": [
+                "attack",
+                "death",
+                "placement",
+                "selection",
+                "upgrade",
+                "upkeep_boost"
+              ],
+              "type": "object"
+            },
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
@@ -1909,6 +2501,7 @@
           "required": [
             "building_type",
             "card_slots",
+            "sounds",
             "starts_unlocked",
             "tiers"
           ],

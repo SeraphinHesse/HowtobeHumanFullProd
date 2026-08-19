@@ -46,6 +46,17 @@ def _slot(btn):
             _CARD_W, _CARD_H)
 
 
+class _NullRenderer:
+    """`submit` only needs somewhere to drop primitives — the point of
+    calling it here is the `panel_rect` it resolves off `skinning.apply`."""
+
+    def submit_hud(self, item):
+        pass
+
+    def submit_overlay_lines(self, *args, **kwargs):
+        pass
+
+
 def _panel():
     """A `building_panel` driven into construct mode with every type
     unlocked — the exporter's own mock state."""
@@ -197,6 +208,57 @@ class TestPortraitSlot(unittest.TestCase):
         for btype, _btn in panel.cards:
             self.assertEqual(panel._card_parts[btype].portrait.skin,
                              f"card_portrait_{btype}")
+
+
+class TestTheHostAsksThePanelWhoOwnsTheWheel(unittest.TestCase):
+    """`wants_scroll` is the seam `main.py`'s MOUSEWHEEL arm consults before
+    it zooms the camera instead. It used to be hand-rolled there as
+    `mode == "construct" and preview is None and contains(panel_rect, ...)`,
+    which missed two cases: a card list a designer moved outside the sidebar
+    BODY, and unlock mode — whose `handle_scroll` branch existed but was
+    unreachable, so the terrain list could not be wheel-scrolled at all."""
+
+    def test_a_point_in_the_card_list_owns_the_wheel(self):
+        panel = _panel()
+        panel.submit(_NullRenderer(), panel._session)   # resolves panel_rect
+        lx, ly, lw, lh = panel._list_rect("construct_card_list",
+                                          panel._construct_list)
+        self.assertTrue(panel.wants_scroll(lx + lw // 2, ly + lh // 2))
+        self.assertFalse(panel.wants_scroll(lx - 200, ly + lh // 2))
+
+    def test_an_open_preview_and_other_modes_do_not(self):
+        panel = _panel()
+        panel.submit(_NullRenderer(), panel._session)
+        inside = (panel.panel_rect[0] + 4, panel.panel_rect[1] + 4)
+        self.assertTrue(panel.wants_scroll(*inside))
+        panel.mode = "upgrade"
+        self.assertFalse(panel.wants_scroll(*inside))
+        self.assertFalse(panel.wants_scroll(5, 5))
+
+    def test_an_open_preview_swallows_the_wheel_from_anywhere(self):
+        """A modal must not let the wheel reach the camera behind it.
+
+        `handle_click` has always treated an open preview as modal; the wheel
+        did not, so a tick over an open build preview ZOOMED THE MAP while the
+        card list sat visibly underneath refusing to move."""
+        panel = _panel()
+        panel.submit(_NullRenderer(), panel._session)
+        panel.preview = object()
+        self.assertTrue(panel.wants_scroll(5, 5))          # far off the panel
+        before = panel.scroll_offset
+        panel.handle_scroll(1)
+        self.assertEqual(panel.scroll_offset, before,
+                         "swallowed, not applied to the list underneath")
+
+    def test_unlock_mode_owns_it_too(self):
+        balances = screen_mocks.load_balances(DATA)
+        session = screen_mocks.build_session(DATA, balances)
+        panel = screen_mocks.build_bp_view("unlock", 640, 360, balances,
+                                           session).panel
+        panel.submit(_NullRenderer(), session)
+        lx, ly, lw, lh = panel._list_rect("terrain_card_list",
+                                          panel._terrain_list)
+        self.assertTrue(panel.wants_scroll(lx + lw // 2, ly + lh // 2))
 
 
 class TestCardListScrolling(unittest.TestCase):

@@ -151,6 +151,7 @@
             "vfx_dirt_pile",
             "vfx_explosion",
             "vfx_hit",
+            "vfx_move_blocked",
             "vfx_move_target",
             "vfx_muzzle",
             "vfx_projectile",
@@ -526,9 +527,12 @@
         },
         "highlights": {
           "additionalProperties": false,
-          "description": "VA-5: the seven tile highlights the panel and the host draw. Their colours USED to be data/ui/palette.json's highlight / highlight2 / range_highlight plus two bare code constants; those three palette keys are DELETED, so each value has exactly one home (G-7).",
+          "description": "VA-5: the eight tile highlights the panel and the host draw (move_blocked, feature-wallbuilder-restricted-move, joined the original seven). Their colours USED to be data/ui/palette.json's highlight / highlight2 / range_highlight plus two bare code constants; those three palette keys are DELETED, so each value has exactly one home (G-7).",
           "properties": {
             "attack_range": {
+              "$ref": "#/$defs/highlight"
+            },
+            "move_blocked": {
               "$ref": "#/$defs/highlight"
             },
             "move_target": {
@@ -552,6 +556,7 @@
           },
           "required": [
             "attack_range",
+            "move_blocked",
             "move_target",
             "section_2x2",
             "tile_selected",
@@ -1063,7 +1068,7 @@
     },
     "triggers": {
       "additionalProperties": false,
-      "description": "ESV-5: per-event sprite-slot / procedural-fallback binding, a sibling of procedural. Every key names a cosmetic EVENT (never a JSON-key vocabulary the engine sees); game/ui/effects.py's _triggers_from_balance is the ONE place these key names are read. VfxAuthoringPLAN VA-4: a non-base building revived by the payday building_revive slot (game/core/payday.py step 9). Fires once per building that was actually DEAD and came back - not for the full-heal every living building also gets in that slot - at its tile, drained on the INCOME phase edge beside the income/painter/boost floaters. VfxAuthoringPLAN VA-5 added seven CONTINUOUS rows - tile_selected, section_2x2, attack_range, move_target, wall_edge, upgrade_batch, tutorial_highlight. Unlike every row above them these are not one-shots: they are drawn every frame for as long as the tile is highlighted, so they dispatch through game/ui/widgets.py's submit_highlight rather than _play/PlayOnceVfx (whose despawn clock would respawn them each frame). feat-projectile-variant-select added one more CONTINUOUS row, `projectile` - the in-flight defender stone / mortar shell. Like the VA-5 highlights above it, it never reaches _play/PlayOnceVfx (submit_projectiles draws it every frame, so a despawn clock is the wrong mechanism), and unlike every other row it contributes ONLY variant_select: sprite_slot, procedural and draw_in_front are all inert there for the reasons their own descriptions give. The chosen variant is resolved on a shot's FIRST drawn frame and cached on the projectile GameObject, so it is stable for the whole flight and costs at most one rng draw per shot rather than one per frame.",
+      "description": "ESV-5: per-event sprite-slot / procedural-fallback binding, a sibling of procedural. Every key names a cosmetic EVENT (never a JSON-key vocabulary the engine sees); game/ui/effects.py's _triggers_from_balance is the ONE place these key names are read. VfxAuthoringPLAN VA-4: a non-base building revived by the payday building_revive slot (game/core/payday.py step 9). Fires once per building that was actually DEAD and came back - not for the full-heal every living building also gets in that slot - at its tile, drained on the INCOME phase edge beside the income/painter/boost floaters. VfxAuthoringPLAN VA-5 added seven CONTINUOUS rows - tile_selected, section_2x2, attack_range, move_target, wall_edge, upgrade_batch, tutorial_highlight; feature-wallbuilder-restricted-move added an eighth, move_blocked, the greyed-out-destination twin of move_target. Unlike every row above them these are not one-shots: they are drawn every frame for as long as the tile is highlighted, so they dispatch through game/ui/widgets.py's submit_highlight rather than _play/PlayOnceVfx (whose despawn clock would respawn them each frame). feat-projectile-variant-select added one more CONTINUOUS row, `projectile` - the in-flight defender stone / mortar shell. Like the VA-5 highlights above it, it never reaches _play/PlayOnceVfx (submit_projectiles draws it every frame, so a despawn clock is the wrong mechanism), and unlike every other row it contributes ONLY variant_select: sprite_slot, procedural and draw_in_front are all inert there for the reasons their own descriptions give. The chosen variant is resolved on a shot's FIRST drawn frame and cached on the projectile GameObject, so it is stable for the whole flight and costs at most one rng draw per shot rather than one per frame.",
       "properties": {
         "attack_range": {
           "$ref": "#/$defs/trigger_row"
@@ -1093,6 +1098,9 @@
           "$ref": "#/$defs/trigger_row"
         },
         "enemy_death": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "move_blocked": {
           "$ref": "#/$defs/trigger_row"
         },
         "move_target": {
@@ -1134,6 +1142,7 @@
         "enemy_attack_melee",
         "enemy_attack_ranged",
         "enemy_death",
+        "move_blocked",
         "move_target",
         "projectile",
         "projectile_hit",

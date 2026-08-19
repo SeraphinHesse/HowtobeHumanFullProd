@@ -1389,7 +1389,7 @@ condition below.
   could never end under an abandoned carrier.
 - **Consequences of the victim staying on the board**, all of them "same as any
   other death" by design: a kidnapped booster DOES run payday's slot-7
-  explosion-on-death, a kidnapped `wall_builder`'s perimeter comes down at
+  flat-boost rollback, a kidnapped `wall_builder`'s perimeter comes down at
   slot 8 and back at slot 10, the tile stays BUILT (not re-placeable) for the
   rest of the round, and the building pays its one-time `xp_from_buildings` XP
   from `_award_building_deaths` — which `Session.post_sim` now also runs on the

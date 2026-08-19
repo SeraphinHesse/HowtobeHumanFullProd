@@ -11,7 +11,7 @@
     "btn_back": {
       "rect": [
         270,
-        279,
+        278,
         100,
         23
       ],
@@ -21,33 +21,6 @@
       "skin": "ui_button_panel"
     },
     "btn_dm_right": {
-      "skin": "ui_button_panel"
-    },
-    "btn_toggle_bg_art": {
-      "rect": [
-        350,
-        184,
-        45,
-        20
-      ],
-      "skin": "ui_button_panel"
-    },
-    "btn_toggle_gore": {
-      "rect": [
-        350,
-        212,
-        45,
-        20
-      ],
-      "skin": "ui_button_panel"
-    },
-    "btn_toggle_income_floaters": {
-      "rect": [
-        350,
-        156,
-        45,
-        20
-      ],
       "skin": "ui_button_panel"
     }
   }

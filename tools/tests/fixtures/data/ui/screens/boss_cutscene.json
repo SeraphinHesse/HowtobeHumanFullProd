@@ -5,6 +5,9 @@
     },
     "box_b": {
       "skin": "ui_choice_box"
+    },
+    "box_c": {
+      "skin": "ui_choice_box"
     }
   }
 }

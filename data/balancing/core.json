@@ -18,7 +18,7 @@
     "default_output_html": true,
     "default_output_jsonl": true,
     "default_output_md": true,
-    "regular_mode_available": true
+    "regular_mode_available": false
   },
   "EnemyIntro": {
     "entries": [
@@ -270,6 +270,11 @@
     "starting_currency": 32
   },
   "LightningStrike": {
+    "attack_hold_seconds": [
+      4,
+      3,
+      2
+    ],
     "cooldown": [
       4,
       3,

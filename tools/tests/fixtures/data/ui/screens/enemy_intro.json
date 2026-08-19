@@ -1,1 +1,24 @@
-{}
+{
+  "widgets": {
+    "close_btn": {
+      "label": "",
+      "rect": [
+        433,
+        49,
+        42,
+        55
+      ],
+      "skin": "ui_button_panel_v2"
+    },
+    "panel": {
+      "band": "under",
+      "rect": [
+        472,
+        0,
+        167,
+        360
+      ],
+      "skin": "ui_panel_v2"
+    }
+  }
+}

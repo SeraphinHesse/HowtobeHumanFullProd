@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 from engine import data_io
-from game.core import audio_settings, load_balance
+from game.core import audio_settings, load_balance, render_settings
 from game.core.phases import GameState
 from game.ui import Shell, sound, widgets
 from game.ui.settings import SessionSettings, SettingsScreen
@@ -111,6 +111,29 @@ class AudioSettingsFileTest(DataDirCase):
         with self.assertRaises(Exception):
             audio_settings.save({"master": 1.5, "music": 0.5, "sfx": 1.0},
                                 path, self.data_dir)
+
+
+class RenderSettingsFileTest(DataDirCase):
+    """settings-cut: the GPU/CPU switch's per-machine boot preference."""
+
+    def test_round_trip_and_validation(self):
+        path = Path(self.data_dir).parent / "settings" / "render.json"
+        self.assertEqual(render_settings.load(path, self.data_dir),
+                         render_settings.defaults())
+        render_settings.save({"backend": "surface"}, path, self.data_dir)
+        self.assertEqual(render_settings.load(path, self.data_dir),
+                         {"backend": "surface"})
+        with self.assertRaises(Exception):
+            render_settings.save({"backend": "vulkan"}, path, self.data_dir)
+
+    def test_settings_round_trip_maps_cpu_to_the_surface_backend(self):
+        settings = SessionSettings()
+        settings.renderer = "cpu"
+        doc = render_settings.from_settings(settings)
+        self.assertEqual(doc, {"backend": "surface"})
+        self.assertEqual(
+            render_settings.apply_to_settings(doc, SessionSettings()).renderer,
+            "cpu")
 
 
 class ScreenSoundOverrideTest(DataDirCase):

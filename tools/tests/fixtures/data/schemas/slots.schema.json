@@ -30,7 +30,7 @@
           "type": "string"
         },
         "slots": {
-          "description": "Slot entries in this group, in display order. Either a bare key (inherits the category frame size) or a {key, frame_w, frame_h} object that overrides it (D1: slicing != drawing). The same key may appear under two groups of ONE category (shared art) but never in two categories, and every occurrence must agree on its frame size (loader-enforced: uniqueItems compares whole values, so it cannot catch a key repeated in both forms).",
+          "description": "Slot entries in this group, in display order. Either a bare key (inherits the category frame size, no display name) or an object form carrying a {frame_w, frame_h} override (D1: slicing != drawing) and/or a display_name. The same key may appear under two groups of ONE category (shared art) but never in two categories, and every occurrence must agree on its frame size (loader-enforced: uniqueItems compares whole values, so it cannot catch a key repeated in both forms).",
           "items": {
             "oneOf": [
               {
@@ -54,8 +54,21 @@
     },
     "slot_entry": {
       "additionalProperties": false,
-      "description": "A slot key that overrides its category's frame size (D1): how the SHEET is sliced. Use the bare-string form to inherit the category size.",
+      "dependentRequired": {
+        "frame_h": [
+          "frame_w"
+        ],
+        "frame_w": [
+          "frame_h"
+        ]
+      },
+      "description": "A slots[] entry in object form: a slot key plus, optionally, a frame-size override (D1: how the SHEET is sliced) and/or a display_name (the designer-facing name for this variant, shown wherever the editor lists slots). Use the bare-string form for a slot that needs neither.",
       "properties": {
+        "display_name": {
+          "description": "Designer-facing name for this slot/variant (editor-only, never read by the game): what the slot editor's Name field writes and what the UI screen editor's skin combos show beside the key. Absent means the key is its own label.",
+          "minLength": 1,
+          "type": "string"
+        },
         "frame_h": {
           "description": "Sprite frame height in pixels for this slot, overriding the category's.",
           "maximum": 1024,
@@ -75,9 +88,7 @@
         }
       },
       "required": [
-        "key",
-        "frame_w",
-        "frame_h"
+        "key"
       ],
       "type": "object"
     }
