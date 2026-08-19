@@ -245,6 +245,14 @@ class RunState:
     # 0 -> 1 before the first End Turn (the entry then fires once, on
     # round 1). Never serialized.
     tutorial_intros_shown: bool = False
+    # Spawn-triggered entries (``show_on_spawn_of`` naming an etype) do not
+    # match on the round at all: ``Session.post_sim`` queues them the first
+    # time that etype actually enters the scene, which for the Commander is
+    # partway through a boss fight and never at a round start. This holds the
+    # etypes already introduced, so the card shows ONCE per run rather than
+    # again at every later boss. Serialized (unlike the queue above), so a
+    # save/load mid-run cannot replay an intro the player already read.
+    spawn_intros_shown: list = field(default_factory=list)
     # -- /feature-enemy-intro-dialogue --
     # -- Payout-phase sequencing: love-counter checkpoints ------------------
     # Two transient values `run_payday` stamps at its step 12 (never
@@ -362,6 +370,7 @@ class RunState:
             "first_end_turn_cutscene_requested":
                 self.first_end_turn_cutscene_requested,
             "tutorial_intros_shown": self.tutorial_intros_shown,
+            "spawn_intros_shown": list(self.spawn_intros_shown),
             "levelup_pending": self.levelup_pending,
         }
 
@@ -401,5 +410,6 @@ class RunState:
             first_end_turn_cutscene_requested=
                 data["first_end_turn_cutscene_requested"],
             tutorial_intros_shown=data["tutorial_intros_shown"],
+            spawn_intros_shown=list(data["spawn_intros_shown"]),
             levelup_pending=data["levelup_pending"],
         )
