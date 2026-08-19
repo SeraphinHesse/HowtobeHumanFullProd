@@ -95,12 +95,13 @@ class GameSounds:
 
     # -- the one play seam --------------------------------------------------
 
-    def _play(self, default_slot, override_slot, key):
+    def _play(self, default_slot, override_slot, key, bus="sfx"):
         """One `play_slot` call, degrade-never-raise (the `FloaterManager._play`
-        contract). Returns the engine's bool; False is normal."""
+        contract). Returns the engine's bool; False is normal. `bus` is only
+        ever non-default from `play_slot` below — every game EVENT is SFX."""
         try:
             return bool(self._audio.play_slot(
-                default_slot, override_slot, bus="sfx", key=key,
+                default_slot, override_slot, bus=bus, key=key,
                 rng=self._rng))
         except Exception:       # a sound must never take down the frame
             return False
@@ -114,6 +115,29 @@ class GameSounds:
                           self._family_sounds(building).get(kind),
                           "buildings.%s.%s.%s" % (_GLOBAL_NODE, _GLOBAL_KEY,
                                                   kind))
+
+    def play_slot(self, slot, bus="sfx"):
+        """The UI seam's sink target (SD-6).
+
+        `game/ui/sound.py` is pygame-free and never names a slot PATH — it
+        hands the resolved slot dict and a bus straight to the host sink in
+        `game/main.py`, which forwards here because `gp["sfx"]` exists from
+        boot. There is no override layer (the widget-level `sound` override is
+        already baked into the dict `game/ui/sound.clip_slot` builds), so the
+        slot arrives as the DEFAULT and `override_slot` stays None.
+
+        The cooldown/concurrency bucket is derived from the slot's own clip
+        files rather than a slot path: the sink signature carries no name, and
+        keying every UI sound `None` would drop them out of SD-2's rate limit
+        entirely, so a held-down click would stack channels without a cap.
+        """
+        files = tuple(sorted(
+            str(c.get("file")) for c in (_dict(slot).get("clips") or ())
+            if isinstance(c, dict) and c.get("file")))
+        if not files:
+            return False
+        return self._play(slot, None, "ui.%s.%s" % (bus, "|".join(files)),
+                          bus=bus)
 
     def play_map_event(self, kind):
         """One of `MAP_KINDS`. The map domain has no per-element override

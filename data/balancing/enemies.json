@@ -48,12 +48,38 @@
   },
   "EnemySounds": {
     "attack": {
-      "clips": [],
+      "clips": [
+        {
+          "end": 0.0,
+          "file": "imported/9.wav",
+          "start": 0.0,
+          "volume": 1.0
+        },
+        {
+          "end": 0.0,
+          "file": "imported/8.wav",
+          "start": 0.0,
+          "volume": 1.0
+        }
+      ],
       "loop": false,
       "pick": "random"
     },
     "death": {
-      "clips": [],
+      "clips": [
+        {
+          "end": 0.0,
+          "file": "imported/joel death1_4.mp3",
+          "start": 0.0,
+          "volume": 0.2
+        },
+        {
+          "end": 0.0,
+          "file": "imported/joel death2_2.mp3",
+          "start": 0.0,
+          "volume": 0.2
+        }
+      ],
       "loop": false,
       "pick": "random"
     },
@@ -189,17 +215,44 @@
       },
       "sounds": {
         "attack": {
-          "clips": [],
+          "clips": [
+            {
+              "end": 0.0,
+              "file": "imported/8.wav",
+              "start": 0.0,
+              "volume": 1.0
+            },
+            {
+              "end": 0.0,
+              "file": "imported/9.wav",
+              "start": 0.0,
+              "volume": 1.0
+            }
+          ],
           "loop": false,
           "pick": "random"
         },
         "death": {
-          "clips": [],
+          "clips": [
+            {
+              "end": 0.0,
+              "file": "imported/joel boss death.mp3",
+              "start": 0.0,
+              "volume": 0.7
+            }
+          ],
           "loop": false,
           "pick": "random"
         },
         "spawn": {
-          "clips": [],
+          "clips": [
+            {
+              "end": 0.0,
+              "file": "imported/boss.mp3",
+              "start": 0.0,
+              "volume": 0.8
+            }
+          ],
           "loop": false,
           "pick": "random"
         }
@@ -685,7 +738,14 @@
       "registry_group": "Drummer",
       "sounds": {
         "attack": {
-          "clips": [],
+          "clips": [
+            {
+              "end": 0.0,
+              "file": "imported/415912__okieactor__heathers-gunshot-effect2.wav",
+              "start": 0.0,
+              "volume": 0.3
+            }
+          ],
           "loop": false,
           "pick": "random"
         },
@@ -850,7 +910,14 @@
       "registry_group": "Formation",
       "sounds": {
         "attack": {
-          "clips": [],
+          "clips": [
+            {
+              "end": 0.0,
+              "file": "imported/415912__okieactor__heathers-gunshot-effect2.wav",
+              "start": 0.0,
+              "volume": 0.3
+            }
+          ],
           "loop": false,
           "pick": "random"
         },
@@ -989,7 +1056,20 @@
       "registry_group": "Raider",
       "sounds": {
         "attack": {
-          "clips": [],
+          "clips": [
+            {
+              "end": 0.0,
+              "file": "imported/8.wav",
+              "start": 0.0,
+              "volume": 1.0
+            },
+            {
+              "end": 0.0,
+              "file": "imported/9.wav",
+              "start": 0.0,
+              "volume": 1.0
+            }
+          ],
           "loop": false,
           "pick": "random"
         },
@@ -1130,7 +1210,14 @@
       "registry_group": "Siege Cannon",
       "sounds": {
         "attack": {
-          "clips": [],
+          "clips": [
+            {
+              "end": 0.0,
+              "file": "imported/515801__lilmati__retro-pirate-cannon-shot.wav",
+              "start": 0.0,
+              "volume": 0.3
+            }
+          ],
           "loop": false,
           "pick": "random"
         },
@@ -1409,12 +1496,32 @@
       "registry_group": "Walker",
       "sounds": {
         "attack": {
-          "clips": [],
+          "clips": [
+            {
+              "end": 0.0,
+              "file": "imported/415912__okieactor__heathers-gunshot-effect2.wav",
+              "start": 0.0,
+              "volume": 0.2
+            }
+          ],
           "loop": false,
           "pick": "random"
         },
         "death": {
-          "clips": [],
+          "clips": [
+            {
+              "end": 0.0,
+              "file": "imported/joel death1.mp3",
+              "start": 0.0,
+              "volume": 0.4
+            },
+            {
+              "end": 0.0,
+              "file": "imported/joel death2_2.mp3",
+              "start": 0.0,
+              "volume": 0.4
+            }
+          ],
           "loop": false,
           "pick": "random"
         },
