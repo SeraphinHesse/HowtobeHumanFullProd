@@ -3750,76 +3750,372 @@
       "sheet": "master/alldeco.png"
     },
     "digger_stage_1": {
+      "column_width": 21,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
+      "row_start": 16,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
-          "hidden": [],
+          "frames": 21,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
           "loop_count": 4,
           "loop_end": 5,
           "loop_start": 0
+        },
+        {
+          "animation": "dig",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "emerge",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
         }
       ],
-      "sheet": "imported/deco_prop_1_v4.png"
+      "sheet": "master/htbh_enemie_sheet.png"
     },
     "digger_stage_2": {
+      "column_width": 21,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
+      "row_start": 16,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
-          "hidden": [],
+          "frames": 21,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
           "loop_count": 4,
           "loop_end": 5,
           "loop_start": 0
+        },
+        {
+          "animation": "dig",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "emerge",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
         }
       ],
-      "sheet": "imported/deco_prop_1_v4.png"
+      "sheet": "master/htbh_enemie_sheet.png"
     },
     "digger_stage_3": {
+      "column_width": 21,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
+      "row_start": 16,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
-          "hidden": [],
+          "frames": 21,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
           "loop_count": 4,
           "loop_end": 5,
           "loop_start": 0
+        },
+        {
+          "animation": "dig",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "emerge",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
         }
       ],
-      "sheet": "imported/deco_prop_1_v4.png"
+      "sheet": "master/htbh_enemie_sheet.png"
     },
     "digger_stage_4": {
+      "column_width": 21,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
+      "row_start": 16,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
-          "hidden": [],
+          "frames": 21,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
           "loop_count": 4,
           "loop_end": 5,
           "loop_start": 0
+        },
+        {
+          "animation": "dig",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "emerge",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
         }
       ],
-      "sheet": "imported/deco_prop_1_v4.png"
+      "sheet": "master/htbh_enemie_sheet.png"
     },
     "drummer_stage_1": {
       "frame_h": 96,
@@ -3916,17 +4212,30 @@
           -14
         ]
       },
+      "column_width": 21,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 9,
+          "frames": 21,
           "hidden": [
-            8
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -3935,14 +4244,63 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 9,
+          "frames": 21,
+          "hidden": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/enemy_stage_1_v1.png"
+      "sheet": "master/htbh_enemie_sheet.png"
     },
     "enemy_stage_1_v2": {
       "anchors": {
@@ -3967,17 +4325,31 @@
           -15
         ]
       },
+      "column": 1,
+      "column_width": 21,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 9,
+          "frames": 21,
           "hidden": [
-            8
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -3986,14 +4358,63 @@
         {
           "animation": "attack",
           "fps": 8,
-          "frames": 9,
+          "frames": 21,
+          "hidden": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/enemy_stage_1_v2.png"
+      "sheet": "master/htbh_enemie_sheet.png"
     },
     "enemy_stage_1_v3": {
       "anchors": {
@@ -4018,17 +4439,31 @@
           -15
         ]
       },
+      "column": 2,
+      "column_width": 21,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 9,
+          "frames": 21,
           "hidden": [
-            8
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -4037,14 +4472,63 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 9,
+          "frames": 21,
+          "hidden": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/enemy_stage_1_v3.png"
+      "sheet": "master/htbh_enemie_sheet.png"
     },
     "enemy_stage_1_v4": {
       "anchors": {
@@ -4069,17 +4553,31 @@
           -14
         ]
       },
+      "column": 3,
+      "column_width": 21,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 9,
+          "frames": 21,
           "hidden": [
-            8
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -4088,14 +4586,177 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 9,
+          "frames": 21,
+          "hidden": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/enemy_stage_1_v4.png"
+      "sheet": "master/htbh_enemie_sheet.png"
+    },
+    "enemy_stage_1_v5": {
+      "anchors": {
+        "beam_endpoint": [
+          4,
+          -6
+        ],
+        "floater_origin": [
+          4,
+          -5
+        ],
+        "hp_bar": [
+          2,
+          -26
+        ],
+        "impact": [
+          2,
+          -10
+        ],
+        "muzzle": [
+          -16,
+          -14
+        ]
+      },
+      "column": 4,
+      "column_width": 21,
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/htbh_enemie_sheet.png"
     },
     "enemy_stage_2": {
       "anchors": {
@@ -4120,60 +4781,31 @@
           -14
         ]
       },
+      "column_width": 21,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
+      "row_start": 4,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 8,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/enemy_stage_2.png"
-    },
-    "enemy_stage_3": {
-      "anchors": {
-        "beam_endpoint": [
-          3,
-          0
-        ],
-        "floater_origin": [
-          2,
-          -15
-        ],
-        "hp_bar": [
-          1,
-          -21
-        ],
-        "impact": [
-          3,
-          -2
-        ],
-        "muzzle": [
-          -19,
-          -8
-        ]
-      },
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": -12,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 8,
+          "frames": 21,
           "hidden": [
-            4,
-            5,
-            6,
-            7
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -4182,28 +4814,49 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 8,
+          "frames": 21,
           "hidden": [
-            6,
-            7
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         },
         {
-          "animation": "death",
+          "animation": "kidnap",
           "fps": 6,
-          "frames": 8,
+          "frames": 21,
           "hidden": [
-            0,
-            1,
-            2,
-            3,
             4,
             5,
             6,
-            7
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -4212,14 +4865,1066 @@
         {
           "animation": "death",
           "fps": 6,
-          "frames": 8,
+          "frames": 21,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/enemy_stage_3.png"
+      "sheet": "master/htbh_enemie_sheet.png"
+    },
+    "enemy_stage_2_v2": {
+      "anchors": {
+        "floater_origin": [
+          1,
+          -6
+        ],
+        "hp_bar": [
+          1,
+          -26
+        ],
+        "impact": [
+          2,
+          -10
+        ],
+        "muzzle": [
+          -16,
+          -13
+        ],
+        "status_icon": [
+          0,
+          -7
+        ]
+      },
+      "column": 1,
+      "column_width": 21,
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 4,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/htbh_enemie_sheet.png"
+    },
+    "enemy_stage_2_v3": {
+      "anchors": {
+        "beam_endpoint": [
+          5,
+          -7
+        ],
+        "floater_origin": [
+          2,
+          -7
+        ],
+        "hp_bar": [
+          1,
+          -26
+        ],
+        "impact": [
+          4,
+          -10
+        ],
+        "muzzle": [
+          -16,
+          -15
+        ]
+      },
+      "column": 2,
+      "column_width": 21,
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 4,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/htbh_enemie_sheet.png"
+    },
+    "enemy_stage_2_v4": {
+      "anchors": {
+        "beam_endpoint": [
+          4,
+          -9
+        ],
+        "floater_origin": [
+          2,
+          -6
+        ],
+        "hp_bar": [
+          2,
+          -25
+        ],
+        "impact": [
+          4,
+          -11
+        ],
+        "muzzle": [
+          -20,
+          -14
+        ]
+      },
+      "column": 3,
+      "column_width": 21,
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 4,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/htbh_enemie_sheet.png"
+    },
+    "enemy_stage_2_v5": {
+      "anchors": {
+        "beam_endpoint": [
+          4,
+          -2
+        ],
+        "floater_origin": [
+          2,
+          -10
+        ],
+        "hp_bar": [
+          2,
+          -26
+        ],
+        "impact": [
+          2,
+          -13
+        ],
+        "muzzle": [
+          -20,
+          -14
+        ]
+      },
+      "column": 4,
+      "column_width": 21,
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 4,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/htbh_enemie_sheet.png"
+    },
+    "enemy_stage_3": {
+      "anchors": {
+        "beam_endpoint": [
+          2,
+          -8
+        ],
+        "floater_origin": [
+          2,
+          -10
+        ],
+        "hp_bar": [
+          2,
+          -26
+        ],
+        "impact": [
+          2,
+          -9
+        ],
+        "muzzle": [
+          -21,
+          -15
+        ]
+      },
+      "column_width": 21,
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 4,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/htbh_enemie_sheet.png"
+    },
+    "enemy_stage_3_v2": {
+      "anchors": {
+        "beam_endpoint": [
+          2,
+          -10
+        ],
+        "floater_origin": [
+          3,
+          -12
+        ],
+        "hp_bar": [
+          2,
+          -26
+        ],
+        "impact": [
+          2,
+          -9
+        ],
+        "muzzle": [
+          -20,
+          -14
+        ]
+      },
+      "column": 1,
+      "column_width": 21,
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 4,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/htbh_enemie_sheet.png"
+    },
+    "enemy_stage_3_v3": {
+      "anchors": {
+        "beam_endpoint": [
+          3,
+          -11
+        ],
+        "floater_origin": [
+          2,
+          -14
+        ],
+        "hp_bar": [
+          3,
+          -27
+        ],
+        "impact": [
+          2,
+          -12
+        ],
+        "muzzle": [
+          -20,
+          -14
+        ]
+      },
+      "column": 2,
+      "column_width": 21,
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 4,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/htbh_enemie_sheet.png"
+    },
+    "enemy_stage_3_v4": {
+      "anchors": {
+        "beam_endpoint": [
+          4,
+          -12
+        ],
+        "floater_origin": [
+          3,
+          -12
+        ],
+        "hp_bar": [
+          2,
+          -25
+        ],
+        "impact": [
+          2,
+          -12
+        ],
+        "muzzle": [
+          -20,
+          -16
+        ]
+      },
+      "column": 3,
+      "column_width": 21,
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 4,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/htbh_enemie_sheet.png"
+    },
+    "enemy_stage_3_v5": {
+      "anchors": {
+        "beam_endpoint": [
+          2,
+          -7
+        ],
+        "floater_origin": [
+          2,
+          -10
+        ],
+        "hp_bar": [
+          2,
+          -26
+        ],
+        "impact": [
+          2,
+          -12
+        ],
+        "muzzle": [
+          -18,
+          -16
+        ]
+      },
+      "column": 4,
+      "column_width": 21,
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 4,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/htbh_enemie_sheet.png"
     },
     "enemy_stage_4_v1": {
       "anchors": {
@@ -4564,43 +6269,52 @@
     "formation_stage_1": {
       "anchors": {
         "beam_endpoint": [
-          -1,
-          -3
+          3,
+          -9
         ],
         "floater_origin": [
-          -1,
-          -13
+          2,
+          -12
         ],
         "hp_bar": [
-          -2,
-          -26
+          3,
+          -30
         ],
         "impact": [
-          -1,
-          0
+          4,
+          -10
+        ],
+        "muzzle": [
+          -32,
+          -14
         ]
       },
-      "frame_h": 32,
+      "column_width": 21,
+      "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
+      "row_start": 20,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [
-            0
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "walk",
           "fps": 6,
-          "frames": 1,
-          "hidden": [],
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -4608,16 +6322,29 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 1,
+          "frames": 21,
           "hidden": [
-            0
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/formation_stage_1.png"
+      "sheet": "master/htbh_enemie_sheet.png"
     },
     "formation_stage_2": {
       "anchors": {
@@ -4630,35 +6357,44 @@
           -10
         ],
         "hp_bar": [
-          -1,
-          -24
+          2,
+          -28
         ],
         "impact": [
           0,
           -1
+        ],
+        "muzzle": [
+          -32,
+          -14
         ]
       },
-      "frame_h": 32,
+      "column_width": 21,
+      "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
+      "row_start": 20,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [
-            0
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "walk",
           "fps": 6,
-          "frames": 1,
-          "hidden": [],
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -4666,16 +6402,29 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 1,
+          "frames": 21,
           "hidden": [
-            0
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/formation_stage_1.png"
+      "sheet": "master/htbh_enemie_sheet.png"
     },
     "formation_stage_3": {
       "anchors": {
@@ -4688,35 +6437,44 @@
           -14
         ],
         "hp_bar": [
-          0,
-          -26
+          3,
+          -28
         ],
         "impact": [
           0,
           -2
+        ],
+        "muzzle": [
+          -30,
+          -14
         ]
       },
-      "frame_h": 32,
+      "column_width": 21,
+      "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
+      "row_start": 20,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [
-            0
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "walk",
           "fps": 6,
-          "frames": 1,
-          "hidden": [],
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -4724,16 +6482,29 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 1,
+          "frames": 21,
           "hidden": [
-            0
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/formation_stage_1.png"
+      "sheet": "master/htbh_enemie_sheet.png"
     },
     "formation_stage_4": {
       "anchors": {
@@ -4746,25 +6517,43 @@
           -14
         ],
         "hp_bar": [
-          -1,
-          -27
+          3,
+          -28
         ],
         "impact": [
           -1,
           -2
+        ],
+        "muzzle": [
+          -30,
+          -13
         ]
       },
-      "frame_h": 32,
+      "column_width": 21,
+      "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
+      "row_start": 20,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 21,
           "hidden": [
-            0
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -4773,25 +6562,29 @@
         {
           "animation": "walk",
           "fps": 6,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 1,
+          "frames": 21,
           "hidden": [
-            0
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/formation_stage_1.png"
+      "sheet": "master/htbh_enemie_sheet.png"
     },
     "harp_player_t2_lvl1": {
       "anchors": {
@@ -7071,30 +8864,45 @@
           -5
         ],
         "hp_bar": [
-          -2,
-          -13
+          0,
+          -16
         ],
         "impact": [
           -1,
           0
         ],
         "muzzle": [
-          -32,
-          5
+          -22,
+          10
         ]
       },
+      "column_width": 21,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
+      "row_start": 8,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 8,
+          "frames": 21,
           "hidden": [
             6,
-            7
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7103,8 +8911,22 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 8,
-          "hidden": [],
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -7112,19 +8934,419 @@
         {
           "animation": "kidnap",
           "fps": 6,
-          "frames": 8,
+          "frames": 21,
           "hidden": [
             4,
             5,
             6,
-            7
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            16,
+            17,
+            18,
+            19,
+            20
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/raider_stage_1.png"
+      "sheet": "master/htbh_enemie_sheet.png"
+    },
+    "raider_stage_1_v2": {
+      "anchors": {
+        "beam_endpoint": [
+          0,
+          0
+        ],
+        "floater_origin": [
+          0,
+          0
+        ],
+        "hp_bar": [
+          2,
+          -16
+        ],
+        "impact": [
+          2,
+          -2
+        ],
+        "muzzle": [
+          -22,
+          11
+        ]
+      },
+      "column": 1,
+      "column_width": 21,
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 8,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/htbh_enemie_sheet.png"
+    },
+    "raider_stage_1_v3": {
+      "anchors": {
+        "beam_endpoint": [
+          0,
+          0
+        ],
+        "floater_origin": [
+          0,
+          0
+        ],
+        "hp_bar": [
+          0,
+          -15
+        ],
+        "impact": [
+          0,
+          -2
+        ],
+        "muzzle": [
+          -24,
+          12
+        ]
+      },
+      "column": 2,
+      "column_width": 21,
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 8,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/htbh_enemie_sheet.png"
+    },
+    "raider_stage_1_v4": {
+      "anchors": {
+        "beam_endpoint": [
+          0,
+          0
+        ],
+        "floater_origin": [
+          0,
+          0
+        ],
+        "hp_bar": [
+          0,
+          -16
+        ],
+        "impact": [
+          2,
+          -4
+        ],
+        "muzzle": [
+          -24,
+          12
+        ]
+      },
+      "column": 3,
+      "column_width": 21,
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 8,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/htbh_enemie_sheet.png"
     },
     "raider_stage_2": {
       "anchors": {
@@ -7149,24 +9371,355 @@
           8
         ]
       },
+      "column_width": 21,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
+      "row_start": 12,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 6,
-          "hidden": [],
+          "frames": 21,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/raider_stage_1.png"
+      "sheet": "master/htbh_enemie_sheet.png"
     },
-    "raider_stage_3": {
+    "raider_stage_2_v2": {
+      "anchors": {
+        "beam_endpoint": [
+          0,
+          0
+        ],
+        "floater_origin": [
+          0,
+          0
+        ],
+        "hp_bar": [
+          0,
+          -17
+        ],
+        "impact": [
+          0,
+          -4
+        ],
+        "muzzle": [
+          -22,
+          12
+        ]
+      },
+      "column": 1,
+      "column_width": 21,
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 12,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/htbh_enemie_sheet.png"
+    },
+    "raider_stage_2_v3": {
+      "anchors": {
+        "beam_endpoint": [
+          0,
+          0
+        ],
+        "floater_origin": [
+          0,
+          0
+        ],
+        "hp_bar": [
+          -2,
+          -17
+        ],
+        "impact": [
+          2,
+          -4
+        ],
+        "muzzle": [
+          -24,
+          12
+        ]
+      },
+      "column": 2,
+      "column_width": 21,
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 12,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/htbh_enemie_sheet.png"
+    },
+    "raider_stage_2_v4": {
       "anchors": {
         "beam_endpoint": [
           0,
@@ -7178,33 +9731,860 @@
         ],
         "hp_bar": [
           1,
-          -14
+          -17
         ],
         "impact": [
-          2,
-          0
+          1,
+          -4
         ],
         "muzzle": [
-          -26,
-          6
+          -24,
+          12
         ]
       },
+      "column": 3,
+      "column_width": 21,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
+      "row_start": 12,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 6,
-          "hidden": [],
+          "frames": 21,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/raider_stage_1.png"
+      "sheet": "master/htbh_enemie_sheet.png"
+    },
+    "raider_stage_2_v5": {
+      "anchors": {
+        "beam_endpoint": [
+          0,
+          0
+        ],
+        "floater_origin": [
+          0,
+          0
+        ],
+        "hp_bar": [
+          0,
+          -17
+        ],
+        "impact": [
+          0,
+          -4
+        ],
+        "muzzle": [
+          -21,
+          12
+        ]
+      },
+      "column": 4,
+      "column_width": 21,
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 12,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/htbh_enemie_sheet.png"
+    },
+    "raider_stage_3": {
+      "anchors": {
+        "beam_endpoint": [
+          1,
+          -2
+        ],
+        "floater_origin": [
+          2,
+          -4
+        ],
+        "hp_bar": [
+          2,
+          -18
+        ],
+        "impact": [
+          2,
+          -3
+        ],
+        "muzzle": [
+          -22,
+          13
+        ]
+      },
+      "column_width": 21,
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 12,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/htbh_enemie_sheet.png"
+    },
+    "raider_stage_3_v2": {
+      "anchors": {
+        "beam_endpoint": [
+          3,
+          -4
+        ],
+        "floater_origin": [
+          2,
+          -4
+        ],
+        "hp_bar": [
+          1,
+          -18
+        ],
+        "impact": [
+          2,
+          -6
+        ],
+        "muzzle": [
+          -22,
+          12
+        ]
+      },
+      "column": 1,
+      "column_width": 21,
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 12,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/htbh_enemie_sheet.png"
+    },
+    "raider_stage_3_v3": {
+      "anchors": {
+        "beam_endpoint": [
+          2,
+          -2
+        ],
+        "floater_origin": [
+          3,
+          -6
+        ],
+        "hp_bar": [
+          1,
+          -18
+        ],
+        "impact": [
+          2,
+          -4
+        ],
+        "muzzle": [
+          -23,
+          12
+        ]
+      },
+      "column": 2,
+      "column_width": 21,
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 12,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/htbh_enemie_sheet.png"
+    },
+    "raider_stage_3_v4": {
+      "anchors": {
+        "beam_endpoint": [
+          2,
+          -4
+        ],
+        "floater_origin": [
+          2,
+          -4
+        ],
+        "hp_bar": [
+          1,
+          -19
+        ],
+        "impact": [
+          2,
+          -4
+        ],
+        "muzzle": [
+          -22,
+          12
+        ]
+      },
+      "column": 3,
+      "column_width": 21,
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 12,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/htbh_enemie_sheet.png"
+    },
+    "raider_stage_3_v5": {
+      "anchors": {
+        "beam_endpoint": [
+          2,
+          -4
+        ],
+        "floater_origin": [
+          2,
+          -5
+        ],
+        "hp_bar": [
+          1,
+          -17
+        ],
+        "impact": [
+          2,
+          -6
+        ],
+        "muzzle": [
+          -22,
+          12
+        ]
+      },
+      "column": 4,
+      "column_width": 21,
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 12,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/htbh_enemie_sheet.png"
     },
     "raider_stage_4": {
       "anchors": {
@@ -7901,22 +11281,98 @@
       "sheet": "master/ss_stonethrower.png"
     },
     "sniper_stage_1": {
+      "column_width": 21,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -23,
+      "offset_y": 0,
+      "row_start": 4,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/deco_tree_v9.png"
+      "sheet": "master/htbh_enemie_sheet.png"
     },
     "sniper_stage_2": {
       "frame_h": 96,
@@ -7937,22 +11393,98 @@
       "sheet": "imported/deco_tree_v9.png"
     },
     "sniper_stage_3": {
+      "column_width": 21,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -23,
+      "offset_y": 0,
+      "row_start": 4,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/deco_tree_v9.png"
+      "sheet": "master/htbh_enemie_sheet.png"
     },
     "sniper_stage_4": {
       "frame_h": 96,

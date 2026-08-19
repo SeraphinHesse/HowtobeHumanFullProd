@@ -414,19 +414,28 @@
                 "enemy_stage_1_v1",
                 "enemy_stage_1_v2",
                 "enemy_stage_1_v3",
-                "enemy_stage_1_v4"
+                "enemy_stage_1_v4",
+                "enemy_stage_1_v5"
               ]
             },
             {
               "label": "Era 2",
               "slots": [
-                "enemy_stage_2"
+                "enemy_stage_2",
+                "enemy_stage_2_v2",
+                "enemy_stage_2_v3",
+                "enemy_stage_2_v4",
+                "enemy_stage_2_v5"
               ]
             },
             {
               "label": "Era 3",
               "slots": [
-                "enemy_stage_3"
+                "enemy_stage_3",
+                "enemy_stage_3_v2",
+                "enemy_stage_3_v3",
+                "enemy_stage_3_v4",
+                "enemy_stage_3_v5"
               ]
             },
             {
@@ -444,19 +453,30 @@
             {
               "label": "Era 1",
               "slots": [
-                "raider_stage_1"
+                "raider_stage_1",
+                "raider_stage_1_v2",
+                "raider_stage_1_v3",
+                "raider_stage_1_v4"
               ]
             },
             {
               "label": "Era 2",
               "slots": [
-                "raider_stage_2"
+                "raider_stage_2",
+                "raider_stage_2_v2",
+                "raider_stage_2_v3",
+                "raider_stage_2_v4",
+                "raider_stage_2_v5"
               ]
             },
             {
               "label": "Era 3",
               "slots": [
-                "raider_stage_3"
+                "raider_stage_3",
+                "raider_stage_3_v2",
+                "raider_stage_3_v3",
+                "raider_stage_3_v4",
+                "raider_stage_3_v5"
               ]
             },
             {
