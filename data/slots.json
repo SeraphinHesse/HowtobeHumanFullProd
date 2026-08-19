@@ -1079,13 +1079,21 @@
             {
               "label": "Lives",
               "slots": [
-                "ui_icon_lives"
+                {
+                  "frame_h": 32,
+                  "frame_w": 32,
+                  "key": "ui_icon_lives"
+                }
               ]
             },
             {
               "label": "Life",
               "slots": [
-                "ui_icon_life"
+                {
+                  "frame_h": 32,
+                  "frame_w": 32,
+                  "key": "ui_icon_life"
+                }
               ]
             }
           ],

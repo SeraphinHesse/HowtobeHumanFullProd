@@ -54,6 +54,13 @@ _BOSS_NEXT_TINT_OFF = (150, 150, 150, 255)
 # length. --
 _LIFE_ICON_GAP = 6
 
+# -- End Turn slide-away: how long the button takes to ride down past the
+# bottom edge when combat starts, and to ride back up at PAYDAY. Code chrome
+# (the _LIFE_ICON_GAP / HP_BAR_PAD precedent) -- a transition length nobody
+# balances, not a designer lever, so it stays a module constant rather than
+# growing a data/balancing/ui.json key. --
+_END_TURN_SLIDE_SEC = 0.35
+
 # The phase readout's two-state copy. It used to be a six-way GamePhase ->
 # string-id map (``_PHASE_LABEL_ID``) resolved through the Phase C string
 # table; the readout moved bottom-right (above End Turn) and now says only
@@ -241,6 +248,19 @@ class Hud:
         self.drag_select_btn = Button((0, 0, 45, 14), "DRAG", font_key="sm")
         # -- /drag-select --
         self._clock = 0.0  # drives the levelup-pending pulse
+        # -- End Turn slide-away: the button is only ever *clickable* in
+        # BUILDING phase, so rather than sit dead through the combat half of
+        # the round it rides down past the bottom edge when the wave starts
+        # and rides back up at PAYDAY (GamePhase.INCOME) — one phase before
+        # it is usable again, so it has landed by the time BUILDING opens.
+        # 0.0 = home, 1.0 = fully off-screen; advanced in update() and
+        # applied to the rect at the END of _layout_readouts(), so the round
+        # + phase labels stacked above it keep their home anchors and only
+        # the button moves. A bare Hud (layout exporter, screen_preview.py,
+        # the golden recorder, every unit test) never ticks update(), so it
+        # stays 0.0 and every exported/pinned rect is unchanged. --
+        self._end_turn_slide = 0.0
+        self._view_h = view_h   # slide travel is measured against it
         # The building panel is a full-height right sidebar and the HUD submits
         # AFTER it, so both right-edge buttons would paint on top of it. While
         # it is open they are neither drawn nor hit-tested.
@@ -371,6 +391,7 @@ class Hud:
         self.layout(view_w, view_h)  # lay out now so hit() works before submit()
 
     def layout(self, view_w, view_h):
+        self._view_h = view_h
         w, h = self.end_turn.rect[2], self.end_turn.rect[3]
         self.end_turn.rect = (view_w - w - 8, view_h - h - 8, w, h)
         pw, ph = self.pause.rect[2], self.pause.rect[3]
@@ -500,6 +521,28 @@ class Hud:
             "life_3": ("panel", self._life_3),
         })
         self.skinning.apply(self.screen_id, self.ids)
+        self._apply_end_turn_slide()
+
+    def _apply_end_turn_slide(self):
+        """Offset the End Turn button down by its current slide fraction.
+
+        LAST step of the layout pass, after skinning: it reads the button's
+        just-applied home rect (so a designer's own rect override slides too)
+        and every End-Turn-relative label has already been anchored off that
+        home rect above. At k == 0 the rect is returned untouched — byte-
+        identical to pre-slide layout for anything that never ticks update().
+        """
+        k = self._end_turn_slide
+        if k <= 0.0:
+            return
+        x, y, w, h = self.end_turn.rect
+        # Smoothstep: eases out of the corner and settles back into it,
+        # rather than the linear ramp reading as a jerk at both ends.
+        e = k * k * (3.0 - 2.0 * k)
+        # +2 so the fully-slid button clears the bottom edge outright even
+        # when a skin's nine-slice frame paints a pixel past the rect.
+        travel = max(0, self._view_h - y) + 2
+        self.end_turn.rect = (x, y + round(e * travel), w, h)
 
     # -- UL-11 + the lost-life flight -------------------------------------
     def _dying_seconds(self):
@@ -663,6 +706,20 @@ class Hud:
             st.state == GameState.GAMEPLAY
             and st.phase == GamePhase.BUILDING
             and not self._panel_open)
+        # -- End Turn slide-away: home for the two phases the player is NOT
+        # in combat for (BUILDING, where it is clickable, and the INCOME
+        # "PAYDAY" phase that precedes it — starting the ride up there is
+        # what makes it already seated when build mode opens); away for the
+        # whole combat half (ENEMY_INTRO / ENEMY / ROUND_END) and for the
+        # LEVELUP / BOSS_CUTSCENE modals that interrupt it. --
+        target = (0.0 if st.phase in (GamePhase.BUILDING, GamePhase.INCOME)
+                  else 1.0)
+        step = dt / _END_TURN_SLIDE_SEC
+        if self._end_turn_slide < target:
+            self._end_turn_slide = min(target, self._end_turn_slide + step)
+        else:
+            self._end_turn_slide = max(target, self._end_turn_slide - step)
+        # -- /End Turn slide-away --
         # 10L-B: an invisible button is neither hover-tracked nor hit — force
         # ``hovered`` off rather than skip ``hover()`` outright so a stale
         # True from before an override toggled it visible=False can't linger.
