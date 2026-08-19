@@ -884,11 +884,19 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
   CODE-ONLY like `debug_settings`/`keybinds_screen` — no
   `data/ui/screens/save_files.json`, no `screen_defaults.json` entry, not in
   `export_ui_layouts.py`'s `SCREEN_IDS`. Each row shows the save's
-  timestamp, round reached, a live-rendered 2-color locked/unlocked minimap
-  (plain `HudRect`s off `unlocked_tiles`/`thumbnail_cols`/`thumbnail_rows` —
-  no stored image bytes, no pygame surface capture, keeping `game/ui`
-  pygame-free per the layering rule), a PIN toggle, and a DELETE button.
-  `hit()` returns `"back"`, `("pin", slot_id)`, `("delete", slot_id)`, or
+  timestamp and round reached, a PIN toggle, and a DELETE button. **No
+  minimap** — the original design drew a live 2-color locked/unlocked grid
+  off `unlocked_tiles`, but it was cut after a live-testing report (both the
+  UI element and the underlying `unlocked_tiles` field, all the way back
+  through the save assembly and schema — `game/CLAUDE.md`'s autosave
+  section, `game/map/CLAUDE.md`'s `save_state()` section). **The timestamp
+  label is reformatted for DISPLAY (user decisions — day-month-year date
+  order, seconds dropped but hour:minute kept)**: `_format_timestamp`
+  rewrites `created_at`'s stored `YYYY-MM-DDTHH:MM:SS` into
+  `DD-MM-YYYY HH:MM` — the stored value keeps its full ISO-8601
+  `timespec="seconds"` form (`game/core/savegame.py`), nothing about the
+  save doc itself changed. `hit()` returns
+  `"back"`, `("pin", slot_id)`, `("delete", slot_id)`, or
   `("load", slot_id)` — the `Shell` intent-string convention, executed by
   `main.py`'s `execute()` via a new `isinstance(intent, tuple)` branch.
   `Shell.set_save_index(doc)` hands down the index doc the host loaded at
@@ -917,6 +925,27 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
     `max(28, stack_top - 20)`) instead of the old fixed offsets — so a
     7-row menu (CONTINUE hidden) and a 9-row menu (CONTINUE visible) both
     center correctly with no per-row-count special-casing.
+  - **`data/ui/screens/main_menu.json`'s stale per-button `rect` overrides
+    were REMOVED (live-testing bugfix — this is what "the main menu looks
+    really weird" turned out to be).** That designer skinning file (10L-B)
+    predates this row-count rework — its row spacing (~33-34px) matches the
+    layout from before even the HIGHSCORES row existed — and
+    `ScreenSkinning.apply()` reapplies its fixed positions every frame
+    AFTER `layout()` computes the new dynamic centered stack. CONTINUE and
+    SAVE FILES carried no override (the file predates both), so they used
+    the correct dynamic position while every OTHER button froze at its
+    stale spot — which is what produced the overlap (SAVE FILES landing on
+    top of ADD A NAME/HIGHSCORES) and the misplacement (CONTINUE off to the
+    side near the title). The fix removed every stale `rect` from that
+    file's `widgets` table (keeping `backdrop`'s deliberate 4px offset and
+    `subtitle`/`title`'s non-geometry keys, `skin`/`text_color`/`visible`)
+    so every row — old and new — now goes through the SAME live `layout()`
+    call with nothing left to disagree with it. **This file is NOT touched
+    by `test_ui_skinning.py`'s golden pin** (that captures through
+    `ScreenSkinning.empty()`, never the real override file), so nothing
+    caught this drift automatically — a live `py game/main.py` look is what
+    a screen's REAL on-disk override needs, the golden pin only covers the
+    CODE-computed defaults.
   - **`data/ui/screen_defaults.json`/`screen_previews.json` and
     `test_ui_skinning.py`'s `main_menu` golden entry were regenerated on
     purpose** — the same sanctioned "geometry changed on purpose" path the

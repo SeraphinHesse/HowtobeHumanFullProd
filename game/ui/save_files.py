@@ -17,9 +17,9 @@ against ``game.core.savegame``, then call `set_index` again with the fresh
 result — this screen never calls `savegame.add_slot`/`set_pinned`/
 `remove_slot` itself, keeping `game/ui` IO-free.
 
-**The minimap is drawn LIVE from `unlocked_tiles`/`thumbnail_cols`/
-`thumbnail_rows` — no image bytes anywhere** (SaveGamePLAN D4): a small grid
-of filled `HudRect`s, one per unlocked tile, scaled to fit a fixed pixel box.
+**No minimap** (removed after a live-testing report — it was cut from the
+save doc/schema/assembly too, not just this screen; see game/CLAUDE.md's
+autosave section). Each row shows only the timestamp and round reached.
 """
 from types import SimpleNamespace
 
@@ -32,15 +32,26 @@ from . import widgets
 _BG = (12, 20, 14)
 
 _ROW_H = 26
-_MAP_SIZE = 20            # the minimap's square pixel box
-_MAP_BG = (30, 30, 34)
-_MAP_FILL = widgets.C_GOLD
+_ROW_PAD = 8
 _PIN_W, _DEL_W, _BTN_H = 34, 46, 20
 _LIST_TOP = 68
 _BOTTOM_PAD = 12
 _LIST_W = 460
 
 SCREEN_ID = "save_files"
+
+
+def _format_timestamp(iso_str):
+    """``created_at``'s ISO-8601 value (``YYYY-MM-DDTHH:MM:SS``, SG-1's
+    ``timespec="seconds"``), for DISPLAY only — the stored value keeps its
+    full precision. Reformatted to ``DD-MM-YYYY HH:MM`` (user decisions:
+    day-month-year date order, and seconds dropped). Malformed/short input
+    (a fixture stub, a future format change) falls back to the raw string
+    rather than raising — this is a label, never a parse site."""
+    if len(iso_str) < 16 or iso_str[10] != "T":
+        return iso_str
+    year, month, day = iso_str[0:4], iso_str[5:7], iso_str[8:10]
+    return f"{day}-{month}-{year} {iso_str[11:16]}"
 
 
 class SaveFilesScreen:
@@ -176,18 +187,6 @@ class SaveFilesScreen:
 
     # -- draw ----------------------------------------------------------
 
-    def _submit_minimap(self, renderer, x, y, slot):
-        """A small locked/unlocked grid, live from the slot's own data — no
-        stored image bytes anywhere (SaveGamePLAN D4)."""
-        renderer.submit_hud(HudRect((x, y, _MAP_SIZE, _MAP_SIZE), _MAP_BG))
-        cols = max(1, slot.get("thumbnail_cols", 1))
-        rows = max(1, slot.get("thumbnail_rows", 1))
-        sx, sy = _MAP_SIZE / cols, _MAP_SIZE / rows
-        w, h = max(1, int(sx) + 1), max(1, int(sy) + 1)
-        for col, row in slot.get("unlocked_tiles", ()):
-            px, py = x + int(col * sx), y + int(row * sy)
-            renderer.submit_hud(HudRect((px, py, w, h), _MAP_FILL))
-
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
@@ -211,10 +210,9 @@ class SaveFilesScreen:
                             self.scroll_offset + self.visible_rows]
         for i, slot in enumerate(window):
             y = _LIST_TOP + i * _ROW_H
-            self._submit_minimap(renderer, self._left, y + (_ROW_H - _MAP_SIZE) // 2,
-                                 slot)
-            label = f"Round {slot.get('round_num', 0)}  -  {slot.get('created_at', '')}"
-            submit_text(renderer, label, (self._left + _MAP_SIZE + 8,
+            label = (f"Round {slot.get('round_num', 0)}  -  "
+                    f"{_format_timestamp(slot.get('created_at', ''))}")
+            submit_text(renderer, label, (self._left + _ROW_PAD,
                                           y + _ROW_H // 2 - 6), "sm",
                        widgets.C_UI_TEXT)
             pin_btn, del_btn = self._row_buttons[i]

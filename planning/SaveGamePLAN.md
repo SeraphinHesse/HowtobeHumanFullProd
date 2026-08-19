@@ -458,6 +458,62 @@ serialization code, and it reconstructs the identical edge set a save would
 have captured. `TileMap.save_state()` covers tile-state/condition/spawn-deco
 deltas, the stage counters, and `moving_orders` only.
 
+## 3b. Live-testing follow-up fixes (pre-SG-7)
+
+Four problems the user found playing the SG-6 build, before SG-7's formal
+Quick Test pass — fixed here rather than deferred, since two of them
+(the minimap removal, the autosave lag) change what SG-7's own script
+should check.
+
+1. **Autosave lag.** `savegame.add_slot`'s jsonschema validation + two JSON
+   writes ran synchronously on the round-edge frame — a real stall on a
+   large map/many buildings. **First attempt (superseded): spread the
+   disk-side work across three frames via a checkpoint queue** — measured
+   after the user reported the lag was still very feelable, this barely
+   helped, because the cost is overwhelmingly ONE atomic call
+   (`jsonschema` validating the doc: ~100ms at 400 buildings, ~320ms at
+   1500, roughly linear — `json.dumps` is ~5ms) that chunking the
+   surrounding orchestration cannot shrink. **Actual fix: the disk-side
+   work runs on a background `threading.Thread`** — document ASSEMBLY
+   stays synchronous (it reads live mutable state at the round boundary),
+   but the frozen `slot_doc` is handed off for `savegame.add_slot(...)` to
+   run off the main thread; the GIL still lets the render loop get
+   scheduled slices every ~5ms while the thread validates, so the cost
+   degrades gracefully across several frames instead of freezing one.
+   `game/core/savegame.py` gained a module-level `threading.RLock`
+   guarding every save-file read/write on either thread (pinned by
+   `test_savegame.py::TestConcurrentAccess`, which drives real concurrent
+   threads against the same files). `game/CLAUDE.md`'s autosave section
+   has the full breakdown.
+2. **Main menu looked "really weird."** Root cause: `data/ui/screens/
+   main_menu.json` (a 10L-B designer skinning override) carried STALE fixed
+   `rect` overrides for most buttons, predating this plan's dynamic
+   row-count centering — `ScreenSkinning.apply()` reapplied them over
+   `layout()`'s freshly-computed positions every frame, so old buttons
+   froze in place while CONTINUE/SAVE FILES (no override) used the new
+   layout, producing an overlap. Fixed by clearing the stale `rect`
+   overrides from that file (`game/ui/CLAUDE.md`'s main-menu section).
+3. **Minimap cut entirely** — user decision, reversing the original design
+   (§1/§2 above). The per-slot thumbnail (`unlocked_tiles` +
+   `thumbnail_cols`/`thumbnail_rows`) is removed from the schema, the
+   autosave assembly, `TileMap.save_state()` (its `cols`/`rows` fields lost
+   their only reader) and `game/ui/save_files.py`'s row rendering. A save
+   slot now shows only its timestamp and round reached.
+4. **The loading screen sometimes opened in a separate OS window.** A real,
+   pre-existing bug, not caused by this plan's own code but surfaced by the
+   autosave lag stalling the main loop long enough for the OS to reshuffle
+   window focus: `_SurfacePresenter.close()` was a no-op, so the pre-boot
+   loading screen's window (`pygame.display.set_mode`) was never destroyed
+   whenever the real run picked the GPU backend (`_GpuPresenter` opens its
+   OWN separate `pygame._sdl2.video.Window`). Fixed: `close()` now calls
+   `pygame.display.quit()`. `game/CLAUDE.md`'s loading-screen section has
+   the full trace.
+
+SG-7's Quick Test script (above) should be read with items 3 and 4 in mind:
+step 1 no longer has a minimap to visually check, and a long play session
+is also now the regression check for item 4 (the window should never
+reappear).
+
 ## 4. Risks / open items
 
 - **`mortar_slow_snapshot_ids`' `id()`-vs-uuid translation (D5)** is the

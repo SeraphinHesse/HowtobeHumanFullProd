@@ -261,6 +261,24 @@ the only place the words `"placement"`/`"upgrade"`/`"buy_plot"` and the
     sub-step) rather than 5, so the ring's motion reads as smooth instead of
     jumpy. No added delay and no eased/faked animation — just finer-grained
     real boot sub-steps; `_loading_steps_total` documents the count.
+    **`_SurfacePresenter.close()` must actually release this window (fix,
+    found by a live-testing report of "the loading screen opens in a
+    separate window").** It used to be a no-op `pass`. This presenter is
+    ALWAYS a `_SurfacePresenter` (`pygame.display.set_mode`); the real run's
+    presenter can be a `_GpuPresenter` instead (`_build_render_stack`'s
+    `"auto"` default, when GPU init succeeds), which opens its OWN, entirely
+    separate `pygame._sdl2.video.Window` rather than reusing this one. So
+    the pre-boot window was silently abandoned rather than destroyed
+    whenever the run picked GPU — a second, real OS window, frozen on its
+    last-rendered loading-ring frame, alive for the rest of the process and
+    liable to resurface (the OS reshuffling window focus/z-order) at any
+    later point, most visibly whenever the main loop stalls for a while (the
+    autosave lag above was a common trigger, but the two bugs are
+    otherwise unrelated — fixing one does not require the other).
+    `close()` now calls `pygame.display.quit()`, safe at every call site
+    (the GPU-init-failure fallback, this discard, and the final shutdown
+    right before `pygame.quit()`) because in each the presenter is provably
+    done being used.
   - **Post-"Start Game"** (`GameState.LOADING`, `game/ui/loading_screen.py`'s
     `LoadingScreen`): the real presenter/renderer already exist by the time
     the player clicks START NEW GAME, so no second window is needed. The
@@ -298,16 +316,50 @@ the only place the words `"placement"`/`"upgrade"`/`"buy_plot"` and the
   round-boundary assertion never trips). `_autosave` (a nested `main()`
   helper, beside `build_gameplay`/`teardown_gameplay`) assembles one save
   document — `RunState.to_dict`/`Session.to_dict`/`TileMap.save_state` plus
-  `save_building` per live building (`game/buildings/registry.py`, SG-3) —
-  and writes it via `game/core/savegame.py`'s write-with-eviction path.
+  `save_building` per live building (`game/buildings/registry.py`, SG-3).
   **Buildings currently mid-move are included explicitly**
   (`tile_map.moving_orders`), not just tile occupants — a moving building is
   despawned and held alive ONLY by that list (`game/map/CLAUDE.md`'s
   Building Movement section), so a save that only swept `built_tiles()` would
   silently drop it. The base building is excluded (re-attached fresh via
-  `attach_base` on load). The whole assembly is wrapped in a broad `except
-  Exception` + one logged warning — the highscores-append precedent — since
-  a disk failure must never crash a mid-game autosave.
+  `attach_base` on load).
+  - **The disk-side write runs on a BACKGROUND THREAD (perf fix, take 2 —
+    found and measured by live testing).** A first attempt spread
+    `savegame.add_slot`'s ORCHESTRATION (eviction, the body write, the index
+    write) across three frames via a checkpoint queue, the `loading_queue`
+    pattern applied invisibly. **Measured, that barely helped**: the cost is
+    overwhelmingly ONE atomic call — `jsonschema` validating the save doc
+    (~100ms at 400 buildings, ~320ms at 1500, roughly linear; `json.dumps`
+    itself is ~5ms) — and chunking the orchestration AROUND a single
+    un-choppable call does not shrink that call. Document ASSEMBLY still
+    stays fully synchronous on the round-edge frame (it reads live mutable
+    world state and must capture it exactly at that instant); the frozen
+    `slot_doc` is then handed to a `threading.Thread(daemon=True)` running
+    `savegame.add_slot(...)` + `shell.main_menu.set_has_saves(True)`. The
+    GIL means this is not true parallelism, but it still lets the render
+    loop get scheduled slices every ~5ms while the thread is CPU-bound
+    inside `jsonschema`, so the cost degrades gracefully across several
+    frames instead of freezing one. `game/core/savegame.py`'s module-level
+    `_LOCK` (a `threading.RLock`) is what makes this safe: EVERY save-file
+    read and write in that module, on either thread, takes it, so the Save
+    Files screen opening/pinning/deleting on the main thread can never
+    observe a save file mid-write from this thread or race it — pinned by
+    `tools/tests/test_savegame.py`'s `TestConcurrentAccess`, which actually
+    drives concurrent threads against the same files rather than reasoning
+    about the lock in isolation. The background thread's own body keeps the
+    same broad `except Exception` + one logged warning (the
+    highscores-append precedent) — a disk failure never crashes a mid-game
+    autosave, it just never reaches the `set_has_saves(True)` call.
+  - **No minimap, and no `unlocked_tiles` in the save doc at all** (removed
+    after a live-testing report — cut from the schema, the assembly, and
+    `game/ui/save_files.py`'s row rendering, not just the UI). It existed
+    solely to feed the Save Files screen's per-slot thumbnail; computing it
+    (a full sweep of `buildable_tiles()` + `built_tiles()`) also meaningfully
+    padded both the assembly and the schema-validation cost on a large
+    unlocked map, so cutting the feature and cutting a real chunk of the
+    frame cost were the same change. `TileMap.save_state()`'s `cols`/`rows`
+    fields are gone too — they existed only for the minimap's sizing and had
+    no other reader (`game/map/CLAUDE.md`).
 - **Camera input mapping (E-5) lives here**, on pure engine camera state: **both
   left- and right-click-drag pan** (`cs.pan` + `cs.clamp`, which bounds the view
   to **map bounds ∩ the camera leash**). The leash is `core` balancing's

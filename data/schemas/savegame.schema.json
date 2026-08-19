@@ -350,12 +350,6 @@
       "additionalProperties": false,
       "description": "TileMap.save_state() output (SG-4) - runtime deltas from the deterministic legend baseline only (state/condition/spawn-deco per tile, the stage-system counters, in-transit moving orders). No wall edges - see save_state()'s own docstring for why the caller re-derives those via rebuild_walls() instead.",
       "properties": {
-        "cols": {
-          "description": "Map column count (duplicated here for make_summary's minimap sizing, so the index need not load tile_map to size the grid).",
-          "maximum": 1024,
-          "minimum": 1,
-          "type": "integer"
-        },
         "moving_orders": {
           "description": "Buildings currently in transit between two tiles (Building Movement) - despawned, held alive only by this list.",
           "items": {
@@ -408,12 +402,6 @@
           "description": "How many spawn-reserve batches have been retired past the scripted max.",
           "maximum": 1000,
           "minimum": 0,
-          "type": "integer"
-        },
-        "rows": {
-          "description": "Map row count (see cols).",
-          "maximum": 1024,
-          "minimum": 1,
           "type": "integer"
         },
         "stage": {
@@ -486,29 +474,13 @@
         }
       },
       "required": [
-        "cols",
         "moving_orders",
         "retire_cursor",
-        "rows",
         "stage",
         "tile_deltas",
         "unlock_purchases"
       ],
       "type": "object"
-    },
-    "unlocked_tiles": {
-      "description": "Every unlocked (BUILDABLE or BUILT) tile's [col, row] at save time - the minimap source (D4: no image bytes stored). Duplicated from tile_map for the same reason as round_num.",
-      "items": {
-        "items": {
-          "maximum": 1023,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "maxItems": 2,
-        "minItems": 2,
-        "type": "array"
-      },
-      "type": "array"
     },
     "updated_at": {
       "description": "ISO-8601 timestamp of the last write - equals created_at, since a slot is never overwritten by a later autosave (D3: every autosave creates a new slot).",
@@ -533,7 +505,6 @@
     "session",
     "slot_id",
     "tile_map",
-    "unlocked_tiles",
     "updated_at",
     "version"
   ],

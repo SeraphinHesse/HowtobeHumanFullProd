@@ -6,7 +6,7 @@ shape.
 import unittest
 
 from game.ui.main_menu import MainMenu
-from game.ui.save_files import SaveFilesScreen
+from game.ui.save_files import SaveFilesScreen, _format_timestamp
 
 VW, VH = 640, 360
 
@@ -54,9 +54,19 @@ class TestContinueVisibility(unittest.TestCase):
 
 def _slot(slot_id, pinned=False):
     return {"slot_id": slot_id, "pinned": pinned, "created_at": "t",
-           "updated_at": "t", "map_id": "m", "round_num": 5,
-           "thumbnail_cols": 4, "thumbnail_rows": 4,
-           "unlocked_tiles": [[0, 0]]}
+           "updated_at": "t", "map_id": "m", "round_num": 5}
+
+
+class TestFormatTimestamp(unittest.TestCase):
+    """User decisions: DD-MM-YYYY date order, seconds dropped."""
+
+    def test_reorders_to_day_month_year_and_drops_seconds(self):
+        self.assertEqual(_format_timestamp("2026-08-19T14:35:22"),
+                         "19-08-2026 14:35")
+
+    def test_malformed_input_falls_back_to_the_raw_string(self):
+        self.assertEqual(_format_timestamp("t"), "t")
+        self.assertEqual(_format_timestamp(""), "")
 
 
 class TestSaveFilesHit(unittest.TestCase):

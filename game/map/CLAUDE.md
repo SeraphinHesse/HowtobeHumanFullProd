@@ -529,6 +529,11 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   restored BEFORE buildings are — while moving orders reference buildings BY
   ID and so must be restored AFTER. A single combined call cannot satisfy
   both orderings at once.
+  - **`cols`/`rows` were dropped from `save_state()`'s output (live-testing
+    follow-up)** — they existed solely so `make_summary` could size the
+    Save Files screen's minimap without loading the full slot body, and had
+    no other reader. Cutting the minimap feature (`game/CLAUDE.md`'s
+    autosave section) removed their one reason to exist.
   - **Wall edges are deliberately NOT part of this serialization.** SG-1's D1
     (autosave fires only at the round boundary) means every alive
     WallBuilder's walls are always at full HP the instant an autosave can

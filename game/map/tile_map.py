@@ -1264,8 +1264,6 @@ class TileMap:
             tile_deltas.append(entry)
 
         return {
-            "cols": self.cols,
-            "rows": self.rows,
             "tile_deltas": tile_deltas,
             "stage": self._stage,
             "unlock_purchases": self._unlock_purchases,

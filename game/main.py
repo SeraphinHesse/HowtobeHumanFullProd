@@ -45,6 +45,7 @@ import math
 import os
 import random
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -394,7 +395,21 @@ class _SurfacePresenter:
                 f"ground cache: GroundCache")
 
     def close(self):
-        pass
+        """Actually release the window this presenter opened via
+        ``pygame.display.set_mode`` (fix: never-closed pre-boot window).
+
+        Every call site (the pre-boot loading screen discarding itself once
+        the real render stack exists, a failed GPU init falling back to this
+        class, and the final shutdown right before ``pygame.quit()``) is
+        already done using this presenter, so tearing the window down here
+        is always safe. Before this fix ``close()`` was a no-op: whenever the
+        real run picked the GPU backend (``_GpuPresenter`` opens its OWN,
+        entirely separate ``pygame._sdl2.video.Window`` rather than reusing
+        this one), the pre-boot window was silently abandoned rather than
+        destroyed — a second, real OS window, frozen on its last-rendered
+        loading-ring frame, alive for the rest of the session and liable to
+        resurface whenever the OS reshuffled window focus/z-order."""
+        pygame.display.quit()
 
 
 class _GpuPresenter:
@@ -1528,11 +1543,29 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             gc.collect()
 
     def _autosave(world, session, map_id):
-        """SaveGamePLAN SG-5: build one save document from the live world and
-        write it via ``game.core.savegame``'s write-with-eviction path.
-        Called ONLY from the round-edge watcher below, which already
-        guarantees ``session.state.phase == BUILDING`` (the round boundary,
-        D1) — the one moment ``RunState.to_dict()`` accepts a save.
+        """SaveGamePLAN SG-5 (perf fix, take 2): assemble one save document
+        from the live world IMMEDIATELY (this must happen exactly at the
+        round boundary — the one moment ``RunState.to_dict()`` accepts a
+        save, and before the player can act again and change what
+        ``buildings``/``tile_map`` describe), then hand the frozen
+        ``slot_doc`` to a BACKGROUND THREAD for the disk-side work
+        (``savegame.add_slot`` — jsonschema validation + two JSON writes).
+
+        **Why a thread, not more frame-chunking**: a first attempt at this
+        fix (still visible in git history) split `add_slot`'s ORCHESTRATION
+        across three frames, but measured, that did almost nothing — the
+        cost is overwhelmingly ONE atomic call, `jsonschema` validating the
+        save doc (~100ms at 400 buildings, ~320ms at 1500, roughly linear;
+        `json.dumps` itself is ~5ms), and no amount of chunking around a
+        single un-choppable call reduces its cost. A background thread
+        does: Python's GIL still lets the render loop get scheduled slices
+        every ~5ms even while the thread is CPU-bound, so the frame budget
+        degrades gracefully across several frames instead of one big freeze.
+        `game/core/savegame.py`'s module-level `_LOCK` (a `threading.RLock`)
+        is what makes this safe — every save-file read AND write, on either
+        thread, takes it, so the Save Files screen opening/pinning/deleting
+        on the main thread can never observe a save file mid-write from this
+        thread or race it.
 
         Every building currently mid-move is despawned and held alive ONLY
         by ``tile_map.moving_orders`` (game/map/CLAUDE.md) — included
@@ -1542,10 +1575,19 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         on load, exactly like a new game, and carries no runtime state
         worth preserving (``base_lives`` lives on ``RunState``, not on it).
 
-        Wrapped in a broad except + one logged warning — the
-        ``highscores``-append precedent (game/CLAUDE.md's "One high-score
-        row..." section): a disk failure must never crash a mid-game
-        autosave.
+        The background thread's own body is wrapped in a broad except + one
+        logged warning — the ``highscores``-append precedent — so a disk
+        failure never crashes a mid-game autosave; it just never reaches the
+        `shell.main_menu.set_has_saves(True)` call at the end.
+        `set_has_saves` is a single attribute write (GIL-atomic), so calling
+        it from this thread needs no lock of its own — the worst case is the
+        main thread's next frame or two still reading the old value.
+
+        Assumes at most one autosave is ever in flight at a time: true by
+        construction, since ``AUTOSAVE_EVERY_N_ROUNDS`` rounds of
+        BUILDING-phase play (player-paced, effectively unbounded time)
+        separate two firings, far more than one save takes to write even at
+        the high end measured above.
         """
         try:
             buildings = [t.occupant for t in world.tile_map.built_tiles()
@@ -1553,28 +1595,33 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                         and t.occupant.building_type != "base"]
             buildings += [order.building for order in world.tile_map.moving_orders]
 
-            unlocked_tiles = (
-                [[t.col, t.row] for t in world.tile_map.buildable_tiles()]
-                + [[t.col, t.row] for t in world.tile_map.built_tiles()])
-
             slot_doc = savegame.make_slot_doc(
                 slot_id=savegame.new_slot_id(),
                 map_id=map_id,
                 round_num=session.state.round_num,
-                unlocked_tiles=unlocked_tiles,
                 run_state=session.state.to_dict(buildings=buildings),
                 session=session.to_dict(),
                 tile_map=world.tile_map.save_state(),
                 buildings=[save_building(b) for b in buildings],
             )
-            savegame.add_slot(REPO, slot_doc, data_dir)
-            # The first autosave of a fresh session flips CONTINUE from
-            # hidden to visible immediately, not just on the next boot.
-            shell.main_menu.set_has_saves(True)
         except Exception:                                    # noqa: BLE001
             logging.getLogger(__name__).warning(
-                "autosave failed at round %s", session.state.round_num,
-                exc_info=True)
+                "autosave failed assembling the save document at round %s",
+                session.state.round_num, exc_info=True)
+            return
+
+        def _write_in_background():
+            try:
+                savegame.add_slot(REPO, slot_doc, data_dir)
+                # The first autosave of a fresh session flips CONTINUE from
+                # hidden to visible immediately, not just on the next boot.
+                shell.main_menu.set_has_saves(True)
+            except Exception:                                # noqa: BLE001
+                logging.getLogger(__name__).warning(
+                    "autosave failed writing to disk at round %s",
+                    session.state.round_num, exc_info=True)
+
+        threading.Thread(target=_write_in_background, daemon=True).start()
 
     def _new_recorder():
         """A fresh recorder from the shell's debug-log settings (level +

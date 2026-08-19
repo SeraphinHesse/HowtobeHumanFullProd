@@ -7,6 +7,7 @@ a tempdir for the disk half, FIXTURE_DATA for schema resolution
 (test_fixture_guard.py forbids a new test from reading live data/).
 """
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
@@ -16,16 +17,15 @@ from game.core import savegame
 from game.core.game_state import RunState
 
 
-def _slot_doc(slot_id="a", round_num=5, pinned=False, unlocked_tiles=None):
+def _slot_doc(slot_id="a", round_num=5, pinned=False):
     return savegame.make_slot_doc(
         slot_id=slot_id,
         map_id="first_light",
         round_num=round_num,
-        unlocked_tiles=unlocked_tiles or [[0, 0], [1, 0]],
         run_state=RunState().to_dict(),   # a bare RunState is already at the
                                           # round boundary (BUILDING/GAMEPLAY)
         session={"combat_speed_idx": 0},
-        tile_map={"cols": 10, "rows": 10, "tile_deltas": [], "stage": 0,
+        tile_map={"tile_deltas": [], "stage": 0,
                   "unlock_purchases": 0, "retire_cursor": 0,
                   "moving_orders": []},
         buildings=[],
@@ -47,7 +47,6 @@ class TestSlotRoundTrip(unittest.TestCase):
         self.assertEqual(loaded["slot_id"], "abc123")
         self.assertEqual(loaded["round_num"], 15)
         self.assertEqual(loaded["map_id"], "first_light")
-        self.assertEqual(loaded["unlocked_tiles"], [[0, 0], [1, 0]])
 
     def test_missing_slot_returns_none(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -168,6 +167,78 @@ class TestPinAndDelete(unittest.TestCase):
             savegame.add_slot(tmp, _slot_doc(slot_id="s0"), FIXTURE_DATA)
             index_doc = savegame.remove_slot(tmp, "ghost", FIXTURE_DATA)
             self.assertEqual(len(index_doc["slots"]), 1)
+
+
+class TestConcurrentAccess(unittest.TestCase):
+    """The perf-follow-up fix: `_LOCK` (a `threading.RLock`) must make
+    `add_slot` safe to call from a background thread (`game/main.py`'s
+    autosave) while the main thread might concurrently read/write the same
+    files (Save Files screen open/pin/delete). A race here would corrupt
+    the index or a slot body — this drives real concurrent access rather
+    than reasoning about the lock in isolation."""
+
+    def test_concurrent_add_slot_calls_never_corrupt_the_index(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            n = 8
+            errors = []
+
+            def worker(i):
+                try:
+                    savegame.add_slot(tmp, _slot_doc(slot_id=f"c{i}"),
+                                      FIXTURE_DATA, keep=20)
+                except Exception as exc:                    # noqa: BLE001
+                    errors.append(exc)
+
+            threads = [threading.Thread(target=worker, args=(i,))
+                      for i in range(n)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+
+            self.assertEqual(errors, [])
+            index_doc = savegame.load_index(savegame.index_path(tmp),
+                                            FIXTURE_DATA)
+            ids = {s["slot_id"] for s in index_doc["slots"]}
+            self.assertEqual(ids, {f"c{i}" for i in range(n)})
+            # Every slot body is present and loads back cleanly - a
+            # corrupted concurrent write would show up here as None or a
+            # validation error.
+            for i in range(n):
+                body = savegame.load_slot(
+                    savegame.slot_path(tmp, f"c{i}"), FIXTURE_DATA)
+                self.assertIsNotNone(body)
+                self.assertEqual(body["slot_id"], f"c{i}")
+
+    def test_reader_never_sees_a_torn_write(self):
+        """A background writer and a foreground reader hammering the same
+        slot concurrently must never raise - `load_slot` either sees the
+        old body or the new one, never a partial write."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = savegame.slot_path(tmp, "x")
+            savegame.write_slot(path, _slot_doc(round_num=1), FIXTURE_DATA)
+            stop = threading.Event()
+            errors = []
+
+            def writer():
+                n = 2
+                while not stop.is_set():
+                    try:
+                        savegame.write_slot(
+                            path, _slot_doc(round_num=n), FIXTURE_DATA)
+                    except Exception as exc:                 # noqa: BLE001
+                        errors.append(exc)
+                        return
+                    n += 1
+
+            t = threading.Thread(target=writer)
+            t.start()
+            for _ in range(50):
+                body = savegame.load_slot(path, FIXTURE_DATA)
+                self.assertIsNotNone(body)
+            stop.set()
+            t.join()
+            self.assertEqual(errors, [])
 
 
 class TestMostRecentSlot(unittest.TestCase):

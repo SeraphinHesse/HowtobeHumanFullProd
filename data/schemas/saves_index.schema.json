@@ -2,7 +2,7 @@
   "$id": "saves_index.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "scores/saves/index.json (gitignored runtime save-slot index; no data/ content file pairs with this schema - validate_data skips data/schemas/). Written ONLY by game/core/savegame.py through engine.data_io.write_validated. Lists every save slot's lightweight summary (id, pinned flag, timestamps, round reached, minimap source data) so the Save Files screen can render its list without loading every slot's full body (SaveGamePLAN SG-1).",
+  "description": "scores/saves/index.json (gitignored runtime save-slot index; no data/ content file pairs with this schema - validate_data skips data/schemas/). Written ONLY by game/core/savegame.py through engine.data_io.write_validated. Lists every save slot's lightweight summary (id, pinned flag, timestamps, round reached) so the Save Files screen can render its list without loading every slot's full body (SaveGamePLAN SG-1).",
   "properties": {
     "slots": {
       "description": "Every save slot's summary, in creation order (oldest first) - the same order FIFO eviction walks.",
@@ -34,32 +34,6 @@
             "minLength": 1,
             "type": "string"
           },
-          "thumbnail_cols": {
-            "description": "Map column count, for rendering the minimap grid.",
-            "maximum": 1024,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "thumbnail_rows": {
-            "description": "Map row count, for rendering the minimap grid.",
-            "maximum": 1024,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "unlocked_tiles": {
-            "description": "Every unlocked (BUILDABLE or BUILT) tile's [col, row] at save time - the minimap source (D4: no image bytes stored).",
-            "items": {
-              "items": {
-                "maximum": 1023,
-                "minimum": 0,
-                "type": "integer"
-              },
-              "maxItems": 2,
-              "minItems": 2,
-              "type": "array"
-            },
-            "type": "array"
-          },
           "updated_at": {
             "description": "ISO-8601 timestamp of the last write to this slot - equals created_at, since a slot is never overwritten by a later autosave (D3: every autosave creates a new slot).",
             "type": "string"
@@ -71,9 +45,6 @@
           "pinned",
           "round_num",
           "slot_id",
-          "thumbnail_cols",
-          "thumbnail_rows",
-          "unlocked_tiles",
           "updated_at"
         ],
         "type": "object"

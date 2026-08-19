@@ -73,14 +73,11 @@ class TestFullAssemblyRoundTrip(unittest.TestCase):
                     if t.occupant is not None
                     and t.occupant.building_type != "base"]
         buildings += [order.building for order in tile_map.moving_orders]
-        unlocked_tiles = ([[t.col, t.row] for t in tile_map.buildable_tiles()]
-                          + [[t.col, t.row] for t in tile_map.built_tiles()])
 
         slot_doc = savegame.make_slot_doc(
             slot_id=savegame.new_slot_id(),
             map_id="synth",
             round_num=session.state.round_num,
-            unlocked_tiles=unlocked_tiles,
             run_state=session.state.to_dict(buildings=buildings),
             session=session.to_dict(),
             tile_map=tile_map.save_state(),
@@ -101,8 +98,6 @@ class TestFullAssemblyRoundTrip(unittest.TestCase):
         self.assertEqual(len(loaded["tile_map"]["moving_orders"]), 1)
         self.assertEqual(loaded["tile_map"]["moving_orders"][0]["building_id"],
                          mover.id)
-        # the placed defence tile is BUILT and should be among unlocked_tiles
-        self.assertIn([2, 0], loaded["unlocked_tiles"])
 
 
 if __name__ == "__main__":
