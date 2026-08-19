@@ -1021,6 +1021,11 @@
                   "frame_h": 60,
                   "frame_w": 113,
                   "key": "ui_panel_v20"
+                },
+                {
+                  "frame_h": 148,
+                  "frame_w": 201,
+                  "key": "ui_panel_v21"
                 }
               ]
             },

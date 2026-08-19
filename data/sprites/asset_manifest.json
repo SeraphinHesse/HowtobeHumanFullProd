@@ -14312,6 +14312,24 @@
       ],
       "sheet": "imported/ui_panel_v20.png"
     },
+    "ui_panel_v21": {
+      "frame_h": 148,
+      "frame_w": 201,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/ui_panel_v21.png"
+    },
     "ui_panel_v3": {
       "frame_h": 50,
       "frame_w": 111,
