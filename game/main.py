@@ -2338,7 +2338,18 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                       f"state={shell.state} in_menu={shell.in_menu} "
                       f"cursor={event_mouse_pos} "
                       f"raw={presenter.mouse_pos()}", flush=True)
-            if event.type == pygame.QUIT:
+            if event.type in (pygame.QUIT, pygame.WINDOWCLOSE):
+                # WINDOWCLOSE is NOT redundant with QUIT. SDL2 auto-posts
+                # SDL_QUIT on a window close only when the closed window is
+                # the LAST one it owns (`if (!window->prev && !window->next)
+                # SDL_SendQuit()` in SDL_SendWindowEvent). The GPU path leaves
+                # TWO windows alive: the pre-boot loading screen's
+                # `display.set_mode` window (never destroyed — the display
+                # module cannot be quit without taking the _sdl2 window with
+                # it) plus `_GpuPresenter`'s standalone window. So Alt+F4 on
+                # the game delivers WINDOWCLOSE and no QUIT, and the loop ran
+                # on forever. Both windows' close buttons end the run, which
+                # is what a player means by either of them.
                 running = False
                 continue
             if event.type == pygame.KEYDOWN and event.key == pygame.K_F12:
