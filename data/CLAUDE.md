@@ -1106,7 +1106,7 @@ validating writer; don't hand-edit the JSON.
   HINTS for the editor — nothing in the game reads them back. They exist so
   the editor can give a POSITION-ONLY TEXT ANCHOR a real hit box: a widget
   whose `rect` is `(x, y, 0, 0)` (every `hud.py` readout, the phase banner,
-  `boss_cutscene`'s headline, ~40 `building_panel` stat cells — the
+  `boss_cutscene`'s subtitle, ~40 `building_panel` stat cells — the
   anchor-rect convention in `game/ui/CLAUDE.md`) has zero AREA, and was
   therefore impossible to click, drag or even see selected in the editor
   despite having had an id since B3. `font_key` is the `data/ui/fonts.json`
@@ -1214,13 +1214,14 @@ validating writer; don't hand-edit the JSON.
 - **`data/ui/strings.json`** ↔ `schemas/strings.schema.json` (normal stem
   pairing): a FLAT `{string_id: template}` map, one dotted id per source
   module/call-site (`hud.phase.building`, `hud.income.base`,
-  `widgets.condition.grass`, `levelup.heading`, `boss_cutscene.headline_win`,
+  `widgets.condition.grass`, `levelup.heading`, `boss_cutscene.subtitle`,
   …), `additionalProperties: false` with every key `required` — the same
   closed-set convention as `fonts.json`/`palette.json` (a designer cannot
   invent a new id through this schema; adding one is a schema change).
   Covers UI text that Phase B's per-widget `label` override
   (`ui_screen.schema.json`) structurally cannot: text that varies by
-  runtime/enum state (a phase banner, a win/loss headline) or is BUILT FROM
+  runtime/enum state (a phase banner, the boss-cutscene subtitle's plain-vs-
+  consolation-love pick) or is BUILT FROM
   A TEMPLATE with live values (`"LIVES {count}"`, `"ROUND {n}"`) — there is
   no single fixed string to attach to a widget id for those. Templates use
   Python `str.format()` placeholders; each property's `description`

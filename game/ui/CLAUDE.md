@@ -600,10 +600,14 @@ logic is `game/core` — see that doc.)
 ## Boss UI (10G)
 - **`boss_cutscene.py`** (`BossCutscene`) — the `levelup.py` modal template
   (construct→`open(boss_num, outcome)`→layout-on-open→update→hit→submit): opaque
-  near-black backdrop, win/loss headline + "How will we react?", and — since
+  near-black backdrop, a single "Choose an upgrade" subtitle, and — since
   **BossUpgradeTimelinePLAN BU-4** — **THREE 200×104 upgrade cards** (`box_a`/
   `box_b`/`box_c`, ids appended, the two old ones keeping their names and
-  meaning) instead of 10G's two `WinA`/`WinB` narrative boxes. A card's copy is
+  meaning) instead of 10G's two `WinA`/`WinB` narrative boxes. **The separate
+  win/loss headline row is GONE (fix/bossfight-outro-cleanup)** — the screen
+  used to open with a "Cutscene: Round Won/Lost" line above the subtitle; the
+  outcome is no longer announced on this screen at all, only the upgrade
+  picker is shown. A card's copy is
   the catalog's own `name` + `description` for that slot
   (`boss_upgrades.milestone_slots(balance, boss_num)`), the description
   `.format()`ed with its live `params` and WRAPPED to the box (`wrap_text`,
@@ -615,7 +619,9 @@ logic is `game/core` — see that doc.)
   `session.frozen` in `main.py`'s click ladder and the frozen key-gate
   swallows keys. Opened by the host on the BOSS_CUTSCENE phase edge from
   `state.pending_boss_cutscene` (the LEVELUP pattern); **a LOSS shows the
-  retaliation-love headline AND the same 3 cards** (D7).
+  same 3 cards, and if it paid consolation love the subtitle says so
+  (`boss_cutscene.subtitle_reward`) instead of the plain
+  `boss_cutscene.subtitle` copy** (D7).
   - **An EMPTY slot draws its frame and nothing else**, and is neither
     hoverable nor clickable. That is what `screen_defaults.json` /
     `screen_previews.json` / the golden pin record, because neither
@@ -2061,7 +2067,7 @@ sets one).
   `love_text`/`lvl_label`/`xp_bar`/`xp_text`/`income_text`/`lives_text`/
   `tiles_text`/`phase_label`/`round_label`, `cheat_menu.py`'s `panel`/
   `title`/`round_field`/`jump_label`, `boss_cutscene.py`'s `backdrop`/
-  `headline`/`subtitle`/`box_a`/`box_b`, `game_log.py`'s `log`
+  `subtitle`/`box_a`/`box_b`, `game_log.py`'s `log`
   (`get_style_holder()` exposes the same object). Existing plain-tuple
   attributes some tests read directly (`CheatMenu.field_rect`,
   `LevelupWindow.rects`, `BuildingUI.panel_rect`) are kept as real,
@@ -2072,7 +2078,8 @@ sets one).
   degenerately renders at the origin in the editor's screen mode; a review
   fix caught five that computed their position inline at `submit()` time and
   never stored it: `hud.py`'s `phase_label`, `cheat_menu.py`'s `title`/
-  `jump_label`, `boss_cutscene.py`'s `headline`/`subtitle`). **The
+  `jump_label`, `boss_cutscene.py`'s `headline` (since deleted — see the Boss
+  UI section — its rect-storage precedent lives on in `subtitle`)). **The
   convention**: for a plain text label drawn via `submit_text`/
   `submit_centered` (no fill, no box), `rect` is the `(x, y, 0, 0)` anchor
   point the draw call reads its position from — W/H are nominal `0` (there is
@@ -2080,7 +2087,7 @@ sets one).
   readouts, the static titles, these five) follows this same shape. The
   anchor is computed and stored in `layout()` (or, where the position derives
   from a SIBLING widget's default geometry computed moments earlier in the
-  same `layout()` call — `boss_cutscene`'s `headline`/`subtitle` sit above
+  same `layout()` call — `boss_cutscene`'s `subtitle` sits above
   `box_a`'s pre-override default top — the "no cascade" convention above
   applies: a `box_a` rect override does not retarget them, they'd need their
   own override too), never inline at `submit()` time, so (a) a rect override
@@ -2134,10 +2141,16 @@ sets one).
 - **Every static title/header is an id too** (review fix, not just buttons/
   panels/backdrops): `main_menu`'s `title`/`subtitle`, `pause`'s/`settings`'s/
   `credits`'/`game_over`'s/`add_name`'s `title`, `cheat_menu`'s `title`/
-  `jump_label`, `boss_cutscene`'s `subtitle`. Their copy is NOT game-state,
+  `jump_label`. Their copy is NOT game-state,
   so — unlike the HUD readouts below — `label` (the text itself) is a
   legitimate override field for these, same shape as any other widget
-  (`rect`/`font_key`/`text_color`/`label`/`visible`).
+  (`rect`/`font_key`/`text_color`/`label`/`visible`). **`boss_cutscene`'s
+  `subtitle` is NOT in this list** — since fix/bossfight-outro-cleanup its
+  text is a runtime pick (plain "Choose an upgrade" vs. the consolation-love
+  variant on a loss that paid one), so it resolves through
+  `strings.json`/`T()` at submit time (see the Global UI string table
+  section) rather than the `label` override, the same reason the deleted
+  win/loss headline never took a `label` override either.
 - **`hud.py`'s ~13 stable readouts all carry ids now**: `love_panel`,
   `readout_panel` (the second stone pill, behind the income/lives/tiles
   column — same `C_PANEL_STONE` body + `C_PANEL_INSET` inset border as
@@ -2160,7 +2173,7 @@ sets one).
   text/bar it displaces moves right by `ICON_SIZE + GAP` (18 + 4px). For every one of these the displayed TEXT is a live game-state
   value (love count, round number, xp fraction, …) and stays code-owned —
   the override surface is `rect`/`font_key`/`text_color`/`visible` only, the
-  same principle as `boss_cutscene`'s headline colour staying win/loss-owned.
+  same principle as `hud.py`'s own phase-banner colour staying phase-owned.
   `love_text`/`xp_bar`'s pulse colour fall back to the computed value when
   `text_color`/`color` is left unset (`None`) and to the override otherwise —
   the same "`None` means compute" convention `boss_cutscene`'s `box.text_color`
@@ -2404,16 +2417,19 @@ data, so the two can never silently drift apart.
   their `submit()` read a hardcoded module-level string literal instead of
   `holder.label` — the override landed on the object (`apply()` doesn't care)
   but nothing ever read it back. Fixed: `cheat_menu.py`'s `title`/
-  `jump_label`, `boss_cutscene.py`'s `subtitle` now default `label=` to
+  `jump_label` now default `label=` to
   today's literal and their `submit()` reads `self._holder.label` — parity
   preserved (no override ⇒ identical output), override now honored.
-  `boss_cutscene.py`'s `headline` is the deliberate exception: its text is a
-  2-variant win/loss string built from runtime outcome (`self.outcome`), the
-  same "enum-varying, not a fixed title" exclusion HUD's dynamic readouts
-  already use — only its font stays overridable via THIS mechanism, and
-  color stays logic-owned; the two variant TEXTS themselves are Phase-C
-  string-table content instead (`boss_cutscene.headline_win`/`headline_loss`
-  — see "Global UI string table" below), not this `label` mechanism. Dynamic
+  **`boss_cutscene.py`'s `subtitle` USED to be a third fixed-`label` fix
+  here, and no longer is** (fix/bossfight-outro-cleanup): it took over the
+  enum-varying role the deleted win/loss `headline` used to hold — its copy
+  is now a runtime pick between the plain "Choose an upgrade" string and a
+  consolation-love variant on a loss that paid one, the same "enum-varying,
+  not a fixed title" exclusion HUD's dynamic readouts already use — only its
+  font/rect/colour stay overridable via THIS mechanism, and the TEXT itself
+  is Phase-C string-table content instead (`boss_cutscene.subtitle`/
+  `subtitle_reward` — see "Global UI string table" below), not this `label`
+  mechanism. Dynamic
   per-mode content (`building_ui.py`'s `action_btn` label text itself varies
   by mode/afford-ability, "UNLOCK TILE"/"BUILD"/"THE HOLE" mode headers,
   `levelup`'s/`credits`' list rows, HUD's ~12 game-state readouts) stays out
@@ -2655,7 +2671,8 @@ a label whose alignment never varies, declare it on the holder**; reserve the
 ## Global UI string table (Phase C)
 `data/ui/strings.json` ↔ `game/ui/strings.py` covers what the per-widget
 `label` override above structurally cannot: text that varies by runtime/enum
-state (the HUD phase banner, the boss-cutscene win/loss headline) or is
+state (the HUD phase banner, the boss-cutscene subtitle's plain-vs-
+consolation-love pick) or is
 BUILT FROM A TEMPLATE with live values (`"LIVES {count}"`, `"ROUND {n}"`,
 `"{built}/{unlocked} tiles"`) — there is no single fixed string to attach to
 a widget id for those. Mirrors `engine/render/fonts.py`'s cache/configure
@@ -2672,7 +2689,7 @@ C_*-style early-binding trap to guard against, since nothing holds a
 reference to a resolved VALUE, only to the `T` function).
 - **Dotted ids grouped by source module** (`hud.phase.building`,
   `hud.income.base`, `widgets.condition.grass`, `levelup.heading`,
-  `boss_cutscene.headline_win`, …) — the editor's Strings panel groups rows
+  `boss_cutscene.subtitle`, …) — the editor's Strings panel groups rows
   by the id's prefix before the first dot.
 - **A dict literal built at import time is the SAME early-binding trap
   `configure_palette`'s `C_*` block warns about, one level up**:
@@ -2698,7 +2715,9 @@ reference to a resolved VALUE, only to the `T` function).
   re-reads it at its own next boot.
 - **Migration status**: Phase C covered `hud.py` in full,
   `widgets.cond_label`, `levelup.py`'s heading/cost/tier-progress lines, and
-  `boss_cutscene.py`'s win/loss headline. UT-3 took `building_ui.py`, UT-4
+  `boss_cutscene.py`'s win/loss headline (since deleted — fix/bossfight-
+  outro-cleanup moved its enum-varying role onto `subtitle`, still Phase-C
+  string-table content). UT-3 took `building_ui.py`, UT-4
   the rest of `hud.py`, and **UT-5 the remaining screens + `effects.py`** —
   see the UT-5 section below. There is no known un-migrated user-visible
   string left in `game/ui`; what stays a Python literal now does so for a
@@ -2778,7 +2797,8 @@ allowed to move a pixel.
   independently placeable, the per-stat rule), and `add_name`'s
   `hint`/`msg_text`/`pool_count`.
 - **`text=` (runtime-authored content, holder still owns everything else)**:
-  `boss_cutscene`'s headline (a 2-of-2 enum pick), `settings`' display-mode
+  `boss_cutscene`'s subtitle (a 2-of-2 enum pick, since fix/bossfight-outro-
+  cleanup — see the Boss UI section), `settings`' display-mode
   value, `add_name`'s feedback line, `game_over`'s numbers.
 - **String ids, no widget id**: `cheat_menu`'s round-field placeholder and
   `add_name`'s name-field placeholder (both positioned off their field's

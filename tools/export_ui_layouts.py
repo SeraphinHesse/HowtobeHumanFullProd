@@ -233,7 +233,6 @@ _DISPLAY_NAMES = {
     },
     "boss_cutscene": {
         "backdrop": "Background backdrop",
-        "headline": "Headline label",
         "subtitle": "Subtitle label",
         "box_a": "Boss upgrade slot 1 box",
         "box_b": "Boss upgrade slot 2 box",
@@ -583,7 +582,8 @@ def _widget_entry(kind, widget):
     ``label`` attribute or ``""``.
 
     A handful of B2's ``ids`` targets (``hud.phase_label``, ``cheat_menu.
-    title``/``jump_label``, ``boss_cutscene.headline``/``subtitle`` — every one
+    title``/``jump_label``, ``boss_cutscene.headline`` (since deleted —
+    ``subtitle`` inherited this) — every one
     a dynamically-positioned ``"label"`` whose on-screen spot is computed
     inline at submit() time, never stored) carry NO ``rect`` attribute at all;
     the schema still requires one, so those fall back to ``(0, 0, 0, 0)``
@@ -595,7 +595,7 @@ def _widget_entry(kind, widget):
              "label": label}
     # The two DRAW hints the editor needs to give a POSITION-ONLY text anchor
     # (a `rect` whose w/h are 0 — every readout in hud.py, the phase banner,
-    # boss_cutscene's headline, ~40 building_panel stat cells) a real hit box:
+    # boss_cutscene's subtitle, ~40 building_panel stat cells) a real hit box:
     # what font it is drawn at, and which way its text spreads from the
     # stored x. Without them such a widget is a zero-area rect — impossible to
     # click, drag or even see selected in the editor, though its id has been
