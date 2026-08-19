@@ -36,17 +36,43 @@ def load_cutscene_registry(data_dir):
 class CutscenePlayer:
     """Wraps a ``VideoSource`` + the entry's optional companion audio track.
     One instance per registry entry; reusable for both the intro slot and
-    ``first_end_turn``."""
+    ``first_end_turn``.
 
-    def __init__(self, data_dir, entry, target_size=None):
+    **Fade in/out (feature: cutscene-fade-in-out)** — ``fade_in``/
+    ``fade_out`` (seconds, ``data/balancing/core.json``'s ``Cutscene``
+    group) hold the screen frozen on the video's first/last decoded frame
+    while a caller-drawn black overlay ramps opaque->transparent /
+    transparent->opaque. The fade is ADDED on top of the video's own
+    length, never overlapped with it: the video itself plays its full,
+    unmodified length only during the middle "playing" phase. Both default
+    to 0.0, which makes the whole feature an exact no-op — ``_phase`` never
+    leaves ``"playing"`` and every accessor (``done``/``frame_surface``)
+    delegates straight to the wrapped ``VideoSource``, byte-identical to
+    before this feature existed.
+
+    This class draws nothing itself (``game/ui`` stays pygame-free) — the
+    host reads ``fade_alpha`` each frame and composites its own black
+    overlay on top of ``frame_surface()``."""
+
+    def __init__(self, data_dir, entry, target_size=None,
+                 fade_in=0.0, fade_out=0.0):
         self._data_dir = data_dir
         self._entry = entry
         self._target_size = target_size
+        self._fade_in = float(fade_in)
+        self._fade_out = float(fade_out)
         self._video = self._open_video()
         audio_name = entry.get("audio")
         self._audio_path = data_dir / "video" / audio_name if audio_name \
             else None
         self._skip_hold = 0.0
+        self._skipped = False
+        self._last_frame = None  # held for the fade-out phase (the video's
+        # own ``_bgr`` is cleared at EOF, see VideoSource._mark_source_ended)
+        self._phase = "fade_in" if self._fade_in > 0 else "playing"
+        self._phase_t = 0.0
+        if self._phase == "fade_in":
+            self._video.prime()
 
     def _open_video(self):
         """A FRESH ``VideoSource`` for this entry — built at construction and
@@ -66,7 +92,36 @@ class CutscenePlayer:
 
     @property
     def done(self):
-        return self._video.done
+        """True once the WHOLE cutscene (fade-in, video, fade-out) has
+        finished playing, or the player skipped it early. Computed live
+        off ``_phase``/``_video.done`` rather than a stored terminal flag,
+        so a caller/test that pokes ``_video.done`` directly (a long-
+        standing test pattern in this suite) is still read correctly
+        without needing a matching ``update()`` call first. With both
+        fades disabled (the default) this reduces to exactly
+        ``self._video.done``, byte-identical to before this feature."""
+        if self._skipped:
+            return True
+        if self._phase == "fade_in":
+            return False
+        if self._phase == "fade_out":
+            return self._phase_t >= self._fade_out
+        return self._video.done and self._fade_out <= 0
+
+    @property
+    def fade_alpha(self):
+        """0 (fully revealed) .. 255 (fully black) — the black overlay
+        alpha the HOST draws on top of ``frame_surface()`` this frame.
+        Always 0 outside a fade phase, so an unconfigured cutscene
+        (``fade_in == fade_out == 0``) never leaves ``_phase != "playing"``
+        and this is a permanent no-op."""
+        if self._phase == "fade_in" and self._fade_in > 0:
+            frac = 1.0 - min(1.0, self._phase_t / self._fade_in)
+            return int(round(255 * frac))
+        if self._phase == "fade_out" and self._fade_out > 0:
+            frac = min(1.0, self._phase_t / self._fade_out)
+            return int(round(255 * frac))
+        return 0
 
     def start(self):
         """Call when playback begins — once per PLAYBACK, not once per
@@ -97,11 +152,42 @@ class CutscenePlayer:
         self._video.release()   # idempotent; frees a half-played capture
         self._video = self._open_video()
         self._skip_hold = 0.0
+        self._skipped = False
+        self._last_frame = None
+        self._phase = "fade_in" if self._fade_in > 0 else "playing"
+        self._phase_t = 0.0
+        if self._phase == "fade_in":
+            self._video.prime()
         if self._audio_path is not None:
             play_music(self._audio_path, loop=False)
 
     def update(self, dt):
-        self._video.update(dt)
+        """Advances whichever phase is current. With both fades disabled
+        (the default) this reduces to exactly ``self._video.update(dt)`` —
+        byte-identical to before this feature (feature: cutscene-fade-in-
+        out)."""
+        if self.done:
+            return
+        if self._phase == "fade_in":
+            self._phase_t += dt
+            if self._phase_t >= self._fade_in:
+                self._phase = "playing"
+            return
+        if self._phase == "playing":
+            self._video.update(dt)
+            if self._fade_out > 0:
+                # Cache the latest frame BEFORE the video can wipe it: EOF
+                # clears VideoSource._bgr (_mark_source_ended), so without
+                # this the fade-out would have no frame to hold on.
+                surf = self._video.frame_surface()
+                if surf is not None:
+                    self._last_frame = surf
+                if self._video.done:
+                    self._phase = "fade_out"
+                    self._phase_t = 0.0
+            return
+        # fade_out
+        self._phase_t += dt
 
     def update_skip_hold(self, dt, held):
         """Accumulates while ``held`` (left click/space/esc, host-decided)
@@ -125,13 +211,25 @@ class CutscenePlayer:
         return min(1.0, self._skip_hold / SKIP_HOLD_SECONDS)
 
     def frame_surface(self):
+        """During ``fade_out`` the underlying ``VideoSource`` has already
+        hit EOF and dropped its own last frame (see ``update()``), so this
+        returns the cached ``_last_frame`` instead; every other phase
+        delegates straight to ``VideoSource.frame_surface()`` — with
+        ``fade_out`` disabled ``_phase`` never becomes ``"fade_out"``, so
+        this is byte-identical to before this feature."""
+        if self._phase == "fade_out":
+            return self._last_frame
         return self._video.frame_surface()
 
     def skip(self):
         """Click/key skip — mirrors ``VideoSource.skip()`` + stops the
-        companion track."""
+        companion track. Ends the WHOLE cutscene immediately, fade-out
+        included (feature: cutscene-fade-in-out) — a skip means "get me
+        out of this cutscene now", not "skip to the fade-out and make me
+        wait through that too"."""
         self._video.skip()
         stop_music()
+        self._skipped = True
 
     def release(self):
         """Mirrors ``VideoSource.release()``; also stops the companion track

@@ -206,6 +206,20 @@ class VideoSource:
         self._bgr = None
         self.release()
 
+    def prime(self):
+        """Decode exactly one frame WITHOUT advancing the playback clock —
+        used by a caller (the cutscene fade-in) that needs a real first
+        frame ready to hold frozen before ``update()`` starts pacing real
+        playback. No-op if already primed (a frame is already held),
+        disabled, or done; never raises."""
+        if self.done or not self.enabled or self._bgr is not None:
+            return
+        ret, bgr = self._cap.read()
+        if not ret:
+            self._mark_source_ended()
+            return
+        self._bgr = bgr
+
     def frame_surface(self):
         """Convert the last-read frame to a pygame Surface (BGR→RGB, optional
         resize to target_size). None if no frame has been read."""
