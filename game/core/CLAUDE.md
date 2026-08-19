@@ -707,17 +707,31 @@ unlike LEVELUP/BOSS_CUTSCENE, which both sit AFTER ROUND_END.
   path). Each firing caster spawns its OWN `LightningFX` (`Crater` pattern:
   overlay object, ages in `scene.update` on the ENEMY-scaled sim dt,
   self-despawns; `BOLT_LIFE`/`MARKER_LIFE` are code constants like
-  `CRATER_LIFE`) and its OWN `LightningCaster.trigger()` — since Storm Priest
-  dropped the `"combat"` tag and no longer earns its "attack" pose through
-  combat, `strike()` is what flashes each firer: `SpriteAnimator` to "attack"
-  for `CASTER_FLASH_DURATION` (0.4s, a code constant like `BOLT_LIFE`) before
-  it reverts to "idle" in its own `update(dt)`. Both a hit and a whiff
-  trigger the flash (same "a whiff still pays + shows VFX" rule as the
-  cooldown spend).
+  `CRATER_LIFE`) and its OWN `LightningCaster.trigger(hold_seconds)` — since
+  Storm Priest dropped the `"combat"` tag and no longer earns its "attack"
+  pose through combat, `strike()` is what flashes each firer: `SpriteAnimator`
+  to "attack" for `core.json LightningStrike.attack_hold_seconds[idx]`
+  (feature: storm-acolyte-attack-hold-duration — an ordinary per-tier
+  balancing value, index-aligned with `cooldown`/`damage`/`radius`, seeded
+  equal to `cooldown` so the pose covers the whole reload window by default;
+  **not** a code constant — `CASTER_FLASH_DURATION` is gone) before it
+  reverts to "idle" in its own `update(dt)`. Both a hit and a whiff trigger
+  the flash (same "a whiff still pays + shows VFX" rule as the cooldown
+  spend).
 - **Cooldown ticks ONLY in `pre_sim`'s ENEMY branch** (`tick(state, dt,
   scene)`, walking every alive `lightning_source`'s own caster) on the host's
   sim dt (speed-scaled, pause-frozen); never reset by round end or a tier
   sync.
+- **`reset_all_cooldowns(scene)` (feature: storm-acolyte-round-start-reset)**
+  zeroes every alive caster's cooldown in one sweep. `Session.end_turn(scene=
+  None)` calls it at the BUILDING -> ENEMY edge whenever a `scene` is passed
+  (the host-set-optional shape — every pre-existing caller/test that still
+  calls `end_turn()` bare is byte-identical), so every placed Storm Priest is
+  ready to fire the instant a new round's enemies start attacking, however
+  much cooldown it had left over from the previous round. This is a
+  synchronized RESET only — each caster still ticks down independently on its
+  own per-tier cooldown for the rest of the round
+  (feature-storm-acolyte-multi-build is otherwise unchanged).
 - **`Session` cheat delegates** (all no-op outside GAMEPLAY; the Ctrl+L menu UI
   is `game/ui/cheat_menu.py`, the host maps its action strings here):
   `cheat_add_love`, `cheat_skip_round` (quick-skip's body WITHOUT the ENEMY

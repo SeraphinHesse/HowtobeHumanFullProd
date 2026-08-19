@@ -9,9 +9,12 @@ from ``core.json`` ``LightningStrike`` (cooldown/damage/radius per level,
 max_level); the two FX lifetimes are cosmetic and come from
 ``data/balancing/vfx.json`` ``procedural.lightning.bolt_life``/``marker_life``
 (ESV-3b) via ``strike()``'s ``vfx`` argument — never touching this file's
-gameplay tunables, and never simulation timing (D4).
-``CASTER_FLASH_DURATION`` stays a code constant (the ``CRATER_LIFE``
-precedent).
+gameplay tunables, and never simulation timing (D4). The caster's "attack"-pose
+hold duration is ``core.json`` ``LightningStrike.attack_hold_seconds``, index-
+aligned with cooldown/damage/radius per level (feature: storm-acolyte-attack-
+hold-duration) — not a code constant; it defaults to the same seconds as
+``cooldown`` so the pose covers the whole reload window, but is an ordinary
+per-tier balancing value a designer can retune.
 
 **BossUpgradeTimelinePLAN BU-3 3.3 — upgrade #7 ``stormpriest_slow``.**
 ``strike()`` grows an optional trailing ``boss_upgrades_balance`` (the BALANCE
@@ -74,7 +77,6 @@ from engine.core import Component, GameObject, Health, SpriteAnimator, Transform
 # built with no override still has a sane value.
 BOLT_LIFE = 0.5     # seconds the jagged bolt is drawn
 MARKER_LIFE = 1.0   # seconds the ground marker fades over, then despawns
-CASTER_FLASH_DURATION = 0.4  # seconds the Storm Priest holds its "attack" pose
 
 
 def tick(state, dt, scene):
@@ -94,6 +96,22 @@ def tick(state, dt, scene):
         caster = b.get_component(LightningCaster)
         if caster is not None and caster.cooldown > 0:
             caster.cooldown = max(0.0, caster.cooldown - dt)
+
+
+def reset_all_cooldowns(scene):
+    """Zero every alive ``lightning_source``'s OWN cooldown (feature:
+    storm-acolyte-round-start-reset). Called once by ``Session.end_turn()``
+    at the BUILDING -> ENEMY edge, so every placed Storm Priest is ready to
+    fire the moment a new round's enemies start attacking, regardless of how
+    much cooldown it had left over from the previous round. Each caster keeps
+    its own independent per-tier cooldown otherwise (feature-storm-acolyte-
+    multi-build) — this is a synchronized RESET, not a shared clock."""
+    for b in scene.by_tag("lightning_source"):
+        if not getattr(b, "alive", False):
+            continue
+        caster = b.get_component(LightningCaster)
+        if caster is not None:
+            caster.cooldown = 0.0
 
 
 def can_strike(state, scene):
@@ -298,7 +316,7 @@ def strike(state, core, vfx, scene, cs, wx, wy, on_hit=None,
         fx = LightningFX(wx, wy, radius_tiles, lp["bolt_life"], lp["marker_life"])
         fx.get_component(LightningFXFade)._scene = scene
         scene.spawn(fx)
-        caster.trigger()
+        caster.trigger(ls["attack_hold_seconds"][idx])
         fired = True
     return fired
 
@@ -310,7 +328,9 @@ class LightningCaster(Component):
     frozen outside ENEMY" rule) — plus puppeting this building's own
     SpriteAnimator: flips to "attack" when IT fires (nothing else drives its
     animation any more since Storm Priest dropped the "combat" tag),
-    reverting to "idle" ``CASTER_FLASH_DURATION`` seconds later."""
+    reverting to "idle" ``trigger()``'s ``hold_seconds`` argument later (the
+    caller resolves it from ``core.json`` ``LightningStrike.
+    attack_hold_seconds``, per firing tier)."""
 
     cooldown: float = 0.0
     flash_timer: float = 0.0
@@ -326,8 +346,8 @@ class LightningCaster(Component):
                 if anim is not None:
                     anim.set_animation("idle")
 
-    def trigger(self):
-        self.flash_timer = CASTER_FLASH_DURATION
+    def trigger(self, hold_seconds):
+        self.flash_timer = hold_seconds
         anim = self._owner.get_component(SpriteAnimator)
         if anim is not None:
             anim.set_animation("attack")
