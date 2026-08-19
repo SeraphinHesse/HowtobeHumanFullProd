@@ -248,6 +248,47 @@ the only place the words `"placement"`/`"upgrade"`/`"buy_plot"` and the
   skips the shell straight into GAMEPLAY (the headless seam).
 - Frame order is fixed per E-14: input → `Scene.update(dt)` → render submit (grid
   tiles + `scene.render_items()`) → `flush` → `flip`.
+- **Two loading screens (feature: loading screen), two different mechanisms,
+  one shared look.** Both draw the editor-adjustable `ui_bg_loading`
+  background slot + a white progress ring (`game/ui/loading_screen.py` is the
+  ONE place the slot key and ring style constants are defined — `main.py`
+  imports them for both uses rather than re-declaring them, so they cannot
+  visually drift apart).
+  - **Pre-boot** (`main.py`'s `_submit_loading_frame`/`_flush_loading`): shown
+    before the `Shell` even exists, so it needs its OWN throwaway
+    presenter/renderer pair (no real window yet) — 15 real checkpoints
+    (boot's data/balance-domain loads, each already a real sequential
+    sub-step) rather than 5, so the ring's motion reads as smooth instead of
+    jumpy. No added delay and no eased/faked animation — just finer-grained
+    real boot sub-steps; `_loading_steps_total` documents the count.
+  - **Post-"Start Game"** (`GameState.LOADING`, `game/ui/loading_screen.py`'s
+    `LoadingScreen`): the real presenter/renderer already exist by the time
+    the player clicks START NEW GAME, so no second window is needed. The
+    "new_game"/"new_game_debug" intents no longer call `build_gameplay()`
+    synchronously — they arm `_build_gameplay_steps()` (the same
+    construction, split into ~5 checkpointed closures at its natural
+    sub-boundaries) as a queue and set `shell.state = GameState.LOADING`; the
+    frame loop's `LOADING` branch runs one queued step per frame, submits
+    `loading_screen` at `completed/total` progress, and calls `shell.
+    enter_gameplay()` only once the queue is drained AND a minimum-duration
+    timer (accumulated real frame `dt`, never `time.time()`; `data/balancing/
+    ui.json`'s `LoadingScreen.min_display_seconds`) has also elapsed — the
+    fast half so it never just flickers (this work does no asset I/O; every
+    asset is already loaded at boot), the honest-progress half so the
+    duration floor never reads as a fake spinner. **The click's own frame
+    runs NO checkpoint** — `loading_just_armed` makes that one frame render
+    the screen at 0% only; the first real checkpoint (`_step_world`, which
+    builds the whole fresh `TileMap` and can itself take the better part of a
+    second on a large map) starts the frame after. Without this the screen's
+    first paint would wait behind that checkpoint, reading as a stall between
+    the click and the screen appearing (a live-tested regression, fixed in
+    the same feature). `build_gameplay()` itself
+    survives as a thin synchronous wrapper (`for step in
+    _build_gameplay_steps(): step()`) for the headless autostart seam above
+    and any other direct caller — its behavior is byte-identical to before
+    this feature. Detail (why `GameState.LOADING` is host-driven rather than
+    `Shell`-driven, unlike every other full-screen state since 9H) →
+    `game/ui/CLAUDE.md`'s Shell + menus section.
 - **Camera input mapping (E-5) lives here**, on pure engine camera state: **both
   left- and right-click-drag pan** (`cs.pan` + `cs.clamp`, which bounds the view
   to **map bounds ∩ the camera leash**). The leash is `core` balancing's

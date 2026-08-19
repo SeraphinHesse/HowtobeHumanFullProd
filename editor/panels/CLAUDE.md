@@ -437,6 +437,28 @@ import list.**
     — typing "128" would otherwise write three times) and works with **no sheet
     imported**, which is the point: declaring the frame size BEFORE the import is
     what the importer slices and pads against.
+  - **Per-slot display NAME (the `Name` row, under the header).** A variant
+    family is distinguishable only by key, and `ui_panel_v2` vs `ui_panel_v3`
+    tells a designer nothing in the UI screen editor's Skin pickers — which is
+    the surface this field exists to fix. It commits on `editingFinished` (the
+    Frame W/H rule: typing a name must not write once per keystroke) through
+    `registry_ops.set_slot_display_name` (pure, `write_validated`, `TestPurity`)
+    and then emits `registry_changed` → `MainWindow._reload_registries`, the
+    SAME reload path the frame-size write and the "+ Variant" writes use — that
+    emit is what repopulates every skin combo without an editor restart.
+    Unlike `_on_frame_size_changed` it is a ONE-file write: the name is editor
+    metadata, so no manifest entry has to be re-cut and nothing on disk can end
+    up disagreeing with it. Clearing the field removes the key (and collapses
+    the slots[] entry back to a bare string when it held nothing else) — see
+    `data/CLAUDE.md` for the storage rule. Offered for EVERY category, not just
+    `ui`: a name is never wrong to have, and gating it would be a second rule
+    to remember.
+    - **`ScreenDetailsPanel._slot_label` is the ONE place the name is
+      rendered** — `"<name>  (<key>)"`, or the bare key when unnamed — and
+      every skin/background picker builds its items through it. The item DATA
+      stays the bare key, and every read/write path in that panel is already
+      `findData`/`currentData`/`itemData`, so a rename relabels a picker and
+      can never rewrite a screen override.
   - **Clear's confirm dialog only fires because the connect is wrapped**
     (`clicked.connect(lambda: self.clear_entry())`). It was connected directly for
     months, so `clicked(bool checked=False)` landed in the `confirm=True` kwarg and
@@ -1089,6 +1111,26 @@ any way to *reach* them:
   banner, `boss_cutscene`'s headline and ~40 `building_panel` stat cells are
   shaped that way. A zero-AREA rect is unclickable, undraggable and invisible
   when selected, so those widgets existed on disk and nowhere else.
+- **Font family rows (UH-Font-B).** The per-widget form, the `Defaults`
+  section and the layer inspector each carry a `Font family` combo beside
+  their `Font` combo, sourced from `theme_ops.imported_fonts(data_dir)` —
+  the manifest IS the registry, so a font imported in the Theme panel
+  appears here with no second list to maintain. Item DATA is the font id,
+  the label its `display_name`, so a rename relabels the combo and never
+  rewrites a screen override (the `_slot_label` contract). The blank
+  leading item is "inherit", not a font; an id the manifest no longer
+  carries shows as blank, which is what the game draws for it too.
+  - The LAYER inspector gained its `Font` combo at the same time: the key
+    had been schema-legal and honoured since UL-3 with no control at all.
+    Both go through `_push_layer_field`, which is already state-aware, so
+    Hover/Pressed/Disabled write into `layers[i].states.<state>`.
+  - Honest controls (D3): both layer rows follow `Text colour`'s gate —
+    dead behind a `slot`, dead with no text, since `_submit_one_layer`
+    reads them only in the text branch.
+  - The Theme panel keeps owning the *default* family
+    (`data/ui/active_font.json`) and the import button; it grew no
+    per-preset family control, because the family axis is per TEXT, not per
+    preset.
 - **`_screen_primitives.interaction_rect(rect, text=, font_key=, align=)`**
   (pure) is the fix: it grows a zero-extent axis to the MEASURED size of the
   widget's live text, floored at a grabbable minimum, and shifts x per
@@ -1482,11 +1524,32 @@ this section is the authoring half.
 - **`TOOLTIP_CUSTOM_BAND` is `TOOLTIP_LAYER_BAND`**, deliberately the same
   words: `under` means behind EVERYTHING on the screen, not behind the widget,
   and that has to be met in the editor for exactly the reason UL-8 met it there.
-- **Ruling: a custom widget appears in EVERY view of `building_panel`.** Ids
-  are global to the screen (D2) and the runtime has no view concept, so
-  `CUSTOM_EVERY_VIEW_NOTE` states it inline beside the Add buttons on any screen
-  that has views. `_code_owned_ids()` accordingly unions the ids of ALL views,
-  not just the active one, before the add guard runs.
+- **A custom widget belongs to ONE view — the one that was open when you
+  added it.** This REVERSES the old ruling ("a custom widget appears in EVERY
+  view of `building_panel`; the runtime has no view concept"), which was true
+  only until the runtime got one: `custom_widgets/<id>.view` is a real schema
+  key that `game/ui/skinning.py::submit_layers` filters on, given the view its
+  caller's own `submit()` passes in. It had to change — a screen id is shared
+  by all five `BuildingUI` modes and by `ConstructPreview`/`MovePreview`, so an
+  unscoped widget was drawn by every one of them at once, including on top of
+  an open preview. Three consequences here:
+  - `_on_add_custom_widget` passes `self._session.view` to
+    `add_custom_widget`, but only on a screen that HAS views — a single-view
+    screen writes no `view` key and behaves exactly as before.
+  - The **View** combo (above Band/Z, which it joins as the third piece of
+    authoring metadata in `custom_widgets/<id>`) moves one between views, or
+    back to "Every view" — the absent key. Changing it deselects, because the
+    widget is no longer part of the view being looked at.
+  - `_custom_widgets()` in BOTH `screen_details` and `viewport` filters
+    through `_screen_rules.custom_widgets_for_view`. That one read feeds the
+    outliner, the per-field form, the canvas, the hit-test, the selection
+    chrome and the band passes, so they cannot disagree about which custom
+    widgets a view has.
+  `CUSTOM_EVERY_VIEW_NOTE` still exists and still shows on any screen with
+  views — its WORDS now say the opposite, and it warns about the thing that is
+  still true: ids remain global to the screen (D2), so two views cannot both
+  own an id. `_code_owned_ids()` accordingly still unions the ids of ALL
+  views, not just the active one, before the add guard runs.
 - **Honest controls get a custom branch, not a special case inside the existing
   rules.** `color_is_code_owned`/`label_is_code_owned` answer by citing what
   game code does at a specific holder's draw site; a custom widget has no such
@@ -1498,13 +1561,27 @@ this section is the authoring half.
   custom panel's Color picker would be disabled as "hardcoded in game code",
   which is exactly backwards — its `color` is the only thing the game has to
   draw it with.
-- **Viewport draw order respects `band`/`z`, and custom widgets composite ON
-  TOP of the `screen_previews.json` replay.** `_submit_screen_layer_band` draws
+- **Viewport draw order respects `band`/`z`, and which PATH draws a custom
+  widget depends on `_preview_in_sync()`.** `_submit_screen_layer_band` draws
   its band's customs (box, then that widget's own layers) at the TAIL of the
   band, mirroring `skinning.submit_layers`; the plain widget loops SKIP custom
-  ids so nothing is drawn twice. That file is override-free by design, so a
-  custom widget can never be in the recording — **never bake one into it**, the
-  same rule and the same reason as layers.
+  ids so nothing is drawn twice. But that runs on the OUT-OF-SYNC path only.
+  **In sync, the viewport draws nothing but the replay** (plus
+  `_submit_drag_preview` for whatever is under an in-flight drag), because the
+  live re-record passes the open doc as `--overrides` and therefore ran the
+  real `submit_layers` — every layer and custom widget is already in the
+  recording at the game's own depth. It did not always work this way: the
+  in-sync path used to call `_submit_screen_layers` as well, which drew all of
+  them a SECOND time on top of the replay, so an `under` custom widget always
+  appeared over the screen and the Band control looked dead. The COMMITTED
+  `screen_previews.json` is still override-free by design — **never bake a
+  custom widget or a layer into it**, the same rule and the same reason as
+  before; that is what makes the out-of-sync path's compositing honest.
+- **A custom widget's `band` defaults to `under`, unlike a layer's `over`.**
+  `_screen_rules.custom_widgets_in_band` mirrors
+  `skinning._custom_in_band`; `ui_screen_session.add_custom_widget` also
+  writes `band: "under"` into the entry explicitly, and the Band combo lists
+  Under first so index 0 (its `findData` miss fallback) agrees.
 
 ## Phase UT-2/UT-6 — the real screen preview + the Text-template row
 

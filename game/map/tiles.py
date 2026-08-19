@@ -152,6 +152,7 @@ class Tile:
         "col", "row", "state", "content_key", "occupant", "condition",
         "condition_rolled",
         "condition_slot", "condition_variant_idx", "spawn_deco_roll",
+        "spawn_reserved",
         "damage_weight_reduced", "defence_range_covered",
         "highlighted", "unlock_highlight", "range_highlight",
     )
@@ -208,6 +209,17 @@ class Tile:
         # COMBAT with no `set_tile_state` hook at all — and a BACKGROUND tile
         # that later backfills into SPAWNING already has its roll waiting.
         self.spawn_deco_roll = -1
+        # bool — does this tile carry a designer-painted `spawnable_background`
+        # mark (the spawn RESERVE)? Set once at `TileMap.__init__`, O(marks),
+        # and never cleared. It exists for ONE reason: the tree emitter
+        # (`spawn_deco.py`) draws a reserve tile's tree while it is still
+        # BACKGROUND, so the treeline covers the whole painted band up front
+        # instead of appearing batch by batch as the reserve releases. It is
+        # NOT a state and never gates gameplay — release/despawn still run off
+        # `TileMap._reserve` / `_despawn` exactly as before, and the emitter's
+        # live `tile.state` read is still what makes the tree vanish on COMBAT
+        # conversion.
+        self.spawn_reserved = False
         # Dormant weight drivers — fed neutral values until 10F / 10I wire
         # their producers (building damage, defender coverage).
         self.damage_weight_reduced = False

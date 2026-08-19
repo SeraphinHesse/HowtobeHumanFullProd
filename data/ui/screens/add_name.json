@@ -1,10 +1,71 @@
 {
   "widgets": {
+    "backdrop": {
+      "rect": [
+        0,
+        0,
+        640,
+        360
+      ]
+    },
     "btn_add": {
+      "rect": [
+        217,
+        217,
+        80,
+        20
+      ],
       "skin": "ui_button"
     },
     "btn_back": {
+      "rect": [
+        358,
+        217,
+        65,
+        20
+      ],
       "skin": "ui_button"
+    },
+    "hint": {
+      "rect": [
+        320,
+        146,
+        0,
+        0
+      ]
+    },
+    "msg_text": {
+      "rect": [
+        320,
+        193,
+        0,
+        0
+      ]
+    },
+    "panel": {
+      "rect": [
+        205,
+        115,
+        230,
+        130
+      ],
+      "skin": "ui_panel_v6"
+    },
+    "pool_count": {
+      "rect": [
+        217,
+        206,
+        0,
+        0
+      ]
+    },
+    "title": {
+      "rect": [
+        320,
+        123,
+        0,
+        0
+      ]
     }
   }
 }

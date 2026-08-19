@@ -16,7 +16,7 @@ from tools.tests.qt_harness import APP as _APP, QtCase
 from PIL import Image
 from PySide6.QtGui import QColor
 
-from editor import asset_import, master_sheet_import
+from editor import asset_import, house_colors, master_sheet_import
 from editor.panels import vfx_preview
 from editor.panels.balancing import BalancingPanel
 from editor.panels.vfx_preview import VfxPreviewPanel
@@ -98,7 +98,9 @@ class TestLeverStagingAndSave(VfxPreviewCase):
 
         stop0_path = "procedural/muzzle/ramp/stop_0"
         button = preview._color_buttons[stop0_path]
-        with patch.object(vfx_preview.QColorDialog, "getColor",
+        # The dialog moved behind `editor.house_colors.pick_color` (the
+        # shared picker that seeds the house colours); patch it there.
+        with patch.object(house_colors.QColorDialog, "getColor",
                            return_value=QColor(10, 20, 30)):
             preview._on_color_clicked(stop0_path, button)
 
@@ -175,7 +177,7 @@ class TestRampRoundTrip(VfxPreviewCase):
             f"rgb({initial[0]},{initial[1]},{initial[2]})",
             preview._color_buttons[stop1_path].styleSheet())
 
-        with patch.object(vfx_preview.QColorDialog, "getColor",
+        with patch.object(house_colors.QColorDialog, "getColor",
                            return_value=QColor(9, 99, 199)):
             preview._on_color_clicked(
                 stop1_path, preview._color_buttons[stop1_path])

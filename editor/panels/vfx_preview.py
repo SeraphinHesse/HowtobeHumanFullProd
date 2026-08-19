@@ -49,10 +49,9 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
 import pygame
 from PySide6.QtCore import Signal
-from PySide6.QtGui import QColor, QPainter
+from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import (
     QCheckBox,
-    QColorDialog,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -68,8 +67,8 @@ from PySide6.QtWidgets import (
 )
 
 from editor import (
-    asset_import, domains, master_sheet_import, registry_ops, selection,
-    vfx_params,
+    asset_import, domains, house_colors, master_sheet_import, registry_ops,
+    selection, vfx_params,
 )
 from editor.asset_import import import_idle_sheet
 from editor.panels.balancing import (
@@ -768,11 +767,9 @@ class VfxPreviewPanel(QWidget):
 
     def _on_color_clicked(self, path, button):
         current = self._balancing.staged_value(path)
-        base = QColor(current[0], current[1], current[2])
-        chosen = QColorDialog.getColor(base, self, "Pick a color")
-        if not chosen.isValid():
+        rgb = house_colors.pick_color(self, current)
+        if rgb is None:
             return
-        rgb = [chosen.red(), chosen.green(), chosen.blue()]
         self._balancing.stage_value(path, rgb)
         self._paint_swatch(button, rgb)
         self._emit()

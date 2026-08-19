@@ -165,6 +165,28 @@ def imported_fonts(data_dir):
         return {}
 
 
+def resolve_family_paths(data_dir):
+    """EVERY imported font resolved to an absolute ``Path``, keyed by font id
+    — the value ``engine.render.fonts.configure_fonts``'s ``family_paths``
+    kwarg wants (UH-Font-B, the per-text font family axis). A SUPERSET of
+    ``resolve_active_font_path``: that one answers "which family does text
+    that names none get", this one "which families may a text run name at
+    all".
+
+    Editor-side E-37 grace, matching ``imported_fonts``: a missing/corrupt
+    manifest degrades to ``{}`` and an entry whose file is absent on disk is
+    DROPPED, so the editor still reconfigures on a broken tree (a dropped id
+    simply falls back to the default family at draw time — the engine's own
+    unknown-family rule). ``game/main.py``'s boot loader performs the same
+    resolution but fails LOUD on a missing file instead (D-2)."""
+    paths = {}
+    for font_id, entry in imported_fonts(data_dir).items():
+        path = (Path(data_dir) / "fonts" / entry["file"]).resolve()
+        if path.is_file():
+            paths[font_id] = path
+    return paths
+
+
 def resolve_active_font_path(data_dir):
     """The active custom font resolved to an absolute ``Path``, or ``None``
     for ``"default"`` (the plain SysFont fallback) — the value

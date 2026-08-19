@@ -29,7 +29,7 @@ REPO = Path(__file__).resolve().parents[2]
 from tools.tests.fixture_data import FIXTURE_DATA, fixture_copy
 
 from engine import tilemap
-from engine.core import Health, Scene
+from engine.core import Health, Scene, SpriteAnimator
 from engine.physics import TileOccupancy
 from game.buildings import BaseBuilding, attach_base, place_building
 from game.buildings.components import RoundStats
@@ -188,6 +188,25 @@ class TestPayday(unittest.TestCase):
         self.assertTrue(defender.alive)
         self.assertEqual(defender.get_component(Health).hp,
                          defender.get_component(Health).max_hp)
+
+    def test_revived_building_gets_the_reveal_delay(self):
+        # The respawn vfx plays first, the sprite pops back in after
+        # `placement_reveal_delay_seconds` — the same cosmetic beat a
+        # freshly PLACED building gets.
+        tm, musician, defender = self._board()
+        delay = BUILD["BuildingsGlobal"]["placement_reveal_delay_seconds"]
+        for b in (musician, defender):
+            b.get_component(SpriteAnimator).reveal_delay = 0.0
+        defender.get_component(Health).hp = 0
+
+        run_payday(RunState.from_balance(CORE, BUILD), tm, CORE,
+                   buildings_balance=BUILD)
+
+        self.assertEqual(
+            defender.get_component(SpriteAnimator).reveal_delay, delay)
+        # A building that never died is not re-hidden.
+        self.assertEqual(
+            musician.get_component(SpriteAnimator).reveal_delay, 0.0)
 
     def test_base_never_revives(self):
         tm, _m, _d = self._board()

@@ -168,6 +168,14 @@
       "description": "The move-building button's caption for a building that is rooted to its tile. No placeholders.",
       "type": "string"
     },
+    "building.cond_card.count": {
+      "description": "One unlock-mode terrain card's COUNT row — how many of the tiles this purchase unlocks carry that condition. `count` is an integer.",
+      "type": "string"
+    },
+    "building.cond_card.name": {
+      "description": "One unlock-mode terrain card's NAME row. `label` is the resolved tile-condition name (widgets.condition.*).",
+      "type": "string"
+    },
     "building.construct.card": {
       "description": "One construct-mode card's NAME block, wrapped to at most two rows. `name` is the tier's display name. The card's love price is a separate widget on the card and resolves through `building.stat.value`.",
       "type": "string"
@@ -382,6 +390,10 @@
     },
     "building.upgrade.next_tier_row": {
       "description": "One stat row inside the next-tier preview card. `label` is the resolved stat label, `value` the stat's value at that tier.",
+      "type": "string"
+    },
+    "building.upgrade.survived_last_round": {
+      "description": "Upgrade panel tag shown when last round's damage did NOT cover the building's full HP — the counterpart of `building.upgrade.died_last_round`, drawn in the same slot. No placeholders.",
       "type": "string"
     },
     "building.upgrade.tier_level": {
@@ -667,6 +679,8 @@
     "building.btn.dice",
     "building.btn.move",
     "building.btn.move_blocked",
+    "building.cond_card.count",
+    "building.cond_card.name",
     "building.construct.card",
     "building.construct.title",
     "building.flash.cannot_move",
@@ -721,6 +735,7 @@
     "building.upgrade.name_placeholder",
     "building.upgrade.next_tier",
     "building.upgrade.next_tier_row",
+    "building.upgrade.survived_last_round",
     "building.upgrade.tier_level",
     "cheat_menu.round_placeholder",
     "credits.name",

@@ -1,8 +1,28 @@
 {
   "entries": {
+    "pixel_azure_bonds": {
+      "display_name": "Pixel Azure Bonds",
+      "file": "imported/pixel_azure_bonds.otf"
+    },
+    "pixel_combat": {
+      "display_name": "Pixel Combat",
+      "file": "imported/pixel_combat.otf"
+    },
+    "pixel_dragon": {
+      "display_name": "Pixel Dragon",
+      "file": "imported/pixel_dragon.otf"
+    },
     "pixel_emulator": {
       "display_name": "Pixel Emulator",
       "file": "imported/pixel_emulator.otf"
+    },
+    "pixel_gosub": {
+      "display_name": "Pixel Gosub",
+      "file": "imported/pixel_gosub.otf"
+    },
+    "pixel_musketeer": {
+      "display_name": "Pixel Musketeer",
+      "file": "imported/pixel_musketeer.otf"
     }
   },
   "version": 1

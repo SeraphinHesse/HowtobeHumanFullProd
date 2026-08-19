@@ -64,6 +64,7 @@ TIERS = {
     "test_editor_selection": "editor",
     "test_editor_test_run_panel": "editor",  # TR-5: the Qt run window
     "test_editor_camera_limit_center": "editor",
+    "test_editor_house_colors": "editor",  # the shared colour picker
     "test_editor_tutorial_paint": "editor",
     "test_editor_viewport": "editor",
     "test_registry_ops": "editor",
@@ -101,6 +102,7 @@ TIERS = {
     "test_combat_anchors": "core",  # ESV-1: D4 guardrail (muzzle vs. flight timer)
     "test_combat_speed": "core",
     "test_components": "core",
+    "test_cond_cards": "core",  # the unlock panel's terrain cards
     "test_condition_art": "core",
     "test_construct_card": "core",  # the construct card's widget tree
     "test_coords": "core",

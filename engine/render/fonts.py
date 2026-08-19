@@ -81,7 +81,14 @@ def layout_h(font_key):
     ``pygame.font`` measurement (see module docstring/`_LAYOUT_H` above): a
     live value would make `data/ui/screen_defaults.json` and
     `test_ui_skinning.py`'s golden baseline diverge between Windows (where
-    they were captured) and Linux (where CI regenerates/checks them). Draw-
+    they were captured) and Linux (where CI regenerates/checks them).
+
+    Takes NO ``family`` argument, deliberately (UH-Font-B): a per-text font
+    family (``get_font``'s ``family``) changes DRAWN GLYPHS ONLY. Keying
+    these heights by family would make every stored widget rect move when a
+    designer swaps a family, which is exactly what this table exists to
+    prevent — the same contract a preset SIZE change already has (text may
+    overflow its widget; the Theme panel says so). Draw-
     time-only text metrics that never land in a stored rect or a captured
     stream should keep calling `text_h`/`TextMetrics.size` instead — those
     are allowed to track the real font because nothing pins their output.
@@ -90,7 +97,7 @@ def layout_h(font_key):
     return _LAYOUT_H[key]
 
 
-def configure_fonts(doc, font_path=None):
+def configure_fonts(doc, font_path=None, family_paths=None):
     """Replace ``_FONT_SPECS``'s entries IN PLACE from a loaded
     ``data/ui/fonts.json`` doc (D5/UH-6): ``{key: {"size": int, "bold":
     bool}}``. The HOST (``game/main.py``) loads + schema-validates the file
@@ -131,6 +138,19 @@ def configure_fonts(doc, font_path=None):
     bad/unreadable file's failure to config time (loud, where the host is
     already validating) instead of the first draw.
 
+    ``family_paths`` (UH-Font-B, optional) is ``{family_id: path}`` for
+    EVERY font the host knows about (``data/fonts/font_manifest.json``'s
+    entries), so a single text run can ask for a family OTHER than the
+    active one — ``get_font(font_key, family=...)``. It is a SUPERSET of
+    ``font_path``, not a replacement: ``font_path`` remains "the default
+    family", the one every call that names no family gets, and the one
+    ``_derive_layout_h`` measures with. Each file is slurped to bytes here
+    for the same Windows-file-lock reason as ``font_path`` above; a path
+    that cannot be read is DROPPED rather than raised on, because a missing
+    family degrades to the default at draw time (the unknown-``font_key``
+    -> ``"md"`` grace, one axis over) and the HOST is the layer that fails
+    loud on a bad reference (``game/main.py``, D-2).
+
     Never touches the 7 PINNED ``_LAYOUT_H``/``layout_h`` entries (the
     pinned cross-platform layout invariant, W3-4/UH-6 plan §5): a designer
     who enlarges a shipped preset or swaps the font family changes drawn
@@ -150,6 +170,12 @@ def configure_fonts(doc, font_path=None):
     global _FONT_PATH, _FONT_BYTES
     _FONT_PATH = str(font_path) if font_path is not None else None
     _FONT_BYTES = Path(_FONT_PATH).read_bytes() if _FONT_PATH is not None else None
+    _FAMILY_BYTES.clear()
+    for family_id, path in (family_paths or {}).items():
+        try:
+            _FAMILY_BYTES[family_id] = Path(path).read_bytes()
+        except OSError:
+            continue
     _cache.clear()
     _derive_layout_h(doc)
 
@@ -189,6 +215,11 @@ _FONT_PATH = None
 # ...and its CONTENT, slurped once by configure_fonts. get_font builds from
 # these bytes so no font object ever holds the file open (see the docstring).
 _FONT_BYTES = None
+# UH-Font-B: family_id -> that family's FILE CONTENT, for the per-text font
+# family axis. Populated by configure_fonts from its `family_paths`, read as
+# bytes for the same file-lock reason as _FONT_BYTES. A family id absent from
+# here is unknown and falls back to the default family (see get_font).
+_FAMILY_BYTES = {}
 
 
 def _ensure_init():
@@ -209,27 +240,47 @@ def _is_usable(font):
         return False
 
 
-def get_font(font_key):
-    """Cached font for font_key (created on first use, rebuilt if its pygame
-    session died). Unknown keys fall back to 'md', mirroring the prototype's
-    fonts.get(). Builds from ``_FONT_BYTES`` (via ``io.BytesIO``, never the
-    path — see ``configure_fonts``) when a custom font family is configured
-    (UH-Font-A), else the original ``SysFont("monospace", ...)`` fallback —
-    unchanged when ``_FONT_BYTES`` is ``None`` (the default / unconfigured
-    state)."""
+def get_font(font_key, family=None):
+    """Cached font for (font_key, family) — created on first use, rebuilt if
+    its pygame session died. Unknown keys fall back to 'md', mirroring the
+    prototype's fonts.get().
+
+    ``family`` (UH-Font-B) is a ``data/fonts/font_manifest.json`` entry id
+    naming the font FAMILY this one run draws in — the second, orthogonal
+    axis to ``font_key``'s size/bold preset. ``None`` (the default, and what
+    every pre-existing call site passes) means the ACTIVE family, i.e.
+    exactly today's behaviour: ``_FONT_BYTES`` when ``configure_fonts`` was
+    given a ``font_path`` (UH-Font-A), else the original
+    ``SysFont("monospace", ...)`` fallback. An UNKNOWN family id degrades to
+    that same default rather than raising — a screen doc naming a font the
+    manifest no longer carries draws in the default family instead of
+    killing the frame, mirroring the unknown-``font_key`` grace above (the
+    host is the layer that fails loud on a bad reference: ``game/main.py``,
+    D-2).
+
+    Builds from BYTES via ``io.BytesIO``, never a path — see
+    ``configure_fonts`` for why (SDL_ttf holds a path-built font's file open
+    for its whole lifetime, and these live in ``_cache`` until the process
+    exits: a hard lock on Windows)."""
     _ensure_init()
     key = font_key if font_key in _FONT_SPECS else _FALLBACK_KEY
-    font = _cache.get(key)
+    # Normalize an unknown/absent family to the default BEFORE it reaches the
+    # cache key, so a doc naming a deleted font can never grow one cache entry
+    # per bad id while drawing identically to the default anyway.
+    fam = family if family in _FAMILY_BYTES else None
+    cache_key = (key, fam)
+    font = _cache.get(cache_key)
     if font is not None and not _is_usable(font):
         font = None
     if font is None:
         size, bold = _FONT_SPECS[key]
-        if _FONT_BYTES is not None:
-            font = pygame.font.Font(io.BytesIO(_FONT_BYTES), size)
+        data = _FAMILY_BYTES[fam] if fam is not None else _FONT_BYTES
+        if data is not None:
+            font = pygame.font.Font(io.BytesIO(data), size)
             font.set_bold(bold)
         else:
             font = pygame.font.SysFont("monospace", size, bold=bold)
-        _cache[key] = font
+        _cache[cache_key] = font
     return font
 
 
@@ -237,5 +288,5 @@ class TextMetrics:
     """Measures rendered text for HUD layout without blitting — a pure size
     query over the shared font cache (`font.size(text)` → (w, h) in px)."""
 
-    def size(self, text, font_key):
-        return get_font(font_key).size(text)
+    def size(self, text, font_key, family=None):
+        return get_font(font_key, family).size(text)

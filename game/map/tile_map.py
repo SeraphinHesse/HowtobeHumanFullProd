@@ -296,6 +296,21 @@ class TileMap:
                 row_tiles.append(t)
                 self._by_state[t.state].add(t)
             self._grid.append(row_tiles)
+
+        # -- Spawn reserve -> tree deco flag ---------------------------------
+        # Stamp the painted `spawnable_background` marks onto their tiles so
+        # the tree emitter can draw the reserve's treeline while those tiles
+        # are still BACKGROUND (`spawn_deco.py`). O(marks), never an O(map)
+        # walk (perf invariant) — the same one-pass-over-the-marks shape the
+        # `_reserve` inversion above uses, and the same `None` guard: a
+        # TileMap built DIRECTLY from a hand-made doc never went through
+        # `validate_doc`, so an out-of-bounds mark must be skipped rather than
+        # raise on `None`.
+        for (mark_col, mark_row) in doc.spawnable_background:
+            t = self.get(mark_col, mark_row)
+            if t is not None:
+                t.spawn_reserved = True
+
         if has_base:
             base_tile = self.get(self.base_col, self.base_row)
             self.set_tile_state(base_tile, TileState.BUILT)

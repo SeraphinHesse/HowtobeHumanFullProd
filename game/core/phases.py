@@ -39,3 +39,10 @@ class GameState(Enum):
     # table is a real full screen reached from the main menu, so it earns a
     # ``GameState`` member like CREDITS/ADD_NAME.
     HIGHSCORES = auto()
+    # Post-"Start Game" loading screen (feature: loading screen). Appended
+    # LAST, same reasoning as HIGHSCORES above: a real full screen (the
+    # ``ui_bg_loading`` background + progress ring) reached from exactly one
+    # place (the "new_game"/"new_game_debug" intents), host-driven from
+    # ``main.py`` like GAMEPLAY/GAME_OVER rather than ``Shell``-driven like
+    # the menu states — see ``game/ui/CLAUDE.md``'s Shell + menus section.
+    LOADING = auto()

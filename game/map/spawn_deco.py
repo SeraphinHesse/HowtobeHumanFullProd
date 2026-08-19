@@ -7,7 +7,11 @@ tree). This module is the ONE place that turns that roll into RenderItems, and
 it is the ONLY thing deciding whether a tile's tree actually draws right now:
 it reads ``tile.state`` LIVE, so a tile that converts SPAWNING -> COMBAT
 (spawn recede) simply stops being emitted the very next frame — no
-``set_tile_state`` hook needed, unlike condition art's re-resolve.
+``set_tile_state`` hook needed, unlike condition art's re-resolve. The one
+non-SPAWNING tile that draws is a BACKGROUND tile carrying a painted
+``spawnable_background`` mark (``Tile.spawn_reserved``): the spawn RESERVE
+wears its treeline before it is released, so the band does not visibly grow in
+batch by batch.
 
 Why the ``deco`` layer: a treeline should partly occlude enemies walking out
 of it, and ``engine.render.LAYERS`` places ``deco`` (index 3) above
@@ -58,10 +62,14 @@ def spawn_deco_render_items(tile_map, col_min, col_max, row_min, row_max,
     """Spawn-deco RenderItems for the tiles inside a visible tile window.
 
     ``tree_slots`` is the host's manifest-filtered tree family (art cannot
-    change mid-run). A tile draws its tree only when it is CURRENTLY
-    SPAWNING and carries a roll (``spawn_deco_roll >= 0``) — a BACKGROUND
-    tile that later backfills into SPAWNING already has its roll waiting,
-    and a converted-to-COMBAT tile's roll is simply never read again.
+    change mid-run). A tile draws its tree when it carries a roll
+    (``spawn_deco_roll >= 0``) AND is either CURRENTLY SPAWNING or a
+    BACKGROUND tile carrying a painted spawn-reserve mark
+    (``tile.spawn_reserved``) — the reserve's treeline is therefore whole from
+    the start, and stays put when a batch releases those tiles into the spawn
+    band. A BACKGROUND tile with no mark that later backfills into SPAWNING
+    behind a recede already has its roll waiting, and a converted-to-COMBAT
+    tile's roll is simply never read again.
 
     ``anim_time_ms`` feeds idle animation; the same deterministic per-cell
     phase as the other two window emitters keeps identical neighbouring
@@ -86,7 +94,20 @@ def spawn_deco_render_items(tile_map, col_min, col_max, row_min, row_max,
             tile = tile_map.get(col, row)
             if tile is None:
                 continue
-            if tile.state is not TileState.SPAWNING or tile.spawn_deco_roll < 0:
+            if tile.spawn_deco_roll < 0:
+                continue
+            # Two tile sets draw a tree: the LIVE spawn band, and the painted
+            # spawn RESERVE while it is still BACKGROUND (`tile.spawn_reserved`,
+            # stamped at `TileMap.__init__`). The reserve half is what makes the
+            # treeline cover the whole painted band from frame one instead of
+            # growing in batch by batch as stages release it — and because a
+            # released tile is SPAWNING, its tree simply carries over unchanged.
+            # Still a LIVE `tile.state` read: a reserve tile that has gone all
+            # the way to COMBAT fails both arms and stops being emitted, flag or
+            # no flag.
+            if not (tile.state is TileState.SPAWNING
+                    or (tile.state is TileState.BACKGROUND
+                        and tile.spawn_reserved)):
                 continue
             roll = tile.spawn_deco_roll
             # `% n_slots` mirrors `_resolve_condition_slot`'s guard: the
