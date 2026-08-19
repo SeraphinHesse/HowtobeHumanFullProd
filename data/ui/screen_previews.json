@@ -1324,7 +1324,7 @@
               585,
               168
             ],
-            "text": "Mortar",
+            "text": "Little Mortar",
             "type": "text"
           },
           {
@@ -2266,7 +2266,7 @@
               585,
               168
             ],
-            "text": "Mortar",
+            "text": "Little Mortar",
             "type": "text"
           },
           {
@@ -2482,7 +2482,7 @@
               516,
               308,
               118,
-              138
+              74
             ],
             "type": "rect",
             "width": 0
@@ -2498,7 +2498,7 @@
               516,
               308,
               118,
-              138
+              74
             ],
             "type": "rect",
             "width": 1
@@ -2515,7 +2515,7 @@
             "hidden_frames": [],
             "size": [
               64,
-              96
+              32
             ],
             "slot_key": "cond_forest_combat",
             "tint": null,
@@ -2532,7 +2532,7 @@
             "font_key": "sm",
             "pos": [
               519,
-              407
+              343
             ],
             "text": "Forest",
             "type": "text"
@@ -2548,7 +2548,7 @@
             "font_key": "sm",
             "pos": [
               631,
-              407
+              343
             ],
             "text": "×1",
             "type": "text"
@@ -2564,7 +2564,7 @@
             "font_key": "sm",
             "pos": [
               519,
-              419
+              355
             ],
             "text": "Economy",
             "type": "text"
@@ -2580,7 +2580,7 @@
             "font_key": "sm",
             "pos": [
               519,
-              431
+              367
             ],
             "text": "+10%",
             "type": "text"
@@ -3546,7 +3546,7 @@
               516,
               190,
               118,
-              138
+              74
             ],
             "type": "rect",
             "width": 0
@@ -3562,7 +3562,7 @@
               516,
               190,
               118,
-              138
+              74
             ],
             "type": "rect",
             "width": 1
@@ -3579,7 +3579,7 @@
             "hidden_frames": [],
             "size": [
               64,
-              96
+              32
             ],
             "slot_key": "cond_mountain_combat",
             "tint": null,
@@ -3596,7 +3596,7 @@
             "font_key": "sm",
             "pos": [
               519,
-              289
+              225
             ],
             "text": "Mountain",
             "type": "text"
@@ -3612,7 +3612,7 @@
             "font_key": "sm",
             "pos": [
               631,
-              289
+              225
             ],
             "text": "×1",
             "type": "text"
@@ -3628,7 +3628,7 @@
             "font_key": "sm",
             "pos": [
               519,
-              301
+              237
             ],
             "text": "Range",
             "type": "text"
@@ -3644,9 +3644,107 @@
             "font_key": "sm",
             "pos": [
               519,
-              313
+              249
             ],
             "text": "+1",
+            "type": "text"
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              40,
+              32,
+              58
+            ],
+            "rect": [
+              516,
+              268,
+              118,
+              74
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              80,
+              160,
+              220
+            ],
+            "rect": [
+              516,
+              268,
+              118,
+              74
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              543,
+              271
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              64,
+              32
+            ],
+            "slot_key": "cond_pond_combat",
+            "tint": null,
+            "type": "sprite"
+          },
+          {
+            "align": "left",
+            "color": [
+              80,
+              160,
+              220
+            ],
+            "family": null,
+            "font_key": "sm",
+            "pos": [
+              519,
+              303
+            ],
+            "text": "Pond",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "family": null,
+            "font_key": "sm",
+            "pos": [
+              631,
+              303
+            ],
+            "text": "×1",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "family": null,
+            "font_key": "sm",
+            "pos": [
+              519,
+              315
+            ],
+            "text": "Unbuildable",
             "type": "text"
           }
         ]
@@ -8004,6 +8102,70 @@
           124
         ],
         "text": ">",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          405,
+          122,
+          85,
+          20
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          405,
+          122,
+          85,
+          20
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "family": null,
+        "font_key": "md",
+        "pos": [
+          447,
+          125
+        ],
+        "text": "DEFAULT",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "family": null,
+        "font_key": "sm",
+        "pos": [
+          405,
+          145
+        ],
+        "text": "Boot: FULLSCREEN",
         "type": "text"
       },
       {

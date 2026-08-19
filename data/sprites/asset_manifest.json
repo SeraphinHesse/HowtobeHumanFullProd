@@ -4494,6 +4494,24 @@
       "sheet": "imported/boss_era_4.png"
     },
     "commander_stage_1": {
+      "anchors": {
+        "beam_endpoint": [
+          4,
+          -9
+        ],
+        "depth_pivot": [
+          -1,
+          12
+        ],
+        "hp_bar": [
+          4,
+          -34
+        ],
+        "impact": [
+          2,
+          -8
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -7962,10 +7980,24 @@
       "sheet": "master/htbh_enemie_sheet.png"
     },
     "drummer_stage_1": {
+      "anchors": {
+        "depth_pivot": [
+          -1,
+          14
+        ],
+        "hp_bar": [
+          -2,
+          -21
+        ],
+        "impact": [
+          0,
+          0
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -7998,10 +8030,28 @@
       "sheet": "imported/enemy_stage_4_v2.png"
     },
     "drummer_stage_3": {
+      "anchors": {
+        "beam_endpoint": [
+          0,
+          0
+        ],
+        "depth_pivot": [
+          -4,
+          8
+        ],
+        "hp_bar": [
+          1,
+          -19
+        ],
+        "impact": [
+          -2,
+          5
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -8016,10 +8066,28 @@
       "sheet": "imported/enemy_stage_4_v2.png"
     },
     "drummer_stage_4": {
+      "anchors": {
+        "beam_endpoint": [
+          0,
+          0
+        ],
+        "depth_pivot": [
+          -4,
+          13
+        ],
+        "hp_bar": [
+          3,
+          -22
+        ],
+        "impact": [
+          2,
+          1
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
@@ -8064,7 +8132,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -16,
+      "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
@@ -9258,7 +9326,7 @@
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": -16,
-      "row_start": 4,
+      "row_start": 22,
       "rows": [
         {
           "animation": "idle",
@@ -9344,7 +9412,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "master/htbh_enemie_sheet.png"
+      "sheet": "master/htbh_enemie.png"
     },
     "enemy_stage_3_v2": {
       "anchors": {
@@ -9379,7 +9447,7 @@
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": -16,
-      "row_start": 4,
+      "row_start": 22,
       "rows": [
         {
           "animation": "idle",
@@ -9465,7 +9533,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "master/htbh_enemie_sheet.png"
+      "sheet": "master/htbh_enemie.png"
     },
     "enemy_stage_3_v3": {
       "anchors": {
@@ -9500,7 +9568,7 @@
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": -16,
-      "row_start": 4,
+      "row_start": 22,
       "rows": [
         {
           "animation": "idle",
@@ -9586,7 +9654,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "master/htbh_enemie_sheet.png"
+      "sheet": "master/htbh_enemie.png"
     },
     "enemy_stage_3_v4": {
       "anchors": {
@@ -9621,7 +9689,7 @@
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": -16,
-      "row_start": 4,
+      "row_start": 22,
       "rows": [
         {
           "animation": "idle",
@@ -9707,7 +9775,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "master/htbh_enemie_sheet.png"
+      "sheet": "master/htbh_enemie.png"
     },
     "enemy_stage_3_v5": {
       "anchors": {
@@ -9742,7 +9810,7 @@
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": -16,
-      "row_start": 4,
+      "row_start": 22,
       "rows": [
         {
           "animation": "idle",
@@ -9828,7 +9896,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "master/htbh_enemie_sheet.png"
+      "sheet": "master/htbh_enemie.png"
     },
     "enemy_stage_4_v1": {
       "anchors": {
@@ -10198,6 +10266,10 @@
           3,
           -9
         ],
+        "depth_pivot": [
+          0,
+          13
+        ],
         "floater_origin": [
           2,
           -12
@@ -10277,6 +10349,10 @@
         "beam_endpoint": [
           0,
           -1
+        ],
+        "depth_pivot": [
+          1,
+          13
         ],
         "floater_origin": [
           -1,
@@ -10358,6 +10434,10 @@
           0,
           0
         ],
+        "depth_pivot": [
+          0,
+          13
+        ],
         "floater_origin": [
           0,
           -14
@@ -10437,6 +10517,10 @@
         "beam_endpoint": [
           -1,
           -1
+        ],
+        "depth_pivot": [
+          0,
+          14
         ],
         "floater_origin": [
           -1,
@@ -15427,6 +15511,12 @@
       "sheet": "master/ss_stonethrower.png"
     },
     "sniper_stage_1": {
+      "anchors": {
+        "depth_pivot": [
+          2,
+          13
+        ]
+      },
       "column_width": 21,
       "frame_h": 96,
       "frame_w": 64,
@@ -15521,29 +15611,75 @@
       "sheet": "master/htbh_enemie_sheet.png"
     },
     "sniper_stage_2": {
+      "column_width": 21,
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": -23,
+      "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 21,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "walk",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/deco_tree_v9.png"
+      "sheet": "master/htbh_enemie_sheet.png"
     },
     "sniper_stage_3": {
+      "anchors": {
+        "beam_endpoint": [
+          0,
+          0
+        ],
+        "depth_pivot": [
+          -2,
+          15
+        ],
+        "hp_bar": [
+          0,
+          -38
+        ],
+        "impact": [
+          0,
+          0
+        ]
+      },
       "column_width": 21,
       "frame_h": 96,
       "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
+      "offset_x": 4,
+      "offset_y": -16,
       "row_start": 4,
       "rows": [
         {
@@ -15633,22 +15769,112 @@
       "sheet": "master/htbh_enemie_sheet.png"
     },
     "sniper_stage_4": {
+      "anchors": {
+        "beam_endpoint": [
+          0,
+          0
+        ],
+        "depth_pivot": [
+          -4,
+          13
+        ],
+        "hp_bar": [
+          6,
+          -35
+        ],
+        "impact": [
+          5,
+          -7
+        ]
+      },
+      "column_width": 21,
       "frame_h": 96,
       "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": -23,
+      "offset_x": 4,
+      "offset_y": -16,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "walk",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 21,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/deco_tree_v9.png"
+      "sheet": "master/htbh_enemie_sheet.png"
     },
     "sniper_stage_5": {
       "frame_h": 96,
@@ -18803,6 +19029,24 @@
         }
       ],
       "sheet": "imported/ui_panel_v22.png"
+    },
+    "ui_panel_v23": {
+      "frame_h": 360,
+      "frame_w": 168,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 12,
+          "frames": 52,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/ui_panel_v23.png"
     },
     "ui_panel_v3": {
       "frame_h": 50,
@@ -22559,22 +22803,45 @@
       "sheet": "imported/vfx_crater.png"
     },
     "vfx_dirt_pile": {
-      "frame_h": 64,
+      "column_width": 21,
+      "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 18,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 21,
+          "hidden": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/vfx_dirt_pile.png"
+      "sheet": "master/htbh_enemie_sheet.png"
     },
     "vfx_projectile": {
       "column_width": 1,

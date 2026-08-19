@@ -18,6 +18,7 @@ later ``configure_palette`` rebind cannot reach) — see ``game/ui/CLAUDE.md``.
 import math
 from types import SimpleNamespace
 
+from engine.coords import FRONT_RANK
 from engine.render import HudLines, HudRect, HudSprite, HudText, RenderItem
 from engine.render.fonts import TextMetrics, layout_h
 
@@ -65,6 +66,35 @@ def anim_ms(clock_s):
     would silently eat a frame's worth of ms — the same class of drift
     Sec 1.5 rules out for per-frame accumulation, just at the read instead."""
     return round(clock_s * 1000)
+
+
+def submit_backdrop(renderer, backdrop, anim_ms=0):
+    """A screen's full-view ``backdrop`` holder — ONE draw site for all 14
+    screens, so a designer's ``backdrop.skin`` cannot work on some and be
+    silently dropped on others.
+
+    ``skin`` set (``skinning.apply`` setattr'd it from
+    ``data/ui/screens/<id>.json``) -> a ``HudSprite`` of that slot, threaded
+    with the screen's own ``anim_ms`` clock so an ANIMATED background slot
+    actually plays. Unset -> the flat ``HudRect`` fill every screen drew
+    before, verbatim, which is the parity path (no screen doc, no change).
+
+    A backdrop holder with no ``color`` (``loading_screen``'s) and no skin
+    draws nothing at all, exactly as it did.
+
+    A skin REPLACES the fill rather than layering over it — the same
+    precedence ``Button.submit`` already gives a skin over ``color``, so the
+    two skinned kinds cannot disagree."""
+    skin = getattr(backdrop, "skin", None)
+    x, y, w, h = backdrop.rect
+    if skin:
+        renderer.submit_hud(HudSprite(skin, (x, y), (w, h),
+                                      anim_time_ms=int(anim_ms),
+                                      tint=getattr(backdrop, "tint", None)))
+        return
+    color = getattr(backdrop, "color", None)
+    if color is not None:
+        renderer.submit_hud(HudRect(backdrop.rect, color))
 
 # -- palette (prototype constants.py, verbatim RGB) -------------------------
 C_GOLD = (255, 200, 50)
@@ -527,8 +557,11 @@ def submit_highlight(renderer, event, col, row, assets=None, anim_time_ms=0,
     "imported". ``assets=None`` (a bare panel a test builds) simply takes the
     procedural path.
 
-    ``draw_in_front`` becomes the depth rank (VA-3): +1 draws over a
-    same-tile building, -1 behind it.
+    ``draw_in_front`` becomes the depth rank (VA-3): ``FRONT_RANK`` draws
+    over EVERY same-layer item — not merely over a same-tile building, which
+    is all the old +1 did and which stopped happening once feet-based
+    Y-sorting removed the exact ties it needed (fix/showinfront-always-wins);
+    -1 keeps its tie-break meaning, behind the entity sharing the tile.
 
     ``pulse_color``/``pulse_width`` (the tile-buying tutorial topic's pulse,
     ``tutorial_pulse_style`` below) override the static border colour/width
@@ -536,7 +569,7 @@ def submit_highlight(renderer, event, col, row, assets=None, anim_time_ms=0,
     exactly as it does for every other event, unaffected by either.
     """
     slot, in_front = _HIGHLIGHT_TRIGGERS.get(event, ("", True))
-    rank = 1 if in_front else -1
+    rank = FRONT_RANK if in_front else -1
     if slot and assets is not None:
         if assets.animation_total_ms(slot, "idle") is not None:
             renderer.submit(RenderItem(

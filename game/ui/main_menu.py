@@ -35,7 +35,7 @@ relies on.
 import logging
 from types import SimpleNamespace
 
-from engine.render import HudRect, HudSprite
+from engine.render import HudSprite
 
 from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .widgets import Button, anim_ms, submit_centered
@@ -268,11 +268,19 @@ class MainMenu:
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
-        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        self.skinning.submit_background(renderer, self.screen_id, view_w,
+                                        view_h, anim_ms=t)
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
                                     "under", self.skinning.state_of)
-        renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
-        renderer.submit_hud(HudSprite(_BG_SLOT, (0, 0), (view_w, view_h)))
+        widgets.submit_backdrop(renderer, self._backdrop, anim_ms=t)
+        # The baked-in hand-painted art is the DEFAULT, not an unconditional
+        # overpaint: a designer who skinned the `backdrop` widget in
+        # data/ui/screens/main_menu.json picked a different background, and
+        # blitting `main_menu_bg` over it on the very next line is what made
+        # that choice look like it did nothing.
+        if not getattr(self._backdrop, "skin", None):
+            renderer.submit_hud(HudSprite(_BG_SLOT, (0, 0), (view_w, view_h),
+                                          anim_time_ms=t))
         if self._title.visible:
             submit_centered(renderer, self._title.label, self._title.rect[0],
                             self._title.rect[1], self._title.font_key,

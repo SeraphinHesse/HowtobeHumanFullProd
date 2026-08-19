@@ -14,6 +14,12 @@ import math
 
 from .camera import Camera
 
+#: The rank an effect passes to say "draw me IN FRONT, always" — it beats iso
+#: depth instead of only breaking an exact tie (fix/showinfront-always-wins).
+#: Ranks below it (the deco -1, the +1/-1 tie-breaks) keep the VA-3 meaning:
+#: last word on an otherwise exact tie. See depth_key.
+FRONT_RANK = 2
+
 
 class CoordinateSystem:
     def __init__(self, geometry, camera=None):
@@ -46,28 +52,38 @@ class CoordinateSystem:
     # -- iso depth (E-4) — consumed only by engine/render ----------------
 
     def depth_key(self, wx, wy, layer_index=0, rank=0):
-        """Sortable draw key: draw layer first, then iso depth (wx+wy),
-        then wy as a deterministic tiebreak for equal-depth items, then
-        ``rank`` as the LAST word on an otherwise exact tie.
+        """Sortable draw key: draw layer first, then the ALWAYS-IN-FRONT tier
+        (``rank >= FRONT_RANK``), then iso depth (wx+wy), then wy as a
+        deterministic tiebreak for equal-depth items, then ``rank`` itself as
+        the last word on an otherwise exact tie.
 
         ``rank`` (VfxAuthoringPLAN VA-3/D5) is how a cosmetic effect says it
-        draws in front of (+1) or behind (-1) the building or enemy standing
-        on its own tile. Everything the game and editor submit today passes
-        the default 0, and a 4-tuple whose last element is constant sorts
-        identically to the old 3-tuple — so this is a byte-identical no-op
-        until something opts in.
+        draws in front of or behind the building or enemy standing on its own
+        tile. It has TWO tiers, and the split is the whole of
+        fix/showinfront-always-wins:
 
-        It is deliberately the LAST element, not an earlier one: layer must
-        stay primary (the ground cache depends on it) and iso depth must
-        still beat rank, so an effect on a near tile keeps drawing over a
-        building on a far one. Rank decides only what position alone cannot.
+        * ``rank < FRONT_RANK`` (the -1/0/+1 values, and the deco -1) is a
+          TIE-BREAK only — position still decides, so a deco tile still
+          y-sorts against the enemy walking past it rather than sitting
+          unconditionally behind it. This is the original VA-3 meaning and is
+          unchanged.
+        * ``rank >= FRONT_RANK`` is ABSOLUTE within the layer: the effect
+          draws over every same-layer item whatever the iso depth says. This
+          is what a VFX row's ``draw_in_front`` now maps to. It used to map to
+          +1, which only won an EXACT tie — and once feet-based Y-sorting
+          (``depth_pivot``) moved sprites off their tile's exact depth, exact
+          ties stopped happening and "show in front" stopped doing anything.
+
+        Layer stays primary above both tiers: the ground cache depends on it,
+        so no rank can lift an item out of its layer.
 
         One bool, not two, is a consequence of this shape: buildings and
         enemies share the ``entities`` layer and sort against each other by
         the same iso depth, so no single total order can put an effect in
         front of one and behind the other.
         """
-        return (layer_index, wx + wy, wy, rank)
+        return (layer_index, 1 if rank >= FRONT_RANK else 0,
+                wx + wy, wy, rank)
 
     # -- camera (E-5): pure state mutation, no input handling ------------
     #

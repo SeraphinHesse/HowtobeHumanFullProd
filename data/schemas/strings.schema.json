@@ -608,6 +608,10 @@
       "description": "Settings warning line beside the renderer switch: the pick is a BOOT preference and only takes effect on the next launch (settings-cut). No placeholders.",
       "type": "string"
     },
+    "settings.saved_default": {
+      "description": "Settings note under the SET DEFAULT button: which display mode data/display.json currently BOOTS into, which the player may have cycled away from. {mode} is that mode, upper-cased.",
+      "type": "string"
+    },
     "settings.sfx_audio": {
       "description": "Settings label for the SFX volume row (SD-6) - every non-music sound, ambient included. No placeholders.",
       "type": "string"
@@ -785,6 +789,7 @@
     "settings.no_audio",
     "settings.renderer",
     "settings.renderer_note",
+    "settings.saved_default",
     "settings.sfx_audio",
     "settings.volume_pct",
     "widgets.condition.forest",

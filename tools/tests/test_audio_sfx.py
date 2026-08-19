@@ -36,12 +36,16 @@ class FakeChannel:
         self.played = None
         self.maxtime = None
         self.loops = None
+        self.volume = 1.0
 
     def play(self, sound, loops=0, maxtime=0):
         self.played = sound
         self.loops = loops
         self.maxtime = maxtime
         self.busy = True
+
+    def set_volume(self, v):
+        self.volume = v
 
     def get_busy(self):
         return self.busy
@@ -165,12 +169,31 @@ class TestFakeMixerCacheCooldownCap(unittest.TestCase):
         self.assertEqual(sum(1 for r in results if r), 4)
         self.assertEqual(sfx.active_count("burst"), 4)
 
-    def test_volume_reaches_fake_sound(self):
+    def test_volume_reaches_the_channel_not_the_shared_sound(self):
         sfx.set_master_volume(0.5)
         sfx.set_bus_volume("sfx", 0.5)
         sfx.play(CLIP, key=None)
         channel = self.fake.mixer.channels[-1]
-        self.assertAlmostEqual(channel.played.volume, 0.25)
+        self.assertAlmostEqual(channel.volume, 0.25)
+        # the cached Sound is shared across slots — it must stay untouched
+        self.assertAlmostEqual(channel.played.volume, 1.0)
+
+    def test_second_clip_volume_does_not_retune_the_first_play(self):
+        """Same file, two clip volumes: the cache key is (path, start, end)
+        with no volume in it, so both plays share ONE Sound. The second play
+        must not change what the first channel is already playing at."""
+        loud = {"file": "a.wav", "volume": 1.0, "start": 0.0, "end": 0.0}
+        quiet = {"file": "a.wav", "volume": 0.2, "start": 0.0, "end": 0.0}
+        sfx.set_master_volume(1.0)
+        sfx.set_bus_volume("sfx", 1.0)
+        self.assertTrue(sfx.play(loud, key=None))
+        first = self.fake.mixer.channels[-1]
+        self.assertTrue(sfx.play(quiet, key=None))
+        second = self.fake.mixer.channels[-1]
+        self.assertIsNot(first, second)
+        self.assertIs(first.played, second.played)  # one cached Sound
+        self.assertAlmostEqual(first.volume, 1.0)
+        self.assertAlmostEqual(second.volume, 0.2)
 
 
 class TestNumpyAbsentEndOnlyTrim(unittest.TestCase):

@@ -618,7 +618,8 @@ unlike LEVELUP/BOSS_CUTSCENE, which both sit AFTER ROUND_END.
   designer-authored list, each `{enemy_label, round, title, body,
   sprite_slot, sprite_w, sprite_h, animation, anim_speed, hidden_frames,
   crop_x, crop_y, crop_w, crop_h, sprite_offset_x, sprite_offset_y,
-  sprite_flip_h, background_tint, show_on_tutorial_round}` — `round` is fully
+  sprite_flip_h, background_tint, show_on_tutorial_round,
+  show_on_spawn_of}` — `round` is fully
   independent of that enemy's own `start_round` in `enemies.json`). Ships with
   `entries: []` — nothing pops up until the user authors rows through the
   editor's generic balancing panel (array-of-object blocks render/edit for
@@ -663,6 +664,22 @@ unlike LEVELUP/BOSS_CUTSCENE, which both sit AFTER ROUND_END.
     would. Live data ticks it on the Walker/`Standard` entry only. Matching
     reads the key with `.get(..., False)`, so bare-dict fixtures predating
     the field stay valid.
+  - **`show_on_spawn_of` (per entry) replaces the round trigger with a SPAWN
+    trigger.** Non-empty (an enemy etype) means `end_turn` skips the entry
+    entirely; `Session.post_sim` queues it instead, the first time an enemy of
+    that etype actually enters the scene — which freezes the fight mid-round
+    for the card and returns to `ENEMY` when it closes, the same two lines
+    `end_turn` uses. The Commander is why it exists: nothing puts one in a
+    wave (every `round_counts.commander` is 0), the boss summons it partway
+    through its own fight via `second_phase.spawns`, so a round-10 card
+    introduced an enemy the player had not seen and might never see. The
+    source is the Spawner's per-frame `drain_spawned_types()` log, fed by
+    BOTH of that class's construction sites (the wave pop and `_spawn_child`),
+    so wave, death-spawn burst and second-phase children all count. Shown once
+    per run via `RunState.spawn_intros_shown` — which IS serialized (unlike
+    `pending_enemy_intros`/`tutorial_intros_shown`), so a reload cannot replay
+    a card the player already read. Read with `.get(..., "")`, so bare-dict
+    fixtures predating the field stay round-triggered.
 - **`Session.frozen`** covers `ENEMY_INTRO` alongside LEVELUP/BOSS_CUTSCENE —
   `pre_sim` skips the whole sim (no combat, no movement, no spawns) for as
   long as any queued dialogue is showing.
@@ -883,6 +900,33 @@ round by construction.
 `game/core/names.py append_random_name` persists the add-name menu's typed name to
 `buildings.json` `BuildingsGlobal.random_names` via `write_validated` — the one
 runtime data write (disk I/O stays out of pygame-pure `game/ui`).
+
+## High scores (`scores/highscores.json`, player-identity)
+`game/core/highscores.py` owns the run-history document — the second runtime
+write, into the gitignored `scores/` dir (not `data/`), through
+`write_validated` like every other write.
+
+- **"Absent" and "unloadable" are DIFFERENT, and only a READER may conflate
+  them.** `load_highscores` returns an empty doc for both (a table with no rows
+  to draw is fine); `read_highscores` returns `(doc, ok)` and every WRITE path
+  goes through that one. This is not a nicety: `append_score` used to load
+  through `load_highscores` and write the result back, so one truncated byte
+  turned the entire play history into a one-entry file.
+- **A write NEVER overwrites bytes it could not read.** `append_score` moves
+  them to `highscores.corrupt[.N].json` first (deterministic name, numbered, so
+  a second corruption cannot clobber the first rescue) and then writes a fresh
+  document, so a finished run still records its row; `rename_entry` refuses
+  outright with an `OSError`, having nothing meaningful to rewrite. If even the
+  move-aside fails, the exception propagates and nothing is written — losing one
+  row beats losing the history. (The atomic `os.replace` in `engine/data_io.py`
+  covers the OTHER half of this: a crash mid-write cannot truncate the file.)
+- **`rename_entry(path, index, name, data_dir)` addresses the FILE, not the
+  table.** `index` is play order; the high-score screen sorts a copy, so a UI
+  caller must map its display row back through `ranked_rows(doc)` →
+  `[(disk_index, entry)]`. `ranked` is that without the indices. Renaming the
+  most recent entry refreshes `last_player` too, so the identity prompt cannot
+  go on pre-filling a name that exists nowhere in the file. Unlike the readers
+  it RAISES (`IndexError`, `OSError`) — the host logs and carries on.
 
 ## Per-machine preference files (`settings/`)
 Two sibling modules write the gitignored `settings/` directory at the repo

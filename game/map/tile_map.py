@@ -284,6 +284,21 @@ class TileMap:
         # must bump the flow field exactly like the other two producers.
         self._overwrite_prev = set()
 
+        # PRE-QUERY MEMO CLOCK (perf). The three producers above run from
+        # `pathfinder._pre_query_refresh` before EVERY pathfinding query, and
+        # each is an O(built tiles) sweep — three sweeps per spawned enemy, and
+        # a batch/death-swarm releases many enemies in ONE frame. `_sim_frame`
+        # is an OPT-IN frame clock: None means "no host is driving frames, never
+        # memoise" (headless fixtures, editor stubs and every test that mutates
+        # a tilemap between two `find_path` calls keep the old run-every-query
+        # behaviour). A host that calls `begin_sim_frame()` once per frame
+        # (`Session.pre_sim`) gets the producers run at most ONCE per frame; the
+        # worst staleness is one frame of soft weight preferences (damage
+        # discount, coverage add, overwrite flags — none of them change
+        # PASSABILITY), which is why memoising them is safe at all.
+        self._sim_frame = None
+        self._pre_query_frame = None
+
         # Seed the runtime grid from terrain codes; the base occupies its tile.
         # An incremental per-state index (`_by_state`) is built in the SAME pass:
         # `built_tiles()` / `buildable_tiles()` / `spawning_tiles()` return from
@@ -520,6 +535,14 @@ class TileMap:
         if 0 <= col < self.cols and 0 <= row < self.rows:
             return self._grid[row][col]
         return None
+
+    def begin_sim_frame(self):
+        """Advance the pre-query memo clock one frame (see `_sim_frame`).
+
+        The HOST calls this once per frame, before the sim (`Session.pre_sim`).
+        The first call switches the memo ON for this tilemap; a tilemap nobody
+        calls it on never memoises."""
+        self._sim_frame = 0 if self._sim_frame is None else self._sim_frame + 1
 
     def _bump_path_version(self):
         """Invalidate the pathfinder's cached base flow field. Called by every
@@ -1159,9 +1182,14 @@ class TileMap:
         wall_hp = builder.wall_hp()
         exterior = self._exterior_combat_tiles()
         snapshot = []
-        for tile in self.all_tiles():
-            if not self._is_player_territory(tile):
-                continue
+        # Player territory only — read straight off the `_by_state` index rather
+        # than scanning every tile on the map (a click must not cost O(cols*rows)).
+        # Sorted by (row, col) so the snapshot keeps `all_tiles()` order: the sets
+        # iterate in identity-hash order, which would otherwise vary per run.
+        player_tiles = sorted(
+            self._by_state[TileState.BUILDABLE] | self._by_state[TileState.BUILT],
+            key=lambda t: (t.row, t.col))
+        for tile in player_tiles:
             for nc, nr in ((tile.col + 1, tile.row), (tile.col - 1, tile.row),
                            (tile.col, tile.row + 1), (tile.col, tile.row - 1)):
                 if (nc, nr) not in exterior:

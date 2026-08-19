@@ -162,7 +162,11 @@ engine task; if an engine change forces a caller change, tell the user
   slot/clip resolution (`resolve`/`pick_clip`/`effective_volume`/`clip_path`/
   `trim_bounds`). `audio/sfx.py` wraps `pygame.mixer.Sound` (clip cache keyed
   by `(path, start, end)`, channel pool, per-key cooldown + concurrency cap,
-  the bus/master volume registry). `audio/music.py` wraps
+  the bus/master volume registry). **Per-play volume goes on the CHANNEL
+  (`channel.set_volume` after `channel.play`), never on the Sound** — the
+  cache key has no volume in it, so two slots naming one file at different
+  volumes share a single `Sound`, and `sound.set_volume` retunes a play
+  already in flight on another channel. `audio/music.py` wraps
   `pygame.mixer.music` (one streaming track, push/pop stack for temporary
   tracks, "already playing = no-op"); it reads `sfx.py`'s volume registry
   rather than keeping its own. Dependency direction: `__init__ -> {music,

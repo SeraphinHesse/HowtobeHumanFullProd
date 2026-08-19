@@ -803,7 +803,30 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
     them. **Neither does disk I/O**: the host loads/appends
     `scores/highscores.json` through `game.core.highscores` and hands the
     document down via `Shell.set_highscores` → `set_doc`; both modules import
-    that package only for its PURE helpers (`ranked`, `SKILLS`).
+    that package only for its PURE helpers (`ranked_rows`, `SKILLS`).
+  - **Renaming a row is the IO-free-screen rule under load.** A table row can
+    be selected (click, or Up/Down — which now move the SELECTION and scroll to
+    follow it, rather than scrolling directly) and its NAME edited in place with
+    `player_intro`'s text-entry state machine verbatim; the RENAME button
+    doubles as SAVE while editing. Committing writes NOTHING: it parks
+    `(disk_index, typed_name)` on `pending_rename` and returns the `"rename"`
+    action, which `Shell._highscores_action` (the one place BOTH the click and
+    the key route go through, so mouse and keyboard cannot diverge) turns into
+    the host intent `"rename_highscore"`. The host calls
+    `highscores.rename_entry` and re-feeds the screen with
+    `set_highscores(doc, keep_view=True)` — `keep_view` because rewinding to
+    rank 1 after renaming row 40 lands the player nowhere near where they were.
+  - **`self.rows` is `(disk_index, entry)` pairs, not entries.** The table is
+    sorted by `round_reached` and the file is in play order, so a rename
+    addressed by display position renames the wrong run. The index travels with
+    the row (`ranked_rows`) precisely so that cannot be got wrong at the call
+    site.
+  - **While a rename is live the table is a TEXT FIELD**, so `Shell.handle_key`
+    hands it every key before the generic Esc branch (the `ADD_NAME` rule) —
+    otherwise Esc would leave the screen mid-edit instead of cancelling.
+  - **`btn_rename` sits to the LEFT of `btn_back`, which keeps its shipped
+    geometry.** A second button on an existing screen must not move the one
+    players already know.
   - **`main_menu`'s id/action decoupling — the pattern for any future
     availability matrix.** `self.buttons` pairs each `Button` with a STABLE
     `slot_key` (what `_SLOT_IDS` looks its widget id up by — an id is the
@@ -862,9 +885,14 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
     `_BASELINE_EXEMPT` with a dedicated `TestLoadingScreenParity` pinning the
     ring's colour, width, closedness, centre and radius instead. Do not grow
     that set to dodge a baseline update.
-    **A cutscene may cover this state** (feature: start-game cutscene) — the
-    video renders instead of the screen while the checkpoints keep draining
-    underneath; host wiring → `game/CLAUDE.md`'s matching bullet. The PRE-BOOT loading screen (`main.py`'s
+    **A cutscene may FOLLOW this state** (feature: start-game cutscene) — the
+    screen owns the whole build, and the video starts only once the queue has
+    drained and `min_display_seconds` has elapsed, as the last gate before
+    gameplay. It used to render INSTEAD of the screen while the checkpoints
+    drained underneath; that overlap was reversed by user decision (host
+    wiring, and the `loading_cutscene` vs `loading_cutscene_started` split
+    that enforces the order → `game/CLAUDE.md`'s matching bullet).
+    The PRE-BOOT loading screen (`main.py`'s
     `_submit_loading_frame`, shown before the `Shell` even exists — see
     `game/CLAUDE.md`'s Host conventions section) shares the exact same
     background slot and ring style by importing them from
@@ -893,7 +921,10 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
     default geometry changed on purpose" path, never relaxing the pin. Only
     `main_menu` moved; every other screen's entry is byte-identical, which is
     what says the change was contained.
-- **Settings screen rework (settings-cut)** — three changes, one section:
+- **Settings screen rework (settings-cut)** — one section for the whole
+  screen (the SET DEFAULT bullet is older than settings-cut and is here
+  because this is where the screen is documented, not because that rework
+  touched it):
   - **The three FX toggles are GONE** (income floaters / background art /
     gore). The `SessionSettings` FIELDS stay, still seeded from
     `data/balancing/ui.json`'s `FX` block and still read by `payday.py` /
@@ -920,6 +951,21 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
     rebuild the render stack live — window, `Renderer` and ground cache are one
     unit built once (`main.py::_build_render_stack`), with a live world's GPU
     textures hanging off it.
+  - **SET DEFAULT persists the BOOT display mode** (`btn_set_default`, right
+    of the `>` arrow, with a `default_note` "Boot: X" line under it). It is
+    the ONLY settings action that is genuinely side-effect-free — it mutates
+    nothing, it names the mode `settings` already holds — so it is the second
+    id (beside `btn_back`) that a clickable LAYER may retarget, where the
+    arrows/renderer/volume rows stay unroutable. Intent
+    `save_display_default` → `main.py` writes `data/display.json` through
+    `data_io.write_validated` and hands the result back via
+    `Shell.set_display_default`, which the host ALSO calls at boot to seed the
+    cycler (`SessionSettings.display_mode`'s literal default used to be right
+    only by coincidence). **This whole path was dead until it was wired**: the
+    button was built, positioned, id'd and hovered, but `submit()` never drew
+    it and `hit()` had no branch for it, so the action had zero call sites
+    while `display.schema.json` documented it as the thing that persists
+    `display_mode`.
   - BACK/CONTROLS moved up with the rows (296 → 278), and
     `data/ui/screens/settings.json`'s authored `btn_back` rect moved in
     lockstep — an authored rect WINS, so leaving it behind would have stranded
@@ -1994,6 +2040,55 @@ background(screen_id)` / `submit_background(...)` add an OPTIONAL full-view
 background layer (slot or flat color) — a no-op today (no shipped screen JSON
 sets one).
 
+### Backgrounds ANIMATE, and a `backdrop` skin is what draws one
+
+Two fixes that belong together, because the symptom was one thing ("the
+background does not play its animation") and the cause was two.
+
+- **Every background draw site threads the screen's anim clock.**
+  `submit_background(renderer, screen_id, view_w, view_h, anim_ms=t)` takes
+  the same `t = anim_ms(self._clock)` every skinned widget on that screen
+  already gets, and so do the two baked-in full-view sprites
+  (`main_menu`'s `main_menu_bg`, `loading_screen`'s `ui_bg_loading`). They all
+  used to submit a `HudSprite` with the default `anim_time_ms=0`, which
+  `Manifest.current_frame` resolves to frame 0 forever — a multi-frame
+  background sheet drew as a still image with the suite green, because the
+  golden pin captures a single frame at `t = 0` where the two are identical.
+  `anim_ms` defaults to `0`, so an omitted argument is the old still frame
+  rather than a crash. **A new full-view sprite MUST pass the clock.**
+- **`widgets.submit_backdrop(renderer, backdrop, anim_ms=t)` is the ONE
+  backdrop draw**, shared by all 14 screens. A `backdrop.skin` set in the
+  screen doc draws that slot as an animated `HudSprite`; unset falls back to
+  the flat `HudRect(rect, color)` fill every screen emitted inline before,
+  verbatim — which is what keeps the parity pin byte-identical (the pin runs
+  through `ScreenSkinning.empty()`, so no skin ever resolves). A skin
+  REPLACES the fill, the same precedence `Button.submit` gives a skin over
+  `color`. The fourteen inline `renderer.submit_hud(HudRect(self._backdrop
+  .rect, self._backdrop.color))` calls are gone; do not reintroduce one, or
+  that screen silently stops honouring the designer's background.
+  `main_menu`/`loading_screen` additionally skip their BAKED-IN background
+  sprite whenever the backdrop carries a skin — blitting the hand-painted art
+  over the designer's choice on the very next line is what made picking one
+  look like it did nothing.
+
+### `defaults.button_skin` reaches code-owned buttons
+
+`ScreenSkinning.apply` resolves the screen's `defaults.button_skin` onto any
+`kind == "button"` widget with no per-widget `skin` of its own — the fallback
+`editor/panels/viewport.py`'s `_submit_screen_widget` (and its mirror
+`editor/panels/_screen_rules.resolved_skin`) has always PREVIEWED. The game
+read only the per-widget key, so setting a screen's Button skin changed the
+editor and nothing else. Precedence matches the editor exactly: a per-widget
+`skin` wins, including an explicit `null` (how a designer opts one button out
+of the screen default), and a button id absent from the `widgets` table is
+un-customized, not opted out — it takes the default too.
+
+**`panel_skin` is deliberately NOT resolved the same way** (user decision).
+It has the identical editor/game gap, but `hud.json` and
+`building_panel.json` already set it while ~70 of their panels carry no
+per-widget skin, so honouring it would silently reskin most of the HUD and
+every construct card. That is an art-directed change, not a bug fix.
+
 - **Per-widget `layers` (UL-4)**: a widget's override may carry a `layers`
   array (`data/ui/screens/<id>.json` ONLY — never `screen_defaults.json`), each
   entry an OFFSET `[dx, dy, w, h]` from its owner's post-override rect (`0`
@@ -2059,6 +2154,17 @@ sets one).
     were never clickable, silently unmaking what the designer configured. A
     swallowed click reads honestly as "this decal does nothing" — the same
     thing `noop` means.
+  - **An INVISIBLE or DISABLED owner has no clickable layers.** `hit_layer`
+    skips any widget failing `is_visible` or `is_enabled` (both in
+    `skinning.py`). The `enabled` half is load-bearing: `hit_layer` runs
+    BEFORE the screen's own hit path and returns early, so `Button.hit` — the
+    only other place `enabled` is read — never runs for a layer click. Every
+    availability rule a screen expresses by clearing `enabled` would otherwise
+    be bypassed outright; `hud.py` folds phase, `_speed_buttons_visible` and
+    `session.speed_unlocked(idx)` all into `enabled`, so before this gate an
+    authored layer on `btn_end_turn` ended the turn during the ENEMY phase and
+    layers on `btn_speed_*` selected locked speeds. Widgets with no `enabled`
+    attribute at all (icons, holders, readouts) are enabled by default.
   - **The retarget table is each screen's OWN action table, reversed** —
     `hud.Hud._LAYER_ACTIONS`, `pause._ACTION_IDS`, `main_menu`'s
     `_SLOT_IDS`/`self.actions`, `cheat_menu._ACTION_IDS`. Never hand-roll a

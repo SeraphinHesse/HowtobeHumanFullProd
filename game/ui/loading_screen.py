@@ -14,20 +14,29 @@ the loading ring in the editor like any other screen's widgets, and
 export, no screen doc) until that; the ``ids`` dict was already here, which is
 what made the promotion a two-line change on this side.
 
-Deliberately the SAME visuals as the pre-boot loading screen
-(`game/main.py`'s `_submit_loading_frame`, shown before the ``Shell`` even
-exists): the ``ui_bg_loading`` background slot plus the white
-`widgets.submit_progress_ring` ring, reused from the cutscene skip-hold ring.
-Both screens now draw through the ONE `submit_ring` below rather than each
-composing the ring themselves, so they cannot visually drift apart; the pre-
-boot caller gets its geometry from `default_ring_rect`, since it has no
-`ScreenSkinning` (or `Shell`) yet to override anything.
+**This is ALSO the pre-boot launch screen** (fix: seamless launch).
+`game/main.py` builds ONE instance right after the asset store and drives it
+through boot's checkpoints, then hands that same object to the
+`GameState.LOADING` driver — so the screen a player sees at launch and the one
+they see after START NEW GAME are the same object, honouring the same
+`data/ui/screens/loading.json`. There is no second, doc-blind twin any more:
+`main.py`'s `_submit_loading_frame` is deleted. `default_ring_rect` survives
+as this screen's own un-overridden default, not as a separate caller's
+geometry.
 
 The background is drawn directly off `assets`/the slot key (the same E-37
 "only if imported" check the pre-boot code uses) rather than through
 `ScreenSkinning.submit_background` — that method is the *designer per-screen
 override* mechanism (a different screen choosing to borrow this background),
-not this screen's own baked-in look.
+not this screen's own baked-in look. A designer who skins the ``backdrop``
+widget in `data/ui/screens/loading.json` DOES replace it, though: that skin
+draws through the shared `widgets.submit_backdrop` and the baked-in slot
+below is then skipped rather than blitted over the designer's choice.
+
+``update(dt)`` advances the one anim clock every skinned draw here reads, so
+an ANIMATED background/backdrop slot plays instead of holding frame 0. The
+host calls it each loading frame; a caller that never does gets a still
+frame 0, which is exactly what this screen drew before the clock existed.
 """
 from types import SimpleNamespace
 
@@ -75,7 +84,13 @@ class LoadingScreen:
         self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h))
         self._ring = SimpleNamespace(rect=default_ring_rect(view_w, view_h))
         self.ids = {}
+        self._clock = 0.0   # 10L-A: one anim clock per screen
         self.layout(view_w, view_h)
+
+    def update(self, dt):
+        """Advance the anim clock (the `main_menu.py` shape). Draw-only —
+        this screen has no state to step."""
+        self._clock += dt
 
     def layout(self, view_w, view_h):
         self._backdrop.rect = (0, 0, view_w, view_h)
@@ -90,7 +105,11 @@ class LoadingScreen:
 
     def submit(self, renderer, assets, view_w, view_h, progress):
         self.layout(view_w, view_h)
-        if (assets is not None
+        t = widgets.anim_ms(self._clock)
+        widgets.submit_backdrop(renderer, self._backdrop, anim_ms=t)
+        if (not getattr(self._backdrop, "skin", None)
+                and assets is not None
                 and assets.animation_total_ms(BG_SLOT, "idle") is not None):
-            renderer.submit_hud(HudSprite(BG_SLOT, (0, 0), (view_w, view_h)))
+            renderer.submit_hud(HudSprite(BG_SLOT, (0, 0), (view_w, view_h),
+                                          anim_time_ms=t))
         submit_ring(renderer, self._ring.rect, progress)

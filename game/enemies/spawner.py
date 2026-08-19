@@ -99,6 +99,14 @@ class Spawner:
         self._rng = random
         self._boss_era = 0     # era passed as `tier` to a popping boss (10G)
         self._clear_cache = {}  # footprint -> spawn tiles with a clear block
+        # feature-enemy-intro-dialogue: etypes that actually entered the scene
+        # since the last drain, from EVERY construction site in this class (the
+        # wave pop AND `_spawn_child`'s burst/second-phase children). Drained
+        # once per frame by `Session.post_sim` to fire spawn-triggered intro
+        # dialogues — an entry whose `show_on_spawn_of` names a type that is
+        # never in a wave (the Commander is summoned mid-boss-fight) cannot be
+        # matched on the round alone.
+        self._spawned_types = []
 
     # -- state ------------------------------------------------------------
 
@@ -135,6 +143,15 @@ class Spawner:
         caller from the scene; this just abandons the unspawned queue."""
         self._queue = []
         self._timer = 0.0
+
+    def drain_spawned_types(self):
+        """Pop every etype spawned since the last call, in spawn order
+        (feature-enemy-intro-dialogue). One drain per frame, from
+        ``Session.post_sim``; nobody else may consume it, since a second
+        reader would see an empty list."""
+        types = self._spawned_types
+        self._spawned_types = []
+        return types
 
     # -- round setup (prototype _begin_enemy_phase) -----------------------
 
@@ -534,6 +551,7 @@ class Spawner:
                 era, self._registry, self._rng, self._round_in_era)
             self._attach_scene(enemy, scene)
             scene.spawn(enemy)
+            self._spawned_types.append(etype)
             # SD-5: the spawn sound, for EVERY popped enemy, resolved through
             # the same per-type machinery — a type with no authored `spawn`
             # clips is a silent no-op, so only the Boss is audible today. This
@@ -606,6 +624,7 @@ class Spawner:
             health = enemy.get_component(Health)
             health.hp = max(1, int(health.max_hp * frac))
         scene.spawn(enemy)
+        self._spawned_types.append(etype)
 
     # -- delayed second phase (BR-3) ---------------------------------------
 

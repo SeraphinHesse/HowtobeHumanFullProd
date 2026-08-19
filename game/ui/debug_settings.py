@@ -24,7 +24,6 @@ other screen, so that export is a drop-in.
 from dataclasses import dataclass
 from types import SimpleNamespace
 
-from engine.render import HudRect
 
 from game.debug import ALL_OUTPUTS, LEVEL_BASIC, LEVEL_VERBOSE
 
@@ -174,8 +173,9 @@ class DebugSettingsScreen:
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
-        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
-        renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
+        self.skinning.submit_background(renderer, self.screen_id, view_w,
+                                        view_h, anim_ms=t)
+        widgets.submit_backdrop(renderer, self._backdrop, anim_ms=t)
         cx = self._cx
         if self._title.visible:
             submit_centered(renderer, self._title.label, self._title.rect[0],

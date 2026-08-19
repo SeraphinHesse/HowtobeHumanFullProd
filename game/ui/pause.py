@@ -102,11 +102,12 @@ class PauseScreen:
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
         px, py, pw, ph = self.rect
-        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        self.skinning.submit_background(renderer, self.screen_id, view_w,
+                                        view_h, anim_ms=t)
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
                                     "under", self.skinning.state_of)
         # 10J: the prototype's (0,0,0,150) pause dim over the frozen world
-        renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
+        widgets.submit_backdrop(renderer, self._backdrop, anim_ms=t)
         renderer.submit_hud(HudRect(self.rect, (24, 20, 40), border_radius=6))
         renderer.submit_hud(HudRect(self.rect, (80, 65, 120), border_radius=6,
                                     width=2))

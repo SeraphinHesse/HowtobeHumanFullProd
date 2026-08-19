@@ -23,7 +23,6 @@ autosave section). Each row shows only the timestamp and round reached.
 """
 from types import SimpleNamespace
 
-from engine.render import HudRect
 
 from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .widgets import Button, anim_ms, submit_centered, submit_text
@@ -190,8 +189,9 @@ class SaveFilesScreen:
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
-        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
-        renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
+        self.skinning.submit_background(renderer, self.screen_id, view_w,
+                                        view_h, anim_ms=t)
+        widgets.submit_backdrop(renderer, self._backdrop, anim_ms=t)
         if is_visible(self.back_btn):
             self.back_btn.submit(renderer, anim_ms=t,
                                  **button_kwargs(self.back_btn))

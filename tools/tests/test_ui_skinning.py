@@ -316,6 +316,18 @@ def _screen_captures():
 #: readout and the XP fraction); no rect/pos/colour/font moved and every
 #: other screen's entry is byte-identical — a data catch-up, not a UI
 #: change. Regenerated mechanically from ``_screen_captures()``.
+#: Regenerated an EIGHTEENTH time (the settings DEFAULT button was dead):
+#: ``settings`` gains FOUR primitives — the SET DEFAULT button's two rects +
+#: its label, which ``submit()`` had never drawn, and the new ``default_note``
+#: line under it. The FIFTH-time note above says that button "does NOT appear
+#: here ... ``saved_default`` is then ``None``, which by design draws no
+#: line"; that reading was half wrong and is what let the bug sit — ``None``
+#: suppresses the NOTE, never the button, which was simply missing from
+#: ``submit()``. The driver now pins ``saved_default`` to the mock's own mode
+#: (``tools/screen_preview.py``), so the note records too. Nothing already in
+#: the entry moved and every other screen is byte-identical, which is what
+#: says the change was contained. Regenerated mechanically from
+#: ``_screen_captures()``.
 _BASELINE = {
     # Regenerated for SaveGamePLAN SG-6: the row count grew 7 -> 9 possible
     # rows (CONTINUE + SAVE FILES); the mock state has no saves, so CONTINUE
@@ -387,6 +399,10 @@ _BASELINE = {
         HudRect(rect=(375, 122, 20, 20), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(375, 122, 20, 20), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='>', pos=(385, 124), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(405, 122, 85, 20), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(405, 122, 85, 20), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='DEFAULT', pos=(447, 125), font_key='md', color=(235, 225, 195), align='center'),
+        HudText(text='Boot: FULLSCREEN', pos=(405, 145), font_key='sm', color=(150, 140, 120), align='left'),
         HudText(text='Renderer', pos=(155, 160), font_key='md', color=(235, 225, 195), align='left'),
         HudText(text='Applies on restart', pos=(330, 160), font_key='sm', color=(150, 140, 120), align='left'),
         HudRect(rect=(260, 156, 60, 20), color=(75, 60, 115), border_radius=3, width=0),

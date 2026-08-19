@@ -96,7 +96,19 @@ def _pre_query_refresh(tilemap):
     set before a query — the prototype's ``_apply_damage_weights`` plus its
     rework-era sibling. All three producers are dormant/short-circuited on a
     tilemap that doesn't carry them (headless stubs, 9C-era fixtures) via the
-    same guarded ``getattr`` style."""
+    same guarded ``getattr`` style.
+
+    MEMOISED PER FRAME (perf). All three are O(built tiles) sweeps and this
+    runs before EVERY query — three sweeps per spawned enemy, and a spawn
+    batch or a death swarm releases many enemies in ONE frame. When the host
+    drives a frame clock (``TileMap.begin_sim_frame``; ``_sim_frame`` is None
+    when nobody does) the whole refresh runs at most once per frame and later
+    queries in that frame return immediately. A tilemap with no frame clock —
+    every headless fixture and every test that mutates the map between two
+    queries — keeps the run-every-query behaviour unchanged."""
+    frame = getattr(tilemap, "_sim_frame", None)
+    if frame is not None and frame == getattr(tilemap, "_pre_query_frame", None):
+        return
     refresh = getattr(tilemap, "refresh_damage_weight_reductions", None)
     if refresh is not None:
         refresh()
@@ -106,6 +118,8 @@ def _pre_query_refresh(tilemap):
     refresh_overwrite = getattr(tilemap, "refresh_building_overwrite_flags", None)
     if refresh_overwrite is not None:
         refresh_overwrite()
+    if frame is not None:
+        tilemap._pre_query_frame = frame
 
 
 def _neighbors(col, row, tilemap):

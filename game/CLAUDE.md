@@ -298,43 +298,49 @@ the only place the words `"placement"`/`"upgrade"`/`"buy_plot"` and the
   unusable for the person reporting it. One `_WheelTicks` instance per run
   serves both arms; it accumulates fractions into whole ticks and drops the
   residue on a reversal. `tools/tests/test_game_boot.py` pins it.
-- **Two loading screens (feature: loading screen), two different mechanisms,
-  one shared look.** Both draw the editor-adjustable `ui_bg_loading`
-  background slot + a white progress ring (`game/ui/loading_screen.py` is the
-  ONE place the slot key and ring style constants are defined — `main.py`
-  imports them for both uses rather than re-declaring them, so they cannot
-  visually drift apart).
-  - **Pre-boot** (`main.py`'s `_submit_loading_frame`/`_flush_loading`): shown
-    before the `Shell` even exists, so it needs its OWN throwaway
-    presenter/renderer pair (no real window yet). **It opens in
-    `data/display.json`'s own `display_mode`** (shipped: `fullscreen`), NOT a
-    hardcoded `"windowed"` — this is the first thing a player sees, and coming
-    up in a small window only to slam fullscreen once boot finished read as
-    the game restarting itself. `_build_render_stack` hands the real stack the
-    same mode off `shell.settings`, so the window shape is the same start to
-    finish. 15 real checkpoints
-    (boot's data/balance-domain loads, each already a real sequential
-    sub-step) rather than 5, so the ring's motion reads as smooth instead of
-    jumpy. No added delay and no eased/faked animation — just finer-grained
-    real boot sub-steps; `_loading_steps_total` documents the count.
-    **`_SurfacePresenter.close()` must actually release this window (fix,
-    found by a live-testing report of "the loading screen opens in a
-    separate window").** It used to be a no-op `pass`. This presenter is
-    ALWAYS a `_SurfacePresenter` (`pygame.display.set_mode`); the real run's
-    presenter can be a `_GpuPresenter` instead (`_build_render_stack`'s
-    `"auto"` default, when GPU init succeeds), which opens its OWN, entirely
-    separate `pygame._sdl2.video.Window` rather than reusing this one. So
-    the pre-boot window was silently abandoned rather than destroyed
-    whenever the run picked GPU — a second, real OS window, frozen on its
-    last-rendered loading-ring frame, alive for the rest of the process and
-    liable to resurface (the OS reshuffling window focus/z-order) at any
-    later point, most visibly whenever the main loop stalls for a while (the
-    autosave lag above was a common trigger, but the two bugs are
-    otherwise unrelated — fixing one does not require the other).
-    `close()` now calls `pygame.display.quit()`, safe at every call site
-    (the GPU-init-failure fallback, this discard, and the final shutdown
-    right before `pygame.quit()`) because in each the presenter is provably
-    done being used.
+- **ONE loading screen, ONE window, two entry points (feature: loading
+  screen; rewritten by fix: seamless launch).** The launch screen and the
+  post-"Start Game" screen are the SAME `game/ui/loading_screen.py`
+  `LoadingScreen` OBJECT (`main.py`'s `boot_loading_screen`, which
+  `loading_screen` is simply assigned from) drawn through the SAME
+  presenter/renderer — so they cannot drift apart in look, in screen doc, or
+  in animation phase. Two things used to be true here and no longer are; both
+  were visible defects, not tidiness:
+  - **There is no throwaway pre-boot presenter any more.** `_build_render_stack`
+    now runs at the TOP of boot, right after the `AssetStore`, and its
+    presenter/renderer pump the boot checkpoints. It used to build a
+    `_SurfacePresenter` + `Renderer` pair just for boot, `close()` it
+    (`pygame.display.quit()`) and let `_build_render_stack` open a fresh
+    window in its place — which on the GPU path is an entirely separate
+    `pygame._sdl2.video.Window`. That destroy-then-recreate is the desktop
+    flash between the loading screen and the intro cutscene. One window for
+    the whole process means there is no teardown left to see through.
+    Consequences to keep in mind when touching boot order: the backend
+    `choice` (the `--backend`/`HTBH_RENDER_BACKEND`/`settings/render.json`
+    ladder, plus the headless `max_frames` override) is resolved up there
+    too, and the window opens in `data/display.json`'s `display_mode`
+    directly rather than via `shell.settings.display_mode` — the same value,
+    since `SessionSettings.display_mode` is seeded from that key, but the
+    `Shell` does not exist yet. `render_settings.apply_to_settings(...)` (which
+    seeds the settings screen's GPU/CPU row) is the ONE half still done later,
+    because it needs the `Shell`. `_SurfacePresenter.close()` stays a real
+    `pygame.display.quit()`; it now has exactly one call site plus the
+    GPU-init-failure fallback.
+  - **The launch screen honours `data/ui/screens/loading.json`.** It used to
+    be `_submit_loading_frame`, a hand-rolled twin drawing the bare
+    `ui_bg_loading` slot plus `default_ring_rect`'s centred ring and reading
+    no screen doc at all — so a designer moving the ring or skinning the
+    backdrop in the editor changed the in-game screen and nothing at launch.
+    That function is DELETED. `ScreenSkinning(data_dir)` is therefore built
+    early (before the boot loop) rather than beside the `Shell`.
+  - **`_flush_loading` drives the screen's anim clock off `time.perf_counter()`
+    deltas**, not off a frame `dt` — boot has no frame loop. Without it an
+    animated backdrop slot would advance one frame per boot checkpoint.
+  - **15 real checkpoints** (boot's data/balance-domain loads, each already a
+    real sequential sub-step) rather than 5, so the ring's motion reads as
+    smooth instead of jumpy. No added delay and no eased/faked animation —
+    just finer-grained real boot sub-steps; `_loading_steps_total` documents
+    the count.
   - **Post-"Start Game"** (`GameState.LOADING`, `game/ui/loading_screen.py`'s
     `LoadingScreen`): the real presenter/renderer already exist by the time
     the player clicks START NEW GAME, so no second window is needed. The
@@ -376,25 +382,37 @@ the only place the words `"placement"`/`"upgrade"`/`"buy_plot"` and the
     drops the rest of the queue and returns to the main menu, which is the
     no-op the synchronous read used to give. Never silently build a fresh run
     in a save's place.
-  - **A cutscene can cover the load (feature: start-game cutscene).**
+  - **A cutscene plays AFTER the load (feature: start-game cutscene).**
     `_arm_loading(cutscene_id=…)` takes a `data/video/cutscenes.json` id; the
     two fresh-run intents pass `START_GAME_CUTSCENE` (`"start_game"`, a host
     constant — never a search of the registry by `trigger`, so a designer
-    retriggering an entry cannot silently re-point it). While
-    `loading_cutscene` is set, `GameState.LOADING` renders the video exactly
-    the way the boot-time `GameState.CUTSCENE` branch renders the intro (blit,
-    skip prompt, fade overlay) and the checkpoint queue keeps draining
-    UNDERNEATH it at its usual one step per frame — the cutscene is what the
-    loading time is spent on, not something bolted in front of it. It is the
-    LAST gate into gameplay: a run that finished building in three seconds
-    still owes the player the rest of the video. Skipping (the shared 2s hold)
-    drops to the loading screen for whatever is left, never into a half-built
-    world. No new `GameState` member — a second full-screen state would have
-    meant the build steps stop running while it held, which is the whole point
-    of the feature. Continue/Load Save deliberately pass NO cutscene, and
-    neither does the game-over screen's PLAY AGAIN. A missing/unopenable video
-    (`CutscenePlayer.enabled`) leaves `loading_cutscene` `None` and the plain
-    loading screen shows, exactly as before.
+    retriggering an entry cannot silently re-point it). Order:
+    **loading screen → cutscene → gameplay.** The checkpoint queue drains
+    behind `loading_screen` exactly as it does with no cutscene at all; only
+    once the queue is empty AND `min_display_seconds` has elapsed does the
+    driver push SD-7's music and call `player.start()`. From that frame on
+    `GameState.LOADING` renders the video exactly the way the boot-time
+    `GameState.CUTSCENE` branch renders the intro (blit, skip prompt, fade
+    overlay); it is the LAST gate into gameplay, and skipping (the shared 2s
+    hold) drops straight into the already-built world.
+    **`loading_cutscene` means ARMED and `loading_cutscene_started` means
+    PLAYING, and every consumer keys off the second** — the render branch,
+    `director.tick`'s in-a-cutscene flag, and the abort path's
+    release/`leave_cutscene` (an armed-but-never-started player has nothing to
+    release and nothing on the music stack). Conflating the two is how the
+    video ends up back over the load.
+    **This reverses how the feature originally shipped**, and the old prose
+    was an argument, not an accident: the video used to start the instant
+    START was clicked and render INSTEAD of the loading screen while the
+    checkpoints ran underneath — "the cutscene is what the loading time is
+    spent on, not something bolted in front of it", with a skip dropping to
+    the loading screen for whatever was left. It is a user decision that the
+    two are now sequential; do not "restore" the overlap as an optimisation.
+    Still no new `GameState` member. Continue/Load Save deliberately pass NO
+    cutscene, and neither does the game-over screen's PLAY AGAIN. A
+    missing/unopenable video (`CutscenePlayer.enabled`) leaves
+    `loading_cutscene` `None` and the loading screen runs straight into
+    gameplay, exactly as it does for those three.
 - **Autosave (SaveGamePLAN SG-5)** rides the SAME round-edge watcher chain as
   N1's season clock, immediately after it: `if session.state.phase ==
   GamePhase.BUILDING and gp["prev_phase"] != GamePhase.BUILDING and

@@ -5,7 +5,7 @@ both pure). Shipped components: SpriteAnimator, Health, Movement, RangeSensor.
 """
 from .component import Component, component_from_dict
 from .gameobject import GameObject
-from .health import Health
+from .health import Health, death_epoch
 from .movement import Movement
 from .range_sensor import RangeSensor
 from .scene import Scene
@@ -22,4 +22,5 @@ __all__ = [
     "SpriteAnimator",
     "Transform",
     "component_from_dict",
+    "death_epoch",
 ]

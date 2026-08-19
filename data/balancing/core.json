@@ -35,7 +35,7 @@
           0,
           0
         ],
-        "body": "Slow, steady grunts that march straight for the hole. Individually weak, but they keep coming — and they can kidnap an undefended building along the way.",
+        "body": "Individually weak, but they are persistent. They focus the Base.",
         "crop_h": 0,
         "crop_w": 0,
         "crop_x": 0,
@@ -43,6 +43,7 @@
         "enemy_label": "Standard",
         "hidden_frames": [],
         "round": 1,
+        "show_on_spawn_of": "",
         "show_on_tutorial_round": true,
         "sprite_flip_h": false,
         "sprite_h": 130,
@@ -50,7 +51,7 @@
         "sprite_offset_y": 0,
         "sprite_slot": "enemy_stage_1_v1",
         "sprite_w": 110,
-        "title": "Walkers incoming"
+        "title": "Hunter"
       },
       {
         "anim_speed": 1.0,
@@ -61,7 +62,7 @@
           0,
           0
         ],
-        "body": "Fast, fragile flankers that hunt your economy buildings. Kill them before they reach an unguarded tile — or before they carry one off.",
+        "body": "Fast but fragile Units that hunt your economy buildings. ",
         "crop_h": 0,
         "crop_w": 0,
         "crop_x": 0,
@@ -69,6 +70,7 @@
         "enemy_label": "Raider",
         "hidden_frames": [],
         "round": 5,
+        "show_on_spawn_of": "",
         "show_on_tutorial_round": false,
         "sprite_flip_h": false,
         "sprite_h": 130,
@@ -76,7 +78,7 @@
         "sprite_offset_y": 0,
         "sprite_slot": "raider_stage_1",
         "sprite_w": 110,
-        "title": "Raiders inbound"
+        "title": "Raider"
       },
       {
         "anim_speed": 1.0,
@@ -87,7 +89,7 @@
           0,
           0
         ],
-        "body": "Something big is coming. It doesn't care what's in its way, and it hits far harder than anything you've faced so far.",
+        "body": "Something big is coming. But what is pulling that wagon?",
         "crop_h": 0,
         "crop_w": 0,
         "crop_x": 0,
@@ -95,6 +97,7 @@
         "enemy_label": "Boss",
         "hidden_frames": [],
         "round": 10,
+        "show_on_spawn_of": "",
         "show_on_tutorial_round": false,
         "sprite_flip_h": false,
         "sprite_h": 130,
@@ -102,7 +105,7 @@
         "sprite_offset_y": 0,
         "sprite_slot": "boss_era_0",
         "sprite_w": 110,
-        "title": "A boss approaches"
+        "title": "Boss"
       },
       {
         "anim_speed": 1.0,
@@ -113,7 +116,7 @@
           0,
           0
         ],
-        "body": "A Commander only ever shows up at a boss's side, summoned partway through the fight. It rallies whatever's left on the field — expect the fight to get harder, not easier, from here.",
+        "body": "A Commander only ever shows up after the boss dies. Dont expect an easy win.",
         "crop_h": 0,
         "crop_w": 0,
         "crop_x": 0,
@@ -121,6 +124,7 @@
         "enemy_label": "Commander",
         "hidden_frames": [],
         "round": 10,
+        "show_on_spawn_of": "commander",
         "show_on_tutorial_round": false,
         "sprite_flip_h": false,
         "sprite_h": 130,
@@ -128,7 +132,7 @@
         "sprite_offset_y": 0,
         "sprite_slot": "commander_stage_1",
         "sprite_w": 110,
-        "title": "The boss calls for backup"
+        "title": "Commander"
       },
       {
         "anim_speed": 1.0,
@@ -139,7 +143,7 @@
           0,
           0
         ],
-        "body": "Slow, heavily armored, and built to knock out your defenders at range. They'll ignore everything else to get a shot at your guns.",
+        "body": "Slow, heavily armored, and built to knock out your defenders. Dont let them breach a hole in your defense. ",
         "crop_h": 0,
         "crop_w": 0,
         "crop_x": 0,
@@ -147,6 +151,7 @@
         "enemy_label": "SiegeCannon",
         "hidden_frames": [],
         "round": 31,
+        "show_on_spawn_of": "",
         "show_on_tutorial_round": false,
         "sprite_flip_h": false,
         "sprite_h": 130,
@@ -154,7 +159,7 @@
         "sprite_offset_y": 0,
         "sprite_slot": "siege_cannon_t2",
         "sprite_w": 110,
-        "title": "Siege cannons roll in"
+        "title": "Siege Cannon"
       },
       {
         "anim_speed": 1.0,
@@ -165,7 +170,7 @@
           0,
           0
         ],
-        "body": "Enemies that move and fight in a tight group. They hit harder together than any one of them could alone — thin out the group before it reaches the hole.",
+        "body": "They hit harder together than any one of them could alone. Thin out the group before it reaches the hole.",
         "crop_h": 0,
         "crop_w": 0,
         "crop_x": 0,
@@ -173,6 +178,7 @@
         "enemy_label": "Formation",
         "hidden_frames": [],
         "round": 11,
+        "show_on_spawn_of": "",
         "show_on_tutorial_round": false,
         "sprite_flip_h": false,
         "sprite_h": 130,
@@ -191,7 +197,7 @@
           0,
           0
         ],
-        "body": "They barely fight themselves, but every enemy nearby gets stronger while a Drummer is alive. Kill the Drummer first, or the whole group outpaces you.",
+        "body": "They barely fight themselves, but every enemy nearby gets stronger while a Drummer is around. ",
         "crop_h": 0,
         "crop_w": 0,
         "crop_x": 0,
@@ -199,6 +205,7 @@
         "enemy_label": "Drummer",
         "hidden_frames": [],
         "round": 21,
+        "show_on_spawn_of": "",
         "show_on_tutorial_round": false,
         "sprite_flip_h": false,
         "sprite_h": 130,
@@ -206,7 +213,7 @@
         "sprite_offset_y": 0,
         "sprite_slot": "drummer_stage_3",
         "sprite_w": 110,
-        "title": "Drummers join the ranks"
+        "title": "Field Drummer"
       },
       {
         "anim_speed": 1.0,
@@ -217,7 +224,7 @@
           0,
           0
         ],
-        "body": "The first enemy that fights at range. It'll stand off and pick apart your defenders from a distance instead of walking into them — close the gap or out-range it first.",
+        "body": "The first enemy that fights at range. Sharpshooters pick apart your defenders from a distance instead of walking into them.",
         "crop_h": 0,
         "crop_w": 0,
         "crop_x": 0,
@@ -225,6 +232,7 @@
         "enemy_label": "Sniper",
         "hidden_frames": [],
         "round": 25,
+        "show_on_spawn_of": "",
         "show_on_tutorial_round": false,
         "sprite_flip_h": false,
         "sprite_h": 130,
@@ -232,7 +240,7 @@
         "sprite_offset_y": 0,
         "sprite_slot": "sniper_stage_3",
         "sprite_w": 110,
-        "title": "Snipers take position"
+        "title": "Sharpshooter"
       },
       {
         "anim_speed": 1.0,
@@ -243,7 +251,7 @@
           0,
           0
         ],
-        "body": "They burrow in near a building, dig for a while, then surface to strike — and they're untargetable while buried. Watch for the dirt pile and hit them the moment they emerge.",
+        "body": "They burrow in near a building, dig for a while, then surface to strike. ",
         "crop_h": 0,
         "crop_w": 0,
         "crop_x": 0,
@@ -251,6 +259,7 @@
         "enemy_label": "Digger",
         "hidden_frames": [],
         "round": 15,
+        "show_on_spawn_of": "",
         "show_on_tutorial_round": false,
         "sprite_flip_h": false,
         "sprite_h": 130,
@@ -258,7 +267,7 @@
         "sprite_offset_y": 0,
         "sprite_slot": "digger_stage_4",
         "sprite_w": 110,
-        "title": "Diggers go underground"
+        "title": "Diggers"
       }
     ],
     "window": {

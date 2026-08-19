@@ -177,8 +177,9 @@ class PlayerIntroScreen:
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
-        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
-        renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
+        self.skinning.submit_background(renderer, self.screen_id, view_w,
+                                        view_h, anim_ms=t)
+        widgets.submit_backdrop(renderer, self._backdrop, anim_ms=t)
         x, y, w, h = self.rect
         if is_visible(self._panel):
             submit_panel(renderer, self.rect, fill=widgets.C_UI_PANEL,

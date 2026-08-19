@@ -21,7 +21,6 @@ and the position do not.
 """
 from types import SimpleNamespace
 
-from engine.render import HudRect
 
 from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
 from .widgets import Button, anim_ms, label_holder, submit_centered, submit_label
@@ -113,10 +112,11 @@ class GameOverScreen:
     def submit(self, renderer, state, view_w, view_h):
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
-        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        self.skinning.submit_background(renderer, self.screen_id, view_w,
+                                        view_h, anim_ms=t)
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
                                     "under", self.skinning.state_of)
-        renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
+        widgets.submit_backdrop(renderer, self._backdrop, anim_ms=t)
         if self._title.visible:
             submit_centered(renderer, self._title.label, self._title.rect[0],
                             self._title.rect[1], self._title.font_key,
