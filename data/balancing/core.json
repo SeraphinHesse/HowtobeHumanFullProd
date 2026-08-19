@@ -300,7 +300,14 @@
   "Sounds": {
     "Ambient": {
       "default": {
-        "clips": [],
+        "clips": [
+          {
+            "end": 0.0,
+            "file": "imported/4.wav",
+            "start": 0.0,
+            "volume": 0.1
+          }
+        ],
         "loop": true,
         "pick": "random"
       }
@@ -322,17 +329,38 @@
         "pick": "random"
       },
       "round_loss": {
-        "clips": [],
+        "clips": [
+          {
+            "end": 0.0,
+            "file": "imported/loss.mp3",
+            "start": 0.0,
+            "volume": 1.0
+          }
+        ],
         "loop": false,
         "pick": "random"
       },
       "round_start": {
-        "clips": [],
+        "clips": [
+          {
+            "end": 0.0,
+            "file": "imported/screamsv2.mp3",
+            "start": 0.0,
+            "volume": 0.1
+          }
+        ],
         "loop": false,
         "pick": "random"
       },
       "round_win": {
-        "clips": [],
+        "clips": [
+          {
+            "end": 0.0,
+            "file": "imported/round win.mp3",
+            "start": 0.0,
+            "volume": 0.7
+          }
+        ],
         "loop": false,
         "pick": "random"
       }
@@ -366,7 +394,14 @@
         "pick": "random"
       },
       "menu": {
-        "clips": [],
+        "clips": [
+          {
+            "end": 0.0,
+            "file": "imported/HtbH-ensamble turned down.mp3",
+            "start": 0.0,
+            "volume": 0.8
+          }
+        ],
         "loop": true,
         "pick": "random"
       }
