@@ -186,17 +186,30 @@ _DISPLAY_NAMES = {
         "btn_dm_left": "Display mode left button",
         "btn_dm_right": "Display mode right button",
         "btn_back": "Back button",
-        "btn_toggle_income_floaters": "Income Floaters toggle",
-        "btn_toggle_bg_art": "Background Art toggle",
-        "btn_toggle_gore": "Gore toggle",
+        # settings-cut: the three FX toggles are GONE (income floaters /
+        # background art / gore are data-only now) and the GPU/CPU renderer
+        # switch took their slot.
+        "btn_renderer": "Renderer switch",
+        "renderer_label": "Renderer label",
+        "renderer_note": "Renderer restart note",
         # SD-6: the three audio rows (`audio_label` is the Master row's label,
-        # kept under its shipped id).
+        # kept under its shipped id). settings-cut added each row's two step
+        # buttons and its % readout.
         "audio_label": "Master volume label",
         "bar_master_volume": "Master volume bar",
+        "btn_master_volume_down": "Master volume down button",
+        "btn_master_volume_up": "Master volume up button",
+        "label_master_volume_pct": "Master volume percent",
         "label_music_volume": "Music volume label",
         "bar_music_volume": "Music volume bar",
+        "btn_music_volume_down": "Music volume down button",
+        "btn_music_volume_up": "Music volume up button",
+        "label_music_volume_pct": "Music volume percent",
         "label_sfx_volume": "SFX volume label",
         "bar_sfx_volume": "SFX volume bar",
+        "btn_sfx_volume_down": "SFX volume down button",
+        "btn_sfx_volume_up": "SFX volume up button",
+        "label_sfx_volume_pct": "SFX volume percent",
     },
     "credits": {
         "backdrop": "Background backdrop",
@@ -213,6 +226,7 @@ _DISPLAY_NAMES = {
     "game_over": {
         "backdrop": "Background backdrop",
         "title": "Title label",
+        "btn_play_again": "Play Again button",
         "btn_return_to_menu": "Return To Menu button",
     },
     "cheat_menu": {

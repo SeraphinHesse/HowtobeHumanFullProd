@@ -866,8 +866,45 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
     default geometry changed on purpose" path, never relaxing the pin. Only
     `main_menu` moved; every other screen's entry is byte-identical, which is
     what says the change was contained.
-- **Deferred**: the settings audio slider is inert (no audio system beyond
-  music). (The pause dim landed with 10J's HUD alpha.)
+- **Settings screen rework (settings-cut)** — three changes, one section:
+  - **The three FX toggles are GONE** (income floaters / background art /
+    gore). The `SessionSettings` FIELDS stay, still seeded from
+    `data/balancing/ui.json`'s `FX` block and still read by `payday.py` /
+    `session.py` / `main_menu.py`, so the features remain designer-tunable in
+    the editor — they are simply not player-facing any more. Their three
+    `strings.json` ids, their `data/ui/screens/settings.json` entries and their
+    `screen_defaults.json` records are deleted; do not reintroduce them.
+  - **The three audio rows are real sliders**: a 10px track (was 6) with a
+    draggable MARKER, a `-`/`+` step button either side (`VOLUME_STEP`, 5%) and
+    a live `%` readout (`settings.volume_pct`). Click-to-set is unchanged from
+    SD-6 and now also ARMS the drag. **A drag is the first gesture in the shell
+    that has no click event of its own**, so `SettingsScreen.update()` returns
+    an intent — `"set_volume_live"` every held frame (apply to the buses, no
+    disk) and `"set_volume"` once on release (apply AND persist) — and
+    `Shell.update()` forwards whatever the active screen returns, which
+    `main.py` wraps in `execute(...)`. Every other screen's `update()` returns
+    `None`, so nothing else changed. The split is what keeps one drag to one
+    file write instead of sixty a second.
+  - **A GPU/CPU renderer switch** took the toggles' slot (`btn_renderer` +
+    `renderer_label` + `renderer_note`). It is a BOOT preference: the intent
+    `set_renderer` only persists the choice (`game/core/render_settings.py` →
+    `settings/render.json`), and the row carries a permanent
+    `settings.renderer_note` line saying it applies on restart. Do NOT try to
+    rebuild the render stack live — window, `Renderer` and ground cache are one
+    unit built once (`main.py::_build_render_stack`), with a live world's GPU
+    textures hanging off it.
+  - BACK/CONTROLS moved up with the rows (296 → 278), and
+    `data/ui/screens/settings.json`'s authored `btn_back` rect moved in
+    lockstep — an authored rect WINS, so leaving it behind would have stranded
+    BACK below its sibling.
+- **`game_over` has a PLAY AGAIN button (settings-cut)**, `btn_play_again`,
+  above MAIN MENU (which moved down one 29px slot). It returns `"play_again"`;
+  `main.py`'s GAME_OVER click branch runs the SAME `teardown_gameplay()` MAIN
+  MENU does and then `_arm_loading()` — the identical path the menu's START NEW
+  GAME takes, so a restarted run is a genuinely fresh `_World`, never a revived
+  dead one. No detour through `to_main_menu()`: `_arm_loading` sets
+  `shell.state` itself.
+- **Deferred**: (the pause dim landed with 10J's HUD alpha.)
 - **Controls screen (feature: rebindable hotkeys)** — `game/ui/keybinds_screen.py`
   (`KeybindsScreen`), the `debug_settings.py` code-only-screen shape: no
   `data/ui/screens/keybinds.json`, no `screen_defaults.json` entry, not in
@@ -2629,9 +2666,27 @@ plate's top band share exactly one column of x. Spelling it as a negative
   `_cards_visible()`, itself derived from `_card_list_viewport()` — never a
   literal count. Sign follows `HighscoresScreen.scroll` (positive `dy` moves
   DOWN), and `game/main.py`'s gameplay MOUSEWHEEL branch negates pygame's `y`
-  and routes to the panel only while the cursor is over it in construct mode
-  with no preview open; everywhere else the wheel still zooms the camera.
-  `close()` resets the offset.
+  and asks **`wants_scroll(mx, my)`** whether the tick belongs to the panel;
+  everywhere else the wheel still zooms the camera. `close()` resets the
+  offset.
+- **`wants_scroll` is a PANEL method, not a test the host hand-rolls.** The
+  host used to inline it as `mode == "construct" and preview is None and
+  contains(panel_rect, …)`, which was wrong twice over. (1) `panel_rect` is
+  the sidebar BODY, but the card list is its own authored group
+  (`construct_card_list`) that a designer can move to a rect reaching outside
+  it — a wheel tick over a card sitting left of the body zoomed the map, so
+  the list scrolled over part of itself and not the rest. Both boxes count
+  now. (2) `handle_scroll` has always had an UNLOCK branch (the terrain
+  condition list overflows too), and the construct-only host test made it
+  unreachable — the terrain list could not be wheel-scrolled at all. (3) An
+  open preview answered **False**, which let a wheel tick over a modal
+  build preview ZOOM THE MAP behind it, the card list visible underneath
+  and refusing to move. It answers True from anywhere on screen now and
+  `handle_scroll` no-ops — the same modal rule `handle_click` has always
+  used. Add a mode with a scrolling list here, not in `main.py`.
+  The host reaches this seam only for whole wheel TICKS — a fine/touchpad
+  scroll is accumulated in `main.py`'s `_WheelTicks` first; see
+  `game/CLAUDE.md`.
 - **An off-window card is skipped at draw and at hit via
   `_card_in_viewport`, NOT by setting `visible = False`.** `visible` is the
   designer's override key and forcing it would fight an override; every card

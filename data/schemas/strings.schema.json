@@ -604,20 +604,20 @@
       "description": "DEAD id since SD-6 wired the audio: the settings screen no longer draws this '(no audio yet)' note. Kept defined rather than deleted (removing it would mean editing the required list and four pinned copies for no benefit) - the same treatment hud.love_unaffordable already gets. No placeholders.",
       "type": "string"
     },
+    "settings.renderer": {
+      "description": "Settings label for the GPU/CPU renderer switch (settings-cut). No placeholders.",
+      "type": "string"
+    },
+    "settings.renderer_note": {
+      "description": "Settings warning line beside the renderer switch: the pick is a BOOT preference and only takes effect on the next launch (settings-cut). No placeholders.",
+      "type": "string"
+    },
     "settings.sfx_audio": {
       "description": "Settings label for the SFX volume row (SD-6) - every non-music sound, ambient included. No placeholders.",
       "type": "string"
     },
-    "settings.toggle.bg_art": {
-      "description": "Settings FX toggle row label for background art. No placeholders.",
-      "type": "string"
-    },
-    "settings.toggle.gore": {
-      "description": "Settings FX toggle row label for gore. No placeholders.",
-      "type": "string"
-    },
-    "settings.toggle.income_floaters": {
-      "description": "Settings FX toggle row label for income floaters. No placeholders.",
+    "settings.volume_pct": {
+      "description": "Settings volume readout beside each audio slider (settings-cut). Placeholder: {pct} - the level as a whole-number percentage.",
       "type": "string"
     },
     "widgets.condition.forest": {
@@ -788,10 +788,10 @@
     "settings.master_audio",
     "settings.music_audio",
     "settings.no_audio",
+    "settings.renderer",
+    "settings.renderer_note",
     "settings.sfx_audio",
-    "settings.toggle.bg_art",
-    "settings.toggle.gore",
-    "settings.toggle.income_floaters",
+    "settings.volume_pct",
     "widgets.condition.forest",
     "widgets.condition.grass",
     "widgets.condition.mountain",
