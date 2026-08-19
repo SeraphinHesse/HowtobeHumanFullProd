@@ -894,6 +894,12 @@
                   "frame_h": 14,
                   "frame_w": 17,
                   "key": "ui_button_panel_v10"
+                },
+                {
+                  "display_name": "Colour Pick",
+                  "frame_h": 23,
+                  "frame_w": 95,
+                  "key": "ui_button_panel_v11"
                 }
               ]
             },
