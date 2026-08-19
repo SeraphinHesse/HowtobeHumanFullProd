@@ -195,12 +195,18 @@ def play(clip, *, key=None, loop=False, cooldown=DEFAULT_COOLDOWN_S,
             return False
 
         volume = bank.effective_volume(clip, bus_volume("sfx"), master_volume())
-        try:
-            sound.set_volume(volume)
-        except Exception:
-            pass
 
         channel.play(sound, loops=-1 if loop else 0, maxtime=maxtime_ms)
+        # Volume goes on the CHANNEL, never on the Sound: the clip cache is
+        # keyed by (path, start, end) with no volume in it, so two slots
+        # naming one file at different volumes share a single Sound object
+        # and `sound.set_volume` would retune a play already in flight on
+        # another channel. Set it AFTER `play` — a channel's volume is
+        # per-play state.
+        try:
+            channel.set_volume(volume)
+        except Exception:
+            pass
 
         if key is not None:
             _last_play[key] = moment
