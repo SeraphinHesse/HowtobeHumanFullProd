@@ -304,9 +304,19 @@ _DISPLAY_NAMES = {
     "levelup": {
         "backdrop": "Background backdrop",
         "heading": "Heading label",
-        "option_box_0": "Level-up option box 1",
-        "option_box_1": "Level-up option box 2",
-        "option_box_2": "Level-up option box 3",
+        **{k: v for i in range(3) for k, v in {
+            f"option_box_{i}": f"Level-up option box {i + 1}",
+            f"option_box_{i}_prev_name": f"Option {i + 1} previous tier name",
+            f"option_box_{i}_arrow": f"Option {i + 1} upgrade chevron",
+            f"option_box_{i}_title": f"Option {i + 1} title",
+            f"option_box_{i}_sprite": f"Option {i + 1} sprite",
+            f"option_box_{i}_cost": f"Option {i + 1} cost line",
+            f"option_box_{i}_explanation_0": f"Option {i + 1} explanation row 1",
+            f"option_box_{i}_explanation_1": f"Option {i + 1} explanation row 2",
+            f"option_box_{i}_explanation_2": f"Option {i + 1} explanation row 3",
+            f"option_box_{i}_explanation_3": f"Option {i + 1} explanation row 4",
+            f"option_box_{i}_tier": f"Option {i + 1} tier footer",
+        }.items()},
     },
 }
 
@@ -360,6 +370,17 @@ _PARENTS = {
         **{f"{_PREVIEW_COLOR_PREFIX}_{i}": "preview_panel"
            for i in range(_MAX_SWATCHES)},
     },
+    # feature: editable levelup text — each option box owns the run of text
+    # and graphics drawn INSIDE it. The ids are static (three slots x a fixed
+    # part list), so they are spelled out here rather than through
+    # `_derived_parent`'s card-prefix machinery; without a pair each would
+    # fall through to `_PARENT_CONTAINERS`' `backdrop` and sit beside its own
+    # box instead of under it.
+    "levelup": {f"option_box_{i}_{part}": f"option_box_{i}"
+                for i in range(3)
+                for part in ("prev_name", "arrow", "title", "sprite", "cost",
+                             "explanation_0", "explanation_1", "explanation_2",
+                             "explanation_3", "tier")},
 }
 
 # {screen_id: (parent_id, exempt_ids)} — "every OTHER widget on this screen

@@ -18,7 +18,6 @@ from types import SimpleNamespace
 from engine import era_math
 from engine.render.fonts import layout_h
 
-from game.core.lightning import LightningCaster
 from game.core.phases import GamePhase, GameState
 from game.core.xp import scaled_base_income
 
@@ -30,11 +29,6 @@ from .widgets import (
 )
 from . import widgets
 from .strings import T
-
-# -- 10H: lightning + cheat menu --
-_LIGHTNING_READY = (255, 240, 80)    # prototype ready-label colour
-_LIGHTNING_COOLING = (120, 120, 140)
-# -- /10H --
 
 # -- boss-round indicator icon: TEMPORARY tint so the two grey-X placeholders
 # (ui_icon_boss_next / ui_icon_boss_next_off) read as visually distinct
@@ -1012,10 +1006,6 @@ class Hud:
                         **button_kwargs(self.drag_select_btn))
             # -- /drag-select --
 
-        # -- lightning readout (10H; feature-storm-acolyte-multi-build reads
-        # the scene's placed casters now, not a single RunState field) ------
-        self._submit_lightning(renderer, session, view_h, scene)
-
         # -- authored per-widget "over" layers (UL-4), after every widget has
         # drawn and before the tooltips, which stay topmost. This pass used to
         # sit at the very end of this method; inserting
@@ -1142,55 +1132,3 @@ class Hud:
         submit_label(renderer, self._xp_text, current=st.player_xp,
                      threshold=st.xp_threshold)
 
-    # -- 10H: lightning + cheat menu ---------------------------------------
-
-    def _submit_lightning(self, renderer, session, view_h, scene):
-        """Bottom-left strike readout (prototype ``game.py:1829-1863``):
-        shown only while ``phase == ENEMY`` and lightning is unlocked. Ready
-        -> `⚡ CLICK TO STRIKE`; cooling -> the live countdown for the
-        SOONEST-ready placed acolyte (feature-storm-acolyte-multi-build —
-        several may exist, each on its own cooldown; this readout tracks
-        whichever will fire soonest). No placed ``lightning_source`` at all
-        -> nothing to read out, even if ``lightning_level`` is latched > 0
-        from an earlier one that died without reviving yet. The backing is
-        OPAQUE black — the HUD pass has no per-pixel alpha (10J), like the
-        level-up backdrop.
-
-        feature: remove-lightning-cursor-bar — this used to also draw an
-        11x2 progress bar anchored at the mouse cursor (``self._mx``/
-        ``self._my``), duplicating this same fraction; removed as redundant
-        with both this text readout and the per-building overhead charge
-        bars (``effects.py``'s ``submit_lightning_charge_bars``). ``self.
-        _mx``/``self._my`` themselves are still used elsewhere (income-pill/
-        boss-icon hover hit-testing) and are NOT removed."""
-        from engine.render import HudRect  # local: keep module import list lean
-
-        st = session.state
-        if st.phase != GamePhase.ENEMY or st.lightning_level <= 0 or scene is None:
-            return
-        cooldown_left = None   # the SOONEST-ready caster's own cooldown
-        for b in scene.by_tag("lightning_source"):
-            if not getattr(b, "alive", False):
-                continue
-            caster = b.get_component(LightningCaster)
-            if caster is None:
-                continue
-            if cooldown_left is None or caster.cooldown < cooldown_left:
-                cooldown_left = caster.cooldown
-        if cooldown_left is None:
-            return
-        if cooldown_left <= 0:
-            label, color = T("hud.lightning_ready"), _LIGHTNING_READY
-        else:
-            label = T("hud.lightning_cooldown",
-                      seconds=f"{cooldown_left:.1f}")
-            color = _LIGHTNING_COOLING
-        w, h = text_size(label, "md")
-        # Bottom-left, at the height the phase banner used to sit at (the
-        # banner moved to the bottom-right cluster; this readout kept its own
-        # prototype-derived position rather than sliding down into the corner).
-        x, y = 6, view_h - 13 - h - 6
-        renderer.submit_hud(HudRect((x - 2, y - 2, w + 4, h + 3), (0, 0, 0)))
-        submit_text(renderer, label, (x, y), "md", color)
-
-    # -- /10H ---------------------------------------------------------------

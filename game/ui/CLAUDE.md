@@ -1142,26 +1142,20 @@ The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
     `cost * count`) all price off that SAME count via the shared
     `_batch_cost` helper, so the label, the hover figure and what
     `place_building` actually charges can never disagree.
-- **`hud.py _submit_lightning`** — ENEMY-phase-only bottom-left readout
-  (`⚡ CLICK TO STRIKE` / countdown). **feature-storm-acolyte-multi-build**:
-  takes a new `scene` argument (threaded through `Hud.submit`, wired from
-  `main.py`'s `world.scene`) and walks `scene.by_tag("lightning_source")` for
-  the SOONEST-ready alive caster (the smallest `LightningCaster.cooldown`) —
-  several acolytes may exist, each on its own clock, and this readout always
-  tracks whichever will fire next. No placed caster at all → nothing drawn,
-  even if `lightning_level` is latched > 0 from one that died and hasn't
-  revived yet.
-  - **The cursor-attached progress bar is REMOVED (feature: remove-
-    lightning-cursor-bar)** — it used to draw an 11×2 bar anchored at
-    `self._mx`/`self._my` right under this text readout, duplicating the
-    exact same fraction. It gated no input and nothing else read it, so
-    removal touched only these two lines plus the now-simplified
-    soonest-caster scan (no more per-caster tier-cooldown lookup, since the
-    bar was the only consumer of that second value). `Hud.update` still
-    stores `_mx`/`_my` every frame — they remain the income-pill and
-    boss-icon hover-tooltip anchor. The cooldown is still shown two other
-    ways: this text readout, and the per-building overhead charge bar
-    (`effects.py submit_lightning_charge_bars`, below).
+- **`hud.py` no longer draws a bottom-left lightning readout at all.**
+  `_submit_lightning` (the ENEMY-phase `⚡ CLICK TO STRIKE` / countdown text
+  with its opaque black backing) and its call site are REMOVED, along with the
+  `_LIGHTNING_READY`/`_LIGHTNING_COOLING` colours and the `LightningCaster`
+  import. It was purely informational — it gated no input — and the cooldown
+  is still shown by the per-building overhead charge bar (`effects.py
+  submit_lightning_charge_bars`, below). `Hud.submit`'s `scene=` kwarg is now
+  unused by the HUD itself but KEPT: `main.py` and the tests still pass it,
+  and it stays the seam if any future HUD element needs the scene. The
+  `hud.lightning_ready`/`hud.lightning_cooldown` strings stay in
+  `data/ui/strings.json` + the schema (unused keys are legal; deleting them
+  would churn the schema's required list for nothing). The cursor-attached
+  progress bar this readout used to sit above was already removed earlier
+  (feature: remove-lightning-cursor-bar).
 - **`effects.py submit_lightning`** — draws each `"lightning_fx"` scene object
   (the `submit_craters` pattern): a jagged screen-space `HudLines` bolt from
   y=0 to the impact (±6 px jitter per frame, white→yellow over 0.5 s) + a
@@ -2649,10 +2643,11 @@ data, so the two can never silently drift apart.
   **Editor-authoring note (post-reconciliation):** the editor's details panel
   offers a Tint control for the kinds whose draw path threads `tint` —
   **`button` and `panel`**. `Button.submit` always forwards `tint`; every
-  *id'd* panel widget forwards it at its `submit_panel` site. The two
-  `submit_panel` sites that DROP `tint` (`building_ui.py:1252` boss popup,
-  `levelup.py:128` boxes) draw dynamic, non-id'd content that is not
-  editor-selectable, so this is honest. `field`/`label` never draw a skin, so
+  *id'd* panel widget forwards it at its `submit_panel` site. The one
+  `submit_panel` site that still DROPS `tint` (`building_ui.py:1252`, the boss
+  popup) draws dynamic, non-id'd content that is not editor-selectable, so
+  this is honest. (`levelup.py`'s option boxes were the second such site; they
+  are id'd widgets now and forward both `tint` and their sprite child's.) `field`/`label` never draw a skin, so
   they get no Tint control. One residual: `hud.love_panel` is kind `panel` but
   drawn via `HudRect` (no sheet), so a `tint` on it no-ops — the same deferred
   skin-on-a-non-skinnable-widget quirk as `backdrop`/`bar`. See
@@ -2740,6 +2735,32 @@ is no stable id to attach an override to". Both cases turn out to have one.
     one — so `_box_visible` ignores `visible: false` WHOLESALE if it would
     hide every offered box. Hiding one or two does what you asked; hiding all
     of them gets you a playable game instead of a frozen one.
+  - **Every run INSIDE a box is id'd too** (feature: editable levelup text):
+    `option_box_<i>_prev_name` / `_arrow` / `_title` / `_sprite` / `_cost` /
+    `_explanation_0..3` / `_tier`, parented to their box in
+    `screen_defaults.json`. `_new_parts()` builds the group once per slot and
+    `_layout_parts()` walks the same cursor arithmetic `_submit_box` used to
+    do inline, STORING each position — so the whole card is placeable, and the
+    draw is a byte-for-byte no-op (the `test_ui_skinning.py` pin is unchanged).
+    Four things to keep when touching it:
+    - **Content stays code-owned; wording does not.** `title`, `prev_name` and
+      the explanation rows draw through `submit_label(text=…)` — its
+      "authored at RUNTIME" bypass — so a `label` override on them is inert by
+      CONSTRUCTION, not merely disabled in the editor. `cost` and `tier` carry
+      `text_id`s (`levelup.cost_free` / `levelup.cost_paid` /
+      `levelup.tier_progress`), so their templates ARE designer-owned; the
+      cost holder's `text_id` is repicked per roll (free vs paid).
+    - **A row the roll does not use is still id'd and still placed**, at the
+      anchor it would have had, WITHOUT advancing the cursor — so the rows
+      below keep their existing positions and the recorded defaults do not
+      depend on which cards the mock rolled. Only `prev_name`/`arrow` can be
+      absent; they then share the title's anchor and neither draws.
+    - **No parent cascade.** `_layout_parts` runs on the box's DEFAULT rect,
+      before `skinning.apply()`: moving a box does not drag its children
+      (UiEditorParentingPLAN D2 — parenting is an authoring relationship).
+    - **The explanation WRAP stays at draw time.** `wrap_text` is a live font
+      measurement and a stored rect may never depend on one; the four holders
+      are the rows, and a shorter wrap leaves the tail ones undrawn.
 - **`building_ui.py`'s construct cards** — id'd `card_<building_type>`
   (`_CARD_ID_PREFIX`), the type being the stable key. Because a card is
   REBUILT on every `_build_construct` (it carries a live price),

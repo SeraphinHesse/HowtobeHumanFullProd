@@ -8221,6 +8221,144 @@
           154
         ]
       },
+      "option_box_0_arrow": {
+        "display_name": "Option 1 upgrade chevron",
+        "kind": "panel",
+        "label": "",
+        "parent": "option_box_0",
+        "rect": [
+          184,
+          121,
+          5,
+          4
+        ]
+      },
+      "option_box_0_cost": {
+        "align": "center",
+        "display_name": "Option 1 cost line",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "option_box_0",
+        "rect": [
+          186,
+          162,
+          0,
+          0
+        ],
+        "text_id": "levelup.cost_paid"
+      },
+      "option_box_0_explanation_0": {
+        "align": "center",
+        "display_name": "Option 1 explanation row 1",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "option_box_0",
+        "rect": [
+          186,
+          175,
+          0,
+          0
+        ]
+      },
+      "option_box_0_explanation_1": {
+        "align": "center",
+        "display_name": "Option 1 explanation row 2",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "option_box_0",
+        "rect": [
+          186,
+          187,
+          0,
+          0
+        ]
+      },
+      "option_box_0_explanation_2": {
+        "align": "center",
+        "display_name": "Option 1 explanation row 3",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "option_box_0",
+        "rect": [
+          186,
+          199,
+          0,
+          0
+        ]
+      },
+      "option_box_0_explanation_3": {
+        "align": "center",
+        "display_name": "Option 1 explanation row 4",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "option_box_0",
+        "rect": [
+          186,
+          211,
+          0,
+          0
+        ]
+      },
+      "option_box_0_prev_name": {
+        "align": "center",
+        "display_name": "Option 1 previous tier name",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "option_box_0",
+        "rect": [
+          186,
+          108,
+          0,
+          0
+        ]
+      },
+      "option_box_0_sprite": {
+        "display_name": "Option 1 sprite",
+        "kind": "panel",
+        "label": "",
+        "parent": "option_box_0",
+        "rect": [
+          168,
+          124,
+          36,
+          36
+        ]
+      },
+      "option_box_0_tier": {
+        "align": "center",
+        "display_name": "Option 1 tier footer",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "option_box_0",
+        "rect": [
+          186,
+          243,
+          0,
+          0
+        ],
+        "text_id": "levelup.tier_progress"
+      },
+      "option_box_0_title": {
+        "align": "center",
+        "display_name": "Option 1 title",
+        "font_key": "md",
+        "kind": "label",
+        "label": "Card A",
+        "parent": "option_box_0",
+        "rect": [
+          186,
+          108,
+          0,
+          0
+        ]
+      },
       "option_box_1": {
         "display_name": "Level-up option box 2",
         "kind": "panel",
@@ -8233,6 +8371,145 @@
           154
         ]
       },
+      "option_box_1_arrow": {
+        "display_name": "Option 2 upgrade chevron",
+        "kind": "panel",
+        "label": "",
+        "parent": "option_box_1",
+        "rect": [
+          318,
+          121,
+          5,
+          4
+        ]
+      },
+      "option_box_1_cost": {
+        "align": "center",
+        "display_name": "Option 2 cost line",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "option_box_1",
+        "rect": [
+          320,
+          180,
+          0,
+          0
+        ],
+        "sample": "FREE",
+        "text_id": "levelup.cost_free"
+      },
+      "option_box_1_explanation_0": {
+        "align": "center",
+        "display_name": "Option 2 explanation row 1",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "option_box_1",
+        "rect": [
+          320,
+          193,
+          0,
+          0
+        ]
+      },
+      "option_box_1_explanation_1": {
+        "align": "center",
+        "display_name": "Option 2 explanation row 2",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "option_box_1",
+        "rect": [
+          320,
+          205,
+          0,
+          0
+        ]
+      },
+      "option_box_1_explanation_2": {
+        "align": "center",
+        "display_name": "Option 2 explanation row 3",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "option_box_1",
+        "rect": [
+          320,
+          217,
+          0,
+          0
+        ]
+      },
+      "option_box_1_explanation_3": {
+        "align": "center",
+        "display_name": "Option 2 explanation row 4",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "option_box_1",
+        "rect": [
+          320,
+          229,
+          0,
+          0
+        ]
+      },
+      "option_box_1_prev_name": {
+        "align": "center",
+        "display_name": "Option 2 previous tier name",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "Old Name",
+        "parent": "option_box_1",
+        "rect": [
+          320,
+          108,
+          0,
+          0
+        ]
+      },
+      "option_box_1_sprite": {
+        "display_name": "Option 2 sprite",
+        "kind": "panel",
+        "label": "",
+        "parent": "option_box_1",
+        "rect": [
+          302,
+          142,
+          36,
+          36
+        ]
+      },
+      "option_box_1_tier": {
+        "align": "center",
+        "display_name": "Option 2 tier footer",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "option_box_1",
+        "rect": [
+          320,
+          243,
+          0,
+          0
+        ],
+        "text_id": "levelup.tier_progress"
+      },
+      "option_box_1_title": {
+        "align": "center",
+        "display_name": "Option 2 title",
+        "font_key": "md",
+        "kind": "label",
+        "label": "Card B",
+        "parent": "option_box_1",
+        "rect": [
+          320,
+          126,
+          0,
+          0
+        ]
+      },
       "option_box_2": {
         "display_name": "Level-up option box 3",
         "kind": "panel",
@@ -8243,6 +8520,144 @@
           103,
           130,
           154
+        ]
+      },
+      "option_box_2_arrow": {
+        "display_name": "Option 3 upgrade chevron",
+        "kind": "panel",
+        "label": "",
+        "parent": "option_box_2",
+        "rect": [
+          452,
+          121,
+          5,
+          4
+        ]
+      },
+      "option_box_2_cost": {
+        "align": "center",
+        "display_name": "Option 3 cost line",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "option_box_2",
+        "rect": [
+          454,
+          162,
+          0,
+          0
+        ],
+        "text_id": "levelup.cost_paid"
+      },
+      "option_box_2_explanation_0": {
+        "align": "center",
+        "display_name": "Option 3 explanation row 1",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "option_box_2",
+        "rect": [
+          454,
+          175,
+          0,
+          0
+        ]
+      },
+      "option_box_2_explanation_1": {
+        "align": "center",
+        "display_name": "Option 3 explanation row 2",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "option_box_2",
+        "rect": [
+          454,
+          187,
+          0,
+          0
+        ]
+      },
+      "option_box_2_explanation_2": {
+        "align": "center",
+        "display_name": "Option 3 explanation row 3",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "option_box_2",
+        "rect": [
+          454,
+          199,
+          0,
+          0
+        ]
+      },
+      "option_box_2_explanation_3": {
+        "align": "center",
+        "display_name": "Option 3 explanation row 4",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "option_box_2",
+        "rect": [
+          454,
+          211,
+          0,
+          0
+        ]
+      },
+      "option_box_2_prev_name": {
+        "align": "center",
+        "display_name": "Option 3 previous tier name",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "option_box_2",
+        "rect": [
+          454,
+          108,
+          0,
+          0
+        ]
+      },
+      "option_box_2_sprite": {
+        "display_name": "Option 3 sprite",
+        "kind": "panel",
+        "label": "",
+        "parent": "option_box_2",
+        "rect": [
+          436,
+          124,
+          36,
+          36
+        ]
+      },
+      "option_box_2_tier": {
+        "align": "center",
+        "display_name": "Option 3 tier footer",
+        "font_key": "sm",
+        "kind": "label",
+        "label": "",
+        "parent": "option_box_2",
+        "rect": [
+          454,
+          243,
+          0,
+          0
+        ],
+        "text_id": "levelup.tier_progress"
+      },
+      "option_box_2_title": {
+        "align": "center",
+        "display_name": "Option 3 title",
+        "font_key": "md",
+        "kind": "label",
+        "label": "Card C",
+        "parent": "option_box_2",
+        "rect": [
+          454,
+          108,
+          0,
+          0
         ]
       }
     }

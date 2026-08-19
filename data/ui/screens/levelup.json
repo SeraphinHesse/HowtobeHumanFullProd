@@ -1,5 +1,55 @@
 {
   "defaults": {
     "panel_skin": "ui_choice_box"
+  },
+  "widgets": {
+    "backdrop": {
+      "rect": [
+        0,
+        1,
+        640,
+        360
+      ]
+    },
+    "heading": {
+      "rect": [
+        320,
+        66,
+        0,
+        0
+      ],
+      "text_color": [
+        198,
+        81,
+        151
+      ]
+    },
+    "option_box_0": {
+      "rect": [
+        121,
+        104,
+        130,
+        154
+      ],
+      "skin": "ui_panel_v23"
+    },
+    "option_box_1": {
+      "rect": [
+        255,
+        104,
+        130,
+        154
+      ],
+      "skin": "ui_panel_v23"
+    },
+    "option_box_2": {
+      "rect": [
+        389,
+        104,
+        130,
+        154
+      ],
+      "skin": "ui_panel_v23"
+    }
   }
 }
