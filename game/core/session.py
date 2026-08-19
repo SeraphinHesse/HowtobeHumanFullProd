@@ -128,6 +128,25 @@ class Session:
                    buildings_balance, registry, rng, occupancy,
                    progression_balance, boss_upgrades_balance)
 
+    def to_dict(self):
+        """Save-slot serialization (SaveGamePLAN SG-2) — the ONE session
+        field that outlives a round, `combat_speed_idx` (10F: "persists
+        across rounds; a new run builds a new Session"). Everything else
+        (`progression_balance`/`boss_upgrades_balance`/balance dicts,
+        `tutorial_gate`/`tutorial_director`/`debug`) is a reference
+        re-attached at load time from whichever balancing files/host state
+        are currently loaded, exactly like a fresh `Session.create` — never
+        serialized here.
+
+        There is no matching `from_dict` classmethod: restoring this value
+        is a single assignment (`session.combat_speed_idx = data[
+        "combat_speed_idx"]`) onto a `Session` already built the normal way
+        (`build_gameplay_from_save`, SG-6) — a full alternate constructor
+        would need every one of `create`'s balance/registry arguments for no
+        benefit over that one-line patch.
+        """
+        return {"combat_speed_idx": self.combat_speed_idx}
+
     @property
     def frozen(self):
         """LEVELUP / BOSS_CUTSCENE / ENEMY_INTRO are fully modal: no updates,

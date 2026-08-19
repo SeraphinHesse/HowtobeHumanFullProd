@@ -126,6 +126,7 @@ TIERS = {
     "test_font_presets": "core",  # UL-2: designer-defined font presets (schema + derived layout_h)
     "test_footprint_path": "core",
     "test_game_boot": "core",
+    "test_game_state_savegame": "core",  # SaveGamePLAN SG-2: RunState.to_dict/from_dict
     "test_ground_cache": "core",
     "test_hp_bar_anchors": "core",  # ESV-1: hp_bar anchor composes with the D3 baseline
     "test_hud_items": "core",
@@ -162,9 +163,14 @@ TIERS = {
     "test_qa_triage": "core",  # /datatriage: playtest-session coalescer
     "test_projectile_sprites": "core",  # fix-anchor-offset-and-bullet-sprites Fix 2
     "test_range_sensor": "core",
+    "test_registry_savegame": "core",  # SaveGamePLAN SG-3: Building save/restore
     "test_render": "core",
     "test_render_backend_parity": "core",
     "test_right_click_dismiss": "core",
+    "test_savegame": "core",  # SaveGamePLAN SG-1: save-slot storage primitives
+    "test_savegame_integration": "core",  # SaveGamePLAN SG-5: full assembly chain
+    "test_main_savegame": "core",  # SaveGamePLAN SG-6: _apply_save_to_world ordering
+    "test_save_files_ui": "core",  # SaveGamePLAN SG-6: main_menu CONTINUE + SaveFilesScreen
     "test_scenarios": "core",
     "test_scene_query": "core",
     "test_schema_slot_sync": "core",  # feature-enemy-intro-dialogue: sprite_slot/animation enum drift
@@ -186,6 +192,7 @@ TIERS = {
     "test_tile_unlock": "core",
     "test_tilemap_model": "core",
     "test_tilemap_ops": "core",
+    "test_tile_map_savegame": "core",  # SaveGamePLAN SG-4: TileMap save/apply_state
     "test_tutorial_data": "core",  # TU-1: tutorial script + cutscene registry data
     "test_tutorial_director": "core",  # TU-6: TutorialDirector fake-event chain
     "test_tutorial_engine": "core",  # TU-6: engine.tutorial step-sequencer

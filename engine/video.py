@@ -178,7 +178,16 @@ class VideoSource:
         for _ in range(self._frames_due(dt)):
             ret, bgr = self._cap.read()
             if not ret:
+                # EOF. `_frames_due` can ask for several frames in ONE call
+                # (catch-up after a stutter), so frames read EARLIER in this
+                # very loop would be thrown away by `_mark_source_ended`'s
+                # `_bgr = None` -- leaving a fade-out with a stale frame, or
+                # none at all for a clip shorter than one catch-up burst.
+                # Re-hold the last frame we actually decoded so the natural
+                # end-of-stream keeps showing the true final frame.
+                held = self._bgr
                 self._mark_source_ended()
+                self._bgr = held
                 return
             self._bgr = bgr
 
@@ -205,6 +214,20 @@ class VideoSource:
         self.done = True
         self._bgr = None
         self.release()
+
+    def prime(self):
+        """Decode exactly one frame WITHOUT advancing the playback clock —
+        used by a caller (the cutscene fade-in) that needs a real first
+        frame ready to hold frozen before ``update()`` starts pacing real
+        playback. No-op if already primed (a frame is already held),
+        disabled, or done; never raises."""
+        if self.done or not self.enabled or self._bgr is not None:
+            return
+        ret, bgr = self._cap.read()
+        if not ret:
+            self._mark_source_ended()
+            return
+        self._bgr = bgr
 
     def frame_surface(self):
         """Convert the last-read frame to a pygame Surface (BGR→RGB, optional
