@@ -798,10 +798,10 @@
             "label": "",
             "parent": "card_aoe_defence",
             "rect": [
-              530,
-              170,
-              34,
-              34
+              515,
+              145,
+              64,
+              96
             ]
           },
           "card_aoe_defence_price": {
@@ -912,10 +912,10 @@
             "label": "",
             "parent": "card_blocker",
             "rect": [
-              530,
-              706,
-              34,
-              34
+              515,
+              681,
+              64,
+              96
             ]
           },
           "card_blocker_price": {
@@ -1026,10 +1026,10 @@
             "label": "",
             "parent": "card_boost_damage",
             "rect": [
-              530,
-              572,
-              34,
-              34
+              515,
+              547,
+              64,
+              96
             ]
           },
           "card_boost_damage_price": {
@@ -1140,10 +1140,10 @@
             "label": "",
             "parent": "card_boost_hp",
             "rect": [
-              530,
-              639,
-              34,
-              34
+              515,
+              614,
+              64,
+              96
             ]
           },
           "card_boost_hp_price": {
@@ -1254,10 +1254,10 @@
             "label": "",
             "parent": "card_boost_speed",
             "rect": [
-              530,
-              505,
-              34,
-              34
+              515,
+              480,
+              64,
+              96
             ]
           },
           "card_boost_speed_price": {
@@ -1368,10 +1368,10 @@
             "label": "",
             "parent": "card_defence",
             "rect": [
-              530,
-              36,
-              34,
-              34
+              515,
+              11,
+              64,
+              96
             ]
           },
           "card_defence_price": {
@@ -1482,10 +1482,10 @@
             "label": "",
             "parent": "card_economic",
             "rect": [
-              530,
-              103,
-              34,
-              34
+              515,
+              78,
+              64,
+              96
             ]
           },
           "card_economic_price": {
@@ -1596,10 +1596,10 @@
             "label": "",
             "parent": "card_meditator",
             "rect": [
-              530,
-              438,
-              34,
-              34
+              515,
+              413,
+              64,
+              96
             ]
           },
           "card_meditator_price": {
@@ -1710,10 +1710,10 @@
             "label": "",
             "parent": "card_painter",
             "rect": [
-              530,
-              371,
-              34,
-              34
+              515,
+              346,
+              64,
+              96
             ]
           },
           "card_painter_price": {
@@ -1824,10 +1824,10 @@
             "label": "",
             "parent": "card_storm_priest",
             "rect": [
-              530,
-              304,
-              34,
-              34
+              515,
+              279,
+              64,
+              96
             ]
           },
           "card_storm_priest_price": {
@@ -1938,10 +1938,10 @@
             "label": "",
             "parent": "card_sun_scorcher",
             "rect": [
-              530,
-              237,
-              34,
-              34
+              515,
+              212,
+              64,
+              96
             ]
           },
           "card_sun_scorcher_price": {
@@ -2052,10 +2052,10 @@
             "label": "",
             "parent": "card_wall_builder",
             "rect": [
-              530,
-              773,
-              34,
-              34
+              515,
+              748,
+              64,
+              96
             ]
           },
           "card_wall_builder_price": {
@@ -4355,10 +4355,10 @@
         "label": "",
         "parent": "card_aoe_defence",
         "rect": [
-          530,
-          170,
-          34,
-          34
+          515,
+          145,
+          64,
+          96
         ]
       },
       "card_aoe_defence_price": {
@@ -4469,10 +4469,10 @@
         "label": "",
         "parent": "card_blocker",
         "rect": [
-          530,
-          706,
-          34,
-          34
+          515,
+          681,
+          64,
+          96
         ]
       },
       "card_blocker_price": {
@@ -4583,10 +4583,10 @@
         "label": "",
         "parent": "card_boost_damage",
         "rect": [
-          530,
-          572,
-          34,
-          34
+          515,
+          547,
+          64,
+          96
         ]
       },
       "card_boost_damage_price": {
@@ -4697,10 +4697,10 @@
         "label": "",
         "parent": "card_boost_hp",
         "rect": [
-          530,
-          639,
-          34,
-          34
+          515,
+          614,
+          64,
+          96
         ]
       },
       "card_boost_hp_price": {
@@ -4811,10 +4811,10 @@
         "label": "",
         "parent": "card_boost_speed",
         "rect": [
-          530,
-          505,
-          34,
-          34
+          515,
+          480,
+          64,
+          96
         ]
       },
       "card_boost_speed_price": {
@@ -4925,10 +4925,10 @@
         "label": "",
         "parent": "card_defence",
         "rect": [
-          530,
-          36,
-          34,
-          34
+          515,
+          11,
+          64,
+          96
         ]
       },
       "card_defence_price": {
@@ -5039,10 +5039,10 @@
         "label": "",
         "parent": "card_economic",
         "rect": [
-          530,
-          103,
-          34,
-          34
+          515,
+          78,
+          64,
+          96
         ]
       },
       "card_economic_price": {
@@ -5153,10 +5153,10 @@
         "label": "",
         "parent": "card_meditator",
         "rect": [
-          530,
-          438,
-          34,
-          34
+          515,
+          413,
+          64,
+          96
         ]
       },
       "card_meditator_price": {
@@ -5267,10 +5267,10 @@
         "label": "",
         "parent": "card_painter",
         "rect": [
-          530,
-          371,
-          34,
-          34
+          515,
+          346,
+          64,
+          96
         ]
       },
       "card_painter_price": {
@@ -5381,10 +5381,10 @@
         "label": "",
         "parent": "card_storm_priest",
         "rect": [
-          530,
-          304,
-          34,
-          34
+          515,
+          279,
+          64,
+          96
         ]
       },
       "card_storm_priest_price": {
@@ -5495,10 +5495,10 @@
         "label": "",
         "parent": "card_sun_scorcher",
         "rect": [
-          530,
-          237,
-          34,
-          34
+          515,
+          212,
+          64,
+          96
         ]
       },
       "card_sun_scorcher_price": {
@@ -5609,10 +5609,10 @@
         "label": "",
         "parent": "card_wall_builder",
         "rect": [
-          530,
-          773,
-          34,
-          34
+          515,
+          748,
+          64,
+          96
         ]
       },
       "card_wall_builder_price": {

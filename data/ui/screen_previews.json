@@ -856,24 +856,6 @@
             "animation": "idle",
             "crop": null,
             "dest": [
-              530,
-              36
-            ],
-            "flip": false,
-            "hidden_frames": [],
-            "size": [
-              34,
-              34
-            ],
-            "slot_key": "stone_thrower_t1_lvl1",
-            "tint": null,
-            "type": "sprite"
-          },
-          {
-            "anim_time_ms": 0,
-            "animation": "idle",
-            "crop": null,
-            "dest": [
               516,
               21
             ],
@@ -884,6 +866,24 @@
               64
             ],
             "slot_key": "ui_panel_v7",
+            "tint": null,
+            "type": "sprite"
+          },
+          {
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              515,
+              11
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              64,
+              96
+            ],
+            "slot_key": "stone_thrower_t1_lvl1",
             "tint": null,
             "type": "sprite"
           },
@@ -1042,24 +1042,6 @@
             "animation": "idle",
             "crop": null,
             "dest": [
-              530,
-              103
-            ],
-            "flip": false,
-            "hidden_frames": [],
-            "size": [
-              34,
-              34
-            ],
-            "slot_key": "flute_player_t1_lvl1",
-            "tint": null,
-            "type": "sprite"
-          },
-          {
-            "anim_time_ms": 0,
-            "animation": "idle",
-            "crop": null,
-            "dest": [
               516,
               88
             ],
@@ -1070,6 +1052,24 @@
               64
             ],
             "slot_key": "ui_panel_v7",
+            "tint": null,
+            "type": "sprite"
+          },
+          {
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              515,
+              78
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              64,
+              96
+            ],
+            "slot_key": "flute_player_t1_lvl1",
             "tint": null,
             "type": "sprite"
           },
@@ -1228,24 +1228,6 @@
             "animation": "idle",
             "crop": null,
             "dest": [
-              530,
-              170
-            ],
-            "flip": false,
-            "hidden_frames": [],
-            "size": [
-              34,
-              34
-            ],
-            "slot_key": "maw_mortar_t1_lvl1",
-            "tint": null,
-            "type": "sprite"
-          },
-          {
-            "anim_time_ms": 0,
-            "animation": "idle",
-            "crop": null,
-            "dest": [
               516,
               155
             ],
@@ -1256,6 +1238,24 @@
               64
             ],
             "slot_key": "ui_panel_v7",
+            "tint": null,
+            "type": "sprite"
+          },
+          {
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              515,
+              145
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              64,
+              96
+            ],
+            "slot_key": "maw_mortar_t1_lvl1",
             "tint": null,
             "type": "sprite"
           },
@@ -1414,24 +1414,6 @@
             "animation": "idle",
             "crop": null,
             "dest": [
-              530,
-              237
-            ],
-            "flip": false,
-            "hidden_frames": [],
-            "size": [
-              34,
-              34
-            ],
-            "slot_key": "sun_scorcher_t1_lvl1",
-            "tint": null,
-            "type": "sprite"
-          },
-          {
-            "anim_time_ms": 0,
-            "animation": "idle",
-            "crop": null,
-            "dest": [
               516,
               222
             ],
@@ -1442,6 +1424,24 @@
               64
             ],
             "slot_key": "ui_panel_v7",
+            "tint": null,
+            "type": "sprite"
+          },
+          {
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              515,
+              212
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              64,
+              96
+            ],
+            "slot_key": "sun_scorcher_t1_lvl1",
             "tint": null,
             "type": "sprite"
           },
@@ -1798,24 +1798,6 @@
             "animation": "idle",
             "crop": null,
             "dest": [
-              530,
-              36
-            ],
-            "flip": false,
-            "hidden_frames": [],
-            "size": [
-              34,
-              34
-            ],
-            "slot_key": "stone_thrower_t1_lvl1",
-            "tint": null,
-            "type": "sprite"
-          },
-          {
-            "anim_time_ms": 0,
-            "animation": "idle",
-            "crop": null,
-            "dest": [
               516,
               21
             ],
@@ -1826,6 +1808,24 @@
               64
             ],
             "slot_key": "ui_panel_v7",
+            "tint": null,
+            "type": "sprite"
+          },
+          {
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              515,
+              11
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              64,
+              96
+            ],
+            "slot_key": "stone_thrower_t1_lvl1",
             "tint": null,
             "type": "sprite"
           },
@@ -1984,24 +1984,6 @@
             "animation": "idle",
             "crop": null,
             "dest": [
-              530,
-              103
-            ],
-            "flip": false,
-            "hidden_frames": [],
-            "size": [
-              34,
-              34
-            ],
-            "slot_key": "flute_player_t1_lvl1",
-            "tint": null,
-            "type": "sprite"
-          },
-          {
-            "anim_time_ms": 0,
-            "animation": "idle",
-            "crop": null,
-            "dest": [
               516,
               88
             ],
@@ -2012,6 +1994,24 @@
               64
             ],
             "slot_key": "ui_panel_v7",
+            "tint": null,
+            "type": "sprite"
+          },
+          {
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              515,
+              78
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              64,
+              96
+            ],
+            "slot_key": "flute_player_t1_lvl1",
             "tint": null,
             "type": "sprite"
           },
@@ -2170,24 +2170,6 @@
             "animation": "idle",
             "crop": null,
             "dest": [
-              530,
-              170
-            ],
-            "flip": false,
-            "hidden_frames": [],
-            "size": [
-              34,
-              34
-            ],
-            "slot_key": "maw_mortar_t1_lvl1",
-            "tint": null,
-            "type": "sprite"
-          },
-          {
-            "anim_time_ms": 0,
-            "animation": "idle",
-            "crop": null,
-            "dest": [
               516,
               155
             ],
@@ -2198,6 +2180,24 @@
               64
             ],
             "slot_key": "ui_panel_v7",
+            "tint": null,
+            "type": "sprite"
+          },
+          {
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              515,
+              145
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              64,
+              96
+            ],
+            "slot_key": "maw_mortar_t1_lvl1",
             "tint": null,
             "type": "sprite"
           },
@@ -2356,24 +2356,6 @@
             "animation": "idle",
             "crop": null,
             "dest": [
-              530,
-              237
-            ],
-            "flip": false,
-            "hidden_frames": [],
-            "size": [
-              34,
-              34
-            ],
-            "slot_key": "sun_scorcher_t1_lvl1",
-            "tint": null,
-            "type": "sprite"
-          },
-          {
-            "anim_time_ms": 0,
-            "animation": "idle",
-            "crop": null,
-            "dest": [
               516,
               222
             ],
@@ -2384,6 +2366,24 @@
               64
             ],
             "slot_key": "ui_panel_v7",
+            "tint": null,
+            "type": "sprite"
+          },
+          {
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              515,
+              212
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              64,
+              96
+            ],
+            "slot_key": "sun_scorcher_t1_lvl1",
             "tint": null,
             "type": "sprite"
           },
