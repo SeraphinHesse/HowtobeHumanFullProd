@@ -637,6 +637,12 @@
       ]
     },
     "card_defence_frame": {
+      "rect": [
+        516,
+        21,
+        64,
+        64
+      ],
       "text_color": [
         198,
         81,
@@ -644,6 +650,14 @@
       ]
     },
     "card_defence_name": {
+      "font": "sm",
+      "font_family": "pixel_emulator",
+      "rect": [
+        585,
+        34,
+        0,
+        0
+      ],
       "text_color": [
         198,
         81,
@@ -685,7 +699,30 @@
         151
       ]
     },
+    "card_meditator_price": {
+      "font_family": "pixel_emulator",
+      "rect": [
+        578,
+        456,
+        74,
+        23
+      ]
+    },
+    "card_meditator_price_icon": {
+      "rect": [
+        592,
+        464,
+        10,
+        10
+      ]
+    },
     "card_meditator_price_text": {
+      "rect": [
+        606,
+        463,
+        0,
+        0
+      ],
       "text_color": [
         213,
         183,
