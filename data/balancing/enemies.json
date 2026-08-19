@@ -46,6 +46,23 @@
     "spawn_ramp_range": 0.6,
     "tutorial_round_enemy_count": 1
   },
+  "EnemySounds": {
+    "attack": {
+      "clips": [],
+      "loop": false,
+      "pick": "random"
+    },
+    "death": {
+      "clips": [],
+      "loop": false,
+      "pick": "random"
+    },
+    "spawn": {
+      "clips": [],
+      "loop": false,
+      "pick": "random"
+    }
+  },
   "EnemyTypes": {
     "Boss": {
       "condition_path_weights": {
@@ -169,6 +186,23 @@
             "spawn_hp_fraction": 1.0
           }
         ]
+      },
+      "sounds": {
+        "attack": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "death": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "spawn": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        }
       },
       "stats": [
         {
@@ -363,6 +397,23 @@
       "hunts": "any_non_base",
       "kidnapping": false,
       "registry_group": "Commander",
+      "sounds": {
+        "attack": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "death": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "spawn": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        }
+      },
       "start_round": 0
     },
     "Digger": {
@@ -389,7 +440,7 @@
       "emerge_cooldown": 2.5,
       "endgame_scaling": {
         "count": 1.0,
-        "dmg": 0.0,
+        "dmg": 1.0,
         "hp": 1.0,
         "move_speed": 0.05
       },
@@ -489,6 +540,23 @@
       "kidnapping": false,
       "min_target_distance_tiles": 3,
       "registry_group": "Digger",
+      "sounds": {
+        "attack": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "death": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "spawn": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        }
+      },
       "start_round": 15
     },
     "Drummer": {
@@ -514,9 +582,9 @@
       "dmg_increase": 0.15,
       "endgame_scaling": {
         "count": 1.0,
-        "dmg": 0.0,
-        "hp": 0.0,
-        "move_speed": 0.0
+        "dmg": 1.0,
+        "hp": 1.0,
+        "move_speed": 1.0
       },
       "eras": [
         {
@@ -615,6 +683,23 @@
       "kidnapping": false,
       "move_speed_increase": 0.15,
       "registry_group": "Drummer",
+      "sounds": {
+        "attack": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "death": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "spawn": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        }
+      },
       "start_round": 21,
       "support_range": 1,
       "support_range_increase": 0
@@ -666,7 +751,7 @@
         "count": 4.0,
         "dmg": 1.0,
         "hp": 1.0,
-        "move_speed": 0.0
+        "move_speed": 1.0
       },
       "eras": [
         {
@@ -763,6 +848,23 @@
       "hunts": "base",
       "kidnapping": false,
       "registry_group": "Formation",
+      "sounds": {
+        "attack": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "death": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "spawn": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        }
+      },
       "start_round": 11
     },
     "Raider": {
@@ -786,9 +888,9 @@
       },
       "endgame_scaling": {
         "count": 3.0,
-        "dmg": 0.0,
-        "hp": 0.0,
-        "move_speed": 0.0
+        "dmg": 1.0,
+        "hp": 1.0,
+        "move_speed": 1.0
       },
       "eras": [
         {
@@ -885,6 +987,23 @@
       "hunts": "economic",
       "kidnapping": true,
       "registry_group": "Raider",
+      "sounds": {
+        "attack": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "death": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "spawn": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        }
+      },
       "start_round": 5
     },
     "SiegeCannon": {
@@ -910,7 +1029,7 @@
         "count": 1.75,
         "dmg": 1.0,
         "hp": 1.0,
-        "move_speed": 0.0
+        "move_speed": 1.0
       },
       "eras": [
         {
@@ -1009,6 +1128,23 @@
       "mix_ratio": 0.5,
       "queue_lead_count": 5,
       "registry_group": "Siege Cannon",
+      "sounds": {
+        "attack": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "death": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "spawn": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        }
+      },
       "start_round": 31
     },
     "Sniper": {
@@ -1034,7 +1170,7 @@
         "count": 1.5,
         "dmg": 1.0,
         "hp": 1.0,
-        "move_speed": 0.0
+        "move_speed": 1.0
       },
       "eras": [
         {
@@ -1131,6 +1267,23 @@
       "hunts": "defence",
       "kidnapping": false,
       "registry_group": "Sniper",
+      "sounds": {
+        "attack": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "death": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "spawn": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        }
+      },
       "stand_off_range": 2,
       "start_round": 25
     },
@@ -1154,10 +1307,10 @@
         ]
       },
       "endgame_scaling": {
-        "count": 0.0,
+        "count": 1.0,
         "dmg": 1.0,
         "hp": 1.0,
-        "move_speed": 0.0
+        "move_speed": 1.0
       },
       "eras": [
         {
@@ -1254,6 +1407,23 @@
       "hunts": "base",
       "kidnapping": true,
       "registry_group": "Walker",
+      "sounds": {
+        "attack": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "death": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "spawn": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        }
+      },
       "start_round": 1
     },
     "Tutorial": {
@@ -1304,6 +1474,23 @@
       "hunts": "any_non_base",
       "kidnapping": true,
       "registry_group": "Walker",
+      "sounds": {
+        "attack": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "death": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        },
+        "spawn": {
+          "clips": [],
+          "loop": false,
+          "pick": "random"
+        }
+      },
       "start_round": 0
     }
   },

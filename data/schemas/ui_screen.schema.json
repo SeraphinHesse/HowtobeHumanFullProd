@@ -575,6 +575,10 @@
             "skin": {
               "type": "string"
             },
+            "sound": {
+              "description": "Optional per-button click sound: a clip path relative to data/audio/ (the same shape as a sound_slot clip's `file`). Absent or empty = this button plays ui.Sounds.button_click like every other. game/ui/skinning.py's generic setattr loop threads it onto the widget as `.sound`, and game/ui/sound.py wraps it as a one-clip slot on the sfx bus.",
+              "type": "string"
+            },
             "states": {
               "additionalProperties": false,
               "description": "Per-state appearance patch (UL-5). Keys: idle | hover | pressed | disabled, resolved from the widget's own state (Button._state(); any widget with no _state() is always \"idle\"), falling back to \"idle\" when the resolved key is absent and to no patch at all when \"states\" is absent. Every sub-key OVERRIDES the widget's own value for that state only; \"offset\" is a [dx, dy] or [dx, dy, dw, dh] NUDGE from the widget's own rect applied at DRAW time -- never a new absolute rect, and never written back onto the widget.",

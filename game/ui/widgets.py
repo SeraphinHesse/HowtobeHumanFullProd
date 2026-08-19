@@ -21,6 +21,7 @@ from types import SimpleNamespace
 from engine.render import HudLines, HudRect, HudSprite, HudText, RenderItem
 from engine.render.fonts import TextMetrics, layout_h
 
+from . import sound          # SD-6: the pure UI-sound seam (leaf, no cycle)
 from . import strings
 from .skinning import is_visible
 
@@ -182,6 +183,25 @@ def wrap_text(text, font_key, max_w, max_lines=None, family=None):
 def contains(rect, mx, my):
     x, y, w, h = rect
     return x <= mx < x + w and y <= my < y + h
+
+
+def click(btn, mx, my):
+    """``True`` when ``btn`` consumed this click — and the click sound is
+    emitted exactly once (SD-6).
+
+    The ROUTED-click twin of ``Button.hit``. ``hit`` stays a pure probe: it is
+    called speculatively (``main.py``'s "am I over UI?" test, the tutorial's
+    panel-click gate) and twice per click on the HUD, so a sound hook inside it
+    would fire on non-clicks and double-fire on real ones. Screens whose
+    ``hit()`` routes a click therefore call THIS instead.
+
+    Visibility and ``enabled`` are honoured (``Button.hit`` already gates on
+    ``enabled``), so an invisible/disabled button and empty space are silent.
+    """
+    if not is_visible(btn) or not btn.hit(mx, my):
+        return False
+    sound.play_click(btn)
+    return True
 
 
 def submit_panel(renderer, rect, *, fill=None, border=None, skin=None,

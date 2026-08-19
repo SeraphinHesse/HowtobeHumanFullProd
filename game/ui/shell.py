@@ -276,6 +276,11 @@ class Shell:
             return None
         if action == "set_display_mode":
             return "set_display_mode"
+        # SD-6: the screen already wrote the new level onto `settings`; the
+        # host applies it to the audio buses and persists it (the same
+        # pass-through shape `set_display_mode` has above).
+        if action == "set_volume":
+            return "set_volume"
         if action == "open_controls":
             self.controls_open = True
             return None

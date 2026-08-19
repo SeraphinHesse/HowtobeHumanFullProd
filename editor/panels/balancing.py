@@ -71,6 +71,17 @@ carries `"x-paired": true` so `_build_object` skips it as its own section —
 its only rendering is inline, paired with its partner weights. Missing
 sibling object/key degrades to a plain row (no exception) so a domain whose
 doc doesn't carry the toggle object still builds.
+
+A schema node carrying `"x-widget": "<name>"` (SD-3; `sound_slot` is the first
+and only one) is claimed WHOLE by a composite widget: `_build_object` routes it
+straight to `_add_leaf_row` instead of the object/array recursion below (a sound
+slot IS an object, so it would otherwise become a CollapsibleSection of raw
+rows), and `_make_widget`'s first branch builds it. Reusing `_add_leaf_row` is
+what gives the composite the dirty dot, the `self._widgets` registration and the
+description tooltip for free; `_set_widget_value` learns the type so Version
+History's `_apply_snapshot` sets the whole object rather than silently skipping
+it. The widget stages through this panel's `_commit` — no second doc, no second
+dirty set, no second writer.
 """
 import copy
 from pathlib import Path
@@ -96,7 +107,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from editor import balancing_history, domains
+from editor import balancing_history, domains, sound_import
 from engine import data_io, era_math
 
 REPO = Path(__file__).resolve().parents[2]
@@ -358,11 +369,34 @@ class BalancingPanel(QWidget):
             node = props[seg]
         return self._deref(node)
 
+    def _object_properties(self, node, value):
+        """The ``{key: subschema}`` map to render this object level from.
+
+        Normally just the node's own ``properties``. An OPEN object — one that
+        declares no ``properties`` and types its members through
+        ``additionalProperties`` instead — has no key list in the schema at
+        all, so its keys come from the DOC and every one of them renders
+        against that single shared subschema. ``vfx.schema.json``'s
+        ``triggers_by_type`` (the per-type VFX registry, open two levels deep)
+        is the first such node; without this the panel raised ``KeyError:
+        'properties'`` and took the whole vfx balancing form down with it.
+
+        A node that is open AND has no dict ``additionalProperties`` (i.e. a
+        free-form blob like the tutorial's ``flags``) yields nothing, which is
+        the honest answer: there is no schema to build widgets from."""
+        props = node.get("properties")
+        if props is not None:
+            return props
+        extra = node.get("additionalProperties")
+        if isinstance(extra, dict) and isinstance(value, dict):
+            return {key: extra for key in value}
+        return {}
+
     def _build_object(self, node, value, path, parent_layout, depth):
         """One object level: scalar leaves collect into QFormLayouts, nested
         objects/arrays become CollapsibleSections, in sorted key order."""
         form = None
-        for key, prop in sorted(node["properties"].items()):
+        for key, prop in sorted(self._object_properties(node, value).items()):
             if key.startswith("_"):
                 continue
             if key not in value:
@@ -370,6 +404,20 @@ class BalancingPanel(QWidget):
             prop = self._deref(prop)
             if prop.get("x-paired"):
                 continue  # a toggle-bool sibling object (x-toggle) renders inline, not as its own section
+            if prop.get("x-widget"):
+                # SD-3: a composite widget claims this node whole. Routed here
+                # rather than left to `kind` below because a sound slot IS an
+                # object, and the object branch would recurse it into a
+                # CollapsibleSection of raw rows and never reach _make_widget.
+                # Reusing _add_leaf_row is deliberate: it is what registers the
+                # widget in self._widgets, attaches the dirty dot and sets the
+                # tooltip — so the composite inherits dirty/history/rebuild
+                # behaviour with no new bookkeeping.
+                if form is None:
+                    form = QFormLayout()
+                    parent_layout.addLayout(form)
+                self._add_leaf_row(form, key, prop, value[key], path + (key,))
+                continue
             kind = prop.get("type")
             if kind in ("object", "array"):
                 form = None
@@ -669,7 +717,13 @@ class BalancingPanel(QWidget):
 
     def _make_widget(self, path, prop, value):
         key = "/".join(path)
-        if "enum" in prop:
+        if prop.get("x-widget") == "sound_slot":
+            # SD-3. Imported lazily: editor.panels.sound_slot imports the
+            # _NoWheel* widgets FROM this module (their one home), so a
+            # module-scope import here would be circular.
+            from editor.panels.sound_slot import SoundSlotWidget
+            widget = SoundSlotWidget(value, prop, path, self, self._data_dir)
+        elif "enum" in prop:
             widget = _NoWheelComboBox()
             for option in prop["enum"]:
                 widget.addItem(str(option), option)
@@ -768,6 +822,18 @@ class BalancingPanel(QWidget):
                 if child is not None:
                     self._set_widget_value(f"{path}/{i}", child, item)
 
+    def sound_usage_docs(self):
+        """SD-3: `{domain: doc_or_None}` across EVERY balancing domain, for the
+        sound-clip refcount behind "Use existing…".
+
+        This panel is the one object holding both the live staged document and
+        its domain name, so it is the one place that can hand the (pure)
+        refcount its own domain's UNSAVED state — otherwise a clip the designer
+        attached seconds ago reads as unreferenced. The other domains come from
+        disk, and one that fails to load degrades to None ("count unknown"),
+        never to zero users."""
+        return sound_import.usage_docs(self._data_dir, self.domain, self._doc)
+
     def _refresh_dirty(self, key):
         try:
             baseline = self._value_at(key, self._baseline)
@@ -793,7 +859,13 @@ class BalancingPanel(QWidget):
         self._save_btn.setEnabled(bool(self._dirty))
 
     def _set_widget_value(self, key, widget, value):
-        if isinstance(widget, QComboBox):
+        from editor.panels.sound_slot import SoundSlotWidget  # lazy: see _make_widget
+        if isinstance(widget, SoundSlotWidget):
+            # SD-3: a composite widget owns a whole object, not a scalar.
+            # Without this arm _apply_snapshot (Version History) would silently
+            # skip every sound slot.
+            widget.set_slot(value)
+        elif isinstance(widget, QComboBox):
             widget.setCurrentIndex(widget.findData(value))
         elif isinstance(widget, QCheckBox):
             widget.setChecked(bool(value))

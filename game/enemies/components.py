@@ -32,6 +32,7 @@ from game.map.pathfinder import (
 from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition
 
 from .dirt_pile import spawn_dirt_pile
+from .sounds import ATTACK, play_enemy_sound
 
 # Chunk 4: hunt-string ("EnemyTypes.<type>.hunts") -> the goal-set pathfinder
 # query it dispatches to. "base" is NOT in here — it is handled separately by
@@ -911,6 +912,9 @@ class EnemyCombat(Component):
                     # this branch cannot see (walls carry no Health).
                     _apply_thorns(owner, dmg)
                 self.cooldown = self.buffed_attack_speed   # NE-3
+                # SD-5: one swing = one attack sound. Fired where the cooldown
+                # is re-armed, so a blocked-but-cooling unit is silent.
+                play_enemy_sound(owner, ATTACK)
             return
         target = pa._target
         if target is None and pa.in_range:
@@ -943,6 +947,12 @@ class EnemyCombat(Component):
             # branch above.
             _apply_thorns(owner, dmg)
             self.cooldown = self.buffed_attack_speed   # NE-3
+            # SD-5: the melee AND ranged attack sound. NE-1 widened the gate
+            # above to `pa.blocked or pa.in_range`, so the Sniper's stand-off
+            # shot is this same swing — there is no second attack path, and
+            # the Boss/SiegeCannon overrides resolve right here with no
+            # type-name branch.
+            play_enemy_sound(owner, ATTACK)
             # Kidnapping (Art/enemies): a killing blow on a kidnap-capable
             # type ARMS the transition here; this component never touches the
             # scene — the combat sweep's kidnap pass (combat.py) owns the
@@ -1247,6 +1257,9 @@ class BurrowAgent(Component):
             _damage_hook(getattr(owner, "ETYPE", None),
                          getattr(target, "building_type", None),
                          dmg, health.hp)
+        # SD-5: the eruption IS an attack (this method is EnemyCombat.update's
+        # damage application verbatim), so it gets the same attack sound.
+        play_enemy_sound(owner, ATTACK)
 
     # -- targeting -----------------------------------------------------------
 
@@ -1450,11 +1463,21 @@ class BurrowAgent(Component):
 
     @staticmethod
     def _nearest_clear_tile(tm, col, row, skip_self=False):
-        """The nearest ``(c, r)`` with no building occupant, by an expanding
-        Chebyshev ring search from ``(col, row)`` — the ``_find_2x2``
-        expanding-window precedent (``game/map/CLAUDE.md``) applied to a
-        single tile instead of a 2x2 block. ``skip_self`` (default False)
-        starts the search at radius 1, so a call that wants an ACTUAL move
+        """The nearest ``(c, r)`` with no building occupant AND inside the
+        accessible map (``tile.is_passable`` — every ``TileState`` except
+        BACKGROUND), by an expanding Chebyshev ring search from
+        ``(col, row)`` — the ``_find_2x2`` expanding-window precedent
+        (``game/map/CLAUDE.md``) applied to a single tile instead of a 2x2
+        block. ``is_passable`` (not the stricter ``is_unlocked``) is
+        deliberate: the Digger routinely repositions onto COMBAT/SPAWNING
+        tiles, which are legal enemy-accessible ground, just not
+        player-built — only BACKGROUND (locked, impassable terrain the
+        player can never reach) must be excluded. Without this guard a
+        BACKGROUND tile — never occupied, since nothing is ever placed there
+        — trivially passed the old occupant-only filter and could be chosen
+        as a dig destination, surfacing the Digger outside the map (bugfix:
+        digger-background-bounds). ``skip_self`` (default False) starts the
+        search at radius 1, so a call that wants an ACTUAL move
         (``_reposition``) never trivially returns the tile it is already
         standing on. Falls back to ``(col, row)`` itself if literally
         nothing on the board qualifies (never expected on a real map — the
@@ -1475,7 +1498,7 @@ class BurrowAgent(Component):
                     ring.append((col + radius, row + dr))
             for c, r in ring:
                 tile = tm.get(c, r)
-                if tile is not None and tile.occupant is None:
+                if tile is not None and tile.occupant is None and tile.is_passable:
                     return c, r
         return col, row
 

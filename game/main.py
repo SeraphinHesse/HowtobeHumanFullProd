@@ -64,7 +64,7 @@ from engine import input as key_input  # feature: rebindable hotkeys
 from engine.assets import load_manifest, load_registry
 from engine.assets import master_registry  # B1: the colour-column registry
 from engine.assets.store import AssetStore
-from engine.audio import play_music
+import engine.audio as game_audio  # SD-4
 from engine.coords import CameraLimit, load_coordinate_system
 from engine.core import Scene, SpriteAnimator
 from engine.physics import TileOccupancy
@@ -77,6 +77,7 @@ from game.buildings.coverage import wire_defence_coverage
 # -- /10I --
 # -- B1: the slots.json category whose slots may carry a colour column --
 from game.buildings.registry import BUILDINGS_CATEGORY
+from game.buildings import painter as painter_art  # progress-art seam
 # -- Building Movement: the in-transit sign slot + the cost/time formulas the
 # destination-pick preview quotes --
 from game.buildings.movement import (
@@ -114,6 +115,8 @@ from game.map import (
 from game.map.tiles import CONDITION_CATEGORY
 from game.map.tiles import TileState  # 10J: multi-select category
 from game.map.wall_render import FRONT_SIDES, WALL_CATEGORY
+from game.sounds import GameSounds  # SD-4
+from game.music_director import MusicDirector, round_outcome  # SD-7
 from game.tutorial import TutorialDirector  # TU-6
 from game.ui import (
     BossCutscene, BuildingUI, CheatMenu, EnemyIntroWindow, FloaterManager,
@@ -123,6 +126,10 @@ from game.ui import (
 from game.ui import widgets  # 10L-A: R2 hit-seam wiring
 from game.ui.building_ui import MovePreview  # Building Movement confirm modal
 from game.ui.cutscene_player import CutscenePlayer, load_cutscene_registry
+from game.ui.loading_screen import (  # feature: loading screen
+    RING_RADIUS as LOADING_RING_RADIUS, RING_WIDTH as LOADING_RING_WIDTH,
+    BG_SLOT as LOADING_BG_SLOT, LoadingScreen,
+)
 from game.ui.skinning import ScreenSkinning  # 10L-B: per-screen overrides
 from game.ui.strings import configure_strings  # Phase C: global string table
 
@@ -701,6 +708,25 @@ def _submit_cutscene_skip(renderer, view_w, view_h, skip_progress, idle_t):
         align="right"))
 
 
+def _submit_loading_frame(renderer, assets, view_w, view_h, progress):
+    """The pre-boot loading screen (feature: loading screen). Background is
+    the editor-adjustable ``ui_bg_loading`` slot (E-37: a flat fallback fill
+    — ``presenter.begin_frame()`` already painted ``BACKGROUND`` — until a
+    designer imports art), plus the skip-cutscene hold-ring widget
+    (`widgets.submit_progress_ring`) reused here in WHITE rather than its
+    default gold, so it never reads as the cutscene skip prompt. The slot key
+    and ring style constants live in ``game/ui/loading_screen.py`` — the ONE
+    place they're defined — so this pre-boot screen and the post-"Start Game"
+    ``LoadingScreen`` it precedes can never visually drift apart."""
+    if assets.animation_total_ms(LOADING_BG_SLOT, "idle") is not None:
+        renderer.submit_hud(HudSprite(
+            LOADING_BG_SLOT, (0, 0), (view_w, view_h)))
+    cx, cy = view_w // 2, view_h // 2
+    widgets.submit_progress_ring(
+        renderer, cx, cy, LOADING_RING_RADIUS, progress,
+        bg=(90, 90, 90), fill=(255, 255, 255), width=LOADING_RING_WIDTH)
+
+
 def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
          backend=None):
     """``autostart=True`` skips the shell (cutscene/menu) and boots straight into
@@ -745,6 +771,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     caption = display["caption"]
 
     pygame.init()
+    # SD-4: the ONE audio init in the game (bus sliders + music reuse it,
+    # never a second one). Returns bool and never raises — a machine with no
+    # device is a supported configuration, so do NOT branch or log here.
+    game_audio.init(data_dir)
 
     # D-21: the active map decides what the ground IS — and its dims (D-20)
     map_doc = tilemap.load_active_map(data_dir)
@@ -791,6 +821,36 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         registry=registry,
         sprites_dir=data_dir / "sprites",
     )
+
+    # Pre-boot loading screen (feature: loading screen): a real window comes
+    # up now, right after the asset store exists, and pumps frames through
+    # the remaining (slower) boot steps below — discarded in favor of the
+    # real render stack (`_build_render_stack`) once boot finishes. A
+    # headless run (`max_frames is not None`, tools/smoke.py) still opens
+    # this window; it costs one extra `set_mode` call, no extra window.
+    loading_presenter = _SurfacePresenter(view_w, view_h, caption, "windowed")
+    loading_renderer = Renderer(cs, assets)
+    # 15 real checkpoints (was 5): one after the asset store, one after each
+    # of the 5 theme/font docs below, one after each of the 7 balance
+    # domains, and the pre-existing two before backend selection — smaller
+    # real jumps, not a faked/eased animation between them (the user's
+    # direction when the ring's motion was reported as jumpy).
+    _loading_steps_total = 15
+    _loading_step = 0
+
+    def _flush_loading():
+        nonlocal _loading_step
+        _loading_step += 1
+        pygame.event.pump()
+        loading_presenter.begin_frame()
+        _submit_loading_frame(loading_renderer, assets, view_w, view_h,
+                              _loading_step / _loading_steps_total)
+        loading_renderer.flush(loading_presenter.world_target,
+                               hud_target=loading_presenter.hud_target)
+        loading_presenter.end_frame()
+
+    _flush_loading()
+
     # Tile-condition art: {slot key -> tint_overlay} over the condition slots
     # that actually have an imported sheet. THE one map both consumers read —
     # the `terrain`-layer emitter (sprite iff the slot is in here) and the
@@ -829,7 +889,44 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # An empty map (today's live data, which declares no `columns` yet) means
     # no building rolls a colour and every animator keeps its -1 sentinel.
     colour_columns = _derive_colour_columns(registry, manifest, data_dir)
+    # Painter progress art: which `painter_*` stages actually have an imported
+    # sheet. Derived once here for the same reason as the blocks above, and
+    # installed on the leaf's module seam because `game/buildings/**` may not
+    # read the asset layer itself (D6/E-37). A stage with no art falls back to
+    # the highest lower stage that has some, so a half-imported painting chain
+    # never shows a grey X mid-canvas.
+    painter_art.set_art_slots(frozenset(
+        s for s in registry.group_slots(BUILDINGS_CATEGORY)
+        if s.startswith("painter_") and manifest.entry(s) is not None))
     widgets.set_skin_hit_test(assets.hit_opaque)  # R2: pixel-perfect click targets
+
+    # -- SD-6: the UI sound seam. `game/ui` is pygame-free, so it never
+    # imports engine.audio: it hands a SLOT to this host-injected sink and the
+    # host does the playing. Imported locally so this block stays one
+    # self-contained addition to a heavily shared file. --
+    import engine.audio as engine_audio
+    from game.ui import sound as ui_sound
+
+    def _ui_sound_sink(slot, bus):
+        """Play one UI slot. `gp["sfx"]` (the game-side dispatcher) is looked
+        up LATE, at CALL time — the `gp` literal is built further down, so a
+        value captured here would be None for the life of the process and
+        every UI click would silently no-op. Falls back to engine.audio's own
+        slot player until/unless that dispatcher exists."""
+        try:
+            sfx = gp.get("sfx")
+        except NameError:          # a click cannot precede `gp`; belt and braces
+            sfx = None
+        if sfx is not None:
+            sfx.play_slot(slot, bus)
+        else:
+            engine_audio.play_slot(slot, bus=bus)
+
+    ui_sound.set_sink(_ui_sound_sink)
+    # (`ui_sound.configure(ui_balance["Sounds"])` cannot happen here —
+    # `ui_balance` is not loaded yet at this point in boot; it is bound at the
+    # Shell construction below, which is where the slot table is handed over.)
+    # -- /SD-6 --
     # D5/UH-6: theme data, loaded + schema-validated once at boot, before the
     # Shell/screens are built (so every screen's FIRST submit already sees
     # it). A missing/invalid file fails LOUD (D-2 — this is data, not art;
@@ -837,14 +934,17 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # required data/ file goes through.
     fonts_doc = data_io.load_validated(
         data_dir / "ui" / "fonts.json", data_dir / "schemas" / "fonts.schema.json")
+    _flush_loading()
     palette_doc = data_io.load_validated(
         data_dir / "ui" / "palette.json",
         data_dir / "schemas" / "palette.schema.json")
+    _flush_loading()
     # Phase C: the global UI string table — same fail-loud D-2 load as
     # fonts/palette above (boot config data, not art; E-37 does not apply).
     strings_doc = data_io.load_validated(
         data_dir / "ui" / "strings.json",
         data_dir / "schemas" / "strings.schema.json")
+    _flush_loading()
     # UH-Font-A: the game-wide custom font family, ORTHOGONAL to the 7-preset
     # size/bold system above. "default" means today's SysFont behavior; any
     # other id must resolve to a data/fonts/font_manifest.json entry whose
@@ -854,9 +954,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     font_manifest_doc = data_io.load_validated(
         data_dir / "fonts" / "font_manifest.json",
         data_dir / "schemas" / "font_manifest.schema.json")
+    _flush_loading()
     active_font_doc = data_io.load_validated(
         data_dir / "ui" / "active_font.json",
         data_dir / "schemas" / "active_font.schema.json")
+    _flush_loading()
     active_font_id = active_font_doc["font_id"]
     font_path = None
     if active_font_id != "default":
@@ -891,10 +993,19 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # the shell's display mode) — see _build_render_stack below. Nothing
     # between here and there used either object before the move.
     map_bal = load_balance(data_dir, "map")
+    _flush_loading()
     buildings_balance = load_balance(data_dir, "buildings")
+    _flush_loading()
     enemies_balance = load_balance(data_dir, "enemies")
+    _flush_loading()
     ui_balance = load_balance(data_dir, "ui")
+    _flush_loading()
     vfx_balance = load_balance(data_dir, "vfx")  # ESV-3a: procedural VFX params
+    _flush_loading()
+    # SD-4: the sound dispatcher is built HERE, at BOOT — not in
+    # build_gameplay() — so menu/Settings clicks are audible before any run
+    # exists. It holds no run state and survives teardown_gameplay().
+    sounds = GameSounds(buildings_balance, map_bal)
     # feature: rebindable hotkeys — `ui.json`'s `Keybindings` group is the
     # DESIGNER-EDITABLE default for every rebindable action (indexed
     # directly, never `.get` — the schema requires the key, D-2, the
@@ -914,10 +1025,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     widgets.configure_highlights(vfx_balance)
     # TimelinePLAN T4: the sole source of unlock timing (game/core/levelup.py).
     progression_balance = load_balance(data_dir, "progression")
+    _flush_loading()
     # BossUpgradeTimelinePLAN BU-1: the boss upgrade catalog + milestone
     # timeline (game/core/boss_upgrades.py), threaded onto the Session beside
     # progression_balance.
     boss_upgrades_balance = load_balance(data_dir, "boss_upgrades")
+    _flush_loading()
     # BU-3 3.1: install the injected half of the ONE-TIME `stone_thrower_sync`
     # upgrade (#9). `game/core/boss_upgrades.py` may never import
     # `game.buildings`, so the building sweep arrives through this seam — and
@@ -981,6 +1094,26 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     shell = Shell(view_w, view_h, ui_balance, start_state=start,
                  skinning=skinning, debug_balance=core_balance["Debug"],
                  key_bindings=key_bindings)
+    # feature: loading screen — the post-"Start Game" loading screen shown
+    # while build_gameplay()'s checkpointed steps run (GameState.LOADING,
+    # below). Host-driven from `main.py`, like GAMEPLAY/GAME_OVER, rather
+    # than Shell-driven like the menu states, since driving it needs `assets`
+    # (the E-37 art-imported check) and the checkpoint queue only the host
+    # knows about — see `game/ui/CLAUDE.md`'s Shell + menus section.
+    loading_screen = LoadingScreen(view_w, view_h, skinning=skinning)
+    # -- SD-6: the UI slot table (SD-1's `ui.Sounds` subtree) + the persisted
+    # volumes. The document is a per-machine PREFERENCE, so it lives in the
+    # gitignored `settings/` dir at the repo root, not in `data/` (the
+    # `scores/highscores.json` precedent). Three values, three engine calls —
+    # `set_master_volume`/`set_bus_volume` already fan out to a live track. --
+    from game.core import audio_settings
+    ui_sound.configure(ui_balance["Sounds"])
+    audio_doc = audio_settings.load(audio_settings.default_path(REPO), data_dir)
+    audio_settings.apply_to_settings(audio_doc, shell.settings)
+    engine_audio.set_master_volume(audio_doc["master"])
+    engine_audio.set_bus_volume("music", audio_doc["music"])
+    engine_audio.set_bus_volume("sfx", audio_doc["sfx"])
+    # -- /SD-6 --
     shell.set_pool_count(len(buildings_balance["BuildingsGlobal"]["random_names"]))
     # player-identity: the run history lives in the gitignored `scores/` dir at
     # the repo root, NOT in `data/` — it is per-machine play history. Read once
@@ -990,6 +1123,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     hs_doc = highscores.load_highscores(scores_path, data_dir)
     shell.set_highscores(hs_doc)
     shell.prefill_identity(*highscores.last_player(hs_doc))
+    _flush_loading()
 
     # G4 (D6/D8): pick the frame target, and with it the render backend and the
     # ground cache — one stack, chosen once, falling back whole. `auto` tries
@@ -999,6 +1133,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     choice = backend if backend is not None else "auto"
     if choice == "auto" and max_frames is not None:
         choice = "surface"
+    _flush_loading()
+    loading_presenter.close()
     presenter, renderer, ground_cache, backend_log = _build_render_stack(
         choice, view_w, view_h, caption, shell.settings.display_mode, cs,
         assets)
@@ -1008,8 +1144,18 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     print(backend_log)
     clock = pygame.time.Clock()
 
-    if max_frames is None:  # windowed run only — headless tests stay silent/fast
-        play_music(data_dir / "audio" / "Bass_and_drum_Duo.wav", loop=True)
+    # -- SD-7: the hardcoded boot track is RETIRED. The same WAV is now the
+    # seeded clip of `core.Sounds.Music.default`, so a windowed boot still
+    # plays it — because the data resolves to it, not because a path is baked
+    # in here. `enabled` is the SAME windowed-only seam the old block used
+    # (`max_frames is None`), so a headless boot (tools/smoke.py) does zero
+    # mixer/filesystem work: every director entry point is a no-op. --
+    director = MusicDirector(core_balance, enabled=max_frames is None)
+    director.start_ambient()  # D6: ambient rides the sfx bus, under the music
+    # per-run audio deltas (SD-7 §1.3). A dict local to main() rather than gp
+    # keys: the round outcome and the level-up sting are host-side deltas, and
+    # `game/core` stays pygame-pure. Reset in build_gameplay().
+    run_audio = {"prev_village_level": None, "lives_at_wave_start": None}
 
     # A large map builds one Tile per cell (a 1024² map = ~1M long-lived
     # objects); the per-frame render/sim churn (RenderItems, DrawCalls, dying
@@ -1039,6 +1185,9 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
           # -- TU-5: active in-gameplay cutscene overlay, None when none playing --
           "cutscene": None,
           # -- TU-6: the guided-chain director + its Continue/Skip message box --
+          # -- SD-4: the sound dispatcher. Seeded with the BOOT-built object,
+          # never None, and deliberately NOT cleared by teardown_gameplay(). --
+          "sfx": sounds,
           "tutorial": None, "tutorial_message": None}
 
     # player-identity: the per-run latch that keeps the GAME_OVER transition
@@ -1046,129 +1195,202 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # Reset for each fresh run in `build_gameplay()`.
     score_recorded = False
 
-    def build_gameplay():
+    # feature: loading screen — the post-"Start Game" GameState.LOADING
+    # driver. `loading_queue` is the remaining `_build_gameplay_steps()`
+    # closures (None while not loading); `loading_elapsed` accumulates real
+    # frame `dt` (never `time.time()`) for the minimum-display gate.
+    loading_queue = None
+    loading_total = 0
+    loading_elapsed = 0.0
+    loading_min_seconds = ui_balance["LoadingScreen"]["min_display_seconds"]
+    # The click's own frame ARMS the queue but must not run a checkpoint —
+    # `_step_world` (the first one) builds the whole fresh TileMap and can
+    # itself take the better part of a second on a large map, and running it
+    # before the screen's first render would freeze the window for that long
+    # with nothing on screen yet. So the arming frame only renders (at 0%);
+    # the first real checkpoint starts the frame after.
+    loading_just_armed = False
+
+    def _build_gameplay_steps():
+        """The ordered checkpoints of a fresh run's construction, as zero-arg
+        closures — `build_gameplay()` below just runs every one of them in
+        order (unchanged, synchronous behavior for the headless autostart
+        seam and any other direct caller). `execute()`'s "new_game"/
+        "new_game_debug" intents instead run this list ONE STEP PER FRAME
+        while `GameState.LOADING` holds, each followed by a real
+        `loading_screen` frame (feature: loading screen) — real construction
+        checkpoints, not a faked/eased progress animation. Splitting the
+        original single-shot body at its natural sub-boundaries (world/
+        session, tutorial, recorder, the seven gameplay UI screens, the 10J/
+        ESV wiring, the closing camera/GC/audio/enter_gameplay group)."""
         nonlocal score_recorded
-        score_recorded = False
-        gp["world"] = _World(map_doc, map_bal, enemies_balance, core_balance,
-                             buildings_balance, registry, progression_balance,
-                             boss_upgrades_balance)
-        # Ground follows runtime zone changes: unlock/recede invalidates the
-        # cached ground surface (repainted next ensure). Fresh game -> fresh
-        # TileMap with empty overrides; invalidate drops the previous run's
-        # unlocked-tile visuals too.
-        gp["world"].tile_map.on_zone_change = ground_cache.invalidate
-        ground_cache.invalidate()
-        # 10L-B: every gameplay screen shares the shell's ScreenSkinning (the
-        # shell owns no world, so it cannot construct these itself).
-        gp["hud"] = Hud(view_w, view_h, skinning=shell.skinning,
-                        ui_balance=ui_balance)
-        gp["panel"] = BuildingUI(view_w, view_h, ui_balance,
-                                 skinning=shell.skinning)
-        # -- TU-6: the round-1 guided-chain director + its message box. Reads
-        # data/tutorial/tutorial.json + the map's tutorial_flute marker;
-        # auto-skips (never crashes) on an old/unpainted map. --
-        gp["tutorial"] = TutorialDirector(data_dir, map_doc,
-                                          core_balance["Tutorial"])
-        gp["tutorial_message"] = TutorialMessageScreen(
-            view_w, view_h, gp["tutorial"].skippable(), skinning=shell.skinning)
-        gp["world"].session.tutorial_gate = gp["tutorial"].allows_end_turn
-        gp["world"].session.tutorial_director = gp["tutorial"]  # TU-7
-        # -- TU-9: an ACTIVE tutorial run starts at round 0 (its own scripted
-        # round, always a single forced walker) so real enemy scaling begins
-        # at round 1 exactly where it always did. A `RunState` defaults to
-        # round 1 (`from_balance`), which is what an old/unpainted map (an
-        # auto-skipped, inactive director) and every bare-Session logic test
-        # keep — this is the ONE seed site, deliberately host-side rather
-        # than a `Session`/`RunState` default, so those stay untouched.
-        if gp["tutorial"].active:
-            gp["world"].session.state.round_num = 0
-        # -- /TU-6 --
-        # debug-mode-telemetry: bind the (optional) recorder to THIS run's
-        # RunState. `recorder` is the outer main()-scoped variable (closure
-        # read, never reassigned here) — None is the default and leaves
-        # session.debug at its own None default, byte-identical.
-        if recorder is not None:
-            gp["world"].session.debug = recorder
-            recorder.bind(gp["world"].session.state)
-            recorder.emit(
-                dbg.RUN_START, level=recorder.level, run_id=recorder.run_id,
-                map_id=map_doc.map_id, seed=None,
-                love=gp["world"].session.state.love,
-                lives=gp["world"].session.state.base_lives,
-                # player-identity: read off the RECORDER, never the shell, so
-                # the event can never disagree with the run id the four
-                # artifact filenames are stamped with.
-                player_name=recorder.player_name,
-                player_skill=recorder.player_skill)
-        gp["floaters"] = FloaterManager(ui_balance, core_balance, vfx_balance)
-        gp["game_over"] = GameOverScreen(view_w, view_h, skinning=shell.skinning)
-        gp["levelup"] = LevelupWindow(view_w, view_h, skinning=shell.skinning)
-        gp["boss_cutscene"] = BossCutscene(view_w, view_h,  # -- 10G boss --
-                                          core_balance,
-                                          skinning=shell.skinning,
-                                          # BU-4: the 3 upgrade cards' copy +
-                                          # magnitudes and this bossfight's
-                                          # milestone slots.
-                                          boss_upgrades_balance=(
-                                              boss_upgrades_balance))
-        # feature-enemy-intro-dialogue
-        gp["enemy_intro"] = EnemyIntroWindow(
-            view_w, view_h, core_balance["EnemyIntro"]["window"],
-            skinning=shell.skinning)
-        gp["cheat"] = CheatMenu(view_w, view_h, skinning=shell.skinning)  # 10H
-        # -- 10I: condition tint + RANGE/HEATMAP overlay toggles --
-        gp["overlays"] = MapOverlays(view_w, view_h, skinning=shell.skinning)
-        # The tint is a FALLBACK for conditions with no imported art (plus any
-        # slot whose entry opts back into it) — see `condition_art` above.
-        gp["overlays"].condition_art = condition_art
-        # -- /10I --
-        # -- 10J: game log + VFX wiring + a fresh multi-selection --
-        gp["game_log"] = GameLog(skinning=shell.skinning)
-        gp["sel"], gp["sel_cat"] = [], None
-        # drag-select: the HUD toggle's state lives HERE, not on the Hud, so
-        # the event loop can read it when it decides drag-select vs. camera pan.
-        gp["drag_select_enabled"] = False
-        gp["panel"].log = gp["game_log"]
-        gp["panel"].on_build_vfx = gp["floaters"].spawn_building_vfx
-        # The construct card's portrait asks the store whether a dedicated
-        # `card_portrait_*` slot has imported art before falling back to the
-        # building's own tier sprite (the `floaters.assets` precedent below;
-        # None-safe, so a bare BuildingUI in a test needs no store).
-        gp["panel"].assets = assets
-        # The HUD asks the store the same kind of question: whether the life
-        # icon slot really carries a `disabled` (dead) row, and how long its
-        # `pressed` (dying) row runs for. Pure manifest metadata, None-safe.
-        gp["hud"].assets = assets
-        # B1: the colour-capability map, published to the construct flow the
-        # same host-sets-an-attribute way `assets` above and
-        # `overlays.condition_art` are. B2 is what READS it (swatches in the
-        # construct-confirm modal, then `place_building(..., column=...)`), so
-        # on this branch it is deliberately published and not yet consumed.
-        gp["panel"].colour_columns = colour_columns
-        gp["floaters"].log = gp["game_log"]
-        # -- /10J --
-        # -- ESV-5/6: the handles _play/_anchored need to spawn a sprite
-        # one-shot and resolve a manifest anchor. A fresh FloaterManager and
-        # a fresh scene are built together right here every run, so these
-        # attributes cannot desync; `cs` is a single run-long instance built
-        # at module scope above, so it never desyncs either.
-        gp["floaters"].assets = assets
-        gp["floaters"].scene = gp["world"].scene
-        gp["floaters"].cs = cs
-        # -- /ESV-5/6 --
-        gp["prev_phase"] = gp["world"].session.state.phase
-        # BU-3 3.4 (#8 thorns): the standard BU-3 hook pair, spelled off the
-        # fresh run's Session exactly like every other hook site — but
-        # installed through a module-level seam, because its ONE hook site
-        # (`EnemyCombat.update`) is called by `Scene.update`'s generic
-        # component sweep, whose signature is `dt` alone. Same reason and same
-        # shape as `set_damage_hook`/`set_wall_damage_hook` beside it; see
-        # `game/enemies/components.py::set_boss_upgrade_pair`. Re-installed per
-        # run so it always points at the CURRENT RunState.
-        set_boss_upgrade_pair(gp["world"].session.state,
-                              gp["world"].session.boss_upgrades_balance)
-        frame_camera()  # re-centre on the startpoint / map for the fresh run
-        freeze_static()  # exclude the fresh tile grid from GC scans
+        def _step_world():
+            nonlocal score_recorded
+            score_recorded = False
+            gp["world"] = _World(
+                map_doc, map_bal, enemies_balance, core_balance,
+                buildings_balance, registry, progression_balance,
+                boss_upgrades_balance)
+            # Ground follows runtime zone changes: unlock/recede invalidates
+            # the cached ground surface (repainted next ensure). Fresh game ->
+            # fresh TileMap with empty overrides; invalidate drops the
+            # previous run's unlocked-tile visuals too.
+            gp["world"].tile_map.on_zone_change = ground_cache.invalidate
+            ground_cache.invalidate()
+            # 10L-B: every gameplay screen shares the shell's ScreenSkinning
+            # (the shell owns no world, so it cannot construct these itself).
+            gp["hud"] = Hud(view_w, view_h, skinning=shell.skinning,
+                            ui_balance=ui_balance)
+            gp["panel"] = BuildingUI(view_w, view_h, ui_balance,
+                                     skinning=shell.skinning)
+
+        def _step_tutorial_and_recorder():
+            # -- TU-6: the round-1 guided-chain director + its message box.
+            # Reads data/tutorial/tutorial.json + the map's tutorial_flute
+            # marker; auto-skips (never crashes) on an old/unpainted map. --
+            gp["tutorial"] = TutorialDirector(data_dir, map_doc,
+                                              core_balance["Tutorial"])
+            gp["tutorial_message"] = TutorialMessageScreen(
+                view_w, view_h, gp["tutorial"].skippable(),
+                skinning=shell.skinning)
+            gp["world"].session.tutorial_gate = gp["tutorial"].allows_end_turn
+            gp["world"].session.tutorial_director = gp["tutorial"]  # TU-7
+            # -- TU-9: an ACTIVE tutorial run starts at round 0 (its own
+            # scripted round, always a single forced walker) so real enemy
+            # scaling begins at round 1 exactly where it always did. A
+            # `RunState` defaults to round 1 (`from_balance`), which is what
+            # an old/unpainted map (an auto-skipped, inactive director) and
+            # every bare-Session logic test keep — this is the ONE seed site,
+            # deliberately host-side rather than a `Session`/`RunState`
+            # default, so those stay untouched.
+            if gp["tutorial"].active:
+                gp["world"].session.state.round_num = 0
+            # -- /TU-6 --
+            # debug-mode-telemetry: bind the (optional) recorder to THIS
+            # run's RunState. `recorder` is the outer main()-scoped variable
+            # (closure read, never reassigned here) — None is the default and
+            # leaves session.debug at its own None default, byte-identical.
+            if recorder is not None:
+                gp["world"].session.debug = recorder
+                recorder.bind(gp["world"].session.state)
+                recorder.emit(
+                    dbg.RUN_START, level=recorder.level, run_id=recorder.run_id,
+                    map_id=map_doc.map_id, seed=None,
+                    love=gp["world"].session.state.love,
+                    lives=gp["world"].session.state.base_lives,
+                    # player-identity: read off the RECORDER, never the
+                    # shell, so the event can never disagree with the run id
+                    # the four artifact filenames are stamped with.
+                    player_name=recorder.player_name,
+                    player_skill=recorder.player_skill)
+
+        def _step_gameplay_screens():
+            gp["floaters"] = FloaterManager(ui_balance, core_balance, vfx_balance)
+            gp["game_over"] = GameOverScreen(view_w, view_h, skinning=shell.skinning)
+            gp["levelup"] = LevelupWindow(view_w, view_h, skinning=shell.skinning)
+            gp["boss_cutscene"] = BossCutscene(view_w, view_h,  # -- 10G boss --
+                                              core_balance,
+                                              skinning=shell.skinning,
+                                              # BU-4: the 3 upgrade cards'
+                                              # copy + magnitudes and this
+                                              # bossfight's milestone slots.
+                                              boss_upgrades_balance=(
+                                                  boss_upgrades_balance))
+            # feature-enemy-intro-dialogue
+            gp["enemy_intro"] = EnemyIntroWindow(
+                view_w, view_h, core_balance["EnemyIntro"]["window"],
+                skinning=shell.skinning)
+            gp["cheat"] = CheatMenu(view_w, view_h, skinning=shell.skinning)  # 10H
+            # -- 10I: condition tint + RANGE/HEATMAP overlay toggles --
+            gp["overlays"] = MapOverlays(view_w, view_h, skinning=shell.skinning)
+            # The tint is a FALLBACK for conditions with no imported art
+            # (plus any slot whose entry opts back into it) — see
+            # `condition_art` above.
+            gp["overlays"].condition_art = condition_art
+            # -- /10I --
+
+        def _step_wiring():
+            # -- 10J: game log + VFX wiring + a fresh multi-selection --
+            gp["game_log"] = GameLog(skinning=shell.skinning)
+            gp["sel"], gp["sel_cat"] = [], None
+            # drag-select: the HUD toggle's state lives HERE, not on the Hud,
+            # so the event loop can read it when it decides drag-select vs.
+            # camera pan.
+            gp["drag_select_enabled"] = False
+            gp["panel"].log = gp["game_log"]
+            gp["panel"].on_build_vfx = gp["floaters"].spawn_building_vfx
+            gp["panel"].on_sound = gp["sfx"].play_building_event  # SD-4
+            # The construct card's portrait asks the store whether a
+            # dedicated `card_portrait_*` slot has imported art before
+            # falling back to the building's own tier sprite (the
+            # `floaters.assets` precedent below; None-safe, so a bare
+            # BuildingUI in a test needs no store).
+            gp["panel"].assets = assets
+            # The HUD asks the store the same kind of question: whether
+            # the life icon slot really carries a `disabled` (dead) row,
+            # and how long its `pressed` (dying) row runs for. Pure
+            # manifest metadata, None-safe.
+            gp["hud"].assets = assets
+            # B1: the colour-capability map, published to the construct flow
+            # the same host-sets-an-attribute way `assets` above and
+            # `overlays.condition_art` are. B2 is what READS it (swatches in
+            # the construct-confirm modal, then
+            # `place_building(..., column=...)`), so on this branch it is
+            # deliberately published and not yet consumed.
+            gp["panel"].colour_columns = colour_columns
+            gp["floaters"].log = gp["game_log"]
+            # -- /10J --
+            # -- ESV-5/6: the handles _play/_anchored need to spawn a sprite
+            # one-shot and resolve a manifest anchor. A fresh FloaterManager
+            # and a fresh scene are built together right here every run, so
+            # these attributes cannot desync; `cs` is a single run-long
+            # instance built at module scope above, so it never desyncs
+            # either.
+            gp["floaters"].assets = assets
+            gp["floaters"].scene = gp["world"].scene
+            gp["floaters"].cs = cs
+            # -- /ESV-5/6 --
+
+        def _step_finish():
+            gp["prev_phase"] = gp["world"].session.state.phase
+            # -- SD-7: the per-run audio deltas, seeded beside `prev_phase`
+            # (same edge-detection idiom, same per-run reset). --
+            run_audio["prev_village_level"] = gp["world"].session.state.village_level
+            run_audio["lives_at_wave_start"] = gp["world"].session.state.base_lives
+            # BU-3 3.4 (#8 thorns): the standard BU-3 hook pair, spelled off
+            # the fresh run's Session exactly like every other hook site —
+            # but installed through a module-level seam, because its ONE
+            # hook site (`EnemyCombat.update`) is called by `Scene.update`'s
+            # generic component sweep, whose signature is `dt` alone. Same
+            # reason and same shape as
+            # `set_damage_hook`/`set_wall_damage_hook` beside it; see
+            # `game/enemies/components.py::set_boss_upgrade_pair`.
+            # Re-installed per run so it always points at the CURRENT
+            # RunState.
+            set_boss_upgrade_pair(gp["world"].session.state,
+                                  gp["world"].session.boss_upgrades_balance)
+            frame_camera()  # re-centre on the startpoint / map for the fresh run
+            freeze_static()  # exclude the fresh tile grid from GC scans
+            director.play_game_event("game_start")  # SD-7
+            # feature: loading screen — `shell.enter_gameplay()` is NOT
+            # called here. The world is fully built after this step, but the
+            # LOADING-state frame-loop driver (below) is what flips
+            # `shell.state` to GAMEPLAY, and only once the minimum display
+            # duration has ALSO elapsed — calling it here would let the
+            # screen disappear the instant the (genuinely fast) construction
+            # finishes, before the player ever saw it.
+
+        return [_step_world, _step_tutorial_and_recorder,
+                _step_gameplay_screens, _step_wiring, _step_finish]
+
+    def build_gameplay():
+        """Run every checkpoint synchronously, in one shot — the pre-LOADING
+        behavior, kept verbatim for the headless autostart seam (below) and
+        any other direct caller. `shell.enter_gameplay()` is called here
+        (not inside `_step_finish`) because this path has no minimum-display
+        gate to wait on — it is meant to look instant."""
+        for step in _build_gameplay_steps():
+            step()
         shell.enter_gameplay()
 
     def teardown_gameplay():
@@ -1187,6 +1409,23 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         set_boss_upgrade_pair()
         if tune_gc:
             gc.unfreeze()  # let the old world's tile grid become collectable
+        # TU-5: quitting DURING a cutscene must hand its capture back — the
+        # players themselves outlive the run (one per registry id, built
+        # once at boot), and only `gp["cutscene"]` is per-run. `start()`
+        # re-opens from scratch next time either way, so this is about
+        # freeing the cv2 handle + stopping the track, not about rewinding.
+        if gp["cutscene"] is not None:
+            gp["cutscene"].release()
+        # -- SD-7: TU-5 above frees the PLAYER, but the director's music push
+        # is separate state and would still strand on a quit-to-menu: it
+        # would stay "in cutscene" for the rest of the process, silently
+        # no-opping the NEXT cutscene's push while still popping. Balance it
+        # here, after release(), mirroring the normal leave edge —
+        # idempotent, so a teardown outside a cutscene does nothing. --
+        director.leave_cutscene()
+        # SD-4: "sfx" is deliberately ABSENT from this tuple — the sound
+        # dispatcher has process lifetime and must survive teardown so the
+        # player returns to an audible main menu. Do not "complete" the list.
         for k in ("world", "hud", "panel", "floaters", "game_over", "levelup",
                   "boss_cutscene", "enemy_intro", "cheat", "overlays",
                   "game_log", "cutscene", "tutorial", "tutorial_message"):
@@ -1211,16 +1450,29 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                              outputs=shell.debug_settings.outputs,
                              player_name=name, player_skill=skill)
 
+    def _arm_loading():
+        """Feature: loading screen. Instead of building the run synchronously
+        in one call, queue its checkpoints and let the frame loop's
+        `GameState.LOADING` branch (below) run one per frame behind
+        `loading_screen`. Runs no checkpoint itself — this frame only flips
+        the state so the screen paints at 0% first; see `loading_just_armed`."""
+        nonlocal loading_queue, loading_total, loading_elapsed, loading_just_armed
+        loading_queue = _build_gameplay_steps()
+        loading_total = len(loading_queue)
+        loading_elapsed = 0.0
+        loading_just_armed = True
+        shell.state = GameState.LOADING
+
     def execute(intent):
         nonlocal running, recorder
         if intent == "new_game":
-            build_gameplay()
+            _arm_loading()
         elif intent == "new_game_debug":
             # debug-mode-telemetry: PLAY DEBUG. `recorder` is a plain main()
-            # local precisely so this can reassign it BEFORE build_gameplay()
-            # binds it to the fresh run's RunState and Session.
+            # local precisely so this can reassign it BEFORE the queued steps
+            # bind it to the fresh run's RunState and Session.
             recorder = _new_recorder()
-            build_gameplay()
+            _arm_loading()
         elif intent == "quit_to_menu":
             teardown_gameplay()  # shell already set state -> MAIN_MENU
         elif intent == "quit_app":
@@ -1230,6 +1482,15 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # SCALED window exactly as before, the GPU path moves its own
             # standalone window (set_fullscreen/set_windowed/borderless).
             presenter.set_display_mode(shell.settings.display_mode)
+        elif intent == "set_volume":
+            # SD-6: the settings screen already wrote the new level onto
+            # `shell.settings`; apply all three (cheap, and it keeps the buses
+            # and the persisted document in lockstep) and write them back.
+            engine_audio.set_master_volume(shell.settings.master_volume)
+            engine_audio.set_bus_volume("music", shell.settings.music_volume)
+            engine_audio.set_bus_volume("sfx", shell.settings.sfx_volume)
+            audio_settings.save(audio_settings.from_settings(shell.settings),
+                                audio_settings.default_path(REPO), data_dir)
         elif intent == "add_name_commit":
             name = shell.pending_name
             added = append_random_name(data_dir, name)
@@ -1493,6 +1754,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 gp["tutorial"].on_card_selected(panel.preview.building_type)
             elif panel.last_unlocked:
                 gp["tutorial"].on_tile_unlocked()
+                # SD-4: the coin and the ground, layered — ONE of each per
+                # successful purchase, however many 2x2 chunks it converted.
+                gp["sfx"].play_map_event("buy_plot")
+                gp["sfx"].play_map_event("tile_placement")
                 panel.last_unlocked = False
             elif was_visible and not panel.visible:
                 gp["tutorial"].on_panel_closed()
@@ -1644,6 +1909,9 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             gp["sel"], gp["sel_cat"] = [tile], cat
         panel.open_for_tile(gp["sel"][0], session, buildings_balance,
                             selected_tiles=gp["sel"])
+        occ = getattr(gp["sel"][0], "occupant", None)   # SD-4: selection sound
+        if occ is not None:
+            gp["sfx"].play_building_event("selection", occ)
     # -- /10J --
 
     # -- drag-select: one press-drag-release == the batch Shift+Click builds
@@ -1681,6 +1949,9 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         tutorial.on_tile_clicked(start_tile.col, start_tile.row)
         panel.open_for_tile(picked[0], session, buildings_balance,
                             selected_tiles=picked)
+        occ = getattr(picked[0], "occupant", None)      # SD-4: selection sound
+        if occ is not None:
+            gp["sfx"].play_building_event("selection", occ)
     # -- /drag-select --
 
     if autostart:
@@ -1751,6 +2022,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             if st == GameState.CUTSCENE:
                 # skip is now a 2s hold (left click/space/esc), polled
                 # continuously below — this branch only swallows input.
+                continue
+            if st == GameState.LOADING:
+                # feature: loading screen — nothing to click; the queued
+                # build steps run from the update phase below.
                 continue
             if shell.in_menu or st == GameState.PAUSED:
                 if event.type == pygame.KEYDOWN:
@@ -2041,12 +2316,45 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         # 2. simulate / update — per state
         _t_sim0 = time.perf_counter()
         st = shell.state
+        # -- SD-7: one music arbitration per frame. Repeats are absorbed by
+        # engine.audio.music (already-playing = no-op), so this never
+        # restarts the stream; PAUSED/GAME_OVER resolve to "hold". --
+        director.tick(st,
+                      (gp["world"].session.state.phase
+                       if gp["world"] is not None else None),
+                      gp["cutscene"] is not None)
         if st == GameState.CUTSCENE:
+            # SD-7: stack the (silent, at boot) previous track under the intro
+            # — idempotent, so this per-frame branch pushes exactly once.
+            director.enter_cutscene(cutscene_registry.get("intro"))
             intro_player.update(dt)
             intro_player.update_skip_hold(dt, skip_held)
             if intro_player.done:
                 intro_player.release()
+                director.leave_cutscene()  # SD-7: resume what was playing
                 shell.to_main_menu()
+        elif st == GameState.LOADING:
+            # feature: loading screen — run one queued `build_gameplay()`
+            # checkpoint per frame, then hold at 100% (once the queue
+            # drains) until the minimum display duration has elapsed on
+            # real accumulated `dt` — never `time.time()`. `shell.
+            # enter_gameplay()` (not run inside the queued steps themselves,
+            # see `_step_finish`'s docstring) fires only once BOTH gates
+            # pass, so the very next frame renders GAMEPLAY.
+            loading_elapsed += dt
+            if loading_just_armed:
+                # The frame that just clicked START runs NO checkpoint —
+                # `_step_world` alone can take the better part of a second on
+                # a large map, and running it before the screen's first
+                # render would freeze the window that long with nothing on
+                # screen yet. Render this frame at 0% instead; the first real
+                # checkpoint starts next frame.
+                loading_just_armed = False
+            elif loading_queue:
+                loading_queue.pop(0)()
+            if not loading_queue and loading_elapsed >= loading_min_seconds:
+                shell.enter_gameplay()
+                loading_queue = None
         elif st in _WORLD_STATES:
             world = gp["world"]
             session = world.session
@@ -2055,10 +2363,14 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # (the wave IS queued by Session.end_turn() before this fires —
             # the freeze just withholds it visually until skip/done). --
             if gp["cutscene"] is None and session.state.pending_cutscene:
-                requested = cutscenes.get(
-                    session.state.pending_cutscene.get("id"))
+                requested_id = session.state.pending_cutscene.get("id")
+                requested = cutscenes.get(requested_id)
                 session.state.pending_cutscene = None
                 if requested is not None and requested.enabled:
+                    # SD-7: push BEFORE start(), so the phase track is stacked
+                    # and the player's own companion audio wins the stream.
+                    director.enter_cutscene(
+                        cutscene_registry.get(requested_id))
                     requested.start()
                     gp["cutscene"] = requested
                     mouse_idle_t = 0.0  # skip prompt starts fully visible
@@ -2067,6 +2379,9 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 gp["cutscene"].update_skip_hold(dt, skip_held)
                 if gp["cutscene"].done:
                     gp["cutscene"].release()
+                    # SD-7: same edge as release() — including the SKIPPED
+                    # path, which reaches `done` through this same branch.
+                    director.leave_cutscene()
                     gp["cutscene"] = None
             if gp["cutscene"] is None:
                 # Combat speed (10F) scales the ENEMY-phase sim ONLY — spawner,
@@ -2218,6 +2533,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 if (session.state.phase == GamePhase.INCOME
                         and gp["prev_phase"] != GamePhase.INCOME):
                     gp["floaters"].begin_payout(session.state)
+                    gp["sfx"].payday(session.state, world.tile_map)  # SD-4
                     # -- N1: the season clock ---------------------------------
                     # payday already ran (it does round++ then flips to INCOME,
                     # game/core/payday.py:277-280), so THIS edge is the round
@@ -2241,6 +2557,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 if (session.state.phase == GamePhase.ENEMY
                         and gp["prev_phase"] != GamePhase.ENEMY):
                     gp["floaters"].clear_splatters()
+                    # -- SD-7: the wave actually spawns here. Snapshot lives
+                    # on the same edge — the ROUND_END edge below reads the
+                    # delta to tell round_win from round_loss. --
+                    director.play_game_event("round_start")
+                    run_audio["lives_at_wave_start"] = session.state.base_lives
                 # -- /10J --
                 # pre_sim rolled the cards when it entered LEVELUP; open on the edge
                 if (session.state.phase == GamePhase.LEVELUP
@@ -2270,6 +2591,24 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 gp["overlays"].track(session.state.phase, gp["prev_phase"],
                                      world.scene)
                 # -- /10I --
+                # -- SD-7: round outcome + level-up stings, both host-side
+                # deltas (game/core is pygame-pure, so the round machine
+                # cannot fire them itself — the hud.py lives-delta
+                # precedent). The FATAL breach never reaches ROUND_END
+                # (Session.on_base_hit sets GAME_OVER without _wipe_pending),
+                # so `game_over` below fires alone, never under a
+                # `round_loss`. --
+                if (session.state.phase == GamePhase.ROUND_END
+                        and gp["prev_phase"] != GamePhase.ROUND_END):
+                    director.play_game_event("round_" + round_outcome(
+                        run_audio["lives_at_wave_start"],
+                        session.state.base_lives))
+                if (run_audio["prev_village_level"] is not None
+                        and session.state.village_level
+                        > run_audio["prev_village_level"]):
+                    director.play_game_event("level_up")
+                run_audio["prev_village_level"] = session.state.village_level
+                # -- /SD-7 --
                 gp["prev_phase"] = session.state.phase
                 gp["floaters"].spawn_xp_events(session.state)
                 gp["floaters"].spawn_boss_events(session.state)  # 10G announcement
@@ -2277,6 +2616,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 if (st == GameState.GAMEPLAY
                         and session.state.state == GameState.GAME_OVER):
                     gp["cheat"].close()  # 10H: never hide the game-over screen
+                    # -- SD-7: the game-over sting, ALONE — an sfx one-shot
+                    # over the HELD combat track. No music call here: the
+                    # music bus holds through GAME_OVER and only changes when
+                    # the player returns to the menu. --
+                    director.play_game_event("game_over")
                     shell.enter_game_over()
                     # debug-mode-telemetry: write the reports as soon as THIS
                     # run ends, not just at process exit. close() is
@@ -2316,6 +2660,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 # deaths -> blood splatters, double-gated on gore) --
                 gp["floaters"].watch_buildings(world.scene, gp["game_log"])
                 gp["floaters"].watch_enemies(world.scene)
+                gp["sfx"].watch(world.scene)  # SD-4: death + attack sounds
                 gp["floaters"].spawn_death_events(session.state,
                                                   shell.settings.gore)
                 gp["floaters"].spawn_splash_impact_events(session.state)  # ESV-5
@@ -2357,6 +2702,14 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 presenter.blit_fullscreen(surf)
             _submit_cutscene_skip(renderer, view_w, view_h,
                                   intro_player.skip_progress, mouse_idle_t)
+            _t_flush_start = time.perf_counter()
+            flush_frame()
+        elif st == GameState.LOADING:
+            # feature: loading screen — same visuals as the pre-boot screen
+            # (`_submit_loading_frame`), through `loading_screen` instead.
+            progress = ((loading_total - len(loading_queue)) / loading_total
+                        if loading_total else 1.0)
+            loading_screen.submit(renderer, assets, view_w, view_h, progress)
             _t_flush_start = time.perf_counter()
             flush_frame()
         elif st in _WORLD_STATES or st == GameState.PAUSED:
@@ -2528,6 +2881,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # Drummer buff-range telegraph ring — always visible while a
             # Drummer is alive, same world-overlay slot as the mortar crater.
             gp["floaters"].submit_drummer_auras(renderer, cs, world.scene)
+            # The always-on boost aura behind every live booster
+            # (triggers_by_type.<building_type>.boost_aura). Unlike its
+            # neighbours here this submits depth-sorted world RenderItems, not
+            # overlay polys — it sits beside submit_drummer_auras because that
+            # is its nearest sibling in kind, not because order matters.
+            gp["floaters"].submit_boost_auras(renderer, cs, world.scene)
             gp["floaters"].submit_lightning(renderer, cs, world.scene)  # 10H
             # feature-storm-acolyte-multi-build: per-acolyte charge bars
             gp["floaters"].submit_lightning_charge_bars(

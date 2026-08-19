@@ -267,11 +267,16 @@ Conventions that differ from the prototype (deliberate, clean-arch):
     **`spawn_deco.py` is the ONE emitter**, on the **`deco`** layer (above
     `entities` — enemies walk partly behind the treeline) — and unlike
     condition art, it reads `tile.state` **live at emit time** rather than
-    caching a resolved slot: a tile only ever draws its tree while
-    CURRENTLY `SPAWNING`, so a SPAWNING→COMBAT conversion (spawn recede)
-    makes it stop being emitted the very next frame with **no
-    `set_tile_state` hook at all** — the roll itself is never touched by a
-    zone transition. `rng=None` or `registry=None` ⇒ every roll stays `-1`,
+    caching a resolved slot: a tile draws its tree while CURRENTLY `SPAWNING`
+    **or while it is a `BACKGROUND` tile carrying a painted
+    `spawnable_background` mark** (`Tile.spawn_reserved`, stamped O(marks) at
+    `TileMap.__init__` — the reserve wears its whole treeline up front instead
+    of growing in batch by batch, and a released tile is `SPAWNING`, so the
+    tree carries over unchanged). Every other `BACKGROUND` tile still draws
+    nothing until it joins the band. The live state read is what a
+    SPAWNING→COMBAT conversion (spawn recede) rides on: the tile stops being
+    emitted the very next frame with **no `set_tile_state` hook at all**, flag
+    or no flag — the roll itself is never touched by a zone transition. `rng=None` or `registry=None` ⇒ every roll stays `-1`,
     the same headless-fixture escape hatch condition art uses.
     `spawn_deco_render_items(..., column=None)` takes an **opaque** master-sheet
     column and copies it unread onto every item, exactly as `conditions.py`

@@ -39,14 +39,24 @@ class CutscenePlayer:
     ``first_end_turn``."""
 
     def __init__(self, data_dir, entry, target_size=None):
-        video_name = entry.get("video")
-        video_path = data_dir / "video" / video_name if video_name else ""
-        self._video = VideoSource(video_path, entry.get("length"),
-                                   target_size=target_size)
+        self._data_dir = data_dir
+        self._entry = entry
+        self._target_size = target_size
+        self._video = self._open_video()
         audio_name = entry.get("audio")
         self._audio_path = data_dir / "video" / audio_name if audio_name \
             else None
         self._skip_hold = 0.0
+
+    def _open_video(self):
+        """A FRESH ``VideoSource`` for this entry — built at construction and
+        again by ``start()`` whenever the previous one was consumed (see
+        there for why)."""
+        video_name = self._entry.get("video")
+        video_path = (self._data_dir / "video" / video_name
+                      if video_name else "")
+        return VideoSource(video_path, self._entry.get("length"),
+                           target_size=self._target_size)
 
     @property
     def enabled(self):
@@ -59,12 +69,34 @@ class CutscenePlayer:
         return self._video.done
 
     def start(self):
-        """Call once, when playback begins. Starts the companion track (if
-        any) via ``engine.audio.play_music(path, loop=False)`` — a no-op
+        """Call when playback begins — once per PLAYBACK, not once per
+        process. Starts the companion track (if any) via
+        ``engine.audio.play_music(path, loop=False)`` — a no-op
         under SDL dummy / no audio device (``engine/audio.py``'s
         exception-swallowing contract). NOTE: there is only ONE
         ``pygame.mixer.music`` channel, so this replaces whatever background
-        music was already playing; nothing restores it afterward."""
+        music was already playing — but it IS restored afterward now (SD-7):
+        the host stacks the current track with
+        ``MusicDirector.enter_cutscene()`` on the same edge that calls
+        ``start()``, and pops it back in ``leave_cutscene()`` beside
+        ``release()``. This class still owns only its own companion track.
+
+        REPLAY: a ``VideoSource`` is one-shot — ``release()`` frees the cv2
+        capture and ``done`` latches True — while the host builds ONE player
+        per registry id for the whole PROCESS (``game/main.py``'s
+        ``cutscenes`` dict). So a player that had already played stayed
+        permanently ``done``: quitting to the main menu and starting a NEW
+        run requested ``first_end_turn`` again, the host accepted it
+        (``enabled`` is still True), and it ended on the same frame without
+        showing a thing. Every playback therefore starts from a FRESH
+        source — unconditionally, not just when the previous one ran to
+        ``done``, since a run torn down mid-cutscene leaves a released
+        capture behind that is neither done nor readable — and resets the
+        hold-to-skip accumulator (a hold-skip leaves it past the
+        threshold, which would otherwise insta-skip the next playback)."""
+        self._video.release()   # idempotent; frees a half-played capture
+        self._video = self._open_video()
+        self._skip_hold = 0.0
         if self._audio_path is not None:
             play_music(self._audio_path, loop=False)
 

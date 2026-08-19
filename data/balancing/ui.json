@@ -69,8 +69,23 @@
     "zoom_level_2": "5",
     "zoom_level_3": "6"
   },
+  "LoadingScreen": {
+    "min_display_seconds": 0.8
+  },
   "Menu": {
     "cutscene_length": 44.2
+  },
+  "Sounds": {
+    "button_click": {
+      "clips": [],
+      "loop": false,
+      "pick": "random"
+    },
+    "not_enough_love": {
+      "clips": [],
+      "loop": false,
+      "pick": "random"
+    }
   },
   "Timing": {
     "confirm_on_right_side": true,

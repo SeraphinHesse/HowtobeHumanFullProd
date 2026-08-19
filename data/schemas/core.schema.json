@@ -100,6 +100,10 @@
           "minimum": 1,
           "type": "integer"
         },
+        "show_on_tutorial_round": {
+          "description": "Show this dialogue on the tutorial's own combat round (round 0) instead of the round above — the tutorial fight IS the first walkers, so its intro belongs there. A run that skipped the tutorial has no round 0, so it lands on the round above as normal. Either way it shows once, never twice.",
+          "type": "boolean"
+        },
         "sprite_flip_h": {
           "description": "Mirrors the sprite horizontally.",
           "type": "boolean"
@@ -127,6 +131,15 @@
           "enum": [
             "base_hole",
             "blocker",
+            "blocker_t1_lvl1",
+            "blocker_t1_lvl2",
+            "blocker_t1_lvl3",
+            "blocker_t2_lvl1",
+            "blocker_t2_lvl2",
+            "blocker_t2_lvl3",
+            "blocker_t3_lvl1",
+            "blocker_t3_lvl2",
+            "blocker_t3_lvl3",
             "boost_damage_t1_lvl1",
             "boost_damage_t1_lvl2",
             "boost_damage_t1_lvl3",
@@ -322,9 +335,13 @@
             "painter_t2_lvl1",
             "painter_t2_lvl2",
             "painter_t2_lvl3",
+            "painter_t2_lvl4",
             "painter_t3_lvl1",
             "painter_t3_lvl2",
             "painter_t3_lvl3",
+            "painter_t3_lvl4",
+            "painter_t3_lvl5",
+            "painter_t3_lvl6",
             "pistoleer_t3_lvl1",
             "pistoleer_t3_lvl2",
             "pistoleer_t3_lvl3",
@@ -394,6 +411,7 @@
             "tutorial_stone",
             "tutorial_stone_2",
             "tutorial_unlock",
+            "ui_bg_loading",
             "ui_bg_main_menu",
             "ui_button",
             "ui_button_card",
@@ -415,6 +433,7 @@
             "ui_icon_life",
             "ui_icon_lives",
             "ui_icon_love",
+            "ui_icon_love_v2",
             "ui_icon_xp",
             "ui_panel",
             "ui_panel_stone",
@@ -439,6 +458,33 @@
             "ui_panel_v9",
             "vfx_attack_range",
             "vfx_beam",
+            "vfx_boost_damage_aura",
+            "vfx_boost_damage_aura_v2",
+            "vfx_boost_damage_aura_v3",
+            "vfx_boost_damage_aura_v4",
+            "vfx_boost_damage_aura_v5",
+            "vfx_boost_damage_aura_v6",
+            "vfx_boost_damage_aura_v7",
+            "vfx_boost_damage_aura_v8",
+            "vfx_boost_damage_aura_v9",
+            "vfx_boost_hp_aura",
+            "vfx_boost_hp_aura_v2",
+            "vfx_boost_hp_aura_v3",
+            "vfx_boost_hp_aura_v4",
+            "vfx_boost_hp_aura_v5",
+            "vfx_boost_hp_aura_v6",
+            "vfx_boost_hp_aura_v7",
+            "vfx_boost_hp_aura_v8",
+            "vfx_boost_hp_aura_v9",
+            "vfx_boost_speed_aura",
+            "vfx_boost_speed_aura_v2",
+            "vfx_boost_speed_aura_v3",
+            "vfx_boost_speed_aura_v4",
+            "vfx_boost_speed_aura_v5",
+            "vfx_boost_speed_aura_v6",
+            "vfx_boost_speed_aura_v7",
+            "vfx_boost_speed_aura_v8",
+            "vfx_boost_speed_aura_v9",
             "vfx_buff_arrow",
             "vfx_crater",
             "vfx_death",
@@ -462,6 +508,15 @@
             "vfx_upgrade_batch",
             "vfx_wall_edge",
             "wall_builder",
+            "wall_builder_t1_lvl1",
+            "wall_builder_t1_lvl2",
+            "wall_builder_t1_lvl3",
+            "wall_builder_t2_lvl1",
+            "wall_builder_t2_lvl2",
+            "wall_builder_t2_lvl3",
+            "wall_builder_t3_lvl1",
+            "wall_builder_t3_lvl2",
+            "wall_builder_t3_lvl3",
             "wall_t1_lvl1",
             "wall_t1_lvl1_era1",
             "wall_t1_lvl1_era2",
@@ -544,6 +599,7 @@
         "enemy_label",
         "hidden_frames",
         "round",
+        "show_on_tutorial_round",
         "sprite_flip_h",
         "sprite_h",
         "sprite_offset_x",
@@ -553,6 +609,74 @@
         "title"
       ],
       "type": "object"
+    },
+    "sound_clip": {
+      "additionalProperties": false,
+      "description": "One audio clip in a sound slot's playlist: a file plus its volume and trim window.",
+      "properties": {
+        "end": {
+          "description": "Trim out-point in seconds. 0.0 is the SENTINEL for 'play to the end of the file' (never null -- a nullable/union node breaks the balancing panel). Bounded at 3600 s for the same reason as start.",
+          "maximum": 3600.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "file": {
+          "description": "Path relative to data/audio/ (e.g. 'imported/building_death_a.ogg'). Empty string = no clip.",
+          "type": "string"
+        },
+        "start": {
+          "description": "Trim in-point in seconds; 0.0 plays from the beginning. Bounded at 3600 s (one hour), a deliberate approved deviation from the 0-60 s convention, which was written for VFX timings -- music tracks run minutes.",
+          "maximum": 3600.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        "volume": {
+          "description": "Clip gain as a fraction 0..1, multiplied by the bus volume and the master volume.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "end",
+        "file",
+        "start",
+        "volume"
+      ],
+      "type": "object"
+    },
+    "sound_slot": {
+      "additionalProperties": false,
+      "description": "A sound event: zero or more clips plus how to play them. Empty clips on a global default means silence; empty clips on a per-element override means inherit the global default.",
+      "properties": {
+        "clips": {
+          "description": "The clips this event may play. Empty on a global default = silence; empty on a per-element override = inherit the global default.",
+          "items": {
+            "$ref": "#/$defs/sound_clip"
+          },
+          "minItems": 0,
+          "type": "array"
+        },
+        "loop": {
+          "description": "Repeat the chosen clip until stopped (music and ambience) rather than playing it once.",
+          "type": "boolean"
+        },
+        "pick": {
+          "description": "How the next clip is chosen when the slot holds more than one: 'random' picks any, 'sequential' cycles in order.",
+          "enum": [
+            "random",
+            "sequential"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "clips",
+        "loop",
+        "pick"
+      ],
+      "type": "object",
+      "x-widget": "sound_slot"
     }
   },
   "$id": "core.schema.json",
@@ -863,6 +987,105 @@
       ],
       "type": "object"
     },
+    "Sounds": {
+      "additionalProperties": false,
+      "description": "Global game audio: music tracks, ambience and one-shot game stings.",
+      "properties": {
+        "Ambient": {
+          "additionalProperties": false,
+          "description": "Looping ambience, played on the sfx bus.",
+          "properties": {
+            "default": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "The ambience loop that runs under play."
+            }
+          },
+          "required": [
+            "default"
+          ],
+          "type": "object"
+        },
+        "Game": {
+          "additionalProperties": false,
+          "description": "One-shot game-state stings, played on the sfx bus.",
+          "properties": {
+            "game_over": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Sting played on the game-over screen."
+            },
+            "game_start": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Sting played when a new game starts."
+            },
+            "level_up": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Sting played when the player levels up."
+            },
+            "round_loss": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Sting played when a round is lost."
+            },
+            "round_start": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Sting played when a round starts."
+            },
+            "round_win": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Sting played when a round is won."
+            }
+          },
+          "required": [
+            "game_over",
+            "game_start",
+            "level_up",
+            "round_loss",
+            "round_start",
+            "round_win"
+          ],
+          "type": "object"
+        },
+        "Music": {
+          "additionalProperties": false,
+          "description": "Looping music tracks, played on the music bus.",
+          "properties": {
+            "building_phase": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Music for the building phase (overrides default)."
+            },
+            "combat_phase": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Music for the combat phase (overrides default)."
+            },
+            "cutscene": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Music for cutscenes."
+            },
+            "default": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Fallback music track when no phase-specific track is set."
+            },
+            "menu": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Music for the main menu."
+            }
+          },
+          "required": [
+            "building_phase",
+            "combat_phase",
+            "cutscene",
+            "default",
+            "menu"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "Ambient",
+        "Game",
+        "Music"
+      ],
+      "type": "object"
+    },
     "TheHole": {
       "additionalProperties": false,
       "description": "The base ('the hole') being defended.",
@@ -1010,6 +1233,7 @@
     "LightningStrike",
     "PhaseLoop",
     "Seasons",
+    "Sounds",
     "TheHole",
     "Tutorial",
     "XP"

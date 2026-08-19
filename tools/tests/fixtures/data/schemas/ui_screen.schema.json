@@ -110,6 +110,10 @@
             "skin": {
               "type": "string"
             },
+            "sound": {
+              "description": "Optional per-button click sound: a clip path relative to data/audio/ (the same shape as a sound_slot clip's `file`). Absent or empty = this button plays ui.Sounds.button_click like every other. game/ui/skinning.py's generic setattr loop threads it onto the widget as `.sound`, and game/ui/sound.py wraps it as a one-clip slot on the sfx bus.",
+              "type": "string"
+            },
             "text_color": {
               "items": {
                 "maximum": 255,

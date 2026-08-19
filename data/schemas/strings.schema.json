@@ -56,6 +56,14 @@
       "description": "Action button caption for a tier advance. `name` is the next tier's display name (upper-cased by the call site), `cost` the love figure.",
       "type": "string"
     },
+    "building.action.invest": {
+      "description": "Action button caption for a single in-tier upgrade on a line that calls it an investment (the Painter, whose upgrade buys payout rather than visible painting). `cost` is the love figure.",
+      "type": "string"
+    },
+    "building.action.invest_many": {
+      "description": "Action button caption for a batched in-tier upgrade when every selected building calls it an investment. `n` is the building count, `cost` the summed love figure.",
+      "type": "string"
+    },
     "building.action.max_tier": {
       "description": "Action button caption at the last tier. No placeholders.",
       "type": "string"
@@ -581,11 +589,19 @@
       "type": "string"
     },
     "settings.master_audio": {
-      "description": "Settings label above the (inert) audio slider. No placeholders.",
+      "description": "Settings label for the MASTER volume row (SD-6) - it multiplies both the music and the sfx bus. No placeholders.",
+      "type": "string"
+    },
+    "settings.music_audio": {
+      "description": "Settings label for the MUSIC volume row (SD-6). No placeholders.",
       "type": "string"
     },
     "settings.no_audio": {
-      "description": "Settings note under the audio slider saying it is not wired yet. No placeholders.",
+      "description": "DEAD id since SD-6 wired the audio: the settings screen no longer draws this '(no audio yet)' note. Kept defined rather than deleted (removing it would mean editing the required list and four pinned copies for no benefit) - the same treatment hud.love_unaffordable already gets. No placeholders.",
+      "type": "string"
+    },
+    "settings.sfx_audio": {
+      "description": "Settings label for the SFX volume row (SD-6) - every non-music sound, ambient included. No placeholders.",
       "type": "string"
     },
     "settings.toggle.bg_art": {
@@ -631,6 +647,8 @@
     "boss_cutscene.prefix_loss",
     "boss_cutscene.prefix_win",
     "building.action.advance",
+    "building.action.invest",
+    "building.action.invest_many",
     "building.action.max_tier",
     "building.action.not_adjacent",
     "building.action.research",
@@ -763,7 +781,9 @@
     "levelup.tier_progress",
     "settings.display_mode",
     "settings.master_audio",
+    "settings.music_audio",
     "settings.no_audio",
+    "settings.sfx_audio",
     "settings.toggle.bg_art",
     "settings.toggle.gore",
     "settings.toggle.income_floaters",

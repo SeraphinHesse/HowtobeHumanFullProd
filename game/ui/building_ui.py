@@ -67,6 +67,7 @@ from game.map.tiles import (
 from engine.render.fonts import layout_h
 
 from .skinning import ScreenSkinning, button_kwargs, hit_layer, is_visible
+from . import sound  # SD-6: the not-enough-love refusal sound
 from .strings import T
 from .widgets import (
     Button, anim_ms, contains, label_holder, submit_label, submit_panel,
@@ -517,6 +518,23 @@ def _stat_label(key):
     return T(f"building.stat.{key}")
 
 
+def _action_upgrade_key(*buildings, many=False):
+    """The string id for the panel's IN-TIER upgrade button.
+
+    Each leaf declares its own verb via `Building.ACTION_UPGRADE_KEY` /
+    `ACTION_UPGRADE_MANY_KEY` (the Painter's INVEST is the only override
+    today). With several buildings, they must ALL agree — one button carries
+    one label, and a mixed selection has no single honest verb, so it falls
+    back to the shared default. `getattr` rather than a bare attribute read:
+    the base building and the construct-preview stand-ins are not always full
+    `Building`s."""
+    attr = "ACTION_UPGRADE_MANY_KEY" if many else "ACTION_UPGRADE_KEY"
+    default = ("building.action.upgrade_many" if many
+               else "building.action.upgrade")
+    keys = {getattr(b, attr, default) for b in buildings}
+    return keys.pop() if len(keys) == 1 else default
+
+
 def _tier_name(b):
     """The building's current-tier display name from balancing (e.g. "Cave
     Painter"), not the art-slot prefix — so tiers that reuse another line's art
@@ -715,7 +733,13 @@ class ConstructPreview:
         #   `data/ui/screen_defaults.json` needs no regeneration.
         # 12 is the UR-5 click-target floor exactly and the largest square the
         # 13px band holds (11 would fail the floor, 13 would hit the name box).
-        colors = (building_colors or {}).get(temp.slot_key(), ())
+        # Booster exclusion (feature: boost buildings never recolour): a
+        # booster (the "boost" tag, `game/buildings/boost.py` EXTRA_TAGS) is
+        # excluded from colour ENTIRELY, even on a colour-capable sheet — no
+        # swatch row is ever built for one, matching `registry.place_building`
+        # (`game/buildings/registry.py`)'s own "boost" tag guard on the roll.
+        colors = ((building_colors or {}).get(temp.slot_key(), ())
+                  if "boost" not in temp.tags else ())
         if len(colors) < 2:
             colors = ()
         self.swatches = ColorSwatchRow(
@@ -1185,7 +1209,14 @@ class BuildingUI:
             (self.panel_x + 7 + self.panel_w - 32 + 3, 20, 14, 15),
             T("building.btn.dice"), "md")
         self.log = None               # GameLog, wired by the host
-        self.on_build_vfx = None      # (col, row, kind) -> None, wired by host
+        # (col, row, kind, building) -> None, wired by the host. The 4th
+        # arg is the building the celebration is FOR — the vfx sheet is cut
+        # in its colour column.
+        self.on_build_vfx = None
+        # SD-4: (kind, building) -> None, wired by the host to the game's sound
+        # dispatcher. The panel never imports game.sounds and knows nothing
+        # about buses or slots — it only names the EVENT that just succeeded.
+        self.on_sound = None
         # -- /10J --
         self.close_btn = Button(
             (self.panel_x + self.panel_w - 18, 4, _CLOSE_W, _CLOSE_H),
@@ -2360,7 +2391,11 @@ class BuildingUI:
             if upgrade_targets:
                 cost = sum(c for _, c in upgrade_targets)
                 mode = "in_tier"
-                label = T("building.action.upgrade_many",
+                # A batch reads INVEST ×n only when EVERY selected building
+                # names its upgrade that way; any mixed selection falls back to
+                # the shared default, since one label has to cover them all.
+                label = T(_action_upgrade_key(
+                              *(b for b, _ in upgrade_targets), many=True),
                           n=len(upgrade_targets), cost=cost)
                 hint = None
             else:
@@ -2494,6 +2529,12 @@ class BuildingUI:
         b = self._selected
         if b is None or len(self.selected_tiles) != 1:
             return
+        # Booster exclusion (feature: boost buildings never recolour) — the
+        # SAME "boost" tag guard `ConstructPreview` and `registry
+        # .place_building` apply; a booster's row stays inert regardless of
+        # what its sheet declares.
+        if "boost" in b.tags:
+            return
         # The LIVE animator's slot key, not `b.slot_key()`: it is the key the
         # host's map is built on (`registry.place_building` stamps the column
         # off `anim.slot_key`), and `get_component` is None on the base
@@ -2546,7 +2587,12 @@ class BuildingUI:
             self._session.progression_balance,
             self._session.boss_upgrades_balance)  # BU-3 #2 wall_cost_discount
         if mode == "in_tier":
-            return mode, cost, T("building.action.upgrade", cost=cost), None
+            # The verb is the BUILDING's to name: a Painter's upgrade buys
+            # payout rather than visible painting, so it reads INVEST. A class
+            # attribute on the leaf (`Building.ACTION_UPGRADE_KEY`) rather than
+            # a `building_type ==` branch here, so `game/ui` stays free of the
+            # per-line vocabulary (G-3).
+            return mode, cost, T(_action_upgrade_key(b), cost=cost), None
         if mode == "tier_upgrade":
             return mode, cost, T("building.action.advance",
                                  name=next_name.upper(), cost=cost), None
@@ -2807,6 +2853,7 @@ class BuildingUI:
             elif st.love < cost:
                 self.action_btn.start_flash(self._flash_dur,
                                         T("building.flash.not_enough_love"))
+                sound.play_not_enough_love()
             else:
                 unlocked_any = False
                 for tile, chunk_cost in chunks:
@@ -2874,6 +2921,7 @@ class BuildingUI:
                     flash_on.start_flash(
                         self._flash_dur,
                         T("building.flash.not_enough_love"))
+                    sound.play_not_enough_love()
                 else:
                     self.preview = ConstructPreview(
                         btype, cost, buildings_balance, self._ui_balance,
@@ -2961,6 +3009,7 @@ class BuildingUI:
                 if st.love < total:
                     self.action_btn.start_flash(self._flash_dur,
                                                 T("building.flash.not_enough_love"))
+                    sound.play_not_enough_love()
                     return True
                 st.spend_love(total)
                 for tb, _c in upgrade_targets:
@@ -2969,7 +3018,8 @@ class BuildingUI:
                     if self.on_build_vfx is not None:
                         lvl = tb.get_component(TierState).current_level_in_tier
                         self.on_build_vfx(tb.col, tb.row,
-                                          "level1" if lvl == 2 else "level2")
+                                          "level1" if lvl == 2 else "level2",
+                                          tb)
             elif advance_targets:
                 # Stage B: every selected building already at level 3 —
                 # advance whichever can reach their next tier now, one
@@ -2995,7 +3045,7 @@ class BuildingUI:
                             tier=tb.get_component(TierState).current_tier,
                             cost=c)
                     if self.on_build_vfx is not None:
-                        self.on_build_vfx(tb.col, tb.row, "tier")
+                        self.on_build_vfx(tb.col, tb.row, "tier", tb)
             elif mode not in ("in_tier", "tier_upgrade"):
                 return True  # max / not researched / round-gated: inert
             elif mode == "tier_upgrade":
@@ -3004,6 +3054,7 @@ class BuildingUI:
                 if st.love < cost:
                     self.action_btn.start_flash(self._flash_dur,
                                                 T("building.flash.not_enough_love"))
+                    sound.play_not_enough_love()
                     return True
                 st.spend_love(cost)
                 b.advance_tier()
@@ -3016,7 +3067,7 @@ class BuildingUI:
                         tier=b.get_component(TierState).current_tier,
                         cost=cost)
                 if self.on_build_vfx is not None:
-                    self.on_build_vfx(b.col, b.row, "tier")
+                    self.on_build_vfx(b.col, b.row, "tier", b)
             else:
                 # Single-selection in-tier upgrade (a multi-select is
                 # handled by `upgrade_targets` above; `_batch_upgrade_targets`
@@ -3026,6 +3077,7 @@ class BuildingUI:
                 if st.love < total:
                     self.action_btn.start_flash(self._flash_dur,
                                                 T("building.flash.not_enough_love"))
+                    sound.play_not_enough_love()
                     return True
                 st.spend_love(total)
                 for tb, _c in targets:
@@ -3034,7 +3086,14 @@ class BuildingUI:
                     if self.on_build_vfx is not None:
                         lvl = tb.get_component(TierState).current_level_in_tier
                         self.on_build_vfx(tb.col, tb.row,
-                                          "level1" if lvl == 2 else "level2")
+                                          "level1" if lvl == 2 else "level2",
+                                          tb)
+            # SD-4: ONE upgrade sound per successful click. All four success
+            # branches above (batch level-up, batch advance, single advance,
+            # single level-up) fall through to here; every failure path (not
+            # enough love -> flash, inert mode) already returned.
+            if self.on_sound is not None:
+                self.on_sound("upgrade", b)
             self._build_upgrade()
             if len(self.selected_tiles) == 1:
                 self._set_range_highlight(b, session.tilemap)
@@ -3067,6 +3126,7 @@ class BuildingUI:
         if st.love < p.cost:
             p.confirm_btn.start_flash(self._flash_dur,
                                         T("building.flash.not_enough_love"))
+            sound.play_not_enough_love()
             return
         try:
             cost, rounds = start_move(
@@ -3103,6 +3163,7 @@ class BuildingUI:
         if st.love < p.total_cost:
             p.confirm_btn.start_flash(self._flash_dur,
                                         T("building.flash.not_enough_love"))
+            sound.play_not_enough_love()
             return
         placed_any = False
         painter_blocked = True  # stays True only if EVERY tile hit the bar
@@ -3144,13 +3205,25 @@ class BuildingUI:
             if i == 0:
                 building.set_name(p.chosen_name)
             if self.on_build_vfx is not None:  # 10J: sparks + gold highlight
-                self.on_build_vfx(tile.col, tile.row, "place")
+                # 4th arg: the building just placed — the vfx sheet is cut
+                # in ITS colour column, not the entry's stored one.
+                self.on_build_vfx(tile.col, tile.row, "place", building)
         if not placed_any:
             msg = (T("building.flash.painter_tile_used") if painter_blocked
                    else T("building.flash.not_enough_love"))
             p.confirm_btn.start_flash(self._flash_dur, msg)
+            # SD-6: only the not-enough-love BRANCH is that sound; the
+            # painter-tile-used refusal is a different message.
+            if not painter_blocked:
+                sound.play_not_enough_love()
             return
         self.last_placed_type = p.building_type  # TU-6: signal a real placement
+        # SD-4: ONE placement sound per confirm, not one per tile of a batch.
+        # `building` is the last successfully placed one (a PlacementError
+        # never rebinds it); every tile of a batch shares `p.building_type`,
+        # so any of them names the same family.
+        if self.on_sound is not None:
+            self.on_sound("placement", building)
         self.preview = None
         selection = list(self.selected_tiles)  # keep the batch selected
         self.open_for_tile(self.tile, session, buildings_balance,

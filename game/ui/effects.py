@@ -146,7 +146,7 @@ from dataclasses import dataclass   # VA-2: the resolved TriggerRow
 
 from engine.core import Health, SpriteAnimator
 from engine.render import (
-    HudLines, HudRect, HudSprite, block_center_offset, fit_factor,
+    HudLines, HudRect, HudSprite, RenderItem, block_center_offset, fit_factor,
 )
 from game.anchors import anchor_world_point
 from engine.render.fonts import layout_h
@@ -278,6 +278,27 @@ _DIGGER_DIRECTION_COLOR = (255, 205, 60)       # placeholder gold-yellow
 # projectile dot fallback (colour/size/lift, procedural.projectile) is now
 # there too — see the fix-anchor-offset-and-bullet-sprites brief's Fix 2.
 # -- /10J --
+
+
+def _source_column(source):
+    """``source``'s LIVE master column (its colour), or None.
+
+    Colour IS ``SpriteAnimator.column`` (MasterSheetColumnsPLAN B1), stamped
+    at placement and carried through every upgrade — so the object that
+    spawns a vfx already knows the column that vfx should be cut at. The
+    ``-1`` "no driver" sentinel, a source without an animator, and no source
+    at all all answer None, which leaves the manifest entry's stored column
+    in charge (D3)."""
+    if source is None:
+        return None
+    getter = getattr(source, "get_component", None)
+    if getter is None:
+        return None
+    animator = getter(SpriteAnimator)
+    if animator is None:
+        return None
+    column = getattr(animator, "column", -1)
+    return column if isinstance(column, int) and column >= 0 else None
 
 
 def _color(c):
@@ -459,6 +480,52 @@ def _triggers_from_balance(vfx):
     }
 
 
+def _triggers_by_type_from_balance(vfx):
+    """Turn ``vfx.json``'s top-level ``triggers_by_type`` object into a plain
+    ``{type_key: {event: TriggerRow}}`` dict — the per-TYPE twin of
+    ``_triggers_from_balance`` above, and the ONE place the open table's key
+    names are read.
+
+    ``.get`` rather than ``[...]``: every bare-constructed ``FloaterManager``
+    in the test suite hands this a hand-pinned balance dict, and a table that
+    predates the key must degrade to "no per-type rows" rather than raise —
+    the same degrade-never-raise contract ``self.assets is None`` keeps for
+    the sprite branch of ``_play``."""
+    return {
+        type_key: {
+            event: TriggerRow(
+                sprite_slot=row["sprite_slot"],
+                procedural=row["procedural"],
+                variant_mode=row["variant_select"]["mode"],
+                misc_key=row["variant_select"]["misc_key"],
+                draw_in_front=row["draw_in_front"],
+            )
+            for event, row in events.items()
+        }
+        for type_key, events in vfx.get("triggers_by_type", {}).items()
+    }
+
+
+def _aura_phase_ms(col, row, total_ms):
+    """A stable per-TILE animation phase offset, in ms, inside a track of
+    ``total_ms``.
+
+    So a cluster of boosters does not pulse in lockstep. Derived from the tile
+    coordinates and NEVER from ``self._rng``: that handle is the shared global
+    ``random`` stream, and drawing from it once per booster per FRAME would
+    desync every downstream roll — the same argument
+    ``vfx_variants.resolve``'s <2-variant short-circuit makes. A tile
+    derivation also needs no per-building state, survives save/load, and is
+    identical on every machine.
+
+    Two knock-on effects, both harmless: a booster MOVED by Building Movement
+    re-phases (its sprite is absent for the whole move anyway), and two
+    boosters can never share a tile, so no two auras can collide on a phase.
+    """
+    total = max(1, int(total_ms))
+    return ((col * 73856093) ^ (row * 19349663)) % total
+
+
 def _polygon_ring(cx, cy, r, segments):
     """A regular ``segments``-gon of radius ``r`` in WORLD units, centred at
     ``(cx, cy)``, starting at the top and stepping clockwise — the same shape
@@ -600,6 +667,15 @@ class FloaterManager:
         # bare-constructed FloaterManager in the existing test suite keeps
         # working unchanged.
         self._triggers = _triggers_from_balance(vfx_balance)
+        # The OPEN per-type table beside the closed global one. Nothing
+        # dispatches off it automatically — `submit_boost_auras` names the
+        # (building_type, "boost_aura") pairs it reads.
+        self._triggers_by_type = _triggers_by_type_from_balance(vfx_balance)
+        # A monotonic ms clock for the continuous boost auras, the
+        # `_beam_clock_ms` shape: it never resets, because
+        # Manifest.current_frame wraps modulo the track total, so a
+        # forever-growing anim_time_ms is exactly what loops an idle track.
+        self._aura_clock_ms = 0.0
         self.assets = None   # AssetStore, wired by the host
         self.scene = None    # Scene, wired by the host
         self.cs = None       # CoordinateSystem, wired by the host (ESV-6)
@@ -739,8 +815,14 @@ class FloaterManager:
         ``place``/``level``/``tier`` use — until a designer imports art into
         ``vfx_respawn``.
         """
-        for col, row, tier in state.building_respawn_events:
+        for event in state.building_respawn_events:
+            col, row, tier = event[:3]
+            # The reviving building's own colour column, when the ledger
+            # carries one (a pre-colour ledger row, and every hand-built test
+            # triple, is 3 long -> None -> the manifest's stored column wins).
+            column = event[3] if len(event) > 3 else None
             self._play("building_respawn", col + 0.5, row + 0.5, level=tier,
+                       column=column,
                        preset=self._spark_presets.get(
                            "respawn", self._spark_presets["place"]))
         state.building_respawn_events.clear()
@@ -752,7 +834,7 @@ class FloaterManager:
     _SPARK_KINDS = ("spark_place", "spark_level", "spark_tier",
                     "spark_respawn")
 
-    def _play(self, event, wx, wy, source=None, level=None, **kw):
+    def _play(self, event, wx, wy, source=None, level=None, column=None, **kw):
         """Consult the trigger table: a bound sprite slot with art spawns a
         PlayOnceVfx; otherwise the named procedural kind runs; an empty row
         (or an event absent from the table) is a silent no-op (E-37). ``**kw``
@@ -768,6 +850,17 @@ class FloaterManager:
         Only ``watch_buildings``/``watch_enemies`` pass it; the other five
         events carry a bare world point, so level mode resolves to variant 0
         there (D4).
+
+        ``column`` is the LIVE master column to cut the sprite at — the
+        SPAWNING object's colour, so a vfx sheet whose columns are the
+        building colours plays in the colour of the building it came from
+        (MasterSheetColumnsPLAN: colour IS ``SpriteAnimator.column``). Given
+        explicitly by a call site that holds the column without the object
+        (the respawn ledger); otherwise read off ``source``. ``None`` — the
+        answer for every event that carries a bare world point — leaves the
+        manifest entry's own stored column in charge (D3), so nothing that
+        predates this changed. Named, never part of ``**kw``, for the same
+        reason ``source`` is: ``**kw`` goes verbatim to an emitter call.
         """
         row = self._triggers.get(event, _NO_TRIGGER)
         if row.sprite_slot and self.assets is not None and self.scene is not None:
@@ -781,7 +874,10 @@ class FloaterManager:
                 getattr(self.assets, "registry", None), row.sprite_slot,
                 row.variant_mode, row.misc_key, rng=self._rng, source=source,
                 level=level)
-            vfx = spawn_play_once(self.scene, self.assets, slot, wx, wy)
+            if column is None:
+                column = _source_column(source)
+            vfx = spawn_play_once(self.scene, self.assets, slot, wx, wy,
+                                  column=column)
             if vfx is not None:
                 return
         self._run_procedural(row.procedural, wx, wy, **kw)
@@ -823,19 +919,27 @@ class FloaterManager:
 
     # -- /ESV-6 ---------------------------------------------------------------
 
-    def spawn_building_vfx(self, col, row, kind):
+    def spawn_building_vfx(self, col, row, kind, source=None):
         """Placement/upgrade celebration (prototype ``spawn_building_vfx``,
         game.py:619-626): always a spark burst; ``place``/``tier`` add the
         gold tile highlight. ``kind`` in place / level1 / level2 / tier.
         ESV-5: routed through the trigger table — ``place``/``tier`` map 1:1
         to their own event, ``level1``/``level2`` collapse to the single
         ``building_level_up`` event (they differ only by PRESET, not by
-        effect identity; the preset lookup below is unchanged either way)."""
+        effect identity; the preset lookup below is unchanged either way).
+
+        ``source`` is the building the celebration is FOR, when the call site
+        has one (every one of them does — the panel holds the object it just
+        placed or upgraded). Only its COLOUR is read from it: these three
+        events keep resolving their variant at index 0 (D4), so the object is
+        deliberately NOT passed on as ``source=`` — a `building_placed` sheet
+        cut in the building's colour is the ask, a silent switch of variant
+        mode is not."""
         preset = self._spark_presets.get(kind, self._spark_presets["place"])
         wx, wy = col + 0.5, row + 0.5
         event = {"place": "building_placed",
                  "tier": "building_tier_up"}.get(kind, "building_level_up")
-        self._play(event, wx, wy, preset=preset)
+        self._play(event, wx, wy, column=_source_column(source), preset=preset)
         if kind in ("place", "tier"):
             self._vfx.emit_gold(col, row)
 
@@ -1008,6 +1112,8 @@ class FloaterManager:
         self._vfx.update(dt)  # -- 10J: particles / gold / slashes --
         # vfx-projectile-spritesheets: the beam's has-art HudSprite anim clock.
         self._beam_clock_ms += dt * 1000.0
+        # The boost auras' looping anim clock (submit_boost_auras).
+        self._aura_clock_ms += dt * 1000.0
         # -- Payout-phase sequencing: release the next queued beat once the
         # stagger pause elapses.
         if self._payout_queue:
@@ -1204,6 +1310,16 @@ class FloaterManager:
         clamp to ``len(colors) - 1`` is geometry (the ramp is a fixed 3-stop
         shape), not itself a tunable. Draws no random numbers.
 
+        **The owning building must be checked for ``alive`` too, not just the
+        target (fix: lingering beam after Sun Scorcher destroyed).**
+        ``_update_defender`` (``game/enemies/combat.py``) bails out before
+        ``_update_beam`` runs at all once the defender itself is dead, so a
+        killed Sun Scorcher's ``BeamAttacker._target`` is never cleared — it
+        stays frozen on whatever it last locked. Dead buildings are not
+        despawned (they revive at payday) and keep their ``"combat"`` tag, so
+        without this guard the beam kept drawing from the destroyed
+        building's tile for as long as its last target stayed alive.
+
         vfx-projectile-spritesheets: a designer-imported ``vfx_beam`` sheet
         REPLACES the line with a looping ``HudSprite`` at the target's screen
         point — the same has-art signal ``submit_projectiles`` already uses
@@ -1222,6 +1338,8 @@ class FloaterManager:
         for b in scene.by_tag("combat"):
             beam = b.get_component(BeamAttacker)
             if beam is None:
+                continue
+            if not getattr(b, "alive", True):
                 continue
             target = getattr(beam, "_target", None)
             if target is None or not getattr(target, "alive", False):
@@ -1299,6 +1417,73 @@ class FloaterManager:
             pts = _polygon_ring(wx + 0.5, wy + 0.5, aura.support_range,
                                 dp.segments)
             renderer.submit_overlay_polys(pts, dp.color + (alpha,))
+
+    def submit_boost_auras(self, renderer, cs, scene):
+        """The always-on aura behind every live boost building, bound by
+        ``triggers_by_type.<building_type>.boost_aura``.
+
+        CONTINUOUS, so it deliberately does NOT go through ``_play``:
+        ``PlayOnceVfx``'s despawn clock would respawn the object every frame
+        (the VA-5 tile-highlight / ``triggers.projectile`` reasoning). Like
+        ``submit_highlight`` it re-submits a plain ``RenderItem`` on the
+        depth-sorted world layer each frame, and like ``submit_drummer_auras``
+        above it walks the scene for live entities rather than being pushed a
+        list of tiles.
+
+        Four gates, in order, each a ``continue`` and never a raise:
+
+        1. **No row / no slot** — a boost line a designer has not authored.
+        2. **Hidden building** — ``BuildingSprite.hidden``, the SHARED
+           predicate the sprite's own ``render_items`` early-returns on, so
+           the aura cannot drift from the thing it sits behind (dead, and the
+           placement ``reveal_delay``; kidnapped buildings are the dead case).
+        3. **No art on the RESOLVED variant** — the usual
+           ``animation_total_ms(slot, "idle") is not None`` probe (E-37), and
+           deliberately on the resolved slot rather than the family stem:
+           ``variant_select.mode "level"`` means variant N is the booster's
+           GLOBAL level N, and a level whose art is not imported yet draws
+           NOTHING rather than falling back to a lower level's sheet. That is
+           the user's explicit call — a half-imported family should look
+           half-imported, not silently reuse level 1 art at level 9.
+        4. **``draw_in_front``** — false on every shipped row, so
+           ``rank = -1`` puts the aura BEHIND the booster sharing its tile
+           (the same mapping ``submit_highlight`` makes).
+
+        ``fit_tiles`` is deliberately left at its 0 default even though the
+        art is cut 192x96 to cover a 3x3 block: with ``fit_tiles == 0`` the
+        renderer blits the frame centred on the tile diamond's centre, and a
+        3x3 iso block's bounding diamond is exactly 192x96 about that same
+        centre — so the coverage lands with no offset at all. Setting
+        ``fit_tiles=3`` would instead trigger ``block_center_offset`` and
+        shift the blit by a tile, because the aura is addressed by its CENTRE
+        tile, not a block min-corner.
+
+        ``b.building_type`` is the only boost-type STRING spoken here, and it
+        is spoken in ``game/`` — never in ``engine/vfx/`` (D5)."""
+        from game.buildings.components import BuildingSprite
+
+        if self.assets is None or not self._triggers_by_type:
+            return
+        registry = getattr(self.assets, "registry", None)
+        for b in scene.by_tag("boost"):
+            row = self._triggers_by_type.get(
+                b.building_type, {}).get("boost_aura")
+            if row is None or not row.sprite_slot:
+                continue
+            sprite = b.get_component(BuildingSprite)
+            if sprite is None or sprite.hidden:
+                continue
+            slot = vfx_variants.resolve(
+                registry, row.sprite_slot, row.variant_mode, row.misc_key,
+                rng=self._rng, source=b)
+            total = self.assets.animation_total_ms(slot, "idle")
+            if total is None:
+                continue
+            phase = _aura_phase_ms(b.col, b.row, total)
+            renderer.submit(RenderItem(
+                slot, (b.col, b.row), animation="idle",
+                anim_time_ms=int(self._aura_clock_ms + phase),
+                rank=1 if row.draw_in_front else -1))
 
     # -- 10H: lightning + cheat menu ---------------------------------------
 

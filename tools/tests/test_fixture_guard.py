@@ -29,6 +29,14 @@ ALLOWED = {
                               "the real imported/main_menu_bg.png binary the "
                               "ui_bg_main_menu entry shares, not in the JSON fixture",
     "test_balancing_data.py": "validates the live schema/content pairs (D-12)",
+    "test_audio_sfx.py": "resolves the real data/audio root to exercise the "
+                          "clip-loading path — the audio tree is the subject, "
+                          "and the JSON fixture stubs media to zero bytes",
+    "test_sound_slots_data.py": "asserts the SHAPE of all 127 live sound slots "
+                                 "(SD-1) — deliberately not their authored "
+                                 "content, so designer clip imports do not "
+                                 "redden it; same live-data subject as "
+                                 "test_balancing_data.py",
     "test_boss_upgrades.py": "ONE class (TestShippedContent) pins the D1/D2/D3 "
                              "authoring invariants JSON Schema cannot express "
                              "on the LIVE boss_upgrades.json — same live-data "

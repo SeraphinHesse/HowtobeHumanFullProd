@@ -396,8 +396,28 @@ class Session:
         # another via Session.resolve_enemy_intro()). No match (the common
         # case, and always true on a fresh EnemyIntro.entries: []) leaves this
         # byte-identical to before the feature existed.
-        matches = [e for e in self.core_balance["EnemyIntro"]["entries"]
-                   if e["round"] == st.round_num]
+        #
+        # TU-9 pairing: an entry that ticks `show_on_tutorial_round` belongs
+        # to the tutorial's OWN combat round (round 0, the scripted single
+        # walker) rather than its authored round — the tutorial fight IS that
+        # enemy's first appearance, so its intro must land there and NOT
+        # repeat on the round right after. A run that skipped the tutorial
+        # never sees round 0, so the same entry lands on its authored round
+        # exactly as an unflagged one would. `.get` (not `[...]`) because the
+        # bare-dict fixtures in the logic tests predate the field.
+        tutorial_round = st.round_num == 0
+        matches = []
+        for e in self.core_balance["EnemyIntro"]["entries"]:
+            if e.get("show_on_tutorial_round", False):
+                if tutorial_round:
+                    matches.append(e)
+                elif (e["round"] == st.round_num
+                      and not st.tutorial_intros_shown):
+                    matches.append(e)
+            elif e["round"] == st.round_num:
+                matches.append(e)
+        if tutorial_round and matches:
+            st.tutorial_intros_shown = True
         if matches:
             st.pending_enemy_intros = matches
             st.phase = GamePhase.ENEMY_INTRO
@@ -440,7 +460,8 @@ class Session:
                 else:
                     run_payday(st, self.tilemap, self.core_balance,
                                self.occupancy, scene, self.debug,
-                               self.boss_upgrades_balance)  # -> INCOME
+                               self.boss_upgrades_balance,
+                               self.buildings_balance)  # -> INCOME
         elif st.phase == GamePhase.INCOME:
             st.phase_timer -= dt
             if st.phase_timer <= 0:
@@ -551,7 +572,8 @@ class Session:
         # -- /10H --
         run_payday(st, self.tilemap, self.core_balance,
                    self.occupancy, scene, self.debug,
-                   self.boss_upgrades_balance)  # -> INCOME
+                   self.boss_upgrades_balance,
+                   self.buildings_balance)  # -> INCOME
 
     def _emit_levelup_option(self, option):
         """debug-mode-telemetry: the level-up reward IS the natural source of
@@ -610,7 +632,8 @@ class Session:
         else:
             run_payday(st, self.tilemap, self.core_balance,
                        self.occupancy, scene, self.debug,
-                       self.boss_upgrades_balance)  # -> INCOME
+                       self.boss_upgrades_balance,
+                       self.buildings_balance)  # -> INCOME
 
     # -- ENEMY_INTRO (feature-enemy-intro-dialogue) ------------------------
 

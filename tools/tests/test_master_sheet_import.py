@@ -258,7 +258,7 @@ class ExplicitSheetIdTest(DataDirCase):
 
         with self.assertRaises(master_sheet_import.GridInUseError) as caught:
             master_sheet_import.import_master_sheet(
-                self.data_dir, self.different, "Village Folk", 32, 48, 4,
+                self.data_dir, self.different, "Village Folk", 64, 64, 2,
                 sheet_id=self.sheet_id)
         self.assertIn("painter_t1_lvl1", str(caught.exception))
         self.assertEqual(self.png.read_bytes(), before)
@@ -280,6 +280,9 @@ class GridInUseTest(DataDirCase):
         for slot in slots:
             doc["entries"][slot] = {
                 "sheet": f"master/{self.sheet_id}.png",
+                # The COPY `details._save` stamps at link time from the
+                # registry — what a column-width edit has to re-stamp.
+                "column_width": 2,
                 "frame_w": 32, "frame_h": 48, "offset_x": 0, "offset_y": 0,
                 "rows": [{"animation": "idle", "frames": 4, "fps": 8,
                           "hidden": [], "loop_start": 0, "loop_end": 0,
@@ -313,15 +316,39 @@ class GridInUseTest(DataDirCase):
             self.data_dir / "sprites" / "master_sheets.json")["entries"][again]
         self.assertEqual((entry["frame_w"], entry["frame_h"]), (64, 64))
 
-    def test_changed_column_width_alone_with_users_is_refused(self):
-        """D10 — the guard covers the COLUMN axis too: an unchanged frame size
-        does not make a `column_width` change safe, it re-points every column
-        window at different pixels."""
+    def test_changed_column_width_alone_with_users_is_allowed_and_restamps(self):
+        """The guard is the FRAME GRID only. `column_width` is per-sheet
+        metadata the linking entries merely copy, so it is correctable in
+        place — and correcting it rewrites those copies, since
+        `engine/assets/store` slices from the manifest, never the registry."""
+        self.link_slots("painter_t1_lvl1", "flute_player_t1_lvl1")
+        again = master_sheet_import.import_master_sheet(
+            self.data_dir, self.source, "Village Folk", 32, 48, 4)
+        self.assertEqual(again, self.sheet_id)
+        entry = data_io.load_json(
+            self.data_dir / "sprites" / "master_sheets.json")["entries"][again]
+        self.assertEqual(entry["column_width"], 4)
+        entries = data_io.load_json(
+            self.data_dir / "sprites" / "asset_manifest.json")["entries"]
+        self.assertEqual(entries["painter_t1_lvl1"]["column_width"], 4)
+        self.assertEqual(entries["flute_player_t1_lvl1"]["column_width"], 4)
+
+    def test_restamp_leaves_a_pre_columns_entry_column_free(self):
+        """An entry linked before columns shipped carries NO `column_width`
+        key (0 in memory ⇒ "no column concept"). Stamping one on would
+        retroactively column-slice art never authored in columns."""
         self.link_slots("painter_t1_lvl1")
-        with self.assertRaises(master_sheet_import.GridInUseError) as caught:
-            master_sheet_import.import_master_sheet(
-                self.data_dir, self.source, "Village Folk", 32, 48, 4)
-        self.assertIn("painter_t1_lvl1", str(caught.exception))
+        path = self.data_dir / "sprites" / "asset_manifest.json"
+        doc = data_io.load_json(path)
+        doc["entries"]["painter_t1_lvl1"].pop("column_width", None)
+        data_io.write_validated(
+            doc, path, self.data_dir / "schemas" / "asset_manifest.schema.json")
+
+        changed = master_sheet_import.restamp_column_width(
+            self.data_dir, f"master/{self.sheet_id}.png", 4)
+        self.assertEqual(changed, ())
+        self.assertNotIn("column_width",
+                         data_io.load_json(path)["entries"]["painter_t1_lvl1"])
 
     def test_changed_column_width_with_zero_users_rewrites_the_entry(self):
         again = master_sheet_import.import_master_sheet(

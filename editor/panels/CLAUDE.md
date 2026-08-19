@@ -180,6 +180,48 @@ import list.**
   whatever differs from the current baseline, nothing is written until the user
   clicks Save again); "Delete" removes an entry via
   `balancing_history.delete_session`. Undo (ED-24) deferred for balancing.
+- **Composite widgets (`x-widget`) — the sound slot (SoundEditorPLAN SD-3)**: a
+  schema node carrying `"x-widget": "<name>"` is claimed WHOLE by one composite
+  widget instead of being walked. `sound_slot` is the first and only user.
+  - The marker lives INSIDE `$defs/sound_slot`, not beside the `$ref`, because
+    `_build_object` calls `_deref(prop)` before reading any `x-` extension — a
+    sibling marker would be silently dropped.
+  - `_build_object` routes an `x-widget` prop straight to `_add_leaf_row`
+    (immediately after the `x-paired` skip, before the object/array branch): a
+    sound slot IS an object, so the recursion would otherwise turn it into a
+    CollapsibleSection of raw `clips`/`loop`/`pick` rows and never reach
+    `_make_widget`. Reusing `_add_leaf_row` is what gives the composite the
+    dirty dot, the `self._widgets` registration and the description tooltip for
+    free — no new bookkeeping.
+  - `_make_widget` stays THE one widget switch: the composite is its first
+    branch, so its terminal `raise` still means "unhandled schema".
+  - `_set_widget_value` carries an `isinstance(SoundSlotWidget)` arm calling
+    `set_slot(value)`. Without it, Version History's `_apply_snapshot` (which
+    iterates `self._widgets`) would silently skip every sound slot.
+  - `panels/sound_slot.py` is a **staging client, not a second writer** (the
+    `vfx_preview.py` seam): it holds a panel reference and goes through
+    `_commit`/`staged_value`. No second doc, no second dirty set.
+  - **Nothing enumerates slots.** No slot name, no domain key and neither the
+    `Sounds` nor the `sounds` spelling appears in `sound_slot.py` or
+    `sound_import.py` — a slot added to a schema later renders with zero editor
+    edits. Ranges/decimals/enums all come from the schema node (`start`/`end`
+    are deliberately 0-3600 s, so a local constant would be wrong).
+  - **Preview is QtMultimedia, imported lazily inside the handler**, never
+    `pygame.mixer`: `panels/viewport.py` sets `SDL_AUDIODRIVER=dummy` at module
+    level for the whole editor process, so mixer audio in the editor is silent
+    by construction. Import failure ⇒ the ▶ button is built DISABLED with a
+    tooltip (visible degradation, unlike `thats_my_producer`'s silent one); the
+    player and its `QAudioOutput` are kept alive on the widget or playback dies.
+  - **Clip refcounts are CROSS-DOMAIN and fail to "unknown", never to zero.**
+    `BalancingPanel.sound_usage_docs()` is the ONE loading site (this panel is
+    the only object holding both the live staged doc and its domain name): the
+    open domain's entry is the STAGED doc, so a just-attached unsaved clip
+    counts as referenced; every other domain comes from disk over the DERIVED
+    `domains(data_dir)` list and degrades to `None` on a read failure.
+    `unreferenced_clips` returns nothing at all while any domain is unknown —
+    reporting a clip free-to-delete because a file failed to load is the one
+    failure mode that costs a designer their audio.
+
 - **Paired weight/override checkbox (`x-toggle`/`x-paired`)**: a schema-driven
   rendering rule, not a hardcoded path — `map.schema.json`'s
   `Pathfinding.content_weights.*`/`TileConditions.path_weights.*` are the first

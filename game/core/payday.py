@@ -32,6 +32,13 @@ known methods (duck-typed, the ``occupancy``/``scene`` precedent) and this file
 just calls them at the right ordinal position. See ``game/debug/recorder.py``'s
 docstring for what each hook captures and why it must sit exactly there.
 
+``buildings_balance`` is optional in the same duck-typed way and read at ONE
+place: slot 9's revive sweep stamps a revived building's
+``BuildingSprite.reveal_delay`` from
+``BuildingsGlobal.placement_reveal_delay_seconds``, so a respawn gets the same
+"vfx first, sprite a beat later" reveal a placement does. Purely cosmetic;
+``None`` (every logic test) simply means no delay.
+
 ``boss_upgrades_balance`` (BossUpgradeTimelinePLAN BU-3 3.6) is the BALANCE
 half of the standard BU-3 hook pair — ``state`` already IS the ``RunState``, so
 only one half travels (the documented ``place_building`` exception in
@@ -41,6 +48,7 @@ only one half travels (the documented ``place_building`` exception in
 #10 ``boost_double_trigger``. It adds repeats INSIDE that slot; it moves
 nothing.
 """
+from engine.core import SpriteAnimator
 from game.buildings.components import (
     BoostEmitter, PainterProgress, RoundStats, TierState,
 )
@@ -95,6 +103,11 @@ def _process_painters(state, tilemap, occupancy, scene):
         if getattr(b, "building_type", None) != "painter":
             continue
         b.advance_progress()
+        # The Painter's art tracks its progress, not its upgrade level
+        # (`game/buildings/painter.py`), so the canvas has to be re-derived
+        # here — `refresh_slot_key` and NOT `apply_tier_stats`, which would
+        # full-heal a painter every single payday.
+        b.refresh_slot_key()
         if not b.is_ready():
             continue
         payout = b.payout_amount()
@@ -184,7 +197,8 @@ def _process_wall_teardown(tilemap):
 
 
 def run_payday(state, tilemap, core_balance, occupancy=None, scene=None,
-               debug=None, boss_upgrades_balance=None):
+               debug=None, boss_upgrades_balance=None,
+               buildings_balance=None):
     hole = core_balance["TheHole"]
     built = _built_tiles_with_occupant(tilemap)
     buildings = [b for _, b in built]
@@ -312,6 +326,7 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None,
                     _free_tile(tilemap, tile, occupancy, scene)
                     continue
                 b.get_component(PainterProgress).progress = 0
+                b.refresh_slot_key()   # blank canvas again (see slot 6)
             # VA-4: read `alive` BEFORE rebuild. This slot full-heals every
             # LIVING building too, and only one that was actually DEAD and
             # came back is a "respawn" — a cosmetic-only ledger append, no
@@ -320,9 +335,31 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None,
             b.rebuild()
             if was_dead:
                 tier_state = b.get_component(TierState)
+                # 4th slot: the building's own colour column (colour IS
+                # `SpriteAnimator.column`, MasterSheetColumnsPLAN B1), so the
+                # respawn vfx is cut in the colour of the building it belongs
+                # to instead of whatever column the vfx entry stored. `-1` is
+                # the "no driver" sentinel and is passed through as-is — the
+                # drain reads anything negative as "no live column".
+                animator = b.get_component(SpriteAnimator)
+                # Same purely-cosmetic beat a freshly PLACED building gets
+                # (`registry.place_building` -> `BuildingSprite.reveal_delay`):
+                # hold the revived sprite back for
+                # `BuildingsGlobal.placement_reveal_delay_seconds` so the
+                # respawn vfx appended just below plays BEFORE the building
+                # pops back in. Gameplay is untouched — the building is alive,
+                # full-HP and occupying its tile from this instant; only its
+                # VISUAL is late. `buildings_balance` is optional (logic tests
+                # omit it exactly like `occupancy`/`scene`), and omitting it
+                # means no delay, never a raise.
+                if animator is not None and buildings_balance is not None:
+                    animator.reveal_delay = buildings_balance[
+                        "BuildingsGlobal"]["placement_reveal_delay_seconds"]
                 state.building_respawn_events.append(
                     (tile.col, tile.row,
-                     0 if tier_state is None else tier_state.current_tier))
+                     0 if tier_state is None else tier_state.current_tier,
+                     None if animator is None or animator.column < 0
+                     else animator.column))
 
     # 10. Rebuild walls (10E): every alive WallBuilder restores its frozen
     #     perimeter to full HP — walls damaged during the round regenerate, and a
