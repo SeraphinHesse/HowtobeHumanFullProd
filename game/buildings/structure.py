@@ -147,15 +147,13 @@ class WallBuilder(StructureBuilding):
         composed exactly like ``upkeep()`` below: base + level_idx × per_level.
         Seeded to 0 in every tier, so by default this is the prototype's flat
         per-tier value. Lifted by an adjacent HP booster's DEDICATED
-        ``wall_hp_pct`` accumulator and cut by its explosion penalty when
-        that booster dies (wall-hp-boost feature) — deliberately NOT
+        ``wall_hp_pct`` accumulator (wall-hp-boost feature) — deliberately NOT
         ``BoostReceiver``/``hp_pct`` (this builder never carries a
         ``BoostReceiver``), so the builder's own body HP is never affected."""
         d = self.tier_data()
         base = int(d["wall_hp"]) + self._lvl_idx * int(d["wall_hp_per_level"])
         state = self.get_component(WallBuilderState)
-        boosted = int(base * (1.0 + state.wall_hp_pct))
-        return max(1, boosted - state.wall_hp_penalty())
+        return max(1, int(base * (1.0 + state.wall_hp_pct)))
 
     def upkeep(self):
         d = self.tier_data()

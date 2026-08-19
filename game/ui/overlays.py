@@ -326,8 +326,8 @@ class MapOverlays:
             if not is_visible(btn):
                 continue
             if active:
-                # active state is code-owned styling (like boss_cutscene's
-                # win/loss headline colour) — it always wins over an
+                # active state is code-owned styling (like hud.py's own
+                # phase-banner colour) — it always wins over an
                 # override's color/text_color, same as the pre-10L-B behavior.
                 btn.submit(renderer, color=widgets.C_UI_BTN, text_color=widgets.C_GOLD,
                           anim_ms=t)

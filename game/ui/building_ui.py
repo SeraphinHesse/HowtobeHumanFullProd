@@ -48,7 +48,8 @@ from game.buildings.components import (
     BoostReceiver, BuildingSprite, Nameplate, RoundStats, TierState,
     YieldEconomy,
 )
-from game.buildings.movement import MoveError, is_movable, start_move
+from game.buildings.movement import (
+    MoveError, is_movable, start_move, wall_builder_move_targets)
 from game.buildings.registry import (
     BUILDING_CLASSES, LIGHTNING_SOURCE_TAG, PlacementError, build_cost,
     count_tag, create, place_building,
@@ -1294,6 +1295,9 @@ class BuildingUI:
         #: `self.cards` stays `[(btype, card_button)]` so `card_rect`, the
         #: hover pass and `_construct_click` are unchanged in shape.
         self._card_parts = {}
+        #: The card rects `_build_construct` computed, re-asserted after every
+        #: `skinning.apply` (`_restore_card_rects`).
+        self._card_rects = {}
         # -- construct-card list: first VISIBLE card index. The list is taller
         # than the panel once several types are unlocked (12 cards x 44px
         # against a ~298px viewport), so it scrolls; the host routes the wheel
@@ -1541,6 +1545,7 @@ class BuildingUI:
         self._hover_cost = None
         self.cards = []
         self._card_parts = {}
+        self._card_rects = {}
         self._clear_colour_ids()   # B3: the swatch row is per-selection
         self.scroll_offset = 0   # a fresh panel always opens at the top
         # -- 10J --
@@ -2202,6 +2207,47 @@ class BuildingUI:
         has_art = store.animation_total_ms(slot, "idle") is not None
         return slot if has_art else tier_slot
 
+    def wants_scroll(self, mx, my):
+        """Does a wheel tick at ``(mx, my)`` belong to this panel?
+
+        THE seam the host asks before zooming the camera instead — it used to
+        hand-roll the test as `mode == "construct" and preview is None and
+        contains(panel_rect, ...)`, which is wrong in one direction that
+        matters: `panel_rect` is the sidebar BODY, while the construct card
+        list is its own authored group that a designer can (and did) move to
+        a rect reaching outside it. A wheel tick over a card that sits left of
+        the body then zoomed the map, so the list scrolled over part of
+        itself and not the rest — "scrolling is broken", intermittently and
+        depending on where the cursor sat.
+
+        Both boxes count, so moving either one in the editor keeps the wheel
+        working.
+
+        An open preview answers **True from anywhere on screen** and then
+        `handle_scroll` does nothing: the preview is a MODAL (it already
+        swallows every click, see `handle_click`), so the wheel must not
+        reach the camera behind it. Answering False here is what used to
+        let a tick over an open build preview ZOOM THE MAP — the card list
+        visibly underneath it, refusing to move.
+
+        UNLOCK mode answers True as well. `handle_scroll` has always had a
+        branch for it — the terrain-condition list is the other thing on this
+        panel that overflows — but the host's inline test was
+        construct-ONLY, so that branch was unreachable and the terrain list
+        could not be scrolled by wheel at all. Every other mode answers
+        False."""
+        if self.preview is not None:
+            return True          # modal: swallowed, see `handle_scroll`
+        if self.mode == "construct":
+            list_id, holder = _CONSTRUCT_LIST_ID, self._construct_list
+        elif self.mode == "unlock":
+            list_id, holder = _TERRAIN_LIST_ID, self._terrain_list
+        else:
+            return False
+        if widgets.contains(self.panel_rect, mx, my):
+            return True
+        return widgets.contains(self._list_rect(list_id, holder), mx, my)
+
     def handle_scroll(self, dy):
         """Scroll the construct card list by ``dy`` cards, clamped.
 
@@ -2215,7 +2261,13 @@ class BuildingUI:
         offset is baked into it at build time — `open_for_tile` is otherwise
         the only thing that ever calls `_build_construct`, so without this the
         offset would move and nothing on screen would. Cheap: this runs on a
-        wheel event, never per frame."""
+        wheel event, never per frame.
+
+        A no-op while a preview is open — that modal owns the wheel only
+        to keep it away from the camera zoom behind it.
+        """
+        if self.preview is not None:
+            return
         if self.mode == "unlock":
             # The terrain-card list scrolls on the same seam. Its cards have
             # VARIABLE height (a condition with more effect lines is taller),
@@ -2369,6 +2421,12 @@ class BuildingUI:
             self.ids[f"{key}_price_icon"] = ("panel", icon)
             self.ids[f"{key}_price_text"] = ("label", price_text)
             y += _CARD_PITCH
+        # The scroll-adjusted geometry this build just computed, kept so
+        # `submit`'s per-frame `skinning.apply` cannot overwrite it — see
+        # `_restore_card_rects`.
+        self._card_rects = {
+            k: w.rect for k, (_kind, w) in self.ids.items()
+            if k.startswith(_CARD_ID_PREFIX)}
         # The construct panel's own selected tile(s) — the SELECTION
         # highlight, not a batch (see the note at the upgrade-batch site).
         self._highlight_tiles = [(t.col, t.row, "tile_selected")
@@ -2404,6 +2462,28 @@ class BuildingUI:
         for key in [k for k in self.ids if k.startswith(_CARD_ID_PREFIX)]:
             del self.ids[key]
         self._card_parts = {}
+        self._card_rects = {}
+
+    def _restore_card_rects(self):
+        """Re-assert the card layout `_build_construct` computed, undoing any
+        `rect` a designer pinned onto a `card_*` id.
+
+        A card's rect is ABSOLUTE and carries `scroll_offset` baked into it,
+        while `submit` runs `skinning.apply` EVERY frame — so a stored rect
+        overwrites the scroll-adjusted one on the very next frame and the
+        wheel moves `scroll_offset` while nothing on screen moves. That is
+        what "NEVER hand-pin a `card_<btype>` rect" (see the geometry block at
+        the top of this module) has always meant; the editor still lets a
+        designer drag one, so the rule is now ENFORCED here rather than only
+        documented. Every OTHER override key on a card — skin, tint, label,
+        colour, visibility — is untouched and still applies.
+
+        Cards are the only widgets on this screen laid out from live scroll
+        state, so nothing else is restored."""
+        for key, rect in self._card_rects.items():
+            entry = self.ids.get(key)
+            if entry is not None:
+                entry[1].rect = rect
 
     def _batch_upgrade_targets(self):
         """``[(building, cost)]`` across the selection whose upgrade state is
@@ -2533,14 +2613,20 @@ class BuildingUI:
 
         Visible only in upgrade mode on a SINGLE selection — a move is not
         batchable (unlike UPGRADE/ADVANCE, which do batch — see
-        ``_build_upgrade``). A Wall Builder can never be moved, so its button
-        is shown DISABLED with a hint (the ``_upgrade_hint`` mechanism the
-        RESEARCH REQUIRED / NEXT TIER LOCKED states use) rather than
-        silently vanishing — the real enforcement is ``start_move``."""
+        ``_build_upgrade``). A WallBuilder IS movable (feature:
+        wallbuilder-restricted-move) but only within its own wall perimeter
+        — ``is_movable`` needs the tilemap to know whether it has ANY legal
+        destination right now; with none (an empty wall_snapshot, or every
+        one of its own walled tiles currently occupied/in-transit) the
+        button is shown DISABLED with a hint (the ``_upgrade_hint``
+        mechanism the RESEARCH REQUIRED / NEXT TIER LOCKED states use)
+        rather than silently vanishing — the real enforcement is
+        ``start_move``."""
         ax, ay, aw, ah = self.action_btn.rect
         self.move_btn.rect = (ax, ay + ah + 4, aw, 15)
         self.move_btn.visible = len(self.selected_tiles) == 1
-        movable = self._selected is not None and is_movable(self._selected)
+        movable = (self._selected is not None
+                   and is_movable(self._selected, self._session.tilemap))
         self.move_btn.enabled = movable
         if not movable and self.move_btn.visible:
             self.move_btn.label = T("building.btn.move_blocked")
@@ -2635,12 +2721,41 @@ class BuildingUI:
 
     def _build_move_select(self, session):
         """Highlight every legal move destination: an unbuilt BUILDABLE tile
-        that is not already an endpoint of a move in progress."""
+        that is not already an endpoint of a move in progress, in
+        ``move_target`` (cyan) — unchanged for every building type except a
+        WallBuilder.
+
+        **A WallBuilder is confined to its own wall perimeter** (feature:
+        wallbuilder-restricted-move, user decision — "cannot be moved
+        outside its own walls"). Every OTHER otherwise-legal tile still
+        highlights, but GREYED OUT (``move_blocked``) rather than silently
+        omitted — the whole point is to show the player the tile exists and
+        why it is off-limits, not just which ones are pickable. Its own
+        wall edges also draw (the same yellow line ``_set_wall_highlight``
+        uses elsewhere), so the fenced area reads as a fence, not just a
+        cyan/grey checkerboard."""
+        tilemap = session.tilemap
+        b = self._selected
+        buildable = [t for t in tilemap.buildable_tiles()
+                     if not tilemap.is_moving(t.col, t.row)]
         self._highlight_edges = []
-        self._highlight_tiles = [
-            (t.col, t.row, "move_target")
-            for t in session.tilemap.buildable_tiles()
-            if not session.tilemap.is_moving(t.col, t.row)]
+        if b is not None and hasattr(b, "wall_hp"):
+            allowed = wall_builder_move_targets(b, tilemap)
+            self._highlight_tiles = [
+                (t.col, t.row,
+                 "move_target" if (t.col, t.row) in allowed
+                 else "move_blocked")
+                for t in buildable]
+            for edge in getattr(tilemap, "wall_edges", {}).values():
+                if edge.owner is not b:
+                    continue
+                pts = edge_world_points(edge.col_a, edge.row_a,
+                                        edge.col_b, edge.row_b)
+                if pts is not None:
+                    self._highlight_edges.append(pts)
+        else:
+            self._highlight_tiles = [
+                (t.col, t.row, "move_target") for t in buildable]
 
     def _upgrade_state(self, b):
         """``(mode, cost, button_label, hint)`` — the five-mode research gate
@@ -3314,7 +3429,15 @@ class BuildingUI:
         if self.preview is not None:
             self.preview.update(dt)
 
-    def submit(self, renderer, session):
+    def submit_world(self, renderer):
+        """The panel's WORLD-space half: tile highlights, the painter-used
+        grey, wall edges and a live move's path line.
+
+        Split out of `submit` so the host can keep drawing these BEFORE the
+        scene (which is what makes a same-tile building draw on top of its own
+        highlight — `game/CLAUDE.md`'s wall/highlight render-order section)
+        while the panel's HUD half draws AFTER the whole HUD. Everything here
+        sits outside the `visible` guard, exactly as it did inline."""
         t = anim_ms(self._clock)
         for col, row, event in self._highlight_tiles:
             widgets.submit_highlight(renderer, event, col, row,
@@ -3344,13 +3467,22 @@ class BuildingUI:
             renderer.submit_overlay_lines(path_pts,
                                      widgets.highlight_color("move_target"),
                                           width=3)
+    def submit(self, renderer, session):
+        """The panel's HUD half. The host calls this AFTER `Hud.submit` so the
+        panel always paints over the HUD (see the module's render-order note
+        and `game/main.py`); `submit_world` runs at the earlier, world-pass
+        slot."""
         if not self.visible:
             return
+        t = anim_ms(self._clock)
         # -- 10L-B: no separate layout() step, so apply() runs here (once per
         # visible frame, before the panel/buttons it may reposition/reskin) --
         self._panel.rect = self.panel_rect
         self.skinning.apply(self.screen_id, self.ids)
         self.panel_rect = self._panel.rect
+        # A card's position is live SCROLL state, not authorable geometry —
+        # apply() must not be allowed to pin it. See `_restore_card_rects`.
+        self._restore_card_rects()
         self.skinning.submit_background(renderer, self.screen_id,
                                         self.view_w, self.view_h)
         hidden_customs = self._hidden_stat_backdrops()
@@ -3459,10 +3591,18 @@ class BuildingUI:
                              skin=parts.frame.skin,
                              tint=getattr(parts.frame, "tint", None),
                              anim_ms=anim_ms)
+            # While the pill is showing its NOT ENOUGH LOVE flash it draws
+            # that sentence across its own 74px width — so the love icon and
+            # the price number are hidden for exactly that long, instead of
+            # being overprinted by the message they were refused for.
+            # `flash_showing`, not `flash > 0`: an armed flash is still
+            # playing out the press it followed and the price must stay
+            # readable until the red actually lands (`widgets.Button`).
+            price_flashing = parts.price.flash_showing
             if is_visible(parts.price):
                 parts.price.submit(renderer, anim_ms=anim_ms,
                                    **button_kwargs(parts.price))
-            if is_visible(parts.icon):
+            if is_visible(parts.icon) and not price_flashing:
                 submit_panel(renderer, parts.icon.rect, skin=parts.icon.skin,
                              tint=getattr(parts.icon, "tint", None),
                              anim_ms=anim_ms)
@@ -3478,8 +3618,9 @@ class BuildingUI:
             for holder, line in zip((parts.name_1, parts.name_2), lines):
                 submit_label(renderer, holder, text=line,
                              color=widgets.C_UI_TEXT)
-            submit_label(renderer, parts.price_text, value=parts.cost,
-                         color=widgets.C_UI_TEXT)
+            if not price_flashing:
+                submit_label(renderer, parts.price_text, value=parts.cost,
+                             color=widgets.C_UI_TEXT)
         # feature: construct-terrain-card — the terrain card at the panel
         # foot, in place of the 10I badge + its hover tooltip. The effect rows
         # are always drawn, as part of the card; there is no hover probe on
@@ -3504,7 +3645,6 @@ class BuildingUI:
             trcv.damage_pct = rcv.damage_pct
             trcv.speed_pct = rcv.speed_pct
             trcv.hp_pct = rcv.hp_pct
-            trcv.explosion_debuffs = list(rcv.explosion_debuffs)
         ye = b.get_component(YieldEconomy)
         tye = temp.get_component(YieldEconomy)
         if ye is not None and tye is not None:

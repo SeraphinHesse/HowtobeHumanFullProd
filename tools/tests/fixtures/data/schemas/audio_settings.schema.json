@@ -1,0 +1,33 @@
+{
+  "$id": "audio_settings.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "settings/audio.json (gitignored per-machine audio preferences; no data/ content file pairs with this schema - validate_data skips data/schemas/). Written ONLY by game/core/audio_settings.py through engine.data_io.write_validated and read back through the same module, which returns the default levels rather than raising when the file is missing or unreadable.",
+  "properties": {
+    "master": {
+      "description": "Master volume, 0..1. Multiplies BOTH buses (engine.audio.set_master_volume).",
+      "maximum": 1,
+      "minimum": 0,
+      "type": "number"
+    },
+    "music": {
+      "description": "Music bus volume, 0..1 (engine.audio.set_bus_volume('music', v)).",
+      "maximum": 1,
+      "minimum": 0,
+      "type": "number"
+    },
+    "sfx": {
+      "description": "SFX bus volume, 0..1 - every non-music sound including ambient (engine.audio.set_bus_volume('sfx', v)).",
+      "maximum": 1,
+      "minimum": 0,
+      "type": "number"
+    }
+  },
+  "required": [
+    "master",
+    "music",
+    "sfx"
+  ],
+  "title": "audio_settings",
+  "type": "object"
+}

@@ -104,13 +104,42 @@ class TestSettings(unittest.TestCase):
         self.assertEqual(intent, "set_display_mode")
         self.assertNotEqual(s.settings.display_mode, before)
 
-    def test_fx_toggle_flips_setting(self):
+    def test_renderer_switch_flips_setting_and_emits_intent(self):
+        # settings-cut: the FX toggles are gone; this row replaced them.
         s = make_shell(GameState.SETTINGS)
-        before = s.settings.gore
-        _attr, _label, btn = next(t for t in s.settings_screen.toggles
-                                  if t[0] == "gore")
-        self.assertIsNone(s.handle_click(*center(btn.rect)))
-        self.assertEqual(s.settings.gore, not before)
+        self.assertEqual(s.settings.renderer, "gpu")
+        intent = s.handle_click(*center(s.settings_screen.renderer_btn.rect))
+        self.assertEqual(intent, "set_renderer")
+        self.assertEqual(s.settings.renderer, "cpu")
+
+    def test_volume_step_button_moves_the_level(self):
+        s = make_shell(GameState.SETTINGS)
+        s.settings.music_volume = 0.5
+        screen = s.settings_screen
+        intent = s.handle_click(
+            *center(screen._volume_minus["music_volume"].rect))
+        self.assertEqual(intent, "set_volume")
+        self.assertAlmostEqual(s.settings.music_volume, 0.45)
+
+    def test_volume_drag_writes_live_then_persists_on_release(self):
+        """settings-cut: a click on the track ARMS the drag; update() keeps
+        writing while the button is held and asks for the ONE disk write on
+        release."""
+        s = make_shell(GameState.SETTINGS)
+        screen = s.settings_screen
+        bar = screen._volume_bars["sfx_volume"]
+        x, y, w, h = bar.rect
+        # `contains` is half-open on the right edge, so the last pixel IN
+        # the track is x + w - 1 — which is 99%, not 100%.
+        self.assertEqual(s.handle_click(x + w - 1, y + h // 2), "set_volume")
+        self.assertEqual(screen.dragging, "sfx_volume")
+        self.assertGreater(s.settings.sfx_volume, 0.98)
+        self.assertEqual(s.update(0.016, x, y + h // 2, mouse_down=True),
+                         "set_volume_live")
+        self.assertEqual(s.settings.sfx_volume, 0.0)
+        self.assertEqual(s.update(0.016, x, y + h // 2, mouse_down=False),
+                         "set_volume")
+        self.assertIsNone(screen.dragging)
 
     def test_escape_backs_out(self):
         s = make_shell()

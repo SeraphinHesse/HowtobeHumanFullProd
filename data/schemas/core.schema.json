@@ -446,6 +446,7 @@
             "ui_button_panel_v6",
             "ui_button_panel_v7",
             "ui_button_panel_v8",
+            "ui_button_panel_v9",
             "ui_button_pause",
             "ui_button_pause_v2",
             "ui_button_pill",
@@ -472,6 +473,7 @@
             "ui_panel_v19",
             "ui_panel_v2",
             "ui_panel_v20",
+            "ui_panel_v21",
             "ui_panel_v3",
             "ui_panel_v4",
             "ui_panel_v5",
@@ -897,8 +899,20 @@
     },
     "LightningStrike": {
       "additionalProperties": false,
-      "description": "The click-to-strike active ability. Per-level arrays are index-aligned: level N uses damage[N-1], radius[N-1], cooldown[N-1].",
+      "description": "The click-to-strike active ability. Per-level arrays are index-aligned: level N uses damage[N-1], radius[N-1], cooldown[N-1], attack_hold_seconds[N-1].",
       "properties": {
+        "attack_hold_seconds": {
+          "description": "Seconds the firing Storm Priest holds its \"attack\" sprite-animation pose before reverting to \"idle\", per level.",
+          "items": {
+            "description": "Attack-pose hold duration in seconds at this level.",
+            "maximum": 60,
+            "minimum": 0,
+            "type": "number"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
         "cooldown": {
           "description": "Cooldown in rounds per level.",
           "items": {
@@ -943,6 +957,7 @@
         }
       },
       "required": [
+        "attack_hold_seconds",
         "cooldown",
         "damage",
         "max_level",

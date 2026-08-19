@@ -274,8 +274,8 @@ class Hud:
         # love panel. TEXT stays game-state/code-owned for every one of these
         # (love count, level, xp fraction, income delta, lives, tile count,
         # round number) — the override surface is rect/font_key/text_color/
-        # visible only, same principle as boss_cutscene's headline colour
-        # staying win/loss-owned. Positions are finalized in submit() (they
+        # visible only, same principle as this same module's own phase-banner
+        # colour staying phase-owned. Positions are finalized in submit() (they
         # are relative to the now-applied love_panel/end_turn rects), so
         # these get a SECOND skinning.apply() pass there. --
         # UT-4: each readout now names the `data/ui/strings.json` template
@@ -1087,35 +1087,40 @@ class Hud:
     # -- 10H: lightning + cheat menu ---------------------------------------
 
     def _submit_lightning(self, renderer, session, view_h, scene):
-        """Bottom-left strike readout + a tiny cursor-attached progress bar
-        (prototype ``game.py:1829-1863``): shown only while ``phase == ENEMY``
-        and lightning is unlocked. Ready -> `⚡ CLICK TO STRIKE`; cooling ->
-        the live countdown for the SOONEST-ready placed acolyte (feature-
-        storm-acolyte-multi-build — several may exist, each on its own
-        cooldown; this readout tracks whichever will fire soonest). No
-        placed ``lightning_source`` at all -> nothing to read out, even if
-        ``lightning_level`` is latched > 0 from an earlier one that died
-        without reviving yet. The backing is OPAQUE black — the HUD pass has
-        no per-pixel alpha (10J), like the level-up backdrop."""
+        """Bottom-left strike readout (prototype ``game.py:1829-1863``):
+        shown only while ``phase == ENEMY`` and lightning is unlocked. Ready
+        -> `⚡ CLICK TO STRIKE`; cooling -> the live countdown for the
+        SOONEST-ready placed acolyte (feature-storm-acolyte-multi-build —
+        several may exist, each on its own cooldown; this readout tracks
+        whichever will fire soonest). No placed ``lightning_source`` at all
+        -> nothing to read out, even if ``lightning_level`` is latched > 0
+        from an earlier one that died without reviving yet. The backing is
+        OPAQUE black — the HUD pass has no per-pixel alpha (10J), like the
+        level-up backdrop.
+
+        feature: remove-lightning-cursor-bar — this used to also draw an
+        11x2 progress bar anchored at the mouse cursor (``self._mx``/
+        ``self._my``), duplicating this same fraction; removed as redundant
+        with both this text readout and the per-building overhead charge
+        bars (``effects.py``'s ``submit_lightning_charge_bars``). ``self.
+        _mx``/``self._my`` themselves are still used elsewhere (income-pill/
+        boss-icon hover hit-testing) and are NOT removed."""
         from engine.render import HudRect  # local: keep module import list lean
 
         st = session.state
         if st.phase != GamePhase.ENEMY or st.lightning_level <= 0 or scene is None:
             return
-        cooldowns = session.core_balance["LightningStrike"]["cooldown"]
-        soonest = None   # (cooldown_left, tier_cooldown) of the best caster
+        cooldown_left = None   # the SOONEST-ready caster's own cooldown
         for b in scene.by_tag("lightning_source"):
             if not getattr(b, "alive", False):
                 continue
             caster = b.get_component(LightningCaster)
             if caster is None:
                 continue
-            tier_cd = cooldowns[b.tier_number() - 1]
-            if soonest is None or caster.cooldown < soonest[0]:
-                soonest = (caster.cooldown, tier_cd)
-        if soonest is None:
+            if cooldown_left is None or caster.cooldown < cooldown_left:
+                cooldown_left = caster.cooldown
+        if cooldown_left is None:
             return
-        cooldown_left, tier_cooldown = soonest
         if cooldown_left <= 0:
             label, color = T("hud.lightning_ready"), _LIGHTNING_READY
         else:
@@ -1129,10 +1134,5 @@ class Hud:
         x, y = 6, view_h - 13 - h - 6
         renderer.submit_hud(HudRect((x - 2, y - 2, w + 4, h + 3), (0, 0, 0)))
         submit_text(renderer, label, (x, y), "md", color)
-        # 11x2 cursor bar: black track, white fill; full = ready.
-        # UR-5 review: halved from 22x3; a 2px-tall bar is at the floor.
-        frac = 1.0 - (cooldown_left / tier_cooldown if tier_cooldown else 0.0)
-        submit_bar(renderer, self._mx - 5, self._my + 8, 11, 2, frac,
-                   bg=(0, 0, 0), fill=(255, 255, 255))
 
     # -- /10H ---------------------------------------------------------------

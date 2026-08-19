@@ -459,6 +459,28 @@ case. `None` (default) is a no-op; the grey-X placeholder never carries one.
   `set_alpha` on the rendered run). 3-tuples keep the original direct paths —
   callers that don't need alpha pay nothing. `HudLines`/`OverlayLines` stay
   RGB-only. Tests: `test_alpha_render.py`.
+- **Text antialiasing is OFF** (`_TEXT_ANTIALIAS = False`) and must stay off.
+  The frame is a fixed 640x360 buffer upscaled whole to the monitor (3x at
+  1080p, 4x at 1440p), so a glyph authored at 9-13px has every pixel blown up
+  into a 3x3/4x4 block — and an antialiased render spends most of the glyph on
+  partial-alpha edge pixels, each of which becomes a block of grey mud.
+  Measured with the shipped `pixel_gosub`: partial-alpha was **67.3%** of
+  inked pixels at `sm`, **57.1%** at `md`. Every font in
+  `data/fonts/font_manifest.json` is a pixel font drawn on a whole-pixel grid,
+  and AA off gives perfectly uniform stems at every preset in
+  `data/ui/fonts.json`. **Layout is unaffected** — AA-on and AA-off renders
+  return byte-identical surface sizes at all 7 presets, and `font.size()` (what
+  `TextMetrics` and the pinned `layout_h` table read) never consulted the flag.
+- **Translucent text promotes to 32-bit FIRST**, via `_to_alpha_surface`, not
+  `convert_alpha()`. Two traps, both measured, both silent: (1) a NON-
+  antialiased render returns an **8-bit colorkeyed** surface, on which
+  `set_alpha` premultiplies alpha into RGB at blit — translucent red landed as
+  `(128, 0, 0, 128)` instead of `(255, 0, 0, 128)`, so every faded string would
+  darken as it faded; (2) `convert_alpha()` needs a display format and raises
+  "No convert format has been set" when there is none — and this backend is
+  routinely driven with **no display at all** (headless render tests blit into
+  bare Surfaces). Blitting into a fresh `SRCALPHA` surface fixes the first
+  without depending on the second.
 - **`render/fonts.py`** — a lazy `SysFont("monospace", …)` cache keyed by font_key
   (`sm/md/lg/xl/xxl` = prototype `src/ui/fonts.py` 1:1, lg/xl/xxl bold; plus
   `hud_phase=14`, `hud_lvl=12`). `get_font(key)` builds on first use (unknown key

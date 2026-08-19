@@ -1108,7 +1108,7 @@ any way to *reach* them:
 
 - **A position-only text anchor stores `(x, y, 0, 0)`** — the anchor-rect
   convention (`game/ui/CLAUDE.md`). Eight of `hud`'s twenty widgets, the phase
-  banner, `boss_cutscene`'s headline and ~40 `building_panel` stat cells are
+  banner, `boss_cutscene`'s subtitle and ~40 `building_panel` stat cells are
   shaped that way. A zero-AREA rect is unclickable, undraggable and invisible
   when selected, so those widgets existed on disk and nowhere else.
 - **Font family rows (UH-Font-B).** The per-widget form, the `Defaults`

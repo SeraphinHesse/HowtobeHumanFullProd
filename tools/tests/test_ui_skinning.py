@@ -249,6 +249,15 @@ def _screen_captures():
 #: ALL THREE. That disjointness is the merge's containment signal — if a
 #: future merge of two UI branches touches the SAME entry, the resolution is
 #: to re-capture from ``_screen_captures()``, never to pick a side.
+#: Regenerated a SIXTEENTH time (settings-cut): ``settings`` lost its three FX
+#: toggle rows (income floaters / background art / gore are data-only now),
+#: gained the GPU/CPU renderer switch + its restart note in that slot, and its
+#: three audio rows became real sliders (a taller track, a draggable marker, a
+#: ``-``/``+`` pair and a ``%`` readout each) — so BACK/CONTROLS moved up with
+#: them (296 -> 278, mirrored in ``data/ui/screens/settings.json``'s authored
+#: ``btn_back`` rect). ``game_over`` gained the PLAY AGAIN button above MAIN
+#: MENU, which pushed MAIN MENU down one 29px slot. Only those two entries
+#: moved; every other screen's is byte-identical.
 #: Regenerated a FIFTEENTH time (SD-6: UI sound + volume sliders): ``settings``
 #: replaced its ONE inert audio bar and its "(no audio yet)" note with THREE
 #: real rows (Master / Music / SFX), so the audio block re-laid out and BACK /
@@ -287,6 +296,26 @@ def _screen_captures():
 #: entry, nothing already there moved, and every other screen's entry is
 #: byte-identical — which is what says the change was contained rather
 #: than the pin being relaxed.
+#: Regenerated a SIXTEENTH time (fix/bossfight-outro-cleanup): the boss
+#: cutscene's separate win/loss headline row (``"Cutscene: Round Won :)"``)
+#: is DELETED — the screen now opens straight into the subtitle + the three
+#: upgrade cards, no outcome announcement. ``boss_cutscene``'s entry loses
+#: exactly that ONE HudText; the subtitle's own text changes from
+#: ``"How will we react?"`` to ``"Choose an upgrade"`` (its rect is
+#: unchanged — the formula was never headline-relative) and every box
+#: primitive is untouched. Every other screen's entry is byte-identical,
+#: which is what says the change was contained.
+#: Regenerated a SEVENTEENTH time (stale-fixture catch-up, feature: storm-
+#: acolyte-round-start-reset session): the fixture snapshot
+#: (``tools/tests/fixtures/data/``) had not been refreshed in a while and was
+#: refreshed for an unrelated ``core.json`` schema change (``LightningStrike
+#: .attack_hold_seconds``), which pulled forward two already-committed live
+#: balance retunes this baseline had never caught up to:
+#: ``General.starting_currency`` 25 -> 32 and (a village-level-1 XP
+#: threshold) 50 -> 40. Exactly TWO ``hud`` HudTexts change value (the love
+#: readout and the XP fraction); no rect/pos/colour/font moved and every
+#: other screen's entry is byte-identical — a data catch-up, not a UI
+#: change. Regenerated mechanically from ``_screen_captures()``.
 _BASELINE = {
     "main_menu": [
         HudRect(rect=(0, 0, 640, 360), color=(18, 30, 20), border_radius=0, width=0),
@@ -347,33 +376,53 @@ _BASELINE = {
         HudRect(rect=(375, 122, 20, 20), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(375, 122, 20, 20), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='>', pos=(385, 124), font_key='lg', color=(235, 225, 195), align='center'),
-        HudText(text='Income Floaters', pos=(245, 160), font_key='md', color=(235, 225, 195), align='left'),
-        HudRect(rect=(350, 156, 45, 20), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(350, 156, 45, 20), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='ON', pos=(372, 158), font_key='lg', color=(235, 225, 195), align='center'),
-        HudText(text='Background Art', pos=(245, 188), font_key='md', color=(235, 225, 195), align='left'),
-        HudRect(rect=(350, 184, 45, 20), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(350, 184, 45, 20), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='ON', pos=(372, 186), font_key='lg', color=(235, 225, 195), align='center'),
-        HudText(text='Gore', pos=(245, 216), font_key='md', color=(235, 225, 195), align='left'),
-        HudRect(rect=(350, 212, 45, 20), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(350, 212, 45, 20), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='ON', pos=(372, 214), font_key='lg', color=(235, 225, 195), align='center'),
-        HudText(text='Master Audio', pos=(190, 245), font_key='md', color=(235, 225, 195), align='left'),
-        HudRect(rect=(275, 248, 90, 6), color=(80, 65, 120), border_radius=0, width=0),
-        HudRect(rect=(275, 248, 72, 6), color=(75, 60, 115), border_radius=0, width=0),
-        HudText(text='Music', pos=(190, 257), font_key='md', color=(235, 225, 195), align='left'),
-        HudRect(rect=(275, 260, 90, 6), color=(80, 65, 120), border_radius=0, width=0),
-        HudRect(rect=(275, 260, 72, 6), color=(75, 60, 115), border_radius=0, width=0),
-        HudText(text='SFX', pos=(190, 269), font_key='md', color=(235, 225, 195), align='left'),
-        HudRect(rect=(275, 272, 90, 6), color=(80, 65, 120), border_radius=0, width=0),
-        HudRect(rect=(275, 272, 72, 6), color=(75, 60, 115), border_radius=0, width=0),
-        HudRect(rect=(270, 296, 100, 23), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(270, 296, 100, 23), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='BACK', pos=(320, 300), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(380, 296, 90, 23), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(380, 296, 90, 23), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='CONTROLS', pos=(425, 302), font_key='sm', color=(235, 225, 195), align='center'),
+        HudText(text='Renderer', pos=(155, 160), font_key='md', color=(235, 225, 195), align='left'),
+        HudText(text='Applies on restart', pos=(330, 160), font_key='sm', color=(150, 140, 120), align='left'),
+        HudRect(rect=(260, 156, 60, 20), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(260, 156, 60, 20), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='GPU', pos=(290, 159), font_key='md', color=(235, 225, 195), align='center'),
+        HudText(text='Master Audio', pos=(155, 193), font_key='md', color=(235, 225, 195), align='left'),
+        HudText(text='80%', pos=(404, 194), font_key='sm', color=(255, 200, 50), align='left'),
+        HudRect(rect=(260, 191, 16, 16), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(260, 191, 16, 16), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='-', pos=(268, 192), font_key='md', color=(235, 225, 195), align='center'),
+        HudRect(rect=(382, 191, 16, 16), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(382, 191, 16, 16), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='+', pos=(390, 192), font_key='md', color=(235, 225, 195), align='center'),
+        HudRect(rect=(282, 194, 96, 10), color=(40, 32, 58), border_radius=0, width=0),
+        HudRect(rect=(282, 194, 76, 10), color=(168, 105, 222), border_radius=0, width=0),
+        HudRect(rect=(282, 194, 96, 10), color=(80, 65, 120), border_radius=0, width=1),
+        HudRect(rect=(354, 190, 6, 18), color=(255, 200, 50), border_radius=0, width=0),
+        HudText(text='Music', pos=(155, 215), font_key='md', color=(235, 225, 195), align='left'),
+        HudText(text='80%', pos=(404, 216), font_key='sm', color=(255, 200, 50), align='left'),
+        HudRect(rect=(260, 213, 16, 16), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(260, 213, 16, 16), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='-', pos=(268, 214), font_key='md', color=(235, 225, 195), align='center'),
+        HudRect(rect=(382, 213, 16, 16), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(382, 213, 16, 16), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='+', pos=(390, 214), font_key='md', color=(235, 225, 195), align='center'),
+        HudRect(rect=(282, 216, 96, 10), color=(40, 32, 58), border_radius=0, width=0),
+        HudRect(rect=(282, 216, 76, 10), color=(168, 105, 222), border_radius=0, width=0),
+        HudRect(rect=(282, 216, 96, 10), color=(80, 65, 120), border_radius=0, width=1),
+        HudRect(rect=(354, 212, 6, 18), color=(255, 200, 50), border_radius=0, width=0),
+        HudText(text='SFX', pos=(155, 237), font_key='md', color=(235, 225, 195), align='left'),
+        HudText(text='80%', pos=(404, 238), font_key='sm', color=(255, 200, 50), align='left'),
+        HudRect(rect=(260, 235, 16, 16), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(260, 235, 16, 16), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='-', pos=(268, 236), font_key='md', color=(235, 225, 195), align='center'),
+        HudRect(rect=(382, 235, 16, 16), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(382, 235, 16, 16), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='+', pos=(390, 236), font_key='md', color=(235, 225, 195), align='center'),
+        HudRect(rect=(282, 238, 96, 10), color=(40, 32, 58), border_radius=0, width=0),
+        HudRect(rect=(282, 238, 76, 10), color=(168, 105, 222), border_radius=0, width=0),
+        HudRect(rect=(282, 238, 96, 10), color=(80, 65, 120), border_radius=0, width=1),
+        HudRect(rect=(354, 234, 6, 18), color=(255, 200, 50), border_radius=0, width=0),
+        HudRect(rect=(270, 278, 100, 23), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(270, 278, 100, 23), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='BACK', pos=(320, 282), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(380, 278, 90, 23), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(380, 278, 90, 23), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='CONTROLS', pos=(425, 284), font_key='sm', color=(235, 225, 195), align='center'),
     ],
     "credits": [
         HudRect(rect=(0, 0, 640, 360), color=(12, 20, 14), border_radius=0, width=0),
@@ -427,9 +476,12 @@ _BASELINE = {
         HudText(text='Round Reached: 4', pos=(320, 165), font_key='md', color=(235, 225, 195), align='center'),
         HudText(text='Buildings Placed: 2', pos=(320, 179), font_key='md', color=(235, 225, 195), align='center'),
         HudText(text='Enemies Killed: 9', pos=(320, 193), font_key='md', color=(235, 225, 195), align='center'),
-        HudRect(rect=(260, 235, 120, 23), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(260, 235, 120, 23), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='MAIN MENU', pos=(320, 239), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(250, 235, 140, 23), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(250, 235, 140, 23), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='PLAY AGAIN', pos=(320, 239), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(260, 264, 120, 23), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(260, 264, 120, 23), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='MAIN MENU', pos=(320, 268), font_key='lg', color=(235, 225, 195), align='center'),
     ],
     "levelup": [
         HudRect(rect=(0, 0, 640, 360), color=(0, 0, 0, 185), border_radius=0, width=0),
@@ -456,12 +508,12 @@ _BASELINE = {
         HudRect(rect=(6, 6, 95, 17), color=(40, 32, 58), border_radius=4, width=0),
         HudRect(rect=(6, 6, 95, 17), color=(150, 135, 185), border_radius=4, width=1),
         HudSprite(slot_key='ui_icon_love', dest=(9, 10), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
-        HudText(text='25', pos=(20, 9), font_key='xl', color=(255, 200, 50), align='left'),
+        HudText(text='32', pos=(20, 9), font_key='xl', color=(255, 200, 50), align='left'),
         HudText(text='LVL 1', pos=(107, 6), font_key='hud_lvl', color=(255, 200, 50), align='left'),
         HudSprite(slot_key='ui_icon_xp', dest=(107, 21), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
         HudRect(rect=(118, 23, 55, 4), color=(48, 34, 66), border_radius=0, width=0),
         HudRect(rect=(118, 23, 55, 4), color=(80, 65, 120), border_radius=0, width=1),
-        HudText(text='0/50', pos=(118, 28), font_key='sm', color=(150, 140, 120), align='left'),
+        HudText(text='0/40', pos=(118, 28), font_key='sm', color=(150, 140, 120), align='left'),
         HudRect(rect=(6, 23, 95, 49), color=(40, 32, 58), border_radius=4, width=0),
         HudRect(rect=(6, 23, 95, 49), color=(150, 135, 185), border_radius=4, width=1),
         HudText(text='+5/round', pos=(8, 25), font_key='sm', color=(214, 96, 136), align='left'),
@@ -529,8 +581,7 @@ _BASELINE = {
     ],
     "boss_cutscene": [
         HudRect(rect=(0, 0, 640, 360), color=(0, 0, 0, 210), border_radius=0, width=0),
-        HudText(text='Cutscene: Round Won :)', pos=(320, 81), font_key='xxl', color=(100, 220, 100), align='center'),
-        HudText(text='How will we react?', pos=(320, 119), font_key='md', color=(150, 140, 120), align='center'),
+        HudText(text='Choose an upgrade', pos=(320, 119), font_key='md', color=(150, 140, 120), align='center'),
         HudRect(rect=(8, 138, 200, 104), color=(42, 34, 68), border_radius=0, width=0),
         HudRect(rect=(8, 138, 200, 104), color=(80, 65, 120), border_radius=0, width=1),
         HudRect(rect=(220, 138, 200, 104), color=(42, 34, 68), border_radius=0, width=0),
@@ -759,11 +810,15 @@ class TestScreenBackground(ScreenSkinningCase):
         self.assertIsNone(skinning.screen_background("nonexistent_screen"))
 
     def test_submit_background_draws_nothing_with_no_override(self):
-        """Every shipped screen JSON has no ``background`` key today — the
-        call each screen's submit() makes must be a true no-op."""
+        """Most shipped screen JSONs still have no ``background`` key — the
+        call each screen's submit() makes must be a true no-op for one of
+        them. ``main_menu`` is deliberately NOT used here any more: it has
+        carried a real ``background`` override (``ui_bg_main_menu``) since
+        before this test's baseline was last refreshed — see ``pause``'s own
+        screen JSON, which still has none."""
         skinning = ScreenSkinning(self.data_dir)
         renderer = RecordingRenderer()
-        skinning.submit_background(renderer, "main_menu", VIEW_W, VIEW_H)
+        skinning.submit_background(renderer, "pause", VIEW_W, VIEW_H)
         self.assertEqual(renderer.items, [])
 
 
@@ -824,7 +879,6 @@ class TestReviewFixLabelRects(unittest.TestCase):
             "hud.phase_label": hud._phase_label,
             "cheat_menu.title": cheat._title,
             "cheat_menu.jump_label": cheat._jump_label,
-            "boss_cutscene.headline": boss._headline,
             "boss_cutscene.subtitle": boss._subtitle,
         }
         for name, holder in holders.items():
@@ -864,16 +918,16 @@ class TestReviewFixLabelRects(unittest.TestCase):
                     if isinstance(i, HudText) and i.text == "Building Phase")
         self.assertEqual(phase.pos, (500, 501))
 
-    def test_boss_cutscene_headline_rect_override_moves_the_recorded_text(self):
+    def test_boss_cutscene_subtitle_rect_override_moves_the_recorded_text(self):
         skinning = ScreenSkinning.empty()
         skinning._overrides["boss_cutscene"] = {
-            "widgets": {"headline": {"rect": [12, 34, 0, 0]}}}
+            "widgets": {"subtitle": {"rect": [12, 34, 0, 0]}}}
         boss = BossCutscene(VIEW_W, VIEW_H, CORE, skinning=skinning)
         boss.open(1, "win")
         items = _capture(lambda r: boss.submit(r, VIEW_W, VIEW_H))
-        headline = next(i for i in items
-                       if isinstance(i, HudText) and i.text.startswith("Cutscene"))
-        self.assertEqual(headline.pos, (12, 34))
+        subtitle = next(i for i in items
+                       if isinstance(i, HudText) and i.text == "Choose an upgrade")
+        self.assertEqual(subtitle.pos, (12, 34))
 
 
 class TestLogicalSurface(unittest.TestCase):
