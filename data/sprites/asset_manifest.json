@@ -10618,10 +10618,33 @@
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
-      "row_start": 20,
+      "row_start": 19,
       "rows": [
         {
           "animation": "idle",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "walk",
           "fps": 6,
           "frames": 21,
           "hidden": [
@@ -10702,10 +10725,33 @@
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
-      "row_start": 20,
+      "row_start": 19,
       "rows": [
         {
           "animation": "idle",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "walk",
           "fps": 6,
           "frames": 21,
           "hidden": [
@@ -10786,7 +10832,7 @@
       "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
-      "row_start": 20,
+      "row_start": 19,
       "rows": [
         {
           "animation": "idle",
@@ -10813,6 +10859,29 @@
         },
         {
           "animation": "walk",
+          "fps": 6,
+          "frames": 21,
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
           "fps": 6,
           "frames": 21,
           "hidden": [
@@ -15990,6 +16059,7 @@
       "sheet": "master/htbh_enemie_sheet.png"
     },
     "sniper_stage_2": {
+      "column": 4,
       "column_width": 21,
       "frame_h": 96,
       "frame_w": 64,
@@ -16016,15 +16086,6 @@
         },
         {
           "animation": "attack",
-          "fps": 6,
-          "frames": 21,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
           "fps": 6,
           "frames": 21,
           "hidden": [],
