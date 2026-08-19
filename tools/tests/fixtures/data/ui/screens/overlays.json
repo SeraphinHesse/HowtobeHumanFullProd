@@ -1,13 +1,46 @@
 {
   "widgets": {
     "btn_heatmap": {
-      "skin": "ui_button_pill"
+      "rect": [
+        3,
+        127,
+        41,
+        20
+      ],
+      "skin": "ui_panel_stone",
+      "text_color": [
+        207,
+        87,
+        60
+      ]
     },
     "btn_range": {
-      "skin": "ui_button_pill"
+      "rect": [
+        3,
+        105,
+        41,
+        20
+      ],
+      "skin": "ui_panel_stone",
+      "text_color": [
+        198,
+        81,
+        151
+      ]
     },
     "btn_tier_overview": {
-      "skin": "ui_button_pill"
+      "rect": [
+        3,
+        149,
+        41,
+        20
+      ],
+      "skin": "ui_panel_stone",
+      "text_color": [
+        213,
+        183,
+        77
+      ]
     }
   }
 }
