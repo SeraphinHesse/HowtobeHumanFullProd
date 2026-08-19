@@ -1280,8 +1280,10 @@ condition below.
   sticky target, `_resolve_base_arrivals`, `game/core/lightning.py`, the
   overhead HP bars (`game/ui/effects.py submit_enemy_hp_bars`) and the heatmap
   traffic tracker — with **no per-site "if kidnapping" filter anywhere**.
-  Consequence to accept: a *damaged* kidnapper shows no HP bar at all (moot in
-  practice — its `Health` is never touched, since combat can no longer see it);
+  Consequence to accept: a *damaged* kidnapper shows no HP bar at all — which
+  is moot, and is now moot BY CONSTRUCTION: the one thing that can still reach
+  a carrier (an in-flight lethal projectile, below) either kills it outright or
+  skips it, so its `Health` is never left partially spent;
   it is also never counted by the heatmap tracker.
 - **`Kidnap` (`components.py`) is a component like any other** — `enabled`
   (resolved at construction from balancing), `pending` (armed by
@@ -1338,6 +1340,47 @@ condition below.
   `assets.animation_total_ms(slot, KIDNAP_ANIM)` and hands the answer to
   `set_kidnap_pose` — a sheet with a `kidnap` row plays it; one without freezes
   on idle frame 0.
+- **A carrier CAN be shot down — by exactly one thing, a LETHAL projectile
+  already in flight when the retag happened (fix, bug-sweep).** The retag hides
+  a carrier from every acquisition site, but `ProjectileHoming._impact` holds a
+  direct ref to a target chosen before the retag, and it used to damage it
+  blind: the death sweep reads `by_tag("enemy")` and can no longer see the
+  carrier, so an hp≤0 carrier walked the stolen building home, never despawned,
+  never credited. `_impact` now branches on the tag:
+  - **Non-lethal ⇒ skipped**, the same "untouchable" rule every other site
+    already enforces. A carrier is therefore either untouched or dead outright
+    — never chipped (it has no HP bar to show it with).
+  - **Lethal ⇒ it dies**, resolved by `combat.py`'s
+    `_resolve_kidnapper_deaths` — the `by_tag("kidnapper")` twin of the enemy
+    death sweep, and the ONLY consumer of that tag in this module. It plays the
+    `death` sound, fires the new optional `resolve_combat(on_kidnapper_death=
+    (enemy, building))` (the host spawns the ordinary `Corpse` off it, so the
+    `death` row plays), and despawns.
+  - **XP and the kill count are NOT paid again** (user decision):
+    `Session.on_kidnap` already counted this enemy the frame it became a
+    carrier, which is why this is its own callback and not `on_enemy_death`.
+  - **The stolen building goes home** — `kidnap.py`'s `release_kidnap` clears
+    `Kidnap.active` (the carrier stops drawing the carried sprite) and spawns a
+    `KidnapReturnFlight`: a cosmetic object tagged `RESCUE_TAG`
+    (`"kidnap_return"`, never `"enemy"`/`"kidnapper"` — the `Corpse` rule),
+    carrying a plain `SpriteAnimator` with the carried sprite's own
+    `slot_key`/`fit_tiles`/`scale`/`column`, lerping from the carry-offset
+    point to the building's own tile over `RESCUE_FLIGHT_SECONDS` (0.35, a
+    module constant like `AOE_TRAVEL_TIME` — it gates when the building is
+    alive again, so it is simulation timing, not a cosmetic balancing leaf) on
+    the speed-scaled sim `dt`.
+  - **On landing, `revive_rescued_building` sets `Health.hp = 1` and nothing
+    else** (user decision: "respawn at 1 hp, without a respawn anim or vfx").
+    Deliberately NOT `Building.rebuild` — that full-heals and advances the
+    rebirth generation, which is payday's story for a building that STAYED
+    dead; a rescue is the same building, scratched. Nothing is appended to
+    `RunState.building_respawn_events`, so no respawn VFX plays, and payday's
+    slot 9 then treats it as an ordinary living building. It no-ops when the
+    building is already alive — payday can legitimately revive it while the
+    flight is still in the air (a rescue holds nothing open).
+  - `Kidnap._victim` is the transient ref that makes this possible, set beside
+    `_scene` in `begin_kidnap` (the declared fields hold a JSON-safe COPY of
+    the victim's sprite state; this is the building itself).
 - **Wave-clear**: `Session.post_sim` now also requires `not
   scene.by_tag("kidnapper")` and `not scene.queued_by_tag("kidnapper")` — see
   `game/core/CLAUDE.md`. Every "clear the field" cheat/quick-skip path
@@ -1617,14 +1660,25 @@ are measurably (if very slightly) affected by design, not by oversight.
     should still land mid-block — so only the range gate changed. N=1 → offset
     0 → numerically identical to before for all four call sites.
     **PERF (load-bearing):** the offset is a per-enemy constant and is resolved
-    ONCE PER ENEMY PER FRAME — `resolve_combat` builds `targets =
-    [(enemy, off), …]` and passes `off` into `_chebyshev`. Never resolve it
-    inside the (defender × enemy) pairwise loop: `get_component` is a linear
-    isinstance scan, and doing it per pair cost ~9 ms of a 16.7 ms frame at 50
-    defenders × 300 enemies. `_chebyshev` also SKIPS a zero offset rather than
-    running the block-clamp with a zero span, keeping the N=1 expression in
-    integer arithmetic (float ops there allocate per pair). Both are pinned by
+    ONCE PER ENEMY PER FRAME — `resolve_combat` builds `offsets =
+    {enemy: off}` (a DICT since the grid-backed `_acquire` looks candidates up
+    by identity; it was a list of pairs while every site scanned it linearly)
+    and passes `off` into `_chebyshev`. Never resolve it inside the
+    (defender × enemy) loop: `get_component` is a linear isinstance scan, and
+    doing it per pair cost ~9 ms of a 16.7 ms frame at 50 defenders × 300
+    enemies. `_chebyshev` also SKIPS a zero offset rather than running the
+    block-clamp with a zero span, keeping the N=1 expression in integer
+    arithmetic (float ops there allocate per pair). Both are pinned by
     `game/PERF.md`.
+    **Acquisition itself rides the spatial grid** (`_acquire`, the ONE primitive
+    both the projectile and beam paths call): a `scene.query_chebyshev` at
+    `rng + span` followed by a `_chebyshev` re-filter, where `span` is the widest
+    footprint block on the board (the grid measures ANCHOR-to-tile, `_chebyshev`
+    nearest-BLOCK-tile-to-tile, and the block only extends away from the anchor).
+    Set AND order are identical to the full scan it replaced — which matters,
+    because the `min`/`max` tiebreaks resolve ties by first-seen. Below
+    `_GRID_ACQUIRE_MIN_ENEMIES` live enemies it keeps the scan, which is still
+    cheaper there. Numbers → `game/PERF.md`.
   - **D5: footprints never enter `TileOccupancy`.** They are a pathfinding
     property only — enemies do not block each other, and two footprint-2 units
     may overlap. That is intended.
@@ -1922,7 +1976,9 @@ Consequences that are deliberate, not gaps:
 - **The boss's second phase is silent.** It stays `alive` until
   `phase_complete`, so the death sound fires once, at its real death.
 - **A kidnapper carrying a building home is silent** — `begin_kidnap` retags it
-  out of `by_tag("enemy")`.
+  out of `by_tag("enemy")`. **Unless it is shot down**: the carrier death sweep
+  (`_resolve_kidnapper_deaths`) plays `death` at the same "before the despawn"
+  spot the enemy sweep does. It is a real death, so it makes a real noise.
 - **`_spawn_child` makes NO spawn sound** (death swarm / second phase). An
   era-4 burst is 55 children in one frame; the plan authors no child-spawn row.
   Do not "fix" this.
