@@ -1,7 +1,7 @@
-"""Boss cutscene window (Phase 10G; BossUpgradeTimelinePLAN BU-4) — the modal
-boss-upgrade picker.
+"""Boss cutscene window (Phase 10G; BossUpgradeTimelinePLAN BU-4;
+fix/bossfight-outro-cleanup) — the modal boss-upgrade picker.
 
-Pure logic. A near-black overlay, a win/loss headline, "How will we react?",
+Pure logic. A near-black overlay, a single "Choose an upgrade" subtitle,
 and **THREE option boxes** — one per slot of this bossfight's milestone
 (``game.core.boss_upgrades.milestone_slots``, the ``(boss_num - 1) % 4`` cycle,
 D1/D2). Each box shows that catalog upgrade's designer-authored ``name`` and
@@ -9,10 +9,18 @@ D1/D2). Each box shows that catalog upgrade's designer-authored ``name`` and
 so a card can never advertise a magnitude the math no longer uses (the same
 rule 10G's ``choice_desc`` followed for the retired A/B narrative pick, which
 BU-4 DELETED along with ``game/core/boss_bonuses.py``).
+
+**fix/bossfight-outro-cleanup deleted the separate win/loss headline row.**
+The screen used to open with a "Cutscene: Round Won/Lost" line above the
+subtitle; nothing announces the outcome on this screen any more, only the
+upgrade picker. A LOSS that paid consolation love (D7) now says so in the
+SUBTITLE instead (``boss_cutscene.subtitle_reward``, formatted with
+``love=self.love_reward``) — every other case shows the plain
+``boss_cutscene.subtitle`` copy.
 **No cancel — the player must pick one card**; the host swallows every other
 click and all keys (``Session.frozen`` covers BOSS_CUTSCENE). Both outcomes
-show the picker: a LOSS shows the retaliation-love headline *and* the same 3
-cards (D7).
+show the picker: a LOSS shows the same 3 cards, whether or not it paid a
+consolation-love reward (D7).
 
 An EMPTY slot (a designer left it unassigned, or no ``boss_upgrades`` balance
 is wired at all — the headless exporter/preview) still draws its box frame, so
@@ -22,14 +30,14 @@ no text and is not hoverable or clickable.
 Since 10J the backdrop is the prototype's real alpha-210 dim (RGBA
 ``HudRect``) — the frozen board stays faintly visible behind the choice.
 
-10L-B: five ids (plan R3) — ``backdrop`` (color only), ``headline`` (font
-only — its win/loss COLOR AND WHICH VARIANT stay logic-owned, a 2-variant
-runtime pick, same "dynamic content" exclusion as HUD readouts; the variant
-TEXT itself is Phase-C string-table content —
-``boss_cutscene.headline_win``/``headline_loss``, ``game/ui/strings.py``),
-``subtitle``
-(font, text_color, **label** — a phase-B addition since its copy is fixed,
-not game-state), ``box_a``/``box_b``/``box_c`` (rect — moves draw AND hit
+10L-B (fix/bossfight-outro-cleanup dropped it to FOUR ids, from five —
+``headline`` is gone): ``backdrop`` (color only), ``subtitle`` (font,
+text_color, rect — its TEXT stays logic-owned, a 2-variant runtime pick
+formatted with the live love reward, the same "dynamic content" exclusion as
+HUD readouts and the deleted ``headline``'s old win/loss pick; the two variant
+TEXTS themselves are Phase-C string-table content —
+``boss_cutscene.subtitle``/``subtitle_reward``, ``game/ui/strings.py``),
+``box_a``/``box_b``/``box_c`` (rect — moves draw AND hit
 together; font;
 text_color; **skin** via the already-live skinned ``submit_panel`` — a
 CONDITIONAL path: with no skin the box keeps drawing its two raw hover-tinted
@@ -55,8 +63,6 @@ from . import widgets
 from .strings import T
 
 _BG = (0, 0, 0, 210)           # prototype alpha dim (10J)
-_WIN_GREEN = (100, 220, 100)
-_LOSS_RED = (220, 100, 100)
 #: BU-4: three columns, and each card now carries a full prose description
 #: (the catalog's ``description``, wrapped) instead of 10G's pre-broken
 #: two-liner — so the box grew from 90x65 to hold it. 3 * 200 + 2 * 12 = 624
@@ -95,7 +101,7 @@ class BossCutscene:
         self.outcome = "win"
         # Consolation love the LOST boss round already paid (session
         # `_begin_round_end`). 0 on a win, and on a loss whose era authored
-        # `loss_love_reward: 0` — both keep the plain headline.
+        # `loss_love_reward: 0` — both keep the plain subtitle.
         self.love_reward = 0
         # The 3 catalog upgrade ids this milestone offers, resolved once in
         # `open()` (never per frame — the answer cannot change while the modal
@@ -110,23 +116,20 @@ class BossCutscene:
         # same convention every other label id in game/ui uses (review fix:
         # every ids target needs a stored, readable, override-respecting
         # rect, not just font/colour).
-        # headline is a win/loss 2-variant string built from runtime outcome
-        # (like its color) — stays logic-owned, no `label` default (out of
-        # scope per the "dynamic/enum-varying text" rule). subtitle is a
-        # fixed, non-varying string, so — like every other screen's static
-        # title — `label` is a legitimate override field for it.
-        # UT-5: both go out through ``submit_label`` now, so a ``visible``
-        # override is honoured. ``headline`` keeps ``text_id=None`` on purpose
-        # — it picks ONE OF TWO string ids from the runtime outcome, the same
-        # ``text=`` escape hatch ``hud.py``'s phase banner uses.
-        self._headline = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl",
-                                         text_id=None, align="center",
-                                         visible=True)
+        # fix/bossfight-outro-cleanup: subtitle is now the ONLY text on this
+        # screen (the separate win/loss headline is deleted) and it took over
+        # headline's old enum-varying role — a plain-vs-consolation-love
+        # 2-variant string built from runtime outcome, so it stays
+        # logic-owned, no `label` default (out of scope per the
+        # "dynamic/enum-varying text" rule). It goes out through
+        # ``submit_label`` so a ``visible`` override is still honoured, and
+        # keeps ``text_id=None`` on purpose — it picks ONE OF TWO string ids
+        # from the runtime outcome/love reward, the same ``text=`` escape
+        # hatch ``hud.py``'s phase banner uses.
         self._subtitle = SimpleNamespace(rect=(0, 0, 0, 0), font_key="md",
                                          text_color=widgets.C_UI_TEXT_DIM,
                                          align="center", visible=True,
-                                         text_id=None,
-                                         label="How will we react?")
+                                         text_id=None)
         self.box_a = SimpleNamespace(rect=(0, 0, _BOX_W, _BOX_H), skin=None,
                                      font_key="lg", text_color=None)
         self.box_b = SimpleNamespace(rect=(0, 0, _BOX_W, _BOX_H), skin=None,
@@ -165,22 +168,18 @@ class BossCutscene:
         for i, box in enumerate(boxes):
             box.rect = (x0 + i * (_BOX_W + _GAP), y0, _BOX_W, _BOX_H)
         self._backdrop.rect = (0, 0, view_w, view_h)
-        # headline/subtitle sit above box_a's (default, pre-override) top —
-        # the same "no cascade" convention every other container-relative
-        # label in game/ui uses (a box_a rect OVERRIDE does not retarget
-        # these; they'd need their own rect override to follow it).
+        # subtitle sits above box_a's (default, pre-override) top — the same
+        # "no cascade" convention every other container-relative label in
+        # game/ui uses (a box_a rect OVERRIDE does not retarget it; it'd need
+        # its own rect override to follow it).
         cx = view_w // 2
         top = y0
-        # layout_h: headline/subtitle are stored/id'd rects (screen_defaults.
-        # json + the golden parity stream).
-        self._headline.rect = (
-            cx, top - layout_h(self._headline.font_key)
-            - layout_h(self._subtitle.font_key) - 14, 0, 0)
+        # layout_h: subtitle is a stored/id'd rect (screen_defaults.json +
+        # the golden parity stream).
         self._subtitle.rect = (cx, top - layout_h(self._subtitle.font_key) - 6,
                               0, 0)
         self.ids = {
             "backdrop": ("backdrop", self._backdrop),
-            "headline": ("label", self._headline),
             "subtitle": ("label", self._subtitle),
             "box_a": ("panel", self.box_a),
             "box_b": ("panel", self.box_b),
@@ -249,24 +248,19 @@ class BossCutscene:
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
                                     "under", self.skinning.state_of)
         renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
-        won = self.outcome == "win"
-        # Phase C: the TEXT is now string-table content (boss_cutscene.
-        # headline_win/headline_loss) — the win/loss PICK stays logic-owned
-        # (a 2-variant runtime string, same as the colour below), just like
-        # the module docstring's "dynamic content" exclusion always meant.
-        # A loss that paid consolation love says so in the headline — the
-        # same 2-variant runtime pick, with a third id for the templated case
-        # (the plain loss id stays for a 0 reward).
-        if won:
-            headline = T("boss_cutscene.headline_win")
-        elif self.love_reward > 0:
-            headline = T("boss_cutscene.headline_loss_reward",
-                         love=self.love_reward)
+        # Phase C / fix/bossfight-outro-cleanup: the TEXT is string-table
+        # content (boss_cutscene.subtitle/subtitle_reward) — the plain-vs-
+        # reward PICK stays logic-owned (a 2-variant runtime string), just
+        # like the module docstring's "dynamic content" exclusion always
+        # meant. There is no separate win/loss headline any more — a loss
+        # that paid consolation love says so in the subtitle itself; every
+        # other outcome (a win, or a loss with no reward) shows the plain
+        # copy.
+        if self.outcome != "win" and self.love_reward > 0:
+            subtitle = T("boss_cutscene.subtitle_reward", love=self.love_reward)
         else:
-            headline = T("boss_cutscene.headline_loss")
-        color = _WIN_GREEN if won else _LOSS_RED
-        submit_label(renderer, self._headline, text=headline, color=color)
-        submit_label(renderer, self._subtitle)
+            subtitle = T("boss_cutscene.subtitle")
+        submit_label(renderer, self._subtitle, text=subtitle)
         for i, box in enumerate(self.boxes):
             if not is_visible(box):
                 continue

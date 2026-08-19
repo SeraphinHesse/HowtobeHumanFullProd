@@ -296,6 +296,15 @@ def _screen_captures():
 #: entry, nothing already there moved, and every other screen's entry is
 #: byte-identical — which is what says the change was contained rather
 #: than the pin being relaxed.
+#: Regenerated a SIXTEENTH time (fix/bossfight-outro-cleanup): the boss
+#: cutscene's separate win/loss headline row (``"Cutscene: Round Won :)"``)
+#: is DELETED — the screen now opens straight into the subtitle + the three
+#: upgrade cards, no outcome announcement. ``boss_cutscene``'s entry loses
+#: exactly that ONE HudText; the subtitle's own text changes from
+#: ``"How will we react?"`` to ``"Choose an upgrade"`` (its rect is
+#: unchanged — the formula was never headline-relative) and every box
+#: primitive is untouched. Every other screen's entry is byte-identical,
+#: which is what says the change was contained.
 _BASELINE = {
     "main_menu": [
         HudRect(rect=(0, 0, 640, 360), color=(18, 30, 20), border_radius=0, width=0),
@@ -561,8 +570,7 @@ _BASELINE = {
     ],
     "boss_cutscene": [
         HudRect(rect=(0, 0, 640, 360), color=(0, 0, 0, 210), border_radius=0, width=0),
-        HudText(text='Cutscene: Round Won :)', pos=(320, 81), font_key='xxl', color=(100, 220, 100), align='center'),
-        HudText(text='How will we react?', pos=(320, 119), font_key='md', color=(150, 140, 120), align='center'),
+        HudText(text='Choose an upgrade', pos=(320, 119), font_key='md', color=(150, 140, 120), align='center'),
         HudRect(rect=(8, 138, 200, 104), color=(42, 34, 68), border_radius=0, width=0),
         HudRect(rect=(8, 138, 200, 104), color=(80, 65, 120), border_radius=0, width=1),
         HudRect(rect=(220, 138, 200, 104), color=(42, 34, 68), border_radius=0, width=0),
@@ -856,7 +864,6 @@ class TestReviewFixLabelRects(unittest.TestCase):
             "hud.phase_label": hud._phase_label,
             "cheat_menu.title": cheat._title,
             "cheat_menu.jump_label": cheat._jump_label,
-            "boss_cutscene.headline": boss._headline,
             "boss_cutscene.subtitle": boss._subtitle,
         }
         for name, holder in holders.items():
@@ -896,16 +903,16 @@ class TestReviewFixLabelRects(unittest.TestCase):
                     if isinstance(i, HudText) and i.text == "Building Phase")
         self.assertEqual(phase.pos, (500, 501))
 
-    def test_boss_cutscene_headline_rect_override_moves_the_recorded_text(self):
+    def test_boss_cutscene_subtitle_rect_override_moves_the_recorded_text(self):
         skinning = ScreenSkinning.empty()
         skinning._overrides["boss_cutscene"] = {
-            "widgets": {"headline": {"rect": [12, 34, 0, 0]}}}
+            "widgets": {"subtitle": {"rect": [12, 34, 0, 0]}}}
         boss = BossCutscene(VIEW_W, VIEW_H, CORE, skinning=skinning)
         boss.open(1, "win")
         items = _capture(lambda r: boss.submit(r, VIEW_W, VIEW_H))
-        headline = next(i for i in items
-                       if isinstance(i, HudText) and i.text.startswith("Cutscene"))
-        self.assertEqual(headline.pos, (12, 34))
+        subtitle = next(i for i in items
+                       if isinstance(i, HudText) and i.text == "Choose an upgrade")
+        self.assertEqual(subtitle.pos, (12, 34))
 
 
 class TestLogicalSurface(unittest.TestCase):

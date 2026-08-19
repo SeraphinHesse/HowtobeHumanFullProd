@@ -274,8 +274,8 @@ class Hud:
         # love panel. TEXT stays game-state/code-owned for every one of these
         # (love count, level, xp fraction, income delta, lives, tile count,
         # round number) — the override surface is rect/font_key/text_color/
-        # visible only, same principle as boss_cutscene's headline colour
-        # staying win/loss-owned. Positions are finalized in submit() (they
+        # visible only, same principle as this same module's own phase-banner
+        # colour staying phase-owned. Positions are finalized in submit() (they
         # are relative to the now-applied love_panel/end_turn rects), so
         # these get a SECOND skinning.apply() pass there. --
         # UT-4: each readout now names the `data/ui/strings.json` template
