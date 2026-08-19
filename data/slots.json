@@ -1048,6 +1048,12 @@
                   "frame_h": 32,
                   "frame_w": 80,
                   "key": "ui_panel_v22"
+                },
+                {
+                  "display_name": "animated bg",
+                  "frame_h": 360,
+                  "frame_w": 168,
+                  "key": "ui_panel_v23"
                 }
               ]
             },
