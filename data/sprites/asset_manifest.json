@@ -157,18 +157,18 @@
           -10
         ]
       },
+      "column_width": 18,
       "frame_h": 96,
       "frame_w": 192,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 16,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
           "frames": 18,
-          "hidden": [
-            10
-          ],
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -190,9 +190,81 @@
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
         }
       ],
-      "sheet": "imported/boost_speed_t1_lvl1.png"
+      "sheet": "master/ss_booster.png"
     },
     "boost_damage_t1_lvl2": {
       "anchors": {
@@ -205,234 +277,12 @@
           -10
         ]
       },
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/boost_damage_t1_lvl2.png"
-    },
-    "boost_damage_t1_lvl3": {
-      "anchors": {
-        "depth_pivot": [
-          0,
-          10
-        ],
-        "hp_bar": [
-          0,
-          -10
-        ]
-      },
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/boost_damage_t1_lvl3.png"
-    },
-    "boost_damage_t2_lvl1": {
-      "anchors": {
-        "depth_pivot": [
-          0,
-          10
-        ],
-        "hp_bar": [
-          -1,
-          -13
-        ]
-      },
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/boost_damage_t2_lvl1.png"
-    },
-    "boost_damage_t2_lvl2": {
-      "anchors": {
-        "depth_pivot": [
-          0,
-          10
-        ],
-        "hp_bar": [
-          -1,
-          -13
-        ]
-      },
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/boost_damage_t2_lvl2.png"
-    },
-    "boost_damage_t2_lvl3": {
-      "anchors": {
-        "depth_pivot": [
-          0,
-          10
-        ],
-        "hp_bar": [
-          0,
-          -14
-        ]
-      },
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/boost_damage_t2_lvl3.png"
-    },
-    "boost_damage_t3_lvl1": {
-      "anchors": {
-        "depth_pivot": [
-          0,
-          10
-        ],
-        "hp_bar": [
-          -1,
-          -12
-        ]
-      },
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/boost_damage_t3_lvl1.png"
-    },
-    "boost_damage_t3_lvl2": {
-      "anchors": {
-        "depth_pivot": [
-          0,
-          10
-        ],
-        "hp_bar": [
-          0,
-          -11
-        ]
-      },
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/boost_damage_t3_lvl2.png"
-    },
-    "boost_damage_t3_lvl3": {
-      "anchors": {
-        "depth_pivot": [
-          0,
-          10
-        ],
-        "hp_bar": [
-          -1,
-          -13
-        ]
-      },
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/boost_damage_t3_lvl3.png"
-    },
-    "boost_hp_t1_lvl1": {
-      "anchors": {
-        "depth_pivot": [
-          0,
-          47
-        ],
-        "hp_bar": [
-          -1,
-          -11
-        ]
-      },
+      "column_width": 18,
       "frame_h": 96,
       "frame_w": 192,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 19,
       "rows": [
         {
           "animation": "idle",
@@ -444,7 +294,7 @@
           "loop_start": 0
         },
         {
-          "animation": "idle",
+          "animation": "attack",
           "fps": 6,
           "frames": 18,
           "hidden": [],
@@ -460,249 +310,354 @@
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
         }
       ],
-      "sheet": "imported/boost_speed_t1_lvl1.png"
+      "sheet": "master/ss_booster.png"
     },
-    "boost_hp_t1_lvl2": {
+    "boost_damage_t1_lvl3": {
       "anchors": {
         "depth_pivot": [
           0,
           10
         ],
         "hp_bar": [
-          -1,
+          0,
           -10
         ]
       },
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/boost_hp_t1_lvl2.png"
-    },
-    "boost_hp_t1_lvl3": {
-      "anchors": {
-        "depth_pivot": [
-          0,
-          10
-        ],
-        "hp_bar": [
-          -1,
-          -11
-        ]
-      },
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/boost_hp_t1_lvl3.png"
-    },
-    "boost_hp_t2_lvl1": {
-      "anchors": {
-        "depth_pivot": [
-          0,
-          10
-        ],
-        "hp_bar": [
-          -1,
-          -14
-        ]
-      },
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/boost_hp_t2_lvl1.png"
-    },
-    "boost_hp_t2_lvl2": {
-      "anchors": {
-        "depth_pivot": [
-          0,
-          10
-        ],
-        "hp_bar": [
-          0,
-          -16
-        ]
-      },
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/boost_hp_t2_lvl2.png"
-    },
-    "boost_hp_t2_lvl3": {
-      "anchors": {
-        "depth_pivot": [
-          0,
-          10
-        ],
-        "hp_bar": [
-          -1,
-          -14
-        ]
-      },
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/boost_hp_t2_lvl3.png"
-    },
-    "boost_hp_t3_lvl1": {
-      "anchors": {
-        "depth_pivot": [
-          0,
-          10
-        ],
-        "hp_bar": [
-          -1,
-          -12
-        ]
-      },
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/boost_hp_t3_lvl1.png"
-    },
-    "boost_hp_t3_lvl2": {
-      "anchors": {
-        "depth_pivot": [
-          0,
-          10
-        ],
-        "hp_bar": [
-          -1,
-          -14
-        ]
-      },
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/boost_hp_t3_lvl2.png"
-    },
-    "boost_hp_t3_lvl3": {
-      "anchors": {
-        "depth_pivot": [
-          0,
-          10
-        ],
-        "hp_bar": [
-          -1,
-          -12
-        ]
-      },
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/boost_hp_t3_lvl3.png"
-    },
-    "boost_speed_t1_lvl1": {
-      "anchors": {
-        "depth_pivot": [
-          0,
-          47
-        ],
-        "hp_bar": [
-          -2,
-          -8
-        ]
-      },
+      "column_width": 18,
       "frame_h": 96,
       "frame_w": 192,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 20,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster.png"
+    },
+    "boost_damage_t2_lvl1": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
+        "hp_bar": [
+          -1,
+          -13
+        ]
+      },
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 21,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster.png"
+    },
+    "boost_damage_t2_lvl2": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
+        "hp_bar": [
+          -1,
+          -13
+        ]
+      },
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 22,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster.png"
+    },
+    "boost_damage_t2_lvl3": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
+        "hp_bar": [
+          0,
+          -14
+        ]
+      },
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 23,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster.png"
+    },
+    "boost_damage_t3_lvl1": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
+        "hp_bar": [
+          -1,
+          -12
+        ]
+      },
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 24,
       "rows": [
         {
           "animation": "idle",
@@ -732,7 +687,1662 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/boost_speed_t1_lvl1.png"
+      "sheet": "master/ss_booster.png"
+    },
+    "boost_damage_t3_lvl2": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
+        "hp_bar": [
+          0,
+          -11
+        ]
+      },
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 25,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster.png"
+    },
+    "boost_damage_t3_lvl3": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
+        "hp_bar": [
+          -1,
+          -13
+        ]
+      },
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 26,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster.png"
+    },
+    "boost_hp_t1_lvl1": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          47
+        ],
+        "hp_bar": [
+          -1,
+          -11
+        ]
+      },
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 9,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster.png"
+    },
+    "boost_hp_t1_lvl2": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
+        "hp_bar": [
+          -1,
+          -10
+        ]
+      },
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 10,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster.png"
+    },
+    "boost_hp_t1_lvl3": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
+        "hp_bar": [
+          -1,
+          -11
+        ]
+      },
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 11,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster.png"
+    },
+    "boost_hp_t2_lvl1": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
+        "hp_bar": [
+          -1,
+          -14
+        ]
+      },
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 12,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster.png"
+    },
+    "boost_hp_t2_lvl2": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
+        "hp_bar": [
+          0,
+          -16
+        ]
+      },
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 13,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster.png"
+    },
+    "boost_hp_t2_lvl3": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
+        "hp_bar": [
+          -1,
+          -14
+        ]
+      },
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 14,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster.png"
+    },
+    "boost_hp_t3_lvl1": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
+        "hp_bar": [
+          -1,
+          -12
+        ]
+      },
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 15,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster.png"
+    },
+    "boost_hp_t3_lvl2": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
+        "hp_bar": [
+          -1,
+          -14
+        ]
+      },
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 16,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster.png"
+    },
+    "boost_hp_t3_lvl3": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          10
+        ],
+        "hp_bar": [
+          -1,
+          -12
+        ]
+      },
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 17,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster.png"
+    },
+    "boost_speed_t1_lvl1": {
+      "anchors": {
+        "depth_pivot": [
+          0,
+          47
+        ],
+        "hp_bar": [
+          -2,
+          -8
+        ]
+      },
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster.png"
     },
     "boost_speed_t1_lvl2": {
       "anchors": {
@@ -745,22 +2355,249 @@
           -9
         ]
       },
+      "column_width": 18,
       "frame_h": 96,
-      "frame_w": 64,
+      "frame_w": 192,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 1,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/boost_speed_t1_lvl2.png"
+      "sheet": "master/ss_booster.png"
     },
     "boost_speed_t1_lvl3": {
       "anchors": {
@@ -773,22 +2610,240 @@
           -8
         ]
       },
+      "column_width": 18,
       "frame_h": 96,
-      "frame_w": 64,
+      "frame_w": 192,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 2,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/boost_speed_t1_lvl3.png"
+      "sheet": "master/ss_booster.png"
     },
     "boost_speed_t2_lvl1": {
       "anchors": {
@@ -801,22 +2856,231 @@
           -12
         ]
       },
+      "column_width": 18,
       "frame_h": 96,
-      "frame_w": 64,
+      "frame_w": 192,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 3,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/boost_speed_t2_lvl1.png"
+      "sheet": "master/ss_booster.png"
     },
     "boost_speed_t2_lvl2": {
       "anchors": {
@@ -829,22 +3093,222 @@
           -12
         ]
       },
+      "column_width": 18,
       "frame_h": 96,
-      "frame_w": 64,
+      "frame_w": 192,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 4,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/boost_speed_t2_lvl2.png"
+      "sheet": "master/ss_booster.png"
     },
     "boost_speed_t2_lvl3": {
       "anchors": {
@@ -857,22 +3321,213 @@
           -12
         ]
       },
+      "column_width": 18,
       "frame_h": 96,
-      "frame_w": 64,
+      "frame_w": 192,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 5,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/boost_speed_t2_lvl3.png"
+      "sheet": "master/ss_booster.png"
     },
     "boost_speed_t3_lvl1": {
       "anchors": {
@@ -885,22 +3540,204 @@
           -12
         ]
       },
+      "column_width": 18,
       "frame_h": 96,
-      "frame_w": 64,
+      "frame_w": 192,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 6,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/boost_speed_t3_lvl1.png"
+      "sheet": "master/ss_booster.png"
     },
     "boost_speed_t3_lvl2": {
       "anchors": {
@@ -913,22 +3750,195 @@
           -12
         ]
       },
+      "column_width": 18,
       "frame_h": 96,
-      "frame_w": 64,
+      "frame_w": 192,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 7,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/boost_speed_t3_lvl2.png"
+      "sheet": "master/ss_booster.png"
     },
     "boost_speed_t3_lvl3": {
       "anchors": {
@@ -941,22 +3951,186 @@
           -12
         ]
       },
+      "column_width": 18,
       "frame_h": 96,
-      "frame_w": 64,
+      "frame_w": 192,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 8,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 18,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/boost_speed_t3_lvl3.png"
+      "sheet": "master/ss_booster.png"
     },
     "boss_era_0": {
       "anchors": {
@@ -15773,6 +18947,3598 @@
         }
       ],
       "sheet": "imported/vfx_attack_range.png"
+    },
+    "vfx_boost_damage_aura": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "row_start": 11,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_damage_aura_v2": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_damage_aura_v3": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_damage_aura_v4": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_damage_aura_v5": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_damage_aura_v6": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_damage_aura_v7": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_damage_aura_v8": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_damage_aura_v9": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_hp_aura": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_hp_aura_v2": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_hp_aura_v3": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_hp_aura_v4": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_hp_aura_v5": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_hp_aura_v6": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_hp_aura_v7": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_hp_aura_v8": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_hp_aura_v9": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_speed_aura": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_speed_aura_v2": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_speed_aura_v3": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_speed_aura_v4": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_speed_aura_v5": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_speed_aura_v6": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_speed_aura_v7": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_speed_aura_v8": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
+    },
+    "vfx_boost_speed_aura_v9": {
+      "column_width": 18,
+      "frame_h": 96,
+      "frame_w": 192,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "master/ss_booster_vfx.png"
     },
     "vfx_crater": {
       "frame_h": 96,
