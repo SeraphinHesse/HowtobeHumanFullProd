@@ -252,6 +252,11 @@
         40
       ],
       "skin": "ui_button_panel_v5",
+      "text_color": [
+        213,
+        183,
+        77
+      ],
       "text_id": "building.action.upgrade"
     },
     "base_info_title": {
@@ -336,6 +341,11 @@
         308,
         0,
         0
+      ],
+      "text_color": [
+        198,
+        81,
+        151
       ]
     },
     "build_cond_card_forest_sprite": {
@@ -397,6 +407,11 @@
         307,
         0,
         0
+      ],
+      "text_color": [
+        198,
+        81,
+        151
       ]
     },
     "build_cond_card_grass_sprite": {
@@ -463,6 +478,11 @@
         307,
         0,
         0
+      ],
+      "text_color": [
+        198,
+        81,
+        151
       ]
     },
     "build_cond_card_mountain_sprite": {
@@ -523,6 +543,11 @@
         309,
         0,
         0
+      ],
+      "text_color": [
+        198,
+        81,
+        151
       ]
     },
     "build_cond_card_pond_sprite": {
@@ -602,6 +627,14 @@
         198,
         81,
         151
+      ]
+    },
+    "card_boost_speed_plate": {
+      "rect": [
+        579,
+        477,
+        77,
+        64
       ]
     },
     "card_boost_speed_price_text": {
@@ -1309,6 +1342,11 @@
         236,
         0,
         0
+      ],
+      "text_color": [
+        198,
+        81,
+        151
       ]
     },
     "dmg_dealt_label": {
@@ -1320,9 +1358,9 @@
         0
       ],
       "text_color": [
-        255,
-        255,
-        255
+        198,
+        81,
+        151
       ]
     },
     "dmg_dealt_value": {
@@ -1336,9 +1374,9 @@
         0
       ],
       "text_color": [
-        255,
-        255,
-        255
+        198,
+        81,
+        151
       ]
     },
     "dmg_taken_label": {
@@ -1350,9 +1388,9 @@
         0
       ],
       "text_color": [
-        255,
-        255,
-        255
+        198,
+        81,
+        151
       ]
     },
     "dmg_taken_value": {
@@ -1366,9 +1404,9 @@
         0
       ],
       "text_color": [
-        255,
-        255,
-        255
+        198,
+        81,
+        151
       ]
     },
     "info_base_income_label": {
@@ -1484,7 +1522,12 @@
         118,
         18
       ],
-      "skin": "ui_button_panel_v5"
+      "skin": "ui_button_panel_v5",
+      "text_color": [
+        255,
+        255,
+        255
+      ]
     },
     "next_tier_header": {
       "rect": [
@@ -2072,6 +2115,11 @@
         318,
         0,
         0
+      ],
+      "text_color": [
+        198,
+        81,
+        151
       ]
     },
     "upgrade_cond_card_forest_sprite": {
@@ -2134,6 +2182,11 @@
         317,
         0,
         0
+      ],
+      "text_color": [
+        198,
+        81,
+        151
       ]
     },
     "upgrade_cond_card_grass_sprite": {
@@ -2201,6 +2254,11 @@
         317,
         0,
         0
+      ],
+      "text_color": [
+        198,
+        81,
+        151
       ]
     },
     "upgrade_cond_card_mountain_sprite": {
@@ -2262,6 +2320,11 @@
         319,
         0,
         0
+      ],
+      "text_color": [
+        198,
+        81,
+        151
       ]
     },
     "upgrade_cond_card_pond_sprite": {
