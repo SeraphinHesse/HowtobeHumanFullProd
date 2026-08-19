@@ -151,14 +151,20 @@ class TestRenderItems(unittest.TestCase):
         doc.deco.append({"col": 3, "row": 1, "slot": "deco_tree"})
         items = tilemap.render_items(doc)
         ground = [i for i in items if i.layer == "ground"]
-        entities = [i for i in items if i.layer == "entities"]
-        deco = [i for i in items if i.layer == "deco"]
+        # fix/y-sorted-deco: deco rides the SAME layer as the base now, so the
+        # layer string no longer separates them — `rank` does. Deco used to be
+        # its own layer strictly above `entities`, which made every tree draw
+        # over every enemy regardless of feet.
+        entities = [i for i in items
+                    if i.layer == "entities" and i.rank != tilemap.DECO_RANK]
+        deco = [i for i in items if i.rank == tilemap.DECO_RANK]
         self.assertEqual(len(ground), doc.cols * doc.rows)
         self.assertEqual(len(entities), 1)          # the base
         self.assertEqual(entities[0].slot_key, "base_hole")
         self.assertEqual(entities[0].world_pos, (1, 1))
-        self.assertEqual(len(deco), 1)              # above entities (E-26)
+        self.assertEqual(len(deco), 1)
         self.assertEqual(deco[0].slot_key, "deco_tree")
+        self.assertEqual(deco[0].layer, "entities")   # y-sorts against units
 
     def test_ground_slots_use_parity(self):
         doc = make_doc(fill="s")
@@ -171,8 +177,9 @@ class TestRenderItems(unittest.TestCase):
         doc = make_doc()
         doc.deco.append({"col": 3, "row": 1, "slot": "deco_tree"})
         self.assertEqual(
-            [i.layer for i in tilemap.render_items(
-                doc, terrain=False, base=False)], ["deco"])
+            [(i.layer, i.rank) for i in tilemap.render_items(
+                doc, terrain=False, base=False)],
+            [(tilemap.DECO_LAYER, tilemap.DECO_RANK)])
         self.assertEqual(tilemap.render_items(
             doc, terrain=False, base=False, deco=False), [])
 
@@ -190,7 +197,7 @@ class TestRenderItems(unittest.TestCase):
         doc.deco.append({"col": 3, "row": 1, "slot": "deco_tree"})
         expected_phase = (3 * 131 + 1 * 197) % 997
         deco = [i for i in tilemap.render_items(doc, anim_time_ms=1000)
-                if i.layer == "deco"]
+                if i.rank == tilemap.DECO_RANK]
         self.assertEqual(deco[0].anim_time_ms, 1000 + expected_phase)
 
     def test_deco_flip_passes_through_to_render_item(self):
@@ -198,7 +205,7 @@ class TestRenderItems(unittest.TestCase):
         doc.deco.append({"col": 3, "row": 1, "slot": "deco_tree", "flip": True})
         doc.deco.append({"col": 2, "row": 1, "slot": "deco_tree"})
         deco = {i.world_pos: i.flip
-                for i in tilemap.render_items(doc) if i.layer == "deco"}
+                for i in tilemap.render_items(doc) if i.rank == tilemap.DECO_RANK}
         self.assertTrue(deco[(3, 1)])
         self.assertFalse(deco[(2, 1)])   # no "flip" key -> defaults false
 
@@ -229,10 +236,11 @@ class TestVisibleRenderItems(unittest.TestCase):
         doc.deco.append({"col": 30, "row": 30, "slot": "deco_tree"})
         # a window far from both, with the default tall_margin, excludes them
         items = tilemap.visible_render_items(doc, 10, 15, 10, 15)
-        self.assertEqual([i for i in items if i.layer in ("entities", "deco")], [])
+        self.assertEqual([i for i in items if i.layer == "entities"], [])
         # a window over the base includes it (entities layer)
         near = tilemap.visible_render_items(doc, 0, 3, 0, 3)
-        self.assertEqual([i.slot_key for i in near if i.layer == "entities"],
+        self.assertEqual([i.slot_key for i in near
+                          if i.layer == "entities" and i.rank != tilemap.DECO_RANK],
                          ["base_hole"])
 
     def test_deco_anim_time_ms_carries_deterministic_phase(self):
@@ -241,14 +249,14 @@ class TestVisibleRenderItems(unittest.TestCase):
         expected_phase = (30 * 131 + 30 * 197) % 997
         items = tilemap.visible_render_items(
             doc, 25, 35, 25, 35, anim_time_ms=500)
-        deco = [i for i in items if i.layer == "deco"]
+        deco = [i for i in items if i.rank == tilemap.DECO_RANK]
         self.assertEqual(deco[0].anim_time_ms, 500 + expected_phase)
 
     def test_deco_flip_passes_through_to_render_item(self):
         doc = make_doc(cols=40, rows=40)
         doc.deco.append({"col": 30, "row": 30, "slot": "deco_tree", "flip": True})
         items = tilemap.visible_render_items(doc, 25, 35, 25, 35)
-        deco = [i for i in items if i.layer == "deco"]
+        deco = [i for i in items if i.rank == tilemap.DECO_RANK]
         self.assertTrue(deco[0].flip)
 
     def test_column_rides_every_item_and_defaults_to_none(self):
@@ -262,7 +270,7 @@ class TestVisibleRenderItems(unittest.TestCase):
         items = tilemap.visible_render_items(doc, 0, 5, 0, 5, camera=True,
                                              column=2)
         self.assertEqual({i.layer for i in items},
-                         {"ground", "entities", "deco"})
+                         {"ground", "entities"})   # deco y-sorts among entities
         self.assertTrue(all(i.column == 2 for i in items))
         plain = tilemap.visible_render_items(doc, 0, 5, 0, 5, camera=True)
         self.assertTrue(all(i.column is None for i in plain))

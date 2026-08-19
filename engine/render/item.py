@@ -8,6 +8,19 @@ host after flush, not through the item pipeline.
 import math
 from dataclasses import dataclass
 
+#: The layer is the PRIMARY sort key (``CoordinateSystem.depth_key``), so a
+#: higher layer beats iso depth ALWAYS — it is "draw over, unconditionally",
+#: never "draw over when in front". Reach for a layer only when that is
+#: genuinely what you mean.
+#:
+#: ``deco`` is a cautionary tale and is emitted by NOTHING today: trees and
+#: props used to ride it, which made every tree draw over every enemy no matter
+#: whose feet were nearer, and (because ``Renderer._depth_pos`` resolves the
+#: ``depth_pivot`` feet anchor only on ``entities``) silently discarded the very
+#: anchors authored to sort them. They now ride ``entities`` — see
+#: ``engine.tilemap.DECO_LAYER``. It stays in the tuple because removing it
+#: would renumber ``overlay``, and because "unconditionally above the world" is
+#: still a legitimate thing to want; just be sure you want it.
 LAYERS = ("ground", "terrain", "entities", "deco", "overlay")
 
 

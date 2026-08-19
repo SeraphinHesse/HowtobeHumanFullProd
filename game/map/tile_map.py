@@ -12,6 +12,7 @@ min corner is section (0,0)), falling back to the base (the buildable min
 corner) rather than the prototype's hardcoded constants, so the math is
 map-driven. Pure Python — no pygame.
 """
+import types
 from dataclasses import dataclass
 
 from game.core.balance import load_balance
@@ -1228,3 +1229,127 @@ class TileMap:
                 occupancy.set((t.col, t.row), t.occupant)
             else:
                 occupancy.clear((t.col, t.row))
+
+    # -- save-slot serialization (SaveGamePLAN SG-4) -----------------------
+
+    def save_state(self):
+        """Save-slot serialization — the RUNTIME DELTAS only. A fresh
+        ``TileMap(doc, balance, ...)`` construction over the SAME map doc
+        already reproduces, for free, the legend-derived zone state for
+        every tile and any PAINTED ``tile_conditions`` mark (both fully
+        deterministic) — so neither needs storing. What genuinely differs
+        at runtime and must be captured:
+
+        * per-tile zone-state changes (unlock/recede) vs. the legend
+          baseline;
+        * the RANDOM per-tile condition roll (and its independent spawn-deco
+          roll) for any tile that has entered play — a fresh construction
+          rolls DIFFERENT random values, so these must be captured exactly,
+          not diffed against a baseline that doesn't exist for a random
+          value. Saved for every tile with ``condition_rolled`` set,
+          including painted/exempt tiles too (redundant but harmless —
+          simpler and safer than replicating the painted/exempt exemption
+          logic a second time here);
+        * the stage-system counters (``_stage``/``_unlock_purchases``/
+          ``_retire_cursor`` — no randomness, but genuinely path-dependent on
+          which chunks the player chose to unlock, so there is no
+          "regenerate from elsewhere" trick);
+        * in-transit ``moving_orders`` (a moving building is DESPAWNED and
+          held ALIVE only by this list — SG-5's autosave assembly must reach
+          it through here, not through the live-building enumeration).
+
+        Wall edges are deliberately NOT captured here — SG-1's D1 (autosave
+        fires only at the round boundary) means every alive WallBuilder's
+        walls are always at full HP the instant an autosave can fire (payday
+        slot 10, ``rebuild_walls``, already ran this exact round) — so the
+        caller re-derives them for free by calling ``rebuild_walls()`` once
+        after restoring buildings (each WallBuilder's own frozen
+        ``wall_snapshot`` component field, already round-tripped generically
+        by SG-3, is the only input that method needs).
+        """
+        tile_deltas = []
+        for tile in self.all_tiles():
+            baseline_state = self._legend_state(tile.col, tile.row)
+            condition_changed = tile.condition_rolled
+            deco_changed = tile.spawn_deco_roll != -1
+            if tile.state == baseline_state and not condition_changed and not deco_changed:
+                continue
+            entry = {"col": tile.col, "row": tile.row, "state": tile.state.name}
+            if condition_changed:
+                entry["condition"] = tile.condition.name
+                entry["condition_variant_idx"] = tile.condition_variant_idx
+            if deco_changed:
+                entry["spawn_deco_roll"] = tile.spawn_deco_roll
+            tile_deltas.append(entry)
+
+        return {
+            "tile_deltas": tile_deltas,
+            "stage": self._stage,
+            "unlock_purchases": self._unlock_purchases,
+            "retire_cursor": self._retire_cursor,
+            "moving_orders": [
+                {"building_id": order.building.id, "from_col": order.from_col,
+                 "from_row": order.from_row, "to_col": order.to_col,
+                 "to_row": order.to_row, "rounds_left": order.rounds_left}
+                for order in self.moving_orders
+            ],
+        }
+
+    def _legend_state(self, col, row):
+        """The zone state a FRESH construction seeds this tile to, from the
+        map doc alone — the deterministic baseline ``save_state``/
+        ``apply_state`` diff against. Mirrors ``__init__``'s own seeding
+        exactly (legend code -> zone, except the base tile -> BUILT)."""
+        if (col, row) == (self.base_col, self.base_row):
+            return TileState.BUILT
+        return _CODE_STATE.get(self._doc.terrain[row][col], TileState.BACKGROUND)
+
+    def apply_tile_state(self, data):
+        """Phase 1 of ``apply_state`` (SG-4/SG-6 ordering fix): restores
+        every tile's zone-state/condition/spawn-deco delta plus the
+        stage-system counters — everything that does NOT need a live
+        building reference. Deliberately split from moving-order restoration
+        (``apply_moving_orders``) because of a real ordering dependency: a
+        restored building (``game.buildings.registry.restore_building``,
+        SG-3) reads ITS OWN tile's ``condition`` to compute condition-
+        dependent stats, so tiles must be restored BEFORE buildings are, but
+        moving orders reference buildings BY ID and so must be restored
+        AFTER. Must be called on a FRESHLY-CONSTRUCTED ``TileMap`` over the
+        SAME map doc the save was taken on — see ``save_state``'s docstring
+        for why (the random-roll overwrite rationale) and for why wall edges
+        are not part of this at all (``rebuild_walls()`` instead).
+        """
+        for entry in data["tile_deltas"]:
+            tile = self.get(entry["col"], entry["row"])
+            self.set_tile_state(tile, TileState[entry["state"]])
+            if "condition" in entry:
+                tile.condition = TileCondition[entry["condition"]]
+                tile.condition_rolled = True
+                tile.condition_variant_idx = entry["condition_variant_idx"]
+                if (self._registry is not None
+                        and tile.state != TileState.BACKGROUND):
+                    tile.condition_slot = _resolve_condition_slot(
+                        self._registry, tile.condition, tile.state,
+                        tile.condition_variant_idx)
+            if "spawn_deco_roll" in entry:
+                tile.spawn_deco_roll = entry["spawn_deco_roll"]
+
+        self._stage = data["stage"]
+        self._unlock_purchases = data["unlock_purchases"]
+        self._retire_cursor = data["retire_cursor"]
+
+    def apply_moving_orders(self, data, building_by_id):
+        """Phase 2 of ``apply_state`` — restores in-transit moving orders,
+        called AFTER every building has been restored (SG-3) so
+        ``building_by_id`` (a ``{GameObject.id: Building}`` map the caller
+        builds) can resolve each order's building reference. See
+        ``apply_tile_state``'s docstring for why this is a separate method
+        rather than one combined call."""
+        self.moving_orders = [
+            types.SimpleNamespace(
+                building=building_by_id[order["building_id"]],
+                from_col=order["from_col"], from_row=order["from_row"],
+                to_col=order["to_col"], to_row=order["to_row"],
+                rounds_left=order["rounds_left"])
+            for order in data["moving_orders"]
+        ]

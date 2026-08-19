@@ -499,6 +499,48 @@ class TestRenderBackendSelection(TempDataBoot):
         self.assertFalse(p._map_events)
         self.assertFalse(p._map_get_pos)
 
+    def test_two_sources_agreeing_OUTSIDE_the_view_are_both_window_pixels(self):
+        """Agreeing does not mean logical. MEASURED live (1920x1080 window,
+        logical 640x360): SDL delivers some events already-logical and others
+        in window pixels in the SAME run, and on a window-pixel event both
+        sources read the same large point. Reading that as logical handed the
+        game a cursor 3x too far right and down — every click missed, and
+        `wants_scroll` was asked about a point outside `panel_rect`, so the
+        construct card list refused the wheel and the camera zoomed."""
+        p = self._presenter()
+        down = pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            {"pos": (1662, 583), "button": 1, "clicks": 1, "touch": False})
+        with unittest.mock.patch.object(pygame.mouse, "get_pos",
+                                        lambda: (1662, 585)):
+            self.assertEqual(p.map_event(down).pos, (554, 194))
+            self.assertEqual(p.mouse_pos(), (554, 195))
+        self.assertTrue(p._map_events)
+        self.assertTrue(p._map_get_pos)
+
+    def test_a_pinned_get_pos_space_decides_what_agreement_means(self):
+        """`get_pos()` is one API with one answer for the run; `event.pos` is
+        not. Once an unambiguous sample pins get_pos as window pixels, a later
+        event that AGREES with it is window pixels too — anywhere in the
+        window, including inside the logical view where the two spaces are
+        otherwise indistinguishable."""
+        p = self._presenter()
+        motion = pygame.event.Event(
+            pygame.MOUSEMOTION,
+            {"pos": (554, 195), "rel": (0, 0), "buttons": (0, 0, 0),
+             "touch": False})
+        with unittest.mock.patch.object(pygame.mouse, "get_pos",
+                                        lambda: (1662, 585)):
+            self.assertEqual(p.map_event(motion).pos, (554, 195))
+        self.assertTrue(p._get_pos_window, "get_pos is the window-pixel half")
+        # Now a window-pixel event that lands INSIDE the 640x360 logical view.
+        down = pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            {"pos": (300, 150), "button": 1, "clicks": 1, "touch": False})
+        with unittest.mock.patch.object(pygame.mouse, "get_pos",
+                                        lambda: (300, 150)):
+            self.assertEqual(p.map_event(down).pos, (100, 50))
+
     def test_a_sample_taken_mid_flick_defers_instead_of_guessing(self):
         """The two reads are a frame apart. If neither relation holds the
         cursor moved between them — freezing a verdict from that sample is how

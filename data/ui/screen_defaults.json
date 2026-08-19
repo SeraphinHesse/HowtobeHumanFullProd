@@ -798,10 +798,10 @@
             "label": "",
             "parent": "card_aoe_defence",
             "rect": [
-              530,
-              170,
-              34,
-              34
+              515,
+              145,
+              64,
+              96
             ]
           },
           "card_aoe_defence_price": {
@@ -912,10 +912,10 @@
             "label": "",
             "parent": "card_blocker",
             "rect": [
-              530,
-              706,
-              34,
-              34
+              515,
+              681,
+              64,
+              96
             ]
           },
           "card_blocker_price": {
@@ -1026,10 +1026,10 @@
             "label": "",
             "parent": "card_boost_damage",
             "rect": [
-              530,
-              572,
-              34,
-              34
+              515,
+              547,
+              64,
+              96
             ]
           },
           "card_boost_damage_price": {
@@ -1140,10 +1140,10 @@
             "label": "",
             "parent": "card_boost_hp",
             "rect": [
-              530,
-              639,
-              34,
-              34
+              515,
+              614,
+              64,
+              96
             ]
           },
           "card_boost_hp_price": {
@@ -1254,10 +1254,10 @@
             "label": "",
             "parent": "card_boost_speed",
             "rect": [
-              530,
-              505,
-              34,
-              34
+              515,
+              480,
+              64,
+              96
             ]
           },
           "card_boost_speed_price": {
@@ -1368,10 +1368,10 @@
             "label": "",
             "parent": "card_defence",
             "rect": [
-              530,
-              36,
-              34,
-              34
+              515,
+              11,
+              64,
+              96
             ]
           },
           "card_defence_price": {
@@ -1482,10 +1482,10 @@
             "label": "",
             "parent": "card_economic",
             "rect": [
-              530,
-              103,
-              34,
-              34
+              515,
+              78,
+              64,
+              96
             ]
           },
           "card_economic_price": {
@@ -1596,10 +1596,10 @@
             "label": "",
             "parent": "card_meditator",
             "rect": [
-              530,
-              438,
-              34,
-              34
+              515,
+              413,
+              64,
+              96
             ]
           },
           "card_meditator_price": {
@@ -1710,10 +1710,10 @@
             "label": "",
             "parent": "card_painter",
             "rect": [
-              530,
-              371,
-              34,
-              34
+              515,
+              346,
+              64,
+              96
             ]
           },
           "card_painter_price": {
@@ -1824,10 +1824,10 @@
             "label": "",
             "parent": "card_storm_priest",
             "rect": [
-              530,
-              304,
-              34,
-              34
+              515,
+              279,
+              64,
+              96
             ]
           },
           "card_storm_priest_price": {
@@ -1938,10 +1938,10 @@
             "label": "",
             "parent": "card_sun_scorcher",
             "rect": [
-              530,
-              237,
-              34,
-              34
+              515,
+              212,
+              64,
+              96
             ]
           },
           "card_sun_scorcher_price": {
@@ -2052,10 +2052,10 @@
             "label": "",
             "parent": "card_wall_builder",
             "rect": [
-              530,
-              773,
-              34,
-              34
+              515,
+              748,
+              64,
+              96
             ]
           },
           "card_wall_builder_price": {
@@ -2802,7 +2802,7 @@
             "text_id": "building.upgrade.died_last_round"
           },
           "dmg_dealt_label": {
-            "display_name": "Damage dealt label",
+            "display_name": "DMG dealt label",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -2813,12 +2813,12 @@
               0,
               0
             ],
-            "sample": "Damage dealt",
+            "sample": "DMG dealt",
             "text_id": "building.upgrade.dmg_dealt"
           },
           "dmg_dealt_value": {
             "align": "right",
-            "display_name": "Damage dealt value",
+            "display_name": "DMG dealt value",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -2832,7 +2832,7 @@
             "text_id": "building.stat.value"
           },
           "dmg_taken_label": {
-            "display_name": "Damage taken label",
+            "display_name": "DMG taken label",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -2843,12 +2843,12 @@
               0,
               0
             ],
-            "sample": "Damage taken",
+            "sample": "DMG taken",
             "text_id": "building.upgrade.dmg_taken"
           },
           "dmg_taken_value": {
             "align": "right",
-            "display_name": "Damage taken value",
+            "display_name": "DMG taken value",
             "font_key": "sm",
             "kind": "label",
             "label": "",
@@ -3183,7 +3183,7 @@
             "text_id": "building.stat.value"
           },
           "stat_hp_label": {
-            "display_name": "HP label",
+            "display_name": "Health label",
             "font_key": "md",
             "kind": "label",
             "label": "",
@@ -3194,12 +3194,12 @@
               0,
               0
             ],
-            "sample": "HP",
+            "sample": "Health",
             "text_id": "building.stat.hp"
           },
           "stat_hp_value": {
             "align": "right",
-            "display_name": "HP value",
+            "display_name": "Health value",
             "font_key": "md",
             "kind": "label",
             "label": "",
@@ -3794,7 +3794,7 @@
               0,
               0
             ],
-            "sample": "click here to change",
+            "sample": "R",
             "text_id": "building.upgrade.name_placeholder"
           },
           "upgrade_name_box": {
@@ -4355,10 +4355,10 @@
         "label": "",
         "parent": "card_aoe_defence",
         "rect": [
-          530,
-          170,
-          34,
-          34
+          515,
+          145,
+          64,
+          96
         ]
       },
       "card_aoe_defence_price": {
@@ -4469,10 +4469,10 @@
         "label": "",
         "parent": "card_blocker",
         "rect": [
-          530,
-          706,
-          34,
-          34
+          515,
+          681,
+          64,
+          96
         ]
       },
       "card_blocker_price": {
@@ -4583,10 +4583,10 @@
         "label": "",
         "parent": "card_boost_damage",
         "rect": [
-          530,
-          572,
-          34,
-          34
+          515,
+          547,
+          64,
+          96
         ]
       },
       "card_boost_damage_price": {
@@ -4697,10 +4697,10 @@
         "label": "",
         "parent": "card_boost_hp",
         "rect": [
-          530,
-          639,
-          34,
-          34
+          515,
+          614,
+          64,
+          96
         ]
       },
       "card_boost_hp_price": {
@@ -4811,10 +4811,10 @@
         "label": "",
         "parent": "card_boost_speed",
         "rect": [
-          530,
-          505,
-          34,
-          34
+          515,
+          480,
+          64,
+          96
         ]
       },
       "card_boost_speed_price": {
@@ -4925,10 +4925,10 @@
         "label": "",
         "parent": "card_defence",
         "rect": [
-          530,
-          36,
-          34,
-          34
+          515,
+          11,
+          64,
+          96
         ]
       },
       "card_defence_price": {
@@ -5039,10 +5039,10 @@
         "label": "",
         "parent": "card_economic",
         "rect": [
-          530,
-          103,
-          34,
-          34
+          515,
+          78,
+          64,
+          96
         ]
       },
       "card_economic_price": {
@@ -5153,10 +5153,10 @@
         "label": "",
         "parent": "card_meditator",
         "rect": [
-          530,
-          438,
-          34,
-          34
+          515,
+          413,
+          64,
+          96
         ]
       },
       "card_meditator_price": {
@@ -5267,10 +5267,10 @@
         "label": "",
         "parent": "card_painter",
         "rect": [
-          530,
-          371,
-          34,
-          34
+          515,
+          346,
+          64,
+          96
         ]
       },
       "card_painter_price": {
@@ -5381,10 +5381,10 @@
         "label": "",
         "parent": "card_storm_priest",
         "rect": [
-          530,
-          304,
-          34,
-          34
+          515,
+          279,
+          64,
+          96
         ]
       },
       "card_storm_priest_price": {
@@ -5495,10 +5495,10 @@
         "label": "",
         "parent": "card_sun_scorcher",
         "rect": [
-          530,
-          237,
-          34,
-          34
+          515,
+          212,
+          64,
+          96
         ]
       },
       "card_sun_scorcher_price": {
@@ -5609,10 +5609,10 @@
         "label": "",
         "parent": "card_wall_builder",
         "rect": [
-          530,
-          773,
-          34,
-          34
+          515,
+          748,
+          64,
+          96
         ]
       },
       "card_wall_builder_price": {
@@ -6027,7 +6027,7 @@
         "text_id": "building.upgrade.died_last_round"
       },
       "dmg_dealt_label": {
-        "display_name": "Damage dealt label",
+        "display_name": "DMG dealt label",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -6038,12 +6038,12 @@
           0,
           0
         ],
-        "sample": "Damage dealt",
+        "sample": "DMG dealt",
         "text_id": "building.upgrade.dmg_dealt"
       },
       "dmg_dealt_value": {
         "align": "right",
-        "display_name": "Damage dealt value",
+        "display_name": "DMG dealt value",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -6057,7 +6057,7 @@
         "text_id": "building.stat.value"
       },
       "dmg_taken_label": {
-        "display_name": "Damage taken label",
+        "display_name": "DMG taken label",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -6068,12 +6068,12 @@
           0,
           0
         ],
-        "sample": "Damage taken",
+        "sample": "DMG taken",
         "text_id": "building.upgrade.dmg_taken"
       },
       "dmg_taken_value": {
         "align": "right",
-        "display_name": "Damage taken value",
+        "display_name": "DMG taken value",
         "font_key": "sm",
         "kind": "label",
         "label": "",
@@ -6744,7 +6744,7 @@
         "text_id": "building.stat.value"
       },
       "stat_hp_label": {
-        "display_name": "HP label",
+        "display_name": "Health label",
         "font_key": "md",
         "kind": "label",
         "label": "",
@@ -6755,12 +6755,12 @@
           0,
           0
         ],
-        "sample": "HP",
+        "sample": "Health",
         "text_id": "building.stat.hp"
       },
       "stat_hp_value": {
         "align": "right",
-        "display_name": "HP value",
+        "display_name": "Health value",
         "font_key": "md",
         "kind": "label",
         "label": "",
@@ -7412,7 +7412,7 @@
           0,
           0
         ],
-        "sample": "click here to change",
+        "sample": "R",
         "text_id": "building.upgrade.name_placeholder"
       },
       "upgrade_name_box": {
@@ -8247,6 +8247,34 @@
       }
     }
   },
+  "loading": {
+    "mock_note": "love=123, round=7 (idle, no world state — the ring at 0%)",
+    "widgets": {
+      "backdrop": {
+        "display_name": "Background backdrop",
+        "kind": "backdrop",
+        "label": "",
+        "rect": [
+          0,
+          0,
+          640,
+          360
+        ]
+      },
+      "ring": {
+        "display_name": "Progress ring",
+        "kind": "panel",
+        "label": "",
+        "parent": "backdrop",
+        "rect": [
+          296,
+          156,
+          48,
+          48
+        ]
+      }
+    }
+  },
   "main_menu": {
     "mock_note": "love=123, round=7 (idle, no world state)",
     "widgets": {
@@ -8269,7 +8297,19 @@
         "parent": "backdrop",
         "rect": [
           240,
-          210,
+          122,
+          160,
+          26
+        ]
+      },
+      "btn_continue": {
+        "font_key": "lg",
+        "kind": "button",
+        "label": "CONTINUE",
+        "parent": "backdrop",
+        "rect": [
+          0,
+          0,
           160,
           26
         ]
@@ -8282,7 +8322,7 @@
         "parent": "backdrop",
         "rect": [
           240,
-          300,
+          242,
           160,
           26
         ]
@@ -8294,7 +8334,7 @@
         "parent": "backdrop",
         "rect": [
           240,
-          240,
+          152,
           160,
           26
         ]
@@ -8307,7 +8347,7 @@
         "parent": "backdrop",
         "rect": [
           240,
-          150,
+          62,
           160,
           26
         ]
@@ -8319,7 +8359,7 @@
         "parent": "backdrop",
         "rect": [
           240,
-          180,
+          92,
           160,
           26
         ]
@@ -8331,7 +8371,7 @@
         "parent": "backdrop",
         "rect": [
           405,
-          180,
+          92,
           30,
           26
         ]
@@ -8344,7 +8384,19 @@
         "parent": "backdrop",
         "rect": [
           240,
-          330,
+          272,
+          160,
+          26
+        ]
+      },
+      "btn_save_files": {
+        "font_key": "lg",
+        "kind": "button",
+        "label": "SAVE FILES",
+        "parent": "backdrop",
+        "rect": [
+          240,
+          182,
           160,
           26
         ]
@@ -8357,7 +8409,7 @@
         "parent": "backdrop",
         "rect": [
           240,
-          270,
+          212,
           160,
           26
         ]
@@ -8370,7 +8422,7 @@
         "parent": "backdrop",
         "rect": [
           320,
-          125,
+          42,
           0,
           0
         ]
@@ -8383,7 +8435,7 @@
         "parent": "backdrop",
         "rect": [
           320,
-          105,
+          22,
           0,
           0
         ]

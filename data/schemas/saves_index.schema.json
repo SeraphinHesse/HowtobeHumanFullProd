@@ -1,0 +1,69 @@
+{
+  "$id": "saves_index.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "scores/saves/index.json (gitignored runtime save-slot index; no data/ content file pairs with this schema - validate_data skips data/schemas/). Written ONLY by game/core/savegame.py through engine.data_io.write_validated. Lists every save slot's lightweight summary (id, pinned flag, timestamps, round reached) so the Save Files screen can render its list without loading every slot's full body (SaveGamePLAN SG-1).",
+  "properties": {
+    "slots": {
+      "description": "Every save slot's summary, in creation order (oldest first) - the same order FIFO eviction walks.",
+      "items": {
+        "additionalProperties": false,
+        "description": "One save slot's index summary.",
+        "properties": {
+          "created_at": {
+            "description": "ISO-8601 timestamp of the autosave that created this slot.",
+            "type": "string"
+          },
+          "map_id": {
+            "description": "The active map this run was played on.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "pinned": {
+            "description": "True if this slot is exempt from FIFO eviction.",
+            "type": "boolean"
+          },
+          "round_num": {
+            "description": "The round this save was taken at - always a multiple of 5 in practice (the autosave cadence).",
+            "maximum": 100000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "slot_id": {
+            "description": "Unique id; also the stem of scores/saves/<slot_id>.json.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "ISO-8601 timestamp of the last write to this slot - equals created_at, since a slot is never overwritten by a later autosave (D3: every autosave creates a new slot).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "created_at",
+          "map_id",
+          "pinned",
+          "round_num",
+          "slot_id",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "version": {
+      "description": "Document format version. Only 1 exists; a future bump is a schema change.",
+      "enum": [
+        1
+      ],
+      "minimum": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "slots",
+    "version"
+  ],
+  "title": "saves_index",
+  "type": "object"
+}

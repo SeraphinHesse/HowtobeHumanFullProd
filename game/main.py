@@ -45,6 +45,7 @@ import math
 import os
 import random
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -68,7 +69,7 @@ import engine.audio as game_audio  # SD-4
 from engine.coords import CameraLimit, load_coordinate_system
 from engine.core import Scene, SpriteAnimator
 from engine.physics import TileOccupancy
-from engine.render import HudSprite, HudText, Renderer
+from engine.render import HudRect, HudSprite, HudText, Renderer
 from engine.render.fonts import configure_fonts
 from engine.render.ground_cache import GroundCache
 from game.buildings import BaseBuilding, attach_base
@@ -77,6 +78,8 @@ from game.buildings.coverage import wire_defence_coverage
 # -- /10I --
 # -- B1: the slots.json category whose slots may carry a colour column --
 from game.buildings.registry import BUILDINGS_CATEGORY, placement_blocker
+from game.buildings.registry import save_building  # SaveGamePLAN SG-5
+from game.buildings.registry import restore_building  # SaveGamePLAN SG-6
 from game.buildings import painter as painter_art  # progress-art seam
 # -- Building Movement: the in-transit sign slot + the cost/time formulas the
 # destination-pick preview quotes --
@@ -93,6 +96,8 @@ from game.core import Session, append_random_name, load_balance
 from game.core import boss_upgrades  # BU-3: the one-time-hook seam
 from game.core import highscores  # player-identity: the run-history document
 from game.core import lightning  # BU-3 3.3: the stormpriest_slow hook seam
+from game.core import savegame  # SaveGamePLAN SG-5: the autosave writer
+from game.core.game_state import RunState  # SaveGamePLAN SG-6: load path
 from game.core.phases import GamePhase, GameState
 from game.debug import (  # debug-mode-telemetry
     DebugRecorder, LEVELS, LEVEL_BASIC, LEVEL_OFF, LEVEL_VERBOSE,
@@ -128,8 +133,9 @@ from game.ui import widgets  # 10L-A: R2 hit-seam wiring
 from game.ui.building_ui import MovePreview  # Building Movement confirm modal
 from game.ui.cutscene_player import CutscenePlayer, load_cutscene_registry
 from game.ui.loading_screen import (  # feature: loading screen
-    RING_RADIUS as LOADING_RING_RADIUS, RING_WIDTH as LOADING_RING_WIDTH,
     BG_SLOT as LOADING_BG_SLOT, LoadingScreen,
+    default_ring_rect as loading_default_ring_rect,
+    submit_ring as loading_submit_ring,
 )
 from game.ui.skinning import ScreenSkinning  # 10L-B: per-screen overrides
 from game.ui.strings import configure_strings  # Phase C: global string table
@@ -434,6 +440,19 @@ class _CursorSpace:
     _CAL_MIN = 12       # near the origin every space agrees — wait for a real
     #                     cursor position rather than calibrating on noise
 
+    #: Which space ``pygame.mouse.get_pos()`` reports in, once an
+    #: UNAMBIGUOUS sample has shown it — True = window pixels, False =
+    #: logical, None = not yet known. Sticky, and a CLASS attribute so a
+    #: presenter built without running ``__init__`` still reads it.
+    #:
+    #: `get_pos()` is one API with one answer for the whole run, while
+    #: `event.pos` is NOT: MEASURED live (pygame-ce 2.5.7 / SDL 2.32.10 /
+    #: direct3d, 1920x1080 window at logical 640x360), the same run delivers
+    #: some mouse events already-logical and others in window pixels. So the
+    #: stable source is what disambiguates the unstable one — see the
+    #: agreeing branch in `_calibrate`.
+    _get_pos_window = None
+
     def _calibrate(self, event_pos):
         """Re-derive which cursor source needs the window->logical remap.
 
@@ -458,6 +477,7 @@ class _CursorSpace:
         if (win_w, win_h) == (self._view_w, self._view_h):
             if self._map_events or self._map_get_pos or self._map_events is None:
                 self._map_events = self._map_get_pos = False   # nothing scaled
+                self._get_pos_window = False
                 self._log_calibration(event_pos)
             return True
         ex, ey = event_pos
@@ -472,15 +492,46 @@ class _CursorSpace:
             return abs(a[0] - b[0]) <= tol and abs(a[1] - b[1]) <= tol
 
         if close((ex, ey), (gx, gy)):
-            # both already in the same space, and the shipped default puts
-            # clicks where they belong, so that space is the logical one
-            self._map_events = self._map_get_pos = False
+            # Both reads are in the SAME space — but WHICH one? Reading
+            # "they agree" as "so it is the logical space" is the third way
+            # this seam has been wrong, and the one that broke the construct
+            # card list. It was harmless while `_calibrate` ran ONCE per run
+            # (the first unambiguous sample latched the right answer and this
+            # branch was never reached again); the WIP commit that lifted the
+            # seam into this mixin also made it re-run on EVERY event, which
+            # put the wrong answer one mouse event away at all times.
+            #
+            # MEASURED live (pygame-ce 2.5.7 / SDL 2.32.10 / direct3d,
+            # 1920x1080 window at logical 640x360): a single run delivers some
+            # mouse events already-logical and others in window pixels. On a
+            # window-pixel event both sources read e.g. (1662, 583) and agree
+            # to the pixel, so this branch set "map nothing" and handed the
+            # game a cursor three times too far right and down. Every click
+            # in that state missed its widget, and `wants_scroll` was asked
+            # about a point far outside `panel_rect`, so the card list refused
+            # the wheel and the camera zoomed instead.
+            #
+            # `get_pos()` is the STABLE source — one API, one answer for the
+            # run — so once an unambiguous sample has pinned its space, that
+            # is what agreement means here, anywhere in the window.
+            if self._get_pos_window is not None:
+                self._map_events = self._map_get_pos = self._get_pos_window
+            else:
+                # Nothing pinned yet. A point still cannot be logical if it
+                # does not FIT in the logical view: (1662, 583) against
+                # 640x360 is window pixels however well the two agree. Inside
+                # the view the two spaces are genuinely indistinguishable, and
+                # the historical reading stands.
+                self._map_events = self._map_get_pos = bool(
+                    ex > self._view_w + tol or ey > self._view_h + tol)
         elif close((ex * sx, ey * sy), (gx, gy)):
             # the EVENT is window pixels; get_pos() is already logical
             self._map_events, self._map_get_pos = True, False
+            self._get_pos_window = False
         elif close((gx * sx, gy * sy), (ex, ey)):
             # the other arrangement: get_pos() is window pixels
             self._map_events, self._map_get_pos = False, True
+            self._get_pos_window = True
         else:
             # No relation holds — the cursor moved between the two reads. DO
             # NOT guess: an undecided presenter maps nothing, which is the
@@ -545,6 +596,7 @@ class _CursorSpace:
         1920x1080."""
         self._map_events = None
         self._map_get_pos = False
+        self._get_pos_window = None
 
 
 class _SurfacePresenter(_CursorSpace):
@@ -606,7 +658,21 @@ class _SurfacePresenter(_CursorSpace):
                 f"ground cache: GroundCache")
 
     def close(self):
-        pass
+        """Actually release the window this presenter opened via
+        ``pygame.display.set_mode`` (fix: never-closed pre-boot window).
+
+        Every call site (the pre-boot loading screen discarding itself once
+        the real render stack exists, a failed GPU init falling back to this
+        class, and the final shutdown right before ``pygame.quit()``) is
+        already done using this presenter, so tearing the window down here
+        is always safe. Before this fix ``close()`` was a no-op: whenever the
+        real run picked the GPU backend (``_GpuPresenter`` opens its OWN,
+        entirely separate ``pygame._sdl2.video.Window`` rather than reusing
+        this one), the pre-boot window was silently abandoned rather than
+        destroyed — a second, real OS window, frozen on its last-rendered
+        loading-ring frame, alive for the rest of the session and liable to
+        resurface whenever the OS reshuffled window focus/z-order."""
+        pygame.display.quit()
 
 
 class _GpuPresenter(_CursorSpace):
@@ -654,6 +720,7 @@ class _GpuPresenter(_CursorSpace):
         # event rather than hard-coded, because it has flipped between builds.
         self._map_events = None
         self._map_get_pos = False
+        self._get_pos_window = None
         self.set_display_mode(display_mode)
 
     def _new_streaming_texture(self):
@@ -826,6 +893,56 @@ class _World:
         # -- /10I --
 
 
+def _apply_save_to_world(world, restore_data, buildings_balance):
+    """SaveGamePLAN SG-6: overwrite a freshly-built ``_World``'s tile_map/
+    session/buildings from a loaded save-slot document. Called right after
+    ``_World(...)`` construction (which still runs unchanged — the same real
+    tile-condition roll, ``attach_base``, defence-coverage wiring a fresh
+    game gets) so every one of ITS random rolls simply gets overwritten with
+    the exact saved values, the same "restore overwrites a fresh
+    construction" shape ``registry.restore_building`` itself uses one level
+    down.
+
+    Ordering is load-bearing (see ``game/map/CLAUDE.md``'s matching note):
+    tiles first (``apply_tile_state`` — a restored building reads ITS OWN
+    tile's condition), then buildings (``restore_building``, SG-3), then
+    moving orders (``apply_moving_orders`` — they reference buildings BY
+    ID), then walls (``rebuild_walls`` — SG-4's D1 finding: every alive
+    WallBuilder's walls are always full-HP at an autosave's round-boundary
+    moment, so re-deriving them from each restored builder's own
+    ``wall_snapshot`` is exact, not an approximation), then RunState/Session.
+
+    Returns the restored building list (every one, moving ones included) —
+    the caller needs it for nothing further today, but it mirrors
+    ``_autosave``'s own list for symmetry.
+    """
+    tile_map = world.tile_map
+    tile_map.apply_tile_state(restore_data["tile_map"])
+
+    buildings = [restore_building(b_data, tile_map, buildings_balance)
+                for b_data in restore_data["buildings"]]
+    building_by_id = {b.id: b for b in buildings}
+
+    tile_map.apply_moving_orders(restore_data["tile_map"], building_by_id)
+
+    moving_ids = {order["building_id"]
+                 for order in restore_data["tile_map"]["moving_orders"]}
+    for b_data, building in zip(restore_data["buildings"], buildings):
+        if building.id in moving_ids:
+            continue   # despawned, held alive only by moving_orders (SG-4)
+        tile = tile_map.get(b_data["col"], b_data["row"])
+        tile_map.set_tile_content(tile, building, building.CONTENT_KEY)
+        world.scene.spawn(building)
+        world.occupancy.set((b_data["col"], b_data["row"]), building)
+
+    tile_map.rebuild_walls()
+
+    world.session.state = RunState.from_dict(restore_data["run_state"],
+                                             buildings=buildings)
+    world.session.combat_speed_idx = restore_data["session"]["combat_speed_idx"]
+    return buildings
+
+
 def _recenter_zoom(cs, new_zoom, view_w, view_h):
     """Apply `new_zoom`, keeping the world point at the viewport centre fixed
     (coords authority only, E-5) — the shared body of `step_zoom` (a relative
@@ -903,23 +1020,37 @@ def _submit_cutscene_skip(renderer, view_w, view_h, skip_progress, idle_t):
         align="right"))
 
 
+def _submit_cutscene_fade(renderer, view_w, view_h, alpha):
+    """The fade-in/fade-out black overlay (feature: cutscene-fade-in-out).
+    Submitted LAST of a cutscene frame's HUD content — the HUD pass has no
+    depth sort (`game/ui/CLAUDE.md`'s submission-order rule), so this must
+    be the final `submit_hud` call of the frame to sit on top of both the
+    video frame and the skip prompt. A no-op at ``alpha <= 0`` (every frame
+    of an unconfigured/no-fade cutscene)."""
+    if alpha <= 0:
+        return
+    renderer.submit_hud(HudRect((0, 0, view_w, view_h), (0, 0, 0, alpha)))
+
+
 def _submit_loading_frame(renderer, assets, view_w, view_h, progress):
     """The pre-boot loading screen (feature: loading screen). Background is
     the editor-adjustable ``ui_bg_loading`` slot (E-37: a flat fallback fill
     — ``presenter.begin_frame()`` already painted ``BACKGROUND`` — until a
     designer imports art), plus the skip-cutscene hold-ring widget
-    (`widgets.submit_progress_ring`) reused here in WHITE rather than its
-    default gold, so it never reads as the cutscene skip prompt. The slot key
-    and ring style constants live in ``game/ui/loading_screen.py`` — the ONE
-    place they're defined — so this pre-boot screen and the post-"Start Game"
-    ``LoadingScreen`` it precedes can never visually drift apart."""
+    (`widgets.submit_progress_ring`) reused in WHITE rather than its default
+    gold, so it never reads as the cutscene skip prompt.
+
+    The ring itself is composed by ``loading_screen.submit_ring``, not here:
+    that is the ONE place the ring is drawn, so this pre-boot screen and
+    the post-"Start Game" ``LoadingScreen`` it precedes can never visually
+    drift apart. This caller passes the CENTRED defaults, having no
+    ``ScreenSkinning`` (or ``Shell``) yet to override them — a designer's
+    ``data/ui/screens/loading.json`` moves the in-game screen only."""
     if assets.animation_total_ms(LOADING_BG_SLOT, "idle") is not None:
         renderer.submit_hud(HudSprite(
             LOADING_BG_SLOT, (0, 0), (view_w, view_h)))
-    cx, cy = view_w // 2, view_h // 2
-    widgets.submit_progress_ring(
-        renderer, cx, cy, LOADING_RING_RADIUS, progress,
-        bg=(90, 90, 90), fill=(255, 255, 255), width=LOADING_RING_WIDTH)
+    loading_submit_ring(renderer, loading_default_ring_rect(view_w, view_h),
+                        progress)
 
 
 # TEMPORARY (wheel-dead investigation): set HTBH_WHEEL_DEBUG=1 to trace every
@@ -1070,7 +1201,14 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # real render stack (`_build_render_stack`) once boot finishes. A
     # headless run (`max_frames is not None`, tools/smoke.py) still opens
     # this window; it costs one extra `set_mode` call, no extra window.
-    loading_presenter = _SurfacePresenter(view_w, view_h, caption, "windowed")
+    # `display["display_mode"]` (shipped default: fullscreen), NOT a hardcoded
+    # "windowed": the pre-boot screen is the FIRST thing a player sees, and
+    # coming up in a small window only to slam fullscreen once boot finished
+    # read as the game restarting itself. `_build_render_stack` below hands
+    # the real stack the same mode off `shell.settings`, so this is the same
+    # window shape start to finish.
+    loading_presenter = _SurfacePresenter(view_w, view_h, caption,
+                                          display["display_mode"])
     loading_renderer = Renderer(cs, assets)
     # 15 real checkpoints (was 5): one after the asset store, one after each
     # of the 5 theme/font docs below, one after each of the 7 balance
@@ -1322,13 +1460,25 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # cv2/file absent -> MAIN_MENU); "first_end_turn" is an in-gameplay
     # overlay Session.end_turn() requests via state.pending_cutscene.
     cutscene_registry = load_cutscene_registry(data_dir)
+    # feature: cutscene-fade-in-out — same fade-in/out for every registry
+    # entry (one designer-tunable pair, not per-entry).
+    _cutscene_bal = core_balance["Cutscene"]
     cutscenes = {
-        cid: CutscenePlayer(data_dir, entry, target_size=(view_w, view_h))
+        cid: CutscenePlayer(
+            data_dir, entry, target_size=(view_w, view_h),
+            fade_in=_cutscene_bal["fade_in_seconds"],
+            fade_out=_cutscene_bal["fade_out_seconds"])
         for cid, entry in cutscene_registry.items()
     }
     intro_player = cutscenes.get("intro")
     start = (GameState.CUTSCENE if intro_player and intro_player.enabled
              else GameState.MAIN_MENU)
+    # feature: start-game cutscene — the registry id `execute()`'s two
+    # fresh-run intents play OVER the load. A constant, not a search of the
+    # registry by `trigger`, for the same reason "intro" is spelled literally
+    # above: which id fires at which point is a HOST decision, and a designer
+    # renaming or retriggering an entry must not silently re-point it.
+    START_GAME_CUTSCENE = "start_game"
     # 10L-B: one ScreenSkinning for the whole run, loaded once here (the
     # shell shares it with its five menu screens; build_gameplay threads the
     # SAME instance into the seven gameplay screens it constructs itself).
@@ -1368,6 +1518,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     hs_doc = highscores.load_highscores(scores_path, data_dir)
     shell.set_highscores(hs_doc)
     shell.prefill_identity(*highscores.last_player(hs_doc))
+    # SaveGamePLAN SG-6: same per-machine `scores/` precedent as highscores
+    # above. Read once here to seed the Save Files table and CONTINUE's
+    # visibility; re-read on `"open_save_files"` and after every pin/delete.
+    save_index_doc = savegame.load_index(savegame.index_path(REPO), data_dir)
+    shell.set_save_index(save_index_doc)
+    shell.main_menu.set_has_saves(bool(save_index_doc["slots"]))
     _flush_loading()
 
     # G4 (D6/D8): pick the frame target, and with it the render backend and the
@@ -1464,6 +1620,17 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     loading_total = 0
     loading_elapsed = 0.0
     loading_min_seconds = ui_balance["LoadingScreen"]["min_display_seconds"]
+    # feature: start-game cutscene — the CutscenePlayer covering this load, or
+    # None (every load that is not a fresh "Start Game", and a fresh one whose
+    # video will not open). While it is set, the LOADING state renders the
+    # video instead of the loading screen and swallows input the same way
+    # GameState.CUTSCENE does; the checkpoint queue below keeps draining
+    # underneath it, one step per frame, exactly as it does without one.
+    loading_cutscene = None
+    # SG-6: set by the deferred save-read checkpoint when it comes back empty,
+    # read (and cleared) by the LOADING driver below. A dict rather than a
+    # plain local because `_build_gameplay_steps`'s closures publish into it.
+    loading_abort = {"failed": False}
     # The click's own frame ARMS the queue but must not run a checkpoint —
     # `_step_world` (the first one) builds the whole fresh TileMap and can
     # itself take the better part of a second on a large map, and running it
@@ -1472,7 +1639,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # the first real checkpoint starts the frame after.
     loading_just_armed = False
 
-    def _build_gameplay_steps():
+    def _build_gameplay_steps(restore_loader=None):
         """The ordered checkpoints of a fresh run's construction, as zero-arg
         closures — `build_gameplay()` below just runs every one of them in
         order (unchanged, synchronous behavior for the headless autostart
@@ -1483,15 +1650,59 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         checkpoints, not a faked/eased progress animation. Splitting the
         original single-shot body at its natural sub-boundaries (world/
         session, tutorial, recorder, the seven gameplay UI screens, the 10J/
-        ESV wiring, the closing camera/GC/audio/enter_gameplay group)."""
+        ESV wiring, the closing camera/GC/audio/enter_gameplay group).
+
+        `restore_loader` (SaveGamePLAN SG-6) is an optional ZERO-ARG CALLABLE
+        returning a loaded save-slot document — `"load_save"` /
+        `"continue_most_recent"` pass one so the SAME checkpointed
+        loading-screen flow a fresh game gets also covers resuming one, for
+        free. `None` (every pre-existing caller) is byte-identical to before
+        that feature.
+
+        A CALLABLE, not the document itself, because the save index + slot
+        reads are disk I/O measured in frames on a cold cache, and doing them
+        at the call site meant Continue/Load Save sat on the menu with the
+        button still lit until they finished. Reading them in a checkpoint of
+        their own puts the loading screen up on the click's OWN frame, before
+        any processing begins. It runs FIRST — every later step branches on
+        what it produced — and a loader that returns None (a missing or
+        corrupt slot, which `savegame.load_slot` reports rather than raising)
+        sets `loading_abort["failed"]`, which the LOADING driver reads as
+        "abort back to the menu": silently building a FRESH run in a slot's place
+        would be worse than the no-op this replaced."""
         nonlocal score_recorded
+        #: One mutable cell rather than a plain local, so `_step_restore`
+        #: below can publish into the closures that were built before it ran.
+        restore = {"data": None}
+
+        def _step_restore():
+            restore["data"] = restore_loader()
+            loading_abort["failed"] = restore["data"] is None
+
         def _step_world():
             nonlocal score_recorded
             score_recorded = False
+            # SG-6: a save may name a map that is no longer the ACTIVE one
+            # (a designer switched maps since it was taken) — load that
+            # map's own doc instead of the boot-time `map_doc` in that case.
+            # `map_bal` (balancing/map.json) is domain-wide, shared by every
+            # map, so it never needs re-loading here.
+            world_map_doc = map_doc
+            saved = restore["data"]
+            if saved is not None and saved["map_id"] != map_doc.map_id:
+                world_map_doc = tilemap.load_map(
+                    tilemap.map_path(data_dir, saved["map_id"]),
+                    tilemap.map_schema_path(data_dir))
             gp["world"] = _World(
-                map_doc, map_bal, enemies_balance, core_balance,
+                world_map_doc, map_bal, enemies_balance, core_balance,
                 buildings_balance, registry, progression_balance,
                 boss_upgrades_balance)
+            if restore["data"] is not None:
+                # SG-6: overwrite the fresh world's tile_map/session/
+                # buildings with the saved ones — see _apply_save_to_world's
+                # docstring for the restore ordering.
+                _apply_save_to_world(gp["world"], restore["data"],
+                                     buildings_balance)
             # Ground follows runtime zone changes: unlock/recede invalidates
             # the cached ground surface (repainted next ensure). Fresh game ->
             # fresh TileMap with empty overrides; invalidate drops the
@@ -1516,6 +1727,13 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 skinning=shell.skinning)
             gp["world"].session.tutorial_gate = gp["tutorial"].allows_end_turn
             gp["world"].session.tutorial_director = gp["tutorial"]  # TU-7
+            if restore["data"] is not None:
+                # SG-6: a resumed save is always well past the tutorial (the
+                # earliest possible autosave is round 5) — force it finished
+                # so a fresh, round-0-assuming TutorialDirector can never
+                # gate End Turn on a resumed run. Never seed round_num = 0
+                # either; the real round came back via RunState.from_dict.
+                gp["tutorial"].skip()
             # -- TU-9: an ACTIVE tutorial run starts at round 0 (its own
             # scripted round, always a single forced walker) so real enemy
             # scaling begins at round 1 exactly where it always did. A
@@ -1524,7 +1742,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # every bare-Session logic test keep — this is the ONE seed site,
             # deliberately host-side rather than a `Session`/`RunState`
             # default, so those stay untouched.
-            if gp["tutorial"].active:
+            elif gp["tutorial"].active:
                 gp["world"].session.state.round_num = 0
             # -- /TU-6 --
             # debug-mode-telemetry: bind the (optional) recorder to THIS
@@ -1641,8 +1859,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # screen disappear the instant the (genuinely fast) construction
             # finishes, before the player ever saw it.
 
-        return [_step_world, _step_tutorial_and_recorder,
-                _step_gameplay_screens, _step_wiring, _step_finish]
+        steps = [_step_world, _step_tutorial_and_recorder,
+                 _step_gameplay_screens, _step_wiring, _step_finish]
+        if restore_loader is not None:
+            steps.insert(0, _step_restore)
+        return steps
 
     def build_gameplay():
         """Run every checkpoint synchronously, in one shot — the pre-LOADING
@@ -1696,6 +1917,87 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         if tune_gc:
             gc.collect()
 
+    def _autosave(world, session, map_id):
+        """SaveGamePLAN SG-5 (perf fix, take 2): assemble one save document
+        from the live world IMMEDIATELY (this must happen exactly at the
+        round boundary — the one moment ``RunState.to_dict()`` accepts a
+        save, and before the player can act again and change what
+        ``buildings``/``tile_map`` describe), then hand the frozen
+        ``slot_doc`` to a BACKGROUND THREAD for the disk-side work
+        (``savegame.add_slot`` — jsonschema validation + two JSON writes).
+
+        **Why a thread, not more frame-chunking**: a first attempt at this
+        fix (still visible in git history) split `add_slot`'s ORCHESTRATION
+        across three frames, but measured, that did almost nothing — the
+        cost is overwhelmingly ONE atomic call, `jsonschema` validating the
+        save doc (~100ms at 400 buildings, ~320ms at 1500, roughly linear;
+        `json.dumps` itself is ~5ms), and no amount of chunking around a
+        single un-choppable call reduces its cost. A background thread
+        does: Python's GIL still lets the render loop get scheduled slices
+        every ~5ms even while the thread is CPU-bound, so the frame budget
+        degrades gracefully across several frames instead of one big freeze.
+        `game/core/savegame.py`'s module-level `_LOCK` (a `threading.RLock`)
+        is what makes this safe — every save-file read AND write, on either
+        thread, takes it, so the Save Files screen opening/pinning/deleting
+        on the main thread can never observe a save file mid-write from this
+        thread or race it.
+
+        Every building currently mid-move is despawned and held alive ONLY
+        by ``tile_map.moving_orders`` (game/map/CLAUDE.md) — included
+        explicitly here alongside the tile-occupant sweep, or a save taken
+        while a building is in transit would silently lose it. The base
+        building is excluded: it is re-attached fresh via ``attach_base``
+        on load, exactly like a new game, and carries no runtime state
+        worth preserving (``base_lives`` lives on ``RunState``, not on it).
+
+        The background thread's own body is wrapped in a broad except + one
+        logged warning — the ``highscores``-append precedent — so a disk
+        failure never crashes a mid-game autosave; it just never reaches the
+        `shell.main_menu.set_has_saves(True)` call at the end.
+        `set_has_saves` is a single attribute write (GIL-atomic), so calling
+        it from this thread needs no lock of its own — the worst case is the
+        main thread's next frame or two still reading the old value.
+
+        Assumes at most one autosave is ever in flight at a time: true by
+        construction, since ``AUTOSAVE_EVERY_N_ROUNDS`` rounds of
+        BUILDING-phase play (player-paced, effectively unbounded time)
+        separate two firings, far more than one save takes to write even at
+        the high end measured above.
+        """
+        try:
+            buildings = [t.occupant for t in world.tile_map.built_tiles()
+                        if t.occupant is not None
+                        and t.occupant.building_type != "base"]
+            buildings += [order.building for order in world.tile_map.moving_orders]
+
+            slot_doc = savegame.make_slot_doc(
+                slot_id=savegame.new_slot_id(),
+                map_id=map_id,
+                round_num=session.state.round_num,
+                run_state=session.state.to_dict(buildings=buildings),
+                session=session.to_dict(),
+                tile_map=world.tile_map.save_state(),
+                buildings=[save_building(b) for b in buildings],
+            )
+        except Exception:                                    # noqa: BLE001
+            logging.getLogger(__name__).warning(
+                "autosave failed assembling the save document at round %s",
+                session.state.round_num, exc_info=True)
+            return
+
+        def _write_in_background():
+            try:
+                savegame.add_slot(REPO, slot_doc, data_dir)
+                # The first autosave of a fresh session flips CONTINUE from
+                # hidden to visible immediately, not just on the next boot.
+                shell.main_menu.set_has_saves(True)
+            except Exception:                                # noqa: BLE001
+                logging.getLogger(__name__).warning(
+                    "autosave failed writing to disk at round %s",
+                    session.state.round_num, exc_info=True)
+
+        threading.Thread(target=_write_in_background, daemon=True).start()
+
     def _new_recorder():
         """A fresh recorder from the shell's debug-log settings (level +
         which artifacts) — the ONE construction site the PLAY DEBUG button and
@@ -1711,29 +2013,75 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                              outputs=shell.debug_settings.outputs,
                              player_name=name, player_skill=skill)
 
-    def _arm_loading():
+    def _arm_loading(restore_loader=None, cutscene_id=None):
         """Feature: loading screen. Instead of building the run synchronously
         in one call, queue its checkpoints and let the frame loop's
         `GameState.LOADING` branch (below) run one per frame behind
         `loading_screen`. Runs no checkpoint itself — this frame only flips
-        the state so the screen paints at 0% first; see `loading_just_armed`."""
-        nonlocal loading_queue, loading_total, loading_elapsed, loading_just_armed
-        loading_queue = _build_gameplay_steps()
+        the state so the screen paints at 0% first; see `loading_just_armed`.
+
+        `restore_loader` (SaveGamePLAN SG-6) threads straight through to
+        `_build_gameplay_steps`, which reads it in a checkpoint of its own —
+        see there for why the DISK READ is deferred rather than done at the
+        call site. `None` (a fresh game) is byte-identical to before.
+
+        `cutscene_id` (feature: start-game cutscene) names a
+        `data/video/cutscenes.json` entry to play OVER this load. The
+        checkpoints keep running underneath it at their usual one per frame,
+        so the run is built by the time the video ends — the cutscene is what
+        the loading time is SPENT on, not something bolted in front of it. A
+        missing entry, or one whose video will not open (no cv2, no file —
+        `CutscenePlayer.enabled`), leaves `loading_cutscene` None and the
+        plain loading screen shows, exactly as before this feature."""
+        nonlocal loading_queue, loading_total, loading_elapsed
+        nonlocal loading_just_armed, loading_cutscene
+        nonlocal mouse_idle_t
+        loading_queue = _build_gameplay_steps(restore_loader)
         loading_total = len(loading_queue)
         loading_elapsed = 0.0
+        loading_abort["failed"] = False
         loading_just_armed = True
         shell.state = GameState.LOADING
+        loading_cutscene = None
+        player = cutscenes.get(cutscene_id) if cutscene_id else None
+        if player is not None and player.enabled:
+            # SD-7: push BEFORE start(), so the phase track is stacked and the
+            # cutscene's own companion audio wins the stream — the same
+            # ordering the in-gameplay TU-5 request uses.
+            director.enter_cutscene(cutscene_registry.get(cutscene_id))
+            player.start()
+            loading_cutscene = player
+            mouse_idle_t = 0.0   # skip prompt starts fully visible (TU-5)
+
+    def _load_save(slot_id):
+        """SaveGamePLAN SG-6: arm the SAME checkpointed loading-screen flow a
+        fresh game uses, over a DEFERRED read of one save slot. The read runs
+        as the queue's first checkpoint (see `_build_gameplay_steps`), so the
+        loading screen is already up when the disk is touched; a missing/
+        corrupt slot (``load_slot`` never raises — SG-1) makes that checkpoint
+        report failure and the LOADING driver returns to the main menu, rather
+        than crashing or silently starting a fresh run in the save's place."""
+        def _load():
+            doc = savegame.load_slot(savegame.slot_path(REPO, slot_id),
+                                     data_dir)
+            if doc is None:
+                logging.getLogger(__name__).warning(
+                    "could not load save slot %s — returning to the menu",
+                    slot_id)
+            return doc
+
+        _arm_loading(restore_loader=_load)
 
     def execute(intent):
         nonlocal running, recorder
         if intent == "new_game":
-            _arm_loading()
+            _arm_loading(cutscene_id=START_GAME_CUTSCENE)
         elif intent == "new_game_debug":
             # debug-mode-telemetry: PLAY DEBUG. `recorder` is a plain main()
             # local precisely so this can reassign it BEFORE the queued steps
             # bind it to the fresh run's RunState and Session.
             recorder = _new_recorder()
-            _arm_loading()
+            _arm_loading(cutscene_id=START_GAME_CUTSCENE)
         elif intent == "quit_to_menu":
             teardown_gameplay()  # shell already set state -> MAIN_MENU
         elif intent == "quit_app":
@@ -1781,6 +2129,45 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             doc = highscores.load_highscores(scores_path, data_dir)
             shell.set_highscores(doc)
             shell.prefill_identity(*highscores.last_player(doc))
+        elif intent == "open_save_files":
+            # SaveGamePLAN SG-6: RE-READ — a round-5 autosave taken THIS
+            # session (or a pin/delete from a previous visit) must show up.
+            doc = savegame.load_index(savegame.index_path(REPO), data_dir)
+            shell.set_save_index(doc)
+        elif intent == "continue_most_recent":
+            # The index read is deferred with the slot read (see `_load_save`)
+            # — Continue is the ONE click that used to do two disk reads with
+            # the menu still on screen. The main menu only offers Continue
+            # when it knows saves exist (`set_has_saves`), so an index that
+            # turns out to name none resolves through the same
+            # abort-to-the-menu path a corrupt slot does.
+            def _load_most_recent():
+                index_doc = savegame.load_index(savegame.index_path(REPO),
+                                                data_dir)
+                slot_id = savegame.most_recent_slot(index_doc)
+                if slot_id is None:
+                    logging.getLogger(__name__).warning(
+                        "Continue found no save slots — returning to the menu")
+                    return None
+                return savegame.load_slot(savegame.slot_path(REPO, slot_id),
+                                          data_dir)
+
+            _arm_loading(restore_loader=_load_most_recent)
+        elif isinstance(intent, tuple) and len(intent) == 2:
+            kind, slot_id = intent
+            if kind == "load_save":
+                _load_save(slot_id)
+            elif kind == "pin_save":
+                index_doc = savegame.load_index(savegame.index_path(REPO), data_dir)
+                pinned = not any(
+                    s["slot_id"] == slot_id and s["pinned"]
+                    for s in index_doc["slots"])
+                index_doc = savegame.set_pinned(REPO, slot_id, pinned, data_dir)
+                shell.set_save_index(index_doc)
+            elif kind == "delete_save":
+                index_doc = savegame.remove_slot(REPO, slot_id, data_dir)
+                shell.set_save_index(index_doc)
+                shell.main_menu.set_has_saves(bool(index_doc["slots"]))
 
     # -- feature: rebindable hotkeys ----------------------------------------
     def _handle_capture_key(event):
@@ -1953,10 +2340,14 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         # (BU-4; `hit` returns the picked catalog id) or nothing (clicks
         # elsewhere swallowed; keys are already swallowed by the frozen gate).
         if session.state.phase == GamePhase.BOSS_CUTSCENE:
-            choice = gp["boss_cutscene"].hit(mx, my)
-            if choice is not None:
-                gp["boss_cutscene"].close()
-                session.resolve_boss_cutscene(choice, world.scene)
+            # `.visible` because the phase can be up while the window is still
+            # held back behind the life-lost banner — clicks are swallowed
+            # then, never resolved against last boss's stale `slots`.
+            if gp["boss_cutscene"].visible:
+                choice = gp["boss_cutscene"].hit(mx, my)
+                if choice is not None:
+                    gp["boss_cutscene"].close()
+                    session.resolve_boss_cutscene(choice, world.scene)
             return
         # -- /10G --
         # -- feature-enemy-intro-dialogue: a close-X hit closes early (its own
@@ -2680,7 +3071,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         director.tick(st,
                       (gp["world"].session.state.phase
                        if gp["world"] is not None else None),
-                      gp["cutscene"] is not None)
+                      gp["cutscene"] is not None
+                      or loading_cutscene is not None)
         if st == GameState.CUTSCENE:
             # SD-7: stack the (silent, at boot) previous track under the intro
             # — idempotent, so this per-frame branch pushes exactly once.
@@ -2697,9 +3089,22 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # drains) until the minimum display duration has elapsed on
             # real accumulated `dt` — never `time.time()`. `shell.
             # enter_gameplay()` (not run inside the queued steps themselves,
-            # see `_step_finish`'s docstring) fires only once BOTH gates
+            # see `_step_finish`'s docstring) fires only once ALL gates
             # pass, so the very next frame renders GAMEPLAY.
             loading_elapsed += dt
+            # feature: start-game cutscene — the video runs on the same frames
+            # the checkpoints do, never instead of them: the whole point is
+            # that the run is being built while the player watches. Skipping
+            # (the usual 2s hold, polled into `skip_held` above) drops to the
+            # loading screen for whatever is left, rather than into a
+            # half-built world.
+            if loading_cutscene is not None:
+                loading_cutscene.update(dt)
+                loading_cutscene.update_skip_hold(dt, skip_held)
+                if loading_cutscene.done:
+                    loading_cutscene.release()
+                    director.leave_cutscene()   # SD-7: resume what played
+                    loading_cutscene = None
             if loading_just_armed:
                 # The frame that just clicked START runs NO checkpoint —
                 # `_step_world` alone can take the better part of a second on
@@ -2710,7 +3115,24 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 loading_just_armed = False
             elif loading_queue:
                 loading_queue.pop(0)()
-            if not loading_queue and loading_elapsed >= loading_min_seconds:
+            if loading_abort["failed"]:
+                # SG-6: the deferred save read came back empty (missing or
+                # corrupt slot, or a Continue with no slots at all). Drop the
+                # rest of the queue — every later checkpoint assumes a
+                # document — and hand the player back the menu they clicked
+                # from, the no-op the synchronous read used to give them.
+                loading_queue = None
+                if loading_cutscene is not None:
+                    loading_cutscene.release()
+                    director.leave_cutscene()
+                    loading_cutscene = None
+                loading_abort["failed"] = False
+                shell.to_main_menu()
+            elif (not loading_queue and loading_elapsed >= loading_min_seconds
+                    and loading_cutscene is None):
+                # The cutscene is the LAST gate: a run that finished building
+                # in three seconds still owes the player the rest of the
+                # video they are watching.
                 shell.enter_gameplay()
                 loading_queue = None
         elif st in _WORLD_STATES:
@@ -2943,8 +3365,16 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                     gp["panel"].close()  # the modal owns the screen
                     gp["levelup"].open(session.state.levelup_options)
                 # -- 10G boss: open the cutscene on ITS phase edge (same pattern) --
+                # Not a phase EDGE like the others: a LOST boss round also
+                # fires the "YOU / LOST 1 LIFE" banner, and the modal used to
+                # cover it (round_end_delay 1.4s vs the banner's 3.3s). So the
+                # open is held until that banner's clock is done — hence the
+                # "not visible yet" test instead of the prev_phase edge (the
+                # phase leaves BOSS_CUTSCENE the moment a card is picked, so
+                # this can never re-open the same cutscene).
                 if (session.state.phase == GamePhase.BOSS_CUTSCENE
-                        and gp["prev_phase"] != GamePhase.BOSS_CUTSCENE):
+                        and not gp["boss_cutscene"].visible
+                        and not gp["floaters"].life_lost_active()):
                     pending = session.state.pending_boss_cutscene or {}
                     gp["panel"].close()  # the modal owns the screen
                     gp["boss_cutscene"].open(pending.get("boss_num", 1),
@@ -2983,6 +3413,17 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                     director.play_game_event("level_up")
                 run_audio["prev_village_level"] = session.state.village_level
                 # -- /SD-7 --
+                # -- SaveGamePLAN SG-5: autosave on the round-boundary
+                # BUILDING edge, every AUTOSAVE_EVERY_N_ROUNDS rounds. Fires
+                # once per qualifying edge (the same prev_phase-edge pattern
+                # every watcher above uses), never per frame — and never
+                # mid-combat, since this edge only exists at the clean
+                # INCOME->BUILDING transition (D1). --
+                if (session.state.phase == GamePhase.BUILDING
+                        and gp["prev_phase"] != GamePhase.BUILDING
+                        and session.state.round_num
+                        % savegame.AUTOSAVE_EVERY_N_ROUNDS == 0):
+                    _autosave(world, session, map_doc.map_id)
                 gp["prev_phase"] = session.state.phase
                 gp["floaters"].spawn_xp_events(session.state)
                 gp["floaters"].spawn_boss_events(session.state)  # 10G announcement
@@ -3080,16 +3521,38 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 presenter.blit_fullscreen(surf)
             _submit_cutscene_skip(renderer, view_w, view_h,
                                   intro_player.skip_progress, mouse_idle_t)
+            _submit_cutscene_fade(renderer, view_w, view_h,
+                                  intro_player.fade_alpha)
             _t_flush_start = time.perf_counter()
             flush_frame()
         elif st == GameState.LOADING:
-            # feature: loading screen — same visuals as the pre-boot screen
-            # (`_submit_loading_frame`), through `loading_screen` instead.
-            progress = ((loading_total - len(loading_queue)) / loading_total
-                        if loading_total else 1.0)
-            loading_screen.submit(renderer, assets, view_w, view_h, progress)
-            _t_flush_start = time.perf_counter()
-            flush_frame()
+            # feature: start-game cutscene — while one is covering this load
+            # the video IS the screen, drawn exactly the way the boot-time
+            # GameState.CUTSCENE branch above draws its own (full-screen blit,
+            # skip prompt, fade overlay). The loading screen comes back
+            # underneath the moment it ends or is skipped.
+            if loading_cutscene is not None:
+                surf = loading_cutscene.frame_surface()
+                if surf is not None:
+                    presenter.blit_fullscreen(surf)
+                _submit_cutscene_skip(renderer, view_w, view_h,
+                                      loading_cutscene.skip_progress,
+                                      mouse_idle_t)
+                _submit_cutscene_fade(renderer, view_w, view_h,
+                                      loading_cutscene.fade_alpha)
+                _t_flush_start = time.perf_counter()
+                flush_frame()
+            else:
+                # feature: loading screen — same visuals as the pre-boot
+                # screen (`_submit_loading_frame`), through `loading_screen`
+                # instead: both compose the ring through the ONE
+                # `loading_screen.submit_ring`.
+                progress = ((loading_total - len(loading_queue)) / loading_total
+                            if loading_total else 1.0)
+                loading_screen.submit(renderer, assets, view_w, view_h,
+                                      progress)
+                _t_flush_start = time.perf_counter()
+                flush_frame()
         elif st in _WORLD_STATES or st == GameState.PAUSED:
             world = gp["world"]
             session = world.session
@@ -3138,26 +3601,28 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # ground_cache_gpu.blit's docstring), so both classes take the same
             # call and the host needs no branch here. Do not "fix" it away.
             ground_cache.blit(presenter.world_target)
-            # Base + deco stay dynamic (their own layers, above ground); windowed.
+            # Base + deco stay dynamic (above the cached ground); windowed.
             cmin, cmax, rmin, rmax = cs.visible_tile_window(view_w, view_h, margin=4)
             for item in tilemap.visible_render_items(
                     map_doc, cmin, cmax, rmin, rmax, terrain=False,
                     camera=show_camera_start, anim_time_ms=int(deco_clock_ms),
                     column=session.state.season):
                 renderer.submit(item)
-            # Spawn-band tree deco on the `deco` layer — draws ABOVE enemies
-            # (`entities`), so units emerging from the treeline are partly
-            # occluded by it; submission order within a layer doesn't matter,
-            # the renderer depth-sorts. Reuses the window above; vanishes on
-            # its own the frame a SPAWNING tile converts to COMBAT (the
-            # emitter reads `tile.state` live).
+            # Spawn-band tree deco (fix/y-sorted-deco) — on the SAME
+            # `entities` layer as enemies, so a tree occludes a unit exactly
+            # when it is in FRONT of it, by iso depth and the trees' authored
+            # `depth_pivot` feet. It used to ride the `deco` layer, which put
+            # EVERY tree over EVERY enemy unconditionally. Submission order
+            # doesn't matter, the renderer depth-sorts. Reuses the window
+            # above; vanishes on its own the frame a SPAWNING tile converts to
+            # COMBAT (the emitter reads `tile.state` live).
             for item in spawn_deco_render_items(
                     world.tile_map, cmin, cmax, rmin, rmax, tree_slots,
                     anim_time_ms=int(deco_clock_ms),
                     column=session.state.season):
                 renderer.submit(item)
             # Condition art on the `terrain` layer — above the ground tiles,
-            # below everything on `entities`/`deco`. Reuses the window above;
+            # below everything on `entities`. Reuses the window above;
             # emits nothing for conditions with no imported sheet.
             for item in condition_render_items(
                     world.tile_map, cmin, cmax, rmin, rmax, condition_art,
@@ -3357,8 +3822,9 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             if gp["levelup"].visible:
                 gp["levelup"].submit(renderer, view_w, view_h)
             # -- 10G boss: the cutscene modal draws over everything below --
-            if session.state.phase == GamePhase.BOSS_CUTSCENE:
-                gp["boss_cutscene"].submit(renderer, view_w, view_h)
+            if (session.state.phase == GamePhase.BOSS_CUTSCENE
+                    and gp["boss_cutscene"].visible):  # held back behind the
+                gp["boss_cutscene"].submit(renderer, view_w, view_h)  # life-lost banner
             # -- /10G --
             if gp["enemy_intro"].visible:  # feature-enemy-intro-dialogue
                 gp["enemy_intro"].submit(renderer, view_w, view_h)
@@ -3381,6 +3847,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
                 _submit_cutscene_skip(renderer, view_w, view_h,
                                       gp["cutscene"].skip_progress,
                                       mouse_idle_t)
+                _submit_cutscene_fade(renderer, view_w, view_h,
+                                      gp["cutscene"].fade_alpha)
                 flush_frame()
             # -- 10G boss: undo the shake pan exactly (no clamp in between) --
             if shake_ox or shake_oy:
@@ -3434,6 +3902,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # run that ends by window-close rather than reaching GAME_OVER.
     if recorder is not None:
         recorder.close(outcome="quit")
+    # feature: start-game cutscene — closing the window mid-load is the one
+    # exit that reaches neither `done` nor `teardown_gameplay`, and it would
+    # otherwise leave the cv2 capture open. `release()` is idempotent.
+    if loading_cutscene is not None:
+        loading_cutscene.release()
     presenter.close()   # GPU path: destroy the standalone SDL window
     pygame.quit()
     return frames

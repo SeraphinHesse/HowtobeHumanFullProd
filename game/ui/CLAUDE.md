@@ -825,8 +825,7 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
     since 9H, and it BREAKS the "full screen ⇒ `Shell`-driven" half of that
     line on purpose.** It is a real full screen (the `ui_bg_loading`
     background + a white progress ring, `game/ui/loading_screen.py`'s
-    `LoadingScreen`, the `debug_settings.py` code-only-screen shape — no
-    `data/ui/screens/loading.json`, no `screen_defaults.json` entry), but
+    `LoadingScreen`), but
     `Shell` never constructs or dispatches it: `main.py` owns `loading_screen`
     directly and drives it from the frame loop, exactly like
     `GAMEPLAY`/`GAME_OVER` (which are also full screens `Shell` doesn't own).
@@ -847,13 +846,35 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
     asset I/O happens there — everything is already loaded at boot), so
     without the duration floor the screen would flicker for a frame or two;
     without the real-checkpoint half it would be a fake spinner, not a
-    progress indicator. The PRE-BOOT loading screen (`main.py`'s
+    progress indicator.
+    **It is an EXPORTED screen now, not code-only.** It shipped in the
+    `debug_settings.py` shape (no `data/ui/screens/loading.json`, no
+    `screen_defaults.json` entry, not in `tools/export_ui_layouts.py`'s
+    `SCREEN_IDS`) and was promoted the moment a designer needed to move the
+    ring: it carries `backdrop` and `ring` ids, `ring` a geometry-only
+    `panel`-kind holder the screen draws its circle FROM (rect-driven —
+    moving it moves the ring, resizing it resizes it, radius = half the
+    smaller side so a non-square override still draws a circle rather than an
+    ellipse `HudLines` cannot express). It is the one exported screen the
+    `test_ui_skinning.py` golden pin holds no literal entry for — a 97-point
+    `HudLines` circle would be ~4KB of generated floats, already pinned
+    byte-for-byte in `screen_previews.json` by the same driver — so it sits in
+    `_BASELINE_EXEMPT` with a dedicated `TestLoadingScreenParity` pinning the
+    ring's colour, width, closedness, centre and radius instead. Do not grow
+    that set to dodge a baseline update.
+    **A cutscene may cover this state** (feature: start-game cutscene) — the
+    video renders instead of the screen while the checkpoints keep draining
+    underneath; host wiring → `game/CLAUDE.md`'s matching bullet. The PRE-BOOT loading screen (`main.py`'s
     `_submit_loading_frame`, shown before the `Shell` even exists — see
     `game/CLAUDE.md`'s Host conventions section) shares the exact same
     background slot and ring style by importing them from
     `game/ui/loading_screen.py` rather than re-declaring them, so the two
-    screens cannot visually drift apart; it is a SEPARATE mechanism (its own
-    throwaway presenter/renderer pair, since no real window exists yet) and
+    screens cannot visually drift apart (both now compose the ring through the
+    ONE `loading_screen.submit_ring`, the pre-boot caller passing the centred
+    `default_ring_rect` since it has no `ScreenSkinning` yet — a designer's
+    `loading.json` moves the in-game screen only); it is a SEPARATE mechanism
+    (its own throwaway presenter/renderer pair, since no real window exists
+    yet, opened in `display.json`'s own `display_mode`) and
     was also given more, smaller real checkpoints (15 instead of 5) so its
     ring's motion reads as smooth rather than jumpy — not an eased/faked
     animation, just finer-grained real boot sub-steps.
@@ -938,6 +959,82 @@ tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
   permanently stuck on "PRESS A KEY". Both flash methods share one private
   `_flash_armed_row(message)` helper; the label the flash overwrites is the
   armed row's `REBIND` button text via `start_flash`, not a separate widget.
+- **Save Files screen + main-menu CONTINUE/SAVE FILES rows (SaveGamePLAN
+  SG-6)** — a third menu screen joins HIGHSCORES: `GameState.SAVE_FILES`
+  (`game/core/phases.py`, appended LAST, no existing ordinal moves) and
+  `game/ui/save_files.py` (`SaveFilesScreen`), mirroring `highscores.py`'s
+  construct -> `set_index()` -> `layout()` -> `update()` -> `hit()` shape
+  exactly (scroll offset, header pinned above the viewport). It is
+  CODE-ONLY like `debug_settings`/`keybinds_screen` — no
+  `data/ui/screens/save_files.json`, no `screen_defaults.json` entry, not in
+  `export_ui_layouts.py`'s `SCREEN_IDS`. Each row shows the save's
+  timestamp and round reached, a PIN toggle, and a DELETE button. **No
+  minimap** — the original design drew a live 2-color locked/unlocked grid
+  off `unlocked_tiles`, but it was cut after a live-testing report (both the
+  UI element and the underlying `unlocked_tiles` field, all the way back
+  through the save assembly and schema — `game/CLAUDE.md`'s autosave
+  section, `game/map/CLAUDE.md`'s `save_state()` section). **The timestamp
+  label is reformatted for DISPLAY (user decisions — day-month-year date
+  order, seconds dropped but hour:minute kept)**: `_format_timestamp`
+  rewrites `created_at`'s stored `YYYY-MM-DDTHH:MM:SS` into
+  `DD-MM-YYYY HH:MM` — the stored value keeps its full ISO-8601
+  `timespec="seconds"` form (`game/core/savegame.py`), nothing about the
+  save doc itself changed. `hit()` returns
+  `"back"`, `("pin", slot_id)`, `("delete", slot_id)`, or
+  `("load", slot_id)` — the `Shell` intent-string convention, executed by
+  `main.py`'s `execute()` via a new `isinstance(intent, tuple)` branch.
+  `Shell.set_save_index(doc)` hands down the index doc the host loaded at
+  boot (and reloads after every save/delete), the `set_highscores`
+  precedent.
+  - **`MainMenu` gains two rows**: SAVE FILES (opens the new screen,
+    unconditionally visible, the HIGHSCORES precedent) and CONTINUE (loads
+    the most-recent slot directly via a new `("load_save", slot_id)`-style
+    dispatch, `savegame.most_recent_slot`). **CONTINUE is HIDDEN ENTIRELY,
+    never disabled, when no save exists** (explicit user decision) — a new
+    `has_saves` constructor param / `set_has_saves(value)` method sets
+    `visible["continue"]` in `_availability()`, on the SAME "every row's
+    `visible` is set every `layout()` call, never only in a hiding branch"
+    rule the debug-mode matrix already follows, so a stale `True`/`False`
+    can never linger across a `set_has_saves` flip. `main.py` calls
+    `set_has_saves` at boot (from the loaded save index) and again after
+    every autosave and every manual delete.
+  - **`layout()` was rewritten to compute the stack height from the
+    VISIBLE row count, not a fixed 7-row offset.** Growing the menu to up
+    to 9 possible rows (CONTINUE + SAVE FILES) would have overflowed the
+    360px logical surface under the old fixed `y = view_h // 2 - 30` /
+    `_GAP=4` arithmetic (tuned for exactly 7 rows). `layout()` now sums
+    `stack_h` from the actually-visible rows, centers via `y = (view_h -
+    stack_h) // 2`, and repositions the title/subtitle relative to the
+    computed `stack_top` (`max(10, stack_top - 40)` /
+    `max(28, stack_top - 20)`) instead of the old fixed offsets — so a
+    7-row menu (CONTINUE hidden) and a 9-row menu (CONTINUE visible) both
+    center correctly with no per-row-count special-casing.
+  - **`data/ui/screens/main_menu.json`'s stale per-button `rect` overrides
+    were REMOVED (live-testing bugfix — this is what "the main menu looks
+    really weird" turned out to be).** That designer skinning file (10L-B)
+    predates this row-count rework — its row spacing (~33-34px) matches the
+    layout from before even the HIGHSCORES row existed — and
+    `ScreenSkinning.apply()` reapplies its fixed positions every frame
+    AFTER `layout()` computes the new dynamic centered stack. CONTINUE and
+    SAVE FILES carried no override (the file predates both), so they used
+    the correct dynamic position while every OTHER button froze at its
+    stale spot — which is what produced the overlap (SAVE FILES landing on
+    top of ADD A NAME/HIGHSCORES) and the misplacement (CONTINUE off to the
+    side near the title). The fix removed every stale `rect` from that
+    file's `widgets` table (keeping `backdrop`'s deliberate 4px offset and
+    `subtitle`/`title`'s non-geometry keys, `skin`/`text_color`/`visible`)
+    so every row — old and new — now goes through the SAME live `layout()`
+    call with nothing left to disagree with it. **This file is NOT touched
+    by `test_ui_skinning.py`'s golden pin** (that captures through
+    `ScreenSkinning.empty()`, never the real override file), so nothing
+    caught this drift automatically — a live `py game/main.py` look is what
+    a screen's REAL on-disk override needs, the golden pin only covers the
+    CODE-computed defaults.
+  - **`data/ui/screen_defaults.json`/`screen_previews.json` and
+    `test_ui_skinning.py`'s `main_menu` golden entry were regenerated on
+    purpose** — the same sanctioned "geometry changed on purpose" path the
+    HIGHSCORES row used. Only `main_menu` moved; every other screen's
+    baseline entry is byte-identical.
 
 ## Defence FX (10B)
 `effects.py` `FloaterManager` grew `submit_beams` + `submit_craters`, drawn from
@@ -3032,6 +3129,72 @@ trigger call sites in `main.py`, never unified into one state machine:
   independent of `ratio`), so a point's screen position is identical every
   frame from the moment it first appears — only one trailing fractional
   point (the exact tip) is recomputed each call.
+
+## Cutscene fade in/out (feature: cutscene-fade-in-out)
+Every registry-driven cutscene (`intro`, `first_end_turn`, and any future
+entry — one `CutscenePlayer`, one mechanism) now fades in from black and
+out to black. Two designer tunables, `data/balancing/core.json`'s new
+`Cutscene.fade_in_seconds`/`fade_out_seconds` group (both default `1.0`,
+both `0`-`60`), read once in `main.py` and passed to EVERY `CutscenePlayer`
+alike (one shared pair, not per-entry) — `main.py` never hardcodes a fade
+duration.
+
+- **The fade is ADDED on top of the cutscene's own length, never
+  overlapped with it (explicit user decision — not the more obvious
+  "fade over the first/last N seconds of the existing video" reading).**
+  A video's own playback is byte-for-byte unmodified: `CutscenePlayer`
+  gains a `_phase` state machine (`"fade_in" -> "playing" -> "fade_out"`)
+  and the wrapped `VideoSource.update(dt)` is only ever called during
+  `"playing"` — it is simply not ticked during either fade, so a
+  `fade_in_seconds: 1, fade_out_seconds: 1` config makes the cutscene take
+  exactly 2 seconds longer overall, not 2 seconds shorter.
+- **The fade-in holds on the video's real FIRST frame, frozen, not on a
+  blank black screen with nothing behind it.** `engine.video.VideoSource`
+  gained `prime()` — decode exactly one frame without advancing the
+  playback clock — called once when `"fade_in"` starts (constructor, and
+  again every `start()`). `CutscenePlayer.frame_surface()` returns that
+  primed, unmoving frame for the whole fade-in; only once `_phase` flips to
+  `"playing"` does `update()` start pacing real playback from frame 0.
+- **The fade-out holds the real LAST frame, not nothing.** A live capture
+  clears its own last frame at EOF (`VideoSource._mark_source_ended` wipes
+  `_bgr`, so a query one tick after `done` flips true already returns
+  `None`) — so `CutscenePlayer.update()` caches `frame_surface()` into
+  `self._last_frame` on every `"playing"`-phase tick (only when
+  `fade_out > 0`, so this costs an unconfigured cutscene nothing extra),
+  and `frame_surface()` returns that cached frame throughout `"fade_out"`.
+- **The overlay is a HOST-drawn HUD primitive, not something `CutscenePlayer`
+  paints itself** (`game/ui` stays pygame-free, D2). `CutscenePlayer.fade_alpha`
+  (0 = fully revealed, 255 = fully black) is a pure computed property off
+  `_phase`/`_phase_t`; `main.py`'s new `_submit_cutscene_fade(renderer,
+  view_w, view_h, alpha)` submits a full-view `HudRect((0,0,view_w,view_h),
+  (0,0,0,alpha))` as the LAST `submit_hud` call of a cutscene frame — after
+  `_submit_cutscene_skip`, so the black overlay sits on top of the skip
+  prompt too (the HUD pass has no depth sort; submission order is z-order,
+  `game/ui`'s own submission-order rule above). Both cutscene render sites
+  in `main.py` (the pre-menu `GameState.CUTSCENE` branch and the in-gameplay
+  `gp["cutscene"]` overlay) call it identically.
+- **Skip (the 2-second hold, above) bypasses the WHOLE cutscene, fade-out
+  included** (explicit user decision — "skip still works during fades"): a
+  hold that completes during `"fade_in"` or `"fade_out"` ends the cutscene
+  immediately rather than fast-forwarding into (or waiting out) a fade.
+  `CutscenePlayer.skip()` sets a `_skipped` latch `done` checks first,
+  ahead of the phase logic.
+- **`_fade_in <= 0` / `_fade_out <= 0` (an unconfigured `CutscenePlayer`, or
+  either balancing value set to `0`) is an EXACT no-op**, not an
+  approximation: `_phase` starts at (and, with `fade_out` off, forever
+  stays) `"playing"`, so `done`/`update()`/`frame_surface()` all reduce to
+  their pre-feature one-line bodies (`self._video.done`, `self._video
+  .update(dt)`, `self._video.frame_surface()`) and `fade_alpha` is always
+  `0`. This is what keeps `tools/tests/test_cutscene_player.py`'s whole
+  existing suite green unmodified — none of those tests pass fade
+  arguments, so every one of them exercises this exact fallback path.
+- **`CutscenePlayer.done` is a COMPUTED property, not a stored terminal
+  flag** — deliberately, because several existing tests poke
+  `player._video.done` directly (bypassing `update()`) to simulate an
+  in-progress video without a real file. A cached/latched `done` would stop
+  reflecting that poke; the live computation
+  (`self._video.done and self._fade_out <= 0` while `_phase == "playing"`)
+  reads it correctly with zero special-casing for tests.
 
 ## Tutorial message box + guided-chain highlights (Phase TU-6)
 - **`game/ui/tutorial_message.py`** (`TutorialMessageScreen`) — the

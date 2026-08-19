@@ -225,7 +225,11 @@ def _unlock_option(btype, spec, buildings_balance):
         "kind": "unlock_building",
         "building_type": btype,
         "building_types": tuple(types),
-        "title": spec.unlock_title or tiers[0]["name"],
+        # Default copy names the TIER 1 building the card actually grants
+        # ("Unlock Mortar"), so the card and the thing you then place agree.
+        # ``unlock_title`` overrides only where no single tier-1 name fits (the
+        # boost trio's one card grants three lines).
+        "title": spec.unlock_title or f"Unlock {tiers[0]['name']}",
         "prev_name": None,
         "explanation": spec.unlock_explanation or tiers[0].get("explanation", ""),
         "cost": 0,

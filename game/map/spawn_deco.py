@@ -13,19 +13,31 @@ non-SPAWNING tile that draws is a BACKGROUND tile carrying a painted
 wears its treeline before it is released, so the band does not visibly grow in
 batch by batch.
 
-Why the ``deco`` layer: a treeline should partly occlude enemies walking out
-of it, and ``engine.render.LAYERS`` places ``deco`` (index 3) above
-``entities`` (index 2, enemies + buildings) — `depth_key` makes the layer the
-PRIMARY sort key, so this is the entire z-order fix, no per-item tuning.
+**fix/y-sorted-deco**: these ride the ``entities`` layer, the SAME one as
+enemies and buildings, so a tree occludes an enemy exactly when it is in front
+of it and not otherwise. This module used to emit on the ``deco`` layer
+(``engine.render.LAYERS`` index 3, above ``entities``) and called that "the
+entire z-order fix, no per-item tuning" — which it was, for enemies standing
+*inside* the band, and wrong the instant one walked out the front: since
+``depth_key`` makes the layer the PRIMARY key, EVERY tree drew over EVERY
+enemy regardless of feet. It also disabled the very thing that would have
+sorted them correctly — ``Renderer._depth_pos`` resolves a slot's authored
+``depth_pivot`` (feet) only on the ``entities`` layer, and every
+``deco_tree_*`` slot has one. See ``engine.tilemap.DECO_LAYER``, which carries
+the same change for hand-placed map deco.
 
 Windowed by construction, mirroring ``conditions.py``/
 ``engine.tilemap.visible_render_items`` — cost is bounded by the viewport, not
 by how large a spawn zone a designer paints. Pure Python — no pygame.
 """
 from engine.render.item import RenderItem
+from engine.tilemap import DECO_LAYER, DECO_RANK
 from .tiles import DECO_CATEGORY, SPAWN_DECO_GROUP, TileState
 
-LAYER = "deco"
+#: fix/y-sorted-deco — deliberately the SAME constants hand-placed map deco
+#: uses, imported rather than re-spelled so the two can never drift apart.
+LAYER = DECO_LAYER
+RANK = DECO_RANK
 
 # Tree variants deliberately kept OUT of the spawn scatter (an ART call, not a
 # data problem — they read wrong at spawn-band density). They stay first-class
@@ -117,7 +129,7 @@ def spawn_deco_render_items(tile_map, col_min, col_max, row_min, row_max,
             slot = tree_slots[(roll // 2) % n_slots]
             flip = bool(roll % 2)
             phase = (col * 131 + row * 197) % 997   # ms, deterministic & pure
-            items.append(RenderItem(slot, (col, row), layer=LAYER,
+            items.append(RenderItem(slot, (col, row), layer=LAYER, rank=RANK,
                                     anim_time_ms=anim_time_ms + phase,
                                     flip=flip, column=column))
     return items

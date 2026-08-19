@@ -1469,6 +1469,17 @@ validating writer; don't hand-edit the JSON.
   (`tutorial_stone`), same shape as `"Start Area"`. Neither is a real sprite
   — the marker is drawn as an outline — the group exists solely so the
   editor's palette brush buttons (TU-2) have a slot key to arm.
+- **`data/balancing/core.json`'s `Cutscene` group** (feature:
+  cutscene-fade-in-out; alphabetically between `Camera` and `Debug`): two
+  leaves, `fade_in_seconds`/`fade_out_seconds` (number, 0-60, both default
+  `1.0`) — how long every registry-driven video cutscene fades in from /
+  out to a black screen. One shared pair for every `cutscenes.json` entry,
+  not per-entry (that registry's own schema was NOT touched by this
+  feature). Read once in `main.py` and threaded into every
+  `game.ui.cutscene_player.CutscenePlayer` alike; `0` on either leaf is a
+  literal no-op, not an approximation (`game/ui/CLAUDE.md`'s matching
+  section has the full mechanism — the fade is ADDED on top of a
+  cutscene's own length, never overlapped with it).
 
 ## Rules
 - **JSON here is the ONLY value store** (D-1). Never move a value into Python;

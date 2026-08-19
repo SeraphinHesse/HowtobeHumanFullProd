@@ -26,15 +26,15 @@
       },
       {
         "batch_size": 1,
-        "spawn_interval": 0.73
+        "spawn_interval": 0.77
       },
       {
         "batch_size": 1,
-        "spawn_interval": 0.64
+        "spawn_interval": 0.6
       },
       {
         "batch_size": 2,
-        "spawn_interval": 0.24
+        "spawn_interval": 0.34
       },
       {
         "batch_size": 2,
@@ -129,9 +129,9 @@
         },
         {
           "commander": 0,
-          "raiders": 12,
+          "raiders": 15,
           "regular": 8,
-          "siege": 31
+          "siege": 0
         },
         {
           "commander": 0,
@@ -141,9 +141,9 @@
         },
         {
           "commander": 0,
-          "raiders": 215,
-          "regular": 700,
-          "siege": 61
+          "raiders": 21,
+          "regular": 0,
+          "siege": 10
         }
       ],
       "second_phase": {
@@ -158,8 +158,8 @@
           {
             "commander": 0,
             "raiders": 3,
-            "regular": 5,
-            "siege": 1
+            "regular": 7,
+            "siege": 0
           },
           {
             "commander": 0,
@@ -168,15 +168,15 @@
             "siege": 3
           },
           {
-            "commander": 0,
+            "commander": 2,
             "raiders": 10,
-            "regular": 15,
+            "regular": 0,
             "siege": 3
           },
           {
-            "commander": 0,
+            "commander": 10,
             "raiders": 16,
-            "regular": 34,
+            "regular": 0,
             "siege": 5
           }
         ],
@@ -260,10 +260,10 @@
       "stats": [
         {
           "attack_range_tiles": 1,
-          "attack_speed": 1.5,
-          "dmg": 160,
+          "attack_speed": 1.8,
+          "dmg": 150,
           "footprint": 2,
-          "hp": 1400,
+          "hp": 1200,
           "move_speed": 0.65,
           "name": "Throbbin Hood",
           "shake": {
@@ -274,10 +274,10 @@
         },
         {
           "attack_range_tiles": 2,
-          "attack_speed": 1.4,
+          "attack_speed": 1.9,
           "dmg": 360,
           "footprint": 2,
-          "hp": 4500,
+          "hp": 3000,
           "move_speed": 0.62,
           "name": "Cannon Fortress",
           "shake": {
@@ -291,7 +291,7 @@
           "attack_speed": 1.3,
           "dmg": 480,
           "footprint": 2,
-          "hp": 6500,
+          "hp": 7500,
           "move_speed": 0.59,
           "name": "Wrecking Ball",
           "shake": {
@@ -305,7 +305,7 @@
           "attack_speed": 1.15,
           "dmg": 700,
           "footprint": 2,
-          "hp": 10000,
+          "hp": 12000,
           "move_speed": 0.61,
           "name": "Iron Drill",
           "shake": {
@@ -319,7 +319,7 @@
           "attack_speed": 1.0,
           "dmg": 1000,
           "footprint": 2,
-          "hp": 15000,
+          "hp": 22000,
           "move_speed": 0.7,
           "name": "Siege Tank",
           "shake": {
@@ -334,7 +334,7 @@
       "condition_path_weights": {
         "forest": 1,
         "mountain": 2,
-        "pond": 9
+        "pond": 15
       },
       "death_spawn": {
         "at_hp_fraction": 0.0,
@@ -368,10 +368,10 @@
           "sprite_scale": 1.0,
           "stats": {
             "attack_range_tiles": 1,
-            "attack_speed": 1.2,
-            "dmg": 100,
-            "hp": 2000,
-            "move_speed": 2.7
+            "attack_speed": 1.4,
+            "dmg": 60,
+            "hp": 1000,
+            "move_speed": 2.5
           }
         },
         {
@@ -472,8 +472,8 @@
     "Digger": {
       "condition_path_weights": {
         "forest": 1,
-        "mountain": 1,
-        "pond": 1
+        "mountain": 9,
+        "pond": 15
       },
       "death_spawn": {
         "at_hp_fraction": 0.0,
@@ -617,7 +617,7 @@
       "condition_path_weights": {
         "forest": 1,
         "mountain": 2,
-        "pond": 9
+        "pond": 15
       },
       "death_spawn": {
         "at_hp_fraction": 0.0,
@@ -690,7 +690,7 @@
             "attack_range_tiles": 1,
             "attack_speed": 1.5,
             "dmg": 7,
-            "hp": 395,
+            "hp": 300,
             "move_speed": 1.03
           }
         },
@@ -708,7 +708,7 @@
             "attack_range_tiles": 1,
             "attack_speed": 1.5,
             "dmg": 9,
-            "hp": 485,
+            "hp": 400,
             "move_speed": 1.2
           }
         },
@@ -726,7 +726,7 @@
             "attack_range_tiles": 1,
             "attack_speed": 1.5,
             "dmg": 12,
-            "hp": 610,
+            "hp": 500,
             "move_speed": 1.4
           }
         }
@@ -768,7 +768,7 @@
       "condition_path_weights": {
         "forest": 1,
         "mountain": 2,
-        "pond": 9
+        "pond": 15
       },
       "death_spawn": {
         "at_hp_fraction": 0.5,
@@ -845,8 +845,8 @@
           "stats": {
             "attack_range_tiles": 1,
             "attack_speed": 1.2,
-            "dmg": 36,
-            "hp": 435,
+            "dmg": 32,
+            "hp": 420,
             "move_speed": 0.96
           }
         },
@@ -864,7 +864,7 @@
             "attack_range_tiles": 1,
             "attack_speed": 1.4,
             "dmg": 50,
-            "hp": 525,
+            "hp": 500,
             "move_speed": 1.045
           }
         },
@@ -881,8 +881,8 @@
           "stats": {
             "attack_range_tiles": 1,
             "attack_speed": 1.4,
-            "dmg": 77,
-            "hp": 610,
+            "dmg": 100,
+            "hp": 800,
             "move_speed": 1.245
           }
         },
@@ -899,9 +899,9 @@
           "stats": {
             "attack_range_tiles": 1,
             "attack_speed": 1.4,
-            "dmg": 122,
-            "hp": 725,
-            "move_speed": 1.445
+            "dmg": 220,
+            "hp": 1200,
+            "move_speed": 1.485
           }
         }
       ],
@@ -938,7 +938,7 @@
       "condition_path_weights": {
         "forest": 1,
         "mountain": 2,
-        "pond": 9
+        "pond": 15
       },
       "death_spawn": {
         "at_hp_fraction": 0.0,
@@ -1090,7 +1090,7 @@
       "condition_path_weights": {
         "forest": 1,
         "mountain": 2,
-        "pond": 9
+        "pond": 15
       },
       "death_spawn": {
         "at_hp_fraction": 0.0,
@@ -1238,7 +1238,7 @@
       "condition_path_weights": {
         "forest": 1,
         "mountain": 2,
-        "pond": 9
+        "pond": 15
       },
       "death_spawn": {
         "at_hp_fraction": 0.0,
@@ -1309,8 +1309,8 @@
           "stats": {
             "attack_range_tiles": 2,
             "attack_speed": 2.6,
-            "dmg": 168,
-            "hp": 195,
+            "dmg": 180,
+            "hp": 220,
             "move_speed": 0.97
           }
         },
@@ -1327,8 +1327,8 @@
           "stats": {
             "attack_range_tiles": 2,
             "attack_speed": 2.6,
-            "dmg": 205,
-            "hp": 240,
+            "dmg": 220,
+            "hp": 280,
             "move_speed": 1.14
           }
         },
@@ -1345,8 +1345,8 @@
           "stats": {
             "attack_range_tiles": 2,
             "attack_speed": 2.6,
-            "dmg": 270,
-            "hp": 300,
+            "dmg": 350,
+            "hp": 400,
             "move_speed": 1.34
           }
         }
@@ -1378,7 +1378,7 @@
       "condition_path_weights": {
         "forest": 1,
         "mountain": 2,
-        "pond": 9
+        "pond": 15
       },
       "death_spawn": {
         "at_hp_fraction": 0.0,

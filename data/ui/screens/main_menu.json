@@ -1,16 +1,6 @@
 {
-  "background": {
-    "slot": "ui_bg_main_menu"
-  },
   "defaults": {
-    "button_skin": "ui_button_panel_v4",
-    "font": "xl",
-    "panel_skin": "ui_button_panel_v4",
-    "text_color": [
-      231,
-      213,
-      179
-    ]
+    "panel_skin": "ui_bg_main_menu"
   },
   "widgets": {
     "backdrop": {
@@ -19,76 +9,93 @@
         4,
         640,
         360
-      ]
+      ],
+      "skin": "ui_bg_main_menu"
     },
     "btn_add_name": {
       "rect": [
-        341,
-        162,
+        240,
+        122,
+        160,
+        26
+      ]
+    },
+    "btn_continue": {
+      "rect": [
+        0,
+        0,
         160,
         26
       ]
     },
     "btn_credits": {
       "rect": [
-        342,
-        261,
+        240,
+        242,
         160,
         26
       ]
     },
     "btn_highscores": {
       "rect": [
-        340,
-        196,
+        240,
+        152,
         160,
         26
       ]
     },
     "btn_new_game": {
       "rect": [
-        340,
-        128,
+        238,
+        62,
         160,
         26
       ]
     },
     "btn_play_debug": {
       "rect": [
-        340,
-        96,
+        240,
+        92,
         160,
         26
       ]
     },
     "btn_play_debug_settings": {
       "rect": [
-        505,
-        96,
+        405,
+        92,
         30,
         26
       ]
     },
     "btn_quit": {
       "rect": [
-        342,
-        296,
+        240,
+        272,
+        160,
+        26
+      ]
+    },
+    "btn_save_files": {
+      "rect": [
+        240,
+        182,
         160,
         26
       ]
     },
     "btn_settings": {
       "rect": [
-        341,
-        229,
+        240,
+        212,
         160,
         26
       ]
     },
     "subtitle": {
       "rect": [
-        158,
-        147,
+        320,
+        42,
         0,
         0
       ],
@@ -102,7 +109,7 @@
     "title": {
       "rect": [
         320,
-        105,
+        22,
         0,
         0
       ],
