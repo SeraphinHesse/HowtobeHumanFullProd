@@ -476,11 +476,37 @@ Moving an ALREADY-PLACED building to another unbuilt buildable tile.
   `_col`/`_row` (the transient caches `Building.col`/`.row` read) AND the
   `Transform` — miss either and the building draws/targets from where it used
   to stand.
-- **A Wall Builder can NEVER be moved** — duck-typed on `hasattr(b,
-  "wall_hp")` (`is_movable`), the same check `game/ui/building_ui.py`'s
-  `_building_stats` already uses; its walls are a frozen perimeter snapshot
-  tied to the tile they were raised from. The UI shows the button DISABLED;
-  `start_move` raises `MoveError` regardless.
+- **A Wall Builder may move, but ONLY within its own wall perimeter**
+  (feature: wallbuilder-restricted-move, user decision — superseding the
+  original "can NEVER be moved" rule). Duck-typed on `hasattr(b, "wall_hp")`
+  throughout, the same check `game/ui/building_ui.py`'s `_building_stats`
+  already uses. `wall_builder_move_targets(building, tilemap)` is the ONE
+  definition of "its own wall perimeter": a WallBuilder's `wall_snapshot()`
+  is an arbitrary set of perimeter EDGES (whatever segments of the whole
+  player-territory boundary were unclaimed when it was placed), not a
+  rectangle, so there is no enclosed area to compute — the legal destination
+  set is simply the BUILDABLE, not-already-in-transit tiles those edges are
+  anchored to. `is_movable(building, tilemap=None)` now takes an optional
+  tilemap: every non-WallBuilder type is always movable (unchanged);
+  a WallBuilder needs the tilemap to know whether that set is non-empty, and
+  reports not-movable when it has nowhere legal to go (an empty
+  `wall_snapshot()`, or every one of its own walled tiles currently
+  occupied/in-transit) — `game/ui/building_ui.py`'s move button shows this
+  as DISABLED with a hint, same mechanism as before. `start_move` is still
+  the real enforcement: it raises `MoveError` for a WallBuilder whose chosen
+  destination is not in that set.
+  - **Arrival deliberately does NOT re-run `on_placed`** for a WallBuilder
+    (`movement.py`'s `_complete`, duck-typed the same way) — every other
+    building type still does (a moved booster re-applies its flat-mode buff
+    to its new neighbours, unchanged). Re-running it would call
+    `place_walls_for_builder` again, which re-scans the WHOLE map for
+    currently-unclaimed perimeter edges — exactly the "pick up new wall
+    ownership as a side effect of relocating" outcome the user decision
+    rejected. The walls a WallBuilder owns are exactly the frozen edges it
+    already had, both before and after any move; the skip is provably
+    harmless because `on_placed` does nothing else for this type (it only
+    caches the tilemap reference — already cached from the original
+    placement — and raises the perimeter).
 - **`rounds == 0` (time cost off, or tuned to zero) relocates synchronously**
   and records no order at all — nothing to tick, nothing to sign-post.
   Otherwise a `types.SimpleNamespace` order is appended and `process_moves`

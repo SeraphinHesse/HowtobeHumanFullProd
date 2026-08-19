@@ -861,18 +861,23 @@
           8
         ]
       },
+      "column_width": 7,
       "frame_h": 96,
-      "frame_w": 64,
+      "frame_w": 96,
       "offset_x": 0,
-      "offset_y": -12,
+      "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 6,
+          "frames": 7,
           "hidden": [
+            1,
+            2,
+            3,
             4,
-            5
+            5,
+            6
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -881,10 +886,11 @@
         {
           "animation": "walk",
           "fps": 6,
-          "frames": 6,
+          "frames": 7,
           "hidden": [
             4,
-            5
+            5,
+            6
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -893,14 +899,72 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 6,
+          "frames": 7,
+          "hidden": [
+            6
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [
+            0
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "dig",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "emerge",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "emerge",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "emerge",
+          "fps": 6,
+          "frames": 7,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/boss_era_0.png"
+      "sheet": "master/ss_allboss.png"
     },
     "boss_era_1": {
       "anchors": {
@@ -917,22 +981,86 @@
           6
         ]
       },
-      "frame_h": 84,
-      "frame_w": 108,
+      "column_width": 7,
+      "frame_h": 96,
+      "frame_w": 96,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 3,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 7,
+          "hidden": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "walk",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [
+            6
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "kidnap",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "dig",
+          "fps": 6,
+          "frames": 7,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/boss_era_1.png"
+      "sheet": "master/ss_allboss.png"
     },
     "boss_era_2": {
       "anchors": {
@@ -949,22 +1077,51 @@
           8
         ]
       },
-      "frame_h": 84,
-      "frame_w": 108,
+      "column_width": 7,
+      "frame_h": 96,
+      "frame_w": 96,
       "offset_x": 0,
       "offset_y": 0,
+      "row_start": 6,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 7,
+          "hidden": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "walk",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [
+            6
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 7,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/boss_era_2.png"
+      "sheet": "master/ss_allboss.png"
     },
     "boss_era_3": {
       "anchors": {
@@ -1039,19 +1196,57 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 8,
+          "frames": 20,
           "hidden": [
-            4,
-            5,
-            6,
-            7
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
           ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 20,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/enemy_stage_2.png"
+      "sheet": "imported/commander_stage_1.png"
     },
     "commander_stage_2": {
       "frame_h": 96,
@@ -13455,6 +13650,90 @@
         4
       ]
     },
+    "ui_button_panel_v10": {
+      "frame_h": 14,
+      "frame_w": 17,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hover",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "pressed",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/ui_button_panel_v10.png"
+    },
+    "ui_button_panel_v11": {
+      "frame_h": 23,
+      "frame_w": 95,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 4,
+          "hidden": [
+            1,
+            2,
+            3
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hover",
+          "fps": 6,
+          "frames": 4,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "pressed",
+          "fps": 6,
+          "frames": 4,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/ui_button_panel_v11.png"
+    },
     "ui_button_panel_v2": {
       "frame_h": 55,
       "frame_w": 42,
@@ -14373,6 +14652,50 @@
         }
       ],
       "sheet": "imported/ui_panel_v21.png"
+    },
+    "ui_panel_v22": {
+      "frame_h": 32,
+      "frame_w": 80,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 4,
+          "hidden": [
+            1,
+            2,
+            3
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hover",
+          "fps": 6,
+          "frames": 4,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "pressed",
+          "fps": 6,
+          "frames": 4,
+          "hidden": [
+            1,
+            2,
+            3
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/ui_panel_v22.png"
     },
     "ui_panel_v3": {
       "frame_h": 50,

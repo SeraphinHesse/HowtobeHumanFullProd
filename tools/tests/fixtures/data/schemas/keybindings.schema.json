@@ -20,7 +20,7 @@
       "type": "string"
     },
     "confirm_purchase": {
-      "description": "Confirms whatever construct/move preview modal is currently open - the same effect as clicking its CONFIRM button. No effect when no such modal is open.",
+      "description": "Confirms whatever construct/move preview modal is currently open - the same effect as clicking its CONFIRM button. When no such modal is open and the building panel is showing a selected building (upgrade mode), this same key instead clicks the UPGRADE/ADVANCE button - single or multi-select batch alike. No effect otherwise.",
       "pattern": "^(ctrl\\+)?[a-z0-9]+$",
       "type": "string"
     },

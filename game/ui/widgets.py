@@ -440,6 +440,7 @@ _HIGHLIGHTS = {
     "section_2x2": {"color": (255, 180, 60), "border_width": 2, "fill_alpha": 0},
     "attack_range": {"color": (180, 40, 40), "border_width": 2, "fill_alpha": 0},
     "move_target": {"color": (80, 200, 255), "border_width": 2, "fill_alpha": 0},
+    "move_blocked": {"color": (110, 110, 110), "border_width": 2, "fill_alpha": 90},
     "wall_edge": {"color": (255, 230, 60), "border_width": 4, "fill_alpha": 0},
     "upgrade_batch": {"color": (255, 230, 60), "border_width": 2, "fill_alpha": 0},
     "tutorial_highlight": {"color": (255, 255, 255), "border_width": 2,

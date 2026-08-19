@@ -72,7 +72,7 @@ class TestRoundTrip(unittest.TestCase):
             m = load_manifest(path)
             self.assertIsNone(m.entry("tower").anchors)
 
-    def test_with_all_six_anchors_validates_parses_and_reserialises(self):
+    def test_with_every_declared_anchor_validates_parses_and_reserialises(self):
         anchors = {name: [10 + i, -20 - i] for i, name in enumerate(ANCHOR_NAMES)}
         doc = {"version": 2, "entries": {"tower": entry_dict([row()])}}
         doc["entries"]["tower"]["anchors"] = anchors

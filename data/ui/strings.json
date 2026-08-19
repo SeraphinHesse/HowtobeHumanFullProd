@@ -49,7 +49,7 @@
   "building.hint.research": "Research it on levelup",
   "building.hint.tier_locked": "Unlocks at level {round}",
   "building.hint.tier_unoffered": "Not yet offered",
-  "building.hint.wall_rooted": "A wall builder is rooted to its tile",
+  "building.hint.wall_rooted": "No free tile inside its own walls right now",
   "building.log.moved": "Building moved",
   "building.log.moving": "Building moving — {rounds} rounds",
   "building.log.unlock_refused": "Can only unlock tiles touching your territory",

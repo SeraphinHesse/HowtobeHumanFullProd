@@ -273,6 +273,11 @@ class TileMap:
         self._flow_cache = None
         self._dmg_reduced_prev = set()
         self._defence_covered_prev = set()
+        # The last set OBJECT handed to `refresh_defence_range_coverage` (not
+        # its value — that is `_prev` above). The wired coverage producer
+        # returns an identical object while nothing has changed, which is the
+        # per-query fast path; None can never alias a real input.
+        self._defence_covered_src = None
         # buildings-overwrite-tileweights rework: a building's `alive` flag
         # now changes its tile's weight (dead = additive again), so a death
         # must bump the flow field exactly like the other two producers.
@@ -1007,7 +1012,21 @@ class TileMap:
         flags. Change-detected (it runs before every pathfinder query): an
         unchanged set — the common case — is a no-op; otherwise only the
         symmetric difference is touched and the flow field invalidates
-        (covered tiles carry a weight add, so coverage changes re-route)."""
+        (covered tiles carry a weight add, so coverage changes re-route).
+
+        The identity check comes FIRST so the common case costs nothing at
+        all: `game/buildings/coverage.py`'s wired producer hands back the SAME
+        set object while its signature is unchanged, so an unmoved coverage
+        set skips the O(|covered|) copy and compare as well as the mirroring.
+        It is checked against `_defence_covered_src` (the last INPUT object)
+        rather than `_defence_covered_prev` (a defensive copy of its value) —
+        the two are deliberately different objects. A caller that builds a
+        fresh set per call just falls through to the value compare, exactly as
+        before; the producer never mutates a set it has already returned, so
+        remembering its identity here cannot go stale."""
+        if covered_set is self._defence_covered_src:
+            return
+        self._defence_covered_src = covered_set
         covered = set(covered_set)
         if covered == self._defence_covered_prev:
             return

@@ -16,7 +16,13 @@ game vocabulary** (no "raider", no "tower").
   range_tiles)` (tile = `(round(wx), round(wy))`, `max(|Δcol|,|Δrow|) <= range`).
   Returns are in **insertion order** (deterministic). Cell membership is fixed at
   insert/rebuild; the exact tests read **live** `world_pos`, so callers keep
-  membership fresh via `move()` or a periodic `rebuild()`.
+  membership fresh via `move()` or a `rebuild()`. `Scene` does the latter
+  **lazily** — on the first query after the grid goes stale, never on frames
+  nothing queries; do not reintroduce an unconditional per-frame `rebuild()`
+  (see `engine/core/CLAUDE.md`). `cell_size` is a pure perf knob (same results,
+  same order, at any value): the constructor default stays 1.0, but `Scene`
+  builds its own grid at **2.0**, because a query costs one dict lookup per cell
+  in its range box — see `engine/core/CLAUDE.md` and `game/PERF.md`.
 - `TileOccupancy` (`occupancy.py`, E-32) — `(col,row) -> obj`, one occupant per
   tile: `set/clear/get/is_occupied` (tile keys normalized to tuples).
 - `advance(pos, waypoints, index, speed, dt, threshold=0.06)` (`movement.py`,

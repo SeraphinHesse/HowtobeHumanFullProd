@@ -22,6 +22,8 @@ authored in frame pixels).
 """
 import time
 
+from engine.assets.manifest import DEPTH_PIVOT
+
 from . import backend_api
 from .hud import HudLines, HudRect, HudSprite, HudText
 from .item import (
@@ -184,6 +186,46 @@ class Renderer:
             )
         self._hud.append(item)
 
+    def _depth_pos(self, item):
+        """The world point `item` SORTS at — its own `world_pos`, unless its
+        slot authors a `depth_pivot` anchor, in which case the world point
+        that handle sits on **on the sprite as drawn**.
+
+        This is the whole of feet-based Y-sorting: art authored with its
+        figure high in the frame (or off-centre) used to sort at the tile it
+        is addressed by, so two enemies whose feet are visibly one in front
+        of the other could draw in the wrong order. Dragging the pivot to the
+        feet in the editor's Anchors panel fixes that per sheet.
+
+        SORT ONLY — the blit below is untouched, exactly like the
+        `block_center_offset` shift is blit-only in the other direction. And
+        opt-in: an unauthored slot returns `world_pos` and orders precisely
+        as it always did.
+
+        Cheap by construction: the `entities` layer is the only depth-
+        contested one, so ground/terrain/deco/overlay items (the bulk of a
+        frame's queue) leave on the first test, and the non-sprite depth
+        members (WorldFill/WorldRect/WorldLines) have no `slot_key` to
+        resolve. Resolution goes through `sprite_anchor_screen` — THE shared
+        anchor origin `flush` itself is built on — so the pivot cannot drift
+        from where the sprite lands. Its `zoom` factor is divided straight
+        back out by `screen_to_world`, so the order is zoom-independent.
+        """
+        if item.layer != "entities":
+            return item.world_pos
+        slot_key = getattr(item, "slot_key", None)
+        if slot_key is None:
+            return item.world_pos
+        anchor = self._assets.anchor(slot_key, DEPTH_PIVOT)
+        if anchor is None:
+            return item.world_pos
+        frame_w, _frame_h = self._assets.frame_size(slot_key)
+        wx, wy = item.world_pos
+        sx, sy = sprite_anchor_screen(
+            self._coords, wx, wy, frame_w, item.fit_tiles, item.scale,
+            self._assets.offset(slot_key), anchor)
+        return self._coords.screen_to_world(sx, sy)
+
     def flush(self, target, hud_target=None):
         """Draw all submitted items to `target`, clear the queue, and return
         the number of items drawn. Target-agnostic (E-22): game window or
@@ -205,8 +247,7 @@ class Renderer:
         ordered = sorted(
             self._queue,
             key=lambda item: coords.depth_key(
-                item.world_pos[0], item.world_pos[1], LAYERS.index(item.layer),
-                item.rank,
+                *self._depth_pos(item), LAYERS.index(item.layer), item.rank,
             ),
         )
         zoom = coords.camera.zoom

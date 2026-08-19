@@ -1,13 +1,14 @@
-"""AnchorsPanel (ESV-2) — the six-row anchor authoring form that sits beside
+"""AnchorsPanel (ESV-2) — the per-anchor authoring form that sits beside
 the entity preview. It owns the SOLE authoritative {name: (x, y)} anchors
 mapping for the previewed slot; the viewport (panels/viewport.py) is a VIEW
 of it plus a live drag delta (editor/panels/CLAUDE.md "Anchor handles").
 Every name in engine.assets.manifest.ANCHOR_NAMES gets a row — no name is
-ever hardcoded here, so a seventh declared name needs zero editor edits
-(ESV-1 brief §1.1, this brief §1.2).
+ever hardcoded here, so a newly declared name needs zero editor edits
+(ESV-1 brief §1.1, this brief §1.2) — `depth_pivot`, the seventh, was added
+without touching this file at all.
 
 Two "nothing" states, kept apart (§1.6): a slot with a manifest entry but no
-`anchors` key shows all six rows UNCHECKED (ticking one creates that anchor
+`anchors` key shows every row UNCHECKED (ticking one creates that anchor
 at [0, 0], immediately draggable); a slot with NO manifest entry at all
 disables every row and shows guidance instead — the schema's entry object
 has no anchors-only shape to attach to, so this phase never synthesises one.

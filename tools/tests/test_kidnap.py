@@ -30,7 +30,10 @@ from game.core import Session, load_balance
 from game.core import lightning as lt
 from game.core.payday import run_payday
 from game.core.phases import GamePhase, GameState
-from game.enemies import Spawner, create_enemy, resolve_combat
+from game.enemies import (
+    RESCUE_FLIGHT_SECONDS, RESCUE_TAG, Projectile, ProjectileHoming, Spawner,
+    create_enemy, resolve_combat,
+)
 from game.enemies.components import Kidnap, PathAgent
 from game.enemies.kidnap import CARRY_OFFSET_TILES
 from game.map.tile_map import TileMap
@@ -428,6 +431,75 @@ class TestFrozenPoseWithNoKidnapRow(unittest.TestCase):
             scene.update(0.1)
             self.assertEqual(anim.animation, "idle")
             self.assertEqual(anim.anim_time_ms, 0.0)
+
+
+class TestLethalShotInFlightKillsTheCarrier(unittest.TestCase):
+    """A projectile already in flight when the target became a carrier: a
+    LETHAL one kills it and sends the stolen building home; a non-lethal one
+    is skipped, exactly as every other combat site skips a kidnapper."""
+
+    def _board(self):
+        """A LONGER lane than ``build_board``'s: the victim at (3,0) and the
+        only spawn tile at (7,0), so the carrier has several frames of walking
+        left to be shot during — on the 5-wide board it arrives home (and
+        despawns) on the very next frame after the retag."""
+        tm = synth(["bbbbbbbs"])
+        scene, occ = Scene(), TileOccupancy()
+        attach_base(tm, BaseBuilding(tm.base_col, tm.base_row, CORE), scene, occ)
+        session = armed_session(tm, occ)
+        victim = place_victim(tm, scene, occ)
+        e = create_enemy("standard", 7, 0, ENEM, tm)
+        scene.spawn(e)
+        for _ in range(120):
+            frame(session, scene, tm, 0.1)
+            if scene.by_tag("kidnapper"):
+                return tm, scene, occ, session, victim, e
+        raise AssertionError("enemy never became a kidnapper")
+
+    def _fire_at(self, scene, kidnapper, dmg):
+        wx, wy = kidnapper.transform.world_pos
+        proj = Projectile(wx, wy, dmg, 4.0)
+        hom = proj.get_component(ProjectileHoming)
+        hom.launch(kidnapper, None, scene)
+        scene.spawn(proj)
+        return proj
+
+    def test_non_lethal_shot_is_skipped(self):
+        tm, scene, occ, session, _victim, kidnapper = self._board()
+        hp_before = kidnapper.get_component(Health).hp
+
+        self._fire_at(scene, kidnapper, hp_before - 1)
+        frame(session, scene, tm, 0.1)
+        self.assertEqual(kidnapper.get_component(Health).hp, hp_before)
+        self.assertTrue(scene.by_tag("kidnapper"))
+
+    def test_lethal_shot_kills_and_returns_the_building(self):
+        tm, scene, occ, session, victim, kidnapper = self._board()
+        killed_before = session.state.enemies_killed  # paid at the kidnap
+        self.assertFalse(victim.alive)
+
+        self._fire_at(scene, kidnapper, kidnapper.get_component(Health).hp)
+        frame(session, scene, tm, 0.1)
+
+        self.assertEqual(kidnapper.get_component(Health).hp, 0)
+        self.assertFalse(kidnapper.get_component(Kidnap).active)
+        # No second award: the kidnap transition already counted this enemy.
+        self.assertEqual(session.state.enemies_killed, killed_before)
+
+        # (`Scene.spawn`/`despawn` both QUEUE, so the carrier leaves and the
+        # flight appears on the next tick, not this one.)
+        frame(session, scene, tm, 0.1)
+        self.assertEqual(scene.by_tag("kidnapper"), [])
+        self.assertTrue(scene.by_tag(RESCUE_TAG))  # in the air...
+        self.assertFalse(victim.alive)             # ...so not back yet
+
+        for _ in range(int(RESCUE_FLIGHT_SECONDS / 0.1) + 3):
+            frame(session, scene, tm, 0.1)
+        self.assertEqual(scene.by_tag(RESCUE_TAG), [])
+        self.assertTrue(victim.alive)
+        self.assertEqual(victim.get_component(Health).hp, 1)
+        # No respawn VFX for a rescue (payday's ledger is untouched).
+        self.assertEqual(session.state.building_respawn_events, [])
 
 
 if __name__ == "__main__":

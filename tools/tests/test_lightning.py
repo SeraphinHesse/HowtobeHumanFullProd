@@ -109,10 +109,11 @@ def frame(session, scene, tilemap_, dt):
 class TestSeedAndCosts(unittest.TestCase):
     def test_parity_canary_against_fixture_values(self):
         # The pinned fixture core.json values (NOT the stale .py defaults).
-        self.assertEqual(LS["cooldown"], [5, 3, 2])
+        self.assertEqual(LS["cooldown"], [4, 3, 2])
         self.assertEqual(LS["damage"], [12, 18, 38])   # Storm Priest buff
         self.assertEqual(LS["radius"], [1, 2, 3])
         self.assertEqual(LS["max_level"], 3)
+        self.assertEqual(LS["attack_hold_seconds"], [4, 3, 2])
 
     def test_fresh_run_starts_at_level_0_locked(self):
         # Storm Priest wiring: lightning now boots LOCKED. A Storm Priest
@@ -259,7 +260,7 @@ class TestStormPriestCasterFlash(unittest.TestCase):
         scene.update(0.0)
         self.assertEqual(anim.animation, "attack")
 
-        scene.update(lt.CASTER_FLASH_DURATION + 0.1)
+        scene.update(LS["attack_hold_seconds"][0] + 0.1)
         self.assertEqual(anim.animation, "idle")
 
 
@@ -523,6 +524,37 @@ class TestMultiAcolyteStrike(unittest.TestCase):
                          5.0)      # untouched: never fired, never re-set
         scene.update(0.0)
         self.assertEqual(len(scene.by_tag("lightning_fx")), 2)  # one per firer
+
+
+# ---------------------------------------------------------------------------
+# 3c'. Round-start cooldown reset (feature: storm-acolyte-round-start-reset)
+# ---------------------------------------------------------------------------
+class TestRoundStartCooldownReset(unittest.TestCase):
+    def test_end_turn_with_scene_resets_every_alive_caster(self):
+        tm, scene, occ = build_board(BUILDABLE_FIELD)
+        session = Session.create(Spawner(), tm, ENEM, CORE, BUILD)
+        a = spawn_storm_priest(scene, tier_idx=0, col=1, row=1)
+        b = spawn_storm_priest(scene, tier_idx=2, col=2, row=1)
+        scene.update(0.0)   # flush the spawn queue into the live by_tag list
+        a.get_component(lt.LightningCaster).cooldown = 3.5
+        b.get_component(lt.LightningCaster).cooldown = 1.0
+
+        session.end_turn(scene)
+
+        self.assertEqual(a.get_component(lt.LightningCaster).cooldown, 0.0)
+        self.assertEqual(b.get_component(lt.LightningCaster).cooldown, 0.0)
+
+    def test_end_turn_with_no_scene_leaves_cooldowns_untouched(self):
+        # every pre-existing caller's shape (bare end_turn()) stays byte-
+        # identical — the reset is opt-in via the new `scene` argument.
+        tm, scene, occ = build_board(BUILDABLE_FIELD)
+        session = Session.create(Spawner(), tm, ENEM, CORE, BUILD)
+        a = spawn_storm_priest(scene, tier_idx=0, col=1, row=1)
+        a.get_component(lt.LightningCaster).cooldown = 3.5
+
+        session.end_turn()
+
+        self.assertEqual(a.get_component(lt.LightningCaster).cooldown, 3.5)
 
 
 # ---------------------------------------------------------------------------

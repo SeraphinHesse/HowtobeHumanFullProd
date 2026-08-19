@@ -21,6 +21,13 @@
       "frame_h": 96,
       "frame_w": 64
     },
+    "ss_allboss": {
+      "column_width": 7,
+      "display_name": "SS_AllBoss",
+      "file": "master/ss_allboss.png",
+      "frame_h": 96,
+      "frame_w": 96
+    },
     "ss_fluteplayer": {
       "column_width": 17,
       "columns": [

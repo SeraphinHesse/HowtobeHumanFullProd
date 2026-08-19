@@ -588,6 +588,30 @@ class TestDefenceRangeCoverage(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# 8b. The wired coverage producer caches off its signature: an unchanged
+#     board must not re-expand the range squares, and a death must still
+#     be seen (deaths do not reliably bump _path_version).
+# ---------------------------------------------------------------------------
+class TestDefenceCoverageCache(unittest.TestCase):
+    def test_unchanged_board_returns_the_same_object(self):
+        tm = synth(["bbbbbbbb", "cccccccs"])
+        place(tm, 2, 0, "defence")
+        wire_defence_coverage(tm, BUILD)
+        first = tm._defence_coverage_fn()
+        self.assertIs(tm._defence_coverage_fn(), first)
+
+    def test_death_invalidates_the_cached_coverage(self):
+        tm = synth(["bbbbbbbb", "cccccccs"])
+        b = place(tm, 2, 0, "defence")
+        wire_defence_coverage(tm, BUILD)
+        self.assertIn((2, 1), tm._defence_coverage_fn())
+        b.get_component(Health).damage(10 ** 6)
+        self.assertEqual(tm._defence_coverage_fn(), set())
+        find_path(tm, 7, 1)
+        self.assertEqual(tm.weight(tm.get(2, 1)), 1)   # mirror followed
+
+
+# ---------------------------------------------------------------------------
 # 9. Overlays: toggles, heatmap tracker, RANGE coverage set, colour ramp
 # ---------------------------------------------------------------------------
 class _StubEnemy:
