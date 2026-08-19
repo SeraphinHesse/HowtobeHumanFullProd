@@ -27,6 +27,7 @@ skips the whole sim, so nothing animates behind the window.
 import random
 
 from engine import era_math
+from engine.core import death_epoch
 from game.debug import events as dbg  # debug-mode-telemetry Phase 2
 
 from . import boss_upgrades as bu  # BossUpgradeTimelinePLAN BU-2/BU-4
@@ -103,6 +104,10 @@ class Session:
         # (prototype `_buildings_xp_awarded`): a building that dies, revives at
         # payday and dies again pays XP only the first time.
         self._xp_awarded_buildings = set()
+        # Last `death_epoch("building")` `_award_building_deaths` swept at, so
+        # the per-frame call can skip the sweep entirely on the ~every frame
+        # where no building died. `None` = never swept, which never matches.
+        self._building_death_epoch = None
         # Combat speed (10F). Persists across rounds; a new run builds a new
         # Session, which is the prototype's "reset to 1x on new game".
         self.combat_speed_idx = 0
@@ -443,6 +448,14 @@ class Session:
     def pre_sim(self, dt, scene):
         """Advance phase timers + spawn wave enemies. Call BEFORE
         ``scene.update``. Fully frozen on GAME_OVER."""
+        # The per-frame pre-query memo clock (`game/PERF.md`): bumped FIRST,
+        # unconditionally, so it advances on every frame the host drives —
+        # including frozen/menu frames, where a stale memo would otherwise
+        # outlive a placement. `getattr` because the simrun/headless tilemap
+        # stubs are duck-typed and carry no frame clock.
+        begin_frame = getattr(self.tilemap, "begin_sim_frame", None)
+        if begin_frame is not None:
+            begin_frame()
         st = self.state
         if st.state != GameState.GAMEPLAY or self.frozen:
             return
@@ -497,9 +510,12 @@ class Session:
         # only ever runs from `pre_sim`'s ENEMY arm — so a building that died on
         # THIS frame would never pay its death XP, and the payday revive would
         # then make it alive again. This is the last chance; the id-keyed
-        # `_xp_awarded_buildings` guard makes the double sweep a no-op.
+        # `_xp_awarded_buildings` guard makes the double sweep a no-op. Both are
+        # `force=True`: once-per-round, so the epoch gate would save nothing,
+        # and being ungated is what keeps a death that never went through
+        # `Health.damage()` payable at all (see `_award_building_deaths`).
         if self._wipe_pending:
-            self._award_building_deaths(scene)
+            self._award_building_deaths(scene, force=True)
             self._wipe_round(scene)
             self._begin_round_end()
         elif (self.spawner.done
@@ -515,7 +531,7 @@ class Session:
                 # tile and despawned (user decision).
                 and not scene.by_tag("kidnapper")
                 and not scene.queued_by_tag("kidnapper")):
-            self._award_building_deaths(scene)
+            self._award_building_deaths(scene, force=True)
             self._begin_round_end()
 
     # -- LEVELUP (10A) ----------------------------------------------------
@@ -664,11 +680,32 @@ class Session:
 
     # -- XP award sites (10A) ---------------------------------------------
 
-    def _award_building_deaths(self, scene):
+    def _award_building_deaths(self, scene, force=False):
         """Buildings that died this tick pay XP once each, by id (prototype
-        ``game.py:1378-1386``). Gated by ``core.XP.xp_from_buildings``."""
+        ``game.py:1378-1386``). Gated by ``core.XP.xp_from_buildings``.
+
+        The sweep touches every live building and reads two properties off each
+        (``building_type``, and ``alive`` -> a `get_component` scan), yet on
+        almost every frame it produces nothing: buildings die rarely. Measured
+        at 785 buildings that was 0.71 ms/frame — 4.3% of a 60 fps budget spent
+        confirming that nothing happened. So the per-frame caller is gated on
+        ``death_epoch("building")``, which only moves when a building actually
+        took a lethal ``Health.damage()``; an unchanged counter means there is
+        provably nothing new to find.
+
+        ``force`` skips that gate. The counter is blind to code that zeroes
+        ``hp`` by assignment rather than through ``damage()`` — no game path
+        does, several tests do — so ``post_sim``'s two round-ending calls sweep
+        unconditionally. They run once per round, not per frame, so the gate
+        buys them nothing anyway, and keeping them ungated means the optimised
+        path can only ever move an award EARLIER in the round, never lose it.
+        """
         if not self.core_balance["XP"]["xp_from_buildings"]:
             return
+        epoch = death_epoch("building")
+        if not force and epoch == self._building_death_epoch:
+            return
+        self._building_death_epoch = epoch
         per_type = self.buildings_balance["BuildingsGlobal"]["xp_on_death"]
         for b in scene.by_tag("building"):
             btype = getattr(b, "building_type", None)

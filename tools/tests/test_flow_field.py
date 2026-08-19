@@ -188,3 +188,32 @@ class TestInvalidation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPreQueryFrameMemo(unittest.TestCase):
+    """The three O(built tiles) pre-query producers run at most once per frame
+    once a host drives `begin_sim_frame`, and every query otherwise."""
+    ROWS = ["bcccc", "ccccc", "ccccs"]
+
+    def _counted(self, tm):
+        calls = []
+        tm.refresh_damage_weight_reductions = lambda: calls.append(1)
+        return calls
+
+    def test_no_frame_clock_refreshes_every_query(self):
+        tm = synth(self.ROWS, base=(0, 0))
+        calls = self._counted(tm)
+        for _ in range(3):
+            find_path(tm, 4, 2)
+        self.assertEqual(len(calls), 3)
+
+    def test_one_refresh_per_frame(self):
+        tm = synth(self.ROWS, base=(0, 0))
+        calls = self._counted(tm)
+        tm.begin_sim_frame()
+        for _ in range(3):
+            find_path(tm, 4, 2)
+        self.assertEqual(len(calls), 1)
+        tm.begin_sim_frame()
+        find_path(tm, 4, 2)
+        self.assertEqual(len(calls), 2)

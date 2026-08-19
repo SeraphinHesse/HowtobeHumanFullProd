@@ -3243,7 +3243,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
             # BEFORE the scene so a same-tile building draws on top of its own
             # highlight. Its HUD half (the sidebar itself) is submitted after
             # the HUD, further down.
-            gp["panel"].submit_world(renderer)
+            # Windowed like every other per-tile emitter above (same
+            # `visible_tile_window` tuple): `move_select` highlights EVERY
+            # legal destination on the map, which is thousands of tiles on a
+            # large unlocked area if none of them are culled.
+            gp["panel"].submit_world(renderer, window=(cmin, cmax, rmin, rmax))
             # -- /fix/depth-sorted-world-fills --
             for item in world.scene.render_items():
                 renderer.submit(item)
