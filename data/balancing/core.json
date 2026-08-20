@@ -384,6 +384,11 @@
       }
     },
     "Music": {
+      "boss_phase": {
+        "clips": [],
+        "loop": true,
+        "pick": "random"
+      },
       "building_phase": {
         "clips": [],
         "loop": true,

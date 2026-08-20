@@ -48,6 +48,11 @@ MENU_STATES = frozenset({GameState.MAIN_MENU, GameState.SETTINGS,
 #: sfx one-shot played OVER the held track, so it does not contradict this.
 HOLD_STATES = frozenset({GameState.PAUSED, GameState.GAME_OVER})
 
+#: Keys whose empty slot falls through to something other than
+#: `Music.default` FIRST, nearest-first. `boss_phase` empty -> `combat_phase`;
+#: that empty too -> `default`; that empty too -> silence.
+MUSIC_FALLBACKS = {"boss_phase": ("combat_phase",)}
+
 COMBAT_PHASES = frozenset({GamePhase.ENEMY, GamePhase.ENEMY_INTRO})
 BUILDING_PHASES = frozenset({GamePhase.BUILDING, GamePhase.ROUND_END,
                              GamePhase.LEVELUP, GamePhase.INCOME,
@@ -58,12 +63,19 @@ GAME_EVENTS = ("game_start", "round_start", "round_win", "round_loss",
                "game_over", "level_up")
 
 
-def resolve_music_key(shell_state, phase, cutscene_active=False):
+def resolve_music_key(shell_state, phase, cutscene_active=False,
+                      boss_round=False):
     """The §1.2 priority stack, as one pure function.
 
-    Returns ``"cutscene" | "menu" | "combat_phase" | "building_phase"``, or
-    ``None`` meaning *hold whatever is playing* (PAUSED / GAME_OVER, and any
-    state this arbitration has no opinion about).
+    Returns ``"cutscene" | "menu" | "boss_phase" | "combat_phase" |
+    "building_phase"``, or ``None`` meaning *hold whatever is playing*
+    (PAUSED / GAME_OVER, and any state this arbitration has no opinion about).
+
+    ``boss_round`` only ever upgrades the COMBAT key to ``"boss_phase"``: a
+    boss round's building/ROUND_END/BOSS_CUTSCENE phases keep the building
+    track (``round_num`` is still pre-increment at ROUND_END, so the host's
+    boss flag is still True there — this is the reason the upgrade is scoped
+    to the combat branch rather than applied at the top of the stack).
     """
     if cutscene_active or shell_state == GameState.CUTSCENE:
         return "cutscene"
@@ -72,7 +84,7 @@ def resolve_music_key(shell_state, phase, cutscene_active=False):
     if shell_state in MENU_STATES:
         return "menu"
     if phase in COMBAT_PHASES:
-        return "combat_phase"
+        return "boss_phase" if boss_round else "combat_phase"
     if phase in BUILDING_PHASES:
         return "building_phase"
     return None
@@ -130,20 +142,31 @@ class MusicDirector:
     def _music_slot(self, key):
         """`Music.<key>` as the OVERRIDE over `Music.default` — SD-2's
         `bank.resolve` implements override -> default -> silence; never
-        re-spell that walk here."""
+        re-spell that walk here.
+
+        ``boss_phase`` is the one key with a THREE-deep chain (boss ->
+        combat -> default), expressed as nested `bank.resolve` calls rather
+        than an ad-hoc walk, so "an empty slot inherits" keeps meaning exactly
+        what `bank.slot_is_empty` says it means.
+        """
         group = self._sounds.get("Music") or {}
-        return bank.resolve(group.get("default"), group.get(key))
+        base = group.get("default")
+        for fallback in MUSIC_FALLBACKS.get(key, ()):
+            base = bank.resolve(base, group.get(fallback))
+        return bank.resolve(base, group.get(key))
 
     def _group_slot(self, group, key):
         return (self._sounds.get(group) or {}).get(key)
 
     # -- music bus -------------------------------------------------------
-    def tick(self, shell_state, phase, cutscene_active=False):
+    def tick(self, shell_state, phase, cutscene_active=False,
+             boss_round=False):
         """One frame of arbitration. A repeat of the current track is
         absorbed by `music.play`, so this is safe to call unconditionally."""
         if not self.enabled:
             return
-        key = resolve_music_key(shell_state, phase, cutscene_active)
+        key = resolve_music_key(shell_state, phase, cutscene_active,
+                                boss_round)
         if key is None or key == "cutscene":
             # None -> hold; "cutscene" -> the push/pop pair owns the bus.
             return

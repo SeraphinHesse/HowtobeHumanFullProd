@@ -687,6 +687,21 @@ class Session:
 
     # -- BOSS_CUTSCENE (10G) -----------------------------------------------
 
+    def is_boss_round(self):
+        """True iff the CURRENT ``round_num`` is its era's boss round.
+
+        A public read of the same one era clock ``end_turn`` and
+        ``_begin_round_end`` already consult (ES-2), for hosts that need to
+        know a boss fight is happening — `game/music_director.py`'s boss
+        track. Pure: touches no state, so it is safe on any frame.
+        Note ``round_num`` is still PRE-increment at ROUND_END, so this stays
+        True through the boss round's own ROUND_END / BOSS_CUTSCENE.
+        """
+        scaling = self.enemies_balance["EnemyScaling"]
+        return era_math.is_boss_round(self.state.round_num,
+                                      scaling["rounds_per_era"],
+                                      scaling["boss_round_in_era"])
+
     def _begin_boss_cutscene(self):
         """Enter the fully modal pick phase. ``pending_boss_cutscene`` stays set
         (the host reads boss_num/outcome to open the window on the phase edge —

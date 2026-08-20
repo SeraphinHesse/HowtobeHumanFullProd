@@ -1131,6 +1131,10 @@
           "additionalProperties": false,
           "description": "Looping music tracks, played on the music bus.",
           "properties": {
+            "boss_phase": {
+              "$ref": "#/$defs/sound_slot",
+              "description": "Music for a boss round's combat phase (overrides combat_phase, which overrides default)."
+            },
             "building_phase": {
               "$ref": "#/$defs/sound_slot",
               "description": "Music for the building phase (overrides default)."
@@ -1153,6 +1157,7 @@
             }
           },
           "required": [
+            "boss_phase",
             "building_phase",
             "combat_phase",
             "cutscene",
