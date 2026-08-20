@@ -984,7 +984,7 @@ class TestPanelDamageRow(unittest.TestCase):
         dmg = CORE["LightningStrike"]["damage"]
         a = create("storm_priest", 0, 0, BUILD, 0)
         b = create("storm_priest", 1, 0, BUILD, 1)
-        b.alive = False
+        b.get_component(Health).damage(10 ** 6)   # `alive` is Health-derived
         tm = self._tilemap(a, b)
         self.assertEqual(
             building_ui._lightning_damage(a.tier_number(), tm, CORE, exclude=a),
