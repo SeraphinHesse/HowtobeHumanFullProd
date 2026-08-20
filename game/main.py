@@ -112,6 +112,9 @@ from game.enemies.components import (  # debug-mode-telemetry Phase 3 + 5
     set_damage_hook, set_wall_damage_hook,
 )
 from game.enemies.components import apply_slow  # BU-3 3.3: the slow primitive
+from game.enemies.components import (  # the two cosmetic-placement seams
+    set_anim_length_hook, set_decal_align_hook,
+)
 from game.enemies.components import (  # BU-3 3.4: the thorns hook pair seam
     set_boss_upgrade_pair,
 )
@@ -136,6 +139,7 @@ from game.ui.cutscene_player import CutscenePlayer, load_cutscene_registry
 from game.ui.loading_screen import LoadingScreen  # feature: loading screen
 from game.ui.skinning import ScreenSkinning  # 10L-B: per-screen overrides
 from game.ui.strings import configure_strings  # Phase C: global string table
+from game.ui.credits import configure_credits  # UT-Credits: the credits roll
 
 BACKGROUND = (24, 20, 32)
 _LEFT, _RIGHT = 1, 3
@@ -153,6 +157,11 @@ _SKIP_FADE_DURATION = 0.5
 # line than a 2px one, so the radius can stay small.
 _SKIP_RING_RADIUS = 13
 _SKIP_RING_WIDTH = 3
+# The ring is deliberately NOT skinned off the UI text palette: it is a white
+# track with a yellow fill, so it reads as a control affordance rather than as
+# another line of prompt text (which C_UI_TEXT_DIM/C_GOLD made it look like).
+_SKIP_RING_BG = (255, 255, 255)
+_SKIP_RING_FILL = (255, 225, 40)
 _WORLD_STATES = (GameState.GAMEPLAY, GameState.GAME_OVER)
 _KEY_NAMES = None  # lazily built (needs pygame constants)
 
@@ -1010,7 +1019,7 @@ def _submit_cutscene_skip(renderer, view_w, view_h, skip_progress, idle_t):
     ring_cy = text_y - 4 - _SKIP_RING_RADIUS
     widgets.submit_progress_ring(
         renderer, ring_cx, ring_cy, _SKIP_RING_RADIUS, skip_progress,
-        bg=_dim(widgets.C_UI_TEXT_DIM), fill=_dim(widgets.C_GOLD),
+        bg=_dim(_SKIP_RING_BG), fill=_dim(_SKIP_RING_FILL),
         width=_SKIP_RING_WIDTH)
     renderer.submit_hud(HudText(
         text, (text_x, text_y), "md", _dim((210, 210, 210)) + (alpha,),
@@ -1318,6 +1327,15 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # Its sibling: how long a skin row plays, so a button can hold its
     # not-enough-love flash until the `pressed` row has finished.
     widgets.set_skin_anim_length(assets.animation_total_ms)
+    # The same seam for gameplay components (`game/enemies` may not read the
+    # asset layer either): today the Digger, which holds its `dig` row above
+    # ground until it has played out and stops its `emerge` row re-looping
+    # under the longer emerge cooldown.
+    set_anim_length_hook(assets.animation_total_ms)
+    # Its sibling: where a decal goes so its sprite CENTRE lands on another
+    # sprite's `depth_pivot` — the Digger's hole on the Digger's own
+    # depth-tracking point.
+    set_decal_align_hook(renderer.align_center_world)
 
     # -- SD-6: the UI sound seam. `game/ui` is pygame-free, so it never
     # imports engine.audio: it hands a SLOT to this host-injected sink and the
@@ -1364,6 +1382,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
         data_dir / "ui" / "strings.json",
         data_dir / "schemas" / "strings.schema.json")
     _flush_loading()
+    # UT-Credits: the CREDITS screen's (role, name) roll — same fail-loud D-2
+    # boot load as the string table above; it is data, not art.
+    credits_doc = data_io.load_validated(
+        data_dir / "ui" / "credits.json",
+        data_dir / "schemas" / "credits.schema.json")
+    _flush_loading()
     # UH-Font-A: the game-wide custom font family, ORTHOGONAL to the 7-preset
     # size/bold system above. "default" means today's SysFont behavior; any
     # other id must resolve to a data/fonts/font_manifest.json entry whose
@@ -1407,6 +1431,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     configure_fonts(fonts_doc, font_path=font_path, family_paths=family_paths)
     widgets.configure_palette(palette_doc)
     configure_strings(strings_doc)
+    configure_credits(credits_doc)
     # G4: the Renderer and the ground cache are built AFTER the presenter (the
     # GPU variants need its SDL Renderer, which needs the window, which needs
     # the shell's display mode) — see _build_render_stack below. Nothing

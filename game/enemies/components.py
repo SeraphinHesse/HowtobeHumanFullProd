@@ -31,7 +31,7 @@ from game.map.pathfinder import (
 )
 from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition
 
-from .dirt_pile import spawn_dirt_pile
+from .dirt_pile import DIRT_PILE_SLOT, spawn_dirt_pile
 from .sounds import ATTACK, play_enemy_sound
 
 # Chunk 4: hunt-string ("EnemyTypes.<type>.hunts") -> the goal-set pathfinder
@@ -126,6 +126,86 @@ def set_boss_upgrade_pair(run_state=None, boss_upgrades_balance=None):
     """
     global _boss_upgrade_pair
     _boss_upgrade_pair = (run_state, boss_upgrades_balance)
+
+
+# How long a named animation row plays, in ms — the ``widgets.
+# set_skin_anim_length`` seam, verbatim, for gameplay components: `game/enemies`
+# is asset-layer-free (D6/E-37), so it cannot call ``AssetStore.
+# animation_total_ms`` itself, and ``Scene.update``'s generic sweep has no
+# parameter to thread one through (the ``_damage_hook`` reason). Installed ONCE
+# per run by ``game/main.py``'s setup, with ``assets.animation_total_ms``.
+#
+# The ONE reader is ``BurrowAgent`` — the Digger holds its ``dig`` row above
+# ground until it has played out before actually going under, and stops
+# re-looping its ``emerge`` row once it has played once. Unset (every headless
+# test, every logic-only Session) reads as "no such row", which collapses both
+# holds to zero and restores the pre-hold behaviour exactly.
+_anim_length_hook = None
+
+
+def set_anim_length_hook(fn):
+    """Install (or clear, ``fn=None``) the ``(slot_key, animation) -> ms|None``
+    animation-length lookup gameplay components read. ``game/main.py`` passes
+    ``assets.animation_total_ms``."""
+    global _anim_length_hook
+    _anim_length_hook = fn
+
+
+def _anim_length_ms(owner, name):
+    """``name``'s playback length in ms for ``owner``'s sprite slot — 0.0 when
+    the hook is not installed, the object has no ``SpriteAnimator``, or the
+    sheet has no such row (``animation_total_ms`` never falls back to idle)."""
+    if _anim_length_hook is None:
+        return 0.0
+    anim = owner.get_component(SpriteAnimator)
+    if anim is None or not anim.slot_key:
+        return 0.0
+    try:
+        ms = _anim_length_hook(anim.slot_key, name)
+    except Exception:      # a cosmetic lookup must never break the sim
+        return 0.0
+    return float(ms) if ms else 0.0
+
+
+# Where to put a DECAL so its sprite centre lands on another sprite's handle —
+# the ``set_anim_length_hook`` seam's sibling, and installed the same way (once
+# per run, by ``game/main.py``, with ``Renderer.align_center_world``). Same
+# layering reason: the placement math is the renderer's
+# (``sprite_anchor_screen`` + the manifest offsets + the tile-diamond-centre
+# convention), and `game/enemies` may not read either the asset layer or the
+# coordinate system.
+#
+# Shape ``(decal_slot, target_slot, wx, wy, fit_tiles, scale) -> (wx, wy)``.
+# The ONE reader is ``BurrowAgent``: the Digger's hole decal is spawned on the
+# Digger's OWN ``depth_pivot`` — the point it is depth-tracked by — rather than
+# on the raw tile it happens to be addressed by.
+_decal_align_hook = None
+
+
+def set_decal_align_hook(fn):
+    """Install (or clear, ``fn=None``) the decal alignment lookup. ``game/
+    main.py`` passes ``renderer.align_center_world``."""
+    global _decal_align_hook
+    _decal_align_hook = fn
+
+
+def _aligned_decal_pos(owner, decal_slot, fallback):
+    """Where ``decal_slot`` goes so its centre sits on ``owner``'s sprite's
+    ``depth_pivot`` — ``fallback`` (a ``(wx, wy)`` pair) whenever there is no
+    answer: hook unset, no ``SpriteAnimator``, or the lookup raised. A cosmetic
+    alignment must never break the sim."""
+    if _decal_align_hook is None:
+        return fallback
+    anim = owner.get_component(SpriteAnimator)
+    if anim is None or not anim.slot_key:
+        return fallback
+    try:
+        wx, wy = _decal_align_hook(decal_slot, anim.slot_key,
+                                   owner.transform.wx, owner.transform.wy,
+                                   anim.fit_tiles, anim.scale)
+    except Exception:
+        return fallback
+    return (float(wx), float(wy))
 
 
 def _apply_thorns(attacker, dmg):
@@ -981,6 +1061,7 @@ class EnemyCombat(Component):
 # Plain strings, so `BurrowAgent.state` stays declared JSON-safe component
 # state (E-11) the editor's inspector can read straight out.
 BURROW_WALKING = "walking"      # above ground, walking at the committed target
+BURROW_DIGGING = "digging"      # above ground, playing `dig` out before diving
 BURROW_SUBMERGED = "submerged"  # underground: untargetable, no waypoints
 BURROW_EMERGE = "emerge"        # surfaced this frame; re-targets on the next
 
@@ -1096,6 +1177,8 @@ class BurrowAgent(Component):
     emerge_cooldown: float = 0.0     # min seconds standing before diving again
     cooldown_remaining: float = 0.0  # counts down from emerge_cooldown on emerge
     min_target_distance_tiles: int = 0  # prefer a walk-target this far away
+    dig_anim_timer: float = 0.0      # seconds of `dig` left to play before diving
+    emerge_anim_timer: float = 0.0   # seconds of `emerge` left before it holds
 
     def on_added(self, owner):
         self._owner = owner
@@ -1115,6 +1198,8 @@ class BurrowAgent(Component):
             return
         if self.state == BURROW_SUBMERGED:
             self._tick_submerged(dt, owner, pa, mv, tm)
+        elif self.state == BURROW_DIGGING:
+            self._tick_digging(dt, owner, pa, mv, tm)
         elif self.state == BURROW_EMERGE:
             self._tick_emerge(dt, owner, pa, mv, tm)
         else:
@@ -1137,6 +1222,18 @@ class BurrowAgent(Component):
         if self.distance_to_target(owner, pa) <= self.dig_range_tiles:
             self._arrived_in_range(owner, pa, mv, tm)
 
+    def _tick_digging(self, dt, owner, pa, mv, tm):
+        """Standing on the entry tile playing the ``dig`` row OUT, in full,
+        before the body actually goes under (user decision — "the digger must
+        play their dig animation to completion when going down, before
+        digging"). Frozen and visible: still targetable, still marked by
+        nothing but its own sprite — the dirt pile and the telegraph arrows
+        both key off ``BURROW_SUBMERGED``, which starts when the row ends
+        (``_go_under``)."""
+        self.dig_anim_timer -= dt
+        if self.dig_anim_timer <= 0:
+            self._go_under(owner, pa, mv, tm)
+
     def _tick_submerged(self, dt, owner, pa, mv, tm):
         # Pin the sprite clock so the dig pose holds: SpriteAnimator.update
         # already ran this frame and always advances its own clock, whatever
@@ -1154,7 +1251,18 @@ class BurrowAgent(Component):
         does nothing else here — no walking, no re-targeting — until
         ``cooldown_remaining`` drains, then ``retarget`` picks the next
         move. This is what makes EVERY dig, not just a killing one, surface
-        the Digger for a visible moment."""
+        the Digger for a visible moment.
+
+        The ``emerge`` row plays exactly ONCE at its authored speed, then the
+        Digger stands on ``idle`` for whatever is left of the cooldown (user
+        decision — "play the surface animation only once at normal speed, not
+        4 times in a loop"). It used to hold ``emerge`` for the whole stand,
+        and ``Manifest.current_frame`` is a modulo of the row's total, so a
+        833 ms row under a 2.5 s cooldown restarted three more times."""
+        if self.emerge_anim_timer > 0:
+            self.emerge_anim_timer = max(0.0, self.emerge_anim_timer - dt)
+            if self.emerge_anim_timer <= 0:
+                self._set_anim(owner, "idle")
         if self.cooldown_remaining > 0:
             self.cooldown_remaining = max(0.0, self.cooldown_remaining - dt)
             return
@@ -1163,16 +1271,44 @@ class BurrowAgent(Component):
     # -- transitions -------------------------------------------------------
 
     def _submerge(self, owner, pa, mv, tm, dest_col, dest_row):
-        """Dive straight from the current tile to ``(dest_col, dest_row)``
-        and hold there, hidden and untargetable, for ``dig_duration``
-        seconds — the Manhattan tile distance over ``dig_speed``. No
-        underground travel is simulated (user decision — "the digger can
-        only submerge and emerge"): the body vanishes from here and
-        reappears exactly at the destination when the timer ends
-        (``_emerge``)."""
-        self.state = BURROW_SUBMERGED
+        """Commit to a dig at ``(dest_col, dest_row)`` and start going down.
+
+        Two beats, not one. First the Digger stops where it stands and plays
+        its ``dig`` row THROUGH, above ground and visible (``BURROW_DIGGING``,
+        ``_tick_digging``) — the row is what going down looks like, so cutting
+        it off at frame 0 the way this used to is exactly the thing the player
+        never saw. Only when it has played out does the body actually vanish
+        and the underground clock start (``_go_under``).
+
+        A sheet with no ``dig`` row — or any headless caller with no
+        ``set_anim_length_hook`` installed — measures 0 ms and goes under in
+        this same call, which is the pre-hold behaviour byte for byte."""
+        self.state = BURROW_DIGGING
         self.dest_col = dest_col
         self.dest_row = dest_row
+        pa.frozen = True
+        pa.blocked = False
+        mv.speed = 0.0
+        mv.waypoints = []
+        mv.index = 0
+        mv.arrived = False
+        self._set_anim(owner, DIG_ANIM)
+        self.emerge_anim_timer = 0.0
+        self.dig_anim_timer = _anim_length_ms(owner, DIG_ANIM) / 1000.0
+        if self.dig_anim_timer <= 0:
+            self._go_under(owner, pa, mv, tm)
+
+    def _go_under(self, owner, pa, mv, tm):
+        """The dig row has played out: the body dives from the current tile to
+        ``dest_col``/``dest_row`` and holds there, hidden and untargetable, for
+        ``dig_duration`` seconds — the Manhattan tile distance over
+        ``dig_speed``. No underground travel is simulated (user decision — "the
+        digger can only submerge and emerge"): the body vanishes from here and
+        reappears exactly at the destination when the timer ends
+        (``_emerge``)."""
+        dest_col, dest_row = self.dest_col, self.dest_row
+        self.state = BURROW_SUBMERGED
+        self.dig_anim_timer = 0.0
         # Never dig in from a tile a (possibly unrelated) LIVE building
         # already occupies — the route to the real target is a traversable
         # weight, not impassable, and `no_melee` never halts for a blocker,
@@ -1216,8 +1352,16 @@ class BurrowAgent(Component):
         anim = owner.get_component(SpriteAnimator)
         if anim is not None:
             anim.visible = False
-        spawn_dirt_pile(getattr(owner, "_scene", None),
-                        round(self.start_wx), round(self.start_wy),
+        # The hole is placed so its sprite's CENTRE lands exactly on the
+        # Digger's own `depth_pivot` — the handle the Digger is depth-tracked
+        # by (user decision) — not on the raw tile it is addressed by, which
+        # sat a sprite-offset away from where the body visibly stands. The
+        # rounded tile is the fallback for every caller with no alignment hook
+        # installed (every headless fixture), i.e. the old placement.
+        pile_wx, pile_wy = _aligned_decal_pos(
+            owner, DIRT_PILE_SLOT,
+            (round(self.start_wx), round(self.start_wy)))
+        spawn_dirt_pile(getattr(owner, "_scene", None), pile_wx, pile_wy,
                         self.dig_duration * 1000.0)
 
     def _emerge(self, owner, pa, tm):
@@ -1239,6 +1383,12 @@ class BurrowAgent(Component):
         if anim is not None:
             anim.visible = True
         self._set_anim(owner, EMERGE_ANIM)
+        # Play it ONCE: `_tick_emerge` swaps to `idle` when this drains, so the
+        # row never restarts under a longer `emerge_cooldown`. 0 (no such row,
+        # or no length hook) means the swap never fires and `emerge` — which
+        # `current_frame` resolves to idle when the sheet lacks it — simply
+        # holds, exactly as before.
+        self.emerge_anim_timer = _anim_length_ms(owner, EMERGE_ANIM) / 1000.0
         owner.transform.wx = float(self.dest_col)
         owner.transform.wy = float(self.dest_row)
         target = self._occupant_at(tm, self.dest_col, self.dest_row)
@@ -1871,6 +2021,14 @@ class Facing(Component):
     Ordering: it sits AFTER ``Movement`` in the component list so it reads the
     position that was just stepped, and before ``SpriteAnimator`` so the flip
     lands in the same frame's ``render_items``.
+
+    **A carrier does not turn.** Once ``Kidnap.active`` the unit walks HOME,
+    i.e. back the way it came, so the heading rule would mirror it the instant
+    it sets off — and the carried building rides at a FIXED world offset
+    (``Kidnap.render_items``, ``-CARRY_OFFSET_TILES``/``+CARRY_OFFSET_TILES``)
+    that does not mirror with it, so a flipped carrier would be holding the loot
+    on the wrong side. The facing it walked in with STICKS, exactly like the
+    no-waypoint case below.
     """
 
     #: Ignore a heading shorter than this (tiles). Right on top of a waypoint
@@ -1888,6 +2046,9 @@ class Facing(Component):
         mv = owner.get_component(Movement)
         if anim is None or mv is None:
             return
+        kidnap = owner.get_component(Kidnap)
+        if kidnap is not None and kidnap.active:
+            return                      # carrying — hold the flip (see above)
         wps = mv.waypoints
         if not wps or mv.index >= len(wps):
             return                      # nothing to face — hold the last flip

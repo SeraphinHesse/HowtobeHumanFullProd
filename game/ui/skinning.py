@@ -6,7 +6,9 @@ screen's named widgets in place from the matching override — a pure in-memory
 setattr loop, **zero disk I/O per call** — so a screen whose ``submit()`` calls
 ``layout()`` (and therefore ``apply()``) every frame (``cheat_menu.py``) never
 re-reads a file. ``screen_background(screen_id)`` / ``submit_background(...)``
-supply the optional whole-screen background override.
+supply the whole-screen background: the screen's own override if it authored
+one, else ``DEFAULT_BACKGROUND_SLOT`` — except for the ``WORLD_SCREENS``, which
+draw over the live game world and so stay transparent by default.
 
 ``hit_layer(ids, widgets_spec, mx, my, state_of, actions)`` (UL-10) is the
 click-path twin of ``submit_layers``: it asks the pure
@@ -52,6 +54,35 @@ from engine.render import HudRect, HudSprite, HudText
 from engine.render.fonts import layout_h
 
 from . import strings
+
+#: The whole-screen background every screen gets when its own JSON authors no
+#: ``background`` key. A screen still overrides it freely (``credits.json``
+#: picks black); this is the fallback, not a floor.
+DEFAULT_BACKGROUND_SLOT = "ui_bg_main_menu"
+
+#: Screens that draw ON TOP of the live game world, and therefore never take
+#: ``DEFAULT_BACKGROUND_SLOT`` — a full-view opaque background there would
+#: paint over the map, the buildings and the enemies. Derived from
+#: ``game/main.py``'s ``_WORLD_STATES`` (+ ``PAUSED``): the world renders in
+#: GAMEPLAY / GAME_OVER / PAUSED, so every screen that can be up during one of
+#: those is listed. A screen NOT here is a shell screen with nothing behind it,
+#: which is exactly what the default is for. A screen that authors its own
+#: ``background`` is unaffected either way — the exemption only suppresses the
+#: DEFAULT.
+WORLD_SCREENS = frozenset((
+    "hud",
+    "overlays",
+    "building_panel",
+    "tutorial_message",
+    "add_name",
+    "levelup",
+    "cheat_menu",
+    "game_log",
+    "enemy_intro",
+    "boss_cutscene",
+    "pause",
+    "game_over",
+))
 
 _SCREENS_SUBDIR = ("ui", "screens")
 _SCREEN_SCHEMA = "ui_screen.schema.json"
@@ -393,15 +424,48 @@ class ScreenSkinning:
 
     def screen_background(self, screen_id: str) -> Optional[Dict]:
         """``{"slot": ...}`` or ``{"color": (...)}`` for a submit-time
-        background override, or ``None``. Reads the already-in-memory
-        override — no disk I/O, safe every frame."""
+        background, or ``None``. Reads the already-in-memory override — no
+        disk I/O, safe every frame.
+
+        **Default background**: a screen that authors no ``background`` key
+        falls back to ``DEFAULT_BACKGROUND_SLOT`` rather than to nothing, so
+        the shell screens share one look without each having to repeat the
+        slot in its JSON. A screen listed in ``WORLD_SCREENS`` is EXEMPT and
+        still returns ``None`` — see that constant for why. An explicit
+        ``background`` (including ``credits.json``'s black) always wins, so
+        the default is only ever what an un-authored screen gets."""
         override = self._overrides.get(screen_id)
         bg = (override or {}).get("background") if override else None
         if not bg:
-            return None
+            if screen_id in WORLD_SCREENS:
+                return None
+            return {"slot": DEFAULT_BACKGROUND_SLOT}
         if "color" in bg:
             return {"color": _as_tuple(bg["color"])}
         return {"slot": bg["slot"]}
+
+    def backdrop_fill_hides_background(self, screen_id: str) -> bool:
+        """True when this screen's full-view ``backdrop`` fill would paint
+        OVER the background ``submit_background`` just drew, hiding it.
+
+        Every shell screen builds its ``backdrop`` holder with an opaque
+        code-default colour (``SimpleNamespace(..., color=_BG)``) and draws it
+        immediately after the background — which predates backgrounds existing
+        and is why a screen could resolve a background and still look flat.
+        A screen that draws its backdrop through ``widgets.submit_backdrop``
+        passes this as ``skip_fill`` so the fill yields to the art.
+
+        Two things it deliberately does NOT suppress:
+
+        * a designer's ``backdrop.skin`` — ``submit_backdrop`` handles that
+          precedence itself, and a skin is an explicit choice to cover.
+        * a designer's ``backdrop.color`` authored in ``data/ui/screens/
+          <id>.json`` — an explicit fill beats an inherited background, the
+          same way an explicit ``background`` key beats the default one.
+        """
+        if self.screen_background(screen_id) is None:
+            return False
+        return "color" not in self._widgets_spec(screen_id).get("backdrop", {})
 
     def submit_background(self, renderer, screen_id: str, view_w, view_h,
                           anim_ms: int = 0) -> None:

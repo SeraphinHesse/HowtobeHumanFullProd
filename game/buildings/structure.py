@@ -40,6 +40,8 @@ accumulator — separate from ``BoostReceiver.hp_pct`` (this builder never
 carries a ``BoostReceiver``), so only the walls are lifted, never the
 builder's own body HP.
 """
+from engine.core import SpriteAnimator
+
 from .building import Building
 from .components import WallBuilderState
 
@@ -128,6 +130,26 @@ class WallBuilder(StructureBuilding):
         ts = self._tier
         return (f"wall_t{ts.current_tier + 1}_lvl{ts.current_level_in_tier}"
                 f"_era{era}")
+
+    def wall_column(self):
+        """The master-sheet colour COLUMN the segments this builder owns draw
+        at — i.e. the builder's OWN colour (``SpriteAnimator.column``, stamped
+        once at placement by ``registry.place_building``), or ``None`` when it
+        has no colour driver (the ``-1`` "no driver" sentinel, or no animator
+        at all on a bare/stub instance).
+
+        A wall is the builder's own material, so it must not roll a colour of
+        its own: the wall art sheet's columns are authored in the SAME order as
+        the builder's, so handing the builder's index straight through makes a
+        Bush builder's walls bushes and a Stone builder's walls stone. Reached
+        DUCK-TYPED by ``game/map/wall_render.py`` as ``edge.owner.wall_column()``,
+        exactly like ``wall_slot()`` / ``wall_era_slot()`` — the map layer still
+        imports nothing from ``game.buildings``.
+        """
+        anim = self.get_component(SpriteAnimator)
+        if anim is None or anim.column < 0:
+            return None
+        return anim.column
 
     def stamp_era(self, era):
         """Freeze the CURRENT global era (0-indexed, ``engine.era_math

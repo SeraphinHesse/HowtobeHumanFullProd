@@ -2973,7 +2973,7 @@
             "text_id": "building.stat.value"
           },
           "stat_boost_damage_label": {
-            "display_name": "Dmg boost/turn label",
+            "display_name": "Dmg boost label",
             "font_key": "md",
             "kind": "label",
             "label": "",
@@ -2984,12 +2984,12 @@
               0,
               0
             ],
-            "sample": "Dmg boost/turn",
+            "sample": "Dmg boost",
             "text_id": "building.stat.boost_damage"
           },
           "stat_boost_damage_value": {
             "align": "right",
-            "display_name": "Dmg boost/turn value",
+            "display_name": "Dmg boost value",
             "font_key": "md",
             "kind": "label",
             "label": "",
@@ -3003,7 +3003,7 @@
             "text_id": "building.stat.value"
           },
           "stat_boost_hp_label": {
-            "display_name": "HP boost/turn label",
+            "display_name": "HP boost label",
             "font_key": "md",
             "kind": "label",
             "label": "",
@@ -3014,12 +3014,12 @@
               0,
               0
             ],
-            "sample": "HP boost/turn",
+            "sample": "HP boost",
             "text_id": "building.stat.boost_hp"
           },
           "stat_boost_hp_value": {
             "align": "right",
-            "display_name": "HP boost/turn value",
+            "display_name": "HP boost value",
             "font_key": "md",
             "kind": "label",
             "label": "",
@@ -3048,7 +3048,7 @@
             "text_id": "building.stat.boost"
           },
           "stat_boost_speed_label": {
-            "display_name": "Spd boost/turn label",
+            "display_name": "Spd boost label",
             "font_key": "md",
             "kind": "label",
             "label": "",
@@ -3059,12 +3059,12 @@
               0,
               0
             ],
-            "sample": "Spd boost/turn",
+            "sample": "Spd boost",
             "text_id": "building.stat.boost_speed"
           },
           "stat_boost_speed_value": {
             "align": "right",
-            "display_name": "Spd boost/turn value",
+            "display_name": "Spd boost value",
             "font_key": "md",
             "kind": "label",
             "label": "",
@@ -6534,7 +6534,7 @@
         "text_id": "building.stat.value"
       },
       "stat_boost_damage_label": {
-        "display_name": "Dmg boost/turn label",
+        "display_name": "Dmg boost label",
         "font_key": "md",
         "kind": "label",
         "label": "",
@@ -6545,12 +6545,12 @@
           0,
           0
         ],
-        "sample": "Dmg boost/turn",
+        "sample": "Dmg boost",
         "text_id": "building.stat.boost_damage"
       },
       "stat_boost_damage_value": {
         "align": "right",
-        "display_name": "Dmg boost/turn value",
+        "display_name": "Dmg boost value",
         "font_key": "md",
         "kind": "label",
         "label": "",
@@ -6564,7 +6564,7 @@
         "text_id": "building.stat.value"
       },
       "stat_boost_hp_label": {
-        "display_name": "HP boost/turn label",
+        "display_name": "HP boost label",
         "font_key": "md",
         "kind": "label",
         "label": "",
@@ -6575,12 +6575,12 @@
           0,
           0
         ],
-        "sample": "HP boost/turn",
+        "sample": "HP boost",
         "text_id": "building.stat.boost_hp"
       },
       "stat_boost_hp_value": {
         "align": "right",
-        "display_name": "HP boost/turn value",
+        "display_name": "HP boost value",
         "font_key": "md",
         "kind": "label",
         "label": "",
@@ -6609,7 +6609,7 @@
         "text_id": "building.stat.boost"
       },
       "stat_boost_speed_label": {
-        "display_name": "Spd boost/turn label",
+        "display_name": "Spd boost label",
         "font_key": "md",
         "kind": "label",
         "label": "",
@@ -6620,12 +6620,12 @@
           0,
           0
         ],
-        "sample": "Spd boost/turn",
+        "sample": "Spd boost",
         "text_id": "building.stat.boost_speed"
       },
       "stat_boost_speed_value": {
         "align": "right",
-        "display_name": "Spd boost/turn value",
+        "display_name": "Spd boost value",
         "font_key": "md",
         "kind": "label",
         "label": "",

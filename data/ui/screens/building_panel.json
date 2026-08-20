@@ -294,9 +294,9 @@
     "boss_btn": {
       "rect": [
         500,
-        278,
-        118,
-        16
+        260,
+        115,
+        34
       ],
       "skin": "ui_button_panel"
     },
@@ -597,6 +597,9 @@
         151
       ]
     },
+    "card_aoe_defence_price": {
+      "skin": "ui_button_panel"
+    },
     "card_aoe_defence_price_text": {
       "text_color": [
         213,
@@ -610,6 +613,9 @@
         81,
         151
       ]
+    },
+    "card_blocker_price": {
+      "skin": "ui_button_panel"
     },
     "card_blocker_price_text": {
       "text_color": [
@@ -625,6 +631,9 @@
         151
       ]
     },
+    "card_boost_damage_price": {
+      "skin": "ui_button_panel"
+    },
     "card_boost_damage_price_text": {
       "text_color": [
         213,
@@ -639,6 +648,9 @@
         151
       ]
     },
+    "card_boost_hp_price": {
+      "skin": "ui_button_panel"
+    },
     "card_boost_hp_price_text": {
       "text_color": [
         213,
@@ -652,6 +664,9 @@
         81,
         151
       ]
+    },
+    "card_boost_speed_price": {
+      "skin": "ui_button_panel"
     },
     "card_boost_speed_price_text": {
       "text_color": [
@@ -688,14 +703,45 @@
         151
       ]
     },
+    "card_defence_price": {
+      "skin": "ui_button_panel"
+    },
     "card_defence_price_text": {
+      "rect": [
+        606,
+        61,
+        0,
+        0
+      ],
       "text_color": [
         213,
         183,
         77
       ]
     },
+    "card_economic": {
+      "rect": [
+        526,
+        99,
+        44,
+        45
+      ]
+    },
+    "card_economic_frame": {
+      "rect": [
+        516,
+        88,
+        64,
+        64
+      ]
+    },
     "card_economic_name": {
+      "rect": [
+        585,
+        101,
+        0,
+        0
+      ],
       "text_color": [
         198,
         81,
@@ -703,13 +749,58 @@
       ]
     },
     "card_economic_name2": {
+      "rect": [
+        585,
+        113,
+        0,
+        0
+      ],
       "text_color": [
         198,
         81,
         151
       ]
     },
+    "card_economic_plate": {
+      "rect": [
+        579,
+        75,
+        77,
+        64
+      ]
+    },
+    "card_economic_portrait": {
+      "rect": [
+        515,
+        78,
+        64,
+        96
+      ]
+    },
+    "card_economic_price": {
+      "rect": [
+        578,
+        121,
+        74,
+        23
+      ],
+      "skin": "ui_button_panel"
+    },
+    "card_economic_price_icon": {
+      "rect": [
+        592,
+        129,
+        10,
+        10
+      ]
+    },
     "card_economic_price_text": {
+      "rect": [
+        606,
+        128,
+        0,
+        0
+      ],
       "text_color": [
         213,
         183,
@@ -730,7 +821,8 @@
         456,
         74,
         23
-      ]
+      ],
+      "skin": "ui_button_panel"
     },
     "card_meditator_price_icon": {
       "rect": [
@@ -760,6 +852,9 @@
         151
       ]
     },
+    "card_painter_price": {
+      "skin": "ui_button_panel"
+    },
     "card_painter_price_text": {
       "text_color": [
         213,
@@ -773,6 +868,9 @@
         81,
         151
       ]
+    },
+    "card_storm_priest_price": {
+      "skin": "ui_button_panel"
     },
     "card_storm_priest_price_text": {
       "text_color": [
@@ -788,6 +886,9 @@
         151
       ]
     },
+    "card_sun_scorcher_price": {
+      "skin": "ui_button_panel"
+    },
     "card_sun_scorcher_price_text": {
       "text_color": [
         213,
@@ -801,6 +902,9 @@
         81,
         151
       ]
+    },
+    "card_wall_builder_price": {
+      "skin": "ui_button_panel"
     },
     "card_wall_builder_price_text": {
       "text_color": [
@@ -1493,21 +1597,21 @@
     },
     "info_base_income_label": {
       "rect": [
-        486,
-        96,
+        481,
+        101,
         0,
         0
       ],
       "text_color": [
-        198,
-        81,
-        151
+        255,
+        255,
+        255
       ]
     },
     "info_base_income_value": {
       "rect": [
-        630,
-        96,
+        629,
+        101,
         0,
         0
       ]
@@ -1520,9 +1624,9 @@
         0
       ],
       "text_color": [
-        198,
-        81,
-        151
+        255,
+        255,
+        255
       ]
     },
     "info_buildings_value": {
@@ -1541,9 +1645,9 @@
         0
       ],
       "text_color": [
-        198,
-        81,
-        151
+        255,
+        255,
+        255
       ]
     },
     "info_enemies_killed_value": {
@@ -1562,9 +1666,9 @@
         0
       ],
       "text_color": [
-        198,
-        81,
-        151
+        255,
+        255,
+        255
       ]
     },
     "info_lives_value": {
@@ -1583,9 +1687,9 @@
         0
       ],
       "text_color": [
-        198,
-        81,
-        151
+        255,
+        255,
+        255
       ]
     },
     "info_wave_value": {
@@ -1634,11 +1738,16 @@
     "preview_cancel_btn": {
       "rect": [
         243,
-        231,
+        227,
         70,
-        17
+        25
       ],
-      "skin": "ui_button_panel"
+      "skin": "ui_button_panel",
+      "text_color": [
+        255,
+        255,
+        255
+      ]
     },
     "preview_close_btn": {
       "rect": [
@@ -1649,14 +1758,55 @@
       ],
       "skin": "ui_button_panel"
     },
+    "preview_color_0": {
+      "rect": [
+        343,
+        141,
+        12,
+        12
+      ],
+      "visible": false
+    },
+    "preview_color_1": {
+      "rect": [
+        357,
+        141,
+        12,
+        12
+      ],
+      "visible": false
+    },
+    "preview_color_2": {
+      "rect": [
+        371,
+        141,
+        12,
+        12
+      ],
+      "visible": false
+    },
+    "preview_color_3": {
+      "rect": [
+        385,
+        141,
+        12,
+        12
+      ],
+      "visible": false
+    },
     "preview_confirm_btn": {
       "rect": [
         327,
-        231,
+        227,
         70,
-        17
+        25
       ],
-      "skin": "ui_button_panel"
+      "skin": "ui_button_panel",
+      "text_color": [
+        198,
+        81,
+        151
+      ]
     },
     "preview_dice_btn": {
       "rect": [
@@ -1667,13 +1817,22 @@
       ],
       "skin": "ui_button_panel"
     },
+    "preview_name": {
+      "rect": [
+        247,
+        156,
+        0,
+        0
+      ]
+    },
     "preview_panel": {
       "rect": [
-        235,
+        206,
         105,
-        170,
-        150
-      ]
+        219,
+        152
+      ],
+      "skin": "ui_panel_v21"
     },
     "rename_dice_btn": {
       "rect": [

@@ -3052,9 +3052,9 @@
           {
             "align": "center",
             "color": [
-              235,
-              225,
-              195
+              255,
+              255,
+              255
             ],
             "family": null,
             "font_key": "lg",
@@ -3084,9 +3084,9 @@
           {
             "align": "left",
             "color": [
-              150,
-              140,
-              120
+              168,
+              105,
+              222
             ],
             "family": null,
             "font_key": "sm",
@@ -3116,14 +3116,14 @@
           {
             "align": "left",
             "color": [
-              150,
-              140,
-              120
+              255,
+              255,
+              255
             ],
             "family": null,
             "font_key": "sm",
             "pos": [
-              243,
+              253,
               174
             ],
             "text": "Health",
@@ -3132,14 +3132,14 @@
           {
             "align": "right",
             "color": [
-              235,
-              225,
-              195
+              255,
+              255,
+              255
             ],
             "family": null,
             "font_key": "sm",
             "pos": [
-              397,
+              387,
               174
             ],
             "text": "120",
@@ -3148,14 +3148,14 @@
           {
             "align": "left",
             "color": [
-              150,
-              140,
-              120
+              255,
+              255,
+              255
             ],
             "family": null,
             "font_key": "sm",
             "pos": [
-              243,
+              253,
               185
             ],
             "text": "Damage",
@@ -3164,14 +3164,14 @@
           {
             "align": "right",
             "color": [
-              235,
-              225,
-              195
+              255,
+              255,
+              255
             ],
             "family": null,
             "font_key": "sm",
             "pos": [
-              397,
+              387,
               185
             ],
             "text": "28",
@@ -3180,14 +3180,14 @@
           {
             "align": "left",
             "color": [
-              150,
-              140,
-              120
+              255,
+              255,
+              255
             ],
             "family": null,
             "font_key": "sm",
             "pos": [
-              243,
+              253,
               196
             ],
             "text": "Range",
@@ -3196,14 +3196,14 @@
           {
             "align": "right",
             "color": [
-              235,
-              225,
-              195
+              255,
+              255,
+              255
             ],
             "family": null,
             "font_key": "sm",
             "pos": [
-              397,
+              387,
               196
             ],
             "text": "1",
@@ -3212,14 +3212,14 @@
           {
             "align": "left",
             "color": [
-              150,
-              140,
-              120
+              255,
+              255,
+              255
             ],
             "family": null,
             "font_key": "sm",
             "pos": [
-              243,
+              253,
               207
             ],
             "text": "Atk speed",
@@ -3228,14 +3228,14 @@
           {
             "align": "right",
             "color": [
-              235,
-              225,
-              195
+              255,
+              255,
+              255
             ],
             "family": null,
             "font_key": "sm",
             "pos": [
-              397,
+              387,
               207
             ],
             "text": "1.0s",
@@ -3244,14 +3244,14 @@
           {
             "align": "left",
             "color": [
-              150,
-              140,
-              120
+              255,
+              255,
+              255
             ],
             "family": null,
             "font_key": "sm",
             "pos": [
-              243,
+              253,
               218
             ],
             "text": "Upkeep",
@@ -3260,14 +3260,14 @@
           {
             "align": "right",
             "color": [
-              235,
-              225,
-              195
+              255,
+              255,
+              255
             ],
             "family": null,
             "font_key": "sm",
             "pos": [
-              397,
+              387,
               218
             ],
             "text": "0",
@@ -5173,6 +5173,24 @@
   "credits": {
     "items": [
       {
+        "anim_time_ms": 0,
+        "animation": "idle",
+        "crop": null,
+        "dest": [
+          0,
+          0
+        ],
+        "flip": false,
+        "hidden_frames": [],
+        "size": [
+          640,
+          360
+        ],
+        "slot_key": "ui_bg_main_menu",
+        "tint": null,
+        "type": "sprite"
+      },
+      {
         "border_radius": 0,
         "color": [
           12,
@@ -5217,7 +5235,7 @@
           300,
           75
         ],
-        "text": "Producer",
+        "text": "Producer, Ai Engineer",
         "type": "text"
       },
       {
@@ -5247,9 +5265,9 @@
         "font_key": "sm",
         "pos": [
           300,
-          90
+          88
         ],
-        "text": "Game Design Lead",
+        "text": "Game Design Lead, Ai Gameplay Engineer",
         "type": "text"
       },
       {
@@ -5263,7 +5281,7 @@
         "font_key": "md",
         "pos": [
           340,
-          90
+          88
         ],
         "text": "Fabian Krüger",
         "type": "text"
@@ -5279,7 +5297,7 @@
         "font_key": "sm",
         "pos": [
           300,
-          105
+          101
         ],
         "text": "Art Lead",
         "type": "text"
@@ -5295,7 +5313,7 @@
         "font_key": "md",
         "pos": [
           340,
-          105
+          101
         ],
         "text": "Hendrik Wagner",
         "type": "text"
@@ -5311,9 +5329,9 @@
         "font_key": "sm",
         "pos": [
           300,
-          120
+          114
         ],
-        "text": "Programming Lead",
+        "text": "Programming Lead, Music",
         "type": "text"
       },
       {
@@ -5327,7 +5345,7 @@
         "font_key": "md",
         "pos": [
           340,
-          120
+          114
         ],
         "text": "Johann Heinrich",
         "type": "text"
@@ -5343,9 +5361,9 @@
         "font_key": "sm",
         "pos": [
           300,
-          142
+          133
         ],
-        "text": "UI Lead/2D Artist",
+        "text": "UI Lead, 2D Artist",
         "type": "text"
       },
       {
@@ -5359,7 +5377,7 @@
         "font_key": "md",
         "pos": [
           340,
-          142
+          133
         ],
         "text": "Alicia Jaison",
         "type": "text"
@@ -5375,7 +5393,7 @@
         "font_key": "sm",
         "pos": [
           300,
-          157
+          146
         ],
         "text": "2D Artist",
         "type": "text"
@@ -5391,7 +5409,7 @@
         "font_key": "md",
         "pos": [
           340,
-          157
+          146
         ],
         "text": "Varvara Kozačuk",
         "type": "text"
@@ -5407,7 +5425,7 @@
         "font_key": "sm",
         "pos": [
           300,
-          172
+          159
         ],
         "text": "2D Artist",
         "type": "text"
@@ -5423,7 +5441,7 @@
         "font_key": "md",
         "pos": [
           340,
-          172
+          159
         ],
         "text": "Jakob Dahlkar",
         "type": "text"
@@ -5439,7 +5457,7 @@
         "font_key": "sm",
         "pos": [
           300,
-          194
+          178
         ],
         "text": "Game Designer",
         "type": "text"
@@ -5455,7 +5473,7 @@
         "font_key": "md",
         "pos": [
           340,
-          194
+          178
         ],
         "text": "Joel Hoch",
         "type": "text"
@@ -5471,7 +5489,7 @@
         "font_key": "sm",
         "pos": [
           300,
-          209
+          191
         ],
         "text": "Game Designer",
         "type": "text"
@@ -5487,7 +5505,7 @@
         "font_key": "md",
         "pos": [
           340,
-          209
+          191
         ],
         "text": "Benjamin Riese",
         "type": "text"
@@ -5503,9 +5521,9 @@
         "font_key": "sm",
         "pos": [
           300,
-          231
+          210
         ],
-        "text": "Programmer",
+        "text": "Programmer, Sound",
         "type": "text"
       },
       {
@@ -5519,7 +5537,7 @@
         "font_key": "md",
         "pos": [
           340,
-          231
+          210
         ],
         "text": "Pantelis Charalambous",
         "type": "text"
@@ -5535,7 +5553,7 @@
         "font_key": "sm",
         "pos": [
           300,
-          246
+          223
         ],
         "text": "Programmer",
         "type": "text"
@@ -5551,9 +5569,169 @@
         "font_key": "md",
         "pos": [
           340,
-          246
+          223
         ],
         "text": "Alfons Kavalic",
+        "type": "text"
+      },
+      {
+        "align": "right",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "family": null,
+        "font_key": "sm",
+        "pos": [
+          300,
+          242
+        ],
+        "text": "Lecturer",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "family": null,
+        "font_key": "md",
+        "pos": [
+          340,
+          242
+        ],
+        "text": "Sylvius Lack",
+        "type": "text"
+      },
+      {
+        "align": "right",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "family": null,
+        "font_key": "sm",
+        "pos": [
+          300,
+          255
+        ],
+        "text": "Lecturer ",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "family": null,
+        "font_key": "md",
+        "pos": [
+          340,
+          255
+        ],
+        "text": "Heiko Ihde",
+        "type": "text"
+      },
+      {
+        "align": "right",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "family": null,
+        "font_key": "sm",
+        "pos": [
+          300,
+          268
+        ],
+        "text": "Lecturer",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "family": null,
+        "font_key": "md",
+        "pos": [
+          340,
+          268
+        ],
+        "text": "Samuel Gower",
+        "type": "text"
+      },
+      {
+        "align": "right",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "family": null,
+        "font_key": "sm",
+        "pos": [
+          300,
+          281
+        ],
+        "text": "Lecturer",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "family": null,
+        "font_key": "md",
+        "pos": [
+          340,
+          281
+        ],
+        "text": "Dustin Paasch",
+        "type": "text"
+      },
+      {
+        "align": "right",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "family": null,
+        "font_key": "sm",
+        "pos": [
+          300,
+          300
+        ],
+        "text": "University",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "family": null,
+        "font_key": "md",
+        "pos": [
+          340,
+          300
+        ],
+        "text": "Mediadesign Hochschule",
         "type": "text"
       },
       {
@@ -7034,6 +7212,24 @@
   "main_menu": {
     "items": [
       {
+        "anim_time_ms": 0,
+        "animation": "idle",
+        "crop": null,
+        "dest": [
+          0,
+          0
+        ],
+        "flip": false,
+        "hidden_frames": [],
+        "size": [
+          640,
+          360
+        ],
+        "slot_key": "ui_bg_main_menu",
+        "tint": null,
+        "type": "sprite"
+      },
+      {
         "border_radius": 0,
         "color": [
           18,
@@ -7944,6 +8140,24 @@
   },
   "settings": {
     "items": [
+      {
+        "anim_time_ms": 0,
+        "animation": "idle",
+        "crop": null,
+        "dest": [
+          0,
+          0
+        ],
+        "flip": false,
+        "hidden_frames": [],
+        "size": [
+          640,
+          360
+        ],
+        "slot_key": "ui_bg_main_menu",
+        "tint": null,
+        "type": "sprite"
+      },
       {
         "border_radius": 0,
         "color": [

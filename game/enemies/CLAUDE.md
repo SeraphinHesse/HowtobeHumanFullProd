@@ -542,13 +542,15 @@ invisible and untargetable the whole time — when the dig timer runs out.
   machine**, and carrying one is what MAKES a unit a burrower — the claim scan
   identifies rivals by "has a `BurrowAgent`", never by class or `ETYPE`, so a
   second burrower would share the claim pool for free. Declared JSON-safe state
-  only (E-11): `state` (plain strings `BURROW_WALKING`/`_SUBMERGED`/`_EMERGE`),
+  only (E-11): `state` (plain strings
+  `BURROW_WALKING`/`_DIGGING`/`_SUBMERGED`/`_EMERGE`),
   `dig_range_tiles` (now BOTH the overground trigger distance and the
   underground targeting scan radius, both MANHATTAN — see below), `dig_speed`,
   `dig_timer`, `dig_duration`, `start_wx`/`start_wy` (this dig's entry tile —
   also the VFX telegraph anchor, `game/ui/CLAUDE.md`'s Digger telegraph
   section), `dest_col`/`dest_row` (this dig's destination tile),
-  `emerge_cooldown`/`cooldown_remaining`, `min_target_distance_tiles`.
+  `emerge_cooldown`/`cooldown_remaining`, `min_target_distance_tiles`,
+  `dig_anim_timer`/`emerge_anim_timer` (the two ANIMATION holds below).
   - **WALKING — overground movement, on foot, visible. Spawn's initial
     approach AND every later "walk to a distant target" leg alike — unlike
     every earlier pass this is NOT spawn-only any more.** Whenever nothing is
@@ -561,6 +563,20 @@ invisible and untargetable the whole time — when the dig timer runs out.
     local neighbourhood rather than blindly diving on that one target
     (`_arrived_in_range`, below) — something else may now be the preferred,
     FARTHER pick from this exact spot.
+  - **DIGGING — the `dig` row played TO COMPLETION, above ground, before the
+    body goes under** (user decision: "the digger must play their dig
+    animation to completion when going down, before digging"). `_submerge` no
+    longer dives in the same call it is entered: it commits the destination,
+    freezes the agent where it stands, sets the `dig` row and holds this state
+    for `dig_anim_timer` seconds — the row's own authored length — then
+    `_go_under` does the actual dive. **Visible and TARGETABLE throughout**
+    (`Digger.targetable` keys off SUBMERGED alone), and NOT yet marked by the
+    dirt pile or the telegraph arrows: both key off SUBMERGED too, so they
+    still appear exactly when the body is actually underground. The row's
+    length comes from the `set_anim_length_hook` seam (below); with no hook
+    installed it measures 0 and `_submerge` falls straight through to
+    `_go_under` — which is why every headless fixture sees the old
+    single-call behaviour.
   - **SUBMERGED — a straight dive to `dest_col`/`dest_row`, nothing else (user
     decision: "the digger can only submerge and emerge").** No travel
     animation of any kind: the body simply vanishes from the tile it dove
@@ -609,6 +625,14 @@ invisible and untargetable the whole time — when the dig timer runs out.
     after EVERY dig, strike or not, so the player always gets a visible
     surfacing, never a silent disappear-and-reappear. Once the stand drains,
     `retarget` runs.
+    - **The `emerge` row plays exactly ONCE, then the Digger stands on
+      `idle`** for whatever is left of the cooldown (user decision: "play the
+      surface animation only once at normal speed, not 4 times in a loop").
+      `_emerge` arms `emerge_anim_timer` with the row's authored length and
+      `_tick_emerge` swaps to `idle` when it drains. It used to simply hold
+      `emerge` for the whole stand, and `Manifest.current_frame` is a MODULO
+      of the row's total — so the Digger's 833 ms row under a 2.5 s
+      `emerge_cooldown` visibly restarted three more times.
   - **The eruption hit is `EnemyCombat.update()`'s single-target damage
     application verbatim** — `_effective_dmg(pa)` (so the 10I terrain bonus
     still applies) → `Health.damage` → the `RoundStats.dmg_taken_this_round`
@@ -754,7 +778,14 @@ a dirt pile is a fixed world decal with one shared slot (`vfx_dirt_pile`) and no
 relationship to the unit that made it. Same pattern, different subject, and the
 design pillar is small single-purpose files. Tagged **`"dirt_pile"`, never
 `"enemy"`**, with no `alive`/Health/PathAgent, so it is invisible to every
-gameplay query exactly as a `Corpse` is. Its lifetime is **the dig duration**
+gameplay query exactly as a `Corpse` is. **It is placed on the Digger's `depth_pivot`, not on the tile the Digger is
+addressed by** (user decision: "the center of its sprite exactly on the depth
+tracking point of the digger"). `BurrowAgent._go_under` asks the
+`set_decal_align_hook` seam (above) for the world position that puts the
+decal's drawn CENTRE on that handle — the same point `Renderer._depth_pos`
+sorts the Digger by, so the hole sits exactly where the body reads as
+standing. The old `round(start_wx), round(start_wy)` tile stays as the
+no-hook fallback, which is what every headless fixture sees. Its lifetime is **the dig duration**
 (passed in by `BurrowAgent`, not read from a manifest track), so the mound is on
 the board for precisely as long as the Digger is under it — and the fade clock
 takes the same speed-scaled `sim_dt`, so that holds at 1×/1.5×/2×. **Real art
@@ -1419,6 +1450,47 @@ precedent is `game/ui/widgets.py`'s `set_skin_hit_test`.
   (a broken edge is deleted, so it reports 0). Wall damage is credited to
   nothing and therefore appears in NO per-round telemetry column — it is
   event-stream-only, deliberately.
+
+## Two cosmetic-placement seams in `components.py`
+### `set_anim_length_hook` — how long a sprite row plays
+A THIRD module-level hook beside the two telemetry ones, but installed for the
+WHOLE run (once, in `game/main.py`'s setup, right beside its own precedent
+`widgets.set_skin_anim_length(assets.animation_total_ms)`) rather than bracketed
+around a frame. It exists for the same layering reason: `game/enemies` may not
+read the asset layer (D6/E-37), so a component that wants to hold a pose for as
+long as its row actually plays cannot call `AssetStore.animation_total_ms`
+itself, and `Scene.update`'s sweep has no parameter to thread one through.
+
+- Shape `(slot_key, animation) -> ms | None` — `assets.animation_total_ms`
+  verbatim, which never falls back to `idle`: a missing row reads as `None`.
+- Read only through `_anim_length_ms(owner, name)`, which returns **0.0** for
+  every "no answer" case (hook unset, no `SpriteAnimator`, no such row, lookup
+  raised). A cosmetic length lookup must never break the sim.
+- **Unset is the headless default**, so every test and every logic-only
+  `Session` measures 0 and takes the no-hold path — which is exactly the
+  pre-hook behaviour. Fixtures that WANT a hold install a stub and clear it in
+  `addCleanup` (`TestDiggerAnimationHolds`).
+- The only reader today is `BurrowAgent` — its `dig`-plays-out-first and
+  `emerge`-plays-once holds (see the Digger section). Measured on
+  `digger_stage_1`: `dig` 2672 ms, `emerge` 835 ms, `idle` 4008 ms.
+
+### `set_decal_align_hook` — where a decal goes to land on a handle
+The FOURTH, same shape and same install site, wired to `Renderer.
+align_center_world`. Shape `(decal_slot, target_slot, wx, wy, fit_tiles,
+scale) -> (wx, wy)`: the world position to place `decal_slot` at so its drawn
+CENTRE lands on `target_slot`'s `depth_pivot`. Read through
+`_aligned_decal_pos(owner, decal_slot, fallback)`, which returns the caller's
+fallback for every no-answer case, exactly like `_anim_length_ms`.
+- **The placement math stays in the renderer** (`engine/render/renderer.py`),
+  where `_depth_pos` already had to do it for the SORT. `anchor_world` is that
+  computation lifted to a public method and `_depth_pos` now calls it, so the
+  two cannot drift; `align_center_world` is two `anchor_world` calls — the
+  handle's world point, then the decal's own centre drift subtracted back out.
+  Zoom-independent (the `zoom` `sprite_anchor_screen` multiplies in is divided
+  straight back out by `screen_to_world`), so the answer does not depend on
+  when it is asked.
+- **The only reader today is `BurrowAgent`'s dirt pile** — see the dirt-pile
+  section. Its fallback is the rounded entry tile, i.e. the old placement.
 
 ## Crowd spacing (feature) — Standard/Walker and Raider
 When 2+ SAME-TYPE enemies genuinely share a tile (not just briefly crossing

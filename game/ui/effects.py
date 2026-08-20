@@ -149,7 +149,7 @@ from engine.core import Health, SpriteAnimator
 from engine.render import (
     HudLines, HudRect, HudSprite, RenderItem, block_center_offset, fit_factor,
 )
-from game.anchors import anchor_world_point
+from game.anchors import anchor_world_point, sprite_center_world
 from engine.render.fonts import layout_h
 from engine.vfx import (
     AnnounceParams, BeamParams, BurstParams, CraterParams, DrummerAuraParams,
@@ -199,6 +199,22 @@ from .strings import T
 # that this feature deliberately does not make.
 _LIFE_LOST_L1 = "YOU"
 _LIFE_LOST_L2 = "LOST 1 LIFE"
+
+# -- feat-sniper-tracer: the Sniper's cosmetic bullet -------------------------
+# The Sniper's hit lands INSTANTLY on its cooldown (game/enemies/components.py
+# EnemyCombat — "there is no ranged damage concept"); this tracer is the visual
+# that was left as a follow-up art pass there. It is purely a UI object: a
+# straight muzzle -> victim-sheet-centre flight drawn off this manager's own
+# list, never a scene GameObject and never a damage/range expression (D4).
+#
+# Base-zoom WORLD tiles per second. A module constant rather than a
+# `procedural.projectile` key: adding one is a coupled vfx.json + schema +
+# editor-form change for a value with no gameplay reach, and this file already
+# keeps cosmetic copy/geometry constants of exactly this kind (the two
+# `_LIFE_LOST_*` lines above). It is deliberately fast — a rifle round reads
+# as a streak, not a lobbed stone.
+_TRACER_SPEED_TILES = 14.0
+_TRACER_MIN_LIFE = 0.06     # degeneracy floor for a point-blank shot
 _BOSS_HUD_BAR_W, _BOSS_HUD_BAR_H = 200, 12   # bottom-centre bar (hud.py:356)
 _BOSS_HUD_BAR_LIFT = 55                      # y = view_h - 55
 # Every OVERHEAD bar (boss included) comes from `submit_enemy_hp_bars`. Width
@@ -640,6 +656,10 @@ class FloaterManager:
         self._gore_enabled = ui_balance["FX"]["gore_enabled"]
         self._building_alive = {} # id(building) -> alive (death watcher)
         self._enemy_cooldowns = {}  # id(enemy) -> last EnemyCombat.cooldown
+        # feat-sniper-tracer: live cosmetic bullets, each a dict of
+        # from/to world points + age/life + the slot it draws. Advanced in
+        # update(), drawn by submit_projectiles, dropped by clear().
+        self._tracers = []
         self.log = None           # GameLog, wired by the host
         # vfx-projectile-spritesheets: a persistent ms clock for the beam's
         # has-art HudSprite (a looping "idle" track needs a monotonic
@@ -995,8 +1015,14 @@ class FloaterManager:
                 continue
             last = self._enemy_cooldowns.get(key)
             self._enemy_cooldowns[key] = ec.cooldown
+            # `blocked or in_range` — the SAME gate `EnemyCombat.update` ticks
+            # its cooldown on (NE-1). It used to read `blocked` alone, which
+            # silently excluded the one type that never touches its victim:
+            # a Sniper halts at stand-off (`in_range`), so every shot it fired
+            # was FX-less. Widened here rather than special-cased so the two
+            # gates cannot drift apart again.
             if (last is None or ec.cooldown <= last
-                    or pa is None or not pa.blocked):
+                    or pa is None or not (pa.blocked or pa.in_range)):
                 continue
             wx, wy = self._anchored(e, "muzzle", *e.transform.world_pos)
             etype = getattr(e, "ETYPE", "standard")
@@ -1006,9 +1032,101 @@ class FloaterManager:
             else:
                 self._play("enemy_attack_ranged", wx, wy, source=e,
                           strong=(etype == "siege"))
+            # feat-sniper-tracer: the ranged type also throws a visible bullet
+            # from that same muzzle point to the victim it just hit.
+            if etype == "sniper":
+                self._spawn_tracer(e, pa, wx, wy)
         if len(self._enemy_cooldowns) > 2 * len(seen) + 16:
             self._enemy_cooldowns = {
                 k: v for k, v in self._enemy_cooldowns.items() if k in seen}
+
+    def _tracer_slot(self):
+        """The slot the Sniper's bullet draws: the MAX-LEVEL variant of the
+        shared ``vfx_projectile`` family, never ``vfx_shell``.
+
+        ``vfx_projectile``/``vfx_shell`` are two independent shared slots
+        (``data/CLAUDE.md``) — the stone every defender throws and the shell
+        only a mortar lobs — and a rifle round is the former's family, at its
+        top variant (``vfx_projectile_v9`` as authored today). Resolved
+        through ``vfx_variants.max_variant`` rather than by naming that key
+        here, so authoring a tenth variant moves this with it. Falls back to
+        the base slot with no registry in hand (E-37).
+        """
+        return vfx_variants.max_variant(
+            getattr(self.assets, "registry", None), "vfx_projectile")
+
+    def _spawn_tracer(self, enemy, pa, muzzle_wx, muzzle_wy):
+        """Arm one cosmetic bullet for the shot ``watch_enemies`` just saw.
+
+        FROM the muzzle point that watcher already resolved (``_anchored``'s
+        ``muzzle`` handle, the unanchored world position when no handle is
+        authored) — never recomputed here, so the bullet leaves exactly where
+        the muzzle spray does. TO the victim's SHEET CENTRE
+        (``game.anchors.sprite_center_world``), falling back to its plain
+        world position when the store/animator cannot size it.
+
+        The victim is resolved the SAME way ``EnemyCombat`` resolves it: the
+        blocker scan's ``_target`` if one exists, else the committed target
+        off the tilemap (a stand-off unit never runs that scan). No victim in
+        hand -> no bullet, rather than a shot into empty space: the hit that
+        just landed had a target by construction, so a miss here means the
+        watcher is looking at a frame the combat sweep has already cleaned up.
+        """
+        target = getattr(pa, "_target", None)
+        if target is None:
+            tm = getattr(pa, "_tilemap", None)
+            if tm is not None:
+                target = pa.committed_target(tm)
+        if target is None:
+            return
+        point = sprite_center_world(self.assets, self.cs, target)
+        if point is None:
+            point = target.transform.world_pos
+        tx, ty = point
+        dist = math.hypot(tx - muzzle_wx, ty - muzzle_wy)
+        self._tracers.append({
+            "from": (muzzle_wx, muzzle_wy),
+            "to": (tx, ty),
+            "age": 0.0,
+            "life": max(_TRACER_MIN_LIFE, dist / _TRACER_SPEED_TILES),
+            "slot": self._tracer_slot(),
+        })
+
+    def submit_tracers(self, renderer, cs):
+        """Draw every live Sniper bullet at its lerped point between muzzle
+        and victim centre.
+
+        Same two-branch draw as ``submit_projectiles``: the imported sheet as
+        a ``HudSprite`` at ITS OWN authored frame size (never the dot's), the
+        procedural stone dot when the slot has no art yet — resolved with the
+        same ``animation_total_ms(slot, "idle") is None`` signal every other
+        has-art site uses (E-37), so the two can never disagree about what
+        "imported" means. Called from ``submit_projectiles`` so the host's
+        draw order is untouched.
+        """
+        if not self._tracers:
+            return
+        pr = self._vfx_params.projectile
+        zoom = cs.camera.zoom
+        for t in self._tracers:
+            frac = 1.0 if t["life"] <= 0 else min(1.0, t["age"] / t["life"])
+            (fx, fy), (tx, ty) = t["from"], t["to"]
+            cx, cy = cs.world_to_screen(fx + (tx - fx) * frac,
+                                       fy + (ty - fy) * frac)
+            slot = t["slot"]
+            has_art = (self.assets is not None
+                      and self.assets.animation_total_ms(slot, "idle")
+                      is not None)
+            if has_art:
+                fw, fh = self.assets.frame_size(slot)
+                w, h = max(2, int(fw * zoom)), max(2, int(fh * zoom))
+                renderer.submit_hud(HudSprite(
+                    slot, (int(cx - w / 2), int(cy - h / 2)), (w, h)))
+            else:
+                dot = max(2, int(pr.stone_size * zoom))
+                renderer.submit_hud(HudRect(
+                    (int(cx - dot / 2), int(cy - dot / 2), dot, dot),
+                    pr.stone_color, border_radius=dot // 2))
 
     def spawn_death_events(self, state, gore_on):
         """Drain ``state.enemy_death_events`` (filled by the Session death /
@@ -1087,6 +1205,7 @@ class FloaterManager:
         self._announce_age = None
         self._life_lost_age = None
         self._vfx.clear()  # -- 10J: particles / gold / slashes / splatters
+        self._tracers.clear()   # feat-sniper-tracer
         self._payout_queue = []
         self._payout_timer = 0.0
         self._love_display = None
@@ -1111,6 +1230,12 @@ class FloaterManager:
             if self._life_lost_age >= total:
                 self._life_lost_age = None
         self._vfx.update(dt)  # -- 10J: particles / gold / slashes --
+        # feat-sniper-tracer: advance the cosmetic bullets and drop the landed
+        # ones — the `self._floaters` age/life cull above, applied to flight.
+        if self._tracers:
+            for t in self._tracers:
+                t["age"] += dt
+            self._tracers = [t for t in self._tracers if t["age"] < t["life"]]
         # vfx-projectile-spritesheets: the beam's has-art HudSprite anim clock.
         self._beam_clock_ms += dt * 1000.0
         # The boost auras' looping anim clock (submit_boost_auras).
@@ -1294,6 +1419,10 @@ class FloaterManager:
                 renderer.submit_hud(HudRect(
                     (int(cx - dot / 2), int(cy - dot / 2), dot, dot),
                     color, border_radius=dot // 2))
+        # feat-sniper-tracer: enemy bullets ride the same draw beat as the
+        # defenders' shots — they are the same kind of object, and hanging
+        # them here keeps the host's draw list unchanged.
+        self.submit_tracers(renderer, cs)
 
     def submit_fx(self, renderer, cs):
         """Screen-space particle FX: sparks / death shards / muzzle motes as

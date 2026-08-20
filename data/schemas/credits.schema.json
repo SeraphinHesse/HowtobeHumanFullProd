@@ -1,0 +1,33 @@
+{
+  "$defs": {
+    "row": {
+      "additionalProperties": false,
+      "description": "One credits line: a role on the left (dim, right-aligned) and a name on the right (bright, left-aligned). A row whose role AND name are both empty strings is a SPACER -- it renders as a blank gap instead of a text line, which is how the shipped list groups leads / UI+art / designers / programmers. Either column alone may be empty (a second name under one role, say); both empty is the spacer case.",
+      "properties": {
+        "name": {
+          "description": "The person's name, rendered bright in the right column via the credits.name string template.",
+          "type": "string"
+        },
+        "role": {
+          "description": "The role/job title, rendered dim in the right-aligned left column via the credits.role string template.",
+          "type": "string"
+        }
+      },
+      "required": ["role", "name"],
+      "type": "object"
+    }
+  },
+  "$id": "credits.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "data/ui/credits.json: the CREDITS screen's (role, name) row list -- the one place the shipped credit roll is stated. An ORDERED array, rendered top to bottom exactly as authored (unlike strings.json's closed key set, rows are designer-owned content: adding a person is a data edit, never a schema change). Loaded + validated at boot (game/main.py) and passed to game.ui.credits.configure_credits, which rebinds the module's row list in place; the unconfigured module default equals this file's stock content (the fonts.json/palette.json/strings.json convention). Edited through the editor's selector > ui > Credits leaf (editor/panels/credits_panel.py) -- never by hand. The screen shrinks its line step to fit more rows, down to the font's own line height; past that the list overflows the 640x360 surface, which the editor panel warns about but no schema can express.",
+  "properties": {
+    "rows": {
+      "description": "The credit rows, in render order, top first.",
+      "items": {"$ref": "#/$defs/row"},
+      "type": "array"
+    }
+  },
+  "required": ["rows"],
+  "type": "object"
+}

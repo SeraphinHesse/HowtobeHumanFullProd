@@ -77,6 +77,7 @@ from editor.panels.screen_details import ScreenDetailsPanel
 from editor.panels.selector import SelectorPanel
 from editor.panels.timeline import TimelinePanel
 from editor.panels.tutorial_panel import TutorialPanel
+from editor.panels.credits_panel import CreditsPanel
 from editor.panels.strings_panel import StringsPanel
 from editor.panels.test_run_panel import TestRunPanel
 from editor.panels.viewport import ViewportPanel
@@ -184,6 +185,7 @@ class MainWindow(QMainWindow):
         self.cutscenes = CutscenesPanel(data_dir=data_dir)  # TU-3: Cutscenes leaf
         self.tutorial_panel = TutorialPanel(data_dir=data_dir)  # TU-4: Tutorial leaf
         self.strings_panel = StringsPanel(data_dir=data_dir)  # Phase C: Strings leaf
+        self.credits_panel = CreditsPanel(data_dir=data_dir)  # UT-Credits: Credits leaf
         self.timeline = TimelinePanel(data_dir=data_dir)  # TimelinePLAN T5: Timeline leaf
         self.master_sheets = MasterSheetsPanel(data_dir=data_dir)  # MasterSheetColumnsPLAN E5
         self.boss_upgrades = BossUpgradesPanel(data_dir=data_dir)  # BU-5: Bosses leaf
@@ -357,6 +359,11 @@ class MainWindow(QMainWindow):
         # panels/strings_panel.py's module docstring); the game re-reads it
         # at its own next boot.
         self.selector.strings_selected.connect(self._on_strings_selected)
+        # Credits wiring (UT-Credits): the "Credits" leaf -> right_stack. Same
+        # no-saved-consumer case as Strings above — credits.json is game/ui-
+        # owned; the editor's screen preview picks a saved edit up on its next
+        # re-record, and the game on its next boot.
+        self.selector.credits_selected.connect(self._on_credits_selected)
         # Timeline wiring (TimelinePLAN T5): the "Timeline" leaf -> right_stack;
         # reload on entry, the same convention as every other selection-driven
         # panel.
@@ -554,9 +561,10 @@ class MainWindow(QMainWindow):
         self.right_stack.addWidget(self.cutscenes)       # index 4: Cutscenes (TU-3)
         self.right_stack.addWidget(self.tutorial_panel)  # index 5: Tutorial (TU-4)
         self.right_stack.addWidget(self.strings_panel)   # index 6: Strings (Phase C)
-        self.right_stack.addWidget(self.timeline)        # index 7: Timeline (TimelinePLAN T5)
-        self.right_stack.addWidget(self.master_sheets)   # index 8: Master Sheets (MasterSheetColumnsPLAN E5)
-        self.right_stack.addWidget(self.boss_upgrades)   # index 9: Boss Upgrade Timeline (BossUpgradeTimelinePLAN BU-5)
+        self.right_stack.addWidget(self.credits_panel)   # index 7: Credits (UT-Credits)
+        self.right_stack.addWidget(self.timeline)        # index 8: Timeline (TimelinePLAN T5)
+        self.right_stack.addWidget(self.master_sheets)   # index 9: Master Sheets (MasterSheetColumnsPLAN E5)
+        self.right_stack.addWidget(self.boss_upgrades)   # index 10: Boss Upgrade Timeline (BossUpgradeTimelinePLAN BU-5)
 
         split = QSplitter(Qt.Orientation.Horizontal)
         split.addWidget(self.selector)
@@ -1438,6 +1446,16 @@ class MainWindow(QMainWindow):
         panels/strings_panel.py's module docstring."""
         self.strings_panel.set_strings()
         self.right_stack.setCurrentWidget(self.strings_panel)
+
+    # -- Credits panel (UT-Credits) --------------------------------------------
+
+    def _on_credits_selected(self):
+        """The selector's Credits leaf: reload the doc fresh (the
+        reload-on-entry convention every other selection-driven panel keeps)
+        and show the panel. No saved-signal handler, for the strings.json
+        reason one method up — see panels/credits_panel.py's docstring."""
+        self.credits_panel.set_credits()
+        self.right_stack.setCurrentWidget(self.credits_panel)
 
     # -- Timeline panel (TimelinePLAN T5) --------------------------------------
 

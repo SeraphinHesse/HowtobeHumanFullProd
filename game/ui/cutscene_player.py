@@ -229,13 +229,20 @@ class CutscenePlayer:
         companion track. Ends the WHOLE cutscene immediately, fade-out
         included (feature: cutscene-fade-in-out) — a skip means "get me
         out of this cutscene now", not "skip to the fade-out and make me
-        wait through that too"."""
+        wait through that too".
+
+        Only stops the bus when this cutscene HAS a companion track. It used
+        to stop unconditionally, which killed the background music of every
+        music-less cutscene — the exact track the host is holding for us."""
         self._video.skip()
-        stop_music()
+        if self._audio_path is not None:
+            stop_music()
         self._skipped = True
 
     def release(self):
         """Mirrors ``VideoSource.release()``; also stops the companion track
-        defensively (idempotent, like the video release it mirrors)."""
+        defensively (idempotent, like the video release it mirrors) — but
+        only when there IS one, for the same reason as ``skip()``."""
         self._video.release()
-        stop_music()
+        if self._audio_path is not None:
+            stop_music()

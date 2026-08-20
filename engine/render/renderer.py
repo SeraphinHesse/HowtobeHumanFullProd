@@ -186,6 +186,51 @@ class Renderer:
             )
         self._hud.append(item)
 
+    def anchor_world(self, slot_key, wx, wy, fit_tiles=0.0, scale=1.0,
+                     anchor=DEPTH_PIVOT):
+        """The WORLD point a slot's named anchor sits on, for a sprite drawn at
+        world ``(wx, wy)`` with ``fit_tiles``/``scale``.
+
+        The `_depth_pos` computation, lifted to a public method because it is
+        no longer only about SORTING: a decal that must land on another
+        sprite's handle needs the same answer (``align_center_world``, below).
+        ``anchor`` may also be a literal ``(x, y)`` frame-px pair — ``(0, 0)``
+        is the sprite's drawn CENTRE.
+
+        Unauthored anchor name -> ``(wx, wy)`` unchanged, so every caller has
+        the same graceful no-op the sort already had. Zoom-independent: the
+        ``zoom`` factor `sprite_anchor_screen` multiplies in is divided
+        straight back out by ``screen_to_world``."""
+        if isinstance(anchor, str):
+            anchor_xy = self._assets.anchor(slot_key, anchor)
+            if anchor_xy is None:
+                return (wx, wy)
+        else:
+            anchor_xy = anchor
+        frame_w, _frame_h = self._assets.frame_size(slot_key)
+        sx, sy = sprite_anchor_screen(
+            self._coords, wx, wy, frame_w, fit_tiles, scale,
+            self._assets.offset(slot_key), anchor_xy)
+        return self._coords.screen_to_world(sx, sy)
+
+    def align_center_world(self, decal_slot, target_slot, wx, wy,
+                           fit_tiles=0.0, scale=1.0, anchor=DEPTH_PIVOT):
+        """The world position to place ``decal_slot`` at so its drawn CENTRE
+        lands exactly on ``target_slot``'s ``anchor`` handle, for a target
+        sprite drawn at ``(wx, wy)`` with ``fit_tiles``/``scale``.
+
+        Two `anchor_world` calls, never a restatement of the placement math:
+        the handle's world point, then the decal's own centre drift (its
+        ``offset_x``/``offset_y`` move the drawn centre off the tile-diamond
+        centre) subtracted back out. A decal with no offsets — the shipping
+        ``vfx_dirt_pile`` — has zero drift and the second call is an identity;
+        it is here so a designer nudging that slot in the editor cannot
+        silently pull the decal off the handle it was aligned to."""
+        px, py = self.anchor_world(target_slot, wx, wy, fit_tiles, scale,
+                                   anchor)
+        cx, cy = self.anchor_world(decal_slot, px, py, 0.0, 1.0, (0, 0))
+        return (2.0 * px - cx, 2.0 * py - cy)
+
     def _depth_pos(self, item):
         """The world point `item` SORTS at — its own `world_pos`, unless its
         slot authors a `depth_pivot` anchor, in which case the world point
@@ -216,15 +261,8 @@ class Renderer:
         slot_key = getattr(item, "slot_key", None)
         if slot_key is None:
             return item.world_pos
-        anchor = self._assets.anchor(slot_key, DEPTH_PIVOT)
-        if anchor is None:
-            return item.world_pos
-        frame_w, _frame_h = self._assets.frame_size(slot_key)
         wx, wy = item.world_pos
-        sx, sy = sprite_anchor_screen(
-            self._coords, wx, wy, frame_w, item.fit_tiles, item.scale,
-            self._assets.offset(slot_key), anchor)
-        return self._coords.screen_to_world(sx, sy)
+        return self.anchor_world(slot_key, wx, wy, item.fit_tiles, item.scale)
 
     def flush(self, target, hud_target=None):
         """Draw all submitted items to `target`, clear the queue, and return

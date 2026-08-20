@@ -6,7 +6,7 @@
     "backdrop": {
       "rect": [
         0,
-        1,
+        0,
         640,
         360
       ]
@@ -33,6 +33,132 @@
       ],
       "skin": "ui_panel_v23"
     },
+    "option_box_0_arrow": {
+      "rect": [
+        184,
+        121,
+        5,
+        4
+      ]
+    },
+    "option_box_0_cost": {
+      "rect": [
+        186,
+        180,
+        0,
+        0
+      ],
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "option_box_0_explanation_0": {
+      "rect": [
+        186,
+        193,
+        0,
+        0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
+      ]
+    },
+    "option_box_0_explanation_1": {
+      "rect": [
+        186,
+        205,
+        0,
+        0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
+      ]
+    },
+    "option_box_0_explanation_2": {
+      "rect": [
+        186,
+        217,
+        0,
+        0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
+      ]
+    },
+    "option_box_0_explanation_3": {
+      "rect": [
+        186,
+        229,
+        0,
+        0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
+      ]
+    },
+    "option_box_0_prev_name": {
+      "font": "sm",
+      "rect": [
+        186,
+        126,
+        0,
+        0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
+      ]
+    },
+    "option_box_0_sprite": {
+      "rect": [
+        168,
+        142,
+        36,
+        36
+      ],
+      "text_color": [
+        255,
+        255,
+        255
+      ]
+    },
+    "option_box_0_tier": {
+      "rect": [
+        186,
+        243,
+        0,
+        0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
+      ]
+    },
+    "option_box_0_title": {
+      "rect": [
+        186,
+        126,
+        0,
+        0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
+      ]
+    },
     "option_box_1": {
       "rect": [
         255,
@@ -42,6 +168,122 @@
       ],
       "skin": "ui_panel_v23"
     },
+    "option_box_1_arrow": {
+      "rect": [
+        318,
+        121,
+        5,
+        4
+      ]
+    },
+    "option_box_1_cost": {
+      "rect": [
+        320,
+        180,
+        0,
+        0
+      ],
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "option_box_1_explanation_0": {
+      "rect": [
+        320,
+        193,
+        0,
+        0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
+      ]
+    },
+    "option_box_1_explanation_1": {
+      "rect": [
+        320,
+        205,
+        0,
+        0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
+      ]
+    },
+    "option_box_1_explanation_2": {
+      "rect": [
+        320,
+        217,
+        0,
+        0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
+      ]
+    },
+    "option_box_1_explanation_3": {
+      "rect": [
+        320,
+        229,
+        0,
+        0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
+      ]
+    },
+    "option_box_1_prev_name": {
+      "rect": [
+        320,
+        108,
+        0,
+        0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
+      ]
+    },
+    "option_box_1_sprite": {
+      "rect": [
+        302,
+        142,
+        36,
+        36
+      ]
+    },
+    "option_box_1_tier": {
+      "rect": [
+        320,
+        243,
+        0,
+        0
+      ]
+    },
+    "option_box_1_title": {
+      "font": "sm",
+      "rect": [
+        320,
+        126,
+        0,
+        0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
+      ]
+    },
     "option_box_2": {
       "rect": [
         389,
@@ -50,6 +292,127 @@
         154
       ],
       "skin": "ui_panel_v23"
+    },
+    "option_box_2_arrow": {
+      "rect": [
+        452,
+        121,
+        5,
+        4
+      ]
+    },
+    "option_box_2_cost": {
+      "rect": [
+        454,
+        180,
+        0,
+        0
+      ],
+      "text_color": [
+        213,
+        183,
+        77
+      ]
+    },
+    "option_box_2_explanation_0": {
+      "rect": [
+        454,
+        193,
+        0,
+        0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
+      ]
+    },
+    "option_box_2_explanation_1": {
+      "rect": [
+        454,
+        205,
+        0,
+        0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
+      ]
+    },
+    "option_box_2_explanation_2": {
+      "rect": [
+        454,
+        217,
+        0,
+        0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
+      ]
+    },
+    "option_box_2_explanation_3": {
+      "rect": [
+        454,
+        229,
+        0,
+        0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
+      ]
+    },
+    "option_box_2_prev_name": {
+      "rect": [
+        454,
+        108,
+        0,
+        0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
+      ]
+    },
+    "option_box_2_sprite": {
+      "rect": [
+        436,
+        142,
+        36,
+        36
+      ]
+    },
+    "option_box_2_tier": {
+      "rect": [
+        454,
+        243,
+        0,
+        0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
+      ]
+    },
+    "option_box_2_title": {
+      "font": "sm",
+      "rect": [
+        454,
+        126,
+        0,
+        0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
+      ]
     }
   }
 }

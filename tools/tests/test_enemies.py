@@ -32,12 +32,14 @@ from game.core.balance import load_balance
 from game.core.phases import GamePhase, GameState
 import game.enemies.spawner as spawner_mod
 from game.enemies import (
-    BURROW_EMERGE, BURROW_SUBMERGED, BURROW_WALKING, Boss, Commander, Digger,
+    BURROW_DIGGING, BURROW_EMERGE, BURROW_SUBMERGED, BURROW_WALKING, Boss,
+    Commander, Digger,
     DirtPile, DIRT_PILE_SLOT, Drummer, Enemy, Formation, Projectile, Raider,
     SiegeCannon, Sniper, Spawner, attack_interval, create_enemy,
     resolve_combat,
 )
 from game.enemies.combat import ProjectileHoming
+import game.enemies.components as components
 from game.enemies.components import (
     BUFF_DECAY_SECONDS, BuffState, BurrowAgent, DrummerAura, EnemyCombat,
     Kidnap, PathAgent,
@@ -374,14 +376,18 @@ class TestSpawnComposition(unittest.TestCase):
                                      expected_count("SiegeCannon", r))
 
     def test_siege_lead_group_heads_the_queue(self):
-        # The lead group spawns FIRST (prototype siege_front + shuffled rest);
-        # FakeRng.shuffle is identity, so the head of the queue is exactly it.
+        # The lead group spawns FIRST behind the diggers (digger_front +
+        # siege_front + shuffled rest); FakeRng.shuffle is identity, so the
+        # head of the queue is exactly those two blocks.
         r = SIEGE["start_round"] + 4
         _sp, etypes = self._counts(r)
         n_siege = etypes.count("siege")
+        n_dig = etypes.count("digger")            # every digger leads (unsplit)
         lead = min(int(SIEGE["queue_lead_count"] * SIEGE["mix_ratio"]), n_siege)
         self.assertGreater(lead, 0)
-        self.assertEqual(etypes[:lead], ["siege"] * lead)
+        self.assertEqual(etypes[:n_dig], ["digger"] * n_dig)
+        self.assertEqual(etypes[n_dig:n_dig + lead], ["siege"] * lead)
+        etypes = etypes[n_dig:]
         # The remainder is mixed into the shuffled body, not appended in front.
         self.assertEqual(etypes[lead:].count("siege"), n_siege - lead)
 
@@ -1894,13 +1900,103 @@ class TestDigger(unittest.TestCase):
                 self.assertEqual(
                     [e for _, e in sp.pending() if e == "digger"], [])
 
-    def test_diggers_are_body_mixed_never_queue_leading(self):
+    def test_every_digger_leads_the_queue_ahead_of_the_siege_lead(self):
+        """User decision: the whole digger group opens the wave, in front of
+        even the siege lead slice. No lead/mix split — every digger the round
+        rolls is in the front block, so the body carries none."""
         tm = TestSpawnTilesAreSpawningOnly._tm()
         sp = Spawner()
         sp.begin_round(35, tm, ENEM, rng=random.Random(3))
         etypes = [e for _, e in sp.pending()]
-        self.assertIn("digger", etypes)
-        self.assertNotEqual(etypes[0], "digger")
+        n_dig = etypes.count("digger")
+        self.assertGreater(n_dig, 0)
+        self.assertEqual(etypes[:n_dig], ["digger"] * n_dig)
+        self.assertNotIn("digger", etypes[n_dig:])   # none left in the body
+        self.assertEqual(etypes[n_dig], "siege")     # cannons come next
+
+
+class TestDiggerAnimationHolds(unittest.TestCase):
+    """The two animation holds `set_anim_length_hook` buys (user decision):
+    the `dig` row plays TO COMPLETION above ground before the body goes under,
+    and the `emerge` row plays exactly ONCE instead of re-looping for the whole
+    `emerge_cooldown`. Both collapse to the pre-hold behaviour when no hook is
+    installed, which is why every other Digger fixture is unaffected."""
+
+    DIG_MS = 1000.0
+    EMERGE_MS = 800.0
+
+    def setUp(self):
+        components.set_anim_length_hook(
+            lambda _slot, name: {"dig": self.DIG_MS,
+                                 "emerge": self.EMERGE_MS}.get(name))
+        self.addCleanup(components.set_anim_length_hook, None)
+
+    def _digger_in_range(self):
+        """A Digger that submerges on its very first decision (in range at
+        spawn), reusing TestDigger's own 2D board."""
+        case = TestDigger()
+        tm, scene, occ = case._board2d()
+        place_building(tm, tm.get(18, 3), "blocker", 9999, BUILD, scene, occ)
+        dig = case._digger(scene, tm, 20, 3)
+        return scene, dig, dig.get_component(BurrowAgent)
+
+    def test_dig_row_plays_out_above_ground_before_the_body_goes_under(self):
+        scene, dig, burrow = self._digger_in_range()
+        scene.update(0.0)                       # on_spawn: commits and digs in
+        anim = dig.get_component(SpriteAnimator)
+        self.assertEqual(burrow.state, BURROW_DIGGING)
+        self.assertEqual(anim.animation, "dig")
+        self.assertTrue(anim.visible)           # still above ground...
+        self.assertTrue(dig.targetable)         # ...so still shootable
+        for _ in range(19):                     # 0.95 s: the row is not done
+            scene.update(0.05)
+            self.assertEqual(burrow.state, BURROW_DIGGING)
+        scene.update(0.05)                      # 1.0 s: it is
+        self.assertEqual(burrow.state, BURROW_SUBMERGED)
+        self.assertFalse(anim.visible)
+
+    def test_the_hole_is_spawned_on_the_diggers_depth_pivot_not_its_tile(self):
+        """The decal-alignment seam is what places the hole (user decision:
+        "the center of its sprite exactly on the depth tracking point"). The
+        renderer's own math is pinned by `test_render.TestAlignCenterWorld`;
+        what this asserts is that `BurrowAgent` actually ASKS, with the
+        Digger's own slot/fit/scale, and uses the answer verbatim."""
+        asked = []
+
+        def align(decal_slot, target_slot, wx, wy, fit_tiles, scale):
+            asked.append((decal_slot, target_slot, wx, wy, fit_tiles, scale))
+            return (wx + 0.59375, wy + 0.40625)
+
+        components.set_decal_align_hook(align)
+        self.addCleanup(components.set_decal_align_hook, None)
+        scene, dig, burrow = self._digger_in_range()
+        for _ in range(4000):
+            scene.update(0.05)
+            if burrow.state == BURROW_SUBMERGED:
+                break
+        self.assertEqual(burrow.state, BURROW_SUBMERGED)
+        scene.update(0.0)          # `Scene.spawn` only QUEUES — flush it
+        piles = scene.by_tag("dirt_pile")
+        self.assertEqual(len(piles), 1)
+        self.assertEqual(asked[0][0], DIRT_PILE_SLOT)
+        self.assertEqual(asked[0][1], dig.get_component(SpriteAnimator).slot_key)
+        self.assertAlmostEqual(piles[0].transform.wx, burrow.start_wx + 0.59375)
+        self.assertAlmostEqual(piles[0].transform.wy, burrow.start_wy + 0.40625)
+
+    def test_emerge_row_plays_once_then_holds_idle_for_the_rest_of_the_stand(self):
+        scene, dig, burrow = self._digger_in_range()
+        anim = dig.get_component(SpriteAnimator)
+        for _ in range(4000):
+            scene.update(0.05)
+            if burrow.state == BURROW_EMERGE:
+                break
+        self.assertEqual(burrow.state, BURROW_EMERGE)
+        self.assertEqual(anim.animation, "emerge")
+        for _ in range(16):                     # 0.8 s of `emerge`
+            scene.update(0.05)
+        self.assertEqual(anim.animation, "idle")
+        self.assertEqual(burrow.state, BURROW_EMERGE)   # still standing
+        self.assertGreater(burrow.cooldown_remaining, 0.0)
 
 
 SNIPER = ENEM["EnemyTypes"]["Sniper"]

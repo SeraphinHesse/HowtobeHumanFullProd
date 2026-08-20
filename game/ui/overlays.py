@@ -10,8 +10,10 @@ diff:
   its rolled condition while SPAWNING — only the draw is skipped, so the
   diamond reappears once the tile converts to COMBAT (spawn recede).
 * **RANGE toggle** — red diamonds over the union of every alive defender's
-  range footprint, using RAW ``range_tiles()`` (prototype ``hud.py:399-430``
-  / ``game.py:2012-2019``), shaped per an optional duck-typed
+  range footprint, using the TARGETING range (``targeting_range_tiles()`` when
+  present — the mountain ``def_range_bonus`` included — else ``range_tiles()``;
+  prototype ``hud.py:399-430`` / ``game.py:2012-2019`` used raw and so drew a
+  tile short on boosted tiles), shaped per an optional duck-typed
   ``range_shape()`` (Chebyshev square when absent; a booster's shape is
   configurable, ``game/buildings/boost.py``). The Maw Mortar IS included
   (its exclusion is pathfinding-only).
@@ -237,17 +239,26 @@ class MapOverlays:
     def range_coverage(tilemap):
         """Union of covered tiles for the RANGE overlay: the tile-offset
         geometry (``game/buildings/range_shape.py``) per alive built occupant
-        with duck-typed RAW ``range_tiles() > 0`` (mortar included — the aoe
-        exclusion is pathfinding-only). ``range_shape()`` picks the shape
-        (defaults to a Chebyshev square when absent — every defence building;
-        a booster defines it, defaulting to ``"plus"``, `game/buildings/
-        boost.py`)."""
+        with a duck-typed range ``> 0`` (mortar included — the aoe exclusion is
+        pathfinding-only). ``range_shape()`` picks the shape (defaults to a
+        Chebyshev square when absent — every defence building; a booster
+        defines it, defaulting to ``"plus"``, `game/buildings/boost.py`).
+
+        The range read is the TARGETING range — i.e. the tile-condition
+        (mountain ``def_range_bonus``) modified value the combat sweep really
+        acquires with (``DefenceBuilding.targeting_range_tiles``), so a
+        mountain defender's overlay footprint matches both its panel Range row
+        and where it can actually shoot. It used to read RAW ``range_tiles()``
+        for prototype parity, which drew a one-tile-short square for every
+        boosted defender. Pathfinding coverage (``buildings/coverage.py``)
+        still reads the raw value — that split is deliberate."""
         covered = set()
         for tile in tilemap.built_tiles():
             b = tile.occupant
             if b is None or not getattr(b, "alive", False):
                 continue
-            rfn = getattr(b, "range_tiles", None)
+            rfn = getattr(b, "targeting_range_tiles",
+                          getattr(b, "range_tiles", None))
             if rfn is None:
                 continue
             r = int(rfn())

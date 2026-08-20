@@ -882,7 +882,7 @@
             "attack_range_tiles": 1,
             "attack_speed": 1.4,
             "dmg": 100,
-            "hp": 800,
+            "hp": 810,
             "move_speed": 1.245
           }
         },

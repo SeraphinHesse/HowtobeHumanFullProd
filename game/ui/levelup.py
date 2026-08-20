@@ -81,6 +81,20 @@ _EXPLANATION_LINES = 4
 SCREEN_ID = "levelup"
 
 
+def _option_title(option):
+    """The card's headline text.
+
+    Unlock-kind cards name a building TYPE the reward grants; the wording
+    wrapped around that name is designer-owned (`levelup.unlock_title` in
+    `data/ui/strings.json`, `"{name}"` by default), so the rolled option
+    carries only the bare name and this applies the template. Every other
+    kind's title is authored whole by `game/core/levelup.py`.
+    """
+    if option.get("kind") == "unlock_building":
+        return T("levelup.unlock_title", name=option["title"])
+    return option["title"]
+
+
 def _new_parts():
     """The id'd widget group INSIDE one option box (feature: editable
     levelup text).
@@ -246,7 +260,7 @@ class LevelupWindow:
         p.arrow.rect = (cx - 2, cursor + layout_h("sm") + 2, 5, 4)
         if prev_name:
             cursor += layout_h("sm") + 2 + 5
-        p.title.label = option["title"]
+        p.title.label = _option_title(option)
         p.title.rect = (cx, cursor, 0, 0)
         cursor += layout_h("md") + 3
         p.sprite.rect = (cx - _SPRITE_PX // 2, cursor, _SPRITE_PX, _SPRITE_PX)
@@ -355,7 +369,7 @@ class LevelupWindow:
             submit_label(renderer, parts.prev_name, text=prev_name,
                          color=widgets.C_UI_TEXT_DIM)
             self._submit_up_arrow(renderer, parts.arrow)
-        submit_label(renderer, parts.title, text=option["title"],
+        submit_label(renderer, parts.title, text=_option_title(option),
                      color=widgets.C_UI_TEXT)
 
         # A `skin` override on the sprite holder REPLACES the rolled slot —

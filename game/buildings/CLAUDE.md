@@ -327,12 +327,14 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
     debuffs (→ floor)**: `damage()` inserts the FOREST `def_dmg_penalty` cut
     between the boost multiply and the debuff halving; `attack_speed()` inserts
     the POND `def_attack_speed_penalty` slow the same way. **Raw vs effective
-    range split**: `range_tiles()` stays RAW (feeds pathfinding coverage + the
-    RANGE overlay); NEW `effective_range_tiles()` adds the MOUNTAIN
+    range split**: `range_tiles()` stays RAW (feeds pathfinding coverage only);
+    NEW `effective_range_tiles()` adds the MOUNTAIN
     `def_range_bonus` (feeds the panel Range row + the selection highlight);
     NEW `targeting_range_tiles()` is what the combat sweep + RangeSensor use —
     effective for basic/beam, but **RAW for the mortar** (selected by its
-    `SplashAttacker` marker): the prototype's own `_in_range` inconsistency
+    `SplashAttacker` marker) — and it is ALSO what the RANGE overlay draws, so
+    the overlay always shows the tiles the building can really hit: the
+    prototype's own `_in_range` inconsistency
     (`aoe_defence_building.py:308` reads raw while `defence_building.py:264`
     reads effective), kept deliberately for parity — 10J/parity audits must
     not "fix" it. `boosted_stats()` also emits the pre-forest Damage base when

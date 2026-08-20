@@ -25,6 +25,7 @@ from engine import data_io, tilemap  # noqa: E402
 from engine.render import fonts as _fonts  # noqa: E402
 from game import main as game_main_module  # noqa: E402
 from game.main import main as game_main  # noqa: E402
+from game.ui import credits as _credits  # noqa: E402
 from game.ui import strings as _strings  # noqa: E402
 from game.ui import widgets as _widgets  # noqa: E402
 from tools.tests.temp_data import DataDirCase  # noqa: E402
@@ -90,6 +91,11 @@ def _restore_font_state_after(case):
     # `configure_highlights` rebinds in place from the same live file —
     # the exact same leak shape, one call site later.
     tutorial_pulse_snapshot = dict(_widgets._TUTORIAL_PULSE)
+    # A FIFTH: UT-Credits' `configure_credits` rebinds `credits._CREDITS` in
+    # place from live `data/ui/credits.json` — the `_STRINGS` shape exactly,
+    # and `test_credits_data.CreditsDefaultsCase` is the drift test it would
+    # otherwise have made lie.
+    credits_snapshot = list(_credits._CREDITS)
 
     def restore():
         _fonts._FONT_PATH, _fonts._FONT_BYTES = font_family
@@ -110,6 +116,7 @@ def _restore_font_state_after(case):
         _widgets._HIGHLIGHT_TRIGGERS.update(highlight_triggers_snapshot)
         _widgets._TUTORIAL_PULSE.clear()
         _widgets._TUTORIAL_PULSE.update(tutorial_pulse_snapshot)
+        _credits._CREDITS[:] = credits_snapshot
 
     case.addCleanup(restore)
 
@@ -137,7 +144,8 @@ class TestTheRestoreCoversEveryThemeGlobal(unittest.TestCase):
         covered = {"configure_fonts",     # _FONT_PATH/_FONT_BYTES/_FONT_SPECS/_cache
                    "configure_palette",   # widgets.C_*
                    "configure_strings",   # strings._STRINGS
-                   "configure_highlights"}  # widgets._HIGHLIGHTS/_TRIGGERS
+                   "configure_highlights",  # widgets._HIGHLIGHTS/_TRIGGERS
+                   "configure_credits"}   # credits._CREDITS
         self.assertEqual(
             called, covered,
             "game/main.py configures a module global this file's "

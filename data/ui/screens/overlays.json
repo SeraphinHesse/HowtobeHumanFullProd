@@ -9,9 +9,9 @@
       ],
       "skin": "ui_panel_stone",
       "text_color": [
-        207,
-        87,
-        60
+        198,
+        81,
+        151
       ]
     },
     "btn_range": {
@@ -37,9 +37,9 @@
       ],
       "skin": "ui_panel_stone",
       "text_color": [
-        213,
-        183,
-        77
+        198,
+        81,
+        151
       ]
     }
   }

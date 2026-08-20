@@ -10,6 +10,7 @@ NOT Chebyshev, NOT tile-space Euclidean). Values are read from
 asserted once as a parity canary.
 """
 import copy
+import types
 import random
 import subprocess
 import sys
@@ -31,6 +32,7 @@ from game.core.phases import GamePhase, GameState
 from game.enemies import Spawner, create_enemy, resolve_combat
 from game.enemies.components import apply_slow, buff_total
 from game.map.tile_map import TileMap
+from game.ui import building_ui
 from game.ui.cheat_menu import CheatMenu
 
 MAPBAL = load_balance(FIXTURE_DATA, "map")
@@ -952,6 +954,46 @@ class TestStormpriestSlow(unittest.TestCase):
         self._strike_at(st, scene, enemy, BOSS_UPGRADES)
         self.assertLess(buff_total(enemy, "move_speed"), 0)
         self.assertEqual(buff_total(far, "move_speed"), 0.0)
+
+
+class TestPanelDamageRow(unittest.TestCase):
+    """The upgrade panel's Damage row for a Storm Priest is the COMBINED bolt
+    damage of every placed acolyte (`_lightning_damage`), not its inert
+    `damage()` — whose `base_dmg` 0 made that row read a bare `max(1, 0)`."""
+
+    @staticmethod
+    def _tilemap(*buildings):
+        """The one thing `_lightning_damage` asks of a tilemap: `built_tiles()`
+        yielding tiles with `.occupant`."""
+        tiles = [types.SimpleNamespace(occupant=b) for b in buildings]
+        return types.SimpleNamespace(built_tiles=lambda: tiles)
+
+    def test_the_row_sums_every_placed_acolytes_own_tier(self):
+        dmg = CORE["LightningStrike"]["damage"]
+        a = create("storm_priest", 0, 0, BUILD, 0)
+        b = create("storm_priest", 1, 0, BUILD, 1)
+        tm = self._tilemap(a, b)
+        total = building_ui._lightning_damage(a.tier_number(), tm, CORE,
+                                             exclude=a)
+        self.assertEqual(total, dmg[0] + dmg[1])
+        self.assertEqual(a.damage(), 1)   # the old row, for contrast
+        rows = dict(building_ui._building_stats(a, total))
+        self.assertEqual(rows["damage"], total)
+
+    def test_a_dead_acolyte_adds_nothing(self):
+        dmg = CORE["LightningStrike"]["damage"]
+        a = create("storm_priest", 0, 0, BUILD, 0)
+        b = create("storm_priest", 1, 0, BUILD, 1)
+        b.get_component(Health).damage(10 ** 6)   # `alive` is Health-derived
+        tm = self._tilemap(a, b)
+        self.assertEqual(
+            building_ui._lightning_damage(a.tier_number(), tm, CORE, exclude=a),
+            dmg[0])
+
+    def test_a_non_lightning_building_keeps_its_own_damage(self):
+        d = create("defence", 0, 0, BUILD, 0)
+        rows = dict(building_ui._building_stats(d, 999))
+        self.assertEqual(rows["damage"], d.damage())
 
 
 if __name__ == "__main__":

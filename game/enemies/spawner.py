@@ -251,8 +251,9 @@ class Spawner:
 
     def _compose(self, round_num, balance, spawn_tiles):
         """Build the (tile, etype) list for the round: standard + raiders +
-        siege (10F) + formations (ER-4). Siege leads the queue; everything else
-        is shuffled behind it. A boss round (``era_math.is_boss_round``) takes
+        siege (10F) + formations (ER-4). The queue is led by EVERY digger
+        (unsplit), then the siege lead slice; everything else is shuffled
+        behind them. A boss round (``era_math.is_boss_round``) takes
         the boss composition instead (10G) — the lead/mix siege split applies
         to NON-boss rounds only, and formations do not appear at all (see
         ``_formation_group``).
@@ -302,9 +303,9 @@ class Spawner:
         drummers = self._drummer_group(round_num, balance, spawn_tiles)
 
         rest = (regular + raiders + siege_mixed + formations + commanders
-                + snipers + diggers + drummers)
+                + snipers + drummers)
         self._rng.shuffle(rest)
-        return siege_front + rest
+        return diggers + siege_front + rest
 
     def _boss_round(self, round_num, balance, spawn_tiles):
         """Boss-round composition (10G, prototype ``game.py:831-874``): exactly
@@ -444,9 +445,13 @@ class Spawner:
                 for _ in range(n)]
 
     def _digger_group(self, round_num, balance, spawn_tiles):
-        """Diggers from ``Digger.start_round`` (35) on, through the shared
-        count formula. Mixed into the shuffled body, never queue-leading:
-        a Digger is a single-target siege unit, not a wave opener.
+        """Diggers from ``Digger.start_round`` on, through the shared
+        count formula. EVERY digger the round rolls LEADS the queue, ahead of
+        even the siege lead slice (user decision) — the whole group tunnels out
+        first, so the wave opens with the burrow-and-erupt threat rather than
+        having it trickle in behind the swarm. No lead/mix split: unlike siege
+        (``_siege_groups``) there is no ``queue_lead_count``/``mix_ratio`` for
+        diggers, so the count formula alone decides how many lead.
 
         Called LAST in ``_compose``, after ``_sniper_group`` — the same
         newest-last rule the Formation/Commander/Sniper follow, so every

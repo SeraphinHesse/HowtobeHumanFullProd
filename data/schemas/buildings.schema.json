@@ -1391,7 +1391,7 @@
               "type": "boolean"
             },
             "tier_card_explanations": {
-              "description": "Body copy for the three boost lines' SHARED level-up research cards, one per tier in advance order (exactly 3). All three lines research a tier together from ONE card, so the card cannot use any single line's own tier explanation. Index 0 is unused (the tier-1 card is the unlock card, whose copy lives in game/buildings/research.py's ResearchSpec).",
+              "description": "Body copy for the three boost lines' SHARED level-up cards, one per tier in advance order (exactly 3). All three lines unlock and research a tier together from ONE card, so the card cannot use any single line's own tier explanation. Index 0 is the UNLOCK card's copy (the tier-1 card that grants all three lines); leave it empty to fall back to the hardcoded ResearchSpec.unlock_explanation in game/buildings/research.py.",
               "items": {
                 "description": "One merged boost research card's body copy.",
                 "type": "string"

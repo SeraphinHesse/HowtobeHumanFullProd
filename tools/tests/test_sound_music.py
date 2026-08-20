@@ -153,6 +153,26 @@ class TestCutsceneStack(unittest.TestCase):
                                        ("pop", None)])
 
 
+    def test_music_less_cutscene_leaves_the_bus_alone(self):
+        # No companion audio and an EMPTY `Music.cutscene` slot: the previous
+        # track must keep playing, so neither push nor pop may fire. The
+        # `Music.default` fallback must NOT be borrowed here — doing so
+        # restarted the running track from zero on both edges.
+        d, music, _sfx = _director(_balance(cutscene=()))
+        d.enter_cutscene(None)
+        d.tick(GameState.GAMEPLAY, GamePhase.ENEMY, cutscene_active=True)
+        d.leave_cutscene()
+        self.assertEqual(music.calls, [])
+
+    def test_music_less_cutscene_still_unblocks_the_next_one(self):
+        d, music, _sfx = _director(_balance(cutscene=()))
+        d.enter_cutscene(None)
+        d.leave_cutscene()
+        d.enter_cutscene({"audio": "intro.mp3"})
+        d.leave_cutscene()
+        self.assertEqual(music.calls, [("push", "../video/intro.mp3"),
+                                       ("pop", None)])
+
     def test_teardown_during_a_cutscene_does_not_strand_the_next_one(self):
         # quit-to-menu mid-cutscene never reaches the host's release() edge;
         # `teardown_gameplay()` balances the stack instead. Without that, the

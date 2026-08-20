@@ -41,8 +41,9 @@ class DefenceBuilding(Building):
 
     def range_tiles(self):
         """RAW tier range — NO mountain bonus. This is what feeds defence-range
-        pathfinding coverage + the RANGE overlay (10I keeps the raw/effective
-        split, prototype ``game.py:601`` / ``:2014``)."""
+        pathfinding coverage (10I keeps the raw/effective split, prototype
+        ``game.py:601``). The RANGE overlay reads ``targeting_range_tiles()``
+        instead, so a mountain defender's diamonds match where it shoots."""
         return self.tier_data()["range_tiles"]
 
     # -- 10I: effective range (targeting / panel / selection highlight) -----
@@ -51,8 +52,8 @@ class DefenceBuilding(Building):
         """Range after the MOUNTAIN +1 bonus (prototype
         ``defence_building.py:161-168``). Consumed by the panel Range row and
         the selection range highlight (and, except for the mortar, targeting —
-        see ``targeting_range_tiles``); pathfinding coverage and the RANGE
-        overlay read the RAW ``range_tiles()`` instead."""
+        see ``targeting_range_tiles``); pathfinding coverage reads the RAW
+        ``range_tiles()`` instead."""
         return self.range_tiles() + self._condition_mod("def_range_bonus")
 
     def targeting_range_tiles(self):
