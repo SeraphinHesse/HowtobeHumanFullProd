@@ -191,7 +191,10 @@ class SaveFilesScreen:
         t = anim_ms(self._clock)
         self.skinning.submit_background(renderer, self.screen_id, view_w,
                                         view_h, anim_ms=t)
-        widgets.submit_backdrop(renderer, self._backdrop, anim_ms=t)
+        widgets.submit_backdrop(
+            renderer, self._backdrop, anim_ms=t,
+            skip_fill=self.skinning.backdrop_fill_hides_background(
+                self.screen_id))
         if is_visible(self.back_btn):
             self.back_btn.submit(renderer, anim_ms=t,
                                  **button_kwargs(self.back_btn))

@@ -5173,6 +5173,24 @@
   "credits": {
     "items": [
       {
+        "anim_time_ms": 0,
+        "animation": "idle",
+        "crop": null,
+        "dest": [
+          0,
+          0
+        ],
+        "flip": false,
+        "hidden_frames": [],
+        "size": [
+          640,
+          360
+        ],
+        "slot_key": "ui_bg_main_menu",
+        "tint": null,
+        "type": "sprite"
+      },
+      {
         "border_radius": 0,
         "color": [
           12,
@@ -5569,7 +5587,7 @@
           300,
           242
         ],
-        "text": "Sylvius Lack",
+        "text": "Lecturer",
         "type": "text"
       },
       {
@@ -5585,7 +5603,7 @@
           340,
           242
         ],
-        "text": "Lecturer",
+        "text": "Sylvius Lack",
         "type": "text"
       },
       {
@@ -5599,28 +5617,28 @@
         "font_key": "sm",
         "pos": [
           300,
+          255
+        ],
+        "text": "Lecturer ",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "family": null,
+        "font_key": "md",
+        "pos": [
+          340,
           255
         ],
         "text": "Heiko Ihde",
         "type": "text"
       },
       {
-        "align": "left",
-        "color": [
-          235,
-          225,
-          195
-        ],
-        "family": null,
-        "font_key": "md",
-        "pos": [
-          340,
-          255
-        ],
-        "text": "Lecturer",
-        "type": "text"
-      },
-      {
         "align": "right",
         "color": [
           150,
@@ -5633,7 +5651,7 @@
           300,
           268
         ],
-        "text": "Samuel Gower",
+        "text": "Lecturer",
         "type": "text"
       },
       {
@@ -5649,7 +5667,7 @@
           340,
           268
         ],
-        "text": "Lecturer",
+        "text": "Samuel Gower",
         "type": "text"
       },
       {
@@ -5665,7 +5683,7 @@
           300,
           281
         ],
-        "text": "Dustin Paasch",
+        "text": "Lecturer",
         "type": "text"
       },
       {
@@ -5681,7 +5699,7 @@
           340,
           281
         ],
-        "text": "Lecturer",
+        "text": "Dustin Paasch",
         "type": "text"
       },
       {
@@ -5695,25 +5713,25 @@
         "font_key": "sm",
         "pos": [
           300,
-          300
-        ],
-        "text": "Mediadesign Hochschule",
-        "type": "text"
-      },
-      {
-        "align": "left",
-        "color": [
-          235,
-          225,
-          195
-        ],
-        "family": null,
-        "font_key": "md",
-        "pos": [
-          340,
           300
         ],
         "text": "University",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "family": null,
+        "font_key": "md",
+        "pos": [
+          340,
+          300
+        ],
+        "text": "Mediadesign Hochschule",
         "type": "text"
       },
       {
@@ -7194,6 +7212,24 @@
   "main_menu": {
     "items": [
       {
+        "anim_time_ms": 0,
+        "animation": "idle",
+        "crop": null,
+        "dest": [
+          0,
+          0
+        ],
+        "flip": false,
+        "hidden_frames": [],
+        "size": [
+          640,
+          360
+        ],
+        "slot_key": "ui_bg_main_menu",
+        "tint": null,
+        "type": "sprite"
+      },
+      {
         "border_radius": 0,
         "color": [
           18,
@@ -8104,6 +8140,24 @@
   },
   "settings": {
     "items": [
+      {
+        "anim_time_ms": 0,
+        "animation": "idle",
+        "crop": null,
+        "dest": [
+          0,
+          0
+        ],
+        "flip": false,
+        "hidden_frames": [],
+        "size": [
+          640,
+          360
+        ],
+        "slot_key": "ui_bg_main_menu",
+        "tint": null,
+        "type": "sprite"
+      },
       {
         "border_radius": 0,
         "color": [

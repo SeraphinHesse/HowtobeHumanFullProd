@@ -365,7 +365,10 @@ class HighscoresScreen:
         t = anim_ms(self._clock)
         self.skinning.submit_background(renderer, self.screen_id, view_w,
                                         view_h, anim_ms=t)
-        widgets.submit_backdrop(renderer, self._backdrop, anim_ms=t)
+        widgets.submit_backdrop(
+            renderer, self._backdrop, anim_ms=t,
+            skip_fill=self.skinning.backdrop_fill_hides_background(
+                self.screen_id))
         for btn in (self.rename_btn, self.back_btn):
             if is_visible(btn):
                 btn.submit(renderer, anim_ms=t, **button_kwargs(btn))

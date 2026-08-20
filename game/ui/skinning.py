@@ -444,6 +444,29 @@ class ScreenSkinning:
             return {"color": _as_tuple(bg["color"])}
         return {"slot": bg["slot"]}
 
+    def backdrop_fill_hides_background(self, screen_id: str) -> bool:
+        """True when this screen's full-view ``backdrop`` fill would paint
+        OVER the background ``submit_background`` just drew, hiding it.
+
+        Every shell screen builds its ``backdrop`` holder with an opaque
+        code-default colour (``SimpleNamespace(..., color=_BG)``) and draws it
+        immediately after the background — which predates backgrounds existing
+        and is why a screen could resolve a background and still look flat.
+        A screen that draws its backdrop through ``widgets.submit_backdrop``
+        passes this as ``skip_fill`` so the fill yields to the art.
+
+        Two things it deliberately does NOT suppress:
+
+        * a designer's ``backdrop.skin`` — ``submit_backdrop`` handles that
+          precedence itself, and a skin is an explicit choice to cover.
+        * a designer's ``backdrop.color`` authored in ``data/ui/screens/
+          <id>.json`` — an explicit fill beats an inherited background, the
+          same way an explicit ``background`` key beats the default one.
+        """
+        if self.screen_background(screen_id) is None:
+            return False
+        return "color" not in self._widgets_spec(screen_id).get("backdrop", {})
+
     def submit_background(self, renderer, screen_id: str, view_w, view_h,
                           anim_ms: int = 0) -> None:
         """Draw the full-view background override (if any) — one call at the

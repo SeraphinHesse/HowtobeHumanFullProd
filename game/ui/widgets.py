@@ -68,7 +68,7 @@ def anim_ms(clock_s):
     return round(clock_s * 1000)
 
 
-def submit_backdrop(renderer, backdrop, anim_ms=0):
+def submit_backdrop(renderer, backdrop, anim_ms=0, skip_fill=False):
     """A screen's full-view ``backdrop`` holder — ONE draw site for all 14
     screens, so a designer's ``backdrop.skin`` cannot work on some and be
     silently dropped on others.
@@ -84,13 +84,22 @@ def submit_backdrop(renderer, backdrop, anim_ms=0):
 
     A skin REPLACES the fill rather than layering over it — the same
     precedence ``Button.submit`` already gives a skin over ``color``, so the
-    two skinned kinds cannot disagree."""
+    two skinned kinds cannot disagree.
+
+    ``skip_fill``: drop the flat ``HudRect`` (and ONLY that — a ``skin`` still
+    draws) because the caller already submitted a whole-screen background
+    underneath that this opaque code-default fill would hide. Callers pass
+    ``ScreenSkinning.backdrop_fill_hides_background(screen_id)``, which is
+    what decides it; the default ``False`` keeps every other call site
+    byte-identical."""
     skin = getattr(backdrop, "skin", None)
     x, y, w, h = backdrop.rect
     if skin:
         renderer.submit_hud(HudSprite(skin, (x, y), (w, h),
                                       anim_time_ms=int(anim_ms),
                                       tint=getattr(backdrop, "tint", None)))
+        return
+    if skip_fill:
         return
     color = getattr(backdrop, "color", None)
     if color is not None:
