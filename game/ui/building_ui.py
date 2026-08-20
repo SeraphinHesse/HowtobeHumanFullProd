@@ -113,6 +113,13 @@ _UPGRADE_COLOR_PREFIX = "upgrade_swatch"
 #: for the worked arithmetic.
 _COLOUR_ROW_GAP = 6
 
+#: Border a SKINNED swatch keeps around its colour patch, in logical px per
+#: side. A skinned `Button` drops `color=` (`Button.submit`), so the colour is
+#: painted inset over the sprite instead — see `ColorSwatchRow.submit`. 2px
+#: leaves an 8x8 patch inside the 12px square: enough frame for the skin to
+#: read as a button, enough patch for the colour to read as a colour.
+_SWATCH_FILL_INSET = 2
+
 #: Slot-key prefix for the OPTIONAL dedicated card-portrait art family
 #: (`data/slots.json`'s `ui` -> "Card Portraits"), completed by the card's
 #: `building_type`. Only consulted when the screen's
@@ -762,6 +769,23 @@ class ColorSwatchRow:
             if kwargs.get("color") is None:
                 kwargs["color"] = self.fills[i]
             btn.submit(renderer, anim_ms=anim_ms, **kwargs)
+            if getattr(btn, "skin", None):
+                # A SKINNED button ignores `color` entirely (`Button.submit`'s
+                # long-standing precedence), and `building_panel`'s
+                # `defaults.button_skin` skins EVERY code-owned button on the
+                # screen (`skinning.apply`) — so the whole row rendered as
+                # identical button art and the colour never appeared at all.
+                # The swatch's ONLY job is to show its colour, so it is
+                # painted INSET over the sprite: the skin still frames the
+                # square (and its hover/pressed rows still play), the colour
+                # still reads. An unskinned swatch is untouched — the flat
+                # fill below it already IS the colour.
+                bx, by, bw, bh = btn.rect
+                inset = _SWATCH_FILL_INSET
+                if bw > 2 * inset and bh > 2 * inset:
+                    renderer.submit_hud(HudRect(
+                        (bx + inset, by + inset,
+                         bw - 2 * inset, bh - 2 * inset), kwargs["color"]))
             if selected is not None and i == selected:
                 renderer.submit_hud(
                     HudRect(btn.rect, widgets.highlight_color("tile_selected"),
