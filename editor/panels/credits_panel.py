@@ -8,7 +8,8 @@ credit row: **role** and **name** boxes, ▲/▼ to reorder, ✕ to delete, plus
 "Add Person" / "Add Spacer" at the top. A row with both columns empty is a
 SPACER (the game's own rule) and is drawn here as a labelled separator rather
 than two empty boxes, so a designer can see the grouping the credits screen
-will render.
+will render — EXCEPT a row the designer just added with "Add Person" and has
+not typed into yet, which keeps its boxes (see ``_is_person``).
 
 Edits are STAGED, not written immediately — ``strings_panel.py``'s pattern:
 every change updates an in-memory doc, and ONE "Save Credits" button (enabled
@@ -56,6 +57,12 @@ class CreditsPanel(QWidget):
         self._data_dir = Path(data_dir) if data_dir is not None else REPO / "data"
         self._doc = None
         self._baseline = None
+        # Rows the designer just added with "Add Person" and has not typed into
+        # yet, held by OBJECT IDENTITY (they survive a reorder; the doc holds
+        # the only other reference). An empty person and a spacer are the same
+        # row in the DATA — both columns blank — so without this a fresh "Add
+        # Person" would appear as a spacer, which is what it used to do.
+        self._new_person_rows = []
 
         self.save_button = QPushButton("Save Credits", self)
         self.save_button.setEnabled(False)
@@ -104,6 +111,7 @@ class CreditsPanel(QWidget):
             return
         self._doc = doc
         self._baseline = copy.deepcopy(doc)
+        self._new_person_rows = []
         self._rebuild_list()
 
     def _show_unavailable(self):
@@ -133,6 +141,11 @@ class CreditsPanel(QWidget):
         old = self._scroll.takeWidget()
         if old is not None:
             old.deleteLater()
+        # Drop pending rows that have since been deleted, so a stale object can
+        # never keep a later row person-shaped.
+        self._new_person_rows = [
+            row for row in self._new_person_rows
+            if any(row is existing for existing in self._doc["rows"])]
         content = QWidget()
         content_layout = QVBoxLayout(content)
         content_layout.setContentsMargins(0, 0, 0, 0)
@@ -148,7 +161,7 @@ class CreditsPanel(QWidget):
         layout = QHBoxLayout(widget)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        if credits_ops.is_spacer(row):
+        if not self._is_person(row):
             # A spacer has nothing to type into — show the gap it renders as,
             # not two empty boxes a designer would read as an unfinished row.
             caption = QLabel("spacer", widget)
@@ -189,6 +202,17 @@ class CreditsPanel(QWidget):
         layout.addWidget(remove)
         return widget
 
+    def _is_person(self, row):
+        """Whether this row gets NAME/ROLE boxes rather than a spacer bar.
+
+        A blank row is a spacer to the game, but a blank row the designer just
+        created with "Add Person" is a person they have not filled in yet —
+        the panel remembers which, so adding someone does not look like adding
+        a gap. Saving it blank still writes a spacer, which is what the game
+        will draw; the status line says so."""
+        return (not credits_ops.is_spacer(row)
+                or any(row is pending for pending in self._new_person_rows))
+
     # -- staged edits ---------------------------------------------------------
 
     def _on_text(self, index, key, value):
@@ -197,9 +221,14 @@ class CreditsPanel(QWidget):
         row = self._doc["rows"][index]
         if row[key] == value:
             return
-        was_spacer = credits_ops.is_spacer(row)
+        was_person = self._is_person(row)
         row[key] = value
-        if was_spacer != credits_ops.is_spacer(row):
+        if not credits_ops.is_spacer(row):
+            # It has real text now — it is a person on its own merits, so stop
+            # tracking it as pending (blanking it later makes it a spacer).
+            self._new_person_rows = [
+                pending for pending in self._new_person_rows if pending is not row]
+        if was_person != self._is_person(row):
             # Emptying both columns turns a person into a spacer (and back) —
             # the row's whole widget shape changes, so rebuild rather than
             # leave a spacer showing text boxes.
@@ -210,8 +239,9 @@ class CreditsPanel(QWidget):
     def _on_add_person(self):
         if self._doc is None:
             return
-        credits_ops.insert_row(self._doc, len(self._doc["rows"]),
-                               credits_ops.new_person())
+        row = credits_ops.new_person()
+        self._new_person_rows.append(row)
+        credits_ops.insert_row(self._doc, len(self._doc["rows"]), row)
         self._rebuild_list()
 
     def _on_add_spacer(self):
@@ -238,12 +268,14 @@ class CreditsPanel(QWidget):
         self.save_button.setEnabled(dirty)
         self.add_person_button.setEnabled(True)
         self.add_spacer_button.setEnabled(True)
-        people = sum(1 for row in self._doc["rows"]
-                     if not credits_ops.is_spacer(row))
+        people = sum(1 for row in self._doc["rows"] if self._is_person(row))
         spacers = len(self._doc["rows"]) - people
-        self._status.setText(
-            f"{people} credited, {spacers} spacer(s)"
-            + ("  ●  unsaved changes" if dirty else ""))
+        blank = sum(1 for row in self._doc["rows"]
+                    if self._is_person(row) and credits_ops.is_spacer(row))
+        text = f"{people} credited, {spacers} spacer(s)"
+        if blank:
+            text += f"  —  {blank} still blank (saves as a spacer)"
+        self._status.setText(text + ("  ●  unsaved changes" if dirty else ""))
 
     # -- save: the ONE write path (ED-31) -------------------------------------
 
