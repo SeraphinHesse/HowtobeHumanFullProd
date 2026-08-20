@@ -31,7 +31,7 @@ from game.map.pathfinder import (
 )
 from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition
 
-from .dirt_pile import spawn_dirt_pile
+from .dirt_pile import DIRT_PILE_SLOT, spawn_dirt_pile
 from .sounds import ATTACK, play_enemy_sound
 
 # Chunk 4: hunt-string ("EnemyTypes.<type>.hunts") -> the goal-set pathfinder
@@ -165,6 +165,47 @@ def _anim_length_ms(owner, name):
     except Exception:      # a cosmetic lookup must never break the sim
         return 0.0
     return float(ms) if ms else 0.0
+
+
+# Where to put a DECAL so its sprite centre lands on another sprite's handle —
+# the ``set_anim_length_hook`` seam's sibling, and installed the same way (once
+# per run, by ``game/main.py``, with ``Renderer.align_center_world``). Same
+# layering reason: the placement math is the renderer's
+# (``sprite_anchor_screen`` + the manifest offsets + the tile-diamond-centre
+# convention), and `game/enemies` may not read either the asset layer or the
+# coordinate system.
+#
+# Shape ``(decal_slot, target_slot, wx, wy, fit_tiles, scale) -> (wx, wy)``.
+# The ONE reader is ``BurrowAgent``: the Digger's hole decal is spawned on the
+# Digger's OWN ``depth_pivot`` — the point it is depth-tracked by — rather than
+# on the raw tile it happens to be addressed by.
+_decal_align_hook = None
+
+
+def set_decal_align_hook(fn):
+    """Install (or clear, ``fn=None``) the decal alignment lookup. ``game/
+    main.py`` passes ``renderer.align_center_world``."""
+    global _decal_align_hook
+    _decal_align_hook = fn
+
+
+def _aligned_decal_pos(owner, decal_slot, fallback):
+    """Where ``decal_slot`` goes so its centre sits on ``owner``'s sprite's
+    ``depth_pivot`` — ``fallback`` (a ``(wx, wy)`` pair) whenever there is no
+    answer: hook unset, no ``SpriteAnimator``, or the lookup raised. A cosmetic
+    alignment must never break the sim."""
+    if _decal_align_hook is None:
+        return fallback
+    anim = owner.get_component(SpriteAnimator)
+    if anim is None or not anim.slot_key:
+        return fallback
+    try:
+        wx, wy = _decal_align_hook(decal_slot, anim.slot_key,
+                                   owner.transform.wx, owner.transform.wy,
+                                   anim.fit_tiles, anim.scale)
+    except Exception:
+        return fallback
+    return (float(wx), float(wy))
 
 
 def _apply_thorns(attacker, dmg):
@@ -1311,8 +1352,16 @@ class BurrowAgent(Component):
         anim = owner.get_component(SpriteAnimator)
         if anim is not None:
             anim.visible = False
-        spawn_dirt_pile(getattr(owner, "_scene", None),
-                        round(self.start_wx), round(self.start_wy),
+        # The hole is placed so its sprite's CENTRE lands exactly on the
+        # Digger's own `depth_pivot` — the handle the Digger is depth-tracked
+        # by (user decision) — not on the raw tile it is addressed by, which
+        # sat a sprite-offset away from where the body visibly stands. The
+        # rounded tile is the fallback for every caller with no alignment hook
+        # installed (every headless fixture), i.e. the old placement.
+        pile_wx, pile_wy = _aligned_decal_pos(
+            owner, DIRT_PILE_SLOT,
+            (round(self.start_wx), round(self.start_wy)))
+        spawn_dirt_pile(getattr(owner, "_scene", None), pile_wx, pile_wy,
                         self.dig_duration * 1000.0)
 
     def _emerge(self, owner, pa, tm):

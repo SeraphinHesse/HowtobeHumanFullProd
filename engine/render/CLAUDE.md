@@ -82,6 +82,20 @@ the fix — drag it to the sprite's feet in the editor's Anchors panel and
   and the zoom it multiplies in is divided straight back out — the order is
   zoom-independent. It is the ONLY anchor read at draw-order time rather than
   by a draw site.
+- **`Renderer.anchor_world(slot_key, wx, wy, fit_tiles, scale, anchor)` IS that
+  computation**, public since a decal wanted the same answer for PLACEMENT and
+  not only for sorting; `_depth_pos` is one call to it. `anchor` may be a name
+  or a literal `(x, y)` frame-px pair, where `(0, 0)` is the sprite's drawn
+  centre. An unauthored name returns `(wx, wy)` — the same graceful no-op.
+- **`Renderer.align_center_world(decal_slot, target_slot, wx, wy, fit_tiles,
+  scale)`** answers "where do I put `decal_slot` so its drawn CENTRE lands on
+  `target_slot`'s handle": two `anchor_world` calls, the handle's world point
+  then the decal's own centre drift (its `offset_x`/`offset_y`) subtracted back
+  out — never a restatement of the placement math. Its one consumer today is
+  the Digger's hole decal, through a game-side seam (`game/enemies/CLAUDE.md`'s
+  cosmetic-placement seams). A decal with no offsets makes the second call an
+  identity; it is there so a designer nudging that slot cannot silently pull
+  the decal off the handle.
 
 ## `RenderItem.column` — the LIVE master-sheet column (MasterSheetColumnsPLAN C3)
 `RenderItem` carries `column: int | None = None`, appended last, and

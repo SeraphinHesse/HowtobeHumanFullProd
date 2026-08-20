@@ -112,8 +112,8 @@ from game.enemies.components import (  # debug-mode-telemetry Phase 3 + 5
     set_damage_hook, set_wall_damage_hook,
 )
 from game.enemies.components import apply_slow  # BU-3 3.3: the slow primitive
-from game.enemies.components import (  # the animation-length lookup seam
-    set_anim_length_hook,
+from game.enemies.components import (  # the two cosmetic-placement seams
+    set_anim_length_hook, set_decal_align_hook,
 )
 from game.enemies.components import (  # BU-3 3.4: the thorns hook pair seam
     set_boss_upgrade_pair,
@@ -1332,6 +1332,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None,
     # ground until it has played out and stops its `emerge` row re-looping
     # under the longer emerge cooldown.
     set_anim_length_hook(assets.animation_total_ms)
+    # Its sibling: where a decal goes so its sprite CENTRE lands on another
+    # sprite's `depth_pivot` — the Digger's hole on the Digger's own
+    # depth-tracking point.
+    set_decal_align_hook(renderer.align_center_world)
 
     # -- SD-6: the UI sound seam. `game/ui` is pygame-free, so it never
     # imports engine.audio: it hands a SLOT to this host-injected sink and the

@@ -17,7 +17,7 @@ from engine.assets.types import Frame
 from engine.coords import Camera, CoordinateSystem, Geometry
 from engine.render import (
     LAYERS, HudSprite, OverlayLines, OverlayPolys, RenderItem, Renderer,
-    WorldFill, block_center_offset,
+    WorldFill, block_center_offset, fit_factor,
 )
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
@@ -123,6 +123,62 @@ class TestLayerAndDepthOrder(unittest.TestCase):
         r = Renderer(make_cs(), FakeAssets(), backend=RecordingBackend())
         with self.assertRaises(ValueError):
             r.submit(RenderItem("tile", (0, 0), layer="hud"))
+
+
+class TestAlignCenterWorld(unittest.TestCase):
+    """`Renderer.align_center_world` — where a decal goes so its drawn CENTRE
+    lands on another sprite's `depth_pivot` (the Digger's hole on the Digger).
+
+    Both sides are measured off the REAL blit `DrawCall`s, never off
+    `sprite_anchor_screen` (the primitive the method itself composes) — the
+    `test_anchor_origin_parity` rule: asserting a value against the function
+    that produced it is how an anchor bug ships green."""
+
+    def _drawn(self, sizes, offsets, anchors, target_fit):
+        backend = RecordingBackend()
+        assets = FakeAssets(sizes=sizes, offsets=offsets, anchors=anchors)
+        r = Renderer(make_cs(), assets, backend=backend)
+        pos = r.align_center_world("decal", "target", 10.0, 7.0, target_fit, 1.0)
+        r.submit(RenderItem("target", (10.0, 7.0), layer="entities",
+                            fit_tiles=target_fit))
+        r.submit(RenderItem("decal", pos, layer="entities"))
+        r.flush(target=None)
+        calls = {c.surface: c for c in backend.calls}
+        return calls["SURF:target"], calls["SURF:decal"]
+
+    @staticmethod
+    def _centre(call):
+        return (call.dest[0] + call.size[0] / 2.0,
+                call.dest[1] + call.size[1] / 2.0)
+
+    def test_decal_centre_lands_on_the_targets_depth_pivot(self):
+        # The shipping shapes: digger_stage_1 (64x96, offset_y -16,
+        # depth_pivot 6,16) and vfx_dirt_pile (64x96, no offsets).
+        target, decal = self._drawn(
+            sizes={"target": (64, 96), "decal": (64, 96)},
+            offsets={"target": (0, -16)},
+            anchors={"target": {"depth_pivot": (6, 16)}},
+            target_fit=1.0)
+        tx, ty = self._centre(target)
+        scale = fit_factor(64, 64, 1.0)          # zoom 1 in make_cs()
+        pivot = (tx + 6 * scale, ty + 16 * scale)
+        self.assertAlmostEqual(self._centre(decal)[0], pivot[0], places=6)
+        self.assertAlmostEqual(self._centre(decal)[1], pivot[1], places=6)
+
+    def test_a_decals_own_offset_is_compensated_not_inherited(self):
+        target, decal = self._drawn(
+            sizes={"target": (64, 96), "decal": (64, 96)},
+            offsets={"target": (0, -16), "decal": (9, -7)},
+            anchors={"target": {"depth_pivot": (6, 16)}},
+            target_fit=1.0)
+        tx, ty = self._centre(target)
+        scale = fit_factor(64, 64, 1.0)
+        self.assertAlmostEqual(self._centre(decal)[0], tx + 6 * scale, places=6)
+        self.assertAlmostEqual(self._centre(decal)[1], ty + 16 * scale, places=6)
+
+    def test_no_authored_pivot_is_the_targets_own_position(self):
+        r = Renderer(make_cs(), FakeAssets(), backend=RecordingBackend())
+        self.assertEqual(r.anchor_world("nothing", 4.0, 5.0), (4.0, 5.0))
 
 
 class TestAnchoring(unittest.TestCase):
