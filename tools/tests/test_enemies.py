@@ -1945,6 +1945,34 @@ class TestDiggerAnimationHolds(unittest.TestCase):
         self.assertEqual(burrow.state, BURROW_SUBMERGED)
         self.assertFalse(anim.visible)
 
+    def test_the_hole_is_spawned_on_the_diggers_depth_pivot_not_its_tile(self):
+        """The decal-alignment seam is what places the hole (user decision:
+        "the center of its sprite exactly on the depth tracking point"). The
+        renderer's own math is pinned by `test_render.TestAlignCenterWorld`;
+        what this asserts is that `BurrowAgent` actually ASKS, with the
+        Digger's own slot/fit/scale, and uses the answer verbatim."""
+        asked = []
+
+        def align(decal_slot, target_slot, wx, wy, fit_tiles, scale):
+            asked.append((decal_slot, target_slot, wx, wy, fit_tiles, scale))
+            return (wx + 0.59375, wy + 0.40625)
+
+        components.set_decal_align_hook(align)
+        self.addCleanup(components.set_decal_align_hook, None)
+        scene, dig, burrow = self._digger_in_range()
+        for _ in range(4000):
+            scene.update(0.05)
+            if burrow.state == BURROW_SUBMERGED:
+                break
+        self.assertEqual(burrow.state, BURROW_SUBMERGED)
+        scene.update(0.0)          # `Scene.spawn` only QUEUES — flush it
+        piles = scene.by_tag("dirt_pile")
+        self.assertEqual(len(piles), 1)
+        self.assertEqual(asked[0][0], DIRT_PILE_SLOT)
+        self.assertEqual(asked[0][1], dig.get_component(SpriteAnimator).slot_key)
+        self.assertAlmostEqual(piles[0].transform.wx, burrow.start_wx + 0.59375)
+        self.assertAlmostEqual(piles[0].transform.wy, burrow.start_wy + 0.40625)
+
     def test_emerge_row_plays_once_then_holds_idle_for_the_rest_of_the_stand(self):
         scene, dig, burrow = self._digger_in_range()
         anim = dig.get_component(SpriteAnimator)

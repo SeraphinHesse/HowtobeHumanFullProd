@@ -778,7 +778,14 @@ a dirt pile is a fixed world decal with one shared slot (`vfx_dirt_pile`) and no
 relationship to the unit that made it. Same pattern, different subject, and the
 design pillar is small single-purpose files. Tagged **`"dirt_pile"`, never
 `"enemy"`**, with no `alive`/Health/PathAgent, so it is invisible to every
-gameplay query exactly as a `Corpse` is. Its lifetime is **the dig duration**
+gameplay query exactly as a `Corpse` is. **It is placed on the Digger's `depth_pivot`, not on the tile the Digger is
+addressed by** (user decision: "the center of its sprite exactly on the depth
+tracking point of the digger"). `BurrowAgent._go_under` asks the
+`set_decal_align_hook` seam (above) for the world position that puts the
+decal's drawn CENTRE on that handle — the same point `Renderer._depth_pos`
+sorts the Digger by, so the hole sits exactly where the body reads as
+standing. The old `round(start_wx), round(start_wy)` tile stays as the
+no-hook fallback, which is what every headless fixture sees. Its lifetime is **the dig duration**
 (passed in by `BurrowAgent`, not read from a manifest track), so the mound is on
 the board for precisely as long as the Digger is under it — and the fade clock
 takes the same speed-scaled `sim_dt`, so that holds at 1×/1.5×/2×. **Real art
@@ -1444,7 +1451,8 @@ precedent is `game/ui/widgets.py`'s `set_skin_hit_test`.
   nothing and therefore appears in NO per-round telemetry column — it is
   event-stream-only, deliberately.
 
-## `set_anim_length_hook` — how long a sprite row plays (`components.py`)
+## Two cosmetic-placement seams in `components.py`
+### `set_anim_length_hook` — how long a sprite row plays
 A THIRD module-level hook beside the two telemetry ones, but installed for the
 WHOLE run (once, in `game/main.py`'s setup, right beside its own precedent
 `widgets.set_skin_anim_length(assets.animation_total_ms)`) rather than bracketed
@@ -1463,7 +1471,26 @@ itself, and `Scene.update`'s sweep has no parameter to thread one through.
   pre-hook behaviour. Fixtures that WANT a hold install a stub and clear it in
   `addCleanup` (`TestDiggerAnimationHolds`).
 - The only reader today is `BurrowAgent` — its `dig`-plays-out-first and
-  `emerge`-plays-once holds (see the Digger section).
+  `emerge`-plays-once holds (see the Digger section). Measured on
+  `digger_stage_1`: `dig` 2672 ms, `emerge` 835 ms, `idle` 4008 ms.
+
+### `set_decal_align_hook` — where a decal goes to land on a handle
+The FOURTH, same shape and same install site, wired to `Renderer.
+align_center_world`. Shape `(decal_slot, target_slot, wx, wy, fit_tiles,
+scale) -> (wx, wy)`: the world position to place `decal_slot` at so its drawn
+CENTRE lands on `target_slot`'s `depth_pivot`. Read through
+`_aligned_decal_pos(owner, decal_slot, fallback)`, which returns the caller's
+fallback for every no-answer case, exactly like `_anim_length_ms`.
+- **The placement math stays in the renderer** (`engine/render/renderer.py`),
+  where `_depth_pos` already had to do it for the SORT. `anchor_world` is that
+  computation lifted to a public method and `_depth_pos` now calls it, so the
+  two cannot drift; `align_center_world` is two `anchor_world` calls — the
+  handle's world point, then the decal's own centre drift subtracted back out.
+  Zoom-independent (the `zoom` `sprite_anchor_screen` multiplies in is divided
+  straight back out by `screen_to_world`), so the answer does not depend on
+  when it is asked.
+- **The only reader today is `BurrowAgent`'s dirt pile** — see the dirt-pile
+  section. Its fallback is the rounded entry tile, i.e. the old placement.
 
 ## Crowd spacing (feature) — Standard/Walker and Raider
 When 2+ SAME-TYPE enemies genuinely share a tile (not just briefly crossing
