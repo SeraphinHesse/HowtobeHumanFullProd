@@ -60,7 +60,7 @@
           "boost_increase_per_level": 0.02,
           "boost_per_turn": 0.06,
           "build_cost": 25,
-          "explanation": "High-energy routines noticeably sharpen damage output.",
+          "explanation": "High energy routines noticeably sharpen damage output.",
           "hp_per_level": 40,
           "levels": 3,
           "name": "Attack Booster II",
@@ -759,7 +759,7 @@
           "base_upkeep": 5,
           "build_cost": 45,
           "dmg_per_level": 0,
-          "explanation": "Lightning gathers wherever this priest stands.",
+          "explanation": "Lightning gathers wherever  you want.",
           "hp_per_level": 70,
           "levels": 3,
           "name": "Lightning Rod",
@@ -775,7 +775,7 @@
           "base_upkeep": 8,
           "build_cost": 100,
           "dmg_per_level": 0,
-          "explanation": "The sky itself answers to this high priest.",
+          "explanation": "The sky itself answers to you.",
           "hp_per_level": 100,
           "levels": 3,
           "name": "Lightning Storm",
@@ -788,7 +788,7 @@
     },
     "globals": {
       "min_attack_speed": 0.2,
-      "projectile_speed_tiles": 3.75
+      "projectile_speed_tiles": 3.95
     }
   },
   "EconomyBuildings": {
@@ -1165,7 +1165,7 @@
           "explanation": "Grows a  wall around every unlocked tile.",
           "hp_per_level": 20,
           "levels": 3,
-          "name": "Wall Lookout",
+          "name": "Wall Tower",
           "upgrade_cost_base": 15,
           "upgrade_cost_increment": 5,
           "upkeep_per_level": 1,
@@ -1193,7 +1193,7 @@
           "explanation": "Raises the walls even more. Even tougher than before.",
           "hp_per_level": 50,
           "levels": 3,
-          "name": "Wall Tower",
+          "name": "Wall Lookout",
           "upgrade_cost_base": 30,
           "upgrade_cost_increment": 30,
           "upkeep_per_level": 3,

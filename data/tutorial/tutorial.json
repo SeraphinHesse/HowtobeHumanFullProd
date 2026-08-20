@@ -1,10 +1,10 @@
 {
   "first_loss_costs_life": true,
   "messages": {
-    "close_panel_hint": "right click anywhere to close",
-    "economy_intro": "You need love to create. In order for you to gain Love, you need economy buildings",
-    "lives_intro": "Once the humans reach our hole the round is lost. You have only 3 lives. If economy buildings get destroyed during the human attack they don't yield resources. To defend your base you need to build defense buildings",
-    "tile_buying_intro": "A defender can only hit enemies within its range. Buy the tile next to you and place a second stone thrower on its far corner - together they cover the ground between them"
+    "close_panel_hint": "Right click anywhere to close",
+    "economy_intro": "You need love to create and progress.\nTo gain Love, place a flute player.\nIf a flute player gets destroyed they don't yield love. ",
+    "lives_intro": "When a human reaches our hole the round is lost. \nYou have only 3 lives. \nTo defend your base you need to place a stone thrower.",
+    "tile_buying_intro": "Buy the tile next to you and place a second stone thrower. \nExpand, upgrade and defend!"
   },
   "skippable": true,
   "steps": [

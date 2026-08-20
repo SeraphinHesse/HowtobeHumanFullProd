@@ -4501,20 +4501,24 @@
     "boss_era_1": {
       "anchors": {
         "beam_endpoint": [
-          -2,
-          7
+          -10,
+          -18
         ],
         "depth_pivot": [
           2,
           44
         ],
         "floater_origin": [
-          -2,
-          6
+          -7,
+          -24
+        ],
+        "hp_bar": [
+          -5,
+          -46
         ],
         "impact": [
           -2,
-          6
+          2
         ]
       },
       "column_width": 7,
@@ -4611,6 +4615,10 @@
         "floater_origin": [
           0,
           -7
+        ],
+        "hp_bar": [
+          -6,
+          -32
         ],
         "impact": [
           -2,
