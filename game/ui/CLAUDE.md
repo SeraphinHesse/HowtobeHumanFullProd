@@ -1440,8 +1440,10 @@ and no hover anywhere on this panel: unlock, construct and upgrade each draw
 terrain cards (below), whose effect rows read LIVE from
 `TileConditions.modifiers` (enemy effects deliberately unlisted,
 prototype-exact). `base_info` names no terrain at all. The panel Range row + selection range highlight use
-`effective_range_tiles()` when present (mountain +1); the RANGE overlay stays
-raw.
+`effective_range_tiles()` when present (mountain +1); the RANGE overlay uses
+`targeting_range_tiles()` (mountain +1 too, except the mortar, which really
+does target at raw range) — it used to read raw and drew a tile short on every
+mountain defender.
 
 ### Terrain cards + the terrain box as WIDGETS (unlock-screen rework)
 

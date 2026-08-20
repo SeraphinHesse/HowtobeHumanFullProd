@@ -376,14 +376,18 @@ class TestSpawnComposition(unittest.TestCase):
                                      expected_count("SiegeCannon", r))
 
     def test_siege_lead_group_heads_the_queue(self):
-        # The lead group spawns FIRST (prototype siege_front + shuffled rest);
-        # FakeRng.shuffle is identity, so the head of the queue is exactly it.
+        # The lead group spawns FIRST behind the diggers (digger_front +
+        # siege_front + shuffled rest); FakeRng.shuffle is identity, so the
+        # head of the queue is exactly those two blocks.
         r = SIEGE["start_round"] + 4
         _sp, etypes = self._counts(r)
         n_siege = etypes.count("siege")
+        n_dig = etypes.count("digger")            # every digger leads (unsplit)
         lead = min(int(SIEGE["queue_lead_count"] * SIEGE["mix_ratio"]), n_siege)
         self.assertGreater(lead, 0)
-        self.assertEqual(etypes[:lead], ["siege"] * lead)
+        self.assertEqual(etypes[:n_dig], ["digger"] * n_dig)
+        self.assertEqual(etypes[n_dig:n_dig + lead], ["siege"] * lead)
+        etypes = etypes[n_dig:]
         # The remainder is mixed into the shuffled body, not appended in front.
         self.assertEqual(etypes[lead:].count("siege"), n_siege - lead)
 
@@ -1896,13 +1900,19 @@ class TestDigger(unittest.TestCase):
                 self.assertEqual(
                     [e for _, e in sp.pending() if e == "digger"], [])
 
-    def test_diggers_are_body_mixed_never_queue_leading(self):
+    def test_every_digger_leads_the_queue_ahead_of_the_siege_lead(self):
+        """User decision: the whole digger group opens the wave, in front of
+        even the siege lead slice. No lead/mix split — every digger the round
+        rolls is in the front block, so the body carries none."""
         tm = TestSpawnTilesAreSpawningOnly._tm()
         sp = Spawner()
         sp.begin_round(35, tm, ENEM, rng=random.Random(3))
         etypes = [e for _, e in sp.pending()]
-        self.assertIn("digger", etypes)
-        self.assertNotEqual(etypes[0], "digger")
+        n_dig = etypes.count("digger")
+        self.assertGreater(n_dig, 0)
+        self.assertEqual(etypes[:n_dig], ["digger"] * n_dig)
+        self.assertNotIn("digger", etypes[n_dig:])   # none left in the body
+        self.assertEqual(etypes[n_dig], "siege")     # cannons come next
 
 
 class TestDiggerAnimationHolds(unittest.TestCase):

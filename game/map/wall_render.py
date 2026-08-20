@@ -158,6 +158,15 @@ def wall_render_items(tile_map, col_min, col_max, row_min, row_max, art_slots,
     An owner without a ``wall_slot()`` method emits nothing rather than raising
     (headless fixtures own edges with stub builders).
 
+    **Wall colour**: the item's master-sheet ``column`` comes from the owner's
+    optional ``wall_column()`` — the BUILDER's own colour index, stamped once at
+    placement — so a wall always draws in the material of the WallBuilder that
+    raised it instead of rolling (or defaulting to) a colour of its own. An
+    owner without that method, or one with no colour driver, yields ``None``,
+    which is D3's "no live driver: use the entry's stored column" — i.e. exactly
+    the old behaviour, so headless stubs and un-coloured wall sheets are
+    unaffected.
+
     **Wall-era-art feature**: an owner's optional ``wall_era_slot()`` (the
     FROZEN era-specific key — see ``game/buildings/structure.py``) is tried
     FIRST; whenever it has no imported art yet (absent from ``art_slots``, or
@@ -184,7 +193,10 @@ def wall_render_items(tile_map, col_min, col_max, row_min, row_max, art_slots,
         slot_key = era_slot_key if era_slot_key in art_slots else wall_slot()
         if slot_key not in art_slots:
             continue
+        wall_column = getattr(edge.owner, "wall_column", None)
+        column = wall_column() if wall_column is not None else None
         items.append(RenderItem(slot_key, (col, row), layer=LAYER,
                                 animation=animation,
-                                anim_time_ms=anim_time_ms))
+                                anim_time_ms=anim_time_ms,
+                                column=column))
     return items

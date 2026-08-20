@@ -1,7 +1,49 @@
 {
+  "background": {
+    "color": [
+      0,
+      0,
+      0
+    ]
+  },
+  "defaults": {
+    "panel_skin": "ui_button_panel_v11"
+  },
   "widgets": {
+    "backdrop": {
+      "color": [
+        0,
+        0,
+        0
+      ],
+      "rect": [
+        0,
+        0,
+        640,
+        360
+      ]
+    },
     "btn_back": {
+      "rect": [
+        270,
+        315,
+        100,
+        23
+      ],
       "skin": "ui_button_panel"
+    },
+    "title": {
+      "rect": [
+        320,
+        35,
+        0,
+        0
+      ],
+      "text_color": [
+        198,
+        81,
+        151
+      ]
     }
   }
 }

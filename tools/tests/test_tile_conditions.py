@@ -679,6 +679,18 @@ class TestOverlays(unittest.TestCase):
             self.assertIn(pos, cov)
         self.assertNotIn((4 + 2, 0 + 2), cov)    # boosts add no square
 
+    def test_range_coverage_uses_mountain_boosted_range(self):
+        # fix: the overlay used to draw RAW range, so a mountain defender's
+        # diamonds stopped a tile short of where it actually shoots.
+        tm = synth(["bbbbbbbbb"])
+        b = place(tm, 4, 0, "defence", TileCondition.MOUNTAIN)
+        raw = int(b.range_tiles())
+        eff = int(b.targeting_range_tiles())
+        self.assertEqual(eff, raw + 1)           # the bonus is live
+        cov = MapOverlays.range_coverage(tm)
+        self.assertIn((4 + eff, 0), cov)
+        self.assertIn((4, eff), cov)
+
     def test_heat_ramp_endpoints(self):
         # fix/highlight-render-order: alpha capped lower (50 + 70*t, was
         # 50 + 130*t) so the hottest tiles stay see-through under buildings.
