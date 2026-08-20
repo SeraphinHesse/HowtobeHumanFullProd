@@ -3052,9 +3052,9 @@
           {
             "align": "center",
             "color": [
-              235,
-              225,
-              195
+              255,
+              255,
+              255
             ],
             "family": null,
             "font_key": "lg",
@@ -3084,9 +3084,9 @@
           {
             "align": "left",
             "color": [
-              150,
-              140,
-              120
+              168,
+              105,
+              222
             ],
             "family": null,
             "font_key": "sm",
@@ -3116,14 +3116,14 @@
           {
             "align": "left",
             "color": [
-              150,
-              140,
-              120
+              255,
+              255,
+              255
             ],
             "family": null,
             "font_key": "sm",
             "pos": [
-              243,
+              253,
               174
             ],
             "text": "Health",
@@ -3132,14 +3132,14 @@
           {
             "align": "right",
             "color": [
-              235,
-              225,
-              195
+              255,
+              255,
+              255
             ],
             "family": null,
             "font_key": "sm",
             "pos": [
-              397,
+              387,
               174
             ],
             "text": "120",
@@ -3148,14 +3148,14 @@
           {
             "align": "left",
             "color": [
-              150,
-              140,
-              120
+              255,
+              255,
+              255
             ],
             "family": null,
             "font_key": "sm",
             "pos": [
-              243,
+              253,
               185
             ],
             "text": "Damage",
@@ -3164,14 +3164,14 @@
           {
             "align": "right",
             "color": [
-              235,
-              225,
-              195
+              255,
+              255,
+              255
             ],
             "family": null,
             "font_key": "sm",
             "pos": [
-              397,
+              387,
               185
             ],
             "text": "28",
@@ -3180,14 +3180,14 @@
           {
             "align": "left",
             "color": [
-              150,
-              140,
-              120
+              255,
+              255,
+              255
             ],
             "family": null,
             "font_key": "sm",
             "pos": [
-              243,
+              253,
               196
             ],
             "text": "Range",
@@ -3196,14 +3196,14 @@
           {
             "align": "right",
             "color": [
-              235,
-              225,
-              195
+              255,
+              255,
+              255
             ],
             "family": null,
             "font_key": "sm",
             "pos": [
-              397,
+              387,
               196
             ],
             "text": "1",
@@ -3212,14 +3212,14 @@
           {
             "align": "left",
             "color": [
-              150,
-              140,
-              120
+              255,
+              255,
+              255
             ],
             "family": null,
             "font_key": "sm",
             "pos": [
-              243,
+              253,
               207
             ],
             "text": "Atk speed",
@@ -3228,14 +3228,14 @@
           {
             "align": "right",
             "color": [
-              235,
-              225,
-              195
+              255,
+              255,
+              255
             ],
             "family": null,
             "font_key": "sm",
             "pos": [
-              397,
+              387,
               207
             ],
             "text": "1.0s",
@@ -3244,14 +3244,14 @@
           {
             "align": "left",
             "color": [
-              150,
-              140,
-              120
+              255,
+              255,
+              255
             ],
             "family": null,
             "font_key": "sm",
             "pos": [
-              243,
+              253,
               218
             ],
             "text": "Upkeep",
@@ -3260,14 +3260,14 @@
           {
             "align": "right",
             "color": [
-              235,
-              225,
-              195
+              255,
+              255,
+              255
             ],
             "family": null,
             "font_key": "sm",
             "pos": [
-              397,
+              387,
               218
             ],
             "text": "0",
@@ -5217,7 +5217,7 @@
           300,
           75
         ],
-        "text": "Producer",
+        "text": "Producer, Ai Engineer",
         "type": "text"
       },
       {
@@ -5249,7 +5249,7 @@
           300,
           90
         ],
-        "text": "Game Design Lead",
+        "text": "Game Design Lead, Ai Gameplay Engineer",
         "type": "text"
       },
       {
@@ -5313,7 +5313,7 @@
           300,
           120
         ],
-        "text": "Programming Lead",
+        "text": "Programming Lead, Music",
         "type": "text"
       },
       {
@@ -5345,7 +5345,7 @@
           300,
           142
         ],
-        "text": "UI Lead/2D Artist",
+        "text": "UI Lead, 2D Artist",
         "type": "text"
       },
       {
@@ -5505,7 +5505,7 @@
           300,
           231
         ],
-        "text": "Programmer",
+        "text": "Programmer, Sound",
         "type": "text"
       },
       {

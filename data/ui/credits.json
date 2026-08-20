@@ -2,11 +2,11 @@
   "rows": [
     {
       "name": "Seraphin Hesse",
-      "role": "Producer"
+      "role": "Producer, Ai Engineer"
     },
     {
       "name": "Fabian Krüger",
-      "role": "Game Design Lead"
+      "role": "Game Design Lead, Ai Gameplay Engineer"
     },
     {
       "name": "Hendrik Wagner",
@@ -14,7 +14,7 @@
     },
     {
       "name": "Johann Heinrich",
-      "role": "Programming Lead"
+      "role": "Programming Lead, Music"
     },
     {
       "name": "",
@@ -22,7 +22,7 @@
     },
     {
       "name": "Alicia Jaison",
-      "role": "UI Lead/2D Artist"
+      "role": "UI Lead, 2D Artist"
     },
     {
       "name": "Varvara Kozačuk",
@@ -50,11 +50,15 @@
     },
     {
       "name": "Pantelis Charalambous",
-      "role": "Programmer"
+      "role": "Programmer, Sound"
     },
     {
       "name": "Alfons Kavalic",
       "role": "Programmer"
+    },
+    {
+      "name": "",
+      "role": ""
     }
   ]
 }

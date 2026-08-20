@@ -1634,9 +1634,9 @@
     "preview_cancel_btn": {
       "rect": [
         243,
-        231,
+        222,
         70,
-        17
+        25
       ],
       "skin": "ui_button_panel"
     },
@@ -1655,7 +1655,8 @@
         141,
         12,
         12
-      ]
+      ],
+      "visible": false
     },
     "preview_color_1": {
       "rect": [
@@ -1663,7 +1664,8 @@
         141,
         12,
         12
-      ]
+      ],
+      "visible": false
     },
     "preview_color_2": {
       "rect": [
@@ -1671,7 +1673,8 @@
         141,
         12,
         12
-      ]
+      ],
+      "visible": false
     },
     "preview_color_3": {
       "rect": [
@@ -1679,14 +1682,15 @@
         141,
         12,
         12
-      ]
+      ],
+      "visible": false
     },
     "preview_confirm_btn": {
       "rect": [
         327,
-        231,
+        222,
         70,
-        17
+        25
       ],
       "skin": "ui_button_panel"
     },
@@ -1701,10 +1705,10 @@
     },
     "preview_panel": {
       "rect": [
-        235,
+        206,
         105,
-        170,
-        150
+        219,
+        152
       ],
       "skin": "ui_panel_v21"
     },

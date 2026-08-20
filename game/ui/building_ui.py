@@ -354,6 +354,17 @@ _CLOSE_W, _CLOSE_H = 14, 13
 #: Font for the CONFIRM/CANCEL row shared by ConstructPreview and MovePreview.
 #: "md", not "lg" — see the comment at ConstructPreview's button row.
 _PREVIEW_BTN_FONT = "md"
+#: ConstructPreview text colours. The modal reads as one flat white block —
+#: title, stat labels and stat values all at pure white — with exactly two
+#: exceptions kept coloured on purpose: the price line (C_GOLD, it is the one
+#: number that costs you something) and the "Name:" caption (the house purple).
+#: The "click to name" placeholder keeps C_UI_TEXT_DIM so an empty field still
+#: reads as a prompt rather than as typed content.
+_PREVIEW_WHITE = (255, 255, 255)
+#: Horizontal inset of the stat block from the modal's edges, logical px, both
+#: sides (labels left-aligned in, values right-aligned in). Was the panel's own
+#: 8px chrome margin; pulled in so the two columns sit nearer the centre.
+_PREVIEW_STAT_INSET = 18
 #: BU-4: how many wrapped "sm" lines the boss-history popup's hover tooltip may
 #: use. The popup's height budget is written against exactly this number (see
 #: `_boss_popup_rect`), so the two move together.
@@ -509,7 +520,41 @@ _STAT_BACKDROP_MIN_ROWS = {"custom_panel_17": 3, "custom_panel_16": 4,
                            "custom_panel_19": 5}
 
 
-def _building_stats(b):
+def _lightning_damage(tier_number, tilemap, core_balance, exclude=None):
+    """COMBINED bolt damage one lightning click lands (feature-storm-acolyte-
+    multi-build): ``core.json`` ``LightningStrike.damage`` for ``tier_number``
+    plus every OTHER alive placed ``LIGHTNING_SOURCE_TAG`` occupant's own
+    tier's damage.
+
+    This is what the panel's Damage row shows for a Storm Priest, because it
+    is what the player actually gets: ``lightning.strike()`` fires EVERY alive,
+    ready acolyte at the clicked point in one click, each contributing its own
+    tier's flat damage. The building's own ``damage()`` is meaningless here —
+    Storm Priest dropped the ``"combat"`` tag and its tiers carry
+    ``base_dmg`` 0, so that row read a bare ``max(1, 0)`` = ``1``.
+
+    ``exclude`` is the LIVE selected building, skipped in the tilemap sweep so
+    the throwaway clones ``_next_level_rows``/``_next_tier_card`` preview on
+    (which carry the previewed tier and are not on the map) replace it instead
+    of double-counting it. A tier outside the table clamps rather than raising
+    — the damage list is a per-level balancing array, not a guarantee."""
+    dmg = core_balance["LightningStrike"]["damage"]
+
+    def at(tier):
+        return dmg[max(0, min(len(dmg) - 1, tier - 1))]
+
+    total = at(tier_number)
+    for t in tilemap.built_tiles():
+        occ = t.occupant
+        if (occ is None or occ is exclude
+                or LIGHTNING_SOURCE_TAG not in occ.tags
+                or not getattr(occ, "alive", True)):
+            continue   # a dead acolyte fires nothing, so it adds nothing
+        total += at(occ.tier_number())
+    return total
+
+
+def _building_stats(b, lightning_damage=None):
     """``[(stat_key, value)]`` for a building's current tier — the panel/
     preview stat block. Duck-typed so any future family is picked up.
 
@@ -519,7 +564,16 @@ def _building_stats(b):
     the hover-preview match (which compares keys now, not label text)."""
     rows = [("hp", b.max_hp())]
     if hasattr(b, "damage"):            # defence family
-        rows.append(("damage", b.damage()))
+        # A lightning source's Damage row is the COMBINED bolt total
+        # (``_lightning_damage``), never its own inert ``damage()`` — the
+        # caller computes it, since it needs the tilemap + core balance this
+        # pure helper has no access to. ``None`` (every caller that has no
+        # session, e.g. a headless test) keeps the old value.
+        rows.append(("damage",
+                     lightning_damage
+                     if (lightning_damage is not None
+                         and LIGHTNING_SOURCE_TAG in getattr(b, "tags", ()))
+                     else b.damage()))
         # 10I: the Range row shows the EFFECTIVE (mountain-boosted) range,
         # duck-typed so pre-10I stubs without the method keep working.
         rows.append(("range",
@@ -722,7 +776,7 @@ class ConstructPreview:
     def __init__(self, building_type, cost, buildings_balance, ui_balance,
                  view_w, view_h, count=1, tier_idx=0, repeat_count=0,
                  skinning=None, *, building_colors=None, run_state=None,
-                 boss_upgrades_balance=None):
+                 boss_upgrades_balance=None, lightning_damage=None):
         self.screen_id = SCREEN_ID
         self.skinning = skinning or ScreenSkinning.empty()
         self.building_type = building_type
@@ -746,7 +800,12 @@ class ConstructPreview:
         self.title = (_tier_name(temp) if count == 1
                       else T("building.preview.title_batch",
                              name=_tier_name(temp), count=count))
-        self.stats = _building_stats(temp)
+        # `lightning_damage` (feature-storm-acolyte-multi-build): the
+        # COMBINED bolt total the caller computed for a Storm Priest — this
+        # card's Damage row is what the placement would actually land, not the
+        # inert `max(1, base_dmg)`. Ignored for every other type (the tag gate
+        # is inside `_building_stats`), so the host passes it unconditionally.
+        self.stats = _building_stats(temp, lightning_damage)
         self.name = ""
         self.editing = False
 
@@ -999,15 +1058,15 @@ class ConstructPreview:
         self.swatches.submit(renderer, self.chosen_column, anim_ms=anim_ms)
         txt = self._text
         submit_label(renderer, txt["preview_title"], text=self.title,
-                     color=widgets.C_UI_TEXT)
+                     color=_PREVIEW_WHITE)
         submit_label(renderer, txt["preview_cost"], color=widgets.C_GOLD,
                      cost=self.total_cost)
         submit_label(renderer, txt["preview_name_label"],
-                     color=widgets.C_UI_TEXT_DIM)
+                     color=widgets.C_PURPLE)
         if self.name or self.editing:
             submit_label(renderer, txt["preview_name"],
                          text=self.name + ("_" if self.editing else ""),
-                         color=widgets.C_UI_TEXT)
+                         color=_PREVIEW_WHITE)
         else:
             submit_label(renderer, txt["preview_name"],
                          color=widgets.C_UI_TEXT_DIM)
@@ -1028,10 +1087,11 @@ class ConstructPreview:
         # with the upgrade panel's id'd rows, so renaming a stat renames
         # it in both places.
         for key, value in self.stats:
-            submit_text(renderer, _stat_label(key), (x + 8, sy), "sm",
-                        widgets.C_UI_TEXT_DIM)
-            submit_text(renderer, str(value), (x + w - 8, sy), "sm", widgets.C_UI_TEXT,
-                        align="right")
+            submit_text(renderer, _stat_label(key),
+                        (x + _PREVIEW_STAT_INSET, sy), "sm", _PREVIEW_WHITE)
+            submit_text(renderer, str(value),
+                        (x + w - _PREVIEW_STAT_INSET, sy), "sm",
+                        _PREVIEW_WHITE, align="right")
             sy += step
         self.skinning.submit_layers(renderer, self.screen_id, self.ids,
                                     "over", self.skinning.state_of, anim_ms,
@@ -3139,7 +3199,10 @@ class BuildingUI:
                         repeat_count=repeat_count, skinning=self.skinning,
                         building_colors=self.colour_columns,  # B2
                         run_state=session.state,             # BU-3 #2
-                        boss_upgrades_balance=bub)
+                        boss_upgrades_balance=bub,
+                        lightning_damage=_lightning_damage(
+                            tier_idx + 1, session.tilemap,
+                            session.core_balance))
                 return True
         return contains(self.panel_rect, mx, my)
 
@@ -3681,6 +3744,18 @@ class BuildingUI:
         # this panel at all any more.
         self._submit_construct_cond_cards(renderer, anim_ms)
 
+    def _lightning_total(self, b):
+        """``_building_stats``'s ``lightning_damage`` for ``b``, or ``None``
+        when it is not a Storm Priest (or there is no session to read the
+        tilemap/core balance off yet). ``b`` may be one of the preview clones —
+        it supplies the TIER, the live selection is excluded from the sweep."""
+        if (self._session is None
+                or LIGHTNING_SOURCE_TAG not in getattr(b, "tags", ())):
+            return None
+        return _lightning_damage(b.tier_number(), self._session.tilemap,
+                                 self._session.core_balance,
+                                 exclude=self._selected)
+
     def _next_level_rows(self, b):
         """``_building_stats`` at the NEXT in-tier level, computed on a
         throwaway clone that copies the tier cursor + boost/condition/streak
@@ -3705,7 +3780,7 @@ class BuildingUI:
             tye.streak = ye.streak
         if not temp.upgrade():
             return None
-        return _building_stats(temp)
+        return _building_stats(temp, self._lightning_total(temp))
 
     def _next_tier_card(self, b):
         """``(slot_key, next_tier_name, first-3 stat rows)`` for tier+1 level 1
@@ -3720,7 +3795,8 @@ class BuildingUI:
         tts.current_tier = b.get_component(TierState).current_tier + 1
         tts.current_level_in_tier = 1
         temp.apply_tier_stats()
-        return temp.slot_key(), _tier_name(temp), _building_stats(temp)[:3]
+        return (temp.slot_key(), _tier_name(temp),
+                _building_stats(temp, self._lightning_total(temp))[:3])
 
     @staticmethod
     def _submit_stat_delta(renderer, holder, value, pv):
@@ -3821,7 +3897,7 @@ class BuildingUI:
         # 268 < 300, so nothing here needs the panel (which is view_h tall
         # anyway) to grow.
         md_step, sm_step = _row_step("md"), _row_step("sm")
-        for key, value in _building_stats(b):
+        for key, value in _building_stats(b, self._lightning_total(b)):
             name_h, value_h = self._stat_rows[key]
             submit_label(renderer, name_h, color=widgets.C_UI_TEXT_DIM)
             pv = preview.get(key) if preview else None

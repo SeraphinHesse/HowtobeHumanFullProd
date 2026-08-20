@@ -16,13 +16,13 @@
   },
   "Debug": {
     "ask_player_identity": false,
-    "debug_mode_available": true,
+    "debug_mode_available": false,
     "default_level": 1,
     "default_output_csv": true,
     "default_output_html": true,
     "default_output_jsonl": true,
     "default_output_md": true,
-    "regular_mode_available": false
+    "regular_mode_available": true
   },
   "EnemyIntro": {
     "entries": [

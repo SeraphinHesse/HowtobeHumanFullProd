@@ -157,6 +157,11 @@ _SKIP_FADE_DURATION = 0.5
 # line than a 2px one, so the radius can stay small.
 _SKIP_RING_RADIUS = 13
 _SKIP_RING_WIDTH = 3
+# The ring is deliberately NOT skinned off the UI text palette: it is a white
+# track with a yellow fill, so it reads as a control affordance rather than as
+# another line of prompt text (which C_UI_TEXT_DIM/C_GOLD made it look like).
+_SKIP_RING_BG = (255, 255, 255)
+_SKIP_RING_FILL = (255, 225, 40)
 _WORLD_STATES = (GameState.GAMEPLAY, GameState.GAME_OVER)
 _KEY_NAMES = None  # lazily built (needs pygame constants)
 
@@ -1014,7 +1019,7 @@ def _submit_cutscene_skip(renderer, view_w, view_h, skip_progress, idle_t):
     ring_cy = text_y - 4 - _SKIP_RING_RADIUS
     widgets.submit_progress_ring(
         renderer, ring_cx, ring_cy, _SKIP_RING_RADIUS, skip_progress,
-        bg=_dim(widgets.C_UI_TEXT_DIM), fill=_dim(widgets.C_GOLD),
+        bg=_dim(_SKIP_RING_BG), fill=_dim(_SKIP_RING_FILL),
         width=_SKIP_RING_WIDTH)
     renderer.submit_hud(HudText(
         text, (text_x, text_y), "md", _dim((210, 210, 210)) + (alpha,),
