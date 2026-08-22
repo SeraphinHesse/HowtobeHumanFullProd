@@ -277,5 +277,43 @@ class TestDisabledIsAllNoOps(unittest.TestCase):
         self.assertEqual(sfx.calls, [])
 
 
+class TestTheHostActuallyWiresTheBossFlag(unittest.TestCase):
+    """Every other test in this file calls `tick(..., boss_round=True)`
+    itself, so the whole boss-music feature stays green with the ONE line
+    that computes the flag missing — which is exactly what happened: the
+    Sound-Implementation merge into Development kept every hunk except
+    `game/main.py`'s, and `boss_round` silently defaulted to False forever.
+
+    Source inspection, the `test_game_boot.py` wiring-pin pattern: booting
+    far enough to reach a real boss round is not something a unit test can
+    do, and the failure mode is a missing ARGUMENT, which nothing downstream
+    can observe."""
+
+    def test_main_passes_is_boss_round_into_director_tick(self):
+        from pathlib import Path
+
+        repo = Path(__file__).resolve().parents[2]
+        host = (repo / "game" / "main.py").read_text(encoding="utf-8")
+        at = host.find("director.tick(")
+        self.assertNotEqual(at, -1,
+                            "game/main.py no longer calls director.tick")
+        # The call spans several lines; read to its closing paren by depth.
+        depth, i = 0, host.index("(", at)
+        for i in range(i, len(host)):
+            if host[i] == "(":
+                depth += 1
+            elif host[i] == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+        call = host[at:i + 1]
+        self.assertIn(
+            "is_boss_round", call,
+            "game/main.py's director.tick call no longer passes the boss "
+            "flag, so Music.boss_phase can never play. Restore the 4th "
+            "argument: session.is_boss_round() when a world exists, else "
+            "False.")
+
+
 if __name__ == "__main__":
     unittest.main()

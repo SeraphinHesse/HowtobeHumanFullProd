@@ -177,6 +177,37 @@ class TestFrontRankAlwaysWins(unittest.TestCase):
             widgets._HIGHLIGHT_TRIGGERS.clear()
             widgets._HIGHLIGHT_TRIGGERS.update(saved)
 
+    def test_play_once_vfx_uses_the_front_rank(self):
+        """The one-shot sprite twin of the mapping above: `_play` hands
+        `spawn_play_once` FRONT_RANK for a `draw_in_front` row and -1 for a
+        behind one. Without this the trigger table's sprite branch spawned at
+        rank 0 and y-sorted against the building that fired it, which is the
+        whole of "show in front does nothing"."""
+        from engine.core import Scene, SpriteAnimator
+        from game.ui import effects
+
+        class _Assets:
+            registry = None
+
+            def animation_total_ms(self, slot_key, name):
+                return 500
+
+        for in_front, expected in ((True, FRONT_RANK), (False, -1)):
+            fm = effects.FloaterManager.__new__(effects.FloaterManager)
+            fm.assets = _Assets()
+            fm.scene = Scene()
+            fm._rng = random.Random(0)
+            fm._triggers = {"defender_fire": effects.TriggerRow(
+                sprite_slot="vfx_muzzle", draw_in_front=in_front)}
+            fm._play("defender_fire", 1.0, 2.0)
+            fm.scene.update(0.0)
+            spawned = fm.scene.by_tag("vfx_oneshot")
+            self.assertEqual(len(spawned), 1)
+            self.assertEqual(spawned[0].transform.rank, expected)
+            item = next(spawned[0].get_component(SpriteAnimator)
+                        .render_items(spawned[0].transform))
+            self.assertEqual(item.rank, expected)
+
 
 # ===========================================================================
 # WorldRect / WorldLines

@@ -385,7 +385,14 @@
     },
     "Music": {
       "boss_phase": {
-        "clips": [],
+        "clips": [
+          {
+            "end": 0.0,
+            "file": "imported/Htbh_Combat.wav",
+            "start": 0.0,
+            "volume": 1.0
+          }
+        ],
         "loop": true,
         "pick": "random"
       },
@@ -395,7 +402,14 @@
         "pick": "random"
       },
       "combat_phase": {
-        "clips": [],
+        "clips": [
+          {
+            "end": 0.0,
+            "file": "imported/HtbH_Combat2_IntroShortened.mp3",
+            "start": 0.0,
+            "volume": 1.0
+          }
+        ],
         "loop": true,
         "pick": "random"
       },

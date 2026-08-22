@@ -897,8 +897,9 @@ class FloaterManager:
                 level=level)
             if column is None:
                 column = _source_column(source)
-            vfx = spawn_play_once(self.scene, self.assets, slot, wx, wy,
-                                  column=column)
+            vfx = spawn_play_once(
+                self.scene, self.assets, slot, wx, wy, column=column,
+                rank=FRONT_RANK if row.draw_in_front else -1)
             if vfx is not None:
                 return
         self._run_procedural(row.procedural, wx, wy, **kw)
